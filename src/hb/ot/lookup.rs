@@ -547,12 +547,13 @@ pub struct SubtableCache<'a> {
 impl<'a> SubtableCache<'a> {
     pub fn new(table_data: &'a [u8], lookups: &'a LookupCache, lookup: LookupInfo) -> Self {
         let subtable_infos = lookups.subtables(&lookup).unwrap_or_default();
+        const VACANT_ENTRY: SubtableCacheEntry = SubtableCacheEntry::Vacant;
         Self {
             table_data,
             lookups,
             lookup,
             subtable_infos,
-            subtables: [const { SubtableCacheEntry::Vacant }; SUBTABLE_CACHE_SIZE],
+            subtables: [VACANT_ENTRY; SUBTABLE_CACHE_SIZE],
         }
     }
 

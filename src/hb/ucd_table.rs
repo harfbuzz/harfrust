@@ -10,6 +10,7 @@
 pub(crate) mod ucd {
 
 #![allow(unused_parens)]
+#![allow(clippy::unnecessary_cast)]
 
 use crate::hb::algs::{HB_CODEPOINT_ENCODE3, HB_CODEPOINT_ENCODE3_11_7_14};
 use crate::hb::common::script;
@@ -758,7 +759,7 @@ pub const _hb_ucd_dm2_u64_map: [u64; 408]=
    HB_CODEPOINT_ENCODE3 (0x1D1BC, 0x1D16E, 0x0000), HB_CODEPOINT_ENCODE3 (0x1D1BC, 0x1D16F, 0x0000),
 ];
 
-const _hb_ucd_u8: [u8; 17612]=
+static _hb_ucd_u8: [u8; 17612]=
 [
     0,  1,  2,  3,  4,  5,  5,  5,  5,  5,  6,  5,  5,  7,  8,  9,
    10, 11, 12, 13, 14, 15, 16,  5, 17, 15, 18, 19, 20, 21, 22, 23,
@@ -1862,7 +1863,7 @@ const _hb_ucd_u8: [u8; 17612]=
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  1,  2,  3,  4,
 ];
-const _hb_ucd_u16: [u16; 10400]=
+static _hb_ucd_u16: [u16; 10400]=
 [
      0,   0,   1,   2,   3,   4,   5,   6,   0,   0,   7,   8,   9,  10,  11,  12,
     13,  13,  13,  14,  15,  13,  13,  16,  17,  18,  19,  20,  21,  22,  13,  23,
@@ -2515,7 +2516,7 @@ const _hb_ucd_u16: [u16; 10400]=
    789, 928, 792,  95, 796, 797, 798, 800,  96, 929, 802, 804, 806,  97,  98, 807,
    930,  99, 931, 932, 933, 814, 100, 816, 817, 818, 819, 820, 821, 935,   0,   0,
 ];
-const _hb_ucd_i16: [i16; 196]=
+static _hb_ucd_i16: [i16; 196]=
 [
       0,    0,    0,    0,    1,   -1,    0,    0,    2,    0,   -2,    0,    0,    0,    0,    2,
       0,   -2,    0,    0,    0,    0,    0,   16,    0,    0,    0,  -16,    0,    0,    1,   -1,
@@ -2534,27 +2535,27 @@ const _hb_ucd_i16: [i16; 196]=
 
 pub fn _hb_ucd_gc (u: usize) -> u8
 {
-  return if u<1114110 { _hb_ucd_u8[6472usize+((((((_hb_ucd_u8[816usize+((((((_hb_ucd_u16[((((_hb_ucd_u8[272usize+((((((_hb_ucd_u8[(u>>1>>3>>4>>4 as usize)] as usize))<<4) as usize)+(((u>>1>>3>>4)&15) as usize) as usize))] as usize))<<4) as usize)+(((u>>1>>3)&15) as usize)] as usize))<<3) as usize)+(((u>>1)&7) as usize) as usize))] as usize))<<1) as usize)+(((u)&1) as usize) as usize))] } else { 2 };
+  if u<1114110 { _hb_ucd_u8[6472usize+((((_hb_ucd_u8[816usize+((((_hb_ucd_u16[(((_hb_ucd_u8[272usize+((((_hb_ucd_u8[(u>>1>>3>>4>>4) as usize]) as usize)<<4) as usize+((u>>1>>3>>4)&15) as usize) as usize]) as usize)<<4) as usize+((u>>1>>3)&15) as usize]) as usize)<<3) as usize+((u>>1)&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize] } else { 2 }
 }
 pub fn _hb_ucd_ccc (u: usize) -> u8
 {
-  return if u<125259 { _hb_ucd_u8[8504usize+((((((_hb_ucd_u8[7936usize+((((((_hb_ucd_u8[7460usize+((((((_hb_ucd_u8[7100usize+((((((_hb_ucd_u8[6854usize+(((u>>2>>2>>2>>3 as usize) as usize))] as usize))<<3) as usize)+(((u>>2>>2>>2)&7) as usize) as usize))] as usize))<<2) as usize)+(((u>>2>>2)&3) as usize) as usize))] as usize))<<2) as usize)+(((u>>2)&3) as usize) as usize))] as usize))<<2) as usize)+(((u)&3) as usize) as usize))] } else { 0 };
+  if u<125259 { _hb_ucd_u8[8504usize+((((_hb_ucd_u8[7936usize+((((_hb_ucd_u8[7460usize+((((_hb_ucd_u8[7100usize+((((_hb_ucd_u8[6854usize+((u>>2>>2>>2>>3) as usize) as usize]) as usize)<<3) as usize+((u>>2>>2>>2)&7) as usize) as usize]) as usize)<<2) as usize+((u>>2>>2)&3) as usize) as usize]) as usize)<<2) as usize+((u>>2)&3) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize) as usize] } else { 0 }
 }
 fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
 {
-  return (a[i>>1]>>((i&1)<<2))&15;
+  (a[i>>1]>>((i&1)<<2))&15
 }
 pub fn _hb_ucd_bmg (u: usize) -> i16
 {
-  return if u<65380 { _hb_ucd_i16[((((_hb_ucd_u8[9252usize+((((((_hb_ucd_u8[9132usize+((((((_hb_ucd_b4(&_hb_ucd_u8[9004usize..],(u>>2>>3>>3 as usize)) as usize))<<3) as usize)+(((u>>2>>3)&7) as usize) as usize))] as usize))<<3) as usize)+(((u>>2)&7) as usize) as usize))] as usize))<<2) as usize)+(((u)&3) as usize)] } else { 0 };
+  if u<65380 { _hb_ucd_i16[(((_hb_ucd_u8[9252usize+((((_hb_ucd_u8[9132usize+((((_hb_ucd_b4(&_hb_ucd_u8[9004usize..],(u>>2>>3>>3) as usize)) as usize)<<3) as usize+((u>>2>>3)&7) as usize) as usize]) as usize)<<3) as usize+((u>>2)&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize] } else { 0 }
 }
 pub fn _hb_ucd_sc (u: usize) -> u8
 {
-  return if u<918000 { _hb_ucd_u8[10486usize+((((((_hb_ucd_u16[3744usize+((((((_hb_ucd_u16[2624usize+((((((_hb_ucd_u8[9588usize+(((u>>3>>3>>4 as usize) as usize))] as usize))<<4) as usize)+(((u>>3>>3)&15) as usize) as usize))] as usize))<<3) as usize)+(((u>>3)&7) as usize) as usize))] as usize))<<3) as usize)+(((u)&7) as usize) as usize))] } else { 2 };
+  if u<918000 { _hb_ucd_u8[10486usize+((((_hb_ucd_u16[3744usize+((((_hb_ucd_u16[2624usize+((((_hb_ucd_u8[9588usize+((u>>3>>3>>4) as usize) as usize]) as usize)<<4) as usize+((u>>3>>3)&15) as usize) as usize]) as usize)<<3) as usize+((u>>3)&7) as usize) as usize]) as usize)<<3) as usize+((u)&7) as usize) as usize] } else { 2 }
 }
 pub fn _hb_ucd_dm (u: usize) -> u16
 {
-  return if u<195102 { _hb_ucd_u16[6976usize+((((((_hb_ucd_u8[16716usize+((((((_hb_ucd_u8[16334usize+(((u>>4>>5 as usize) as usize))] as usize))<<5) as usize)+(((u>>4)&31) as usize) as usize))] as usize))<<4) as usize)+(((u)&15) as usize) as usize))] } else { 0 };
+  if u<195102 { _hb_ucd_u16[6976usize+((((_hb_ucd_u8[16716usize+((((_hb_ucd_u8[16334usize+((u>>4>>5) as usize) as usize]) as usize)<<5) as usize+((u>>4)&31) as usize) as usize]) as usize)<<4) as usize+((u)&15) as usize) as usize] } else { 0 }
 }
 
 }

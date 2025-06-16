@@ -50,7 +50,7 @@ impl OtCache {
             if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
                 gdef_mark_set_digests.extend(mark_sets.coverages().iter().map(|set| {
                     set.ok()
-                        .and_then(|coverage| Some(hb_set_digest_t::from_coverage(&coverage)))
+                        .map(|coverage| hb_set_digest_t::from_coverage(&coverage))
                         .unwrap_or_default()
                 }));
             }
@@ -69,7 +69,7 @@ pub struct GsubTable<'a> {
     pub lookups: &'a LookupCache,
 }
 
-impl<'a> crate::hb::ot_layout::LayoutTable for GsubTable<'a> {
+impl crate::hb::ot_layout::LayoutTable for GsubTable<'_> {
     const INDEX: TableIndex = TableIndex::GSUB;
     const IN_PLACE: bool = false;
 
@@ -85,7 +85,7 @@ pub struct GposTable<'a> {
     pub lookups: &'a LookupCache,
 }
 
-impl<'a> crate::hb::ot_layout::LayoutTable for GposTable<'a> {
+impl crate::hb::ot_layout::LayoutTable for GposTable<'_> {
     const INDEX: TableIndex = TableIndex::GPOS;
     const IN_PLACE: bool = true;
 
@@ -213,10 +213,10 @@ impl<'a> OtTables<'a> {
     ) -> Option<(&'a [u8], &'a LookupCache)> {
         if table_index == TableIndex::GSUB {
             let table = self.gsub.as_ref()?;
-            Some((table.table.offset_data().as_bytes(), &table.lookups))
+            Some((table.table.offset_data().as_bytes(), table.lookups))
         } else {
             let table = self.gpos.as_ref()?;
-            Some((table.table.offset_data().as_bytes(), &table.lookups))
+            Some((table.table.offset_data().as_bytes(), table.lookups))
         }
     }
 

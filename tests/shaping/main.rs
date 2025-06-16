@@ -4,26 +4,21 @@ mod in_house;
 mod macos;
 mod text_rendering_tests;
 
+use harfrust::{BufferFlags, FontRef, ShaperData, ShaperInstance};
 use std::str::FromStr;
-
-use harfruzz::{BufferFlags, ShaperFont};
-use read_fonts::{
-    types::{F2Dot14, Fixed},
-    FontRef, TableProvider,
-};
 
 struct Args {
     face_index: u32,
     font_ptem: Option<f32>,
     variations: Vec<String>,
-    direction: Option<harfruzz::Direction>,
-    language: Option<harfruzz::Language>,
-    script: Option<harfruzz::Script>,
+    direction: Option<harfrust::Direction>,
+    language: Option<harfrust::Language>,
+    script: Option<harfrust::Script>,
     #[allow(dead_code)]
     remove_default_ignorables: bool,
     unsafe_to_concat: bool,
     not_found_variation_selector_glyph: Option<u32>,
-    cluster_level: harfruzz::BufferClusterLevel,
+    cluster_level: harfrust::BufferClusterLevel,
     features: Vec<String>,
     pre_context: Option<String>,
     post_context: Option<String>,
@@ -83,12 +78,12 @@ fn parse_string_list(s: &str) -> Result<Vec<String>, String> {
     Ok(s.split(',').map(|s| s.to_string()).collect())
 }
 
-fn parse_cluster(s: &str) -> Result<harfruzz::BufferClusterLevel, String> {
+fn parse_cluster(s: &str) -> Result<harfrust::BufferClusterLevel, String> {
     match s {
-        "0" => Ok(harfruzz::BufferClusterLevel::MonotoneGraphemes),
-        "1" => Ok(harfruzz::BufferClusterLevel::MonotoneCharacters),
-        "2" => Ok(harfruzz::BufferClusterLevel::Characters),
-        "3" => Ok(harfruzz::BufferClusterLevel::Graphemes),
+        "0" => Ok(harfrust::BufferClusterLevel::MonotoneGraphemes),
+        "1" => Ok(harfrust::BufferClusterLevel::MonotoneCharacters),
+        "2" => Ok(harfrust::BufferClusterLevel::Characters),
+        "3" => Ok(harfrust::BufferClusterLevel::Graphemes),
         _ => Err("invalid cluster level".to_string()),
     }
 }
@@ -118,30 +113,19 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     let variations: Vec<_> = args
         .variations
         .iter()
-        .map(|s| harfruzz::Variation::from_str(s).unwrap())
+        .map(|s| harfrust::Variation::from_str(s).unwrap())
         .collect();
 
-    let mut coords = vec![];
-    if let Ok(fvar) = font.fvar() {
-        coords.resize(fvar.axis_count() as usize, F2Dot14::default());
-        fvar.user_to_normalized(
-            font.avar().ok().as_ref(),
-            variations
-                .iter()
-                .map(|var| (var.tag, Fixed::from_f64(var.value as f64))),
-            &mut coords,
-        );
-    }
-    if coords.iter().all(|coord| *coord == F2Dot14::ZERO) {
-        coords.clear();
-    }
+    let data = ShaperData::new(&font);
+    let instance =
+        (!variations.is_empty()).then(|| ShaperInstance::from_variations(&font, &variations));
+    let shaper = data
+        .shaper(&font)
+        .instance(instance.as_ref())
+        .point_size(args.font_ptem)
+        .build();
 
-    let shaper_font = ShaperFont::new(&font);
-    let mut face = shaper_font.shaper(&font, &coords);
-
-    face.set_points_per_em(args.font_ptem);
-
-    let mut buffer = harfruzz::UnicodeBuffer::new();
+    let mut buffer = harfrust::UnicodeBuffer::new();
     if let Some(pre_context) = args.pre_context {
         buffer.set_pre_context(&pre_context);
     }
@@ -181,36 +165,37 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
 
     let mut features = Vec::new();
     for feature_str in args.features {
-        let feature = harfruzz::Feature::from_str(&feature_str).unwrap();
+        let feature = harfrust::Feature::from_str(&feature_str).unwrap();
         features.push(feature);
     }
 
-    let glyph_buffer = harfruzz::shape(&face, &features, buffer);
+    buffer.guess_segment_properties();
+    let glyph_buffer = shaper.shape(buffer, &features);
 
-    let mut format_flags = harfruzz::SerializeFlags::default();
+    let mut format_flags = harfrust::SerializeFlags::default();
     if args.no_glyph_names {
-        format_flags |= harfruzz::SerializeFlags::NO_GLYPH_NAMES;
+        format_flags |= harfrust::SerializeFlags::NO_GLYPH_NAMES;
     }
 
     if args.no_clusters || args.ned {
-        format_flags |= harfruzz::SerializeFlags::NO_CLUSTERS;
+        format_flags |= harfrust::SerializeFlags::NO_CLUSTERS;
     }
 
     if args.no_positions {
-        format_flags |= harfruzz::SerializeFlags::NO_POSITIONS;
+        format_flags |= harfrust::SerializeFlags::NO_POSITIONS;
     }
 
     if args.no_advances || args.ned {
-        format_flags |= harfruzz::SerializeFlags::NO_ADVANCES;
+        format_flags |= harfrust::SerializeFlags::NO_ADVANCES;
     }
 
     if args.show_extents {
-        format_flags |= harfruzz::SerializeFlags::GLYPH_EXTENTS;
+        format_flags |= harfrust::SerializeFlags::GLYPH_EXTENTS;
     }
 
     if args.show_flags {
-        format_flags |= harfruzz::SerializeFlags::GLYPH_FLAGS;
+        format_flags |= harfrust::SerializeFlags::GLYPH_FLAGS;
     }
 
-    glyph_buffer.serialize(&face, format_flags)
+    glyph_buffer.serialize(&shaper, format_flags)
 }

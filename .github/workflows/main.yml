@@ -1,6 +1,10 @@
 name: Rust
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+    tags: ["*.*.*"]
+  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,5 +26,14 @@ jobs:
     - name: Build with std
       run: cargo build
 
+    - name: MSRV Build (Rust 1.75)
+      run: cargo +1.75 build
+
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Rustfmt
+      run: cargo fmt --all -- --check
+
+    - name: Clippy
+      run: cargo clippy --all-features --all-targets -- -D warnings

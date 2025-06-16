@@ -4,7 +4,7 @@
 
 extern crate test;
 
-use harfruzz::Tag;
+use harfrust::Tag;
 use read_fonts::{
     types::{F2Dot14, Fixed},
     TableProvider,
@@ -16,9 +16,9 @@ struct CustomVariation {
     value: f32,
 }
 
-impl Into<harfruzz::Variation> for CustomVariation {
-    fn into(self) -> harfruzz::Variation {
-        harfruzz::Variation { tag: self.tag, value: self.value }
+impl Into<harfrust::Variation> for CustomVariation {
+    fn into(self) -> harfrust::Variation {
+        harfrust::Variation { tag: self.tag, value: self.value }
     }
 }
 
@@ -44,21 +44,16 @@ macro_rules! simple_bench {
                 let text = std::fs::read_to_string($text_path).unwrap().trim().to_string();
                 bencher.iter(|| {
                     test::black_box({
-                        let font = harfruzz::FontRef::from_index(&font_data, 0).unwrap();
-                        let shaper_font = harfruzz::ShaperFont::new(&font);
+                        let font = harfrust::FontRef::from_index(&font_data, 0).unwrap();
+                        let data = harfrust::ShaperData::new(&font);
                         let vars: &[CustomVariation] = $variations.as_slice();
-                        let vars = vars.iter().copied().map(|var| var.into()).collect::<Vec<harfruzz::Variation>>();
-                        let mut coords = vec![];
-                        if let Ok(fvar) = font.fvar() {
-                            coords.resize(fvar.axis_count() as usize, F2Dot14::default());
-                            fvar.user_to_normalized(None, vars.iter().map(|var: &harfruzz::Variation| (var.tag, Fixed::from_f64(var.value as f64))), &mut coords);
-                        }
-                        let shaper = shaper_font.shaper(&font, &coords);
-                        let mut buffer = harfruzz::UnicodeBuffer::new();
+                        let instance = harfrust::ShaperInstance::from_variations(&font, vars.iter().map(|var| (var.tag, var.value)));
+                        let shaper = data.shaper(&font).instance(Some(&instance)).build();
+                        let mut buffer = harfrust::UnicodeBuffer::new();
                         buffer.push_str(&text);
                         buffer.guess_segment_properties();
-                        let shape_plan = harfruzz::ShapePlan::new(&shaper, buffer.direction(), Some(buffer.script()), buffer.language().as_ref(), &[]);
-                        harfruzz::shape_with_plan(&shaper, &shape_plan, buffer)
+                        let shape_plan = harfrust::ShapePlan::new(&shaper, buffer.direction(), Some(buffer.script()), buffer.language().as_ref(), &[]);
+                        shaper.shape_with_plan(&shape_plan, buffer, &[])
                     });
                 })
             }
@@ -85,26 +80,21 @@ macro_rules! simple_bench {
             fn warm_hr(bencher: &mut Bencher) {
                 let text = std::fs::read_to_string($text_path).unwrap().trim().to_string();
                 let font_data = std::fs::read($font_path).unwrap();
-                let font = harfruzz::FontRef::from_index(&font_data, 0).unwrap();
-                let shaper_font = harfruzz::ShaperFont::new(&font);
+                let font = harfrust::FontRef::from_index(&font_data, 0).unwrap();
+                let data = harfrust::ShaperData::new(&font);
                 let vars: &[CustomVariation] = $variations.as_slice();
-                let vars = vars.iter().copied().map(|var| var.into()).collect::<Vec<harfruzz::Variation>>();
-                let mut coords = vec![];
-                if let Ok(fvar) = font.fvar() {
-                    coords.resize(fvar.axis_count() as usize, F2Dot14::default());
-                    fvar.user_to_normalized(None, vars.iter().map(|var: &harfruzz::Variation| (var.tag, Fixed::from_f64(var.value as f64))), &mut coords);
-                }
-                let shaper = shaper_font.shaper(&font, &coords);
-                let mut buffer = harfruzz::UnicodeBuffer::new();
+                let instance = harfrust::ShaperInstance::from_variations(&font, vars.iter().map(|var| (var.tag, var.value)));
+                let shaper = data.shaper(&font).instance(Some(&instance)).build();
+                let mut buffer = harfrust::UnicodeBuffer::new();
                 buffer.push_str(&text);
                 buffer.guess_segment_properties();
-                let shape_plan = harfruzz::ShapePlan::new(&shaper, buffer.direction(), Some(buffer.script()), buffer.language().as_ref(), &[]);
-                let mut buffer = Some(harfruzz::UnicodeBuffer::new());
+                let shape_plan = harfrust::ShapePlan::new(&shaper, buffer.direction(), Some(buffer.script()), buffer.language().as_ref(), &[]);
+                let mut buffer = Some(harfrust::UnicodeBuffer::new());
                 bencher.iter(|| {
                     test::black_box({
                         let mut filled_buffer = buffer.take().unwrap();
                         filled_buffer.push_str(&text);
-                        let glyph_buffer = harfruzz::shape_with_plan(&shaper, &shape_plan, filled_buffer);
+                        let glyph_buffer = shaper.shape_with_plan(&shape_plan, filled_buffer, &[]);
                         buffer = Some(glyph_buffer.clear());
                     });
                 })

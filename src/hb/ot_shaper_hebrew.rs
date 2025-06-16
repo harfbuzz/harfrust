@@ -39,7 +39,7 @@ fn reorder_marks_hebrew(
             (_hb_glyph_info_get_modified_combining_class(&c1) == modified_combining_class::CCC10
                 || _hb_glyph_info_get_modified_combining_class(&c1) == modified_combining_class::CCC14) /* sheva or hiriq */ &&
             (_hb_glyph_info_get_modified_combining_class(&c2) == modified_combining_class::CCC22
-                || _hb_glyph_info_get_modified_combining_class(&c2) == combining_class::Below as u8)
+                || _hb_glyph_info_get_modified_combining_class(&c2) == combining_class::Below)
         /* meteg or below */
         {
             buffer.merge_clusters(i - 1, i + 1);

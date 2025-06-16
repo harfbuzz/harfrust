@@ -167,7 +167,7 @@ impl UniversalShapePlan {
     fn new(plan: &hb_ot_shape_plan_t) -> UniversalShapePlan {
         let mut arabic_plan = None;
 
-        if plan.script.map_or(false, has_arabic_joining) {
+        if plan.script.is_some_and(has_arabic_joining) {
             arabic_plan = Some(crate::hb::ot_shaper_arabic::data_create_arabic(plan));
         }
 

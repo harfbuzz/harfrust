@@ -210,11 +210,11 @@ fn apply_state_machine_kerning(
 
         // Unsafe-to-break if end-of-text would kick in here.
         if buffer.idx + 2 <= buffer.len {
-            let end_entry =
-                match subtable.entry(state as u16, read_fonts::tables::aat::class::END_OF_TEXT) {
-                    Ok(v) => v,
-                    _ => break,
-                };
+            let end_entry = match subtable.entry(state, read_fonts::tables::aat::class::END_OF_TEXT)
+            {
+                Ok(v) => v,
+                _ => break,
+            };
 
             if end_entry.has_offset() {
                 buffer.unsafe_to_break(Some(buffer.idx), Some(buffer.idx + 2));
@@ -222,7 +222,7 @@ fn apply_state_machine_kerning(
         }
 
         state_machine_transition(
-            &subtable,
+            subtable,
             &entry,
             is_cross_stream,
             kern_mask,

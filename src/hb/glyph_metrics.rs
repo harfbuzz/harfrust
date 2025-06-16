@@ -17,6 +17,8 @@ pub(crate) struct GlyphMetrics<'a> {
     vorg: Option<Vorg<'a>>,
     glyf: Option<GlyfTables<'a>>,
     mvar: Option<Mvar<'a>>,
+    num_glyphs: u32,
+    upem: u16,
     ascent: i16,
     descent: i16,
 }
@@ -30,6 +32,11 @@ struct GlyfTables<'a> {
 
 impl<'a> GlyphMetrics<'a> {
     pub fn new(font: &FontRef<'a>) -> Self {
+        let num_glyphs = font
+            .maxp()
+            .map(|maxp| maxp.num_glyphs() as u32)
+            .unwrap_or(0);
+        let upem = font.head().map(|head| head.units_per_em()).unwrap_or(1024);
         let hmtx = font.hmtx().ok();
         let hvar = font.hvar().ok();
         let vmtx = font.vmtx().ok();
@@ -60,6 +67,8 @@ impl<'a> GlyphMetrics<'a> {
             vorg,
             glyf,
             mvar,
+            num_glyphs,
+            upem,
             ascent,
             descent,
         }
@@ -67,12 +76,13 @@ impl<'a> GlyphMetrics<'a> {
 
     pub fn advance_width(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
         let gid = gid.into();
-        let mut advance = if let Some(hmtx) = self.hmtx.as_ref() {
-            hmtx.advance(gid)? as i32
-        } else if let Some(extents) = self.extents(gid, coords) {
-            return Some(extents.x_max + extents.x_min);
-        } else {
-            return None;
+        let Some(mut advance) = self
+            .hmtx
+            .as_ref()
+            .and_then(|hmtx| hmtx.advance(gid))
+            .map(|advance| advance as i32)
+        else {
+            return (gid.to_u32() < self.num_glyphs).then_some(self.upem as i32 / 2);
         };
         if !coords.is_empty() {
             if let Some(hvar) = self.hvar.as_ref() {
@@ -108,10 +118,13 @@ impl<'a> GlyphMetrics<'a> {
 
     pub fn advance_height(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
         let gid = gid.into();
-        let mut advance = if let Some(vmtx) = self.vmtx.as_ref() {
-            vmtx.advance(gid).unwrap_or(0) as i32
-        } else {
-            self.ascent as i32 - self.descent as i32
+        let Some(mut advance) = self
+            .vmtx
+            .as_ref()
+            .and_then(|vmtx| vmtx.advance(gid))
+            .map(|advance| advance as i32)
+        else {
+            return Some(self.ascent as i32 - self.descent as i32);
         };
         if !coords.is_empty() {
             if let Some(vvar) = self.vvar.as_ref() {
@@ -214,7 +227,7 @@ impl<'a> GlyphMetrics<'a> {
             return Some(BoundingBox::default());
         };
         if !coords.is_empty() {
-            return None; // TODO https://github.com/harfbuzz/harfruzz/pull/52#issuecomment-2878117808
+            return None; // TODO https://github.com/harfbuzz/harfrust/pull/52#issuecomment-2878117808
         }
         Some(BoundingBox {
             x_min: glyph.x_min() as i32,

@@ -255,7 +255,7 @@ struct matcher_t<'a> {
     mark_filter: MarkFilter<'a>,
 }
 
-impl<'a> Default for matcher_t<'a> {
+impl Default for matcher_t<'_> {
     fn default() -> Self {
         matcher_t {
             lookup_props: 0,

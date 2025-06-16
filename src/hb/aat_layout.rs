@@ -8,6 +8,7 @@ use super::{aat_map, hb_font_t};
 use crate::hb::aat_layout_common::hb_aat_apply_context_t;
 use crate::hb::aat_layout_common::HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
 use crate::hb::ot_layout::_hb_glyph_info_is_aat_deleted;
+use crate::Feature;
 
 pub type hb_aat_layout_feature_type_t = u8;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_INVALID: u8 = 0xFF;
@@ -497,10 +498,11 @@ pub fn hb_aat_layout_substitute(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
     buffer: &mut hb_buffer_t,
+    features: &[Feature],
 ) {
     let mut builder = aat_map::hb_aat_map_builder_t::default();
 
-    for feature in &plan.user_features {
+    for feature in features {
         builder.add_feature(face, feature);
     }
 

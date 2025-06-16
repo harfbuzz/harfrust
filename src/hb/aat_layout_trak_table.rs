@@ -10,7 +10,7 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 
 pub fn apply(_plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) -> Option<()> {
     let trak = face.aat_tables.trak.as_ref()?;
-    let mut ptem = face.points_per_em.unwrap_or(0.0) as f32;
+    let mut ptem = face.points_per_em.unwrap_or(0.0);
     if ptem <= 0.0 {
         ptem = 12.0; // CoreText fallback
     }
@@ -88,7 +88,7 @@ impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
         };
 
         if tracks.len() == 1 {
-            return tracks.get(0).map(|t| get_value(t)).unwrap_or(0.0);
+            return tracks.first().map(get_value).unwrap_or(0.0);
         }
 
         let mut i = 0;
@@ -104,7 +104,7 @@ impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
         }
 
         if i == j {
-            return tracks.get(i).map(|t| get_value(t)).unwrap_or(0.0);
+            return tracks.get(i).map(get_value).unwrap_or(0.0);
         }
 
         let t0 = tracks.get(i).map(|t| t.track().to_f32()).unwrap_or(0.0);
@@ -115,8 +115,8 @@ impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
             (track - t0) / (t1 - t0)
         };
 
-        let a = tracks.get(i).map(|t| get_value(t)).unwrap_or(0.0);
-        let b = tracks.get(j).map(|t| get_value(t)).unwrap_or(0.0);
+        let a = tracks.get(i).map(get_value).unwrap_or(0.0);
+        let b = tracks.get(j).map(get_value).unwrap_or(0.0);
         a + interp * (b - a)
     }
 }
@@ -136,7 +136,7 @@ impl TrackEntryExt for read_fonts::tables::trak::TrackTableEntry {
             let size_pt = sizes.get(i).map(|f| f.get().to_f32()).unwrap_or(0.0);
             if size_pt >= ptem {
                 if i == 0 {
-                    return values.get(0).map(|v| v.get() as f32).unwrap_or_default();
+                    return values.first().map(|v| v.get() as f32).unwrap_or_default();
                 }
 
                 let s0 = sizes.get(i - 1).map(|f| f.get().to_f32()).unwrap_or(0.0);

@@ -1,5 +1,4 @@
 use alloc::boxed::Box;
-use alloc::vec::Vec;
 use core::any::Any;
 
 use super::ot_map::*;
@@ -36,8 +35,6 @@ pub struct hb_ot_shape_plan_t {
     pub(crate) apply_kerx: bool,
     pub(crate) apply_morx: bool,
     pub(crate) apply_trak: bool,
-
-    pub(crate) user_features: Vec<Feature>,
 }
 
 impl hb_ot_shape_plan_t {
@@ -53,7 +50,7 @@ impl hb_ot_shape_plan_t {
         assert_ne!(direction, Direction::Invalid);
         let mut planner = hb_ot_shape_planner_t::new(face, direction, script, language);
         planner.collect_features(user_features);
-        planner.compile(user_features)
+        planner.compile()
     }
 
     pub(crate) fn data<T: 'static>(&self) -> &T {

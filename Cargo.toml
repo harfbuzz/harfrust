@@ -1,12 +1,12 @@
 [package]
-name = "harfruzz"
+name = "harfrust"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
-description = "A complete harfbuzz shaping algorithm port to Rust."
-documentation = "https://docs.rs/harfruzz/"
+description = "A complete HarfBuzz shaping algorithm port to Rust."
+documentation = "https://docs.rs/harfrust/"
 readme = "README.md"
-repository = "https://github.com/harfbuzz/harfruzz"
+repository = "https://github.com/harfbuzz/harfrust"
 license = "MIT"
 keywords = ["text", "shaping", "opentype", "truetype"]
 categories = ["text-processing"]

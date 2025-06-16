@@ -132,13 +132,13 @@ pub trait SimpleKerning {
 
 impl SimpleKerning for Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
-        self.kerning(left, right).map(|value| value as i32)
+        self.kerning(left, right)
     }
 }
 
 impl SimpleKerning for Subtable2<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
-        self.kerning(left, right).map(|value| value as i32)
+        self.kerning(left, right)
     }
 }
 

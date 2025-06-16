@@ -48,7 +48,7 @@ where
     }
 }
 
-impl<'a, T, F> Add<usize> for MachineCursor<'a, T, F>
+impl<T, F> Add<usize> for MachineCursor<'_, T, F>
 where
     F: Fn(&[T], usize) -> bool,
 {
@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<'a, T, F> Sub<usize> for MachineCursor<'a, T, F>
+impl<T, F> Sub<usize> for MachineCursor<'_, T, F>
 where
     F: Fn(&[T], usize) -> bool,
 {
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<'a, T, F> AddAssign<usize> for MachineCursor<'a, T, F>
+impl<T, F> AddAssign<usize> for MachineCursor<'_, T, F>
 where
     F: Fn(&[T], usize) -> bool,
 {
@@ -87,7 +87,7 @@ where
     }
 }
 
-impl<'a, T, F> SubAssign<usize> for MachineCursor<'a, T, F>
+impl<T, F> SubAssign<usize> for MachineCursor<'_, T, F>
 where
     F: Fn(&[T], usize) -> bool,
 {
@@ -98,13 +98,13 @@ where
     }
 }
 
-impl<'a, T, F> PartialEq for MachineCursor<'a, T, F> {
+impl<T, F> PartialEq for MachineCursor<'_, T, F> {
     fn eq(&self, other: &Self) -> bool {
         self.pos == other.pos
     }
 }
 
-impl<'a, T, F> Clone for MachineCursor<'a, T, F>
+impl<T, F> Clone for MachineCursor<'_, T, F>
 where
     F: Clone,
 {
@@ -117,4 +117,4 @@ where
     }
 }
 
-impl<'a, T, F> Copy for MachineCursor<'a, T, F> where F: Copy {}
+impl<T, F> Copy for MachineCursor<'_, T, F> where F: Copy {}

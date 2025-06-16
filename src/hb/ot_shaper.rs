@@ -179,7 +179,7 @@ pub fn hb_ot_shape_complex_categorize(
             if gsub_script == Some(hb_tag_t::default_script()) ||
                gsub_script == Some(hb_tag_t::new(b"latn")) {
                 &DEFAULT_SHAPER
-            } else if gsub_script.map_or(false, |tag| tag.to_be_bytes()[3] == b'3') {
+            } else if gsub_script.is_some_and(|tag| tag.to_be_bytes()[3] == b'3') {
                 &crate::hb::ot_shaper_use::UNIVERSAL_SHAPER
             } else {
                 &crate::hb::ot_shaper_indic::INDIC_SHAPER

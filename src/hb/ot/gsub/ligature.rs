@@ -89,7 +89,7 @@ impl WouldApply for LigatureSubstFormat1<'_> {
             .ok()
             .and_then(|coverage| coverage.get(ctx.glyphs[0]))
             .and_then(|index| self.ligature_sets().get(index as usize).ok())
-            .map_or(false, |set| set.would_apply(ctx))
+            .is_some_and(|set| set.would_apply(ctx))
     }
 }
 

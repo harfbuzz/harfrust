@@ -19,69 +19,69 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
         if class == 0 {
             match u {
                 0x0E31 | 0x0E34 | 0x0E35 | 0x0E36 | 0x0E37 | 0x0E47 | 0x0E4C | 0x0E4D | 0x0E4E => {
-                    class = combining_class::AboveRight as u8
+                    class = combining_class::AboveRight
                 }
 
                 0x0EB1 | 0x0EB4 | 0x0EB5 | 0x0EB6 | 0x0EB7 | 0x0EBB | 0x0ECC | 0x0ECD => {
-                    class = combining_class::Above as u8
+                    class = combining_class::Above
                 }
 
-                0x0EBC => class = combining_class::Below as u8,
+                0x0EBC => class = combining_class::Below,
 
                 _ => {}
             }
         } else {
             // Thai virama is below-right
             if u == 0x0E3A {
-                class = combining_class::BelowRight as u8;
+                class = combining_class::BelowRight;
             }
         }
     }
 
     match class {
         // Hebrew
-        mcc::CCC10 => combining_class::Below as u8, // sheva
-        mcc::CCC11 => combining_class::Below as u8, // hataf segol
-        mcc::CCC12 => combining_class::Below as u8, // hataf patah
-        mcc::CCC13 => combining_class::Below as u8, // hataf qamats
-        mcc::CCC14 => combining_class::Below as u8, // hiriq
-        mcc::CCC15 => combining_class::Below as u8, // tsere
-        mcc::CCC16 => combining_class::Below as u8, // segol
-        mcc::CCC17 => combining_class::Below as u8, // patah
-        mcc::CCC18 => combining_class::Below as u8, // qamats & qamats qatan
-        mcc::CCC20 => combining_class::Below as u8, // qubuts
-        mcc::CCC22 => combining_class::Below as u8, // meteg
-        mcc::CCC23 => combining_class::AttachedAbove as u8, // rafe
-        mcc::CCC24 => combining_class::AboveRight as u8, // shin dot
-        mcc::CCC25 => combining_class::AboveLeft as u8, // sin dot
-        mcc::CCC19 => combining_class::AboveLeft as u8, // holam & holam haser for vav
-        mcc::CCC26 => combining_class::Above as u8, // point varika
-        mcc::CCC21 => class,                        // dagesh
+        mcc::CCC10 => combining_class::Below,         // sheva
+        mcc::CCC11 => combining_class::Below,         // hataf segol
+        mcc::CCC12 => combining_class::Below,         // hataf patah
+        mcc::CCC13 => combining_class::Below,         // hataf qamats
+        mcc::CCC14 => combining_class::Below,         // hiriq
+        mcc::CCC15 => combining_class::Below,         // tsere
+        mcc::CCC16 => combining_class::Below,         // segol
+        mcc::CCC17 => combining_class::Below,         // patah
+        mcc::CCC18 => combining_class::Below,         // qamats & qamats qatan
+        mcc::CCC20 => combining_class::Below,         // qubuts
+        mcc::CCC22 => combining_class::Below,         // meteg
+        mcc::CCC23 => combining_class::AttachedAbove, // rafe
+        mcc::CCC24 => combining_class::AboveRight,    // shin dot
+        mcc::CCC25 => combining_class::AboveLeft,     // sin dot
+        mcc::CCC19 => combining_class::AboveLeft,     // holam & holam haser for vav
+        mcc::CCC26 => combining_class::Above,         // point varika
+        mcc::CCC21 => class,                          // dagesh
 
         // Arabic and Syriac
-        mcc::CCC27 => combining_class::Above as u8, // fathatan
-        mcc::CCC28 => combining_class::Above as u8, // dammatan
-        mcc::CCC30 => combining_class::Above as u8, // fatha
-        mcc::CCC31 => combining_class::Above as u8, // damma
-        mcc::CCC33 => combining_class::Above as u8, // shadda
-        mcc::CCC34 => combining_class::Above as u8, // sukun
-        mcc::CCC35 => combining_class::Above as u8, // superscript alef
-        mcc::CCC36 => combining_class::Above as u8, // superscript alaph
-        mcc::CCC29 => combining_class::Below as u8, // kasratan
-        mcc::CCC32 => combining_class::Below as u8, // kasra
+        mcc::CCC27 => combining_class::Above, // fathatan
+        mcc::CCC28 => combining_class::Above, // dammatan
+        mcc::CCC30 => combining_class::Above, // fatha
+        mcc::CCC31 => combining_class::Above, // damma
+        mcc::CCC33 => combining_class::Above, // shadda
+        mcc::CCC34 => combining_class::Above, // sukun
+        mcc::CCC35 => combining_class::Above, // superscript alef
+        mcc::CCC36 => combining_class::Above, // superscript alaph
+        mcc::CCC29 => combining_class::Below, // kasratan
+        mcc::CCC32 => combining_class::Below, // kasra
 
         // Thai
-        mcc::CCC103 => combining_class::BelowRight as u8, // sara u / sara uu
-        mcc::CCC107 => combining_class::AboveRight as u8, // mai
+        mcc::CCC103 => combining_class::BelowRight, // sara u / sara uu
+        mcc::CCC107 => combining_class::AboveRight, // mai
 
         // Lao
-        mcc::CCC118 => combining_class::Below as u8, // sign u / sign uu
-        mcc::CCC122 => combining_class::Above as u8, // mai
+        mcc::CCC118 => combining_class::Below, // sign u / sign uu
+        mcc::CCC122 => combining_class::Above, // mai
 
         // Tibetian
-        mcc::CCC129 => combining_class::Below as u8, // sign aa
-        mcc::CCC130 => combining_class::Above as u8, // sign i
-        mcc::CCC132 => combining_class::Below as u8, // sign u
+        mcc::CCC129 => combining_class::Below, // sign aa
+        mcc::CCC130 => combining_class::Above, // sign i
+        mcc::CCC132 => combining_class::Below, // sign u
 
         _ => class,
     }

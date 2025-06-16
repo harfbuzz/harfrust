@@ -13,18 +13,16 @@ extern crate alloc;
 
 mod hb;
 
-pub use read_fonts::{
-    types::{F2Dot14, Tag},
-    FontRef,
-};
+pub use read_fonts::{types::Tag, FontRef};
 
 pub use hb::buffer::hb_glyph_info_t as GlyphInfo;
 pub use hb::buffer::{GlyphBuffer, GlyphPosition, UnicodeBuffer};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
-pub use hb::face::hb_font_t as Face;
-pub use hb::face::{Shaper, ShaperFont};
+pub use hb::face::{hb_font_t as Shaper, ShaperBuilder, ShaperData, ShaperInstance};
 pub use hb::ot_shape_plan::hb_ot_shape_plan_t as ShapePlan;
-pub use hb::shape::{shape, shape_with_plan};
+
+/// Type alias for a normalized variation coordinate.
+pub type NormalizedCoord = read_fonts::types::F2Dot14;
 
 bitflags::bitflags! {
     /// Flags for buffers.
@@ -45,7 +43,7 @@ bitflags::bitflags! {
         /// Indicates that the `UNSAFE_TO_CONCAT` glyph-flag should be produced by the shaper. By default it will not be produced since it incurs a cost.
         const PRODUCE_UNSAFE_TO_CONCAT      = 0x00000040;
         /// Indicates that the `SAFE_TO_INSERT_TATWEEL` glyph-flag should be produced by the shaper. By default it will not be produced.
-        const PRODUCE_SAFE_TO_INSERT_TATWEEL      = 0x00000040;
+        const PRODUCE_SAFE_TO_INSERT_TATWEEL      = 0x00000080;
         /// All currently defined flags
         const DEFINED = 0x000000FF;
     }
@@ -74,24 +72,15 @@ impl BufferClusterLevel {
     }
     #[inline]
     fn is_monotone(self) -> bool {
-        match self {
-            Self::MonotoneGraphemes | Self::MonotoneCharacters => true,
-            _ => false,
-        }
+        matches!(self, Self::MonotoneGraphemes | Self::MonotoneCharacters)
     }
     #[inline]
     fn is_graphemes(self) -> bool {
-        match self {
-            Self::MonotoneGraphemes | Self::Graphemes => true,
-            _ => false,
-        }
+        matches!(self, Self::MonotoneGraphemes | Self::Graphemes)
     }
     #[inline]
     fn _is_characters(self) -> bool {
-        match self {
-            Self::MonotoneCharacters | Self::Characters => true,
-            _ => false,
-        }
+        matches!(self, Self::MonotoneCharacters | Self::Characters)
     }
 }
 

@@ -7,7 +7,7 @@ name = "benchmarks"
 version = "0.1.0"
 dependencies = [
  "harfbuzz_rs",
- "harfruzz",
+ "harfrust",
  "read-fonts",
 ]
 
@@ -81,7 +81,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "harfruzz"
+name = "harfrust"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.9.0",

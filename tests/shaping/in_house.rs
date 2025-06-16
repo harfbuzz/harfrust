@@ -46086,6 +46086,18 @@ fn indic_consonant_with_stacker_004() {
 }
 
 #[test]
+fn indic_decompose_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/932ad5132c2761297c74e9976fe25b08e5ffa10b.ttf",
+            "\u{09DC}\u{0020}\u{09DD}\u{0020}\u{09A1}\u{09BC}\u{0020}\u{09A2}\u{09BC}",
+            "",
+        ),
+        "bn_rha=0+512|space=1+512|bn_yya=2+512|space=3+512|bn_dda=4+512|bn_nukta=4+512|space=6+512|bn_ddha=7+512|bn_nukta=7+512"
+    );
+}
+
+#[test]
 fn indic_feature_order_001() {
     assert_eq!(
         shape(

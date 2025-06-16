@@ -69,7 +69,6 @@ mod ot_shaper_use_table;
 mod aat_layout_common;
 mod ot_shaper_vowel_constraints;
 mod set_digest;
-pub mod shape;
 mod tag;
 mod tag_table;
 mod text_parser;

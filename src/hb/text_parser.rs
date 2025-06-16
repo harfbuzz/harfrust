@@ -126,13 +126,13 @@ impl<'a> TextParser<'a> {
 
         let value = self.consume_bytes(|c| c.is_ascii_alphabetic()).as_bytes();
         if value.len() == 2 {
-            if value[0].to_ascii_lowercase() == b'o' && value[1].to_ascii_lowercase() == b'n' {
+            if value[0].eq_ignore_ascii_case(&b'o') && value[1].eq_ignore_ascii_case(&b'n') {
                 return Some(true);
             }
         } else if value.len() == 3 {
-            if value[0].to_ascii_lowercase() == b'o'
-                && value[1].to_ascii_lowercase() == b'f'
-                && value[2].to_ascii_lowercase() == b'f'
+            if value[0].eq_ignore_ascii_case(&b'o')
+                && value[1].eq_ignore_ascii_case(&b'f')
+                && value[2].eq_ignore_ascii_case(&b'f')
             {
                 return Some(false);
             }

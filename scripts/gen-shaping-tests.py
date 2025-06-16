@@ -29,11 +29,6 @@ IGNORE_TEST_CASES = [
     "collections_003",
     # Face index out of bounds. ttf-parser doesn't permit this.
     "collections_006",
-    # no `hhea` table.
-    "indic_decompose_001",
-    # Resource exhaustion tests with large outputs
-    "morx_34_001",
-    "morx_36_001",
     # Requires support for the ltag table.
     "macos_002",
     # Custom MacOS test. A shortened version of `macos_013`, but with `--show-flags`.
@@ -57,12 +52,12 @@ IGNORE_TEST_CASES = [
     "colr_021",
 
     # We ignore extents for COLRv1 in a "forward looking shaper"
-    # (see https://github.com/harfbuzz/harfruzz/pull/4#issuecomment-2252964385)
+    # (see https://github.com/harfbuzz/harfrust/pull/4#issuecomment-2252964385)
     "color_fonts_001",
     "color_fonts_002",
     "color_fonts_003",
 
-    # https://github.com/harfbuzz/harfruzz/pull/52
+    # https://github.com/harfbuzz/harfrust/pull/52
     "vertical_016",
 ]
 

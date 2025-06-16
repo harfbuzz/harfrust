@@ -1,5 +1,8 @@
 use alloc::string::String;
-use core::ops::{Bound, RangeBounds};
+use core::{
+    ops::{Bound, RangeBounds},
+    str::FromStr,
+};
 
 use read_fonts::types::Tag;
 
@@ -710,6 +713,44 @@ impl core::str::FromStr for Variation {
         }
 
         parse(s).ok_or("invalid variation")
+    }
+}
+
+// The following From impls are designed to match the convenience
+// impls in skrifa which have proven to be fairly useful in practice.
+impl From<&Variation> for Variation {
+    fn from(value: &Variation) -> Self {
+        *value
+    }
+}
+
+impl From<(&str, f32)> for Variation {
+    fn from(value: (&str, f32)) -> Self {
+        Self {
+            tag: Tag::from_str(value.0).unwrap_or_default(),
+            value: value.1,
+        }
+    }
+}
+
+impl From<&(&str, f32)> for Variation {
+    fn from(value: &(&str, f32)) -> Self {
+        (*value).into()
+    }
+}
+
+impl From<(Tag, f32)> for Variation {
+    fn from(value: (Tag, f32)) -> Self {
+        Self {
+            tag: value.0,
+            value: value.1,
+        }
+    }
+}
+
+impl From<&(Tag, f32)> for Variation {
+    fn from(value: &(Tag, f32)) -> Self {
+        (*value).into()
     }
 }
 
