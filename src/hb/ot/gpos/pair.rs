@@ -184,30 +184,26 @@ impl Apply for PairPosFormat2<'_> {
         let class2 = super::super::glyph_class(self.class_def2(), second_glyph);
 
         let data = self.offset_data();
-        match self
+        if let Ok(class2_record) = self
             .class1_records()
             .get(class1 as usize)
             .and_then(|rec| rec.class2_records().get(class2 as usize))
-            .ok()
         {
-            Some(class2_record) => {
-                let values = (
-                    Value {
-                        record: class2_record.value_record1,
-                        data,
-                    },
-                    Value {
-                        record: class2_record.value_record2,
-                        data,
-                    },
-                );
-                bail(ctx, &mut iter.buf_idx, values)
-            }
-            _ => {
-                ctx.buffer
-                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(iter.index() + 1));
-                None
-            }
+            let values = (
+                Value {
+                    record: class2_record.value_record1,
+                    data,
+                },
+                Value {
+                    record: class2_record.value_record2,
+                    data,
+                },
+            );
+            bail(ctx, &mut iter.buf_idx, values)
+        } else {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(iter.index() + 1));
+            None
         }
     }
 }

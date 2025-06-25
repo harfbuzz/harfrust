@@ -120,9 +120,8 @@ fn skip_char(buffer: &mut hb_buffer_t) {
 
 /// Returns 0 if didn't decompose, number of resulting characters otherwise.
 fn decompose(ctx: &mut hb_ot_shape_normalize_context_t, shortest: bool, ab: hb_codepoint_t) -> u32 {
-    let (a, b) = match (ctx.decompose)(ctx, ab) {
-        Some(decomposed) => decomposed,
-        _ => return 0,
+    let Some((a, b)) = (ctx.decompose)(ctx, ab) else {
+        return 0;
     };
 
     let a_glyph = ctx.face.get_nominal_glyph(u32::from(a));

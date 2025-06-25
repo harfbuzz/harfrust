@@ -203,7 +203,7 @@ impl hb_aat_map_builder_t {
             if event.index != last_index {
                 // Save a snapshot of active features and the range.
                 // Sort features and merge duplicates.
-                self.current_features = active_features.clone();
+                self.current_features.clone_from(&active_features);
                 self.range_first = last_index;
                 self.range_last = event.index.wrapping_sub(1);
 
@@ -241,7 +241,7 @@ impl hb_aat_map_builder_t {
             }
         }
 
-        for chain_flags in m.chain_flags.iter_mut() {
+        for chain_flags in &mut m.chain_flags {
             if let Some(last) = chain_flags.last_mut() {
                 last.cluster_last = HB_FEATURE_GLOBAL_END;
             }
