@@ -325,7 +325,7 @@ impl<'a, 'b> skipping_iterator_t<'a, 'b> {
     }
 
     pub fn set_glyph_data(&mut self, glyph_data: u16) {
-        self.glyph_data = glyph_data
+        self.glyph_data = glyph_data;
     }
 
     fn advance_glyph_data(&mut self) {
@@ -940,7 +940,7 @@ pub fn ligate_input(
             // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
             assert!(comps_so_far >= last_num_comps);
             let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
-            _hb_glyph_info_set_lig_props_for_mark(info, lig_id, new_lig_comp)
+            _hb_glyph_info_set_lig_props_for_mark(info, lig_id, new_lig_comp);
         }
     }
 }

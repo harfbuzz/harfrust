@@ -176,7 +176,7 @@ impl hb_glyph_info_t {
     }
 
     fn set_arabic_shaping_action(&mut self, action: u8) {
-        self.set_ot_shaper_var_u8_auxiliary(action)
+        self.set_ot_shaper_var_u8_auxiliary(action);
     }
 }
 
@@ -383,7 +383,7 @@ fn mongolian_variation_selectors(buffer: &mut hb_buffer_t) {
 
 fn setup_masks_arabic_plan(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
     let arabic_plan = plan.data::<arabic_shape_plan_t>();
-    setup_masks_inner(arabic_plan, plan.script, buffer)
+    setup_masks_inner(arabic_plan, plan.script, buffer);
 }
 
 pub fn setup_masks_inner(
@@ -597,7 +597,7 @@ fn apply_stch(face: &hb_font_t, buffer: &mut hb_buffer_t) {
 }
 
 fn postprocess_glyphs_arabic(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
-    apply_stch(face, buffer)
+    apply_stch(face, buffer);
 }
 
 // http://www.unicode.org/reports/tr53/

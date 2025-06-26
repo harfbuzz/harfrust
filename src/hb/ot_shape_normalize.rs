@@ -230,7 +230,7 @@ fn handle_variation_selector_cluster(
                 _hb_glyph_info_set_variation_selector(buffer.cur_mut(0), true);
 
                 if buffer.not_found_variation_selector.is_some() {
-                    _hb_glyph_info_clear_default_ignorable(buffer.cur_mut(0))
+                    _hb_glyph_info_clear_default_ignorable(buffer.cur_mut(0));
                 }
 
                 set_glyph(buffer.cur_mut(0), face);

@@ -212,7 +212,7 @@ fn apply_simple_kerning<T: SimpleKerning>(
                 }
             }
 
-            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1))
+            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
         }
 
         i = j;

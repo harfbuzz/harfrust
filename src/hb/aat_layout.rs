@@ -532,7 +532,7 @@ fn is_deleted_glyph(info: &hb_glyph_info_t) -> bool {
 
 pub fn hb_aat_layout_remove_deleted_glyphs(buffer: &mut hb_buffer_t) {
     if (buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED) != 0 {
-        buffer.delete_glyphs_inplace(is_deleted_glyph)
+        buffer.delete_glyphs_inplace(is_deleted_glyph);
     }
 }
 

@@ -19,7 +19,7 @@ impl hb_glyph_info_t {
     }
 
     fn set_hangul_shaping_feature(&mut self, feature: u8) {
-        self.set_ot_shaper_var_u8_auxiliary(feature)
+        self.set_ot_shaper_var_u8_auxiliary(feature);
     }
 }
 
