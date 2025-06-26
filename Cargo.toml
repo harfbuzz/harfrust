@@ -26,3 +26,62 @@ std = ["read-fonts/std"]
 [dev-dependencies]
 pico-args = { version = "0.5", features = ["eq-separator"] }
 libc = "0.2"
+
+[lints.rust]
+# TODO: enable this and fix related code
+unused_qualifications = "allow"
+
+[lints.clippy]
+cargo = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# These are the currently triggering clippy lints, which should be fixed in the subsequent PRs.
+# This list was generated with this command:
+#  cargo clippy --all-targets --workspace --all-features --message-format=json --quiet | jq -r '.message.code.code | select(. != null and startswith("clippy::"))' | sort | uniq -c | sort -h -r
+match_same_arms = "allow"  # 396
+used_underscore_items = "allow"  # 366
+cast_lossless = "allow"  # 274
+cast_sign_loss = "allow"  # 192
+used_underscore_binding = "allow"  # 160
+cast_possible_truncation = "allow"  # 160
+unreadable_literal = "allow"  # 116
+wildcard_imports = "allow"  # 72
+cast_possible_wrap = "allow"  # 66
+semicolon_if_nothing_returned = "allow"  # 64
+must_use_candidate = "allow"  # 62
+map_unwrap_or = "allow"  # 36
+if_not_else = "allow"  # 29
+redundant_closure_for_method_calls = "allow"  # 27
+too_many_lines = "allow"  # 26
+doc_markdown = "allow"  # 26
+manual_is_variant_and = "allow"  # 24
+manual_let_else = "allow"  # 18
+struct_excessive_bools = "allow"  # 14
+many_single_char_names = "allow"  # 14
+mut_mut = "allow"  # 10
+similar_names = "allow"  # 8
+range_minus_one = "allow"  # 8
+items_after_statements = "allow"  # 8
+unnested_or_patterns = "allow"  # 6
+unnecessary_wraps = "allow"  # 6
+unnecessary_semicolon = "allow"  # 6
+uninlined_format_args = "allow"  # 5
+trivially_copy_pass_by_ref = "allow"  # 4
+single_match_else = "allow"  # 4
+return_self_not_must_use = "allow"  # 4
+redundant_else = "allow"  # 4
+range_plus_one = "allow"  # 4
+needless_continue = "allow"  # 4
+missing_panics_doc = "allow"  # 3
+ref_option = "allow"  # 2
+needless_pass_by_value = "allow"  # 2
+inconsistent_struct_constructor = "allow"  # 2
+fn_params_excessive_bools = "allow"  # 2
+filter_map_next = "allow"  # 2
+explicit_iter_loop = "allow"  # 2
+default_trait_access = "allow"  # 2
+cloned_instead_of_copied = "allow"  # 2
+cast_precision_loss = "allow"  # 2
+assigning_clones = "allow"  # 2
+single_char_pattern = "allow"  # 1
+ptr_as_ptr = "allow"  # 1
+large_stack_arrays = "allow"  # 1
