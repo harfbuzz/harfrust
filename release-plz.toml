@@ -1,0 +1,4 @@
+[workspace]
+dependencies_update = true
+git_release_name = "v{{ version }}"
+git_tag_name = "v{{ version }}"
