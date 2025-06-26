@@ -1132,7 +1132,7 @@ fn initial_reordering_consonant_syllable(
             buffer.info[i].set_syllable(u8::try_from(i - start).unwrap());
         }
 
-        buffer.info[start..end].sort_by_key(|a| a.indic_position());
+        buffer.info[start..end].sort_by_key(hb_glyph_info_t::indic_position);
 
         // Find base again; also flip left-matra sequence.
         let mut first_left_mantra = end;

@@ -75,7 +75,7 @@ fn parse_args(args: Vec<std::ffi::OsString>) -> Result<Args, pico_args::Error> {
 }
 
 fn parse_string_list(s: &str) -> Result<Vec<String>, String> {
-    Ok(s.split(',').map(|s| s.to_string()).collect())
+    Ok(s.split(',').map(ToString::to_string).collect())
 }
 
 fn parse_cluster(s: &str) -> Result<harfrust::BufferClusterLevel, String> {

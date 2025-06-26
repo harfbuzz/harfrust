@@ -68,7 +68,7 @@ impl WouldApply for LigatureSet<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         self.ligatures()
             .iter()
-            .filter_map(|lig| lig.ok())
+            .filter_map(Result::ok)
             .any(|lig| lig.would_apply(ctx))
     }
 }
@@ -97,7 +97,7 @@ impl Apply for LigatureSet<'_> {
 
         if slow_path {
             // Slow path
-            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+            for lig in self.ligatures().iter().filter_map(Result::ok) {
                 if lig.apply(ctx).is_some() {
                     return Some(());
                 }

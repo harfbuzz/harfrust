@@ -106,7 +106,7 @@ impl ShaperInstance {
                 font.avar().ok().as_ref(),
                 variations
                     .into_iter()
-                    .map(|var| var.into())
+                    .map(Into::into)
                     .map(|var| (var.tag, Fixed::from_f64(var.value as _))),
                 self.coords.as_mut_slice(),
             );
@@ -184,7 +184,7 @@ impl<'a> ShaperBuilder<'a> {
         let glyph_metrics = GlyphMetrics::new(&font);
         let coords = self
             .instance
-            .map(|instance| instance.coords())
+            .map(ShaperInstance::coords)
             .unwrap_or_default();
         let ot_tables = OtTables::new(&font, &self.data.ot_cache, coords);
         let aat_tables = AatTables::new(&font);
