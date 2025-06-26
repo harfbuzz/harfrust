@@ -244,7 +244,7 @@ pub enum LookupState {
     Vacant,
     /// Lookup is available for use.
     Ready,
-    /// An error occured while reading this lookup.
+    /// An error occurred while reading this lookup.
     Error,
 }
 

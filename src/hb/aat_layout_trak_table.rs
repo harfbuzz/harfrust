@@ -1,5 +1,7 @@
 #[cfg(not(feature = "std"))]
-use core_maths::CoreFloat;
+#[allow(unused_imports)]
+use core_maths::CoreFloat as _;
+
 use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
