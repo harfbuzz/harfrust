@@ -228,9 +228,8 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
             u16::from(read_fonts::tables::aat::class::END_OF_TEXT)
         };
 
-        let entry = match machine.entry(state, class) {
-            Ok(v) => v,
-            _ => break,
+        let Ok(entry) = machine.entry(state, class) else {
+            break;
         };
 
         let next_state = entry.new_state;
@@ -266,9 +265,8 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
         // TODO HarfBuzz doesn't use this lambda; inlines the logic.
         let is_safe_to_break_extra = || {
             // 2c
-            let wouldbe_entry = match machine.entry(START_OF_TEXT, class) {
-                Ok(v) => v,
-                _ => return false,
+            let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class) else {
+                return false;
             };
 
             // 2c'

@@ -96,9 +96,8 @@ fn parse_private_use_subtag(
     normalize: fn(&u8) -> u8,
     tags: &mut ThreeTags,
 ) -> bool {
-    let private_use_subtag = match private_use_subtag {
-        Some(v) => v,
-        None => return false,
+    let Some(private_use_subtag) = private_use_subtag else {
+        return false;
     };
 
     let private_use_subtag = match private_use_subtag.find(prefix) {

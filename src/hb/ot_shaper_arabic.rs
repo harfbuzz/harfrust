@@ -625,7 +625,7 @@ fn reorder_marks_arabic(
     end: usize,
 ) {
     let mut i = start;
-    for cc in [220u8, 230].iter().cloned() {
+    for cc in [220u8, 230] {
         while i < end && _hb_glyph_info_get_modified_combining_class(&buffer.info[i]) < cc {
             i += 1;
         }

@@ -178,7 +178,7 @@ fn main() {
     let lines = if args.single_par {
         vec![text.as_str()]
     } else {
-        text.split("\n").filter(|s| !s.is_empty()).collect()
+        text.split('\n').filter(|s| !s.is_empty()).collect()
     };
 
     for text in lines {

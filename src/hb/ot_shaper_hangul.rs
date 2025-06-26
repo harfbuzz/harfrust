@@ -68,19 +68,19 @@ const S_COUNT: u32 = L_COUNT * N_COUNT;
 const S_BASE: u32 = 0xAC00;
 
 fn is_combining_l(u: u32) -> bool {
-    (L_BASE..=L_BASE + L_COUNT - 1).contains(&u)
+    (L_BASE..L_BASE + L_COUNT).contains(&u)
 }
 
 fn is_combining_v(u: u32) -> bool {
-    (V_BASE..=V_BASE + V_COUNT - 1).contains(&u)
+    (V_BASE..V_BASE + V_COUNT).contains(&u)
 }
 
 fn is_combining_t(u: u32) -> bool {
-    (T_BASE + 1..=T_BASE + T_COUNT - 1).contains(&u)
+    (T_BASE + 1..T_BASE + T_COUNT).contains(&u)
 }
 
 fn is_combined_s(u: u32) -> bool {
-    (S_BASE..=S_BASE + S_COUNT - 1).contains(&u)
+    (S_BASE..S_BASE + S_COUNT).contains(&u)
 }
 
 fn is_l(u: u32) -> bool {
