@@ -48,7 +48,6 @@ wildcard_imports = "allow"  # 72
 cast_possible_wrap = "allow"  # 66
 semicolon_if_nothing_returned = "allow"  # 64
 must_use_candidate = "allow"  # 62
-map_unwrap_or = "allow"  # 36
 if_not_else = "allow"  # 29
 redundant_closure_for_method_calls = "allow"  # 27
 too_many_lines = "allow"  # 26

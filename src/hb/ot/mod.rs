@@ -177,32 +177,28 @@ impl<'a> OtTables<'a> {
         self.gdef
             .classes
             .as_ref()
-            .map(|class_def| class_def.get((glyph_id as u16).into()))
-            .unwrap_or(0)
+            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
         self.gdef
             .mark_classes
             .as_ref()
-            .map(|class_def| class_def.get((glyph_id as u16).into()))
-            .unwrap_or(0)
+            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
     }
 
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
         if self
             .gdef_mark_set_digests
             .get(set_index as usize)
-            .map(|digest| digest.may_have_glyph(glyph_id.into()))
-            .unwrap_or(false)
+            .is_some_and(|digest| digest.may_have_glyph(glyph_id.into()))
         {
             self.gdef
                 .mark_sets
                 .as_ref()
                 .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
                 .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
-                .map(|coverage| coverage.get(glyph_id).is_some())
-                .unwrap_or(false)
+                .is_some_and(|coverage| coverage.get(glyph_id).is_some())
         } else {
             false
         }
