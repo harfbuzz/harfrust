@@ -111,7 +111,7 @@ fn find_second_glyph<'a>(
             .read_at::<read_fonts::types::GlyphId16>(record_offset)
             .ok()?;
         if glyph_id < second_glyph {
-            lo = mid + 1
+            lo = mid + 1;
         } else if glyph_id > second_glyph {
             hi = mid;
         } else {

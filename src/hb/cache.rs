@@ -17,7 +17,7 @@ impl AtomicStorage for AtomicU16 {
     }
 
     fn set(&self, val: u32) {
-        self.store(val as u16, Ordering::Relaxed)
+        self.store(val as u16, Ordering::Relaxed);
     }
 
     fn default() -> Self {
@@ -34,7 +34,7 @@ impl AtomicStorage for AtomicU32 {
     }
 
     fn set(&self, val: u32) {
-        self.store(val, Ordering::Relaxed)
+        self.store(val, Ordering::Relaxed);
     }
 
     fn default() -> Self {

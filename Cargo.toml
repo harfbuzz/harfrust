@@ -46,7 +46,6 @@ cast_possible_truncation = "allow"  # 160
 unreadable_literal = "allow"  # 116
 wildcard_imports = "allow"  # 72
 cast_possible_wrap = "allow"  # 66
-semicolon_if_nothing_returned = "allow"  # 64
 must_use_candidate = "allow"  # 62
 map_unwrap_or = "allow"  # 36
 if_not_else = "allow"  # 29

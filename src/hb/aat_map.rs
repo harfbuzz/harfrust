@@ -183,7 +183,7 @@ impl hb_aat_map_builder_t {
                 index: feature.end as usize,
                 start: false,
                 feature: feature.info,
-            })
+            });
         }
 
         feature_events.sort();

@@ -147,7 +147,7 @@ impl hb_glyph_info_t {
     }
 
     fn set_use_category(&mut self, c: Category) {
-        self.set_ot_shaper_var_u8_category(c)
+        self.set_ot_shaper_var_u8_category(c);
     }
 
     fn is_halant_use(&self) -> bool {
