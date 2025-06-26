@@ -28,8 +28,7 @@ pico-args = { version = "0.5", features = ["eq-separator"] }
 libc = "0.2"
 
 [lints.rust]
-# TODO: enable this and fix related code
-unused_qualifications = "allow"
+unused_qualifications = "warn"
 
 [lints.clippy]
 cargo = { level = "warn", priority = -1 }

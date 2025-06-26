@@ -32,7 +32,7 @@ impl PartialOrd for feature_info_t {
         } else if !self.is_exclusive && (self.setting & !1) != (other.setting & !1) {
             Some(self.setting.cmp(&other.setting))
         } else {
-            Some(core::cmp::Ordering::Equal)
+            Some(Ordering::Equal)
         }
     }
 }
