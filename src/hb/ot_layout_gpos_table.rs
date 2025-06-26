@@ -1,6 +1,6 @@
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
-use core_maths::CoreFloat;
+use core_maths::CoreFloat as _;
 
 use super::buffer::*;
 use super::hb_font_t;
