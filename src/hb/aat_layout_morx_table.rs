@@ -738,9 +738,9 @@ impl LigatureCtx<'_> {
     const DONT_ADVANCE: u16 = 0x4000;
     const PERFORM_ACTION: u16 = 0x2000;
 
-    const LIG_ACTION_LAST: u32 = 0x80000000;
-    const LIG_ACTION_STORE: u32 = 0x40000000;
-    const LIG_ACTION_OFFSET: u32 = 0x3FFFFFFF;
+    const LIG_ACTION_LAST: u32 = 0x8000_0000;
+    const LIG_ACTION_STORE: u32 = 0x4000_0000;
+    const LIG_ACTION_OFFSET: u32 = 0x3FFF_FFFF;
 }
 
 impl driver_context_t<BigEndian<u16>> for LigatureCtx<'_> {
@@ -812,8 +812,8 @@ impl driver_context_t<BigEndian<u16>> for LigatureCtx<'_> {
                 };
 
                 let mut uoffset = action & Self::LIG_ACTION_OFFSET;
-                if uoffset & 0x20000000 != 0 {
-                    uoffset |= 0xC0000000; // Sign-extend.
+                if uoffset & 0x2000_0000 != 0 {
+                    uoffset |= 0xC000_0000; // Sign-extend.
                 }
 
                 let offset = uoffset as i32;

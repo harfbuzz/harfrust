@@ -740,14 +740,14 @@ pub fn compose(a: char, b: char) -> Option<char> {
     let b = b as u32;
     let u: u32;
 
-    if (a & 0xFFFFF800) == 0x0000 && (b & 0xFFFFFF80) == 0x0300 {
+    if (a & 0xFFFF_F800) == 0x0000 && (b & 0xFFFF_FF80) == 0x0300 {
         /* If "a" is small enough and "b" is in the U+0300 range,
          * the composition data is encoded in a 32bit array sorted
          * by "a,b" pair. */
         let k = HB_CODEPOINT_ENCODE3_11_7_14(a, b, 0);
         let v = _hb_ucd_dm2_u32_map
             .binary_search_by(|probe| {
-                let key = probe & HB_CODEPOINT_ENCODE3_11_7_14(0x1FFFFF, 0x1FFFFF, 0);
+                let key = probe & HB_CODEPOINT_ENCODE3_11_7_14(0x001F_FFFF, 0x001F_FFFF, 0);
                 key.cmp(&k)
             })
             .ok()
@@ -764,7 +764,7 @@ pub fn compose(a: char, b: char) -> Option<char> {
         let k = HB_CODEPOINT_ENCODE3(a, b, 0);
         let v = _hb_ucd_dm2_u64_map
             .binary_search_by(|probe| {
-                let key = probe & HB_CODEPOINT_ENCODE3(0x1FFFFF, 0x1FFFFF, 0);
+                let key = probe & HB_CODEPOINT_ENCODE3(0x001F_FFFF, 0x001F_FFFF, 0);
                 key.cmp(&k)
             })
             .ok()

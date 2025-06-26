@@ -48,11 +48,11 @@ pub const fn HB_CODEPOINT_DECODE3_1(v: u64) -> u32 {
 }
 #[allow(non_snake_case, dead_code)]
 pub const fn HB_CODEPOINT_DECODE3_2(v: u64) -> u32 {
-    ((v >> 21) & 0x1FFFFF) as u32
+    ((v >> 21) & 0x001F_FFFF) as u32
 }
 #[allow(non_snake_case, dead_code)]
 pub const fn HB_CODEPOINT_DECODE3_3(v: u64) -> u32 {
-    (v & 0x1FFFFF) as u32
+    (v & 0x001F_FFFF) as u32
 }
 
 /* Custom encoding used by hb-ucd. */
