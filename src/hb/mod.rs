@@ -65,6 +65,7 @@ mod ot_shaper_thai;
 mod ot_shaper_use;
 mod ot_shaper_use_machine;
 #[rustfmt::skip]
+#[allow(clippy::unreadable_literal)]
 mod ot_shaper_use_table;
 mod aat_layout_common;
 mod ot_shaper_vowel_constraints;

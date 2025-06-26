@@ -28,7 +28,7 @@ pub mod glyph_flag {
     ///
     /// This can be used to optimize paragraph layout,
     /// by avoiding re-shaping of each line after line-breaking.
-    pub const UNSAFE_TO_BREAK: u32 = 0x00000001;
+    pub const UNSAFE_TO_BREAK: u32 = 0x0000_0001;
     /// Indicates that if input text is changed on one side
     /// of the beginning of the cluster this glyph is part
     /// of, then the shaping results for the other side
@@ -89,16 +89,16 @@ pub mod glyph_flag {
     /// To use this flag, you must enable the buffer flag
     /// PRODUCE_UNSAFE_TO_CONCAT during shaping, otherwise
     /// the buffer flag will not be reliably produced.
-    pub const UNSAFE_TO_CONCAT: u32 = 0x00000002;
+    pub const UNSAFE_TO_CONCAT: u32 = 0x0000_0002;
 
     /// In scripts that use elongation (Arabic,
     /// Mongolian, Syriac, etc.), this flag signifies
     /// that it is safe to insert a U+0640 TATWEEL
     /// character *before* this cluster for elongation.
-    pub const SAFE_TO_INSERT_TATWEEL: u32 = 0x00000004;
+    pub const SAFE_TO_INSERT_TATWEEL: u32 = 0x0000_0004;
 
     /// All the currently defined flags.
-    pub const DEFINED: u32 = 0x00000007; // OR of all defined flags
+    pub const DEFINED: u32 = 0x0000_0007; // OR of all defined flags
 }
 
 /// Holds the positions of the glyph in both horizontal and vertical directions.
@@ -423,12 +423,12 @@ impl hb_buffer_t {
     pub const MAX_LEN_FACTOR: usize = 64;
     pub const MAX_LEN_MIN: usize = 16384;
     // Shaping more than a billion chars? Let us know!
-    pub const MAX_LEN_DEFAULT: usize = 0x3FFFFFFF;
+    pub const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
 
     pub const MAX_OPS_FACTOR: i32 = 1024;
     pub const MAX_OPS_MIN: i32 = 16384;
     // Shaping more than a billion operations? Let us know!
-    pub const MAX_OPS_DEFAULT: i32 = 0x1FFFFFFF;
+    pub const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
 
     /// Creates a new `Buffer`.
     pub fn new() -> Self {
@@ -1598,18 +1598,18 @@ bitflags::bitflags! {
 }
 
 pub type hb_buffer_scratch_flags_t = u32;
-pub const HB_BUFFER_SCRATCH_FLAG_DEFAULT: u32 = 0x00000000;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII: u32 = 0x00000001;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x00000002;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK: u32 = 0x00000004;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT: u32 = 0x00000008;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_CGJ: u32 = 0x00000010;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS: u32 = 0x00000020;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE: u32 = 0x00000040;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK: u32 = 0x00000080;
+pub const HB_BUFFER_SCRATCH_FLAG_DEFAULT: u32 = 0x0000_0000;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII: u32 = 0x0000_0001;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x0000_0002;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK: u32 = 0x0000_0004;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT: u32 = 0x0000_0008;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_CGJ: u32 = 0x0000_0010;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS: u32 = 0x0000_0020;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE: u32 = 0x0000_0040;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK: u32 = 0x0000_0080;
 
 /* Reserved for shapers' internal use. */
-pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x01000000;
+pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER1: u32 = 0x02000000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER2: u32 = 0x04000000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER3: u32 = 0x08000000;
