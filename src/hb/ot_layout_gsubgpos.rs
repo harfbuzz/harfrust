@@ -597,7 +597,7 @@ pub trait WouldApply {
 /// Apply a lookup.
 pub trait Apply {
     /// Apply the lookup.
-    fn apply(&self, ctx: &mut OT::hb_ot_apply_context_t) -> Option<()>;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()>;
 }
 
 pub struct WouldApplyContext<'a> {

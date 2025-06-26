@@ -125,7 +125,7 @@ trait TrackEntryExt {
     fn get_value(&self, ptem: f32, sizes: &[BigEndian<Fixed>], values: &[BigEndian<i16>]) -> f32;
 }
 
-impl TrackEntryExt for read_fonts::tables::trak::TrackTableEntry {
+impl TrackEntryExt for TrackTableEntry {
     fn get_value(&self, ptem: f32, sizes: &[BigEndian<Fixed>], values: &[BigEndian<i16>]) -> f32 {
         let n = sizes.len().min(values.len());
         if n == 0 {

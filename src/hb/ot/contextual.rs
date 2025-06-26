@@ -38,10 +38,7 @@ impl WouldApply for SequenceContextFormat1<'_> {
 }
 
 impl Apply for SequenceContextFormat1<'_> {
-    fn apply(
-        &self,
-        ctx: &mut crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t,
-    ) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.seq_rule_sets().get(index)?.ok()?;
@@ -118,10 +115,7 @@ impl WouldApply for SequenceContextFormat3<'_> {
 }
 
 impl Apply for SequenceContextFormat3<'_> {
-    fn apply(
-        &self,
-        ctx: &mut crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t,
-    ) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let input_coverages = self.coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
@@ -252,9 +246,7 @@ fn get_class(class_def: &ClassDef, gid: GlyphId) -> u16 {
 }
 
 /// Value represents glyph class.
-fn match_class<'a>(
-    class_def: &'a Option<read_fonts::tables::layout::ClassDef<'a>>,
-) -> impl Fn(GlyphId, u16) -> bool + 'a {
+fn match_class<'a>(class_def: &'a Option<ClassDef<'a>>) -> impl Fn(GlyphId, u16) -> bool + 'a {
     |glyph, value| {
         class_def
             .as_ref()

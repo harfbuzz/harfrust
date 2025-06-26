@@ -184,7 +184,7 @@ impl hb_glyph_info_t {
     /// after line-breaking, or limiting the reshaping to a small piece around
     /// the breaking point only.
     pub fn unsafe_to_break(&self) -> bool {
-        self.mask & glyph_flag::UNSAFE_TO_BREAK != 0
+        self.mask & UNSAFE_TO_BREAK != 0
     }
 
     /// Indicates that if input text is changed on one side of the beginning of the cluster
@@ -219,7 +219,7 @@ impl hb_glyph_info_t {
     ///    always imply this flag. To use this flag, you must enable the buffer flag [`BufferFlags::PRODUCE_UNSAFE_TO_CONCAT`]
     ///    during shaping, otherwise the buffer flag will not be reliably produced.
     pub fn unsafe_to_concat(&self) -> bool {
-        self.mask & glyph_flag::UNSAFE_TO_CONCAT != 0
+        self.mask & UNSAFE_TO_CONCAT != 0
     }
 
     /// In scripts that use elongation (Arabic, Mongolian, Syriac, etc.), this flag signifies that it is
@@ -227,7 +227,7 @@ impl hb_glyph_info_t {
     /// determine the script-specific elongation places, but only when it is safe to do the elongation
     /// without interrupting text shaping.
     pub fn safe_to_insert_tatweel(&self) -> bool {
-        self.mask & glyph_flag::SAFE_TO_INSERT_TATWEEL != 0
+        self.mask & SAFE_TO_INSERT_TATWEEL != 0
     }
 
     #[inline]
@@ -673,7 +673,7 @@ impl hb_buffer_t {
         if self.script.is_none() {
             for info in &self.info {
                 match info.as_char().script() {
-                    crate::script::COMMON | crate::script::INHERITED | crate::script::UNKNOWN => {}
+                    script::COMMON | script::INHERITED | script::UNKNOWN => {}
                     s => {
                         self.script = Some(s);
                         break;
@@ -920,7 +920,7 @@ impl hb_buffer_t {
         let mut cluster = self.info[start].cluster;
 
         for i in start + 1..end {
-            cluster = core::cmp::min(cluster, self.info[i].cluster);
+            cluster = min(cluster, self.info[i].cluster);
         }
 
         // Extend end
@@ -963,7 +963,7 @@ impl hb_buffer_t {
         let mut cluster = self.out_info()[start].cluster;
 
         for i in start + 1..end {
-            cluster = core::cmp::min(cluster, self.out_info()[i].cluster);
+            cluster = min(cluster, self.out_info()[i].cluster);
         }
 
         // Extend start
@@ -1384,7 +1384,7 @@ impl hb_buffer_t {
 
         if self.cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS {
             for glyph_info in &info[start..end] {
-                cluster = core::cmp::min(cluster, glyph_info.cluster);
+                cluster = min(cluster, glyph_info.cluster);
             }
         }
 
@@ -1526,7 +1526,7 @@ pub(crate) fn _cluster_group_func(a: &hb_glyph_info_t, b: &hb_glyph_info_t) -> b
 
 macro_rules! foreach_cluster {
     ($buffer:expr, $start:ident, $end:ident, $($body:tt)*) => {
-        foreach_group!($buffer, $start, $end, crate::hb::buffer::_cluster_group_func, $($body)*)
+        foreach_group!($buffer, $start, $end, $crate::hb::buffer::_cluster_group_func, $($body)*)
     };
 }
 
@@ -1558,7 +1558,7 @@ macro_rules! foreach_syllable {
 
 macro_rules! foreach_grapheme {
     ($buffer:expr, $start:ident, $end:ident, $($body:tt)*) => {
-        foreach_group!($buffer, $start, $end, crate::hb::ot_layout::_hb_grapheme_group_func, $($body)*)
+        foreach_group!($buffer, $start, $end, $crate::hb::ot_layout::_hb_grapheme_group_func, $($body)*)
     };
 }
 

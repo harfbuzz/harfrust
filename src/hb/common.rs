@@ -167,7 +167,7 @@ impl Default for Direction {
     }
 }
 
-impl core::str::FromStr for Direction {
+impl FromStr for Direction {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -198,7 +198,7 @@ impl Language {
     }
 }
 
-impl core::str::FromStr for Language {
+impl FromStr for Language {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -266,7 +266,7 @@ impl Script {
     }
 }
 
-impl core::str::FromStr for Script {
+impl FromStr for Script {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -521,7 +521,7 @@ impl Feature {
     }
 }
 
-impl core::str::FromStr for Feature {
+impl FromStr for Feature {
     type Err = &'static str;
 
     /// Parses a `Feature` form a string.
@@ -679,7 +679,7 @@ pub struct Variation {
     pub value: f32,
 }
 
-impl core::str::FromStr for Variation {
+impl FromStr for Variation {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

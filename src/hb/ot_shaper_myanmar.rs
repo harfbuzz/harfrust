@@ -290,7 +290,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
         let mut i = first_left_matra;
 
         for j in i..=last_left_matra {
-            if buffer.info[j].myanmar_category() == ot_category_t::OT_VPre {
+            if buffer.info[j].myanmar_category() == OT_VPre {
                 buffer.reverse_range(i, j + 1);
                 i = j + 1;
             }
