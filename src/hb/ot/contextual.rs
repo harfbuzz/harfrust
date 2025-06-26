@@ -258,8 +258,7 @@ fn match_class<'a>(
     |glyph, value| {
         class_def
             .as_ref()
-            .map(|class_def| get_class(class_def, glyph) == value)
-            .unwrap_or(false)
+            .is_some_and(|class_def| get_class(class_def, glyph) == value)
     }
 }
 

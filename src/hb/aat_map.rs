@@ -101,8 +101,7 @@ impl hb_aat_map_builder_t {
         if feature.tag == hb_tag_t::new(b"aalt") {
             let exposes_feature = feat
                 .find(HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16)
-                .map(|f| f.n_settings() != 0)
-                .unwrap_or(false);
+                .is_some_and(|f| f.n_settings() != 0);
 
             if !exposes_feature {
                 return Some(());
