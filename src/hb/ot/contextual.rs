@@ -45,7 +45,7 @@ impl Apply for SequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.seq_rule_sets().get(index)?.ok()?;
-        for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
+        for rule in set.seq_rules().iter().filter_map(Result::ok) {
             let input = rule.input_sequence();
             if apply_context(ctx, input, &match_glyph, rule.seq_lookup_records()).is_some() {
                 return Some(());
@@ -89,7 +89,7 @@ impl Apply for SequenceContextFormat2<'_> {
         self.coverage().ok()?.get(glyph)?;
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        for rule in set.class_seq_rules().iter().filter_map(|rule| rule.ok()) {
+        for rule in set.class_seq_rules().iter().filter_map(Result::ok) {
             let input = rule.input_sequence();
             if apply_context(
                 ctx,
@@ -193,7 +193,7 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
-        for rule in set.chained_seq_rules().iter().filter_map(|rule| rule.ok()) {
+        for rule in set.chained_seq_rules().iter().filter_map(Result::ok) {
             let backtrack = rule.backtrack_sequence();
             let input = rule.input_sequence();
             let lookahead = rule.lookahead_sequence();
@@ -272,11 +272,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         self.coverage().ok()?.get(glyph)?;
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        for rule in set
-            .chained_class_seq_rules()
-            .iter()
-            .filter_map(|rule| rule.ok())
-        {
+        for rule in set.chained_class_seq_rules().iter().filter_map(Result::ok) {
             let backtrack = rule.backtrack_sequence();
             let input = rule.input_sequence();
             let lookahead = rule.lookahead_sequence();
