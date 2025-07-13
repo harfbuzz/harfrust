@@ -17,7 +17,7 @@ bitflags = "2.9"
 bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
 core_maths = "0.1" # only for no_std builds
 smallvec = "1.14"
-read-fonts = { version = "0.29.3", default-features = false, features = ["libm"] }
+read-fonts = { version = "0.30.1", default-features = false, features = ["libm"] }
 
 [features]
 default = ["std"]
