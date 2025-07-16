@@ -36,8 +36,7 @@ impl WouldApply for AlternateSubstFormat1<'_> {
         ctx.glyphs.len() == 1
             && self
                 .coverage()
-                .map(|cov| cov.get(ctx.glyphs[0]).is_some())
-                .unwrap_or_default()
+                .is_ok_and(|cov| cov.get(ctx.glyphs[0]).is_some())
     }
 }
 
