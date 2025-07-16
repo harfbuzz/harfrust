@@ -1837,6 +1837,8 @@ impl GlyphBuffer {
         let mut y = 0;
         let names = face.glyph_names();
         for (info, pos) in info.iter().zip(pos) {
+            s.push(if s.is_empty() { '[' } else { '|' });
+
             if !flags.contains(SerializeFlags::NO_GLYPH_NAMES) {
                 match names.get(info.as_glyph().to_u32()) {
                     Some(name) => s.push_str(name),
@@ -1883,13 +1885,10 @@ impl GlyphBuffer {
                 x += pos.x_advance;
                 y += pos.y_advance;
             }
-
-            s.push('|');
         }
 
-        // Remove last `|`.
         if !s.is_empty() {
-            s.pop();
+            s.push(']');
         }
 
         Ok(s)

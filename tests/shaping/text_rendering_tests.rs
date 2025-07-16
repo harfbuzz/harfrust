@@ -10,7 +10,7 @@ fn avar_1_002() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=100",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -22,7 +22,7 @@ fn avar_1_003() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=150",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -34,7 +34,7 @@ fn avar_1_004() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=200",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -46,7 +46,7 @@ fn avar_1_005() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=250",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -58,7 +58,7 @@ fn avar_1_006() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=300",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -70,7 +70,7 @@ fn avar_1_007() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=350",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -82,7 +82,7 @@ fn avar_1_008() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=400",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -94,7 +94,7 @@ fn avar_1_009() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=450",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -106,7 +106,7 @@ fn avar_1_010() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=500",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -118,7 +118,7 @@ fn avar_1_011() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=550",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -130,7 +130,7 @@ fn avar_1_012() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=600",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -142,7 +142,7 @@ fn avar_1_013() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=650",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -154,7 +154,7 @@ fn avar_1_014() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=700",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -166,7 +166,7 @@ fn avar_1_015() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=750",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -178,7 +178,7 @@ fn avar_1_016() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=800",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -190,7 +190,7 @@ fn avar_1_017() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=850",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -202,7 +202,7 @@ fn avar_1_018() {
             "\u{2A01}",
             "--ned --remove-default-ignorables --variations=TEST=900",
         ),
-        "gid1"
+        "[gid1]"
     );
 }
 
@@ -214,7 +214,7 @@ fn cff_1_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66"
+        "[gid66]"
     );
 }
 
@@ -226,7 +226,7 @@ fn cff_1_003() {
             "\u{211D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid30"
+        "[gid30]"
     );
 }
 
@@ -238,7 +238,7 @@ fn cff_1_004() {
             "\u{24EA}",
             "--ned --remove-default-ignorables",
         ),
-        "gid235"
+        "[gid235]"
     );
 }
 
@@ -250,7 +250,7 @@ fn cff_1_005() {
             "\u{2460}",
             "--ned --remove-default-ignorables",
         ),
-        "gid97"
+        "[gid97]"
     );
 }
 
@@ -262,7 +262,7 @@ fn cff_1_006() {
             "\u{2461}",
             "--ned --remove-default-ignorables",
         ),
-        "gid98"
+        "[gid98]"
     );
 }
 
@@ -274,7 +274,7 @@ fn cff_1_007() {
             "\u{4EFF}",
             "--ned --remove-default-ignorables",
         ),
-        "gid256"
+        "[gid256]"
     );
 }
 
@@ -286,7 +286,7 @@ fn cff_1_008() {
             "\u{FF21}",
             "--ned --remove-default-ignorables",
         ),
-        "gid34"
+        "[gid34]"
     );
 }
 
@@ -298,7 +298,7 @@ fn cff_1_009() {
             "\u{10133}",
             "--ned --remove-default-ignorables",
         ),
-        "gid52"
+        "[gid52]"
     );
 }
 
@@ -310,7 +310,7 @@ fn cff_1_010() {
             "\u{1D4D0}",
             "--ned --remove-default-ignorables",
         ),
-        "gid209"
+        "[gid209]"
     );
 }
 
@@ -322,7 +322,7 @@ fn cff_1_011() {
             "\u{1F33A}",
             "--ned --remove-default-ignorables",
         ),
-        "gid59"
+        "[gid59]"
     );
 }
 
@@ -334,7 +334,7 @@ fn cff_1_012() {
             "\u{1F33B}",
             "--ned --remove-default-ignorables",
         ),
-        "gid60"
+        "[gid60]"
     );
 }
 
@@ -346,7 +346,7 @@ fn cff_1_013() {
             "\u{1F4A7}",
             "--ned --remove-default-ignorables",
         ),
-        "gid168"
+        "[gid168]"
     );
 }
 
@@ -358,7 +358,7 @@ fn cff_1_014() {
             "\u{1F95D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid94"
+        "[gid94]"
     );
 }
 
@@ -370,7 +370,7 @@ fn cff_2_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66"
+        "[gid66]"
     );
 }
 
@@ -382,7 +382,7 @@ fn cff_2_003() {
             "\u{211D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid8478"
+        "[gid8478]"
     );
 }
 
@@ -394,7 +394,7 @@ fn cff_2_004() {
             "\u{24EA}",
             "--ned --remove-default-ignorables",
         ),
-        "gid9451"
+        "[gid9451]"
     );
 }
 
@@ -406,7 +406,7 @@ fn cff_2_005() {
             "\u{2460}",
             "--ned --remove-default-ignorables",
         ),
-        "gid9313"
+        "[gid9313]"
     );
 }
 
@@ -418,7 +418,7 @@ fn cff_2_006() {
             "\u{2461}",
             "--ned --remove-default-ignorables",
         ),
-        "gid9314"
+        "[gid9314]"
     );
 }
 
@@ -430,7 +430,7 @@ fn cff_2_007() {
             "\u{4EFF}",
             "--ned --remove-default-ignorables",
         ),
-        "gid20224"
+        "[gid20224]"
     );
 }
 
@@ -442,7 +442,7 @@ fn cff_2_008() {
             "\u{FF21}",
             "--ned --remove-default-ignorables",
         ),
-        "gid65314"
+        "[gid65314]"
     );
 }
 
@@ -454,7 +454,7 @@ fn cff_2_009() {
             "\u{10133}",
             "--ned --remove-default-ignorables",
         ),
-        "gid308"
+        "[gid308]"
     );
 }
 
@@ -466,7 +466,7 @@ fn cff_2_010() {
             "\u{1D4D0}",
             "--ned --remove-default-ignorables",
         ),
-        "gid54481"
+        "[gid54481]"
     );
 }
 
@@ -478,7 +478,7 @@ fn cff_2_011() {
             "\u{1F33A}",
             "--ned --remove-default-ignorables",
         ),
-        "gid62267"
+        "[gid62267]"
     );
 }
 
@@ -490,7 +490,7 @@ fn cff_2_012() {
             "\u{1F33B}",
             "--ned --remove-default-ignorables",
         ),
-        "gid62268"
+        "[gid62268]"
     );
 }
 
@@ -502,7 +502,7 @@ fn cff_2_013() {
             "\u{1F4A7}",
             "--ned --remove-default-ignorables",
         ),
-        "gid62632"
+        "[gid62632]"
     );
 }
 
@@ -514,7 +514,7 @@ fn cff_2_014() {
             "\u{1F95D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid63838"
+        "[gid63838]"
     );
 }
 
@@ -526,7 +526,7 @@ fn cff_3_002() {
             "\u{00C0}",
             "--ned --remove-default-ignorables",
         ),
-        "Agrave"
+        "[Agrave]"
     );
 }
 
@@ -538,7 +538,7 @@ fn cff_3_003() {
             "\u{00DC}",
             "--ned --remove-default-ignorables",
         ),
-        "Udieresis"
+        "[Udieresis]"
     );
 }
 
@@ -550,7 +550,7 @@ fn cff2_1_002() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=100",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -562,7 +562,7 @@ fn cff2_1_003() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=200",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -574,7 +574,7 @@ fn cff2_1_004() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=300",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -586,7 +586,7 @@ fn cff2_1_005() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -598,7 +598,7 @@ fn cff2_1_006() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=500",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -610,7 +610,7 @@ fn cff2_1_007() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -622,7 +622,7 @@ fn cff2_1_008() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=700",
         ),
-        "dollar"
+        "[dollar]"
     );
 }
 
@@ -634,7 +634,7 @@ fn cff2_1_009() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=800",
         ),
-        "dollar.nostroke"
+        "[dollar.nostroke]"
     );
 }
 
@@ -646,7 +646,7 @@ fn cff2_1_010() {
             "\u{0024}",
             "--ned --remove-default-ignorables --variations=wght=900",
         ),
-        "dollar.nostroke"
+        "[dollar.nostroke]"
     );
 }
 
@@ -658,7 +658,7 @@ fn cmap_1_002() {
             "\u{82A6}",
             "--ned --remove-default-ignorables",
         ),
-        "uni82A6_uE0100"
+        "[uni82A6_uE0100]"
     );
 }
 
@@ -670,7 +670,7 @@ fn cmap_1_003() {
             "\u{82A6}\u{E0100}",
             "--ned --remove-default-ignorables",
         ),
-        "uni82A6_uE0100"
+        "[uni82A6_uE0100]"
     );
 }
 
@@ -682,7 +682,7 @@ fn cmap_1_004() {
             "\u{82A6}\u{E0101}",
             "--ned --remove-default-ignorables",
         ),
-        "uni82A6_uE0101"
+        "[uni82A6_uE0101]"
     );
 }
 
@@ -694,7 +694,7 @@ fn cmap_1_005() {
             "\u{82A6}\u{E0102}",
             "--ned --remove-default-ignorables",
         ),
-        "uni82A6_uE0100"
+        "[uni82A6_uE0100]"
     );
 }
 
@@ -706,7 +706,7 @@ fn cmap_2_002() {
             "\u{2269}",
             "--ned --remove-default-ignorables",
         ),
-        "uni2269"
+        "[uni2269]"
     );
 }
 
@@ -718,7 +718,7 @@ fn cmap_2_003() {
             "\u{2269}\u{FE00}",
             "--ned --remove-default-ignorables",
         ),
-        "uni2269FE00"
+        "[uni2269FE00]"
     );
 }
 
@@ -730,7 +730,7 @@ fn cmap_3_002() {
             "\u{201C}",
             "--ned --remove-default-ignorables",
         ),
-        "gid200"
+        "[gid200]"
     );
 }
 
@@ -742,7 +742,7 @@ fn cmap_3_003() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "gid34"
+        "[gid34]"
     );
 }
 
@@ -754,7 +754,7 @@ fn cmap_3_004() {
             "\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "gid35"
+        "[gid35]"
     );
 }
 
@@ -766,7 +766,7 @@ fn cmap_3_005() {
             "\u{00C7}",
             "--ned --remove-default-ignorables",
         ),
-        "gid126"
+        "[gid126]"
     );
 }
 
@@ -778,7 +778,7 @@ fn cmap_3_006() {
             "\u{011E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid0"
+        "[gid0]"
     );
 }
 
@@ -790,7 +790,7 @@ fn cmap_3_007() {
             "\u{0049}",
             "--ned --remove-default-ignorables",
         ),
-        "gid42"
+        "[gid42]"
     );
 }
 
@@ -802,7 +802,7 @@ fn cmap_3_008() {
             "\u{0130}",
             "--ned --remove-default-ignorables",
         ),
-        "gid0"
+        "[gid0]"
     );
 }
 
@@ -814,7 +814,7 @@ fn cmap_3_009() {
             "\u{00D6}",
             "--ned --remove-default-ignorables",
         ),
-        "gid140"
+        "[gid140]"
     );
 }
 
@@ -826,7 +826,7 @@ fn cmap_3_010() {
             "\u{015E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid0"
+        "[gid0]"
     );
 }
 
@@ -838,7 +838,7 @@ fn cmap_3_011() {
             "\u{00DC}",
             "--ned --remove-default-ignorables",
         ),
-        "gid145"
+        "[gid145]"
     );
 }
 
@@ -850,7 +850,7 @@ fn cmap_3_012() {
             "\u{201D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid201"
+        "[gid201]"
     );
 }
 
@@ -862,7 +862,7 @@ fn cmap_3_013() {
             "\u{0061}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66"
+        "[gid66]"
     );
 }
 
@@ -874,7 +874,7 @@ fn cmap_3_014() {
             "\u{0062}",
             "--ned --remove-default-ignorables",
         ),
-        "gid67"
+        "[gid67]"
     );
 }
 
@@ -886,7 +886,7 @@ fn cmap_3_015() {
             "\u{00E7}",
             "--ned --remove-default-ignorables",
         ),
-        "gid154"
+        "[gid154]"
     );
 }
 
@@ -898,7 +898,7 @@ fn cmap_3_016() {
             "\u{011F}",
             "--ned --remove-default-ignorables",
         ),
-        "gid0"
+        "[gid0]"
     );
 }
 
@@ -910,7 +910,7 @@ fn cmap_3_017() {
             "\u{0131}",
             "--ned --remove-default-ignorables",
         ),
-        "gid0"
+        "[gid0]"
     );
 }
 
@@ -922,7 +922,7 @@ fn cmap_3_018() {
             "\u{0069}",
             "--ned --remove-default-ignorables",
         ),
-        "gid74"
+        "[gid74]"
     );
 }
 
@@ -934,7 +934,7 @@ fn cmap_3_019() {
             "\u{00F6}",
             "--ned --remove-default-ignorables",
         ),
-        "gid168"
+        "[gid168]"
     );
 }
 
@@ -946,7 +946,7 @@ fn cmap_3_020() {
             "\u{015F}",
             "--ned --remove-default-ignorables",
         ),
-        "gid0"
+        "[gid0]"
     );
 }
 
@@ -958,7 +958,7 @@ fn cmap_3_021() {
             "\u{00FC}",
             "--ned --remove-default-ignorables",
         ),
-        "gid174"
+        "[gid174]"
     );
 }
 
@@ -970,7 +970,7 @@ fn cmap_4_002() {
             "\u{0055}",
             "--ned --remove-default-ignorables",
         ),
-        "lastresortlatin"
+        "[lastresortlatin]"
     );
 }
 
@@ -982,7 +982,7 @@ fn cmap_4_003() {
             "\u{13EF}",
             "--ned --remove-default-ignorables",
         ),
-        "lastresortcherokee"
+        "[lastresortcherokee]"
     );
 }
 
@@ -994,7 +994,7 @@ fn cmap_4_004() {
             "\u{1203C}",
             "--ned --remove-default-ignorables",
         ),
-        "lastresortcuneiform"
+        "[lastresortcuneiform]"
     );
 }
 
@@ -1006,7 +1006,7 @@ fn cmap_4_005() {
             "\u{1FA00}",
             "--ned --remove-default-ignorables",
         ),
-        "lastresortchesssymbols"
+        "[lastresortchesssymbols]"
     );
 }
 
@@ -1018,7 +1018,7 @@ fn cvar_1_002() {
             "\u{0068}\u{006F}\u{006E}",
             "--ned --remove-default-ignorables --variations=wght=28,wdth=100,opsz=72",
         ),
-        "uni0068|uni006F@595,0|uni006E@1126,0"
+        "[uni0068|uni006F@595,0|uni006E@1126,0]"
     );
 }
 
@@ -1030,7 +1030,7 @@ fn cvar_1_003() {
             "\u{0068}\u{006F}\u{006E}",
             "--ned --remove-default-ignorables --variations=wght=94,wdth=100,opsz=72",
         ),
-        "uni0068|uni006F@635,0|uni006E@1212,0"
+        "[uni0068|uni006F@635,0|uni006E@1212,0]"
     );
 }
 
@@ -1042,7 +1042,7 @@ fn cvar_1_004() {
             "\u{0068}\u{006F}\u{006E}",
             "--ned --remove-default-ignorables --variations=wght=194,wdth=100,opsz=72",
         ),
-        "uni0068|uni006F@691,0|uni006E@1331,0"
+        "[uni0068|uni006F@691,0|uni006E@1331,0]"
     );
 }
 
@@ -1054,7 +1054,7 @@ fn cvar_2_002() {
             "\u{0068}\u{006F}\u{006E}",
             "--ned --remove-default-ignorables --variations=wght=28,wdth=100,opsz=72",
         ),
-        "uni0068|uni006F@595,0|uni006E@1126,0"
+        "[uni0068|uni006F@595,0|uni006E@1126,0]"
     );
 }
 
@@ -1066,7 +1066,7 @@ fn cvar_2_003() {
             "\u{0068}\u{006F}\u{006E}",
             "--ned --remove-default-ignorables --variations=wght=94,wdth=100,opsz=72",
         ),
-        "uni0068|uni006F@635,0|uni006E@1212,0"
+        "[uni0068|uni006F@635,0|uni006E@1212,0]"
     );
 }
 
@@ -1078,7 +1078,7 @@ fn cvar_2_004() {
             "\u{0068}\u{006F}\u{006E}",
             "--ned --remove-default-ignorables --variations=wght=194,wdth=100,opsz=72",
         ),
-        "uni0068|uni006F@691,0|uni006E@1331,0"
+        "[uni0068|uni006F@691,0|uni006E@1331,0]"
     );
 }
 
@@ -1090,7 +1090,7 @@ fn glyf_1_002() {
             "\u{0123}",
             "--ned --remove-default-ignorables",
         ),
-        "gcommaabove"
+        "[gcommaabove]"
     );
 }
 
@@ -1102,7 +1102,7 @@ fn gpos_1_002() {
             "\u{0104}\u{004A}",
             "--ned --remove-default-ignorables",
         ),
-        "Aogonek|J@732,0"
+        "[Aogonek|J@732,0]"
     );
 }
 
@@ -1114,7 +1114,7 @@ fn gpos_1_003() {
             "\u{0104}\u{0067}",
             "--ned --remove-default-ignorables",
         ),
-        "Aogonek|g@692,0"
+        "[Aogonek|g@692,0]"
     );
 }
 
@@ -1126,7 +1126,7 @@ fn gpos_1_004() {
             "\u{0104}\u{0123}",
             "--ned --remove-default-ignorables",
         ),
-        "Aogonek|gcommaabove@692,0"
+        "[Aogonek|gcommaabove@692,0]"
     );
 }
 
@@ -1138,7 +1138,7 @@ fn gpos_1_005() {
             "\u{0104}\u{006A}",
             "--ned --remove-default-ignorables",
         ),
-        "Aogonek|j@752,0"
+        "[Aogonek|j@752,0]"
     );
 }
 
@@ -1150,7 +1150,7 @@ fn gpos_1_006() {
             "\u{0104}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "Aogonek|dotlessj@752,0"
+        "[Aogonek|dotlessj@752,0]"
     );
 }
 
@@ -1162,7 +1162,7 @@ fn gpos_1_007() {
             "\u{0051}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "Q|dotlessj@734,0"
+        "[Q|dotlessj@734,0]"
     );
 }
 
@@ -1174,7 +1174,7 @@ fn gpos_1_008() {
             "\u{0105}\u{006A}",
             "--ned --remove-default-ignorables",
         ),
-        "aogonek|j@588,0"
+        "[aogonek|j@588,0]"
     );
 }
 
@@ -1186,7 +1186,7 @@ fn gpos_1_009() {
             "\u{0105}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "aogonek|dotlessj@588,0"
+        "[aogonek|dotlessj@588,0]"
     );
 }
 
@@ -1198,7 +1198,7 @@ fn gpos_1_010() {
             "\u{0067}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "g|dotlessj@563,0"
+        "[g|dotlessj@563,0]"
     );
 }
 
@@ -1210,7 +1210,7 @@ fn gpos_1_011() {
             "\u{0123}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "gcommaabove|dotlessj@563,0"
+        "[gcommaabove|dotlessj@563,0]"
     );
 }
 
@@ -1222,7 +1222,7 @@ fn gpos_1_012() {
             "\u{0131}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "dotlessi|dotlessj@334,0"
+        "[dotlessi|dotlessj@334,0]"
     );
 }
 
@@ -1234,7 +1234,7 @@ fn gpos_1_013() {
             "\u{0173}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "uogonek|dotlessj@656,0"
+        "[uogonek|dotlessj@656,0]"
     );
 }
 
@@ -1246,7 +1246,7 @@ fn gpos_1_014() {
             "\u{0076}\u{0237}",
             "--ned --remove-default-ignorables",
         ),
-        "v|dotlessj@587,0"
+        "[v|dotlessj@587,0]"
     );
 }
 
@@ -1258,7 +1258,7 @@ fn gpos_1_015() {
             "\u{0056}\u{0061}",
             "--ned --remove-default-ignorables",
         ),
-        "V|a@594,0"
+        "[V|a@594,0]"
     );
 }
 
@@ -1270,7 +1270,7 @@ fn gpos_1_016() {
             "\u{0056}\u{00E1}",
             "--ned --remove-default-ignorables",
         ),
-        "V|aacute@594,0"
+        "[V|aacute@594,0]"
     );
 }
 
@@ -1282,7 +1282,7 @@ fn gpos_1_017() {
             "\u{0056}\u{0105}",
             "--ned --remove-default-ignorables",
         ),
-        "V|aogonek@594,0"
+        "[V|aogonek@594,0]"
     );
 }
 
@@ -1294,7 +1294,7 @@ fn gpos_1_018() {
             "\u{0056}\u{0066}",
             "--ned --remove-default-ignorables",
         ),
-        "V|f@634,0"
+        "[V|f@634,0]"
     );
 }
 
@@ -1306,7 +1306,7 @@ fn gpos_1_019() {
             "\u{0056}\u{FB02}",
             "--ned --remove-default-ignorables",
         ),
-        "V|fl@634,0"
+        "[V|fl@634,0]"
     );
 }
 
@@ -1318,7 +1318,7 @@ fn gpos_1_020() {
             "\u{0056}\u{002E}",
             "--ned --remove-default-ignorables",
         ),
-        "V|period@504,0"
+        "[V|period@504,0]"
     );
 }
 
@@ -1330,7 +1330,7 @@ fn gpos_2_002() {
             "\u{25EF}",
             "--ned --remove-default-ignorables",
         ),
-        "uni25EF"
+        "[uni25EF]"
     );
 }
 
@@ -1342,7 +1342,7 @@ fn gpos_2_003() {
             "\u{263C}",
             "--ned --remove-default-ignorables",
         ),
-        "sun"
+        "[sun]"
     );
 }
 
@@ -1354,7 +1354,7 @@ fn gpos_2_004() {
             "\u{25EF}\u{263C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni25EF|sun"
+        "[uni25EF|sun]"
     );
 }
 
@@ -1366,7 +1366,7 @@ fn gpos_3_002() {
             "\u{1208}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1208"
+        "[uni1208]"
     );
 }
 
@@ -1378,7 +1378,7 @@ fn gpos_3_003() {
             "\u{1208}\u{135E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1208|uni135E@621,0"
+        "[uni1208|uni135E@621,0]"
     );
 }
 
@@ -1390,7 +1390,7 @@ fn gpos_3_004() {
             "\u{1208}\u{135F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1208|uni135F@621,0"
+        "[uni1208|uni135F@621,0]"
     );
 }
 
@@ -1402,7 +1402,7 @@ fn gpos_3_005() {
             "\u{1208}\u{135D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1208|uni135D@621,0"
+        "[uni1208|uni135D@621,0]"
     );
 }
 
@@ -1414,7 +1414,7 @@ fn gpos_4_002() {
             "\u{0075}\u{0308}\u{0301}",
             "--ned --remove-default-ignorables",
         ),
-        "u|uni0308@529,-31|acutecomb@537,138"
+        "[u|uni0308@529,-31|acutecomb@537,138]"
     );
 }
 
@@ -1426,7 +1426,7 @@ fn gpos_4_003() {
             "\u{0075}\u{0308}\u{0304}",
             "--ned --remove-default-ignorables",
         ),
-        "u|uni0308@529,-31|uni0304@526,138"
+        "[u|uni0308@529,-31|uni0304@526,138]"
     );
 }
 
@@ -1438,7 +1438,7 @@ fn gpos_4_004() {
             "\u{0075}\u{0308}\u{0308}",
             "--ned --remove-default-ignorables",
         ),
-        "u|uni0308@529,-31|uni0308@529,138"
+        "[u|uni0308@529,-31|uni0308@529,138]"
     );
 }
 
@@ -1450,7 +1450,7 @@ fn gpos_4_005() {
             "\u{0075}\u{0308}\u{0308}\u{0308}",
             "--ned --remove-default-ignorables",
         ),
-        "u|uni0308@529,-31|uni0308@529,138|uni0308@529,307"
+        "[u|uni0308@529,-31|uni0308@529,138|uni0308@529,307]"
     );
 }
 
@@ -1462,7 +1462,7 @@ fn gpos_5_002() {
             "\u{0634}\u{0652}",
             "--ned --remove-default-ignorables --variations=wght=100",
         ),
-        "uni0652@663,144|uni0634"
+        "[uni0652@663,144|uni0634]"
     );
 }
 
@@ -1474,7 +1474,7 @@ fn gpos_5_003() {
             "\u{0634}\u{0652}",
             "--ned --remove-default-ignorables --variations=wght=300",
         ),
-        "uni0652@680,165|uni0634"
+        "[uni0652@680,165|uni0634]"
     );
 }
 
@@ -1486,7 +1486,7 @@ fn gpos_5_004() {
             "\u{0634}\u{0652}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "uni0652@730,246|uni0634"
+        "[uni0652@730,246|uni0634]"
     );
 }
 
@@ -1498,7 +1498,7 @@ fn gpos_5_005() {
             "\u{0634}\u{0652}",
             "--ned --remove-default-ignorables --variations=wght=700",
         ),
-        "uni0652@750,282|uni0634"
+        "[uni0652@750,282|uni0634]"
     );
 }
 
@@ -1510,7 +1510,7 @@ fn gpos_5_006() {
             "\u{0634}\u{0652}",
             "--ned --remove-default-ignorables --variations=wght=900",
         ),
-        "uni0652@784,351|uni0634"
+        "[uni0652@784,351|uni0634]"
     );
 }
 
@@ -1522,7 +1522,7 @@ fn gsub_1_002() {
             "\u{0061}\u{0020}\u{0061}",
             "--ned --remove-default-ignorables",
         ),
-        "a.alt|space@500,0|a@1000,0"
+        "[a.alt|space@500,0|a@1000,0]"
     );
 }
 
@@ -1534,7 +1534,7 @@ fn gsub_2_002() {
             "\u{1373}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1373"
+        "[uni1373]"
     );
 }
 
@@ -1546,7 +1546,7 @@ fn gsub_2_003() {
             "\u{136B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni136B"
+        "[uni136B]"
     );
 }
 
@@ -1558,7 +1558,7 @@ fn gsub_2_004() {
             "\u{1375}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1375"
+        "[uni1375]"
     );
 }
 
@@ -1570,7 +1570,7 @@ fn gsub_2_005() {
             "\u{136D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni136D"
+        "[uni136D]"
     );
 }
 
@@ -1582,7 +1582,7 @@ fn gsub_2_006() {
             "\u{1373}\u{136B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1373.init|uni136B.fina@1272,0"
+        "[uni1373.init|uni136B.fina@1272,0]"
     );
 }
 
@@ -1594,7 +1594,7 @@ fn gsub_2_007() {
             "\u{1375}\u{136D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1375.init|uni136D.fina@1356,0"
+        "[uni1375.init|uni136D.fina@1356,0]"
     );
 }
 
@@ -1606,7 +1606,7 @@ fn gsub_2_008() {
             "\u{137B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni137B"
+        "[uni137B]"
     );
 }
 
@@ -1618,7 +1618,7 @@ fn gsub_2_009() {
             "\u{1373}\u{136B}\u{137B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1373.init|uni136B.medi@1272,0|uni137B.fina@2257,0"
+        "[uni1373.init|uni136B.medi@1272,0|uni137B.fina@2257,0]"
     );
 }
 
@@ -1630,7 +1630,7 @@ fn gsub_2_010() {
             "\u{1373}\u{136B}\u{137B}\u{1373}\u{136B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1373.init|uni136B.medi@1272,0|uni137B.medi@2257,0|uni1373.medi@3050,0|uni136B.fina@4322,0"
+        "[uni1373.init|uni136B.medi@1272,0|uni137B.medi@2257,0|uni1373.medi@3050,0|uni136B.fina@4322,0]"
     );
 }
 
@@ -1642,7 +1642,7 @@ fn gsub_2_011() {
             "\u{1373}\u{136B}\u{137B}\u{1375}\u{136D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1373.init|uni136B.medi@1272,0|uni137B.medi@2257,0|uni1375.medi@3050,0|uni136D.fina@4418,0"
+        "[uni1373.init|uni136B.medi@1272,0|uni137B.medi@2257,0|uni1375.medi@3050,0|uni136D.fina@4418,0]"
     );
 }
 
@@ -1654,7 +1654,7 @@ fn gsub_2_012() {
             "\u{1375}\u{136D}\u{137B}\u{1373}\u{136B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1375.init|uni136D.medi@1356,0|uni137B.medi@2464,0|uni1373.medi@3257,0|uni136B.fina@4529,0"
+        "[uni1375.init|uni136D.medi@1356,0|uni137B.medi@2464,0|uni1373.medi@3257,0|uni136B.fina@4529,0]"
     );
 }
 
@@ -1675,7 +1675,7 @@ fn gvar_1_002() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=300",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1687,7 +1687,7 @@ fn gvar_1_003() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=350",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1699,7 +1699,7 @@ fn gvar_1_004() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1711,7 +1711,7 @@ fn gvar_1_005() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=450",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1723,7 +1723,7 @@ fn gvar_1_006() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=500",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1735,7 +1735,7 @@ fn gvar_1_007() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=550",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1747,7 +1747,7 @@ fn gvar_1_008() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1759,7 +1759,7 @@ fn gvar_1_009() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=650",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1771,7 +1771,7 @@ fn gvar_1_010() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=700",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1783,7 +1783,7 @@ fn gvar_2_002() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=300",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1795,7 +1795,7 @@ fn gvar_2_003() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=350",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1807,7 +1807,7 @@ fn gvar_2_004() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1819,7 +1819,7 @@ fn gvar_2_005() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=450",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1831,7 +1831,7 @@ fn gvar_2_006() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=500",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1843,7 +1843,7 @@ fn gvar_2_007() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=550",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1855,7 +1855,7 @@ fn gvar_2_008() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1867,7 +1867,7 @@ fn gvar_2_009() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=650",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1879,7 +1879,7 @@ fn gvar_2_010() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=700",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1891,7 +1891,7 @@ fn gvar_3_002() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=300",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1903,7 +1903,7 @@ fn gvar_3_003() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=350",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1915,7 +1915,7 @@ fn gvar_3_004() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1927,7 +1927,7 @@ fn gvar_3_005() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=450",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1939,7 +1939,7 @@ fn gvar_3_006() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=500",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1951,7 +1951,7 @@ fn gvar_3_007() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=550",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1963,7 +1963,7 @@ fn gvar_3_008() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1975,7 +1975,7 @@ fn gvar_3_009() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=650",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1987,7 +1987,7 @@ fn gvar_3_010() {
             "\u{5F4C}",
             "--ned --remove-default-ignorables --variations=wght=700",
         ),
-        "gid2"
+        "[gid2]"
     );
 }
 
@@ -1999,7 +1999,7 @@ fn gvar_4_002() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=-1.0,T1=0.0",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2011,7 +2011,7 @@ fn gvar_4_003() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=-0.8,T1=0.1",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2023,7 +2023,7 @@ fn gvar_4_004() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=-0.6,T1=0.2",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2035,7 +2035,7 @@ fn gvar_4_005() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=-0.4,T1=0.3",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2047,7 +2047,7 @@ fn gvar_4_006() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=-0.2,T1=0.4",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2059,7 +2059,7 @@ fn gvar_4_007() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=0.0,T1=0.5",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2071,7 +2071,7 @@ fn gvar_4_008() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=0.2,T1=0.6",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2083,7 +2083,7 @@ fn gvar_4_009() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=0.4,T1=0.7",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2095,7 +2095,7 @@ fn gvar_4_010() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=0.6,T1=0.8",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2107,7 +2107,7 @@ fn gvar_4_011() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=0.8,T1=0.9",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2119,7 +2119,7 @@ fn gvar_4_012() {
             "\u{1F98E}",
             "--ned --remove-default-ignorables --variations=M1=1.0,T1=1.0",
         ),
-        "gid5"
+        "[gid5]"
     );
 }
 
@@ -2131,7 +2131,7 @@ fn gvar_5_002() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=-1.0",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2143,7 +2143,7 @@ fn gvar_5_003() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=-0.8",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2155,7 +2155,7 @@ fn gvar_5_004() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=-0.6",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2167,7 +2167,7 @@ fn gvar_5_005() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=-0.4",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2179,7 +2179,7 @@ fn gvar_5_006() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=-0.2",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2191,7 +2191,7 @@ fn gvar_5_007() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=0.0",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2203,7 +2203,7 @@ fn gvar_5_008() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=0.2",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2215,7 +2215,7 @@ fn gvar_5_009() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=0.4",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2227,7 +2227,7 @@ fn gvar_5_010() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=0.6",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2239,7 +2239,7 @@ fn gvar_5_011() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=0.8",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2251,7 +2251,7 @@ fn gvar_5_012() {
             "\u{1F31D}",
             "--ned --remove-default-ignorables --variations=M1=1.0",
         ),
-        "gid15"
+        "[gid15]"
     );
 }
 
@@ -2263,7 +2263,7 @@ fn gvar_6_002() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.0",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2275,7 +2275,7 @@ fn gvar_6_003() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.1",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2287,7 +2287,7 @@ fn gvar_6_004() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.2",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2299,7 +2299,7 @@ fn gvar_6_005() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.3",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2311,7 +2311,7 @@ fn gvar_6_006() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.4",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2323,7 +2323,7 @@ fn gvar_6_007() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.5",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2335,7 +2335,7 @@ fn gvar_6_008() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.6",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2347,7 +2347,7 @@ fn gvar_6_009() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.7",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2359,7 +2359,7 @@ fn gvar_6_010() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.8",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2371,7 +2371,7 @@ fn gvar_6_011() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=0.9",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2383,7 +2383,7 @@ fn gvar_6_012() {
             "\u{1F422}",
             "--ned --remove-default-ignorables --variations=T1=1.0",
         ),
-        "gid12"
+        "[gid12]"
     );
 }
 
@@ -2395,7 +2395,7 @@ fn gvar_7_002() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=150",
         ),
-        "uni004F|uni0049@706,0|uni004F@1072,0"
+        "[uni004F|uni0049@706,0|uni004F@1072,0]"
     );
 }
 
@@ -2407,7 +2407,7 @@ fn gvar_7_003() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=200",
         ),
-        "uni004F|uni0049@707,0|uni004F@1074,0"
+        "[uni004F|uni0049@707,0|uni004F@1074,0]"
     );
 }
 
@@ -2419,7 +2419,7 @@ fn gvar_7_004() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=250",
         ),
-        "uni004F|uni0049@707,0|uni004F@1075,0"
+        "[uni004F|uni0049@707,0|uni004F@1075,0]"
     );
 }
 
@@ -2431,7 +2431,7 @@ fn gvar_7_005() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=300",
         ),
-        "uni004F|uni0049@707,0|uni004F@1076,0"
+        "[uni004F|uni0049@707,0|uni004F@1076,0]"
     );
 }
 
@@ -2443,7 +2443,7 @@ fn gvar_7_006() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=350",
         ),
-        "uni004F|uni0049@707,0|uni004F@1077,0"
+        "[uni004F|uni0049@707,0|uni004F@1077,0]"
     );
 }
 
@@ -2455,7 +2455,7 @@ fn gvar_7_007() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "uni004F|uni0049@707,0|uni004F@1078,0"
+        "[uni004F|uni0049@707,0|uni004F@1078,0]"
     );
 }
 
@@ -2467,7 +2467,7 @@ fn gvar_7_008() {
             "\u{004F}\u{0049}\u{004F}",
             "--ned --remove-default-ignorables --variations=wght=450",
         ),
-        "uni004F|uni0049@706,0|uni004F@1079,0"
+        "[uni004F|uni0049@706,0|uni004F@1079,0]"
     );
 }
 
@@ -2479,7 +2479,7 @@ fn gvar_8_002() {
             "\u{0048}",
             "--ned --remove-default-ignorables --variations=HV=0.0",
         ),
-        "H"
+        "[H]"
     );
 }
 
@@ -2491,7 +2491,7 @@ fn gvar_8_003() {
             "\u{0048}",
             "--ned --remove-default-ignorables --variations=HV=-0.2",
         ),
-        "H"
+        "[H]"
     );
 }
 
@@ -2503,7 +2503,7 @@ fn gvar_8_004() {
             "\u{0048}",
             "--ned --remove-default-ignorables --variations=HV=-0.4",
         ),
-        "H"
+        "[H]"
     );
 }
 
@@ -2515,7 +2515,7 @@ fn gvar_8_005() {
             "\u{0048}",
             "--ned --remove-default-ignorables --variations=HV=-0.6",
         ),
-        "H"
+        "[H]"
     );
 }
 
@@ -2527,7 +2527,7 @@ fn gvar_8_006() {
             "\u{0048}",
             "--ned --remove-default-ignorables --variations=HV=-0.8",
         ),
-        "H"
+        "[H]"
     );
 }
 
@@ -2539,7 +2539,7 @@ fn gvar_8_007() {
             "\u{0048}",
             "--ned --remove-default-ignorables --variations=HV=-1.0",
         ),
-        "H"
+        "[H]"
     );
 }
 
@@ -2551,7 +2551,7 @@ fn gvar_9_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=-1.0",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2563,7 +2563,7 @@ fn gvar_9_003() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=-0.5",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2575,7 +2575,7 @@ fn gvar_9_004() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.0",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2587,7 +2587,7 @@ fn gvar_9_005() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.5",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2599,7 +2599,7 @@ fn gvar_9_006() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.6",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2611,7 +2611,7 @@ fn gvar_9_007() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.7",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2623,7 +2623,7 @@ fn gvar_9_008() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.8",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2635,7 +2635,7 @@ fn gvar_9_009() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.9",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2647,7 +2647,7 @@ fn gvar_9_010() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=0.944444",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2659,7 +2659,7 @@ fn gvar_9_011() {
             "\u{0041}",
             "--ned --remove-default-ignorables --variations=TEST=1.0",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -2671,7 +2671,7 @@ fn hvar_1_002() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables --variations=wght=0",
         ),
-        "A|B@520,0|C@1094,0"
+        "[A|B@520,0|C@1094,0]"
     );
 }
 
@@ -2683,7 +2683,7 @@ fn hvar_1_003() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables --variations=wght=200",
         ),
-        "A|B@533,0|C@1115,0"
+        "[A|B@533,0|C@1115,0]"
     );
 }
 
@@ -2695,7 +2695,7 @@ fn hvar_1_004() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "A|B@546,0|C@1135,0"
+        "[A|B@546,0|C@1135,0]"
     );
 }
 
@@ -2707,7 +2707,7 @@ fn hvar_1_005() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "A|B@558,0|C@1155,0"
+        "[A|B@558,0|C@1155,0]"
     );
 }
 
@@ -2719,7 +2719,7 @@ fn hvar_1_006() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables --variations=wght=800",
         ),
-        "A|B@571,0|C@1175,0"
+        "[A|B@571,0|C@1175,0]"
     );
 }
 
@@ -2731,7 +2731,7 @@ fn hvar_1_007() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables --variations=wght=1000",
         ),
-        "A|B@584,0|C@1196,0"
+        "[A|B@584,0|C@1196,0]"
     );
 }
 
@@ -2743,7 +2743,7 @@ fn hvar_2_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables --variations=wght=0",
         ),
-        "uni0041|uni0042@450,0"
+        "[uni0041|uni0042@450,0]"
     );
 }
 
@@ -2755,7 +2755,7 @@ fn hvar_2_003() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables --variations=wght=200",
         ),
-        "uni0041|uni0042@515,0"
+        "[uni0041|uni0042@515,0]"
     );
 }
 
@@ -2767,7 +2767,7 @@ fn hvar_2_004() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables --variations=wght=400",
         ),
-        "uni0041|uni0042@584,0"
+        "[uni0041|uni0042@584,0]"
     );
 }
 
@@ -2779,7 +2779,7 @@ fn hvar_2_005() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables --variations=wght=600",
         ),
-        "uni0041|uni0042@673,0"
+        "[uni0041|uni0042@673,0]"
     );
 }
 
@@ -2791,7 +2791,7 @@ fn hvar_2_006() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables --variations=wght=800",
         ),
-        "uni0041|uni0042@761,0"
+        "[uni0041|uni0042@761,0]"
     );
 }
 
@@ -2803,7 +2803,7 @@ fn hvar_2_007() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables --variations=wght=1000",
         ),
-        "uni0041|uni0042@850,0"
+        "[uni0041|uni0042@850,0]"
     );
 }
 
@@ -2815,7 +2815,7 @@ fn kern_1_002() {
             "\u{0131}\u{0054}\u{0075}\u{0054}\u{0075}\u{0054}\u{0131}",
             "--ned --remove-default-ignorables",
         ),
-        "dotlessi|T|u@400,0|T@600,0|u@1000,0|T@1200,0|dotlessi@1600,0"
+        "[dotlessi|T|u@400,0|T@600,0|u@1000,0|T@1200,0|dotlessi@1600,0]"
     );
 }
 
@@ -2827,7 +2827,7 @@ fn kern_2_002() {
             "\u{0075}\u{0131}\u{0131}\u{0054}\u{0131}\u{0131}\u{0054}\u{0131}\u{0131}\u{0075}",
             "--ned --remove-default-ignorables",
         ),
-        "u|dotlessi@400,0|dotlessi@1100,0|T@1100,0|dotlessi@1500,0|dotlessi@2200,0|T@2200,0|dotlessi@2600,0|dotlessi@3300,0|u@3500,0"
+        "[u|dotlessi@400,0|dotlessi@1100,0|T@1100,0|dotlessi@1500,0|dotlessi@2200,0|T@2200,0|dotlessi@2600,0|dotlessi@3300,0|u@3500,0]"
     );
 }
 
@@ -2839,7 +2839,7 @@ fn morx_1_002() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|B@1000,0|C.alt@2000,0"
+        "[A.alt|B@1000,0|C.alt@2000,0]"
     );
 }
 
@@ -2851,7 +2851,7 @@ fn morx_10_002() {
             "\u{0041}\u{0042}\u{0041}\u{0042}\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@638,0|A@1288,0|B@1926,0|B@2576,0|A@3226,0"
+        "[A|B@638,0|A@1288,0|B@1926,0|B@2576,0|A@3226,0]"
     );
 }
 
@@ -2863,7 +2863,7 @@ fn morx_11_002() {
             "\u{0042}\u{0041}\u{0042}\u{0042}\u{0041}\u{0041}\u{0042}\u{0058}",
             "--ned --remove-default-ignorables",
         ),
-        "B|A@650,0|B@1288,0|B@1938,0|A@2588,0|X@3226,0|A@3812,0|B@4450,0"
+        "[B|A@650,0|B@1288,0|B@1938,0|A@2588,0|X@3226,0|A@3812,0|B@4450,0]"
     );
 }
 
@@ -2875,7 +2875,7 @@ fn morx_12_002() {
             "\u{0058}\u{0041}\u{0042}\u{0043}\u{0058}\u{0031}",
             "--ned --remove-default-ignorables",
         ),
-        "X|C@598,0|A@1230,0|B@1868,0|X@2518,0|one@3116,0"
+        "[X|C@598,0|A@1230,0|B@1868,0|X@2518,0|one@3116,0]"
     );
 }
 
@@ -2887,7 +2887,7 @@ fn morx_12_003() {
             "\u{0058}\u{0041}\u{0042}\u{0043}\u{0058}\u{0032}",
             "--ned --remove-default-ignorables",
         ),
-        "X|C@598,0|A@1230,0|B@1868,0|X@2518,0|two@3116,0"
+        "[X|C@598,0|A@1230,0|B@1868,0|X@2518,0|two@3116,0]"
     );
 }
 
@@ -2899,7 +2899,7 @@ fn morx_12_004() {
             "\u{0058}\u{0041}\u{0042}\u{0043}\u{0058}\u{0033}",
             "--ned --remove-default-ignorables",
         ),
-        "X|B@598,0|C@1248,0|A@1880,0|X@2518,0|three@3116,0"
+        "[X|B@598,0|C@1248,0|A@1880,0|X@2518,0|three@3116,0]"
     );
 }
 
@@ -2911,7 +2911,7 @@ fn morx_13_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "B|C@626,0|D@1222,0|E@1896,0|A@2452,0"
+        "[B|C@626,0|D@1222,0|E@1896,0|A@2452,0]"
     );
 }
 
@@ -2923,7 +2923,7 @@ fn morx_14_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "B|C@626,0|D@1222,0|E@1896,0|A@2452,0"
+        "[B|C@626,0|D@1222,0|E@1896,0|A@2452,0]"
     );
 }
 
@@ -2945,7 +2945,7 @@ fn morx_16_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "B|C@626,0|D@1222,0|E@1896,0|A@2452,0"
+        "[B|C@626,0|D@1222,0|E@1896,0|A@2452,0]"
     );
 }
 
@@ -2957,7 +2957,7 @@ fn morx_17_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B|A@626,0"
+        "[B|A@626,0]"
     );
 }
 
@@ -2969,7 +2969,7 @@ fn morx_18_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B.alt@639,0|C@1639,0|D.alt1@2235,0|E@3235,0"
+        "[A|B.alt@639,0|C@1639,0|D.alt1@2235,0|E@3235,0]"
     );
 }
 
@@ -2981,7 +2981,7 @@ fn morx_18_003() {
             "\u{0041}\u{0042}\u{0042}\u{0042}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0|B@1265,0|B.alt@1891,0|D.alt1@2891,0|E@3891,0"
+        "[A|B@639,0|B@1265,0|B.alt@1891,0|D.alt1@2891,0|E@3891,0]"
     );
 }
 
@@ -2993,7 +2993,7 @@ fn morx_18_004() {
             "\u{0041}\u{0042}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B.alt@639,0|D.alt1@1639,0|E@2639,0"
+        "[A|B.alt@639,0|D.alt1@1639,0|E@2639,0]"
     );
 }
 
@@ -3005,7 +3005,7 @@ fn morx_18_005() {
             "\u{0041}\u{0042}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0|E@1265,0"
+        "[A|B@639,0|E@1265,0]"
     );
 }
 
@@ -3017,7 +3017,7 @@ fn morx_19_002() {
             "\u{0041}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|C@1000,0|D.alt1@1596,0|E@2596,0"
+        "[A.alt|C@1000,0|D.alt1@1596,0|E@2596,0]"
     );
 }
 
@@ -3029,7 +3029,7 @@ fn morx_19_003() {
             "\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "D.alt"
+        "[D.alt]"
     );
 }
 
@@ -3042,7 +3042,7 @@ fn morx_2_002() {
              \u{004F}\u{004F}\u{004F}\u{24FF}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|A@1254,0|B@2084,0|X@2914,0|Y@3744,0|Z@4574,0|C@5404,0|D@6234,0|O@7064,0|O@7482,0|O@7900,0|zero@8318,0"
+        "[O|O@418,0|O@836,0|A@1254,0|B@2084,0|X@2914,0|Y@3744,0|Z@4574,0|C@5404,0|D@6234,0|O@7064,0|O@7482,0|O@7900,0|zero@8318,0]"
     );
 }
 
@@ -3055,7 +3055,7 @@ fn morx_2_003() {
              \u{004F}\u{004F}\u{004F}\u{278A}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|B@1254,0|X@2084,0|Y@2914,0|Z@3744,0|C@4574,0|D@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one@8318,0"
+        "[O|O@418,0|O@836,0|B@1254,0|X@2084,0|Y@2914,0|Z@3744,0|C@4574,0|D@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one@8318,0]"
     );
 }
 
@@ -3068,7 +3068,7 @@ fn morx_2_004() {
              \u{004F}\u{004F}\u{004F}\u{278B}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|A@2084,0|B@2914,0|X@3744,0|Y@4574,0|Z@5404,0|C@6234,0|O@7064,0|O@7482,0|O@7900,0|two@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|A@2084,0|B@2914,0|X@3744,0|Y@4574,0|Z@5404,0|C@6234,0|O@7064,0|O@7482,0|O@7900,0|two@8318,0]"
     );
 }
 
@@ -3081,7 +3081,7 @@ fn morx_2_005() {
              \u{004F}\u{004F}\u{004F}\u{0033}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|B@2084,0|X@2914,0|Y@3744,0|Z@4574,0|C@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|three@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|B@2084,0|X@2914,0|Y@3744,0|Z@4574,0|C@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|three@8318,0]"
     );
 }
 
@@ -3094,7 +3094,7 @@ fn morx_2_006() {
              \u{004F}\u{004F}\u{004F}\u{0034}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|X@1254,0|Y@2084,0|Z@2914,0|C@3744,0|D@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|four@8318,0"
+        "[O|O@418,0|O@836,0|X@1254,0|Y@2084,0|Z@2914,0|C@3744,0|D@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|four@8318,0]"
     );
 }
 
@@ -3107,7 +3107,7 @@ fn morx_2_007() {
              \u{004F}\u{004F}\u{004F}\u{0035}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|X@1254,0|Y@2084,0|Z@2914,0|C@3744,0|D@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|five@8318,0"
+        "[O|O@418,0|O@836,0|X@1254,0|Y@2084,0|Z@2914,0|C@3744,0|D@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|five@8318,0]"
     );
 }
 
@@ -3120,7 +3120,7 @@ fn morx_2_008() {
              \u{004F}\u{004F}\u{004F}\u{0036}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|C@1254,0|D@2084,0|A@2914,0|B@3744,0|X@4574,0|Y@5404,0|Z@6234,0|O@7064,0|O@7482,0|O@7900,0|six@8318,0"
+        "[O|O@418,0|O@836,0|C@1254,0|D@2084,0|A@2914,0|B@3744,0|X@4574,0|Y@5404,0|Z@6234,0|O@7064,0|O@7482,0|O@7900,0|six@8318,0]"
     );
 }
 
@@ -3133,7 +3133,7 @@ fn morx_2_009() {
              \u{004F}\u{004F}\u{004F}\u{0037}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|C@2084,0|A@2914,0|B@3744,0|X@4574,0|Y@5404,0|Z@6234,0|O@7064,0|O@7482,0|O@7900,0|seven@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|C@2084,0|A@2914,0|B@3744,0|X@4574,0|Y@5404,0|Z@6234,0|O@7064,0|O@7482,0|O@7900,0|seven@8318,0]"
     );
 }
 
@@ -3146,7 +3146,7 @@ fn morx_2_010() {
              \u{004F}\u{004F}\u{004F}\u{0038}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|C@1254,0|D@2084,0|B@2914,0|X@3744,0|Y@4574,0|Z@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|eight@8318,0"
+        "[O|O@418,0|O@836,0|C@1254,0|D@2084,0|B@2914,0|X@3744,0|Y@4574,0|Z@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|eight@8318,0]"
     );
 }
 
@@ -3159,7 +3159,7 @@ fn morx_2_011() {
              \u{004F}\u{004F}\u{004F}\u{0039}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|C@2084,0|B@2914,0|X@3744,0|Y@4574,0|Z@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|nine@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|C@2084,0|B@2914,0|X@3744,0|Y@4574,0|Z@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|nine@8318,0]"
     );
 }
 
@@ -3172,7 +3172,7 @@ fn morx_2_012() {
              \u{004F}\u{004F}\u{004F}\u{2793}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|X@2084,0|Y@2914,0|Z@3744,0|C@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|one_zero@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|X@2084,0|Y@2914,0|Z@3744,0|C@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|one_zero@8318,0]"
     );
 }
 
@@ -3185,7 +3185,7 @@ fn morx_2_013() {
              \u{004F}\u{004F}\u{004F}\u{24EB}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|X@2084,0|Y@2914,0|Z@3744,0|C@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one_one@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|X@2084,0|Y@2914,0|Z@3744,0|C@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one_one@8318,0]"
     );
 }
 
@@ -3198,7 +3198,7 @@ fn morx_2_014() {
              \u{004F}\u{004F}\u{004F}\u{24EC}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|C@1254,0|D@2084,0|X@2914,0|Y@3744,0|Z@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|one_two@8318,0"
+        "[O|O@418,0|O@836,0|C@1254,0|D@2084,0|X@2914,0|Y@3744,0|Z@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|one_two@8318,0]"
     );
 }
 
@@ -3211,7 +3211,7 @@ fn morx_2_015() {
              \u{004F}\u{004F}\u{004F}\u{24ED}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|C@1254,0|D@2084,0|X@2914,0|Y@3744,0|Z@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one_three@8318,0"
+        "[O|O@418,0|O@836,0|C@1254,0|D@2084,0|X@2914,0|Y@3744,0|Z@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one_three@8318,0]"
     );
 }
 
@@ -3224,7 +3224,7 @@ fn morx_2_016() {
              \u{004F}\u{004F}\u{004F}\u{24EE}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|C@2084,0|X@2914,0|Y@3744,0|Z@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|one_four@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|C@2084,0|X@2914,0|Y@3744,0|Z@4574,0|A@5404,0|B@6234,0|O@7064,0|O@7482,0|O@7900,0|one_four@8318,0]"
     );
 }
 
@@ -3237,7 +3237,7 @@ fn morx_2_017() {
              \u{004F}\u{004F}\u{004F}\u{24EF}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|D@1254,0|C@2084,0|X@2914,0|Y@3744,0|Z@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one_five@8318,0"
+        "[O|O@418,0|O@836,0|D@1254,0|C@2084,0|X@2914,0|Y@3744,0|Z@4574,0|B@5404,0|A@6234,0|O@7064,0|O@7482,0|O@7900,0|one_five@8318,0]"
     );
 }
 
@@ -3249,7 +3249,7 @@ fn morx_20_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0|C.alt@1265,0|D@2265,0|E.alt1@2939,0"
+        "[A|B@639,0|C.alt@1265,0|D@2265,0|E.alt1@2939,0]"
     );
 }
 
@@ -3261,7 +3261,7 @@ fn morx_20_003() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0|C.alt@1265,0"
+        "[A|B@639,0|C.alt@1265,0]"
     );
 }
 
@@ -3273,7 +3273,7 @@ fn morx_20_004() {
             "\u{0041}\u{0042}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B.alt@639,0|E.alt1@1639,0"
+        "[A|B.alt@639,0|E.alt1@1639,0]"
     );
 }
 
@@ -3285,7 +3285,7 @@ fn morx_20_005() {
             "\u{0041}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|E.alt1@1000,0"
+        "[A.alt|E.alt1@1000,0]"
     );
 }
 
@@ -3297,7 +3297,7 @@ fn morx_20_006() {
             "\u{0045}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "E|E@556,0"
+        "[E|E@556,0]"
     );
 }
 
@@ -3309,7 +3309,7 @@ fn morx_20_007() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt"
+        "[A.alt]"
     );
 }
 
@@ -3321,7 +3321,7 @@ fn morx_20_008() {
             "\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "E"
+        "[E]"
     );
 }
 
@@ -3333,7 +3333,7 @@ fn morx_21_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B.alt@639,0|C@1639,0|D@2235,0|E@2909,0"
+        "[A|B.alt@639,0|C@1639,0|D@2235,0|E@2909,0]"
     );
 }
 
@@ -3345,7 +3345,7 @@ fn morx_22_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "C"
+        "[C]"
     );
 }
 
@@ -3357,7 +3357,7 @@ fn morx_23_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "E|E@556,0|E@1112,0|E@1668,0|E@2224,0"
+        "[E|E@556,0|E@1112,0|E@1668,0|E@2224,0]"
     );
 }
 
@@ -3378,7 +3378,7 @@ fn morx_25_002() {
             "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|B.alt@1000,0|C.alt@2000,0|D.alt@3000,0|E.alt@4000,0"
+        "[A.alt|B.alt@1000,0|C.alt@2000,0|D.alt@3000,0|E.alt@4000,0]"
     );
 }
 
@@ -3390,7 +3390,7 @@ fn morx_25_003() {
             "\u{0045}\u{0042}\u{0043}\u{0044}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "E|B@556,0|C@1182,0|D@1778,0|A@2452,0"
+        "[E|B@556,0|C@1182,0|D@1778,0|A@2452,0]"
     );
 }
 
@@ -3402,7 +3402,7 @@ fn morx_25_004() {
             "\u{0043}\u{0042}\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "C|B@596,0|A.alt@1222,0|B.alt@2222,0|C.alt@3222,0"
+        "[C|B@596,0|A.alt@1222,0|B.alt@2222,0|C.alt@3222,0]"
     );
 }
 
@@ -3414,7 +3414,7 @@ fn morx_25_005() {
             "\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|B.alt@1000,0|C.alt@2000,0"
+        "[A.alt|B.alt@1000,0|C.alt@2000,0]"
     );
 }
 
@@ -3426,7 +3426,7 @@ fn morx_25_006() {
             "\u{0043}\u{0042}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "C|B@596,0|A@1222,0"
+        "[C|B@596,0|A@1222,0]"
     );
 }
 
@@ -3438,7 +3438,7 @@ fn morx_25_007() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|B.alt@1000,0"
+        "[A.alt|B.alt@1000,0]"
     );
 }
 
@@ -3450,7 +3450,7 @@ fn morx_25_008() {
             "\u{0042}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "B|A@626,0"
+        "[B|A@626,0]"
     );
 }
 
@@ -3462,7 +3462,7 @@ fn morx_25_009() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -3474,7 +3474,7 @@ fn morx_25_010() {
             "\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B"
+        "[B]"
     );
 }
 
@@ -3486,7 +3486,7 @@ fn morx_26_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0"
+        "[A|B@639,0]"
     );
 }
 
@@ -3498,7 +3498,7 @@ fn morx_26_003() {
             "\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B.alt"
+        "[B.alt]"
     );
 }
 
@@ -3510,7 +3510,7 @@ fn morx_27_002() {
             "\u{0041}\u{0045}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_B"
+        "[A_E_B]"
     );
 }
 
@@ -3522,7 +3522,7 @@ fn morx_27_003() {
             "\u{0041}\u{0045}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_C"
+        "[A_E_C]"
     );
 }
 
@@ -3534,7 +3534,7 @@ fn morx_27_004() {
             "\u{0041}\u{0045}\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_D"
+        "[A_E_D]"
     );
 }
 
@@ -3546,7 +3546,7 @@ fn morx_28_002() {
             "\u{0041}\u{0045}\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_D"
+        "[A_E_D]"
     );
 }
 
@@ -3558,7 +3558,7 @@ fn morx_28_003() {
             "\u{0041}\u{0078}\u{0045}\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_D|x@1394,0"
+        "[A_E_D|x@1394,0]"
     );
 }
 
@@ -3570,7 +3570,7 @@ fn morx_28_004() {
             "\u{0041}\u{0045}\u{0079}\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_D|y@1394,0"
+        "[A_E_D|y@1394,0]"
     );
 }
 
@@ -3582,7 +3582,7 @@ fn morx_28_005() {
             "\u{0041}\u{0078}\u{0045}\u{0079}\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_D|x@1394,0|y@1923,0"
+        "[A_E_D|x@1394,0|y@1923,0]"
     );
 }
 
@@ -3594,7 +3594,7 @@ fn morx_28_006() {
             "\u{0041}\u{0078}\u{0078}\u{0078}\u{0045}\u{0079}\u{0079}\u{0079}\u{0044}",
             "--ned --remove-default-ignorables",
         ),
-        "A_E_D|x@1394,0|x@1923,0|x@2452,0|y@2981,0|y@3491,0|y@4001,0"
+        "[A_E_D|x@1394,0|x@1923,0|x@2452,0|y@2981,0|y@3491,0|y@4001,0]"
     );
 }
 
@@ -3607,7 +3607,7 @@ fn morx_29_002() {
              \u{0059}\u{0041}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|I@4268,0|N@5098,0|S@5928,0|M@6758,0|Y@7588,0|Y@7920,0|A@8252,0|Z@9082,0|Z@9404,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|I@4268,0|N@5098,0|S@5928,0|M@6758,0|Y@7588,0|Y@7920,0|A@8252,0|Z@9082,0|Z@9404,0]"
     );
 }
 
@@ -3620,7 +3620,7 @@ fn morx_29_003() {
              \u{0059}\u{0042}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|M@4268,0|I@5098,0|N@5928,0|S@6758,0|Y@7588,0|Y@7920,0|B@8252,0|Z@9082,0|Z@9404,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|M@4268,0|I@5098,0|N@5928,0|S@6758,0|Y@7588,0|Y@7920,0|B@8252,0|Z@9082,0|Z@9404,0]"
     );
 }
 
@@ -3633,7 +3633,7 @@ fn morx_29_004() {
              \u{0059}\u{0043}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|M@4268,0|Y@5098,0|Y@5430,0|I@5762,0|N@6592,0|S@7422,0|C@8252,0|Z@9082,0|Z@9404,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|M@4268,0|Y@5098,0|Y@5430,0|I@5762,0|N@6592,0|S@7422,0|C@8252,0|Z@9082,0|Z@9404,0]"
     );
 }
 
@@ -3646,7 +3646,7 @@ fn morx_29_005() {
              \u{0059}\u{0044}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|M@4268,0|Y@5098,0|Y@5430,0|D@5762,0|I@6592,0|N@7422,0|S@8252,0|Z@9082,0|Z@9404,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|M@1880,0|X@2710,0|X@3074,0|M@3438,0|M@4268,0|Y@5098,0|Y@5430,0|D@5762,0|I@6592,0|N@7422,0|S@8252,0|Z@9082,0|Z@9404,0]"
     );
 }
 
@@ -3658,7 +3658,7 @@ fn morx_3_002() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0030}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|zero@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|zero@1793,0]"
     );
 }
 
@@ -3670,7 +3670,7 @@ fn morx_3_003() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0031}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one@1793,0]"
     );
 }
 
@@ -3682,7 +3682,7 @@ fn morx_3_004() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0032}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|two@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|two@1793,0]"
     );
 }
 
@@ -3694,7 +3694,7 @@ fn morx_3_005() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0033}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|three@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|three@1793,0]"
     );
 }
 
@@ -3706,7 +3706,7 @@ fn morx_3_006() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0034}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|four@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|four@1793,0]"
     );
 }
 
@@ -3718,7 +3718,7 @@ fn morx_3_007() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0035}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|five@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|five@1793,0]"
     );
 }
 
@@ -3730,7 +3730,7 @@ fn morx_3_008() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0036}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|six@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|six@1793,0]"
     );
 }
 
@@ -3742,7 +3742,7 @@ fn morx_3_009() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0037}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|seven@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|seven@1793,0]"
     );
 }
 
@@ -3754,7 +3754,7 @@ fn morx_3_010() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0038}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|eight@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|eight@1793,0]"
     );
 }
 
@@ -3766,7 +3766,7 @@ fn morx_3_011() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{0039}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|nine@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|nine@1793,0]"
     );
 }
 
@@ -3778,7 +3778,7 @@ fn morx_3_012() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{2793}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_zero@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_zero@1793,0]"
     );
 }
 
@@ -3790,7 +3790,7 @@ fn morx_3_013() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{24EB}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_one@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_one@1793,0]"
     );
 }
 
@@ -3802,7 +3802,7 @@ fn morx_3_014() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{24EC}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_two@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_two@1793,0]"
     );
 }
 
@@ -3814,7 +3814,7 @@ fn morx_3_015() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{24ED}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_three@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_three@1793,0]"
     );
 }
 
@@ -3826,7 +3826,7 @@ fn morx_3_016() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{24EE}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_four@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_four@1793,0]"
     );
 }
 
@@ -3838,7 +3838,7 @@ fn morx_3_017() {
             "\u{0041}\u{0042}\u{0058}\u{0043}\u{0044}\u{24EF}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_five@1793,0"
+        "[A|B@363,0|X@722,0|C@1086,0|D@1402,0|one_five@1793,0]"
     );
 }
 
@@ -3851,7 +3851,7 @@ fn morx_30_002() {
              \u{0059}\u{0041}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|I@1880,0|N@2710,0|S@3540,0|I@4370,0|N@5200,0|S@6030,0|M@6860,0|X@7690,0|X@8054,0|X@8418,0|A@8782,0|Y@9612,0|Y@9944,0|A@10276,0|Z@11106,0|Z@11428,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|I@1880,0|N@2710,0|S@3540,0|I@4370,0|N@5200,0|S@6030,0|M@6860,0|X@7690,0|X@8054,0|X@8418,0|A@8782,0|Y@9612,0|Y@9944,0|A@10276,0|Z@11106,0|Z@11428,0]"
     );
 }
 
@@ -3864,7 +3864,7 @@ fn morx_30_003() {
              \u{0059}\u{0042}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|I@1880,0|I@2710,0|N@3540,0|S@4370,0|N@5200,0|S@6030,0|M@6860,0|X@7690,0|X@8054,0|X@8418,0|A@8782,0|Y@9612,0|Y@9944,0|B@10276,0|Z@11106,0|Z@11428,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|I@1880,0|I@2710,0|N@3540,0|S@4370,0|N@5200,0|S@6030,0|M@6860,0|X@7690,0|X@8054,0|X@8418,0|A@8782,0|Y@9612,0|Y@9944,0|B@10276,0|Z@11106,0|Z@11428,0]"
     );
 }
 
@@ -3877,7 +3877,7 @@ fn morx_30_004() {
              \u{0059}\u{0041}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|I@1880,0|N@2710,0|S@3540,0|M@4370,0|I@5200,0|N@6030,0|S@6860,0|X@7690,0|X@8054,0|X@8418,0|B@8782,0|Y@9612,0|Y@9944,0|A@10276,0|Z@11106,0|Z@11428,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|I@1880,0|N@2710,0|S@3540,0|M@4370,0|I@5200,0|N@6030,0|S@6860,0|X@7690,0|X@8054,0|X@8418,0|B@8782,0|Y@9612,0|Y@9944,0|A@10276,0|Z@11106,0|Z@11428,0]"
     );
 }
 
@@ -3890,7 +3890,7 @@ fn morx_30_005() {
              \u{0059}\u{0042}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|M@1050,0|M@1880,0|I@2710,0|N@3540,0|S@4370,0|I@5200,0|N@6030,0|S@6860,0|X@7690,0|X@8054,0|X@8418,0|B@8782,0|Y@9612,0|Y@9944,0|B@10276,0|Z@11106,0|Z@11428,0"
+        "[P|Q@333,0|R@699,0|M@1050,0|M@1880,0|I@2710,0|N@3540,0|S@4370,0|I@5200,0|N@6030,0|S@6860,0|X@7690,0|X@8054,0|X@8418,0|B@8782,0|Y@9612,0|Y@9944,0|B@10276,0|Z@11106,0|Z@11428,0]"
     );
 }
 
@@ -3902,7 +3902,7 @@ fn morx_31_002() {
             "\u{0058}\u{0058}\u{0041}\u{0059}\u{0059}\u{0041}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "I|N@830,0|I@1660,0|N@2490,0|S@3320,0|S@4150,0|X@4980,0|X@5344,0|A@5708,0|Y@6538,0|Y@6870,0|A@7202,0|Z@8032,0|Z@8354,0"
+        "[I|N@830,0|I@1660,0|N@2490,0|S@3320,0|S@4150,0|X@4980,0|X@5344,0|A@5708,0|Y@6538,0|Y@6870,0|A@7202,0|Z@8032,0|Z@8354,0]"
     );
 }
 
@@ -3914,7 +3914,7 @@ fn morx_31_003() {
             "\u{0058}\u{0058}\u{0041}\u{0059}\u{0059}\u{0042}\u{0059}\u{0059}",
             "--ned --remove-default-ignorables",
         ),
-        "I|N@830,0|S@1660,0|I@2490,0|N@3320,0|S@4150,0|X@4980,0|X@5344,0|A@5708,0|Y@6538,0|Y@6870,0|B@7202,0|Y@8032,0|Y@8364,0"
+        "[I|N@830,0|S@1660,0|I@2490,0|N@3320,0|S@4150,0|X@4980,0|X@5344,0|A@5708,0|Y@6538,0|Y@6870,0|B@7202,0|Y@8032,0|Y@8364,0]"
     );
 }
 
@@ -3926,7 +3926,7 @@ fn morx_31_004() {
             "\u{0058}\u{0058}\u{0042}\u{0059}\u{0059}\u{0041}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "X|I@364,0|I@1194,0|N@2024,0|S@2854,0|N@3684,0|S@4514,0|X@5344,0|B@5708,0|Y@6538,0|Y@6870,0|A@7202,0|Z@8032,0|Z@8354,0"
+        "[X|I@364,0|I@1194,0|N@2024,0|S@2854,0|N@3684,0|S@4514,0|X@5344,0|B@5708,0|Y@6538,0|Y@6870,0|A@7202,0|Z@8032,0|Z@8354,0]"
     );
 }
 
@@ -3938,7 +3938,7 @@ fn morx_31_005() {
             "\u{0058}\u{0058}\u{0042}\u{0059}\u{0059}\u{0042}\u{005A}\u{005A}",
             "--ned --remove-default-ignorables",
         ),
-        "X|I@364,0|N@1194,0|I@2024,0|N@2854,0|S@3684,0|S@4514,0|X@5344,0|B@5708,0|Y@6538,0|Y@6870,0|B@7202,0|Z@8032,0|Z@8354,0"
+        "[X|I@364,0|N@1194,0|I@2024,0|N@2854,0|S@3684,0|S@4514,0|X@5344,0|B@5708,0|Y@6538,0|Y@6870,0|B@7202,0|Z@8032,0|Z@8354,0]"
     );
 }
 
@@ -3950,7 +3950,7 @@ fn morx_31_006() {
             "\u{004D}\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "I|N@830,0|S@1660,0|M@2490,0|I@3320,0|N@4150,0|S@4980,0|P@5810,0|Q@6143,0|R@6509,0|A@6860,0|X@7690,0|Y@8054,0|Z@8386,0|A@8708,0"
+        "[I|N@830,0|S@1660,0|M@2490,0|I@3320,0|N@4150,0|S@4980,0|P@5810,0|Q@6143,0|R@6509,0|A@6860,0|X@7690,0|Y@8054,0|Z@8386,0|A@8708,0]"
     );
 }
 
@@ -3962,7 +3962,7 @@ fn morx_31_007() {
             "\u{004D}\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "I|N@830,0|S@1660,0|M@2490,0|P@3320,0|I@3653,0|N@4483,0|S@5313,0|Q@6143,0|R@6509,0|A@6860,0|X@7690,0|Y@8054,0|Z@8386,0|B@8708,0"
+        "[I|N@830,0|S@1660,0|M@2490,0|P@3320,0|I@3653,0|N@4483,0|S@5313,0|Q@6143,0|R@6509,0|A@6860,0|X@7690,0|Y@8054,0|Z@8386,0|B@8708,0]"
     );
 }
 
@@ -3974,7 +3974,7 @@ fn morx_31_008() {
             "\u{004D}\u{0050}\u{0051}\u{0052}\u{0042}\u{0058}\u{0059}\u{005A}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "M|I@830,0|N@1660,0|S@2490,0|I@3320,0|N@4150,0|S@4980,0|P@5810,0|Q@6143,0|R@6509,0|B@6860,0|X@7690,0|Y@8054,0|Z@8386,0|A@8708,0"
+        "[M|I@830,0|N@1660,0|S@2490,0|I@3320,0|N@4150,0|S@4980,0|P@5810,0|Q@6143,0|R@6509,0|B@6860,0|X@7690,0|Y@8054,0|Z@8386,0|A@8708,0]"
     );
 }
 
@@ -3986,7 +3986,7 @@ fn morx_31_009() {
             "\u{004D}\u{0050}\u{0051}\u{0052}\u{0042}\u{0058}\u{0059}\u{005A}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "M|I@830,0|N@1660,0|S@2490,0|P@3320,0|I@3653,0|N@4483,0|S@5313,0|Q@6143,0|R@6509,0|B@6860,0|X@7690,0|Y@8054,0|Z@8386,0|B@8708,0"
+        "[M|I@830,0|N@1660,0|S@2490,0|P@3320,0|I@3653,0|N@4483,0|S@5313,0|Q@6143,0|R@6509,0|B@6860,0|X@7690,0|Y@8054,0|Z@8386,0|B@8708,0]"
     );
 }
 
@@ -3998,7 +3998,7 @@ fn morx_32_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "I|N@830,0|S@1660,0|A@2490,0"
+        "[I|N@830,0|S@1660,0|A@2490,0]"
     );
 }
 
@@ -4010,7 +4010,7 @@ fn morx_32_003() {
             "\u{0058}\u{0041}\u{0059}",
             "--ned --remove-default-ignorables",
         ),
-        "I|N@830,0|S@1660,0|X@2490,0|A@2854,0|Y@3684,0"
+        "[I|N@830,0|S@1660,0|X@2490,0|A@2854,0|Y@3684,0]"
     );
 }
 
@@ -4022,7 +4022,7 @@ fn morx_32_004() {
             "\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B|I@830,0|N@1660,0|S@2490,0"
+        "[B|I@830,0|N@1660,0|S@2490,0]"
     );
 }
 
@@ -4034,7 +4034,7 @@ fn morx_32_005() {
             "\u{0058}\u{0042}\u{0059}",
             "--ned --remove-default-ignorables",
         ),
-        "X|I@364,0|N@1194,0|S@2024,0|B@2854,0|Y@3684,0"
+        "[X|I@364,0|N@1194,0|S@2024,0|B@2854,0|Y@3684,0]"
     );
 }
 
@@ -4046,7 +4046,7 @@ fn morx_33_002() {
             "\u{0068}\u{0061}",
             "--ned --remove-default-ignorables",
         ),
-        "h|a@618,0|h@1179,0|a@1797,0"
+        "[h|a@618,0|h@1179,0|a@1797,0]"
     );
 }
 
@@ -4058,7 +4058,7 @@ fn morx_33_003() {
             "\u{0068}\u{0061}\u{0068}\u{0061}",
             "--ned --remove-default-ignorables",
         ),
-        "h|a@618,0|h@1179,0|a@1797,0|h@2358,0|a@2976,0|h@3537,0|a@4155,0"
+        "[h|a@618,0|h@1179,0|a@1797,0|h@2358,0|a@2976,0|h@3537,0|a@4155,0]"
     );
 }
 
@@ -4070,7 +4070,7 @@ fn morx_33_004() {
             "\u{0061}\u{0068}",
             "--ned --remove-default-ignorables",
         ),
-        "a|h@561,0"
+        "[a|h@561,0]"
     );
 }
 
@@ -4091,7 +4091,7 @@ fn morx_35_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0|C@1265,0|E@1861,0"
+        "[A|B@639,0|C@1265,0|E@1861,0]"
     );
 }
 
@@ -4103,7 +4103,7 @@ fn morx_35_003() {
             "\u{0058}\u{0041}\u{0059}",
             "--ned --remove-default-ignorables",
         ),
-        "X|A@586,0|B@1225,0|C@1851,0|E@2447,0|Y@3003,0"
+        "[X|A@586,0|B@1225,0|C@1851,0|E@2447,0|Y@3003,0]"
     );
 }
 
@@ -4124,7 +4124,7 @@ fn morx_37_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|B.alt@1000,0"
+        "[A.alt|B.alt@1000,0]"
     );
 }
 
@@ -4136,7 +4136,7 @@ fn morx_37_003() {
             "\u{0042}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "B|A@650,0"
+        "[B|A@650,0]"
     );
 }
 
@@ -4148,7 +4148,7 @@ fn morx_37_004() {
             "\u{05D0}\u{05D1}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D1|uni05D0@542,0"
+        "[uni05D1|uni05D0@542,0]"
     );
 }
 
@@ -4160,7 +4160,7 @@ fn morx_37_005() {
             "\u{05D1}\u{05D0}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D0.alt|uni05D1.alt@1000,0"
+        "[uni05D0.alt|uni05D1.alt@1000,0]"
     );
 }
 
@@ -4172,7 +4172,7 @@ fn morx_38_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A.alt|B.alt@1000,0"
+        "[A.alt|B.alt@1000,0]"
     );
 }
 
@@ -4184,7 +4184,7 @@ fn morx_38_003() {
             "\u{0042}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "B|A@650,0"
+        "[B|A@650,0]"
     );
 }
 
@@ -4196,7 +4196,7 @@ fn morx_38_004() {
             "\u{05D0}\u{05D1}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D1.alt|uni05D0.alt@1000,0"
+        "[uni05D1.alt|uni05D0.alt@1000,0]"
     );
 }
 
@@ -4208,7 +4208,7 @@ fn morx_38_005() {
             "\u{05D1}\u{05D0}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D0|uni05D1@606,0"
+        "[uni05D0|uni05D1@606,0]"
     );
 }
 
@@ -4220,7 +4220,7 @@ fn morx_39_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0"
+        "[A|B@639,0]"
     );
 }
 
@@ -4232,7 +4232,7 @@ fn morx_39_003() {
             "\u{0042}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "B.alt|A.alt@1000,0"
+        "[B.alt|A.alt@1000,0]"
     );
 }
 
@@ -4244,7 +4244,7 @@ fn morx_39_004() {
             "\u{05D0}\u{05D1}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D1.alt|uni05D0.alt@1000,0"
+        "[uni05D1.alt|uni05D0.alt@1000,0]"
     );
 }
 
@@ -4256,7 +4256,7 @@ fn morx_39_005() {
             "\u{05D1}\u{05D0}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D0|uni05D1@606,0"
+        "[uni05D0|uni05D1@606,0]"
     );
 }
 
@@ -4268,7 +4268,7 @@ fn morx_4_002() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0031}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one@2898,0]"
     );
 }
 
@@ -4280,7 +4280,7 @@ fn morx_4_003() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0032}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|two@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|two@2898,0]"
     );
 }
 
@@ -4292,7 +4292,7 @@ fn morx_4_004() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0044}\u{0058}\u{0059}\u{005A}\u{0033}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|D@1050,0|A@1880,0|X@2710,0|Y@3074,0|Z@3406,0|three@3728,0"
+        "[P|Q@333,0|R@699,0|D@1050,0|A@1880,0|X@2710,0|Y@3074,0|Z@3406,0|three@3728,0]"
     );
 }
 
@@ -4304,7 +4304,7 @@ fn morx_4_005() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{0034}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|four@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|four@3728,0]"
     );
 }
 
@@ -4316,7 +4316,7 @@ fn morx_4_006() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{0035}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|B@1050,0|A@1880,0|X@2710,0|Y@3074,0|Z@3406,0|five@3728,0"
+        "[P|Q@333,0|R@699,0|B@1050,0|A@1880,0|X@2710,0|Y@3074,0|Z@3406,0|five@3728,0]"
     );
 }
 
@@ -4328,7 +4328,7 @@ fn morx_4_007() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{0036}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|six@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|six@3728,0]"
     );
 }
 
@@ -4340,7 +4340,7 @@ fn morx_4_008() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{0037}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|B@1050,0|A@1880,0|X@2710,0|Y@3074,0|Z@3406,0|seven@3728,0"
+        "[P|Q@333,0|R@699,0|B@1050,0|A@1880,0|X@2710,0|Y@3074,0|Z@3406,0|seven@3728,0]"
     );
 }
 
@@ -4352,7 +4352,7 @@ fn morx_4_009() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0043}\u{0044}\u{0058}\u{0059}\u{005A}\u{0038}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|C@1050,0|D@1880,0|A@2710,0|X@3540,0|Y@3904,0|Z@4236,0|eight@4558,0"
+        "[P|Q@333,0|R@699,0|C@1050,0|D@1880,0|A@2710,0|X@3540,0|Y@3904,0|Z@4236,0|eight@4558,0]"
     );
 }
 
@@ -4364,7 +4364,7 @@ fn morx_4_010() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0043}\u{0044}\u{0058}\u{0059}\u{005A}\u{0039}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|D@1050,0|C@1880,0|A@2710,0|X@3540,0|Y@3904,0|Z@4236,0|nine@4558,0"
+        "[P|Q@333,0|R@699,0|D@1050,0|C@1880,0|A@2710,0|X@3540,0|Y@3904,0|Z@4236,0|nine@4558,0]"
     );
 }
 
@@ -4376,7 +4376,7 @@ fn morx_4_011() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0044}\u{0058}\u{0059}\u{005A}\u{2793}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|D@1050,0|A@1880,0|B@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_zero@4558,0"
+        "[P|Q@333,0|R@699,0|D@1050,0|A@1880,0|B@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_zero@4558,0]"
     );
 }
 
@@ -4388,7 +4388,7 @@ fn morx_4_012() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0044}\u{0058}\u{0059}\u{005A}\u{24EB}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|D@1050,0|B@1880,0|A@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_one@4558,0"
+        "[P|Q@333,0|R@699,0|D@1050,0|B@1880,0|A@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_one@4558,0]"
     );
 }
 
@@ -4401,7 +4401,7 @@ fn morx_4_013() {
              \u{24EC}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|C@1050,0|D@1880,0|A@2710,0|B@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_two@5388,0"
+        "[P|Q@333,0|R@699,0|C@1050,0|D@1880,0|A@2710,0|B@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_two@5388,0]"
     );
 }
 
@@ -4414,7 +4414,7 @@ fn morx_4_014() {
              \u{24ED}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|C@1050,0|D@1880,0|B@2710,0|A@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_three@5388,0"
+        "[P|Q@333,0|R@699,0|C@1050,0|D@1880,0|B@2710,0|A@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_three@5388,0]"
     );
 }
 
@@ -4427,7 +4427,7 @@ fn morx_4_015() {
              \u{24EE}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|D@1050,0|C@1880,0|A@2710,0|B@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_four@5388,0"
+        "[P|Q@333,0|R@699,0|D@1050,0|C@1880,0|A@2710,0|B@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_four@5388,0]"
     );
 }
 
@@ -4440,7 +4440,7 @@ fn morx_4_016() {
              \u{24EF}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|D@1050,0|C@1880,0|B@2710,0|A@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_five@5388,0"
+        "[P|Q@333,0|R@699,0|D@1050,0|C@1880,0|B@2710,0|A@3540,0|X@4370,0|Y@4734,0|Z@5066,0|one_five@5388,0]"
     );
 }
 
@@ -4452,7 +4452,7 @@ fn morx_40_002() {
             "\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "A|B@639,0"
+        "[A|B@639,0]"
     );
 }
 
@@ -4464,7 +4464,7 @@ fn morx_40_003() {
             "\u{0042}\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "B.alt|A.alt@1000,0"
+        "[B.alt|A.alt@1000,0]"
     );
 }
 
@@ -4476,7 +4476,7 @@ fn morx_40_004() {
             "\u{05D0}\u{05D1}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D1|uni05D0@542,0"
+        "[uni05D1|uni05D0@542,0]"
     );
 }
 
@@ -4488,7 +4488,7 @@ fn morx_40_005() {
             "\u{05D1}\u{05D0}",
             "--ned --remove-default-ignorables",
         ),
-        "uni05D0.alt|uni05D1.alt@1000,0"
+        "[uni05D0.alt|uni05D1.alt@1000,0]"
     );
 }
 
@@ -4500,7 +4500,7 @@ fn morx_41_002() {
             "\u{0061}\u{0063}",
             "--ned --remove-default-ignorables",
         ),
-        "a_c"
+        "[a_c]"
     );
 }
 
@@ -4512,7 +4512,7 @@ fn morx_41_003() {
             "\u{0062}\u{0063}",
             "--ned --remove-default-ignorables",
         ),
-        "b_c"
+        "[b_c]"
     );
 }
 
@@ -4542,7 +4542,7 @@ fn morx_5_002() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0033}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|three@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|three@2898,0]"
     );
 }
 
@@ -4554,7 +4554,7 @@ fn morx_5_003() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0034}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|four@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|four@2898,0]"
     );
 }
 
@@ -4566,7 +4566,7 @@ fn morx_5_004() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0035}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|five@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|five@2898,0]"
     );
 }
 
@@ -4578,7 +4578,7 @@ fn morx_5_005() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0036}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|six@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|six@2898,0]"
     );
 }
 
@@ -4590,7 +4590,7 @@ fn morx_5_006() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0037}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|seven@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|seven@2898,0]"
     );
 }
 
@@ -4602,7 +4602,7 @@ fn morx_5_007() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0038}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|eight@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|eight@2898,0]"
     );
 }
 
@@ -4614,7 +4614,7 @@ fn morx_5_008() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{0038}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|eight@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|eight@3728,0]"
     );
 }
 
@@ -4626,7 +4626,7 @@ fn morx_5_009() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{0039}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|nine@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|nine@2898,0]"
     );
 }
 
@@ -4638,7 +4638,7 @@ fn morx_5_010() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{0039}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|nine@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|nine@3728,0]"
     );
 }
 
@@ -4650,7 +4650,7 @@ fn morx_5_011() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{2793}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_zero@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_zero@2898,0]"
     );
 }
 
@@ -4662,7 +4662,7 @@ fn morx_5_012() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{2793}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_zero@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_zero@3728,0]"
     );
 }
 
@@ -4674,7 +4674,7 @@ fn morx_5_013() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{24EB}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_one@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_one@2898,0]"
     );
 }
 
@@ -4686,7 +4686,7 @@ fn morx_5_014() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{24EB}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_one@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_one@3728,0]"
     );
 }
 
@@ -4698,7 +4698,7 @@ fn morx_5_015() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{24EC}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_two@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_two@2898,0]"
     );
 }
 
@@ -4710,7 +4710,7 @@ fn morx_5_016() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{24EC}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_two@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_two@3728,0]"
     );
 }
 
@@ -4722,7 +4722,7 @@ fn morx_5_017() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0043}\u{0058}\u{0059}\u{005A}\u{24EC}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_two@4558,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_two@4558,0]"
     );
 }
 
@@ -4734,7 +4734,7 @@ fn morx_5_018() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{24ED}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_three@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_three@2898,0]"
     );
 }
 
@@ -4746,7 +4746,7 @@ fn morx_5_019() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{24ED}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_three@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_three@3728,0]"
     );
 }
 
@@ -4758,7 +4758,7 @@ fn morx_5_020() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0043}\u{0058}\u{0059}\u{005A}\u{24ED}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_three@4558,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_three@4558,0]"
     );
 }
 
@@ -4770,7 +4770,7 @@ fn morx_5_021() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{24EE}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_four@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_four@2898,0]"
     );
 }
 
@@ -4782,7 +4782,7 @@ fn morx_5_022() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{24EE}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_four@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_four@3728,0]"
     );
 }
 
@@ -4794,7 +4794,7 @@ fn morx_5_023() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0043}\u{0058}\u{0059}\u{005A}\u{24EE}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_four@4558,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_four@4558,0]"
     );
 }
 
@@ -4806,7 +4806,7 @@ fn morx_5_024() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0058}\u{0059}\u{005A}\u{24EF}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_five@2898,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|X@1880,0|Y@2244,0|Z@2576,0|one_five@2898,0]"
     );
 }
 
@@ -4818,7 +4818,7 @@ fn morx_5_025() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0058}\u{0059}\u{005A}\u{24EF}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_five@3728,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|X@2710,0|Y@3074,0|Z@3406,0|one_five@3728,0]"
     );
 }
 
@@ -4830,7 +4830,7 @@ fn morx_5_026() {
             "\u{0050}\u{0051}\u{0052}\u{0041}\u{0042}\u{0043}\u{0058}\u{0059}\u{005A}\u{24EF}",
             "--ned --remove-default-ignorables",
         ),
-        "P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_five@4558,0"
+        "[P|Q@333,0|R@699,0|A@1050,0|B@1880,0|C@2710,0|X@3540,0|Y@3904,0|Z@4236,0|one_five@4558,0]"
     );
 }
 
@@ -4843,7 +4843,7 @@ fn morx_6_002() {
              \u{004F}\u{004F}\u{004F}\u{0033}\u{0031}\u{0034}\u{0031}",
             "--ned --remove-default-ignorables",
         ),
-        "O|O@418,0|O@836,0|E@1254,0|F@2084,0|A@2914,0|G@3744,0|B@4574,0|C@5404,0|D@6234,0|O@7064,0|O@7482,0|O@7900,0|three@8318,0|one@9168,0|four@10018,0|one@10868,0"
+        "[O|O@418,0|O@836,0|E@1254,0|F@2084,0|A@2914,0|G@3744,0|B@4574,0|C@5404,0|D@6234,0|O@7064,0|O@7482,0|O@7900,0|three@8318,0|one@9168,0|four@10018,0|one@10868,0]"
     );
 }
 
@@ -4855,7 +4855,7 @@ fn morx_7_002() {
             "\u{004F}\u{0042}\u{0043}\u{0044}\u{0031}",
             "--ned --remove-default-ignorables",
         ),
-        "B|C@830,0|D@1660,0|O@2490,0|one@2908,0"
+        "[B|C@830,0|D@1660,0|O@2490,0|one@2908,0]"
     );
 }
 
@@ -4867,7 +4867,7 @@ fn morx_8_002() {
             "\u{0030}\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "zero|A@914,0|B@1552,0|C@2202,0"
+        "[zero|A@914,0|B@1552,0|C@2202,0]"
     );
 }
 
@@ -4879,7 +4879,7 @@ fn morx_8_003() {
             "\u{0031}\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "one|B@914,0|C@1564,0|A@2196,0"
+        "[one|B@914,0|C@1564,0|A@2196,0]"
     );
 }
 
@@ -4891,7 +4891,7 @@ fn morx_8_004() {
             "\u{0032}\u{0041}\u{0042}\u{0043}",
             "--ned --remove-default-ignorables",
         ),
-        "two|C@914,0|A@1546,0|B@2184,0"
+        "[two|C@914,0|A@1546,0|B@2184,0]"
     );
 }
 
@@ -4903,7 +4903,7 @@ fn morx_9_002() {
             "\u{0041}\u{0042}\u{0058}\u{0041}\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B|A@650,0|X@1288,0|A@1874,0|B@2512,0"
+        "[B|A@650,0|X@1288,0|A@1874,0|B@2512,0]"
     );
 }
 
@@ -4915,7 +4915,7 @@ fn sfnt_1_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -4927,7 +4927,7 @@ fn sfnt_1_003() {
             "\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B"
+        "[B]"
     );
 }
 
@@ -4939,7 +4939,7 @@ fn sfnt_2_002() {
             "\u{0041}",
             "--ned --remove-default-ignorables",
         ),
-        "A"
+        "[A]"
     );
 }
 
@@ -4951,7 +4951,7 @@ fn sfnt_2_003() {
             "\u{0042}",
             "--ned --remove-default-ignorables",
         ),
-        "B"
+        "[B]"
     );
 }
 
@@ -4963,7 +4963,7 @@ fn sharan_1_002() {
             "\u{0644}\u{0633}\u{0627}\u{0646}",
             "--ned --remove-default-ignorables",
         ),
-        "OneDotEnclNS@815,-2|NoonxSep|AlefFin@1764,0|SeenMed.inT2outT1@2304,0|sp0@3407,0|LamIni.outT2@3407,457"
+        "[OneDotEnclNS@815,-2|NoonxSep|AlefFin@1764,0|SeenMed.inT2outT1@2304,0|sp0@3407,0|LamIni.outT2@3407,457]"
     );
 }
 
@@ -4975,7 +4975,7 @@ fn sharan_1_003() {
             "\u{06CC}\u{0648}\u{0646}\u{06CC}\u{06A9}\u{0648}\u{0688}",
             "--ned --remove-default-ignorables",
         ),
-        "TahSmallNS@241,-437|DalSep|WawFin.cut@614,0|KafMed.outT3@1174,421|TwoDotsBelowNS@2283,451|BehxMed.inT2outT1@1849,623|OneDotAboveNS@2603,-145|sp1@2396,0|BehxIni.outT2@2396,920|WawFin.inD2@2841,0|TwoDotsBelowNS@3824,2|sp0@3601,0|BehxIni.outD2WQ@3601,662"
+        "[TahSmallNS@241,-437|DalSep|WawFin.cut@614,0|KafMed.outT3@1174,421|TwoDotsBelowNS@2283,451|BehxMed.inT2outT1@1849,623|OneDotAboveNS@2603,-145|sp1@2396,0|BehxIni.outT2@2396,920|WawFin.inD2@2841,0|TwoDotsBelowNS@3824,2|sp0@3601,0|BehxIni.outD2WQ@3601,662]"
     );
 }
 
@@ -4987,7 +4987,7 @@ fn sharan_1_004() {
             "\u{0641}\u{0648}\u{0646}\u{0679}",
             "--ned --remove-default-ignorables",
         ),
-        "TahSmallNS@1219,-678|BehxFin.soft|OneDotAboveNS@2382,-372|sp0@2425,0|BehxIni.outT2B@2425,614|WawFin.inD2alt@2745,0|OneDotAboveNS@3654,222|sp0@3274,0|FehxIni.outD2WQ@3274,486"
+        "[TahSmallNS@1219,-678|BehxFin.soft|OneDotAboveNS@2382,-372|sp0@2425,0|BehxIni.outT2B@2425,614|WawFin.inD2alt@2745,0|OneDotAboveNS@3654,222|sp0@3274,0|FehxIni.outD2WQ@3274,486]"
     );
 }
 
@@ -4999,7 +4999,7 @@ fn sharan_1_005() {
             "\u{0679}\u{0627}\u{0626}\u{067E}\u{0020}\u{0641}\u{06CC}\u{0633}",
             "--ned --remove-default-ignorables",
         ),
-        "SeenFin|TwoDotsBelowNS@2491,551|BehxMed.inT1outT2SeenWide@2131,932|OneDotAboveNS@2978,459|sp0@2604,0|FehxIni@2604,1004|space@3243,0|ThreeDotsDownBelowNS@4690,-326|BehxFin.soft@3513,0|HamzaAboveNS@5895,-412|sp0@5938,0|BehxIni.outT2B@5938,614|AlefFin.narrow@6258,0|TahSmallNS@7050,-860|sp0@6748,0|BehxIni.A@6748,0"
+        "[SeenFin|TwoDotsBelowNS@2491,551|BehxMed.inT1outT2SeenWide@2131,932|OneDotAboveNS@2978,459|sp0@2604,0|FehxIni@2604,1004|space@3243,0|ThreeDotsDownBelowNS@4690,-326|BehxFin.soft@3513,0|HamzaAboveNS@5895,-412|sp0@5938,0|BehxIni.outT2B@5938,614|AlefFin.narrow@6258,0|TahSmallNS@7050,-860|sp0@6748,0|BehxIni.A@6748,0]"
     );
 }
 
@@ -5011,7 +5011,7 @@ fn sharan_1_006() {
             "\u{0641}\u{0646}\u{0020}\u{062E}\u{0637}\u{0627}\u{0637}\u{06CC}",
             "--ned --remove-default-ignorables",
         ),
-        "YehxFin|sp0@1067,0|TahIni.outD2@1067,778|AlefFin@2291,0|TahMed.inD1outT1@2831,0|OneDotAboveNS@4262,-97|sp0@2971,0|HahIni.outD1@2971,74|space@4764,0|OneDotEnclNS@5846,-4|NoonxFin@5034,0|OneDotAboveNS@6884,384|sp0@6569,0|FehxIni.outT2N@6569,688"
+        "[YehxFin|sp0@1067,0|TahIni.outD2@1067,778|AlefFin@2291,0|TahMed.inD1outT1@2831,0|OneDotAboveNS@4262,-97|sp0@2971,0|HahIni.outD1@2971,74|space@4764,0|OneDotEnclNS@5846,-4|NoonxFin@5034,0|OneDotAboveNS@6884,384|sp0@6569,0|FehxIni.outT2N@6569,688]"
     );
 }
 
@@ -5023,7 +5023,7 @@ fn sharan_1_007() {
             "\u{0646}\u{0633}\u{062A}\u{0639}\u{0644}\u{06CC}\u{0642}",
             "--ned --remove-default-ignorables",
         ),
-        "TwoDotsAboveNS@1062,-407|QafxFin.cut|TwoDotsBelowNS@2001,289|BehxMed.inT2outD2WQ@1418,558|LamMed.outT2@2096,889|AinMed.inT3outT1@2665,1038|TwoDotsAboveNS@3656,427|BehxMed.inT2outT3@3200,1234|SeenMed.inT2outT2@3819,1506|OneDotAboveNS@5271,1372|sp0@4985,0|BehxIni.outT2tall@4985,1949"
+        "[TwoDotsAboveNS@1062,-407|QafxFin.cut|TwoDotsBelowNS@2001,289|BehxMed.inT2outD2WQ@1418,558|LamMed.outT2@2096,889|AinMed.inT3outT1@2665,1038|TwoDotsAboveNS@3656,427|BehxMed.inT2outT3@3200,1234|SeenMed.inT2outT2@3819,1506|OneDotAboveNS@5271,1372|sp0@4985,0|BehxIni.outT2tall@4985,1949]"
     );
 }
 
@@ -5035,7 +5035,7 @@ fn shbali_1_002() {
             "\u{1B13}\u{1B38}\u{1B00}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid60@2280,0|gid4@2180,0"
+        "[gid23|gid60@2280,0|gid4@2180,0]"
     );
 }
 
@@ -5047,7 +5047,7 @@ fn shbali_1_003() {
             "\u{1B15}\u{1B44}\u{1B16}\u{1B02}",
             "--ned --remove-default-ignorables",
         ),
-        "gid25|gid132@2237,0|gid6@1930,0"
+        "[gid25|gid132@2237,0|gid6@1930,0]"
     );
 }
 
@@ -5059,7 +5059,7 @@ fn shbali_1_004() {
             "\u{1B18}\u{1B3B}",
             "--ned --remove-default-ignorables",
         ),
-        "gid28|gid62@1630,0|gid57@1627,0"
+        "[gid28|gid62@1630,0|gid57@1627,0]"
     );
 }
 
@@ -5071,7 +5071,7 @@ fn shbali_1_005() {
             "\u{1B19}\u{1B40}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid29@990,0|gid57@3145,0"
+        "[gid66|gid29@990,0|gid57@3145,0]"
     );
 }
 
@@ -5083,7 +5083,7 @@ fn shbali_1_006() {
             "\u{1B1A}\u{1B3F}",
             "--ned --remove-default-ignorables",
         ),
-        "gid67|gid30@990,0"
+        "[gid67|gid30@990,0]"
     );
 }
 
@@ -5095,7 +5095,7 @@ fn shbali_1_007() {
             "\u{1B14}\u{1B36}",
             "--ned --remove-default-ignorables",
         ),
-        "gid24|gid58@1696,0"
+        "[gid24|gid58@1696,0]"
     );
 }
 
@@ -5107,7 +5107,7 @@ fn shbali_1_008() {
             "\u{1B13}\u{1B44}\u{1B13}\u{1B01}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid129@2275,0|gid5@2180,0"
+        "[gid23|gid129@2275,0|gid5@2180,0]"
     );
 }
 
@@ -5119,7 +5119,7 @@ fn shbali_1_009() {
             "\u{1B13}\u{1B44}\u{1B1B}\u{1B01}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid137@2275,0|gid5@2825,370"
+        "[gid23|gid137@2275,0|gid5@2825,370]"
     );
 }
 
@@ -5131,7 +5131,7 @@ fn shbali_1_010() {
             "\u{1B13}\u{1B44}\u{1B26}\u{1B03}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid148@2275,0|gid7@2030,0"
+        "[gid23|gid148@2275,0|gid7@2030,0]"
     );
 }
 
@@ -5143,7 +5143,7 @@ fn shbali_1_011() {
             "\u{1B13}\u{1B44}\u{1B13}\u{1B38}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid129@2275,0|gid60@2275,-1000"
+        "[gid23|gid129@2275,0|gid60@2275,-1000]"
     );
 }
 
@@ -5155,7 +5155,7 @@ fn shbali_1_012() {
             "\u{1B13}\u{1B44}\u{1B13}\u{1B3C}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid129@2275,0|gid70@2310,0|gid170@2280,0"
+        "[gid23|gid129@2275,0|gid70@2310,0|gid170@2280,0]"
     );
 }
 
@@ -5167,7 +5167,7 @@ fn shbali_1_013() {
             "\u{1B13}\u{1B44}\u{1B13}\u{1B3D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid129@2275,0|gid70@2310,0|gid170@2280,0|gid57@2275,0"
+        "[gid23|gid129@2275,0|gid70@2310,0|gid170@2280,0|gid57@2275,0]"
     );
 }
 
@@ -5179,7 +5179,7 @@ fn shbali_1_014() {
             "\u{1B13}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0"
+        "[gid66|gid23@990,0]"
     );
 }
 
@@ -5191,7 +5191,7 @@ fn shbali_1_015() {
             "\u{1B13}\u{1B36}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid58@2180,0|gid66@2275,0|gid128@3265,0"
+        "[gid23|gid58@2180,0|gid66@2275,0|gid128@3265,0]"
     );
 }
 
@@ -5203,7 +5203,7 @@ fn shbali_1_016() {
             "\u{1B13}\u{1B38}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid60@2280,0|gid66@2275,0|gid128@3265,0"
+        "[gid23|gid60@2280,0|gid66@2275,0|gid128@3265,0]"
     );
 }
 
@@ -5215,7 +5215,7 @@ fn shbali_1_017() {
             "\u{1B13}\u{1B44}\u{1B15}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid131@3265,0"
+        "[gid66|gid23@990,0|gid131@3265,0]"
     );
 }
 
@@ -5227,7 +5227,7 @@ fn shbali_1_018() {
             "\u{1B13}\u{1B40}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid57@3265,0"
+        "[gid66|gid23@990,0|gid57@3265,0]"
     );
 }
 
@@ -5239,7 +5239,7 @@ fn shbali_1_019() {
             "\u{1B13}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0"
+        "[gid66|gid23@990,0]"
     );
 }
 
@@ -5251,7 +5251,7 @@ fn shbali_1_020() {
             "\u{1B13}\u{1B3E}\u{1B36}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid58@3170,0"
+        "[gid66|gid23@990,0|gid58@3170,0]"
     );
 }
 
@@ -5263,7 +5263,7 @@ fn shbali_1_021() {
             "\u{1B13}\u{1B3E}\u{1B38}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid60@3270,0"
+        "[gid66|gid23@990,0|gid60@3270,0]"
     );
 }
 
@@ -5275,7 +5275,7 @@ fn shbali_1_022() {
             "\u{1B13}\u{1B44}\u{1B15}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid131@3265,0"
+        "[gid66|gid23@990,0|gid131@3265,0]"
     );
 }
 
@@ -5287,7 +5287,7 @@ fn shbali_1_023() {
             "\u{1B13}\u{1B40}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid57@3265,0"
+        "[gid66|gid23@990,0|gid57@3265,0]"
     );
 }
 
@@ -5299,7 +5299,7 @@ fn shbali_2_002() {
             "\u{1B13}\u{1B44}\u{1B27}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid149@3265,0"
+        "[gid66|gid23@990,0|gid149@3265,0]"
     );
 }
 
@@ -5311,7 +5311,7 @@ fn shbali_2_003() {
             "\u{1B13}\u{1B44}\u{1B28}\u{1B3F}",
             "--ned --remove-default-ignorables",
         ),
-        "gid67|gid23@990,0|gid150@3265,0"
+        "[gid67|gid23@990,0|gid150@3265,0]"
     );
 }
 
@@ -5323,7 +5323,7 @@ fn shbali_2_004() {
             "\u{1B13}\u{1B44}\u{1B31}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid159@3265,0"
+        "[gid66|gid23@990,0|gid159@3265,0]"
     );
 }
 
@@ -5335,7 +5335,7 @@ fn shbali_2_005() {
             "\u{1B13}\u{1B44}\u{1B32}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid60@3270,0|gid149@3265,0"
+        "[gid66|gid23@990,0|gid60@3270,0|gid149@3265,0]"
     );
 }
 
@@ -5347,7 +5347,7 @@ fn shbali_2_006() {
             "\u{1B13}\u{1B44}\u{1B4A}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid23@990,0|gid60@3270,0|gid165@3265,0"
+        "[gid66|gid23@990,0|gid60@3270,0|gid165@3265,0]"
     );
 }
 
@@ -5359,7 +5359,7 @@ fn shbali_2_007() {
             "\u{1B1B}\u{1B44}\u{1B13}",
             "--ned --remove-default-ignorables",
         ),
-        "gid181|gid129@2180,-400"
+        "[gid181|gid129@2180,-400]"
     );
 }
 
@@ -5371,7 +5371,7 @@ fn shbali_2_008() {
             "\u{1B1B}\u{1B44}\u{1B13}\u{1B3E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid66|gid181@990,0|gid129@3170,-400"
+        "[gid66|gid181@990,0|gid129@3170,-400]"
     );
 }
 
@@ -5383,7 +5383,7 @@ fn shbali_2_009() {
             "\u{1B1B}\u{1B44}\u{1B13}\u{1B38}\u{1B00}",
             "--ned --remove-default-ignorables",
         ),
-        "gid181|gid129@2180,-400|gid60@2180,-1400|gid4@1751,0"
+        "[gid181|gid129@2180,-400|gid60@2180,-1400|gid4@1751,0]"
     );
 }
 
@@ -5395,7 +5395,7 @@ fn shbali_2_010() {
             "\u{1B13}\u{1B44}\u{1B13}\u{1B38}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid129@2275,0|gid60@2275,-1000"
+        "[gid23|gid129@2275,0|gid60@2275,-1000]"
     );
 }
 
@@ -5407,7 +5407,7 @@ fn shbali_2_011() {
             "\u{1B13}\u{1B44}\u{1B1B}\u{1B39}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid137@2275,0|gid61@2583,-1000"
+        "[gid23|gid137@2275,0|gid61@2583,-1000]"
     );
 }
 
@@ -5419,7 +5419,7 @@ fn shbali_2_012() {
             "\u{1B13}\u{1B44}\u{1B31}\u{1B3A}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid159@2275,0|gid62@3590,0"
+        "[gid23|gid159@2275,0|gid62@3590,0]"
     );
 }
 
@@ -5431,7 +5431,7 @@ fn shbali_2_013() {
             "\u{1B13}\u{1B44}\u{1B45}\u{1B38}",
             "--ned --remove-default-ignorables",
         ),
-        "gid23|gid162@2275,0|gid60@2275,-1000"
+        "[gid23|gid162@2275,0|gid60@2275,-1000]"
     );
 }
 
@@ -5443,7 +5443,7 @@ fn shbali_3_002() {
             "\u{1B66}\u{1B6B}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid107@1146,-20"
+        "[gid102|gid107@1146,-20]"
     );
 }
 
@@ -5455,7 +5455,7 @@ fn shbali_3_003() {
             "\u{1B66}\u{1B6C}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid108@1174,100"
+        "[gid102|gid108@1174,100]"
     );
 }
 
@@ -5467,7 +5467,7 @@ fn shbali_3_004() {
             "\u{1B66}\u{1B6D}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid109@1336,-20"
+        "[gid102|gid109@1336,-20]"
     );
 }
 
@@ -5479,7 +5479,7 @@ fn shbali_3_005() {
             "\u{1B66}\u{1B6E}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid110@1336,-200"
+        "[gid102|gid110@1336,-200]"
     );
 }
 
@@ -5491,7 +5491,7 @@ fn shbali_3_006() {
             "\u{1B66}\u{1B6F}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid111@1366,-20"
+        "[gid102|gid111@1366,-20]"
     );
 }
 
@@ -5503,7 +5503,7 @@ fn shbali_3_007() {
             "\u{1B66}\u{1B70}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid112@1366,-20"
+        "[gid102|gid112@1366,-20]"
     );
 }
 
@@ -5515,7 +5515,7 @@ fn shbali_3_008() {
             "\u{1B66}\u{1B71}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid113@1366,-20"
+        "[gid102|gid113@1366,-20]"
     );
 }
 
@@ -5527,7 +5527,7 @@ fn shbali_3_009() {
             "\u{1B66}\u{1B72}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid114@1366,-20"
+        "[gid102|gid114@1366,-20]"
     );
 }
 
@@ -5539,7 +5539,7 @@ fn shbali_3_010() {
             "\u{1B66}\u{1B73}",
             "--ned --remove-default-ignorables",
         ),
-        "gid102|gid115@1226,-20"
+        "[gid102|gid115@1226,-20]"
     );
 }
 
@@ -5551,7 +5551,7 @@ fn shknda_1_002() {
             "\u{0CB2}\u{0CCD}\u{0CB2}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knLI|knLAc2@1550,0"
+        "[knLI|knLAc2@1550,0]"
     );
 }
 
@@ -5563,7 +5563,7 @@ fn shknda_1_003() {
             "\u{0C9F}\u{0CCD}\u{0CB8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "knTT|knSAc2@2092,0"
+        "[knTT|knSAc2@2092,0]"
     );
 }
 
@@ -5575,7 +5575,7 @@ fn shknda_1_004() {
             "\u{0CB3}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knLLI"
+        "[knLLI]"
     );
 }
 
@@ -5587,7 +5587,7 @@ fn shknda_1_005() {
             "\u{0CA1}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knDDI"
+        "[knDDI]"
     );
 }
 
@@ -5599,7 +5599,7 @@ fn shknda_1_006() {
             "\u{0CAE}\u{0CC6}",
             "--ned --remove-default-ignorables",
         ),
-        "knME"
+        "[knME]"
     );
 }
 
@@ -5611,7 +5611,7 @@ fn shknda_1_007() {
             "\u{0CB0}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knRI"
+        "[knRI]"
     );
 }
 
@@ -5623,7 +5623,7 @@ fn shknda_1_008() {
             "\u{0C96}\u{0CCD}\u{0CAF}\u{0CC6}",
             "--ned --remove-default-ignorables",
         ),
-        "knKHE|knYAc2@1733,0"
+        "[knKHE|knYAc2@1733,0]"
     );
 }
 
@@ -5635,7 +5635,7 @@ fn shknda_1_009() {
             "\u{0CAB}\u{0CCD}\u{0CB0}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knPHI|knRAc2@1505,0"
+        "[knPHI|knRAc2@1505,0]"
     );
 }
 
@@ -5647,7 +5647,7 @@ fn shknda_1_010() {
             "\u{0CA8}\u{0CC6}",
             "--ned --remove-default-ignorables",
         ),
-        "knNE"
+        "[knNE]"
     );
 }
 
@@ -5659,7 +5659,7 @@ fn shknda_1_011() {
             "\u{0C97}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knGI"
+        "[knGI]"
     );
 }
 
@@ -5671,7 +5671,7 @@ fn shknda_1_012() {
             "\u{0CB7}\u{0CCD}\u{0C9F}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knSSI|knTTAc2@1528,0"
+        "[knSSI|knTTAc2@1528,0]"
     );
 }
 
@@ -5683,7 +5683,7 @@ fn shknda_1_013() {
             "\u{0CAF}\u{0CBF}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "knYI|knAnusvara@2564,0"
+        "[knYI|knAnusvara@2564,0]"
     );
 }
 
@@ -5695,7 +5695,7 @@ fn shknda_1_014() {
             "\u{0C9A}\u{0CC0}",
             "--ned --remove-default-ignorables",
         ),
-        "knCI|knLengthmark@1569,0"
+        "[knCI|knLengthmark@1569,0]"
     );
 }
 
@@ -5707,7 +5707,7 @@ fn shknda_1_015() {
             "\u{0CA8}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knNI"
+        "[knNI]"
     );
 }
 
@@ -5719,7 +5719,7 @@ fn shknda_1_016() {
             "\u{0C97}\u{0CCD}\u{0CB2}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knGI|knLAc2@1271,0"
+        "[knGI|knLAc2@1271,0]"
     );
 }
 
@@ -5731,7 +5731,7 @@ fn shknda_1_017() {
             "\u{0CB7}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knSSI"
+        "[knSSI]"
     );
 }
 
@@ -5743,7 +5743,7 @@ fn shknda_1_018() {
             "\u{0C97}\u{0CC6}",
             "--ned --remove-default-ignorables",
         ),
-        "knGE"
+        "[knGE]"
     );
 }
 
@@ -5755,7 +5755,7 @@ fn shknda_1_019() {
             "\u{0CA6}\u{0CCD}\u{0CB5}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knDI|knVAc2@1516,0"
+        "[knDI|knVAc2@1516,0]"
     );
 }
 
@@ -5767,7 +5767,7 @@ fn shknda_1_020() {
             "\u{0CA4}\u{0CC0}",
             "--ned --remove-default-ignorables",
         ),
-        "knTI|knLengthmark@1255,0"
+        "[knTI|knLengthmark@1255,0]"
     );
 }
 
@@ -5779,7 +5779,7 @@ fn shknda_1_021() {
             "\u{0CAE}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knMI"
+        "[knMI]"
     );
 }
 
@@ -5791,7 +5791,7 @@ fn shknda_1_022() {
             "\u{0CB2}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knLI"
+        "[knLI]"
     );
 }
 
@@ -5803,7 +5803,7 @@ fn shknda_1_023() {
             "\u{0C97}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knGI"
+        "[knGI]"
     );
 }
 
@@ -5815,7 +5815,7 @@ fn shknda_1_024() {
             "\u{0CA8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "knN"
+        "[knN]"
     );
 }
 
@@ -5827,7 +5827,7 @@ fn shknda_1_025() {
             "\u{0CAC}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knBI"
+        "[knBI]"
     );
 }
 
@@ -5839,7 +5839,7 @@ fn shknda_1_026() {
             "\u{0CB2}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knLI"
+        "[knLI]"
     );
 }
 
@@ -5851,7 +5851,7 @@ fn shknda_1_027() {
             "\u{0CA8}\u{0CCD}\u{0CA8}\u{0CBF}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "knNI|knNAc2@1389,0|knAnusvara@1547,0"
+        "[knNI|knNAc2@1389,0|knAnusvara@1547,0]"
     );
 }
 
@@ -5863,7 +5863,7 @@ fn shknda_1_028() {
             "\u{0CB2}\u{0CCD}\u{0CB2}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knLI|knLAc2@1550,0"
+        "[knLI|knLAc2@1550,0]"
     );
 }
 
@@ -5875,7 +5875,7 @@ fn shknda_1_029() {
             "\u{0CA7}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knDHI"
+        "[knDHI]"
     );
 }
 
@@ -5887,7 +5887,7 @@ fn shknda_1_030() {
             "\u{0CAA}\u{0CCC}",
             "--ned --remove-default-ignorables",
         ),
-        "knPA.base|knmAU@1514,0"
+        "[knPA.base|knmAU@1514,0]"
     );
 }
 
@@ -5899,7 +5899,7 @@ fn shknda_1_031() {
             "\u{0CB5}\u{0CBF}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "knVI|knAnusvara@1533,0"
+        "[knVI|knAnusvara@1533,0]"
     );
 }
 
@@ -5911,7 +5911,7 @@ fn shknda_1_032() {
             "\u{0CA1}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knDDI"
+        "[knDDI]"
     );
 }
 
@@ -5923,7 +5923,7 @@ fn shknda_1_033() {
             "\u{0C9F}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knTTI"
+        "[knTTI]"
     );
 }
 
@@ -5935,7 +5935,7 @@ fn shknda_1_034() {
             "\u{0CA8}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knNI"
+        "[knNI]"
     );
 }
 
@@ -5947,7 +5947,7 @@ fn shknda_1_035() {
             "\u{0CA7}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "knDHI"
+        "[knDHI]"
     );
 }
 
@@ -5959,7 +5959,7 @@ fn shknda_2_002() {
             "\u{0CA8}\u{0CCD}\u{0CA8}\u{0CBE}",
             "--ned --remove-default-ignorables",
         ),
-        "gid150|gid57@1456,0|gid116@2375,0"
+        "[gid150|gid57@1456,0|gid116@2375,0]"
     );
 }
 
@@ -5971,7 +5971,7 @@ fn shknda_2_003() {
             "\u{0CA8}\u{0CCD}\u{0CA8}\u{0CBE}",
             "--ned --remove-default-ignorables",
         ),
-        "gid150|gid57@1456,0|gid116@2375,0"
+        "[gid150|gid57@1456,0|gid116@2375,0]"
     );
 }
 
@@ -5983,7 +5983,7 @@ fn shknda_2_004() {
             "\u{0CA4}\u{0CCD}\u{0CA4}\u{0CBE}",
             "--ned --remove-default-ignorables",
         ),
-        "gid146|gid57@1275,0|gid112@2194,0"
+        "[gid146|gid57@1275,0|gid112@2194,0]"
     );
 }
 
@@ -5995,7 +5995,7 @@ fn shknda_2_005() {
             "\u{0C9F}\u{0CCD}\u{0C9F}\u{0CBE}",
             "--ned --remove-default-ignorables",
         ),
-        "gid141|gid57@1669,0|gid107@2588,0"
+        "[gid141|gid57@1669,0|gid107@2588,0]"
     );
 }
 
@@ -6007,7 +6007,7 @@ fn shknda_2_006() {
             "\u{0CA1}\u{0CCB}\u{0C82}\u{0C97}\u{0CBF}",
             "--ned --remove-default-ignorables",
         ),
-        "gid249|gid61@1573,0|gid71@3099,0|gid4@3942,0|gid207@5069,0"
+        "[gid249|gid61@1573,0|gid71@3099,0|gid4@3942,0|gid207@5069,0]"
     );
 }
 
@@ -6019,7 +6019,7 @@ fn shknda_2_007() {
             "\u{0C9C}\u{0CBF}\u{0CBC}\u{0CD5}\u{0CAC}\u{0CC6}\u{0CA8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid211|gid55@1336,0|gid71@1590,0|gid259@2433,0|gid186@4084,0"
+        "[gid211|gid55@1336,0|gid71@1590,0|gid259@2433,0|gid186@4084,0]"
     );
 }
 
@@ -6031,7 +6031,7 @@ fn shknda_2_008() {
             "\u{0C9C}\u{0CBE}\u{0CBC}\u{0C95}\u{0CBF}\u{0CB0}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid139|gid57@1590,0|gid55@1336,0|gid205@2509,0|gid193@3685,0"
+        "[gid139|gid57@1590,0|gid55@1336,0|gid205@2509,0|gid193@3685,0]"
     );
 }
 
@@ -6044,7 +6044,7 @@ fn shknda_2_009() {
              \u{0CA8}\u{0CB2}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid8|gid256@1457,0|gid118@2913,0|gid335@3259,0|gid282@4050,0|gid39@5226,0|gid195@6682,0"
+        "[gid8|gid256@1457,0|gid118@2913,0|gid335@3259,0|gid282@4050,0|gid39@5226,0|gid195@6682,0]"
     );
 }
 
@@ -6057,7 +6057,7 @@ fn shknda_2_010() {
              \u{0CA8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid8|gid256@1457,0|gid118@2913,0|gid335@3259,0|gid282@4050,0|gid186@5226,0"
+        "[gid8|gid256@1457,0|gid118@2913,0|gid335@3259,0|gid282@4050,0|gid186@5226,0]"
     );
 }
 
@@ -6069,7 +6069,7 @@ fn shknda_2_011() {
             "\u{0CA6}\u{0C9F}\u{0CCD}\u{0CB8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid37|gid177@1566,0|gid130@3716,0"
+        "[gid37|gid177@1566,0|gid130@3716,0]"
     );
 }
 
@@ -6081,7 +6081,7 @@ fn shknda_2_012() {
             "\u{0C8E}\u{0C95}\u{0CCD}\u{0CB8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid14|gid167@1612,0|gid130@3268,0"
+        "[gid14|gid167@1612,0|gid130@3268,0]"
     );
 }
 
@@ -6093,7 +6093,7 @@ fn shknda_2_013() {
             "\u{0CAE}\u{0CBE}\u{0CB0}\u{0CCD}\u{0C9A}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid155|gid57@2367,0|gid172@3286,0|gid94@5567,0"
+        "[gid155|gid57@2367,0|gid172@3286,0|gid94@5567,0]"
     );
 }
 
@@ -6105,7 +6105,7 @@ fn shknda_2_014() {
             "\u{0C9F}\u{0CC6}\u{0C95}\u{0CCD}\u{0CB8}\u{0CCD}\u{0C9F}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid247|gid167@1669,0|gid130@3325,0|gid317@3671,0"
+        "[gid247|gid167@1669,0|gid130@3325,0|gid317@3671,0]"
     );
 }
 
@@ -6117,7 +6117,7 @@ fn shknda_2_015() {
             "\u{0CAC}\u{0CC1}\u{0C95}\u{0CCD}\u{0CB8}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid42|gid60@1641,0|gid167@2386,0|gid130@4042,0"
+        "[gid42|gid60@1641,0|gid167@2386,0|gid130@4042,0]"
     );
 }
 
@@ -6129,7 +6129,7 @@ fn shknda_2_016() {
             "\u{0CB8}\u{0CBE}\u{0CAB}\u{0CCD}\u{0C9F}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid163|gid57@1452,0|gid188@2371,0|gid107@4472,0"
+        "[gid163|gid57@1452,0|gid188@2371,0|gid107@4472,0]"
     );
 }
 
@@ -6141,7 +6141,7 @@ fn shknda_2_017() {
             "\u{0C9C}\u{0CB8}\u{0CCD}\u{0C9F}\u{0CCD}",
             "--ned --remove-default-ignorables",
         ),
-        "gid27|gid200@1590,0|gid107@3522,0"
+        "[gid27|gid200@1590,0|gid107@3522,0]"
     );
 }
 
@@ -6153,7 +6153,7 @@ fn shknda_3_002() {
             "\u{0C95}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid239|gid61@1176,0|gid71@2702,0|gid4@3545,0"
+        "[gid239|gid61@1176,0|gid71@2702,0|gid4@3545,0]"
     );
 }
 
@@ -6165,7 +6165,7 @@ fn shknda_3_003() {
             "\u{0C96}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid240|gid61@1772,0|gid71@3298,0|gid4@4141,0"
+        "[gid240|gid61@1772,0|gid71@3298,0|gid4@4141,0]"
     );
 }
 
@@ -6177,7 +6177,7 @@ fn shknda_3_004() {
             "\u{0C97}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid241|gid61@1327,0|gid71@2853,0|gid4@3696,0"
+        "[gid241|gid61@1327,0|gid71@2853,0|gid4@3696,0]"
     );
 }
 
@@ -6189,7 +6189,7 @@ fn shknda_3_005() {
             "\u{0C98}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid242|gid279@2041,0|gid71@3567,0|gid4@4410,0"
+        "[gid242|gid279@2041,0|gid71@3567,0|gid4@4410,0]"
     );
 }
 
@@ -6201,7 +6201,7 @@ fn shknda_3_006() {
             "\u{0C99}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid24|gid67@1510,0|gid71@3519,0|gid4@4362,0"
+        "[gid24|gid67@1510,0|gid71@3519,0|gid4@4362,0]"
     );
 }
 
@@ -6213,7 +6213,7 @@ fn shknda_3_007() {
             "\u{0C9A}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid243|gid61@1628,0|gid71@3154,0|gid4@3997,0"
+        "[gid243|gid61@1628,0|gid71@3154,0|gid4@3997,0]"
     );
 }
 
@@ -6225,7 +6225,7 @@ fn shknda_3_008() {
             "\u{0C9B}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid244|gid61@1727,0|gid71@3253,0|gid4@4096,0"
+        "[gid244|gid61@1727,0|gid71@3253,0|gid4@4096,0]"
     );
 }
 
@@ -6237,7 +6237,7 @@ fn shknda_3_009() {
             "\u{0C9C}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid245|gid61@1590,0|gid71@3116,0|gid4@3959,0"
+        "[gid245|gid61@1590,0|gid71@3116,0|gid4@3959,0]"
     );
 }
 
@@ -6249,7 +6249,7 @@ fn shknda_3_010() {
             "\u{0C9D}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid246|gid61@2824,0|gid71@4350,0|gid4@5193,0"
+        "[gid246|gid61@2824,0|gid71@4350,0|gid4@5193,0]"
     );
 }
 
@@ -6261,7 +6261,7 @@ fn shknda_3_011() {
             "\u{0C9E}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid29|gid67@1982,0|gid71@3991,0|gid4@4834,0"
+        "[gid29|gid67@1982,0|gid71@3991,0|gid4@4834,0]"
     );
 }
 
@@ -6273,7 +6273,7 @@ fn shknda_3_012() {
             "\u{0C9F}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid247|gid61@1669,0|gid71@3195,0|gid4@4038,0"
+        "[gid247|gid61@1669,0|gid71@3195,0|gid4@4038,0]"
     );
 }
 
@@ -6285,7 +6285,7 @@ fn shknda_3_013() {
             "\u{0CA0}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid248|gid61@1334,0|gid71@2860,0|gid4@3703,0"
+        "[gid248|gid61@1334,0|gid71@2860,0|gid4@3703,0]"
     );
 }
 
@@ -6297,7 +6297,7 @@ fn shknda_3_014() {
             "\u{0CA1}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid249|gid61@1573,0|gid71@3099,0|gid4@3942,0"
+        "[gid249|gid61@1573,0|gid71@3099,0|gid4@3942,0]"
     );
 }
 
@@ -6309,7 +6309,7 @@ fn shknda_3_015() {
             "\u{0CA2}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid250|gid61@1573,0|gid71@3099,0|gid4@3942,0"
+        "[gid250|gid61@1573,0|gid71@3099,0|gid4@3942,0]"
     );
 }
 
@@ -6321,7 +6321,7 @@ fn shknda_3_016() {
             "\u{0CA3}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid251|gid61@1775,0|gid71@3301,0|gid4@4144,0"
+        "[gid251|gid61@1775,0|gid71@3301,0|gid4@4144,0]"
     );
 }
 
@@ -6333,7 +6333,7 @@ fn shknda_3_017() {
             "\u{0CA4}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid252|gid61@1275,0|gid71@2801,0|gid4@3644,0"
+        "[gid252|gid61@1275,0|gid71@2801,0|gid4@3644,0]"
     );
 }
 
@@ -6345,7 +6345,7 @@ fn shknda_3_018() {
             "\u{0CA5}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid253|gid61@1566,0|gid71@3092,0|gid4@3935,0"
+        "[gid253|gid61@1566,0|gid71@3092,0|gid4@3935,0]"
     );
 }
 
@@ -6357,7 +6357,7 @@ fn shknda_3_019() {
             "\u{0CA6}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid254|gid61@1566,0|gid71@3092,0|gid4@3935,0"
+        "[gid254|gid61@1566,0|gid71@3092,0|gid4@3935,0]"
     );
 }
 
@@ -6369,7 +6369,7 @@ fn shknda_3_020() {
             "\u{0CA7}\u{0CCB}\u{0C82}\u{0020}",
             "--ned --remove-default-ignorables",
         ),
-        "gid255|gid61@1566,0|gid71@3092,0|gid4@3935,0|gid3@5062,0"
+        "[gid255|gid61@1566,0|gid71@3092,0|gid4@3935,0|gid3@5062,0]"
     );
 }
 
@@ -6381,7 +6381,7 @@ fn shknda_3_021() {
             "\u{0CA8}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid256|gid61@1456,0|gid71@2982,0|gid4@3825,0"
+        "[gid256|gid61@1456,0|gid71@2982,0|gid4@3825,0]"
     );
 }
 
@@ -6393,7 +6393,7 @@ fn shknda_3_022() {
             "\u{0CAA}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid257|gid275@1621,0|gid71@2937,0|gid4@3780,0"
+        "[gid257|gid275@1621,0|gid71@2937,0|gid4@3780,0]"
     );
 }
 
@@ -6405,7 +6405,7 @@ fn shknda_3_023() {
             "\u{0CAB}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid258|gid277@1621,0|gid71@2937,0|gid4@3780,0"
+        "[gid258|gid277@1621,0|gid71@2937,0|gid4@3780,0]"
     );
 }
 
@@ -6417,7 +6417,7 @@ fn shknda_3_024() {
             "\u{0CAC}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid259|gid61@1651,0|gid71@3177,0|gid4@4020,0"
+        "[gid259|gid61@1651,0|gid71@3177,0|gid4@4020,0]"
     );
 }
 
@@ -6429,7 +6429,7 @@ fn shknda_3_025() {
             "\u{0CAD}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid260|gid61@1651,0|gid71@3177,0|gid4@4020,0"
+        "[gid260|gid61@1651,0|gid71@3177,0|gid4@4020,0]"
     );
 }
 
@@ -6441,7 +6441,7 @@ fn shknda_3_026() {
             "\u{0CAE}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid280|gid71@3152,0|gid4@3995,0"
+        "[gid280|gid71@3152,0|gid4@3995,0]"
     );
 }
 
@@ -6453,7 +6453,7 @@ fn shknda_3_027() {
             "\u{0CAF}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid281|gid71@3506,0|gid4@4349,0"
+        "[gid281|gid71@3506,0|gid4@4349,0]"
     );
 }
 
@@ -6465,7 +6465,7 @@ fn shknda_3_028() {
             "\u{0CB0}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid263|gid61@1334,0|gid71@2860,0|gid4@3703,0"
+        "[gid263|gid61@1334,0|gid71@2860,0|gid4@3703,0]"
     );
 }
 
@@ -6477,7 +6477,7 @@ fn shknda_3_029() {
             "\u{0CB1}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid47|gid67@1701,0|gid71@3710,0|gid4@4553,0"
+        "[gid47|gid67@1701,0|gid71@3710,0|gid4@4553,0]"
     );
 }
 
@@ -6489,7 +6489,7 @@ fn shknda_3_030() {
             "\u{0CB2}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid264|gid61@1574,0|gid71@3100,0|gid4@3943,0"
+        "[gid264|gid61@1574,0|gid71@3100,0|gid4@3943,0]"
     );
 }
 
@@ -6501,7 +6501,7 @@ fn shknda_3_031() {
             "\u{0CB5}\u{0CCB}\u{0C82}",
             "--ned --remove-default-ignorables",
         ),
-        "gid266|gid275@1626,0|gid71@2942,0|gid4@3785,0"
+        "[gid266|gid275@1626,0|gid71@2942,0|gid4@3785,0]"
     );
 }
 
@@ -6513,7 +6513,7 @@ fn shknda_3_032() {
             "\u{0C86}\u{0CCD}\u{0CAF}\u{0C95}\u{0CCD}\u{0CB7}\u{0CBF}\u{0CB8}\u{0CCD}\u{200C}",
             "--ned --remove-default-ignorables",
         ),
-        "gid7|gid122@1717,0|gid285@2249,0|gid200@3425,0"
+        "[gid7|gid122@1717,0|gid285@2249,0|gid200@3425,0]"
     );
 }
 
@@ -6525,7 +6525,7 @@ fn shlana_1_002() {
             "\u{1A20}\u{1A6B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A6B@1560,0"
+        "[uni1A20|uni1A6B@1560,0]"
     );
 }
 
@@ -6537,7 +6537,7 @@ fn shlana_1_003() {
             "\u{1A23}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A74@1212,0"
+        "[uni1A23|uni1A74@1212,0]"
     );
 }
 
@@ -6549,7 +6549,7 @@ fn shlana_1_004() {
             "\u{1A27}\u{1A62}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A27|uni1A62@1212,0"
+        "[uni1A27|uni1A62@1212,0]"
     );
 }
 
@@ -6561,7 +6561,7 @@ fn shlana_1_005() {
             "\u{1A32}\u{1A60}\u{1A45}\u{1A6B}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A601A45@1560,0|uni1A6B@1560,0|uni1A61@1910,0"
+        "[uni1A32|uni1A601A45@1560,0|uni1A6B@1560,0|uni1A61@1910,0]"
     );
 }
 
@@ -6573,7 +6573,7 @@ fn shlana_1_006() {
             "\u{1A37}\u{1A60}\u{1A45}\u{1A6B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A37|uni1A601A45@1212,0|uni1A6B@1212,0"
+        "[uni1A37|uni1A601A45@1212,0|uni1A6B@1212,0]"
     );
 }
 
@@ -6585,7 +6585,7 @@ fn shlana_1_007() {
             "\u{1A20}\u{1A60}\u{1A45}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A601A45@1560,0"
+        "[uni1A20|uni1A601A45@1560,0]"
     );
 }
 
@@ -6597,7 +6597,7 @@ fn shlana_1_008() {
             "\u{1A21}\u{1A6C}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A21|uni1A6C@1212,-200|uni1A74@1212,0"
+        "[uni1A21|uni1A6C@1212,-200|uni1A74@1212,0]"
     );
 }
 
@@ -6609,7 +6609,7 @@ fn shlana_1_009() {
             "\u{1A20}\u{1A6C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A6C.wide@1910,0"
+        "[uni1A20|uni1A6C.wide@1910,0]"
     );
 }
 
@@ -6621,7 +6621,7 @@ fn shlana_1_010() {
             "\u{1A26}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A26|uni1A61@1212,0"
+        "[uni1A26|uni1A61@1212,0]"
     );
 }
 
@@ -6633,7 +6633,7 @@ fn shlana_1_011() {
             "\u{1A20}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A63@1910,0"
+        "[uni1A20|uni1A63@1910,0]"
     );
 }
 
@@ -6645,7 +6645,7 @@ fn shlana_1_012() {
             "\u{1A34}\u{1A64}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A34|uni1A64@1212,0"
+        "[uni1A34|uni1A64@1212,0]"
     );
 }
 
@@ -6657,7 +6657,7 @@ fn shlana_1_013() {
             "\u{1A4C}\u{1A63}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4C|uni1A74@1560,0|uni1A63@1910,0"
+        "[uni1A4C|uni1A74@1560,0|uni1A63@1910,0]"
     );
 }
 
@@ -6669,7 +6669,7 @@ fn shlana_1_014() {
             "\u{1A23}\u{1A64}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A74@1212,0|uni1A64@1212,0"
+        "[uni1A23|uni1A74@1212,0|uni1A64@1212,0]"
     );
 }
 
@@ -6681,7 +6681,7 @@ fn shlana_1_015() {
             "\u{1A33}\u{1A65}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A33|uni1A65@1212,0"
+        "[uni1A33|uni1A65@1212,0]"
     );
 }
 
@@ -6693,7 +6693,7 @@ fn shlana_1_016() {
             "\u{1A3A}\u{1A66}\u{0020}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3A|uni1A66@1512,0|space@1212,0"
+        "[uni1A3A|uni1A66@1512,0|space@1212,0]"
     );
 }
 
@@ -6705,7 +6705,7 @@ fn shlana_1_017() {
             "\u{1A29}\u{1A67}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A29|uni1A67@1212,0"
+        "[uni1A29|uni1A67@1212,0]"
     );
 }
 
@@ -6717,7 +6717,7 @@ fn shlana_1_018() {
             "\u{1A3E}\u{1A68}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A68@1212,0"
+        "[uni1A3E.v2|uni1A68@1212,0]"
     );
 }
 
@@ -6729,7 +6729,7 @@ fn shlana_1_019() {
             "\u{1A35}\u{1A69}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A35|uni1A69@1212,0"
+        "[uni1A35|uni1A69@1212,0]"
     );
 }
 
@@ -6741,7 +6741,7 @@ fn shlana_1_020() {
             "\u{1A26}\u{1A6A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A26|uni1A6A@1212,0"
+        "[uni1A26|uni1A6A@1212,0]"
     );
 }
 
@@ -6753,7 +6753,7 @@ fn shlana_1_021() {
             "\u{1A32}\u{1A6E}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A32@1212,0|uni1A61@3122,0"
+        "[uni1A6E|uni1A32@1212,0|uni1A61@3122,0]"
     );
 }
 
@@ -6765,7 +6765,7 @@ fn shlana_1_022() {
             "\u{1A3D}\u{1A6E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A3D@1212,0"
+        "[uni1A6E|uni1A3D@1212,0]"
     );
 }
 
@@ -6777,7 +6777,7 @@ fn shlana_1_023() {
             "\u{1A24}\u{1A6F}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A24@2244,0|uni1A61@3456,0"
+        "[uni1A6F|uni1A24@2244,0|uni1A61@3456,0]"
     );
 }
 
@@ -6789,7 +6789,7 @@ fn shlana_1_024() {
             "\u{1A27}\u{1A6F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A27@2244,0"
+        "[uni1A6F|uni1A27@2244,0]"
     );
 }
 
@@ -6801,7 +6801,7 @@ fn shlana_1_025() {
             "\u{1A38}\u{1A6E}\u{1A6C}\u{1A65}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A38@1212,0|uni1A6C@2424,0|uni25CC@2424,0|uni1A65@3636,0|uni1A61@3636,0"
+        "[uni1A6E|uni1A38@1212,0|uni1A6C@2424,0|uni25CC@2424,0|uni1A65@3636,0|uni1A61@3636,0]"
     );
 }
 
@@ -6813,7 +6813,7 @@ fn shlana_1_026() {
             "\u{1A36}\u{1A6E}\u{1A6C}\u{1A65}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A36@1212,0|uni1A6C@2424,0|uni25CC@2424,0|uni1A65@3636,0"
+        "[uni1A6E|uni1A36@1212,0|uni1A6C@2424,0|uni25CC@2424,0|uni1A65@3636,0]"
     );
 }
 
@@ -6825,7 +6825,7 @@ fn shlana_1_027() {
             "\u{1A20}\u{1A6E}\u{1A6C}\u{1A68}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0|uni1A61@4334,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0|uni1A61@4334,0]"
     );
 }
 
@@ -6837,7 +6837,7 @@ fn shlana_1_028() {
             "\u{1A20}\u{1A6E}\u{1A6C}\u{1A68}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0]"
     );
 }
 
@@ -6849,7 +6849,7 @@ fn shlana_1_029() {
             "\u{1A41}\u{1A6E}\u{1A62}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A41@1212,0|uni1A62@2424,0|uni1A63@2424,0"
+        "[uni1A6E|uni1A41@1212,0|uni1A62@2424,0|uni1A63@2424,0]"
     );
 }
 
@@ -6861,7 +6861,7 @@ fn shlana_1_030() {
             "\u{1A3E}\u{1A73}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A73@1212,0"
+        "[uni1A3E.v2|uni1A73@1212,0]"
     );
 }
 
@@ -6873,7 +6873,7 @@ fn shlana_1_031() {
             "\u{1A20}\u{1A6E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A63@3122,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A63@3122,0]"
     );
 }
 
@@ -6885,7 +6885,7 @@ fn shlana_1_032() {
             "\u{1A39}\u{1A60}\u{1A3F}\u{1A6E}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A39@1212,0|uni1A601A3F@2712,0|uni1A61@3176,0"
+        "[uni1A6E|uni1A39@1212,0|uni1A601A3F@2712,0|uni1A61@3176,0]"
     );
 }
 
@@ -6897,7 +6897,7 @@ fn shlana_1_033() {
             "\u{1A3B}\u{1A60}\u{1A3F}\u{1A6E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A3B@1212,0|uni1A601A3F@3122,0"
+        "[uni1A6E|uni1A3B@1212,0|uni1A601A3F@3122,0]"
     );
 }
 
@@ -6909,7 +6909,7 @@ fn shlana_1_034() {
             "\u{1A20}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A601A3F@1910,0"
+        "[uni1A20|uni1A601A3F@1910,0]"
     );
 }
 
@@ -6921,7 +6921,7 @@ fn shlana_1_035() {
             "\u{1A3E}\u{1A6E}\u{1A6C}\u{1A65}\u{1A4B}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A3E.v2@1212,0|uni1A6C@2424,0|uni25CC@2712,0|uni1A65@3924,0|uni1A4B@3924,0|uni1A61@5136,0"
+        "[uni1A6E|uni1A3E.v2@1212,0|uni1A6C@2424,0|uni25CC@2712,0|uni1A65@3924,0|uni1A4B@3924,0|uni1A61@5136,0]"
     );
 }
 
@@ -6933,7 +6933,7 @@ fn shlana_1_036() {
             "\u{1A20}\u{1A56}\u{1A6E}\u{1A6C}\u{1A65}\u{1A4B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A56.wide@3122,0|uni1A6C.wide@3122,-1120|uni25CC@3122,0|uni1A65@4334,0|uni1A4B@4334,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A56.wide@3122,0|uni1A6C.wide@3122,-1120|uni25CC@3122,0|uni1A65@4334,0|uni1A4B@4334,0]"
     );
 }
 
@@ -6945,7 +6945,7 @@ fn shlana_1_037() {
             "\u{1A48}\u{1A70}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A70|uni1A48@1212,0|uni1A61@2424,0"
+        "[uni1A70|uni1A48@1212,0|uni1A61@2424,0]"
     );
 }
 
@@ -6957,7 +6957,7 @@ fn shlana_1_038() {
             "\u{1A3E}\u{1A70}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A70|uni1A3E.v2@1212,0"
+        "[uni1A70|uni1A3E.v2@1212,0]"
     );
 }
 
@@ -6969,7 +6969,7 @@ fn shlana_1_039() {
             "\u{1A2A}\u{1A70}\u{1A6C}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A70|uni1A2A@1212,0|uni1A6C@2424,0|uni1A61@2424,0"
+        "[uni1A70|uni1A2A@1212,0|uni1A6C@2424,0|uni1A61@2424,0]"
     );
 }
 
@@ -6981,7 +6981,7 @@ fn shlana_1_040() {
             "\u{1A29}\u{1A62}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A29|uni1A62@1212,0|uni1A601A3F@1212,0"
+        "[uni1A29|uni1A62@1212,0|uni1A601A3F@1212,0]"
     );
 }
 
@@ -6993,7 +6993,7 @@ fn shlana_1_041() {
             "\u{1A36}\u{1A72}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A72|uni1A36@1212,0"
+        "[uni1A72|uni1A36@1212,0]"
     );
 }
 
@@ -7005,7 +7005,7 @@ fn shlana_1_042() {
             "\u{1A22}\u{1A71}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A71|uni1A22@1212,0"
+        "[uni1A71|uni1A22@1212,0]"
     );
 }
 
@@ -7017,7 +7017,7 @@ fn shlana_1_043() {
             "\u{1A34}\u{1A71}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A71|uni1A34@1212,0|uni1A601A3F@2424,0"
+        "[uni1A71|uni1A34@1212,0|uni1A601A3F@2424,0]"
     );
 }
 
@@ -7029,7 +7029,7 @@ fn shlana_1_044() {
             "\u{1A20}\u{1A6E}\u{1A6C}\u{1A68}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0|uni1A61@4334,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0|uni1A61@4334,0]"
     );
 }
 
@@ -7041,7 +7041,7 @@ fn shlana_1_045() {
             "\u{1A20}\u{1A6E}\u{1A6C}\u{1A68}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A6C.wide@3122,0|uni25CC@3122,0|uni1A68@4334,0]"
     );
 }
 
@@ -7053,7 +7053,7 @@ fn shlana_1_046() {
             "\u{1A20}\u{1A70}\u{1A62}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A70|uni1A20@1212,0|uni1A62@2772,0"
+        "[uni1A70|uni1A20@1212,0|uni1A62@2772,0]"
     );
 }
 
@@ -7065,7 +7065,7 @@ fn shlana_1_047() {
             "\u{1A48}\u{1A58}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A58@1212,0"
+        "[uni1A48|uni1A58@1212,0]"
     );
 }
 
@@ -7077,7 +7077,7 @@ fn shlana_1_048() {
             "\u{1A34}\u{1A62}\u{1A60}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A34|uni1A62@1212,0|uni1A601A26@1212,0"
+        "[uni1A34|uni1A62@1212,0|uni1A601A26@1212,0]"
     );
 }
 
@@ -7089,7 +7089,7 @@ fn shlana_1_049() {
             "\u{1A4C}\u{1A65}\u{1A74}\u{0020}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4C|uni1A65@1560,0|uni1A74@2480,0|space@1910,0"
+        "[uni1A4C|uni1A65@1560,0|uni1A74@2480,0|space@1910,0]"
     );
 }
 
@@ -7101,7 +7101,7 @@ fn shlana_1_050() {
             "\u{1A20}\u{1A65}\u{1A60}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A65@1560,0|uni1A601A26@1560,0"
+        "[uni1A20|uni1A65@1560,0|uni1A601A26@1560,0]"
     );
 }
 
@@ -7113,7 +7113,7 @@ fn shlana_1_051() {
             "\u{1A20}\u{1A62}\u{1A60}\u{1A3E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A62@1560,0|uni1A601A3E@1560,0"
+        "[uni1A20|uni1A62@1560,0|uni1A601A3E@1560,0]"
     );
 }
 
@@ -7125,7 +7125,7 @@ fn shlana_1_052() {
             "\u{1A20}\u{1A62}\u{1A3E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A62@1560,0|uni1A3E.v2@1910,0"
+        "[uni1A20|uni1A62@1560,0|uni1A3E.v2@1910,0]"
     );
 }
 
@@ -7137,7 +7137,7 @@ fn shlana_1_053() {
             "\u{1A2F}\u{1A6D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A6D@1212,0"
+        "[uni1A2F|uni1A6D@1212,0]"
     );
 }
 
@@ -7149,7 +7149,7 @@ fn shlana_10_002() {
             "\u{1A53}\u{1A6F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A53@2244,0"
+        "[uni1A6F|uni1A53@2244,0]"
     );
 }
 
@@ -7161,7 +7161,7 @@ fn shlana_10_003() {
             "\u{1A50}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A50|uni1A63@1212,0"
+        "[uni1A50|uni1A63@1212,0]"
     );
 }
 
@@ -7173,7 +7173,7 @@ fn shlana_10_004() {
             "\u{1A50}\u{1A75}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A50|uni1A75@1512,0|uni25CC@1212,0|uni1A63@2424,0"
+        "[uni1A50|uni1A75@1512,0|uni25CC@1212,0|uni1A63@2424,0]"
     );
 }
 
@@ -7185,7 +7185,7 @@ fn shlana_10_005() {
             "\u{1A2F}\u{1A6A}\u{1A55}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A6A@1212,-384|uni1A55@1212,0|uni25CC@1676,0|uni1A63@2888,0"
+        "[uni1A2F|uni1A6A@1212,-384|uni1A55@1212,0|uni25CC@1676,0|uni1A63@2888,0]"
     );
 }
 
@@ -7198,7 +7198,7 @@ fn shlana_10_006() {
              \u{1A31}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A2F@1212,0|uni1A6C@2424,-384|uni25CC@2424,0|uni1A65@3636,0|uni1A41@3636,0|uni1A39@4848,0|uni1A6B@6060,0|uni25CC@6348,0|uni1A56@7560,0|uni1A23@7560,0|uni1A69@8772,0|uni1A31@8772,0|uni1A7A@10332,0"
+        "[uni1A6E|uni1A2F@1212,0|uni1A6C@2424,-384|uni25CC@2424,0|uni1A65@3636,0|uni1A41@3636,0|uni1A39@4848,0|uni1A6B@6060,0|uni25CC@6348,0|uni1A56@7560,0|uni1A23@7560,0|uni1A69@8772,0|uni1A31@8772,0|uni1A7A@10332,0]"
     );
 }
 
@@ -7210,7 +7210,7 @@ fn shlana_10_007() {
             "\u{1A3B}\u{1A63}\u{1A37}\u{1A70}\u{1A56}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3B|uni1A63@1910,0|uni1A70@3122,0|uni1A37@4334,0|uni25CC@5546,0|uni1A56@6758,0"
+        "[uni1A3B|uni1A63@1910,0|uni1A70@3122,0|uni1A37@4334,0|uni25CC@5546,0|uni1A56@6758,0]"
     );
 }
 
@@ -7222,7 +7222,7 @@ fn shlana_10_008() {
             "\u{1A36}\u{1A76}\u{1A6D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A36|uni1A76@1212,0|uni25CC@1212,0|uni1A6D@2424,0"
+        "[uni1A36|uni1A76@1212,0|uni25CC@1212,0|uni1A6D@2424,0]"
     );
 }
 
@@ -7234,7 +7234,7 @@ fn shlana_10_009() {
             "\u{1A39}\u{1A65}\u{1A56}\u{1A69}\u{1A75}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A39|uni1A65@1212,0|uni25CC@1500,0|uni1A56@2712,0|uni1A69@2712,-1120|uni1A75@2712,0|uni1A7B@3270,0"
+        "[uni1A39|uni1A65@1212,0|uni25CC@1500,0|uni1A56@2712,0|uni1A69@2712,-1120|uni1A75@2712,0|uni1A7B@3270,0]"
     );
 }
 
@@ -7246,7 +7246,7 @@ fn shlana_10_010() {
             "\u{1A49}\u{1A56}\u{1A60}\u{1A45}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A56.wide@1910,0|uni1A601A45@1560,-1120|uni1A26@1910,0"
+        "[uni1A49|uni1A56.wide@1910,0|uni1A601A45@1560,-1120|uni1A26@1910,0]"
     );
 }
 
@@ -7258,7 +7258,7 @@ fn shlana_10_011() {
             "\u{1A49}\u{1A56}\u{1A60}\u{1A45}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A56.wide@1910,0|uni1A601A45@1560,-1120|uni25CC@1910,0|uni1A63@3122,0"
+        "[uni1A49|uni1A56.wide@1910,0|uni1A601A45@1560,-1120|uni25CC@1910,0|uni1A63@3122,0]"
     );
 }
 
@@ -7270,7 +7270,7 @@ fn shlana_10_012() {
             "\u{1A3B}\u{1A55}\u{1A60}\u{1A3F}\u{1A6E}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A3B@464,0|uni1A601A3F@2374,0|uni1A6E@2838,0|uni25CC@4050,0|uni1A61@5262,0"
+        "[uni1A55|uni1A3B@464,0|uni1A601A3F@2374,0|uni1A6E@2838,0|uni25CC@4050,0|uni1A61@5262,0]"
     );
 }
 
@@ -7282,7 +7282,7 @@ fn shlana_10_013() {
             "\u{1A20}\u{1A69}\u{1A76}\u{1A63}\u{1A60}\u{1A36}\u{1A60}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A69@1560,0|uni1A76@1560,0|uni25CC@1910,0|uni1A63@3122,0|uni1A601A36@4334,0|uni1A601A26@4334,-752"
+        "[uni1A20|uni1A69@1560,0|uni1A76@1560,0|uni25CC@1910,0|uni1A63@3122,0|uni1A601A36@4334,0|uni1A601A26@4334,-752]"
     );
 }
 
@@ -7294,7 +7294,7 @@ fn shlana_10_014() {
             "\u{1A4B}\u{1A62}\u{1A60}\u{1A2D}\u{1A5B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4B|uni1A62@1212,0|uni1A601A2D@1212,0|uni25CC@1212,0|uni1A5B.ratha_nohost@2424,0"
+        "[uni1A4B|uni1A62@1212,0|uni1A601A2D@1212,0|uni25CC@1212,0|uni1A5B.ratha_nohost@2424,0]"
     );
 }
 
@@ -7306,7 +7306,7 @@ fn shlana_10_015() {
             "\u{1A46}\u{1A62}\u{1A20}\u{1A60}\u{1A2F}\u{1A65}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A46|uni1A62@1212,0|uni1A20@1394,0|uni1A601A2F@2954,0|uni1A65@2954,0|uni1A7A@2954,732"
+        "[uni1A46|uni1A62@1212,0|uni1A20@1394,0|uni1A601A2F@2954,0|uni1A65@2954,0|uni1A7A@2954,732]"
     );
 }
 
@@ -7318,7 +7318,7 @@ fn shlana_10_016() {
             "\u{1A46}\u{1A62}\u{1A20}\u{1A60}\u{1A2F}\u{1A65}\u{1A7C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A46|uni1A62@1212,0|uni1A20@1394,0|uni1A601A2F@2954,0|uni1A65@2954,0|uni1A7C@2954,732"
+        "[uni1A46|uni1A62@1212,0|uni1A20@1394,0|uni1A601A2F@2954,0|uni1A65@2954,0|uni1A7C@2954,732]"
     );
 }
 
@@ -7330,7 +7330,7 @@ fn shlana_10_017() {
             "\u{1A3E}\u{1A49}\u{1A63}\u{1A49}\u{1A65}\u{1A26}\u{1A60}\u{1A23}\u{1A69}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A49@1500,0|uni1A63@3410,0|uni1A49@4622,0|uni1A65@6182,0|uni1A26@6532,0|uni1A601A23@7744,0|uni1A69@7744,-1120|uni25CC@7744,0|uni1A7A@8956,0"
+        "[uni1A3E.v2|uni1A49@1500,0|uni1A63@3410,0|uni1A49@4622,0|uni1A65@6182,0|uni1A26@6532,0|uni1A601A23@7744,0|uni1A69@7744,-1120|uni25CC@7744,0|uni1A7A@8956,0]"
     );
 }
 
@@ -7342,7 +7342,7 @@ fn shlana_10_018() {
             "\u{1A3E}\u{1A49}\u{1A63}\u{1A49}\u{1A65}\u{1A26}\u{1A60}\u{1A23}\u{1A69}\u{1A7C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A49@1500,0|uni1A63@3410,0|uni1A49@4622,0|uni1A65@6182,0|uni1A26@6532,0|uni1A601A23@7744,0|uni1A69@7744,-1120|uni1A7C@7744,0"
+        "[uni1A3E.v2|uni1A49@1500,0|uni1A63@3410,0|uni1A49@4622,0|uni1A65@6182,0|uni1A26@6532,0|uni1A601A23@7744,0|uni1A69@7744,-1120|uni1A7C@7744,0]"
     );
 }
 
@@ -7354,7 +7354,7 @@ fn shlana_10_019() {
             "\u{1A46}\u{1A63}\u{1A48}\u{1A60}\u{1A32}\u{1A55}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A46|uni1A63@1394,0|uni1A55@2606,0|uni1A48@3070,0|uni1A601A32@4282,0|uni1A7A@4282,0"
+        "[uni1A46|uni1A63@1394,0|uni1A55@2606,0|uni1A48@3070,0|uni1A601A32@4282,0|uni1A7A@4282,0]"
     );
 }
 
@@ -7366,7 +7366,7 @@ fn shlana_10_020() {
             "\u{1A48}\u{1A63}\u{1A48}\u{1A60}\u{1A32}\u{1A55}\u{1A7C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A63@1212,0|uni1A55@2424,0|uni1A48@2888,0|uni1A601A32@4100,0|uni1A7C@4100,0"
+        "[uni1A48|uni1A63@1212,0|uni1A55@2424,0|uni1A48@2888,0|uni1A601A32@4100,0|uni1A7C@4100,0]"
     );
 }
 
@@ -7378,7 +7378,7 @@ fn shlana_10_021() {
             "\u{1A41}\u{1A6A}\u{1A60}\u{1A37}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A41|uni1A601A37@1212,0|uni1A6A@1485,-752"
+        "[uni1A41|uni1A601A37@1212,0|uni1A6A@1485,-752]"
     );
 }
 
@@ -7390,7 +7390,7 @@ fn shlana_10_022() {
             "\u{1A3B}\u{1A66}\u{1A75}\u{1A60}\u{1A36}\u{1A6C}\u{1A76}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3B|uni1A66@1560,0|uni1A75@1560,732|uni1A601A36@1560,0|uni25CC@1910,0|uni1A6C@3122,0|uni1A76@3122,0|uni1A26@3122,0"
+        "[uni1A3B|uni1A66@1560,0|uni1A75@1560,732|uni1A601A36@1560,0|uni25CC@1910,0|uni1A6C@3122,0|uni1A76@3122,0|uni1A26@3122,0]"
     );
 }
 
@@ -7402,7 +7402,7 @@ fn shlana_10_023() {
             "\u{1A38}\u{1A62}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A38|uni1A62@1037,0|uni1A63@1212,0"
+        "[uni1A38|uni1A62@1037,0|uni1A63@1212,0]"
     );
 }
 
@@ -7414,7 +7414,7 @@ fn shlana_10_024() {
             "\u{1A43}\u{1A6A}\u{1A62}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A43|uni1A6A@1560,0|uni25CC@1910,0|uni1A62@3122,0"
+        "[uni1A43|uni1A6A@1560,0|uni25CC@1910,0|uni1A62@3122,0]"
     );
 }
 
@@ -7426,7 +7426,7 @@ fn shlana_10_025() {
             "\u{1A2F}\u{1A6C}\u{1A62}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A6C@1212,-384|uni25CC@1212,0|uni1A62@2424,0"
+        "[uni1A2F|uni1A6C@1212,-384|uni25CC@1212,0|uni1A62@2424,0]"
     );
 }
 
@@ -7438,7 +7438,7 @@ fn shlana_10_026() {
             "\u{1A2F}\u{1A6C}\u{1A62}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A6C@1212,-384|uni25CC@1212,0|uni1A62@2424,0|uni1A61@2424,0"
+        "[uni1A2F|uni1A6C@1212,-384|uni25CC@1212,0|uni1A62@2424,0|uni1A61@2424,0]"
     );
 }
 
@@ -7450,7 +7450,7 @@ fn shlana_10_027() {
             "\u{1A3B}\u{1A60}\u{1A45}\u{1A62}\u{1A61}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3B|uni1A601A45@1560,0|uni1A62@1560,0|uni1A61@1910,0"
+        "[uni1A3B|uni1A601A45@1560,0|uni1A62@1560,0|uni1A61@1910,0]"
     );
 }
 
@@ -7462,7 +7462,7 @@ fn shlana_10_028() {
             "\u{1A32}\u{1A6F}\u{1A60}\u{1A36}\u{1A6C}\u{1A74}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A32@2244,0|uni1A601A36@3804,0|uni25CC@4154,0|uni1A6C@5366,0|uni1A74@5366,0|uni1A75@5366,732"
+        "[uni1A6F|uni1A32@2244,0|uni1A601A36@3804,0|uni25CC@4154,0|uni1A6C@5366,0|uni1A74@5366,0|uni1A75@5366,732]"
     );
 }
 
@@ -7474,7 +7474,7 @@ fn shlana_10_029() {
             "\u{1A32}\u{1A6C}\u{1A74}\u{1A75}\u{034F}\u{1A6F}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A6C.wide@1910,0|uni1A74@1560,0|uni1A75@1560,732|uni1A6F@1910,0|uni25CC@4154,0|uni1A601A36@5366,0"
+        "[uni1A32|uni1A6C.wide@1910,0|uni1A74@1560,0|uni1A75@1560,732|uni1A6F@1910,0|uni25CC@4154,0|uni1A601A36@5366,0]"
     );
 }
 
@@ -7486,7 +7486,7 @@ fn shlana_10_030() {
             "\u{1A32}\u{1A6C}\u{1A74}\u{1A75}\u{1A6F}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A6C.wide@1910,0|uni1A74@1560,0|uni1A75@1560,732|uni1A6F@1910,0|uni25CC@4154,0|uni1A601A36@5366,0"
+        "[uni1A32|uni1A6C.wide@1910,0|uni1A74@1560,0|uni1A75@1560,732|uni1A6F@1910,0|uni25CC@4154,0|uni1A601A36@5366,0]"
     );
 }
 
@@ -7498,7 +7498,7 @@ fn shlana_10_031() {
             "\u{1A48}\u{1A60}\u{1A36}\u{1A6B}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A601A36@1212,0|uni1A6B@1212,0|uni1A7B@1954,0"
+        "[uni1A48|uni1A601A36@1212,0|uni1A6B@1212,0|uni1A7B@1954,0]"
     );
 }
 
@@ -7510,7 +7510,7 @@ fn shlana_10_032() {
             "\u{1A20}\u{1A3E}\u{1A5B}\u{1A66}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A3E1A5B@1910,0|uni1A66@3172,0"
+        "[uni1A20|uni1A3E1A5B@1910,0|uni1A66@3172,0]"
     );
 }
 
@@ -7522,7 +7522,7 @@ fn shlana_10_033() {
             "\u{1A36}\u{1A65}\u{1A3B}\u{1A5B}\u{1A63}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A36|uni1A65@1212,0|uni1A3B1A5B@1212,0|uni1A63@3122,0|uni1A601A36@4334,0"
+        "[uni1A36|uni1A65@1212,0|uni1A3B1A5B@1212,0|uni1A63@3122,0|uni1A601A36@4334,0]"
     );
 }
 
@@ -7534,7 +7534,7 @@ fn shlana_10_034() {
             "\u{1A35}\u{1A3E}\u{1A5C}\u{1A65}\u{1A20}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A35|uni1A3E.v2@1212,0|uni1A5C@2424,0|uni1A65@2424,0|uni1A20@2712,0"
+        "[uni1A35|uni1A3E.v2@1212,0|uni1A5C@2424,0|uni1A65@2424,0|uni1A20@2712,0]"
     );
 }
 
@@ -7546,7 +7546,7 @@ fn shlana_10_035() {
             "\u{1A48}\u{1A35}\u{1A69}\u{1A60}\u{1A37}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A35@1212,0|uni1A601A37@2424,0|uni1A69@2697,-752"
+        "[uni1A48|uni1A35@1212,0|uni1A601A37@2424,0|uni1A69@2697,-752]"
     );
 }
 
@@ -7558,7 +7558,7 @@ fn shlana_10_036() {
             "\u{1A45}\u{1A65}\u{1A48}\u{1A6E}\u{1A60}\u{1A48}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A45|uni1A65@1212,0|uni1A6E@1212,0|uni1A48@2424,0|uni1A601A48@3636,0"
+        "[uni1A45|uni1A65@1212,0|uni1A6E@1212,0|uni1A48@2424,0|uni1A601A48@3636,0]"
     );
 }
 
@@ -7570,7 +7570,7 @@ fn shlana_10_037() {
             "\u{1A22}\u{1A76}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A22|uni1A76@1512,0|uni25CC@1212,0|uni1A63@2424,0"
+        "[uni1A22|uni1A76@1512,0|uni25CC@1212,0|uni1A63@2424,0]"
     );
 }
 
@@ -7582,7 +7582,7 @@ fn shlana_10_038() {
             "\u{1A48}\u{1A63}\u{1A48}\u{1A36}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A63@1212,0|uni1A48@2424,0|uni1A361A63@3636,0"
+        "[uni1A48|uni1A63@1212,0|uni1A48@2424,0|uni1A361A63@3636,0]"
     );
 }
 
@@ -7594,7 +7594,7 @@ fn shlana_10_039() {
             "\u{1A48}\u{1A63}\u{1A48}\u{1A60}\u{1A36}\u{1A7B}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A63@1212,0|uni1A48@2424,0|uni1A601A36@3636,0|uni1A7B@3636,0|uni25CC@3636,0|uni1A63@4848,0"
+        "[uni1A48|uni1A63@1212,0|uni1A48@2424,0|uni1A601A36@3636,0|uni1A7B@3636,0|uni25CC@3636,0|uni1A63@4848,0]"
     );
 }
 
@@ -7606,7 +7606,7 @@ fn shlana_10_040() {
             "\u{1A48}\u{1A60}\u{1A36}\u{1A7B}\u{1A6E}\u{1A62}\u{1A76}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A601A36@1212,0|uni1A7B@1212,0|uni1A6E@1212,0|uni25CC@2424,0|uni1A621A76@3636,0|uni25CC@3636,0|uni1A63@4848,0"
+        "[uni1A48|uni1A601A36@1212,0|uni1A7B@1212,0|uni1A6E@1212,0|uni25CC@2424,0|uni1A621A76@3636,0|uni25CC@3636,0|uni1A63@4848,0]"
     );
 }
 
@@ -7618,7 +7618,7 @@ fn shlana_10_041() {
             "\u{1A48}\u{1A60}\u{1A36}\u{1A7B}\u{1A6E}\u{1A62}\u{1A62}\u{1A76}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A601A36@1212,0|uni1A7B@1212,0|uni1A6E@1212,0|uni25CC@2424,0|uni1A621A621A76@3636,0|uni25CC@3636,0|uni1A63@4848,0"
+        "[uni1A48|uni1A601A36@1212,0|uni1A7B@1212,0|uni1A6E@1212,0|uni25CC@2424,0|uni1A621A621A76@3636,0|uni25CC@3636,0|uni1A63@4848,0]"
     );
 }
 
@@ -7630,7 +7630,7 @@ fn shlana_10_042() {
             "\u{1A32}\u{1A66}\u{034F}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A66@1560,0|uni1A63@1910,0|uni1A601A3F@3122,0"
+        "[uni1A32|uni1A66@1560,0|uni1A63@1910,0|uni1A601A3F@3122,0]"
     );
 }
 
@@ -7642,7 +7642,7 @@ fn shlana_10_043() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A75}\u{1A63}\u{1A74}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A3E@1560,0|uni1A75@1560,0|uni25CC@1910,0|uni1A631A74@3122,0|uni1A7B@4334,0"
+        "[uni1A49|uni1A601A3E@1560,0|uni1A75@1560,0|uni25CC@1910,0|uni1A631A74@3122,0|uni1A7B@4334,0]"
     );
 }
 
@@ -7654,7 +7654,7 @@ fn shlana_10_044() {
             "\u{1A43}\u{1A6E}\u{1A5E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A43@1212,0|uni25CC@3122,0|uni1A5E@4334,0"
+        "[uni1A6E|uni1A43@1212,0|uni25CC@3122,0|uni1A5E@4334,0]"
     );
 }
 
@@ -7667,7 +7667,7 @@ fn shlana_10_045() {
              \u{1A20}\u{1A48}\u{1A5E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4B|uni1A361A63@1212,0|uni1A33@2424,0|uni1A37@3636,0|uni1A65@4848,0|uni1A31@4848,0|uni1A601A2F@6408,0|uni1A65@6408,0|uni1A20@6758,0|uni1A48@8668,0|uni1A5E@9880,0"
+        "[uni1A4B|uni1A361A63@1212,0|uni1A33@2424,0|uni1A37@3636,0|uni1A65@4848,0|uni1A31@4848,0|uni1A601A2F@6408,0|uni1A65@6408,0|uni1A20@6758,0|uni1A48@8668,0|uni1A5E@9880,0]"
     );
 }
 
@@ -7679,7 +7679,7 @@ fn shlana_10_046() {
             "\u{1A2F}\u{1A63}\u{1A74}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A74@1212,0|uni1A63@1212,0|uni1A7B@2424,0"
+        "[uni1A2F|uni1A74@1212,0|uni1A63@1212,0|uni1A7B@2424,0]"
     );
 }
 
@@ -7691,7 +7691,7 @@ fn shlana_10_047() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A74}\u{1A75}\u{1A63}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A3E@1560,0|uni1A74@1560,0|uni1A75@1560,732|uni25CC@1910,0|uni1A63@3122,0|uni1A7B@4334,0"
+        "[uni1A49|uni1A601A3E@1560,0|uni1A74@1560,0|uni1A75@1560,732|uni25CC@1910,0|uni1A63@3122,0|uni1A7B@4334,0]"
     );
 }
 
@@ -7703,7 +7703,7 @@ fn shlana_10_048() {
             "\u{1A2F}\u{1A74}\u{1A63}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A74@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A7B@3636,0"
+        "[uni1A2F|uni1A74@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A7B@3636,0]"
     );
 }
 
@@ -7715,7 +7715,7 @@ fn shlana_2_002() {
             "\u{1A93}\u{1A60}\u{1A34}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A93|uni1A601A34@1212,0"
+        "[uni1A93|uni1A601A34@1212,0]"
     );
 }
 
@@ -7727,7 +7727,7 @@ fn shlana_2_003() {
             "\u{1A32}\u{1A75}\u{1A63}\u{1A60}\u{1A26}\u{1A7B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A75@1560,0|uni25CC@1910,0|uni1A63@3122,0|uni1A601A26@4334,0|uni25CC@4334,0|uni1A7B@5546,0"
+        "[uni1A32|uni1A75@1560,0|uni25CC@1910,0|uni1A63@3122,0|uni1A601A26@4334,0|uni25CC@4334,0|uni1A7B@5546,0]"
     );
 }
 
@@ -7739,7 +7739,7 @@ fn shlana_2_004() {
             "\u{1A33}\u{1A60}\u{1A36}\u{1A7B}\u{1A6B}\u{1A41}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A33|uni1A601A36@1212,0|uni1A7B@1212,0|uni25CC@1212,0|uni1A6B@2424,0|uni1A41@2424,0"
+        "[uni1A33|uni1A601A36@1212,0|uni1A7B@1212,0|uni25CC@1212,0|uni1A6B@2424,0|uni1A41@2424,0]"
     );
 }
 
@@ -7751,7 +7751,7 @@ fn shlana_2_005() {
             "\u{1A21}\u{1A62}\u{1A76}\u{1A7B}\u{1A6C}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A21|uni1A621A76@1212,0|uni1A7B@2062,0|uni25CC@1212,0|uni1A6C@2424,0|uni1A26@2424,0"
+        "[uni1A21|uni1A621A76@1212,0|uni1A7B@2062,0|uni25CC@1212,0|uni1A6C@2424,0|uni1A26@2424,0]"
     );
 }
 
@@ -7763,7 +7763,7 @@ fn shlana_2_006() {
             "\u{1AAD}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1AAD|uni1A63@1212,0"
+        "[uni1AAD|uni1A63@1212,0]"
     );
 }
 
@@ -7775,7 +7775,7 @@ fn shlana_2_007() {
             "\u{1A49}\u{1A60}\u{1A36}\u{1A66}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A36@1560,0|uni1A66@1560,0"
+        "[uni1A49|uni1A601A36@1560,0|uni1A66@1560,0]"
     );
 }
 
@@ -7787,7 +7787,7 @@ fn shlana_2_008() {
             "\u{1A24}\u{1A60}\u{1A45}\u{1A6F}\u{1A76}\u{1A41}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A24@2244,0|uni1A601A45@3456,0|uni1A76@3756,0|uni1A41@3456,0"
+        "[uni1A6F|uni1A24@2244,0|uni1A601A45@3456,0|uni1A76@3756,0|uni1A41@3456,0]"
     );
 }
 
@@ -7799,7 +7799,7 @@ fn shlana_2_009() {
             "\u{1A49}\u{1A60}\u{1A45}\u{1A6B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A45@1560,0|uni1A6B@1560,0"
+        "[uni1A49|uni1A601A45@1560,0|uni1A6B@1560,0]"
     );
 }
 
@@ -7811,7 +7811,7 @@ fn shlana_2_010() {
             "\u{1A2F}\u{1A62}\u{1A75}\u{1A26}\u{1A60}\u{1A36}\u{1A66}\u{1A76}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A621A75@1212,0|uni1A26@1212,0|uni1A601A36@2424,0|uni1A66@2424,0|uni1A76@2424,732"
+        "[uni1A2F|uni1A621A75@1212,0|uni1A26@1212,0|uni1A601A36@2424,0|uni1A66@2424,0|uni1A76@2424,732]"
     );
 }
 
@@ -7823,7 +7823,7 @@ fn shlana_2_011() {
             "\u{1A49}\u{1A65}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A65@1560,0|uni1A601A36@1560,0"
+        "[uni1A49|uni1A65@1560,0|uni1A601A36@1560,0]"
     );
 }
 
@@ -7835,7 +7835,7 @@ fn shlana_2_012() {
             "\u{1A32}\u{1A63}\u{1A60}\u{1A3E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A63@1910,0|uni1A601A3E@3122,0"
+        "[uni1A32|uni1A63@1910,0|uni1A601A3E@3122,0]"
     );
 }
 
@@ -7847,7 +7847,7 @@ fn shlana_2_013() {
             "\u{1A3B}\u{1A60}\u{1A3F}\u{1A63}\u{1A60}\u{1A35}\u{1A65}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3B|uni1A601A3F@1910,0|uni1A63@2374,0|uni1A601A35@3586,0|uni25CC@3586,0|uni1A65@4798,0"
+        "[uni1A3B|uni1A601A3F@1910,0|uni1A63@2374,0|uni1A601A35@3586,0|uni25CC@3586,0|uni1A65@4798,0]"
     );
 }
 
@@ -7859,7 +7859,7 @@ fn shlana_2_014() {
             "\u{1A38}\u{1A60}\u{1A43}\u{1A60}\u{1A3F}\u{1A75}\u{1A41}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A38|uni1A601A43@1212,0|uni1A601A3F@1676,0|uni1A75@2149,0|uni1A41@2140,0"
+        "[uni1A38|uni1A601A43@1212,0|uni1A601A3F@1676,0|uni1A75@2149,0|uni1A41@2140,0]"
     );
 }
 
@@ -7871,7 +7871,7 @@ fn shlana_2_015() {
             "\u{1A3E}\u{1A6F}\u{1A76}\u{1A60}\u{1A36}\u{1A60}\u{1A45}\u{1A75}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A3E.v2@2244,0|uni1A76@3456,0|uni1A601A36@3456,0|uni1A601A45@3456,-752|uni25CC@3744,0|uni1A75@4956,0|uni25CC@4956,0|uni1A63@6168,0"
+        "[uni1A6F|uni1A3E.v2@2244,0|uni1A76@3456,0|uni1A601A36@3456,0|uni1A601A45@3456,-752|uni25CC@3744,0|uni1A75@4956,0|uni25CC@4956,0|uni1A63@6168,0]"
     );
 }
 
@@ -7883,7 +7883,7 @@ fn shlana_2_016() {
             "\u{1A48}\u{1A60}\u{1A45}\u{1A6F}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A48@2244,0|uni1A601A45@3456,0|uni1A75@3456,0"
+        "[uni1A6F|uni1A48@2244,0|uni1A601A45@3456,0|uni1A75@3456,0]"
     );
 }
 
@@ -7895,7 +7895,7 @@ fn shlana_2_017() {
             "\u{1A48}\u{1A75}\u{1A6F}\u{1A60}\u{1A45}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A75@1212,0|uni1A6F@1212,0|uni25CC@3456,0|uni1A601A45@4668,0"
+        "[uni1A48|uni1A75@1212,0|uni1A6F@1212,0|uni25CC@3456,0|uni1A601A45@4668,0]"
     );
 }
 
@@ -7907,7 +7907,7 @@ fn shlana_2_018() {
             "\u{1A3F}\u{1A6A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3F|uni1A6A@1560,0"
+        "[uni1A3F|uni1A6A@1560,0]"
     );
 }
 
@@ -7919,7 +7919,7 @@ fn shlana_2_019() {
             "\u{1A3E}\u{1A66}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A66@1212,0"
+        "[uni1A3E.v2|uni1A66@1212,0]"
     );
 }
 
@@ -7931,7 +7931,7 @@ fn shlana_2_020() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A6A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A3E@1560,0|uni1A6A@1560,-752"
+        "[uni1A49|uni1A601A3E@1560,0|uni1A6A@1560,-752]"
     );
 }
 
@@ -7943,7 +7943,7 @@ fn shlana_2_021() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A66}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A3E@1560,0|uni1A66@1560,0"
+        "[uni1A49|uni1A601A3E@1560,0|uni1A66@1560,0]"
     );
 }
 
@@ -7955,7 +7955,7 @@ fn shlana_2_022() {
             "\u{1A39}\u{1A60}\u{1A45}\u{1A6B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A39|uni1A601A45@1212,0|uni1A6B@1212,0"
+        "[uni1A39|uni1A601A45@1212,0|uni1A6B@1212,0]"
     );
 }
 
@@ -7967,7 +7967,7 @@ fn shlana_2_023() {
             "\u{1A49}\u{1A60}\u{1A43}\u{1A6C}\u{1A74}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A43@1910,0|uni1A6C@2170,-1120|uni1A74@2383,0|uni1A75@2383,732"
+        "[uni1A49|uni1A601A43@1910,0|uni1A6C@2170,-1120|uni1A74@2383,0|uni1A75@2383,732]"
     );
 }
 
@@ -7979,7 +7979,7 @@ fn shlana_2_024() {
             "\u{1A3E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A63@1500,0"
+        "[uni1A3E.v2|uni1A63@1500,0]"
     );
 }
 
@@ -7991,7 +7991,7 @@ fn shlana_2_025() {
             "\u{1A49}\u{1A71}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A71|uni1A49@1212,0|uni1A75@2772,0"
+        "[uni1A71|uni1A49@1212,0|uni1A75@2772,0]"
     );
 }
 
@@ -8003,7 +8003,7 @@ fn shlana_2_026() {
             "\u{1A45}\u{1A60}\u{1A3F}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A45|uni1A601A3F@1212,0|uni1A26@1676,0"
+        "[uni1A45|uni1A601A3F@1212,0|uni1A26@1676,0]"
     );
 }
 
@@ -8015,7 +8015,7 @@ fn shlana_2_027() {
             "\u{1A49}\u{1A63}\u{1A60}\u{1A3E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A63@1910,0|uni1A601A3E@3122,0"
+        "[uni1A49|uni1A63@1910,0|uni1A601A3E@3122,0]"
     );
 }
 
@@ -8027,7 +8027,7 @@ fn shlana_2_028() {
             "\u{1A2F}\u{1A63}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A74@1212,0|uni1A63@1212,0"
+        "[uni1A2F|uni1A74@1212,0|uni1A63@1212,0]"
     );
 }
 
@@ -8039,7 +8039,7 @@ fn shlana_2_029() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A3E@1560,0|uni1A63@1910,0"
+        "[uni1A49|uni1A601A3E@1560,0|uni1A63@1910,0]"
     );
 }
 
@@ -8051,7 +8051,7 @@ fn shlana_2_030() {
             "\u{1A20}\u{1A55}\u{1A63}\u{1A60}\u{1A38}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A20@464,0|uni1A63@2374,0|uni1A601A37@3586,0"
+        "[uni1A55|uni1A20@464,0|uni1A63@2374,0|uni1A601A37@3586,0]"
     );
 }
 
@@ -8063,7 +8063,7 @@ fn shlana_2_031() {
             "\u{1A3B}\u{1A55}\u{1A75}\u{1A63}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A3B@464,0|uni1A75@2024,0|uni25CC@2374,0|uni1A631A74@3586,0"
+        "[uni1A55|uni1A3B@464,0|uni1A75@2024,0|uni25CC@2374,0|uni1A631A74@3586,0]"
     );
 }
 
@@ -8075,7 +8075,7 @@ fn shlana_2_032() {
             "\u{1A20}\u{1A55}\u{1A6C}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A20@464,0|uni1A6C.wide@2374,0|uni1A26@2374,0"
+        "[uni1A55|uni1A20@464,0|uni1A6C.wide@2374,0|uni1A26@2374,0]"
     );
 }
 
@@ -8087,7 +8087,7 @@ fn shlana_2_033() {
             "\u{1A48}\u{1A55}\u{1A6B}\u{1A3E}\u{1A60}\u{1A31}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A48@464,0|uni1A6B@1676,0|uni1A3E.v2@1676,0|uni1A601A31.narrow@2888,0|uni1A7A@2888,0"
+        "[uni1A55|uni1A48@464,0|uni1A6B@1676,0|uni1A3E.v2@1676,0|uni1A601A31.narrow@2888,0|uni1A7A@2888,0]"
     );
 }
 
@@ -8099,7 +8099,7 @@ fn shlana_2_034() {
             "\u{1A48}\u{1A55}\u{1A60}\u{1A45}\u{1A6B}\u{1A3E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A48@464,0|uni1A601A45@1676,0|uni25CC@1676,0|uni1A6B@2888,0|uni1A3E.v2@2888,0"
+        "[uni1A55|uni1A48@464,0|uni1A601A45@1676,0|uni25CC@1676,0|uni1A6B@2888,0|uni1A3E.v2@2888,0]"
     );
 }
 
@@ -8111,7 +8111,7 @@ fn shlana_2_035() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A75}\u{1A63}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A3E@1560,0|uni1A75@1560,0|uni25CC@1910,0|uni1A631A74@3122,0"
+        "[uni1A49|uni1A601A3E@1560,0|uni1A75@1560,0|uni25CC@1910,0|uni1A631A74@3122,0]"
     );
 }
 
@@ -8123,7 +8123,7 @@ fn shlana_2_036() {
             "\u{1A49}\u{1A60}\u{1A3E}\u{1A6E}\u{1A6C}\u{1A68}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A49@1212,0|uni1A601A3E@2772,0|uni1A6C@2772,-752|uni25CC@3122,0|uni1A68@4334,0|uni1A26@4334,0"
+        "[uni1A6E|uni1A49@1212,0|uni1A601A3E@2772,0|uni1A6C@2772,-752|uni25CC@3122,0|uni1A68@4334,0|uni1A26@4334,0]"
     );
 }
 
@@ -8135,7 +8135,7 @@ fn shlana_2_037() {
             "\u{1A49}\u{1A60}\u{1A3F}\u{1A6E}\u{1A6C}\u{1A68}\u{1A26}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A49@1212,0|uni1A601A3F@3122,0|uni1A6C@3541,-752|uni25CC@3586,0|uni1A68@4798,0|uni1A26@4798,0"
+        "[uni1A6E|uni1A49@1212,0|uni1A601A3F@3122,0|uni1A6C@3541,-752|uni25CC@3586,0|uni1A68@4798,0|uni1A26@4798,0]"
     );
 }
 
@@ -8147,7 +8147,7 @@ fn shlana_2_038() {
             "\u{1A49}\u{1A60}\u{1A43}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A43@1910,0|uni1A63@2374,0|uni1A601A3F@3586,0"
+        "[uni1A49|uni1A601A43@1910,0|uni1A63@2374,0|uni1A601A3F@3586,0]"
     );
 }
 
@@ -8159,7 +8159,7 @@ fn shlana_3_002() {
             "\u{1A20}\u{1A6C}\u{1A62}\u{1A43}\u{1A60}\u{1A3C}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A62@3122,0|uni1A43@3122,0|antler@3122,0|uni1A601A3C.wide@5032,0|uni1A7A@5234,0"
+        "[uni1A20|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A62@3122,0|uni1A43@3122,0|antler@3122,0|uni1A601A3C.wide@5032,0|uni1A7A@5234,0]"
     );
 }
 
@@ -8171,7 +8171,7 @@ fn shlana_3_003() {
             "\u{1A20}\u{1A6C}\u{1A62}\u{1A43}\u{1A7A}\u{1A60}\u{1A3C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A62@3122,0|uni1A43@3122,0|antler@3122,0|uni1A7A@5234,0|uni1A601A3C.wide@5032,0"
+        "[uni1A20|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A62@3122,0|uni1A43@3122,0|antler@3122,0|uni1A7A@5234,0|uni1A601A3C.wide@5032,0]"
     );
 }
 
@@ -8183,7 +8183,7 @@ fn shlana_3_004() {
             "\u{1A20}\u{1A6C}\u{1A62}\u{1A43}\u{1A60}\u{1A7A}\u{1A3C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A62@3122,0|uni1A43@3122,0|antler@3122,0|uni1A7A@5234,0|uni1A601A3C.wide@5032,0"
+        "[uni1A20|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A62@3122,0|uni1A43@3122,0|antler@3122,0|uni1A7A@5234,0|uni1A601A3C.wide@5032,0]"
     );
 }
 
@@ -8195,7 +8195,7 @@ fn shlana_3_005() {
             "\u{1A20}\u{1A55}\u{1A63}\u{1A60}\u{1A3C}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A55|uni1A20@464,0|uni1A63@2374,0|antler@2374,0|uni1A601A3C@3586,0"
+        "[uni1A55|uni1A20@464,0|uni1A63@2374,0|antler@2374,0|uni1A601A3C@3586,0]"
     );
 }
 
@@ -8207,7 +8207,7 @@ fn shlana_3_006() {
             "\u{1A34}\u{1A6C}\u{1A3C}\u{1A60}\u{1A3C}\u{1A66}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A34|uni1A6C@1212,0|uni1A3C@1212,0|antler@1580,0|uni1A601A3C.wide@3122,0|uni1A66@3191,0|uni1A75@3191,732"
+        "[uni1A34|uni1A6C@1212,0|uni1A3C@1212,0|antler@1580,0|uni1A601A3C.wide@3122,0|uni1A66@3191,0|uni1A75@3191,732]"
     );
 }
 
@@ -8219,7 +8219,7 @@ fn shlana_3_007() {
             "\u{1A20}\u{1A3D}\u{1A5A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A20|uni1A3D@1910,0|uni1A5A@3820,0"
+        "[uni1A20|uni1A3D@1910,0|uni1A5A@3820,0]"
     );
 }
 
@@ -8231,7 +8231,7 @@ fn shlana_3_008() {
             "\u{1A48}\u{1A31}\u{1A5B}\u{1A63}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A311A5B@1212,0|uni1A63@3122,0|uni1A601A36@4334,0"
+        "[uni1A48|uni1A311A5B@1212,0|uni1A63@3122,0|uni1A601A36@4334,0]"
     );
 }
 
@@ -8243,7 +8243,7 @@ fn shlana_3_009() {
             "\u{1A41}\u{1A2D}\u{1A5B}\u{1A37}\u{1A63}\u{1A60}\u{1A43}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A41|uni1A2D1A5B@1212,0|uni1A37@2424,0|uni1A63@3636,0|uni1A601A43@4848,0"
+        "[uni1A41|uni1A2D1A5B@1212,0|uni1A37@2424,0|uni1A63@3636,0|uni1A601A43@4848,0]"
     );
 }
 
@@ -8255,7 +8255,7 @@ fn shlana_3_010() {
             "\u{1A41}\u{1A62}\u{1A2D}\u{1A5B}\u{1A37}\u{1A63}\u{1A60}\u{1A43}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A41|uni1A62@1212,0|uni1A2D1A5B@1212,0|uni1A37@2424,0|uni1A63@3636,0|uni1A601A43@4848,0"
+        "[uni1A41|uni1A62@1212,0|uni1A2D1A5B@1212,0|uni1A37@2424,0|uni1A63@3636,0|uni1A601A43@4848,0]"
     );
 }
 
@@ -8267,7 +8267,7 @@ fn shlana_3_011() {
             "\u{1A48}\u{1A3B}\u{1A5B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A3B1A5B@1212,0"
+        "[uni1A48|uni1A3B1A5B@1212,0]"
     );
 }
 
@@ -8279,7 +8279,7 @@ fn shlana_3_012() {
             "\u{1A4B}\u{1A3E}\u{1A5B}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4B|uni1A3E1A5B@1212,0"
+        "[uni1A4B|uni1A3E1A5B@1212,0]"
     );
 }
 
@@ -8291,7 +8291,7 @@ fn shlana_3_013() {
             "\u{1A41}\u{1A63}\u{1A29}\u{1A3D}\u{1A62}\u{1A60}\u{1A2E}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A41|uni1A63@1212,0|uni1A29@2424,0|uni1A3D@3636,0|uni1A62@5196,0|uni1A601A2E@5196,0"
+        "[uni1A41|uni1A63@1212,0|uni1A29@2424,0|uni1A3D@3636,0|uni1A62@5196,0|uni1A601A2E@5196,0]"
     );
 }
 
@@ -8303,7 +8303,7 @@ fn shlana_3_014() {
             "\u{1A37}\u{1A62}\u{1A31}\u{1A60}\u{1A3B}\u{1A37}\u{1A69}\u{1A41}\u{1A69}\u{1A48}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A37|uni1A62@1212,0|uni1A31@1212,0|uni1A601A3B.wide@3122,0|uni1A37@3122,0|uni1A69@4334,0|uni1A41@4334,0|uni1A69@5546,0|uni1A48@5546,0"
+        "[uni1A37|uni1A62@1212,0|uni1A31@1212,0|uni1A601A3B.wide@3122,0|uni1A37@3122,0|uni1A69@4334,0|uni1A41@4334,0|uni1A69@5546,0|uni1A48@5546,0]"
     );
 }
 
@@ -8315,7 +8315,7 @@ fn shlana_4_002() {
             "\u{1A34}\u{1A58}\u{1A60}\u{1A43}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A34|uni1A58@1212,0|uni25CC@1212,0|uni1A601A43@2424,0|uni1A63@2888,0|uni1A601A3F@4100,0"
+        "[uni1A34|uni1A58@1212,0|uni25CC@1212,0|uni1A601A43@2424,0|uni1A63@2888,0|uni1A601A3F@4100,0]"
     );
 }
 
@@ -8327,7 +8327,7 @@ fn shlana_4_003() {
             "\u{1A48}\u{1A58}\u{1A25}\u{1A6E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A6E@1212,0|uni1A25@2424,0|uni1A58@3984,0|uni1A63@4336,0"
+        "[uni1A48|uni1A6E@1212,0|uni1A25@2424,0|uni1A58@3984,0|uni1A63@4336,0]"
     );
 }
 
@@ -8339,7 +8339,7 @@ fn shlana_4_004() {
             "\u{1A41}\u{1A58}\u{1A48}\u{1A66}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A41|uni1A58@1212,0|uni1A48@1212,0|uni1A66@2424,0"
+        "[uni1A41|uni1A58@1212,0|uni1A48@1212,0|uni1A66@2424,0]"
     );
 }
 
@@ -8351,7 +8351,7 @@ fn shlana_5_002() {
             "\u{1A36}\u{1A63}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A361A63|uni1A74@1212,0"
+        "[uni1A361A63|uni1A74@1212,0]"
     );
 }
 
@@ -8363,7 +8363,7 @@ fn shlana_5_003() {
             "\u{1A3E}\u{1A36}\u{1A6E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3E.v2|uni1A6E@1500,0|uni1A361A63@2712,0"
+        "[uni1A3E.v2|uni1A6E@1500,0|uni1A361A63@2712,0]"
     );
 }
 
@@ -8375,7 +8375,7 @@ fn shlana_5_004() {
             "\u{1A36}\u{1A6E}\u{1A62}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A361A63@1212,0|uni1A62@2424,0"
+        "[uni1A6E|uni1A361A63@1212,0|uni1A62@2424,0]"
     );
 }
 
@@ -8387,7 +8387,7 @@ fn shlana_5_005() {
             "\u{1A36}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A361A63|uni1A601A3F@1212,0"
+        "[uni1A361A63|uni1A601A3F@1212,0]"
     );
 }
 
@@ -8399,7 +8399,7 @@ fn shlana_5_006() {
             "\u{1A36}\u{1A75}\u{1A63}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A36|uni1A75@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A601A36@3636,0"
+        "[uni1A36|uni1A75@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A601A36@3636,0]"
     );
 }
 
@@ -8411,7 +8411,7 @@ fn shlana_5_007() {
             "\u{1A4D}\u{1A36}\u{1A60}\u{1A34}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4D|uni1A361A63@1910,0|uni1A601A34@3122,0"
+        "[uni1A4D|uni1A361A63@1910,0|uni1A601A34@3122,0]"
     );
 }
 
@@ -8423,7 +8423,7 @@ fn shlana_5_008() {
             "\u{1A4B}\u{1A6B}\u{1A36}\u{1A60}\u{1A32}\u{1A55}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A4B|uni1A6B@1212,0|uni1A55@1212,0|uni1A361A63@1676,0|uni1A601A32@2888,0|uni1A601A3F@2888,0"
+        "[uni1A4B|uni1A6B@1212,0|uni1A55@1212,0|uni1A361A63@1676,0|uni1A601A32@2888,0|uni1A601A3F@2888,0]"
     );
 }
 
@@ -8435,7 +8435,7 @@ fn shlana_5_009() {
             "\u{1A36}\u{1A76}\u{1A63}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A36|uni1A76@1212,0|uni25CC@1212,0|uni1A631A74@2424,0"
+        "[uni1A36|uni1A76@1212,0|uni25CC@1212,0|uni1A631A74@2424,0]"
     );
 }
 
@@ -8447,7 +8447,7 @@ fn shlana_5_010() {
             "\u{1A36}\u{1A60}\u{1A45}\u{1A63}\u{1A60}\u{1A37}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A361A63|uni1A601A45@1212,0|uni1A601A37@1212,0"
+        "[uni1A361A63|uni1A601A45@1212,0|uni1A601A37@1212,0]"
     );
 }
 
@@ -8459,7 +8459,7 @@ fn shlana_5_011() {
             "\u{1A34}\u{1A64}\u{1A74}\u{1A36}\u{1A60}\u{1A45}\u{200C}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A34|uni1A74@1212,0|uni1A64@1212,0|uni1A36@1676,0|uni1A601A45@2888,0|uni1A63@2888,0|uni1A601A3F@4100,0"
+        "[uni1A34|uni1A74@1212,0|uni1A64@1212,0|uni1A36@1676,0|uni1A601A45@2888,0|uni1A63@2888,0|uni1A601A3F@4100,0]"
     );
 }
 
@@ -8471,7 +8471,7 @@ fn shlana_5_012() {
             "\u{1A32}\u{1A75}\u{1A63}\u{1A74}\u{1A36}\u{1A60}\u{1A45}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A32|uni1A75@1560,0|uni25CC@1910,0|uni1A631A74@3122,0|uni1A361A63@4334,0|uni1A601A45@5546,0|uni1A601A3F@5546,0"
+        "[uni1A32|uni1A75@1560,0|uni25CC@1910,0|uni1A631A74@3122,0|uni1A361A63@4334,0|uni1A601A45@5546,0|uni1A601A3F@5546,0]"
     );
 }
 
@@ -8483,7 +8483,7 @@ fn shlana_5_013() {
             "\u{1A36}\u{200C}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A36|uni1A63@1212,0"
+        "[uni1A36|uni1A63@1212,0]"
     );
 }
 
@@ -8495,7 +8495,7 @@ fn shlana_5_014() {
             "\u{1A49}\u{1A60}\u{1A36}\u{1A76}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A36@1560,0|uni1A76@1560,0|uni25CC@1910,0|uni1A63@3122,0"
+        "[uni1A49|uni1A601A36@1560,0|uni1A76@1560,0|uni25CC@1910,0|uni1A63@3122,0]"
     );
 }
 
@@ -8507,7 +8507,7 @@ fn shlana_6_002() {
             "\u{1A20}\u{1A6F}\u{1A62}\u{1A60}\u{1A48}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A20@2244,0|uni1A62@3804,0|uni1A601A48@4154,0"
+        "[uni1A6F|uni1A20@2244,0|uni1A62@3804,0|uni1A601A48@4154,0]"
     );
 }
 
@@ -8520,7 +8520,7 @@ fn shlana_6_003() {
              \u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A55@2244,0|uni1A34@2708,0|uni1A601A20@3920,0|uni1A6E@3920,0|uni1A34@5132,0|uni1A6C@6344,0|uni25CC@6344,0|uni1A65@7556,0|uni1A41@7556,0|uni1A7A@8768,0"
+        "[uni1A6F|uni1A55@2244,0|uni1A34@2708,0|uni1A601A20@3920,0|uni1A6E@3920,0|uni1A34@5132,0|uni1A6C@6344,0|uni25CC@6344,0|uni1A65@7556,0|uni1A41@7556,0|uni1A7A@8768,0]"
     );
 }
 
@@ -8532,7 +8532,7 @@ fn shlana_6_004() {
             "\u{1A36}\u{1A70}\u{1A6B}\u{1A76}\u{1A60}\u{1A32}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A70|uni1A36@1212,0|uni1A6B@2424,0|uni1A76@2424,732|uni1A601A32@2424,0"
+        "[uni1A70|uni1A36@1212,0|uni1A6B@2424,0|uni1A76@2424,732|uni1A601A32@2424,0]"
     );
 }
 
@@ -8544,7 +8544,7 @@ fn shlana_6_005() {
             "\u{1A37}\u{1A55}\u{1A70}\u{1A34}\u{1A66}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A70|uni1A55@1212,0|uni1A37@1676,0|uni1A34@2888,0|uni1A66@4100,0|uni1A601A36@4100,0"
+        "[uni1A70|uni1A55@1212,0|uni1A37@1676,0|uni1A34@2888,0|uni1A66@4100,0|uni1A601A36@4100,0]"
     );
 }
 
@@ -8556,7 +8556,7 @@ fn shlana_6_006() {
             "\u{1A3C}\u{1A65}\u{1A45}\u{1A60}\u{1A48}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3C|uni1A65@1760,0|uni1A45@1910,0|uni1A601A48@3122,0|uni1A7A@3595,0"
+        "[uni1A3C|uni1A65@1760,0|uni1A45@1910,0|uni1A601A48@3122,0|uni1A7A@3595,0]"
     );
 }
 
@@ -8568,7 +8568,7 @@ fn shlana_6_007() {
             "\u{1A48}\u{1A32}\u{1A6F}\u{1A3E}\u{1A60}\u{1A37}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A6F@1212,0|uni1A32@3456,0|uni1A3E.v2@5366,0|uni1A601A37@6866,0|uni1A7A@7339,0"
+        "[uni1A48|uni1A6F@1212,0|uni1A32@3456,0|uni1A3E.v2@5366,0|uni1A601A37@6866,0|uni1A7A@7339,0]"
     );
 }
 
@@ -8580,7 +8580,7 @@ fn shlana_6_008() {
             "\u{1A48}\u{1A6E}\u{1A65}\u{1A41}\u{1A7A}\u{1A60}\u{1A37}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A48@1212,0|uni1A65@2424,0|uni1A41@2424,0|uni1A7A@3636,0|uni1A601A37@3636,0"
+        "[uni1A6E|uni1A48@1212,0|uni1A65@2424,0|uni1A41@2424,0|uni1A7A@3636,0|uni1A601A37@3636,0]"
     );
 }
 
@@ -8592,7 +8592,7 @@ fn shlana_7_002() {
             "\u{1A34}\u{1A62}\u{1A75}\u{1A57}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A34|uni1A621A75@1212,0|uni25CC@1212,0|uni1A57@2424,0|uni1A63@2888,0"
+        "[uni1A34|uni1A621A75@1212,0|uni25CC@1212,0|uni1A57@2424,0|uni1A63@2888,0]"
     );
 }
 
@@ -8604,7 +8604,7 @@ fn shlana_7_003() {
             "\u{1A21}\u{1A36}\u{1A60}\u{1A35}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A21|uni1A361A63@1212,0|uni1A601A35@2424,0"
+        "[uni1A21|uni1A361A63@1212,0|uni1A601A35@2424,0]"
     );
 }
 
@@ -8616,7 +8616,7 @@ fn shlana_7_004() {
             "\u{1A23}\u{1A76}\u{1A60}\u{1A2F}\u{1A66}\u{00A0}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A76@1212,0|uni1A601A2F@1212,0|uni25CC@1212,0|uni1A66@2424,0|space_nb@2424,0"
+        "[uni1A23|uni1A76@1212,0|uni1A601A2F@1212,0|uni25CC@1212,0|uni1A66@2424,0|space_nb@2424,0]"
     );
 }
 
@@ -8628,7 +8628,7 @@ fn shlana_7_005() {
             "\u{1A37}\u{1A76}\u{1A60}\u{1A3E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A37|uni1A76@1212,0|uni1A601A3E@1212,0|uni25CC@1212,0|uni1A63@2424,0"
+        "[uni1A37|uni1A76@1212,0|uni1A601A3E@1212,0|uni25CC@1212,0|uni1A63@2424,0]"
     );
 }
 
@@ -8640,7 +8640,7 @@ fn shlana_7_006() {
             "\u{1A37}\u{1A60}\u{1A76}\u{1A3E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A37|uni1A76@1212,0|uni1A601A3E@1212,0|uni25CC@1212,0|uni1A63@2424,0"
+        "[uni1A37|uni1A76@1212,0|uni1A601A3E@1212,0|uni25CC@1212,0|uni1A63@2424,0]"
     );
 }
 
@@ -8652,7 +8652,7 @@ fn shlana_7_007() {
             "\u{1A37}\u{1A76}\u{1A60}\u{1A2F}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A37|uni1A76@1212,0|uni1A601A2F@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A601A3F@3636,0"
+        "[uni1A37|uni1A76@1212,0|uni1A601A2F@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A601A3F@3636,0]"
     );
 }
 
@@ -8664,7 +8664,7 @@ fn shlana_7_008() {
             "\u{1A27}\u{1A62}\u{1A60}\u{1A45}\u{1A64}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A27|uni1A62@1212,0|uni1A601A45@1212,0|uni25CC@1212,0|uni1A64@2424,0"
+        "[uni1A27|uni1A62@1212,0|uni1A601A45@1212,0|uni25CC@1212,0|uni1A64@2424,0]"
     );
 }
 
@@ -8676,7 +8676,7 @@ fn shlana_7_009() {
             "\u{1A48}\u{1A6E}\u{1A60}\u{1A53}\u{1A60}\u{1A45}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A48@1212,0|uni1A601A53@2424,0|uni1A601A45@2684,-1120"
+        "[uni1A6E|uni1A48@1212,0|uni1A601A53@2424,0|uni1A601A45@2684,-1120]"
     );
 }
 
@@ -8688,7 +8688,7 @@ fn shlana_7_010() {
             "\u{1A34}\u{1A6F}\u{1A60}\u{1A36}\u{1A73}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6F|uni1A34@2244,0|uni1A601A36@3456,0|uni25CC@3456,0|uni1A73@4668,0"
+        "[uni1A6F|uni1A34@2244,0|uni1A601A36@3456,0|uni25CC@3456,0|uni1A73@4668,0]"
     );
 }
 
@@ -8700,7 +8700,7 @@ fn shlana_7_011() {
             "\u{1A53}\u{1A60}\u{1A3E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A53|uni1A601A3E@1560,0|uni1A63@1910,0"
+        "[uni1A53|uni1A601A3E@1560,0|uni1A63@1910,0]"
     );
 }
 
@@ -8712,7 +8712,7 @@ fn shlana_7_012() {
             "\u{1A20}\u{1A6E}\u{1A60}\u{1A48}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A20@1212,0|uni1A601A48@3122,0|uni25CC@3586,0|uni1A63@4798,0"
+        "[uni1A6E|uni1A20@1212,0|uni1A601A48@3122,0|uni25CC@3586,0|uni1A63@4798,0]"
     );
 }
 
@@ -8724,7 +8724,7 @@ fn shlana_7_013() {
             "\u{1A3B}\u{1A71}\u{1A60}\u{1A3E}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A71|uni1A3B@1212,0|uni1A601A3E@2772,0|uni25CC@3122,0|uni1A63@4334,0"
+        "[uni1A71|uni1A3B@1212,0|uni1A601A3E@2772,0|uni25CC@3122,0|uni1A63@4334,0]"
     );
 }
 
@@ -8736,7 +8736,7 @@ fn shlana_7_014() {
             "\u{1A48}\u{1A6E}\u{1A60}\u{1A45}\u{1A76}\u{1A64}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A48@1212,0|uni1A601A45@2424,0|uni25CC@2424,0|uni1A76@3636,0|uni25CC@3636,0|uni1A64@4848,0"
+        "[uni1A6E|uni1A48@1212,0|uni1A601A45@2424,0|uni25CC@2424,0|uni1A76@3636,0|uni25CC@3636,0|uni1A64@4848,0]"
     );
 }
 
@@ -8748,7 +8748,7 @@ fn shlana_7_015() {
             "\u{1A45}\u{1A6E}\u{1A60}\u{1A43}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A45@1212,0|uni1A601A43@2424,0|uni25CC@2888,0|uni1A63@4100,0"
+        "[uni1A6E|uni1A45@1212,0|uni1A601A43@2424,0|uni25CC@2888,0|uni1A63@4100,0]"
     );
 }
 
@@ -8760,7 +8760,7 @@ fn shlana_7_016() {
             "\u{1A35}\u{1A64}\u{1A60}\u{1A32}\u{1A69}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A35|uni1A64@1212,0|uni1A601A32@1767,0|uni25CC@1676,0|uni1A69@2888,0"
+        "[uni1A35|uni1A64@1212,0|uni1A601A32@1767,0|uni25CC@1676,0|uni1A69@2888,0]"
     );
 }
 
@@ -8772,7 +8772,7 @@ fn shlana_7_017() {
             "\u{1A29}\u{1A60}\u{1A53}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A29|uni1A601A53@1212,0"
+        "[uni1A29|uni1A601A53@1212,0]"
     );
 }
 
@@ -8784,7 +8784,7 @@ fn shlana_7_018() {
             "\u{1A3B}\u{1A6D}\u{1A60}\u{1A45}\u{1A7B}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3B|uni1A6D@1910,0|uni1A601A45@2328,-1120|uni25CC@2374,0|uni1A7B@3586,0|uni25CC@3586,0|uni1A63@4798,0"
+        "[uni1A3B|uni1A6D@1910,0|uni1A601A45@2328,-1120|uni25CC@2374,0|uni1A7B@3586,0|uni25CC@3586,0|uni1A63@4798,0]"
     );
 }
 
@@ -8796,7 +8796,7 @@ fn shlana_7_019() {
             "\u{1A48}\u{1A6B}\u{1A60}\u{1A26}\u{1A63}\u{1A60}\u{1A36}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A6B@1212,0|uni1A601A26@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A601A36@3636,0"
+        "[uni1A48|uni1A6B@1212,0|uni1A601A26@1212,0|uni25CC@1212,0|uni1A63@2424,0|uni1A601A36@3636,0]"
     );
 }
 
@@ -8808,7 +8808,7 @@ fn shlana_8_002() {
             "\u{1A3B}\u{1A6C}\u{1A73}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A3B|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A73@3122,0|uni1A75@3122,916"
+        "[uni1A3B|uni1A6C.wide@1910,0|uni25CC@1910,0|uni1A73@3122,0|uni1A75@3122,916]"
     );
 }
 
@@ -8820,7 +8820,7 @@ fn shlana_8_003() {
             "\u{1A48}\u{1A37}\u{1A77}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A48|uni1A37@1212,0|uni1A77@2424,0|uni25CC@2424,0|uni1A63@3636,0|uni1A601A3F@4848,0"
+        "[uni1A48|uni1A37@1212,0|uni1A77@2424,0|uni25CC@2424,0|uni1A63@3636,0|uni1A601A3F@4848,0]"
     );
 }
 
@@ -8832,7 +8832,7 @@ fn shlana_8_004() {
             "\u{1A45}\u{1A60}\u{1A3F}\u{1A59}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A45|uni1A601A3F@1212,0|uni1A59@1685,0"
+        "[uni1A45|uni1A601A3F@1212,0|uni1A59@1685,0]"
     );
 }
 
@@ -8844,7 +8844,7 @@ fn shlana_8_005() {
             "\u{1A23}\u{1A6A}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A6A@1212,0|uni25CC@1212,0|uni1A7A@2424,0"
+        "[uni1A23|uni1A6A@1212,0|uni25CC@1212,0|uni1A7A@2424,0]"
     );
 }
 
@@ -8856,7 +8856,7 @@ fn shlana_8_006() {
             "\u{1A81}\u{1A82}\u{00A0}\u{1A3B}\u{1A62}\u{1A60}\u{1A36}\u{1A7B}\u{1A63}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A81|uni1A82@1212,0|space_nb@2424,0|uni1A3B@3075,0|uni1A62@4635,0|uni1A601A36@4635,0|uni25CC@4985,0|uni1A7B@6197,0|uni25CC@6197,0|uni1A63@7409,0"
+        "[uni1A81|uni1A82@1212,0|space_nb@2424,0|uni1A3B@3075,0|uni1A62@4635,0|uni1A601A36@4635,0|uni25CC@4985,0|uni1A7B@6197,0|uni25CC@6197,0|uni1A63@7409,0]"
     );
 }
 
@@ -8868,7 +8868,7 @@ fn shlana_8_007() {
             "\u{1A3B}\u{1A71}\u{1A7B}\u{1A63}\u{1A60}\u{1A3F}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A71|uni1A3B@1212,0|uni1A7B@2772,0|uni25CC@3122,0|uni1A63@4334,0|uni1A601A3F@5546,0"
+        "[uni1A71|uni1A3B@1212,0|uni1A7B@2772,0|uni25CC@3122,0|uni1A63@4334,0|uni1A601A3F@5546,0]"
     );
 }
 
@@ -8880,7 +8880,7 @@ fn shlana_8_008() {
             "\u{1A29}\u{1A60}\u{1A3F}\u{1A59}\u{1A32}\u{1A69}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A29|uni1A601A3F@1212,0|uni1A59@1685,0|uni1A32@1676,0|uni1A69@3236,0|uni1A74@3236,0"
+        "[uni1A29|uni1A601A3F@1212,0|uni1A59@1685,0|uni1A32@1676,0|uni1A69@3236,0|uni1A74@3236,0]"
     );
 }
 
@@ -8892,7 +8892,7 @@ fn shlana_8_009() {
             "\u{1A45}\u{1A32}\u{1A5B}\u{1A69}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A45|uni1A321A5B@1212,0|uni1A69@2424,-1504"
+        "[uni1A45|uni1A321A5B@1212,0|uni1A69@2424,-1504]"
     );
 }
 
@@ -8904,7 +8904,7 @@ fn shlana_8_010() {
             "\u{1A45}\u{1A32}\u{1A60}\u{1A33}\u{1A69}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A45|uni1A32@1212,0|uni1A601A33@2772,0|uni1A69@2772,-1120"
+        "[uni1A45|uni1A32@1212,0|uni1A601A33@2772,0|uni1A69@2772,-1120]"
     );
 }
 
@@ -8916,7 +8916,7 @@ fn shlana_8_011() {
             "\u{1A2F}\u{1A60}\u{1A3F}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A2F|uni1A601A3F@1212,0|uni1A74@1685,0"
+        "[uni1A2F|uni1A601A3F@1212,0|uni1A74@1685,0]"
     );
 }
 
@@ -8928,7 +8928,7 @@ fn shlana_8_012() {
             "\u{1A49}\u{1A60}\u{1A36}\u{1A66}\u{1A62}\u{1A76}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A49|uni1A601A36@1560,0|uni1A66@1560,0|uni1A621A76@2590,0"
+        "[uni1A49|uni1A601A36@1560,0|uni1A66@1560,0|uni1A621A76@2590,0]"
     );
 }
 
@@ -8940,7 +8940,7 @@ fn shlana_8_013() {
             "\u{1A41}\u{1A6E}\u{1A42}\u{1A60}\u{1A20}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A6E|uni1A41@1212,0|uni1A42@2424,0|uni1A601A20@3636,-1120"
+        "[uni1A6E|uni1A41@1212,0|uni1A42@2424,0|uni1A601A20@3636,-1120]"
     );
 }
 
@@ -8952,7 +8952,7 @@ fn shlana_8_014() {
             "\u{1A41}\u{1A60}\u{1A3F}\u{1A7A}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A41|uni1A601A3F@1212,0|uni1A7A@1685,0"
+        "[uni1A41|uni1A601A3F@1212,0|uni1A7A@1685,0]"
     );
 }
 
@@ -8964,7 +8964,7 @@ fn shlana_9_002() {
             "\u{1A23}\u{1A74}\u{1A37}\u{1A74}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A74@1212,0|uni1A37@1212,0|uni1A74@2424,0|uni1A75@2424,732"
+        "[uni1A23|uni1A74@1212,0|uni1A37@1212,0|uni1A74@2424,0|uni1A75@2424,732]"
     );
 }
 
@@ -8976,7 +8976,7 @@ fn shlana_9_003() {
             "\u{1A23}\u{1A74}\u{1A37}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A74@1212,0|uni1A37@1212,0|uni1A74@2424,0"
+        "[uni1A23|uni1A74@1212,0|uni1A37@1212,0|uni1A74@2424,0]"
     );
 }
 
@@ -8988,7 +8988,7 @@ fn shlana_9_004() {
             "\u{1A23}\u{1A5D}\u{1A74}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A5D@1212,0|uni1A74@1212,0|uni1A75@1212,732"
+        "[uni1A23|uni1A5D@1212,0|uni1A74@1212,0|uni1A75@1212,732]"
     );
 }
 
@@ -9000,7 +9000,7 @@ fn shlana_9_005() {
             "\u{1A23}\u{1A74}\u{1A5D}\u{1A75}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A74@1212,0|uni25CC@1212,0|uni1A5D@2424,0|uni1A75@2424,0"
+        "[uni1A23|uni1A74@1212,0|uni25CC@1212,0|uni1A5D@2424,0|uni1A75@2424,0]"
     );
 }
 
@@ -9012,7 +9012,7 @@ fn shlana_9_006() {
             "\u{1A23}\u{1A5D}\u{1A74}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A5D@1212,0|uni1A74@1212,0"
+        "[uni1A23|uni1A5D@1212,0|uni1A74@1212,0]"
     );
 }
 
@@ -9024,6 +9024,6 @@ fn shlana_9_007() {
             "\u{1A23}\u{1A74}\u{1A5D}",
             "--ned --remove-default-ignorables",
         ),
-        "uni1A23|uni1A74@1212,0|uni25CC@1212,0|uni1A5D@2424,0"
+        "[uni1A23|uni1A74@1212,0|uni25CC@1212,0|uni1A5D@2424,0]"
     );
 }
