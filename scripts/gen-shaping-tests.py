@@ -158,13 +158,11 @@ def convert_test_file(
 
     if glyphs_expected != "*":
 
-        glyphs_expected = subprocess.run(
-            options_list, check=True, stdout=subprocess.PIPE
-        ).stdout.decode()
-
-        glyphs_expected = glyphs_expected.strip()[
-            1:-1
-        ]  # remove leading and trailing whitespaces and `[..]`
+        glyphs_expected = (
+            subprocess.run(options_list, check=True, stdout=subprocess.PIPE)
+            .stdout.decode()
+            .strip()
+        )
 
     options_rs = options
     options_rs = options_rs.replace('"', '\\"')
