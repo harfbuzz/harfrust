@@ -205,6 +205,8 @@ fn main() {
             buffer.set_not_found_variation_selector_glyph(g);
         }
 
+        buffer.guess_segment_properties();
+
         let glyph_buffer = shaper.shape(buffer, &args.features);
 
         let mut format_flags = harfrust::SerializeFlags::default();
