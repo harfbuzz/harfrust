@@ -112,6 +112,18 @@ fn colr_015() {
 }
 
 #[test]
+fn colr_021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/BungeeTint-Regular.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{002C}",
+            "--show-extents",
+        ),
+        "[A=0+730<54,720,622,-720>|B=1+725<69,720,614,-720>|C=2+628<58,720,526,-720>|comma=3+384<55,275,274,-375>]"
+    );
+}
+
+#[test]
 fn fuzzer_001() {
     assert_eq!(
         shape(
