@@ -25,10 +25,6 @@ IGNORE_TEST_CASES = [
     "simple_002",
     # `dfont` is not supported.
     "collections_001",
-    "collections_002",
-    "collections_003",
-    # Face index out of bounds. ttf-parser doesn't permit this.
-    "collections_006",
     # Requires support for the ltag table.
     "macos_002",
     # Custom MacOS test. A shortened version of `macos_013`, but with `--show-flags`.
@@ -49,7 +45,6 @@ IGNORE_TEST_CASES = [
 
     # Requires support in ttf-parser (https://github.com/harfbuzz/ttf-parser/pull/185)
     "colr_014",
-    "colr_021",
 
     # These tests do not currently pass and need to be investigated.
     "colr_002",
