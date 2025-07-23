@@ -19,11 +19,11 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
         if class == 0 {
             match u {
                 0x0E31 | 0x0E34 | 0x0E35 | 0x0E36 | 0x0E37 | 0x0E47 | 0x0E4C | 0x0E4D | 0x0E4E => {
-                    class = combining_class::AboveRight
+                    class = combining_class::AboveRight;
                 }
 
                 0x0EB1 | 0x0EB4 | 0x0EB5 | 0x0EB6 | 0x0EB7 | 0x0EBB | 0x0ECC | 0x0ECD => {
-                    class = combining_class::Above
+                    class = combining_class::Above;
                 }
 
                 0x0EBC => class = combining_class::Below,
@@ -458,7 +458,7 @@ pub fn _hb_ot_shape_fallback_spaces(
                 t::SPACE_4_EM_18 => {
                     let length = ((face.units_per_em as i64) * 4 / 18) as i32;
                     if horizontal {
-                        pos.x_advance = length
+                        pos.x_advance = length;
                     } else {
                         pos.y_advance = -length;
                     }

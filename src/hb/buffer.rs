@@ -908,7 +908,7 @@ impl hb_buffer_t {
             return;
         }
 
-        self.merge_clusters_impl(start, end)
+        self.merge_clusters_impl(start, end);
     }
 
     fn merge_clusters_impl(&mut self, mut start: usize, mut end: usize) {
@@ -1648,13 +1648,13 @@ impl UnicodeBuffer {
     /// Sets the pre-context for this buffer.
     #[inline]
     pub fn set_pre_context(&mut self, str: &str) {
-        self.0.set_pre_context(str)
+        self.0.set_pre_context(str);
     }
 
     /// Sets the post-context for this buffer.
     #[inline]
     pub fn set_post_context(&mut self, str: &str) {
-        self.0.set_post_context(str)
+        self.0.set_post_context(str);
     }
 
     /// Appends a character to a buffer with the given cluster value.
@@ -1696,7 +1696,7 @@ impl UnicodeBuffer {
     /// Set the glyph value to replace not-found variation-selector characters with.
     #[inline]
     pub fn set_not_found_variation_selector_glyph(&mut self, glyph: u32) {
-        self.0.not_found_variation_selector = Some(glyph)
+        self.0.not_found_variation_selector = Some(glyph);
     }
 
     /// Get the buffer language.
@@ -1709,7 +1709,7 @@ impl UnicodeBuffer {
     /// current buffer.
     #[inline]
     pub fn guess_segment_properties(&mut self) {
-        self.0.guess_segment_properties()
+        self.0.guess_segment_properties();
     }
 
     /// Set the flags for this buffer.
@@ -1756,7 +1756,7 @@ impl UnicodeBuffer {
     /// Clear the contents of the buffer.
     #[inline]
     pub fn clear(&mut self) {
-        self.0.clear()
+        self.0.clear();
     }
 }
 

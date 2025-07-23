@@ -140,7 +140,7 @@ fn machine_kern(
                 }
             }
 
-            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1))
+            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
         }
 
         i = j;
