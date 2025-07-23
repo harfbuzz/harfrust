@@ -59,7 +59,6 @@ items_after_statements = "allow"  # 8
 unnested_or_patterns = "allow"  # 6
 unnecessary_wraps = "allow"  # 6
 unnecessary_semicolon = "allow"  # 6
-uninlined_format_args = "allow"  # 5
 trivially_copy_pass_by_ref = "allow"  # 4
 return_self_not_must_use = "allow"  # 4
 redundant_else = "allow"  # 4

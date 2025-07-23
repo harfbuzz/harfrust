@@ -119,7 +119,7 @@ fn main() {
     let args = match parse_args() {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("Error: {}.", e);
+            eprintln!("Error: {e}.");
             std::process::exit(1);
         }
     };
@@ -130,7 +130,7 @@ fn main() {
     }
 
     if args.help {
-        print!("{}", HELP);
+        print!("{HELP}");
         return;
     }
 
@@ -242,9 +242,9 @@ fn parse_unicodes(s: &str) -> Result<String, String> {
     let mut text = String::new();
     for u in s.split(',') {
         let u = u32::from_str_radix(&u[2..], 16)
-            .map_err(|_| format!("'{}' is not a valid codepoint", u))?;
+            .map_err(|_| format!("'{u}' is not a valid codepoint"))?;
 
-        let c = char::try_from(u).map_err(|_| format!("{} is not a valid codepoint", u))?;
+        let c = char::try_from(u).map_err(|_| format!("{u} is not a valid codepoint"))?;
 
         text.push(c);
     }

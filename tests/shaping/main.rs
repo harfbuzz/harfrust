@@ -107,7 +107,7 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     let args = parse_args(args).unwrap();
 
     let font_data =
-        std::fs::read(font_path).unwrap_or_else(|e| panic!("Could not read {}: {}", font_path, e));
+        std::fs::read(font_path).unwrap_or_else(|e| panic!("Could not read {font_path}: {e}"));
     let font = FontRef::from_index(&font_data, args.face_index).unwrap();
 
     let variations: Vec<_> = args
