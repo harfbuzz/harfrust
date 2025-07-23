@@ -121,8 +121,8 @@ fn parse_private_use_subtag(
     let mut tag = hb_tag_t::from_bytes_lossy(tag.as_slice());
 
     // Some bits magic from HarfBuzz...
-    if tag.as_u32() & 0xDFDFDFDF == hb_tag_t::default_script().as_u32() {
-        tag = hb_tag_t::from_u32(tag.as_u32() ^ !0xDFDFDFDF);
+    if tag.as_u32() & 0xDFDF_DFDF == hb_tag_t::default_script().as_u32() {
+        tag = hb_tag_t::from_u32(tag.as_u32() ^ !0xDFDF_DFDF);
     }
 
     tags.push(tag);
@@ -250,7 +250,7 @@ fn old_tag_from_script(script: Script) -> hb_tag_t {
         script::VAI => hb_tag_t::new(b"vai "),
 
         // Else, just change first char to lowercase and return.
-        _ => hb_tag_t::from_u32(script.tag().as_u32() | 0x20000000),
+        _ => hb_tag_t::from_u32(script.tag().as_u32() | 0x2000_0000),
     }
 }
 

@@ -696,7 +696,7 @@ pub mod OT {
 
         pub fn random_number(&mut self) -> u32 {
             // http://www.cplusplus.com/reference/random/minstd_rand/
-            self.random_state = self.random_state.wrapping_mul(48271) % 2147483647;
+            self.random_state = self.random_state.wrapping_mul(48271) % (i32::MAX as u32);
             self.random_state
         }
 

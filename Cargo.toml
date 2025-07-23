@@ -42,7 +42,6 @@ cast_lossless = "allow"  # 274
 cast_sign_loss = "allow"  # 192
 used_underscore_binding = "allow"  # 160
 cast_possible_truncation = "allow"  # 160
-unreadable_literal = "allow"  # 116
 wildcard_imports = "allow"  # 72
 cast_possible_wrap = "allow"  # 66
 must_use_candidate = "allow"  # 62

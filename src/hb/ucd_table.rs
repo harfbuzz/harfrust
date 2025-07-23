@@ -10,7 +10,7 @@
 pub(crate) mod ucd {
 
 #![allow(unused_parens)]
-#![allow(clippy::unnecessary_cast)]
+#![allow(clippy::unnecessary_cast, clippy::unreadable_literal)]
 
 use crate::hb::algs::{HB_CODEPOINT_ENCODE3, HB_CODEPOINT_ENCODE3_11_7_14};
 use crate::hb::common::script;
