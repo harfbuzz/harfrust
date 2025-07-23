@@ -21,7 +21,7 @@ impl WouldApply for SequenceContextFormat1<'_> {
                     .ok()
                     .flatten()
             })
-            .map(|set| {
+            .is_some_and(|set| {
                 set.seq_rules().iter().any(|rule| {
                     rule.map(|rule| {
                         let input = rule.input_sequence();
@@ -33,7 +33,6 @@ impl WouldApply for SequenceContextFormat1<'_> {
                     .unwrap_or(false)
                 })
             })
-            .unwrap_or_default()
     }
 }
 
@@ -62,7 +61,7 @@ impl WouldApply for SequenceContextFormat2<'_> {
             .transpose()
             .ok()
             .flatten()
-            .map(|set| {
+            .is_some_and(|set| {
                 set.class_seq_rules().iter().any(|rule| {
                     rule.map(|rule| {
                         let input = rule.input_sequence();
@@ -75,7 +74,6 @@ impl WouldApply for SequenceContextFormat2<'_> {
                     .unwrap_or(false)
                 })
             })
-            .unwrap_or_default()
     }
 }
 
@@ -122,8 +120,7 @@ impl Apply for SequenceContextFormat3<'_> {
         let input = |glyph: GlyphId, index: u16| {
             input_coverages
                 .get(index as usize + 1)
-                .map(|cov| cov.get(glyph).is_some())
-                .unwrap_or_default()
+                .is_ok_and(|cov| cov.get(glyph).is_some())
         };
         let mut match_end = 0;
         let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
@@ -163,7 +160,7 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
                     .ok()
                     .flatten()
             })
-            .map(|set| {
+            .is_some_and(|set| {
                 set.chained_seq_rules().iter().any(|rule| {
                     rule.map(|rule| {
                         let input = rule.input_sequence();
@@ -178,7 +175,6 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
                     .unwrap_or(false)
                 })
             })
-            .unwrap_or_default()
     }
 }
 
@@ -218,7 +214,7 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
             .transpose()
             .ok()
             .flatten()
-            .map(|set| {
+            .is_some_and(|set| {
                 set.chained_class_seq_rules().iter().any(|rule| {
                     rule.map(|rule| {
                         let input = rule.input_sequence();
@@ -234,7 +230,6 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
                     .unwrap_or(false)
                 })
             })
-            .unwrap_or_default()
     }
 }
 
@@ -320,22 +315,19 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         let back = |glyph: GlyphId, index: u16| {
             backtrack_coverages
                 .get(index as usize)
-                .map(|cov| cov.get(glyph).is_some())
-                .unwrap_or_default()
+                .is_ok_and(|cov| cov.get(glyph).is_some())
         };
 
         let ahead = |glyph: GlyphId, index: u16| {
             lookahead_coverages
                 .get(index as usize)
-                .map(|cov| cov.get(glyph).is_some())
-                .unwrap_or_default()
+                .is_ok_and(|cov| cov.get(glyph).is_some())
         };
 
         let input = |glyph: GlyphId, index: u16| {
             input_coverages
                 .get(index as usize + 1)
-                .map(|cov| cov.get(glyph).is_some())
-                .unwrap_or_default()
+                .is_ok_and(|cov| cov.get(glyph).is_some())
         };
 
         let mut end_index = ctx.buffer.idx;

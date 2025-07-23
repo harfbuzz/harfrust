@@ -5,11 +5,7 @@ use read_fonts::tables::gsub::{SingleSubstFormat1, SingleSubstFormat2};
 impl WouldApply for SingleSubstFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let gid = ctx.glyphs[0];
-        ctx.glyphs.len() == 1
-            && self
-                .coverage()
-                .map(|cov| cov.get(gid).is_some())
-                .unwrap_or_default()
+        ctx.glyphs.len() == 1 && self.coverage().is_ok_and(|cov| cov.get(gid).is_some())
     }
 }
 
@@ -28,8 +24,7 @@ impl WouldApply for SingleSubstFormat2<'_> {
         ctx.glyphs.len() == 1
             && self
                 .coverage()
-                .map(|cov| cov.get(ctx.glyphs[0]).is_some())
-                .unwrap_or_default()
+                .is_ok_and(|cov| cov.get(ctx.glyphs[0]).is_some())
     }
 }
 
