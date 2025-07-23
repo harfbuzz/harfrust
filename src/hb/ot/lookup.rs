@@ -282,7 +282,7 @@ impl LookupInfo {
         self.is_reversed
     }
 
-    pub fn digest(&self) -> &crate::hb::set_digest::hb_set_digest_t {
+    pub fn digest(&self) -> &hb_set_digest_t {
         &self.digest
     }
 }

@@ -344,7 +344,7 @@ fn substitute_pre(ctx: &mut hb_ot_shape_context_t) {
 
 fn substitute_post(ctx: &mut hb_ot_shape_context_t) {
     if ctx.plan.apply_morx && !ctx.plan.apply_gpos {
-        aat_layout::hb_aat_layout_remove_deleted_glyphs(ctx.buffer);
+        hb_aat_layout_remove_deleted_glyphs(ctx.buffer);
     }
 
     deal_with_variation_selectors(ctx.buffer);
@@ -382,7 +382,7 @@ fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
     if ctx.plan.apply_morx {
         aat_layout::hb_aat_layout_substitute(ctx.plan, ctx.face, ctx.buffer, ctx.features);
     } else {
-        super::ot_layout_gsub_table::substitute(ctx.plan, ctx.face, ctx.buffer);
+        ot_layout_gsub_table::substitute(ctx.plan, ctx.face, ctx.buffer);
     }
 }
 
@@ -477,12 +477,12 @@ fn position_complex(ctx: &mut hb_ot_shape_context_t) {
 
 fn position_by_plan(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
     if plan.apply_gpos {
-        super::ot_layout_gpos_table::position(plan, face, buffer);
+        ot_layout_gpos_table::position(plan, face, buffer);
     } else if plan.apply_kerx {
         aat_layout::hb_aat_layout_position(plan, face, buffer);
     }
     if plan.apply_kern {
-        super::kerning::hb_ot_layout_kern(plan, face, buffer);
+        kerning::hb_ot_layout_kern(plan, face, buffer);
     } else if plan.apply_fallback_kern {
         ot_shape_fallback::_hb_ot_shape_fallback_kern(plan, face, buffer);
     }

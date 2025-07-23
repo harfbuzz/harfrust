@@ -8,6 +8,9 @@ use super::ot_layout::TableIndex;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_mask_t, hb_tag_t, tag, Language, Script};
 
+// TODO: Remove once MSRV is 1.80+
+use core::mem::{size_of, size_of_val};
+
 pub struct hb_ot_map_t {
     found_script: [bool; 2],
     chosen_script: [Option<hb_tag_t>; 2],
@@ -195,7 +198,7 @@ struct stage_info_t {
     pause_func: Option<pause_func_t>,
 }
 
-const GLOBAL_BIT_SHIFT: u32 = 8 * core::mem::size_of::<u32>() as u32 - 1;
+const GLOBAL_BIT_SHIFT: u32 = 8 * size_of::<u32>() as u32 - 1;
 const GLOBAL_BIT_MASK: hb_mask_t = 1 << GLOBAL_BIT_SHIFT;
 
 impl<'a> hb_ot_map_builder_t<'a> {
@@ -357,7 +360,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
             } else {
                 // Limit bits per feature.
                 let v = info.max_value;
-                let num_bits = 8 * core::mem::size_of_val(&v) as u32 - v.leading_zeros();
+                let num_bits = 8 * size_of_val(&v) as u32 - v.leading_zeros();
                 hb_ot_map_t::MAX_BITS.min(num_bits)
             };
 

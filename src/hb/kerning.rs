@@ -188,7 +188,7 @@ fn apply_state_machine_kerning(
                 .and_then(|gid| subtable.class(gid).ok())
                 .unwrap_or(1)
         } else {
-            read_fonts::tables::aat::class::END_OF_TEXT
+            aat::class::END_OF_TEXT
         };
 
         let Ok(entry) = subtable.entry(state, class) else {
