@@ -67,14 +67,14 @@ impl WouldApply for LigatureSet<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         self.ligatures()
             .iter()
-            .filter_map(|lig| lig.ok())
+            .filter_map(Result::ok)
             .any(|lig| lig.would_apply(ctx))
     }
 }
 
 impl Apply for LigatureSet<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+        for lig in self.ligatures().iter().filter_map(Result::ok) {
             if lig.apply(ctx).is_some() {
                 return Some(());
             }

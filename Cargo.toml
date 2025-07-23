@@ -44,7 +44,6 @@ wildcard_imports = "allow"  # 72
 cast_possible_wrap = "allow"  # 66
 must_use_candidate = "allow"  # 62
 if_not_else = "allow"  # 29
-redundant_closure_for_method_calls = "allow"  # 27
 too_many_lines = "allow"  # 26
 doc_markdown = "allow"  # 26
 struct_excessive_bools = "allow"  # 14
