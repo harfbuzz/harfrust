@@ -59,16 +59,17 @@ The library is completely safe.
 
 There are no `unsafe` in this library and in most of its dependencies (excluding `bytemuck`).
 
-## Developer documents
+## Development
 
-For notes on the backporting process of HarfBuzz code, see [docs/backporting.md](docs/backporting.md).
-
-For notes on generating state machine using `ragel`, see [docs/ragel.md](docs/ragel.md).
-
-The following HarfBuzz _studies_ are relevant to HarfRust development:
-
-- 2025 - [Introducing HarfRust][2]
-- 2025 – [Caching][1]
+* This project is easier to develop with [just](https://github.com/casey/just#readme), a modern alternative to `make`.
+  Install it with `cargo install just`.
+  * To get a list of available commands, run `just`.
+  * To run tests, use `just test`.
+* For notes on the backporting process of HarfBuzz code, see [docs/backporting.md](docs/backporting.md).
+* For notes on generating state machine using `ragel`, see [docs/ragel.md](docs/ragel.md).
+* The following HarfBuzz _studies_ are relevant to HarfRust development:
+  - 2025 - [Introducing HarfRust][2]
+  - 2025 – [Caching][1]
 
 ## License
 
