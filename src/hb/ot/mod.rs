@@ -192,7 +192,7 @@ impl<'a> OtTables<'a> {
             .mark_sets
             .as_ref()
             .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
-            .and_then(|(data, offset)| offset.resolve::<CoverageTable>(data.clone()).ok())
+            .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
     }
 
     pub fn mark_set_digest_and_coverage(
