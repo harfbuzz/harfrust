@@ -127,7 +127,7 @@ impl Apply for SequenceContextFormat3<'_> {
         if match_input(
             ctx,
             input_coverages.len() as u16 - 1,
-            &input,
+            input,
             &mut match_end,
             &mut match_positions,
             None,
@@ -241,7 +241,6 @@ fn get_class(class_def: &ClassDef, gid: GlyphId) -> u16 {
 }
 
 /// Value represents glyph class.
-#[inline(always)]
 fn match_class<'a>(class_def: &'a Option<ClassDef<'a>>) -> impl Fn(GlyphId, u16) -> bool + 'a {
     |glyph, value| {
         class_def
@@ -352,7 +351,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
             && match_lookahead(
                 ctx,
                 lookahead_coverages.len() as u16,
-                &ahead,
+                ahead,
                 match_end,
                 &mut end_index,
             ))
@@ -367,7 +366,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         if !match_backtrack(
             ctx,
             backtrack_coverages.len() as u16,
-            &back,
+            back,
             &mut start_index,
         ) {
             ctx.buffer
@@ -468,7 +467,7 @@ fn apply_chain_context<T: ToU16, F: Fn(GlyphId, u16) -> bool>(
     let input_matches = match_input(
         ctx,
         input.len() as u16,
-        &f3,
+        f3,
         &mut match_end,
         &mut match_positions,
         None,
@@ -479,7 +478,7 @@ fn apply_chain_context<T: ToU16, F: Fn(GlyphId, u16) -> bool>(
     }
 
     if !(input_matches
-        && match_lookahead(ctx, lookahead.len() as u16, &f2, match_end, &mut end_index))
+        && match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index))
     {
         ctx.buffer
             .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
@@ -488,7 +487,7 @@ fn apply_chain_context<T: ToU16, F: Fn(GlyphId, u16) -> bool>(
 
     let mut start_index = ctx.buffer.out_len;
 
-    if !match_backtrack(ctx, backtrack.len() as u16, &f1, &mut start_index) {
+    if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
         ctx.buffer
             .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
         return None;

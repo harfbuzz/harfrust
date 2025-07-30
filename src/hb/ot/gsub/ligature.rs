@@ -40,7 +40,7 @@ impl Apply for Ligature<'_> {
             if !match_input(
                 ctx,
                 components.len() as u16,
-                &f,
+                f,
                 &mut match_end,
                 &mut match_positions,
                 Some(&mut total_component_count),

@@ -12,7 +12,6 @@ use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
 /// Value represents glyph id.
-#[inline(always)]
 pub fn match_glyph(glyph: GlyphId, value: u16) -> bool {
     glyph.to_u32() == value as u32
 }
