@@ -212,7 +212,7 @@ fn apply_simple_kerning<T: SimpleKerning>(
                 }
             }
 
-            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1))
+            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
         }
 
         i = j;
@@ -278,9 +278,8 @@ fn apply_state_machine_kerning<T, E>(
             u16::from(aat::class::END_OF_TEXT)
         };
 
-        let entry = match state_table.entry(state, class) {
-            Ok(v) => v,
-            _ => break,
+        let Ok(entry) = state_table.entry(state, class) else {
+            break;
         };
 
         // Unsafe-to-break before this if not in state 0, as things might
@@ -300,10 +299,7 @@ fn apply_state_machine_kerning<T, E>(
             let end_entry = state_table
                 .entry(state, u16::from(aat::class::END_OF_TEXT))
                 .ok();
-            let end_entry = match end_entry {
-                Some(v) => v,
-                None => break,
-            };
+            let Some(end_entry) = end_entry else { break };
 
             if end_entry.is_actionable() {
                 buffer.unsafe_to_break(Some(buffer.idx), Some(buffer.idx + 2));

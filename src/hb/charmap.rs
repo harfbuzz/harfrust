@@ -38,11 +38,10 @@ impl<'a> Charmap<'a> {
                 .encoding_records()
                 .iter()
                 .filter_map(|record| record.subtable(offset_data).ok())
-                .filter_map(|subtable| match subtable {
+                .find_map(|subtable| match subtable {
                     CmapSubtable::Format14(table) => Some(table),
                     _ => None,
-                })
-                .next();
+                });
             return Self {
                 subtable,
                 vs_subtable,

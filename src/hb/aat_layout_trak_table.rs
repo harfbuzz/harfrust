@@ -1,5 +1,7 @@
 #[cfg(not(feature = "std"))]
-use core_maths::CoreFloat;
+#[allow(unused_imports)]
+use core_maths::CoreFloat as _;
+
 use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
@@ -43,21 +45,15 @@ trait TrakExt {
 
 impl TrakExt for read_fonts::tables::trak::Trak<'_> {
     fn get_h_tracking(&self, ptem: f32, track: f32) -> i32 {
-        self.horiz()
-            .transpose()
-            .ok()
-            .flatten()
-            .map(|t| t.get_tracking(self.offset_data(), ptem, track).round() as i32)
-            .unwrap_or(0)
+        self.horiz().transpose().ok().flatten().map_or(0, |t| {
+            t.get_tracking(self.offset_data(), ptem, track).round() as i32
+        })
     }
 
     fn get_v_tracking(&self, ptem: f32, track: f32) -> i32 {
-        self.vert()
-            .transpose()
-            .ok()
-            .flatten()
-            .map(|t| t.get_tracking(self.offset_data(), ptem, track).round() as i32)
-            .unwrap_or(0)
+        self.vert().transpose().ok().flatten().map_or(0, |t| {
+            t.get_tracking(self.offset_data(), ptem, track).round() as i32
+        })
     }
 }
 
@@ -88,35 +84,34 @@ impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
         };
 
         if tracks.len() == 1 {
-            return tracks.first().map(get_value).unwrap_or(0.0);
+            return tracks.first().map_or(0.0, get_value);
         }
 
         let mut i = 0;
         let mut j = tracks.len() - 1;
 
-        while i + 1 < tracks.len()
-            && tracks.get(i + 1).map(|t| t.track().to_f32()).unwrap_or(0.0) <= track
+        while i + 1 < tracks.len() && tracks.get(i + 1).map_or(0.0, |t| t.track().to_f32()) <= track
         {
             i += 1;
         }
-        while j > 0 && tracks.get(j - 1).map(|t| t.track().to_f32()).unwrap_or(0.0) >= track {
+        while j > 0 && tracks.get(j - 1).map_or(0.0, |t| t.track().to_f32()) >= track {
             j -= 1;
         }
 
         if i == j {
-            return tracks.get(i).map(get_value).unwrap_or(0.0);
+            return tracks.get(i).map_or(0.0, get_value);
         }
 
-        let t0 = tracks.get(i).map(|t| t.track().to_f32()).unwrap_or(0.0);
-        let t1 = tracks.get(j).map(|t| t.track().to_f32()).unwrap_or(0.0);
+        let t0 = tracks.get(i).map_or(0.0, |t| t.track().to_f32());
+        let t1 = tracks.get(j).map_or(0.0, |t| t.track().to_f32());
         let interp = if (t1 - t0).abs() < f32::EPSILON {
             0.0
         } else {
             (track - t0) / (t1 - t0)
         };
 
-        let a = tracks.get(i).map(get_value).unwrap_or(0.0);
-        let b = tracks.get(j).map(get_value).unwrap_or(0.0);
+        let a = tracks.get(i).map_or(0.0, get_value);
+        let b = tracks.get(j).map_or(0.0, get_value);
         a + interp * (b - a)
     }
 }
@@ -125,7 +120,7 @@ trait TrackEntryExt {
     fn get_value(&self, ptem: f32, sizes: &[BigEndian<Fixed>], values: &[BigEndian<i16>]) -> f32;
 }
 
-impl TrackEntryExt for read_fonts::tables::trak::TrackTableEntry {
+impl TrackEntryExt for TrackTableEntry {
     fn get_value(&self, ptem: f32, sizes: &[BigEndian<Fixed>], values: &[BigEndian<i16>]) -> f32 {
         let n = sizes.len().min(values.len());
         if n == 0 {
@@ -133,13 +128,13 @@ impl TrackEntryExt for read_fonts::tables::trak::TrackTableEntry {
         }
 
         for i in 0..n {
-            let size_pt = sizes.get(i).map(|f| f.get().to_f32()).unwrap_or(0.0);
+            let size_pt = sizes.get(i).map_or(0.0, |f| f.get().to_f32());
             if size_pt >= ptem {
                 if i == 0 {
                     return values.first().map(|v| v.get() as f32).unwrap_or_default();
                 }
 
-                let s0 = sizes.get(i - 1).map(|f| f.get().to_f32()).unwrap_or(0.0);
+                let s0 = sizes.get(i - 1).map_or(0.0, |f| f.get().to_f32());
                 let s1 = size_pt;
                 let v0 = values
                     .get(i - 1)

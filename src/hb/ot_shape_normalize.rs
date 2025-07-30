@@ -120,9 +120,8 @@ fn skip_char(buffer: &mut hb_buffer_t) {
 
 /// Returns 0 if didn't decompose, number of resulting characters otherwise.
 fn decompose(ctx: &mut hb_ot_shape_normalize_context_t, shortest: bool, ab: hb_codepoint_t) -> u32 {
-    let (a, b) = match (ctx.decompose)(ctx, ab) {
-        Some(decomposed) => decomposed,
-        _ => return 0,
+    let Some((a, b)) = (ctx.decompose)(ctx, ab) else {
+        return 0;
     };
 
     let a_glyph = ctx.face.get_nominal_glyph(u32::from(a));
@@ -231,7 +230,7 @@ fn handle_variation_selector_cluster(
                 _hb_glyph_info_set_variation_selector(buffer.cur_mut(0), true);
 
                 if buffer.not_found_variation_selector.is_some() {
-                    _hb_glyph_info_clear_default_ignorable(buffer.cur_mut(0))
+                    _hb_glyph_info_clear_default_ignorable(buffer.cur_mut(0));
                 }
 
                 set_glyph(buffer.cur_mut(0), face);

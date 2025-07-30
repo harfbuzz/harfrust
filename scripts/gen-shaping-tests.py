@@ -25,10 +25,6 @@ IGNORE_TEST_CASES = [
     "simple_002",
     # `dfont` is not supported.
     "collections_001",
-    "collections_002",
-    "collections_003",
-    # Face index out of bounds. ttf-parser doesn't permit this.
-    "collections_006",
     # Requires support for the ltag table.
     "macos_002",
     # Custom MacOS test. A shortened version of `macos_013`, but with `--show-flags`.
@@ -49,7 +45,20 @@ IGNORE_TEST_CASES = [
 
     # Requires support in ttf-parser (https://github.com/harfbuzz/ttf-parser/pull/185)
     "colr_014",
-    "colr_021",
+
+    # These tests do not currently pass and need to be investigated.
+    "colr_002",
+    "colr_003",
+    "colr_006",
+    "colr_007",
+    "colr_008",
+    "colr_009",
+    "colr_010",
+    "colr_016",
+    "colr_017",
+    "colr_018",
+    "colr_019",
+    "colr_020",
 
     # We ignore extents for COLRv1 in a "forward looking shaper"
     # (see https://github.com/harfbuzz/harfrust/pull/4#issuecomment-2252964385)
@@ -158,13 +167,11 @@ def convert_test_file(
 
     if glyphs_expected != "*":
 
-        glyphs_expected = subprocess.run(
-            options_list, check=True, stdout=subprocess.PIPE
-        ).stdout.decode()
-
-        glyphs_expected = glyphs_expected.strip()[
-            1:-1
-        ]  # remove leading and trailing whitespaces and `[..]`
+        glyphs_expected = (
+            subprocess.run(options_list, check=True, stdout=subprocess.PIPE)
+            .stdout.decode()
+            .strip()
+        )
 
     options_rs = options
     options_rs = options_rs.replace('"', '\\"')

@@ -5,7 +5,7 @@ use crate::hb::ot_layout_gsubgpos::{
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
 
-// TODO HarfBuzz caches covereage ala PairPos1
+// TODO HarfBuzz caches coverage ala PairPos1
 
 impl WouldApply for Ligature<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -40,7 +40,7 @@ impl Apply for Ligature<'_> {
             if !match_input(
                 ctx,
                 components.len() as u16,
-                &f,
+                f,
                 &mut match_end,
                 &mut match_positions,
                 Some(&mut total_component_count),

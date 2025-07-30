@@ -32,7 +32,7 @@ impl PartialOrd for feature_info_t {
         } else if !self.is_exclusive && (self.setting & !1) != (other.setting & !1) {
             Some(self.setting.cmp(&other.setting))
         } else {
-            Some(core::cmp::Ordering::Equal)
+            Some(Ordering::Equal)
         }
     }
 }
@@ -101,8 +101,7 @@ impl hb_aat_map_builder_t {
         if feature.tag == hb_tag_t::new(b"aalt") {
             let exposes_feature = feat
                 .find(HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16)
-                .map(|f| f.n_settings() != 0)
-                .unwrap_or(false);
+                .is_some_and(|f| f.n_settings() != 0);
 
             if !exposes_feature {
                 return Some(());
@@ -183,7 +182,7 @@ impl hb_aat_map_builder_t {
                 index: feature.end as usize,
                 start: false,
                 feature: feature.info,
-            })
+            });
         }
 
         feature_events.sort();
@@ -203,7 +202,7 @@ impl hb_aat_map_builder_t {
             if event.index != last_index {
                 // Save a snapshot of active features and the range.
                 // Sort features and merge duplicates.
-                self.current_features = active_features.clone();
+                self.current_features.clone_from(&active_features);
                 self.range_first = last_index;
                 self.range_last = event.index.wrapping_sub(1);
 
@@ -241,7 +240,7 @@ impl hb_aat_map_builder_t {
             }
         }
 
-        for chain_flags in m.chain_flags.iter_mut() {
+        for chain_flags in &mut m.chain_flags {
             if let Some(last) = chain_flags.last_mut() {
                 last.cluster_last = HB_FEATURE_GLOBAL_END;
             }

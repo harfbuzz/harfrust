@@ -140,7 +140,7 @@ fn machine_kern(
                 }
             }
 
-            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1))
+            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
         }
 
         i = j;
@@ -188,12 +188,11 @@ fn apply_state_machine_kerning(
                 .and_then(|gid| subtable.class(gid).ok())
                 .unwrap_or(1)
         } else {
-            read_fonts::tables::aat::class::END_OF_TEXT
+            aat::class::END_OF_TEXT
         };
 
-        let entry = match subtable.entry(state, class) {
-            Ok(v) => v,
-            _ => break,
+        let Ok(entry) = subtable.entry(state, class) else {
+            break;
         };
 
         // Unsafe-to-break before this if not in state 0, as things might
@@ -210,10 +209,8 @@ fn apply_state_machine_kerning(
 
         // Unsafe-to-break if end-of-text would kick in here.
         if buffer.idx + 2 <= buffer.len {
-            let end_entry = match subtable.entry(state, read_fonts::tables::aat::class::END_OF_TEXT)
-            {
-                Ok(v) => v,
-                _ => break,
+            let Ok(end_entry) = subtable.entry(state, aat::class::END_OF_TEXT) else {
+                break;
             };
 
             if end_entry.has_offset() {
@@ -262,12 +259,9 @@ fn state_machine_transition(
 
     if entry.has_offset() && driver.depth != 0 {
         let mut value_offset = entry.value_offset();
-        let mut value = match subtable.read_value::<i16>(value_offset as usize) {
-            Ok(v) => v,
-            _ => {
-                driver.depth = 0;
-                return;
-            }
+        let Ok(mut value) = subtable.read_value::<i16>(value_offset as usize) else {
+            driver.depth = 0;
+            return;
         };
 
         // From Apple 'kern' spec:

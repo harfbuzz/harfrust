@@ -4,3 +4,4 @@
 .DS_Store
 /src/complex/*.ri
 .vscode
+/Cargo.lock

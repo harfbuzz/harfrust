@@ -32,7 +32,7 @@
  * # Not derivable
  * # Initial version based on Unicode 7.0 by Andrew Glass 2014-03-17
  * # Updated for Unicode 10.0 by Andrew Glass 2017-07-25
- * # Ammended for Unicode 10.0 by Andrew Glass 2018-09-21
+ * # Amended for Unicode 10.0 by Andrew Glass 2018-09-21
  * # Updated for L2/19-083    by Andrew Glass 2019-05-06
  * # Updated for Unicode 12.1 by Andrew Glass 2019-05-30
  * # Updated for Unicode 13.0 by Andrew Glass 2020-07-28

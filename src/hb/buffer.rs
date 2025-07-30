@@ -28,7 +28,7 @@ pub mod glyph_flag {
     ///
     /// This can be used to optimize paragraph layout,
     /// by avoiding re-shaping of each line after line-breaking.
-    pub const UNSAFE_TO_BREAK: u32 = 0x00000001;
+    pub const UNSAFE_TO_BREAK: u32 = 0x0000_0001;
     /// Indicates that if input text is changed on one side
     /// of the beginning of the cluster this glyph is part
     /// of, then the shaping results for the other side
@@ -89,16 +89,16 @@ pub mod glyph_flag {
     /// To use this flag, you must enable the buffer flag
     /// PRODUCE_UNSAFE_TO_CONCAT during shaping, otherwise
     /// the buffer flag will not be reliably produced.
-    pub const UNSAFE_TO_CONCAT: u32 = 0x00000002;
+    pub const UNSAFE_TO_CONCAT: u32 = 0x0000_0002;
 
     /// In scripts that use elongation (Arabic,
     /// Mongolian, Syriac, etc.), this flag signifies
     /// that it is safe to insert a U+0640 TATWEEL
     /// character *before* this cluster for elongation.
-    pub const SAFE_TO_INSERT_TATWEEL: u32 = 0x00000004;
+    pub const SAFE_TO_INSERT_TATWEEL: u32 = 0x0000_0004;
 
     /// All the currently defined flags.
-    pub const DEFINED: u32 = 0x00000007; // OR of all defined flags
+    pub const DEFINED: u32 = 0x0000_0007; // OR of all defined flags
 }
 
 /// Holds the positions of the glyph in both horizontal and vertical directions.
@@ -184,7 +184,7 @@ impl hb_glyph_info_t {
     /// after line-breaking, or limiting the reshaping to a small piece around
     /// the breaking point only.
     pub fn unsafe_to_break(&self) -> bool {
-        self.mask & glyph_flag::UNSAFE_TO_BREAK != 0
+        self.mask & UNSAFE_TO_BREAK != 0
     }
 
     /// Indicates that if input text is changed on one side of the beginning of the cluster
@@ -219,7 +219,7 @@ impl hb_glyph_info_t {
     ///    always imply this flag. To use this flag, you must enable the buffer flag [`BufferFlags::PRODUCE_UNSAFE_TO_CONCAT`]
     ///    during shaping, otherwise the buffer flag will not be reliably produced.
     pub fn unsafe_to_concat(&self) -> bool {
-        self.mask & glyph_flag::UNSAFE_TO_CONCAT != 0
+        self.mask & UNSAFE_TO_CONCAT != 0
     }
 
     /// In scripts that use elongation (Arabic, Mongolian, Syriac, etc.), this flag signifies that it is
@@ -227,7 +227,7 @@ impl hb_glyph_info_t {
     /// determine the script-specific elongation places, but only when it is safe to do the elongation
     /// without interrupting text shaping.
     pub fn safe_to_insert_tatweel(&self) -> bool {
-        self.mask & glyph_flag::SAFE_TO_INSERT_TATWEEL != 0
+        self.mask & SAFE_TO_INSERT_TATWEEL != 0
     }
 
     #[inline]
@@ -423,12 +423,12 @@ impl hb_buffer_t {
     pub const MAX_LEN_FACTOR: usize = 64;
     pub const MAX_LEN_MIN: usize = 16384;
     // Shaping more than a billion chars? Let us know!
-    pub const MAX_LEN_DEFAULT: usize = 0x3FFFFFFF;
+    pub const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
 
     pub const MAX_OPS_FACTOR: i32 = 1024;
     pub const MAX_OPS_MIN: i32 = 16384;
     // Shaping more than a billion operations? Let us know!
-    pub const MAX_OPS_DEFAULT: i32 = 0x1FFFFFFF;
+    pub const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
 
     /// Creates a new `Buffer`.
     pub fn new() -> Self {
@@ -673,7 +673,7 @@ impl hb_buffer_t {
         if self.script.is_none() {
             for info in &self.info {
                 match info.as_char().script() {
-                    crate::script::COMMON | crate::script::INHERITED | crate::script::UNKNOWN => {}
+                    script::COMMON | script::INHERITED | script::UNKNOWN => {}
                     s => {
                         self.script = Some(s);
                         break;
@@ -908,7 +908,7 @@ impl hb_buffer_t {
             return;
         }
 
-        self.merge_clusters_impl(start, end)
+        self.merge_clusters_impl(start, end);
     }
 
     fn merge_clusters_impl(&mut self, mut start: usize, mut end: usize) {
@@ -920,7 +920,7 @@ impl hb_buffer_t {
         let mut cluster = self.info[start].cluster;
 
         for i in start + 1..end {
-            cluster = core::cmp::min(cluster, self.info[i].cluster);
+            cluster = min(cluster, self.info[i].cluster);
         }
 
         // Extend end
@@ -963,7 +963,7 @@ impl hb_buffer_t {
         let mut cluster = self.out_info()[start].cluster;
 
         for i in start + 1..end {
-            cluster = core::cmp::min(cluster, self.out_info()[i].cluster);
+            cluster = min(cluster, self.out_info()[i].cluster);
         }
 
         // Extend start
@@ -1384,7 +1384,7 @@ impl hb_buffer_t {
 
         if self.cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS {
             for glyph_info in &info[start..end] {
-                cluster = core::cmp::min(cluster, glyph_info.cluster);
+                cluster = min(cluster, glyph_info.cluster);
             }
         }
 
@@ -1526,7 +1526,7 @@ pub(crate) fn _cluster_group_func(a: &hb_glyph_info_t, b: &hb_glyph_info_t) -> b
 
 macro_rules! foreach_cluster {
     ($buffer:expr, $start:ident, $end:ident, $($body:tt)*) => {
-        foreach_group!($buffer, $start, $end, crate::hb::buffer::_cluster_group_func, $($body)*)
+        foreach_group!($buffer, $start, $end, $crate::hb::buffer::_cluster_group_func, $($body)*)
     };
 }
 
@@ -1558,7 +1558,7 @@ macro_rules! foreach_syllable {
 
 macro_rules! foreach_grapheme {
     ($buffer:expr, $start:ident, $end:ident, $($body:tt)*) => {
-        foreach_group!($buffer, $start, $end, crate::hb::ot_layout::_hb_grapheme_group_func, $($body)*)
+        foreach_group!($buffer, $start, $end, $crate::hb::ot_layout::_hb_grapheme_group_func, $($body)*)
     };
 }
 
@@ -1598,18 +1598,18 @@ bitflags::bitflags! {
 }
 
 pub type hb_buffer_scratch_flags_t = u32;
-pub const HB_BUFFER_SCRATCH_FLAG_DEFAULT: u32 = 0x00000000;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII: u32 = 0x00000001;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x00000002;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK: u32 = 0x00000004;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT: u32 = 0x00000008;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_CGJ: u32 = 0x00000010;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS: u32 = 0x00000020;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE: u32 = 0x00000040;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK: u32 = 0x00000080;
+pub const HB_BUFFER_SCRATCH_FLAG_DEFAULT: u32 = 0x0000_0000;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII: u32 = 0x0000_0001;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x0000_0002;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK: u32 = 0x0000_0004;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT: u32 = 0x0000_0008;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_CGJ: u32 = 0x0000_0010;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS: u32 = 0x0000_0020;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE: u32 = 0x0000_0040;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK: u32 = 0x0000_0080;
 
 /* Reserved for shapers' internal use. */
-pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x01000000;
+pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER1: u32 = 0x02000000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER2: u32 = 0x04000000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER3: u32 = 0x08000000;
@@ -1648,13 +1648,13 @@ impl UnicodeBuffer {
     /// Sets the pre-context for this buffer.
     #[inline]
     pub fn set_pre_context(&mut self, str: &str) {
-        self.0.set_pre_context(str)
+        self.0.set_pre_context(str);
     }
 
     /// Sets the post-context for this buffer.
     #[inline]
     pub fn set_post_context(&mut self, str: &str) {
-        self.0.set_post_context(str)
+        self.0.set_post_context(str);
     }
 
     /// Appends a character to a buffer with the given cluster value.
@@ -1696,7 +1696,7 @@ impl UnicodeBuffer {
     /// Set the glyph value to replace not-found variation-selector characters with.
     #[inline]
     pub fn set_not_found_variation_selector_glyph(&mut self, glyph: u32) {
-        self.0.not_found_variation_selector = Some(glyph)
+        self.0.not_found_variation_selector = Some(glyph);
     }
 
     /// Get the buffer language.
@@ -1709,7 +1709,7 @@ impl UnicodeBuffer {
     /// current buffer.
     #[inline]
     pub fn guess_segment_properties(&mut self) {
-        self.0.guess_segment_properties()
+        self.0.guess_segment_properties();
     }
 
     /// Set the flags for this buffer.
@@ -1756,7 +1756,7 @@ impl UnicodeBuffer {
     /// Clear the contents of the buffer.
     #[inline]
     pub fn clear(&mut self) {
-        self.0.clear()
+        self.0.clear();
     }
 }
 
@@ -1837,6 +1837,8 @@ impl GlyphBuffer {
         let mut y = 0;
         let names = face.glyph_names();
         for (info, pos) in info.iter().zip(pos) {
+            s.push(if s.is_empty() { '[' } else { '|' });
+
             if !flags.contains(SerializeFlags::NO_GLYPH_NAMES) {
                 match names.get(info.as_glyph().to_u32()) {
                     Some(name) => s.push_str(name),
@@ -1883,13 +1885,10 @@ impl GlyphBuffer {
                 x += pos.x_advance;
                 y += pos.y_advance;
             }
-
-            s.push('|');
         }
 
-        // Remove last `|`.
         if !s.is_empty() {
-            s.pop();
+            s.push(']');
         }
 
         Ok(s)

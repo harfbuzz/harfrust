@@ -228,9 +228,8 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
             u16::from(read_fonts::tables::aat::class::END_OF_TEXT)
         };
 
-        let entry = match machine.entry(state, class) {
-            Ok(v) => v,
-            _ => break,
+        let Ok(entry) = machine.entry(state, class) else {
+            break;
         };
 
         let next_state = entry.new_state;
@@ -266,9 +265,8 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
         // TODO HarfBuzz doesn't use this lambda; inlines the logic.
         let is_safe_to_break_extra = || {
             // 2c
-            let wouldbe_entry = match machine.entry(START_OF_TEXT, class) {
-                Ok(v) => v,
-                _ => return false,
+            let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class) else {
+                return false;
             };
 
             // 2c'
@@ -740,9 +738,9 @@ impl LigatureCtx<'_> {
     const DONT_ADVANCE: u16 = 0x4000;
     const PERFORM_ACTION: u16 = 0x2000;
 
-    const LIG_ACTION_LAST: u32 = 0x80000000;
-    const LIG_ACTION_STORE: u32 = 0x40000000;
-    const LIG_ACTION_OFFSET: u32 = 0x3FFFFFFF;
+    const LIG_ACTION_LAST: u32 = 0x8000_0000;
+    const LIG_ACTION_STORE: u32 = 0x4000_0000;
+    const LIG_ACTION_OFFSET: u32 = 0x3FFF_FFFF;
 }
 
 impl driver_context_t<BigEndian<u16>> for LigatureCtx<'_> {
@@ -814,8 +812,8 @@ impl driver_context_t<BigEndian<u16>> for LigatureCtx<'_> {
                 };
 
                 let mut uoffset = action & Self::LIG_ACTION_OFFSET;
-                if uoffset & 0x20000000 != 0 {
-                    uoffset |= 0xC0000000; // Sign-extend.
+                if uoffset & 0x2000_0000 != 0 {
+                    uoffset |= 0xC000_0000; // Sign-extend.
                 }
 
                 let offset = uoffset as i32;

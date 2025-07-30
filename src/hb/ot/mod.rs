@@ -177,16 +177,14 @@ impl<'a> OtTables<'a> {
         self.gdef
             .classes
             .as_ref()
-            .map(|class_def| class_def.get((glyph_id as u16).into()))
-            .unwrap_or(0)
+            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
         self.gdef
             .mark_classes
             .as_ref()
-            .map(|class_def| class_def.get((glyph_id as u16).into()))
-            .unwrap_or(0)
+            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
     }
 
     pub fn mark_set(&self, set_index: u16) -> Option<CoverageTable<'a>> {

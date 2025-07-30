@@ -167,7 +167,7 @@ impl Default for Direction {
     }
 }
 
-impl core::str::FromStr for Direction {
+impl FromStr for Direction {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -198,7 +198,7 @@ impl Language {
     }
 }
 
-impl core::str::FromStr for Language {
+impl FromStr for Language {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -231,7 +231,7 @@ impl Script {
         }
 
         // Be lenient, adjust case (one capital letter followed by three small letters).
-        let tag = Tag::from_u32((tag.as_u32() & 0xDFDFDFDF) | 0x00202020);
+        let tag = Tag::from_u32((tag.as_u32() & 0xDFDF_DFDF) | 0x0020_2020);
 
         match &tag.to_be_bytes() {
             // These graduated from the 'Q' private-area codes, but
@@ -252,7 +252,7 @@ impl Script {
             _ => {}
         }
 
-        if tag.as_u32() & 0xE0E0E0E0 == 0x40606060 {
+        if tag.as_u32() & 0xE0E0_E0E0 == 0x4060_6060 {
             Some(Script(tag))
         } else {
             Some(script::UNKNOWN)
@@ -266,7 +266,7 @@ impl Script {
     }
 }
 
-impl core::str::FromStr for Script {
+impl FromStr for Script {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -521,7 +521,7 @@ impl Feature {
     }
 }
 
-impl core::str::FromStr for Feature {
+impl FromStr for Feature {
     type Err = &'static str;
 
     /// Parses a `Feature` form a string.
@@ -679,7 +679,7 @@ pub struct Variation {
     pub value: f32,
 }
 
-impl core::str::FromStr for Variation {
+impl FromStr for Variation {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

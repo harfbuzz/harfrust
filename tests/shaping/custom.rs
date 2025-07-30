@@ -10,7 +10,7 @@ fn bugs_001() {
             "\u{4F60}\u{597D}\u{FF0C}",
             "--direction rtl",
         ),
-        "gid6=2+1000|gid3=1+1000|gid1=0+1000"
+        "[gid6=2+1000|gid3=1+1000|gid1=0+1000]"
     );
 }
 
@@ -22,7 +22,7 @@ fn bugs_002() {
             "\u{0065}",
             "--variations=wght=500,wdth=80",
         ),
-        "gid0=0+1218"
+        "[gid0=0+1218]"
     );
 }
 
@@ -34,7 +34,92 @@ fn bugs_003() {
             "\u{0D38}\u{0D4D}\u{0D25}",
             "",
         ),
-        "gid7=0+1891"
+        "[gid7=0+1891]"
+    );
+}
+
+#[test]
+fn colr_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf",
+            "\u{F0100}\u{F0101}\u{F0102}\u{F0103}",
+            "--show-extents",
+        ),
+        "[linear_repeat_0_1=0+1000<100,950,800,-700>|linear_repeat_0.2_0.8=1+1000<100,950,800,-700>|linear_repeat_0_1.5=2+1000<100,950,800,-700>|linear_repeat_0.5_1.5=3+1000<100,950,800,-700>]"
+    );
+}
+
+#[test]
+fn colr_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf",
+            "\u{F0500}\u{F0501}\u{F0502}",
+            "--show-extents",
+        ),
+        "[linear_gradient_extend_mode_pad=0+1000<0,1000,1000,-1000>|linear_gradient_extend_mode_repeat=1+1000<0,1000,1000,-1000>|linear_gradient_extend_mode_reflect=2+1000<0,1000,1000,-1000>]"
+    );
+}
+
+#[test]
+fn colr_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf",
+            "\u{F0503}\u{F0504}\u{F0505}\u{F0506}\u{F0507}\u{F0508}",
+            "--show-extents",
+        ),
+        "[radial_contained_gradient_extend_mode_pad=0+1000<0,1000,1000,-1000>|radial_contained_gradient_extend_mode_repeat=1+1000<0,1000,1000,-1000>|radial_contained_gradient_extend_mode_reflect=2+1000<0,1000,1000,-1000>|radial_horizontal_gradient_extend_mode_pad=3+1000<0,1000,1000,-1000>|radial_horizontal_gradient_extend_mode_repeat=4+1000<0,1000,1000,-1000>|radial_horizontal_gradient_extend_mode_reflect=5+1000<0,1000,1000,-1000>]"
+    );
+}
+
+#[test]
+fn colr_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf",
+            "\u{F0C00}\u{F0C01}\u{F0C02}\u{F0C03}\u{F0C04}\u{F0C05}\u{F0C06}\u{F0C07}\u{F0C08}\u{F0C09}\
+             \u{F0C0A}",
+            "--show-extents",
+        ),
+        "[clip_box_top_left=0+1000<0,1000,1000,-1000>|clip_box_bottom_left=1+1000<0,1000,1000,-1000>|clip_box_bottom_right=2+1000<0,1000,1000,-1000>|clip_box_top_right=3+1000<0,1000,1000,-1000>|clip_box_center=4+1000<0,1000,1000,-1000>|clip_shade_top_left=5+1000<0,1000,500,-500>|clip_shade_bottom_left=6+1000<0,500,500,-500>|clip_shade_bottom_right=7+1000<500,500,500,-500>|clip_shade_top_right=8+1000<500,1000,500,-500>|clip_shade_center=9+1000<250,750,500,-500>|inset_clipped_radial_reflect=10+1000<0,1000,1000,-1000>]"
+    );
+}
+
+#[test]
+fn colr_013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf",
+            "\u{F0D00}",
+            "--show-extents",
+        ),
+        "[gradient_p2_skewed=0+1250<100,950,1100,-700>]"
+    );
+}
+
+#[test]
+fn colr_015() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf",
+            "\u{F0F00}\u{F0F01}\u{F0F02}\u{F0F03}\u{F0F04}\u{F0F05}\u{F0F06}",
+            "--show-extents",
+        ),
+        "[circle_r50=0+1000<450,650,100,-100>|circle_r100=1+1000<400,700,200,-200>|circle_r150=2+1000<350,750,300,-300>|circle_r200=3+1000<300,800,400,-400>|circle_r250=4+1000<250,850,500,-500>|circle_r300=5+1000<200,900,600,-600>|circle_r350=6+1000<150,950,700,-700>]"
+    );
+}
+
+#[test]
+fn colr_021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/BungeeTint-Regular.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{002C}",
+            "--show-extents",
+        ),
+        "[A=0+730<54,720,622,-720>|B=1+725<69,720,614,-720>|C=2+628<58,720,526,-720>|comma=3+384<55,275,274,-375>]"
     );
 }
 
@@ -46,7 +131,7 @@ fn fuzzer_001() {
             "\u{1EA4}\u{006E}",
             "",
         ),
-        "Acircumflex=0+645|uniF401=0+0|n=1+641"
+        "[Acircumflex=0+645|uniF401=0+0|n=1+641]"
     );
 }
 
@@ -58,7 +143,7 @@ fn fuzzer_002() {
             "\u{0F42}\u{0FB7}",
             "--no-glyph-names",
         ),
-        "1859=0+0|1976=0+0"
+        "[1859=0+0|1976=0+0]"
     );
 }
 
@@ -70,7 +155,7 @@ fn fuzzer_003() {
             "\u{0A93}\u{0ABC}",
             "",
         ),
-        "gid5=0+982|gid22=0@-1,0+0|gid21=0+0"
+        "[gid5=0+982|gid22=0@-1,0+0|gid21=0+0]"
     );
 }
 
@@ -82,7 +167,7 @@ fn fuzzer_004() {
             "\u{104A}\u{102F}",
             "",
         ),
-        "cid00075=0+0|cid00048=0+0"
+        "[cid00075=0+0|cid00048=0+0]"
     );
 }
 
@@ -94,7 +179,7 @@ fn fuzzer_005() {
             "\u{1004}\u{103A}\u{1039}\u{1002}\u{101C}",
             "",
         ),
-        "gid1=0+668|gid5=0@-4,0+0|gid3=4+1126"
+        "[gid1=0+668|gid5=0@-4,0+0|gid3=4+1126]"
     );
 }
 
@@ -106,7 +191,7 @@ fn fuzzer_006() {
             "\u{0DC1}\u{200D}\u{0DCA}\u{200D}\u{0DBB}\u{0DD3}",
             "",
         ),
-        "gid2=0+917|gid7=0+0|gid4=0+0"
+        "[gid2=0+917|gid7=0+0|gid4=0+0]"
     );
 }
 
@@ -118,7 +203,7 @@ fn fuzzer_007() {
             "\u{006B}\u{0065}\u{031D}",
             "",
         ),
-        "k=0+479|e=1+343|.notdef=1@-172,-59+0"
+        "[k=0+479|e=1+343|.notdef=1@-172,-59+0]"
     );
 }
 
@@ -130,7 +215,7 @@ fn fuzzer_008() {
             "\u{0054}\u{021F}",
             "--no-glyph-names",
         ),
-        "93=0+100|233=1@0,900+100|2=1@0,140+0|1=1+0"
+        "[93=0+100|233=1@0,900+100|2=1@0,140+0|1=1+0]"
     );
 }
 
@@ -142,7 +227,7 @@ fn fuzzer_009() {
             "\u{021F}\u{0061}",
             "--no-glyph-names",
         ),
-        "17=0+100|1=0+0|4=1+100"
+        "[17=0+100|1=0+0|4=1+100]"
     );
 }
 
@@ -154,7 +239,7 @@ fn glyph_flags_001() {
             "\u{0000}\u{0014}\u{0015}\u{0016}\u{0017}\u{0000}",
             "--show-flags --features=\"test\"",
         ),
-        ".notdef=0+1500|g20=1+1500|g21=2+1500#1|g22=3+1500#1|g23=4+1500#1|.notdef=5+1500"
+        "[.notdef=0+1500|g20=1+1500|g21=2+1500#1|g22=3+1500#1|g23=4+1500#1|.notdef=5+1500]"
     );
 }
 
@@ -166,6 +251,6 @@ fn glyph_flags_003() {
             "\u{0058}\u{0041}",
             "--show-flags --ned --remove-default-ignorables",
         ),
-        "X|A@586,0#1|B@1225,0#1|C@1851,0#1|E@2447,0#1"
+        "[X|A@586,0#1|B@1225,0#1|C@1851,0#1|E@2447,0#1]"
     );
 }

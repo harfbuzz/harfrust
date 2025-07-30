@@ -147,7 +147,7 @@ impl hb_glyph_info_t {
     }
 
     fn set_use_category(&mut self, c: Category) {
-        self.set_ot_shaper_var_u8_category(c)
+        self.set_ot_shaper_var_u8_category(c);
     }
 
     fn is_halant_use(&self) -> bool {
@@ -199,14 +199,14 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     // Reordering group
     planner
         .ot_map
-        .add_gsub_pause(Some(crate::hb::ot_layout::_hb_clear_substitution_flags));
+        .add_gsub_pause(Some(_hb_clear_substitution_flags));
     planner
         .ot_map
         .add_feature(hb_tag_t::new(b"rphf"), F_MANUAL_ZWJ | F_PER_SYLLABLE, 1);
     planner.ot_map.add_gsub_pause(Some(record_rphf));
     planner
         .ot_map
-        .add_gsub_pause(Some(crate::hb::ot_layout::_hb_clear_substitution_flags));
+        .add_gsub_pause(Some(_hb_clear_substitution_flags));
     planner
         .ot_map
         .enable_feature(hb_tag_t::new(b"pref"), F_MANUAL_ZWJ | F_PER_SYLLABLE, 1);

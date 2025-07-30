@@ -14,7 +14,7 @@ pub type hb_aat_layout_feature_type_t = u8;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_INVALID: u8 = 0xFF;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_ALL_TYPOGRAPHIC: u8 = 0;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_LIGATURES: u8 = 1;
-pub const HB_AAT_LAYOUT_FEATURE_TYPE_CURISVE_CONNECTION: u8 = 2;
+pub const HB_AAT_LAYOUT_FEATURE_TYPE_CURSIVE_CONNECTION: u8 = 2;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE: u8 = 3;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_VERTICAL_SUBSTITUTION: u8 = 4;
 pub const HB_AAT_LAYOUT_FEATURE_TYPE_LINGUISTIC_REARRANGEMENT: u8 = 5;
@@ -251,7 +251,7 @@ pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_PERIOD_ANNOTATION: u8 = 6;
 pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_ROMAN_NUMERAL_ANNOTATION: u8 = 7;
 pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_DIAMOND_ANNOTATION: u8 = 8;
 pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_INVERTED_BOX_ANNOTATION: u8 = 9;
-pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_INVERTED_ROUNDED_BOX_ANNOTATIO: u8 = 10;
+pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_INVERTED_ROUNDED_BOX_ANNOTATION: u8 = 10;
 
 /* Selectors for #HB_AAT_LAYOUT_FEATURE_TYPE_KANA_SPACING_TYPE */
 pub const HB_AAT_LAYOUT_FEATURE_SELECTOR_FULL_WIDTH_KANA: u8 = 0;
@@ -532,7 +532,7 @@ fn is_deleted_glyph(info: &hb_glyph_info_t) -> bool {
 
 pub fn hb_aat_layout_remove_deleted_glyphs(buffer: &mut hb_buffer_t) {
     if (buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED) != 0 {
-        buffer.delete_glyphs_inplace(is_deleted_glyph)
+        buffer.delete_glyphs_inplace(is_deleted_glyph);
     }
 }
 

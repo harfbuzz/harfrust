@@ -95,7 +95,7 @@ pub trait LayoutTable {
 /// Called before substitution lookups are performed, to ensure that glyph
 /// class and other properties are set on the glyphs in the buffer.
 pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut hb_buffer_t) {
-    _hb_ot_layout_set_glyph_props(face, buffer)
+    _hb_ot_layout_set_glyph_props(face, buffer);
 }
 
 /// Applies the lookups in the given GSUB or GPOS table.
@@ -387,7 +387,7 @@ pub(crate) fn _hb_glyph_info_is_variation_selector(info: &hb_glyph_info_t) -> bo
 pub(crate) fn _hb_glyph_info_set_variation_selector(info: &mut hb_glyph_info_t, customize: bool) {
     if customize {
         _hb_glyph_info_set_general_category(info, hb_unicode_general_category_t::Format);
-        info.set_unicode_props(info.unicode_props() | UnicodeProps::CF_VS.bits())
+        info.set_unicode_props(info.unicode_props() | UnicodeProps::CF_VS.bits());
     } else {
         // Reset to their original condition
         _hb_glyph_info_set_general_category(info, hb_unicode_general_category_t::NonspacingMark);
@@ -452,7 +452,7 @@ pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut hb_buffer_t) {
     buffer.reverse_groups(
         _hb_grapheme_group_func,
         buffer.cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
-    )
+    );
 }
 
 #[inline]

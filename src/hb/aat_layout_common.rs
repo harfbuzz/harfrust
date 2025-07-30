@@ -51,7 +51,7 @@ impl<'a> hb_aat_apply_context_t<'a> {
                 .cur_mut(0)
                 .set_glyph_props(self.face.glyph_props(glyph.into()));
         }
-        self.buffer.replace_glyph(glyph)
+        self.buffer.replace_glyph(glyph);
     }
 
     pub fn delete_glyph(&mut self) {

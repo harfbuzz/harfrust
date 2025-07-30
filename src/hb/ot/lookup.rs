@@ -244,7 +244,7 @@ pub enum LookupState {
     Vacant,
     /// Lookup is available for use.
     Ready,
-    /// An error occured while reading this lookup.
+    /// An error occurred while reading this lookup.
     Error,
 }
 
@@ -282,7 +282,7 @@ impl LookupInfo {
         self.is_reversed
     }
 
-    pub fn digest(&self) -> &crate::hb::set_digest::hb_set_digest_t {
+    pub fn digest(&self) -> &hb_set_digest_t {
         &self.digest
     }
 }
