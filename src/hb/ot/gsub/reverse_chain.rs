@@ -56,11 +56,11 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
         let mut start_index = 0;
         let mut end_index = 0;
 
-        if match_backtrack(ctx, backtrack_coverages.len() as u16, &f1, &mut start_index) {
+        if match_backtrack(ctx, backtrack_coverages.len() as u16, f1, &mut start_index) {
             if match_lookahead(
                 ctx,
                 lookahead_coverages.len() as u16,
-                &f2,
+                f2,
                 ctx.buffer.idx + 1,
                 &mut end_index,
             ) {

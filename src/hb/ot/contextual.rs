@@ -1,8 +1,8 @@
 use super::{coverage_index, covered, glyph_class};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    apply_lookup, match_backtrack, match_func_t, match_glyph, match_input, match_lookahead, Apply,
-    WouldApply, WouldApplyContext,
+    apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, Apply, WouldApply,
+    WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -43,7 +43,7 @@ impl Apply for SequenceContextFormat1<'_> {
         let set = self.seq_rule_sets().get(index)?.ok()?;
         for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
             let input = rule.input_sequence();
-            if apply_context(ctx, input, &match_glyph, rule.seq_lookup_records()).is_some() {
+            if apply_context(ctx, input, match_glyph, rule.seq_lookup_records()).is_some() {
                 return Some(());
             }
         }
@@ -89,7 +89,7 @@ impl Apply for SequenceContextFormat2<'_> {
             if apply_context(
                 ctx,
                 input,
-                &match_class(&input_classes),
+                match_class(&input_classes),
                 rule.seq_lookup_records(),
             )
             .is_some()
@@ -127,7 +127,7 @@ impl Apply for SequenceContextFormat3<'_> {
         if match_input(
             ctx,
             input_coverages.len() as u16 - 1,
-            &input,
+            input,
             &mut match_end,
             &mut match_positions,
             None,
@@ -192,7 +192,7 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
                 backtrack,
                 input,
                 lookahead,
-                [&match_glyph; 3],
+                [match_glyph; 3],
                 rule.seq_lookup_records(),
             )
             .is_some()
@@ -272,9 +272,9 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 input,
                 lookahead,
                 [
-                    &match_class(&backtrack_classes),
-                    &match_class(&input_classes),
-                    &match_class(&lookahead_classes),
+                    match_class(&backtrack_classes),
+                    match_class(&input_classes),
+                    match_class(&lookahead_classes),
                 ],
                 rule.seq_lookup_records(),
             )
@@ -337,7 +337,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         let input_matches = match_input(
             ctx,
             input_coverages.len() as u16 - 1,
-            &input,
+            input,
             &mut match_end,
             &mut match_positions,
             None,
@@ -351,7 +351,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
             && match_lookahead(
                 ctx,
                 lookahead_coverages.len() as u16,
-                &ahead,
+                ahead,
                 match_end,
                 &mut end_index,
             ))
@@ -366,7 +366,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         if !match_backtrack(
             ctx,
             backtrack_coverages.len() as u16,
-            &back,
+            back,
             &mut start_index,
         ) {
             ctx.buffer
@@ -407,7 +407,7 @@ impl ToU16 for BigEndian<u16> {
 fn apply_context<T: ToU16>(
     ctx: &mut hb_ot_apply_context_t,
     input: &[T],
-    match_func: &match_func_t,
+    match_func: impl Fn(GlyphId, u16) -> bool,
     lookups: &[SequenceLookupRecord],
 ) -> Option<()> {
     let match_func = |glyph, index| {
@@ -421,7 +421,7 @@ fn apply_context<T: ToU16>(
     if match_input(
         ctx,
         input.len() as _,
-        &match_func,
+        match_func,
         &mut match_end,
         &mut match_positions,
         None,
@@ -435,12 +435,12 @@ fn apply_context<T: ToU16>(
     None
 }
 
-fn apply_chain_context<T: ToU16>(
+fn apply_chain_context<T: ToU16, F: Fn(GlyphId, u16) -> bool>(
     ctx: &mut hb_ot_apply_context_t,
     backtrack: &[T],
     input: &[T],
     lookahead: &[T],
-    match_funcs: [&match_func_t; 3],
+    match_funcs: [F; 3],
     lookups: &[SequenceLookupRecord],
 ) -> Option<()> {
     // NOTE: Whenever something in this method changes, we also need to
@@ -467,7 +467,7 @@ fn apply_chain_context<T: ToU16>(
     let input_matches = match_input(
         ctx,
         input.len() as u16,
-        &f3,
+        f3,
         &mut match_end,
         &mut match_positions,
         None,
@@ -478,7 +478,7 @@ fn apply_chain_context<T: ToU16>(
     }
 
     if !(input_matches
-        && match_lookahead(ctx, lookahead.len() as u16, &f2, match_end, &mut end_index))
+        && match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index))
     {
         ctx.buffer
             .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
@@ -487,7 +487,7 @@ fn apply_chain_context<T: ToU16>(
 
     let mut start_index = ctx.buffer.out_len;
 
-    if !match_backtrack(ctx, backtrack.len() as u16, &f1, &mut start_index) {
+    if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
         ctx.buffer
             .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
         return None;
