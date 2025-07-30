@@ -12,6 +12,7 @@ use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
 /// Value represents glyph id.
+#[inline(always)]
 pub fn match_glyph(glyph: GlyphId, value: u16) -> bool {
     glyph.to_u32() == value as u32
 }
@@ -19,7 +20,7 @@ pub fn match_glyph(glyph: GlyphId, value: u16) -> bool {
 pub fn match_input(
     ctx: &mut hb_ot_apply_context_t,
     input_len: u16,
-    match_func: &match_func_t,
+    match_func: impl Fn(GlyphId, u16) -> bool,
     end_position: &mut usize,
     match_positions: &mut smallvec::SmallVec<[usize; 4]>,
     p_total_component_count: Option<&mut u8>,
@@ -62,10 +63,9 @@ pub fn match_input(
         match_positions.resize(count, 0);
     }
 
-    let mut iter = skipping_iterator_t::new(ctx, false);
+    let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
     iter.reset(ctx.buffer.idx);
     iter.set_glyph_data(0);
-    iter.enable_matching(match_func);
 
     let first = ctx.buffer.cur(0);
     let first_lig_id = _hb_glyph_info_get_lig_id(first);
@@ -144,13 +144,12 @@ pub fn match_input(
 pub fn match_backtrack(
     ctx: &mut hb_ot_apply_context_t,
     backtrack_len: u16,
-    match_func: &match_func_t,
+    match_func: impl Fn(GlyphId, u16) -> bool,
     match_start: &mut usize,
 ) -> bool {
-    let mut iter = skipping_iterator_t::new(ctx, true);
+    let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
     iter.reset(ctx.buffer.backtrack_len());
     iter.set_glyph_data(0);
-    iter.enable_matching(match_func);
 
     for _ in 0..backtrack_len {
         let mut unsafe_from = 0;
@@ -167,17 +166,16 @@ pub fn match_backtrack(
 pub fn match_lookahead(
     ctx: &mut hb_ot_apply_context_t,
     lookahead_len: u16,
-    match_func: &match_func_t,
+    match_func: impl Fn(GlyphId, u16) -> bool,
     start_index: usize,
     end_index: &mut usize,
 ) -> bool {
     // Function should always be called with a non-zero starting index
     // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
     assert!(start_index >= 1);
-    let mut iter = skipping_iterator_t::new(ctx, true);
+    let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
     iter.reset(start_index - 1);
     iter.set_glyph_data(0);
-    iter.enable_matching(match_func);
 
     for _ in 0..lookahead_len {
         let mut unsafe_to = 0;
@@ -212,9 +210,7 @@ enum may_skip_t {
     SKIP_MAYBE,
 }
 
-pub type match_func_t<'a> = dyn Fn(GlyphId, u16) -> bool + 'a;
-
-struct matcher_t<'a> {
+struct matcher_t<F> {
     lookup_props: u32,
     mask: hb_mask_t,
     ignore_zwnj: bool,
@@ -222,28 +218,16 @@ struct matcher_t<'a> {
     ignore_hidden: bool,
     per_syllable: bool,
     syllable: u8,
-    matching: Option<&'a match_func_t<'a>>,
+    match_func: Option<F>,
 }
 
-impl Default for matcher_t<'_> {
-    fn default() -> Self {
+impl<F> matcher_t<F>
+where
+    F: Fn(GlyphId, u16) -> bool,
+{
+    fn new(ctx: &hb_ot_apply_context_t, context_match: bool, match_func: Option<F>) -> Self {
         matcher_t {
-            lookup_props: 0,
-            mask: u32::MAX,
-            ignore_zwnj: false,
-            ignore_zwj: false,
-            ignore_hidden: false,
-            per_syllable: false,
-            syllable: 0,
-            matching: None,
-        }
-    }
-}
-
-impl<'a> matcher_t<'a> {
-    fn new<'b>(ctx: &hb_ot_apply_context_t<'a, 'b>, context_match: bool) -> Self {
-        matcher_t {
-            matching: None,
+            match_func,
             lookup_props: ctx.lookup_props,
             // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
             ignore_zwnj: ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj),
@@ -269,7 +253,7 @@ impl<'a> matcher_t<'a> {
             return may_match_t::MATCH_NO;
         }
 
-        if let Some(match_func) = self.matching {
+        if let Some(match_func) = &self.match_func {
             return if match_func(info.as_glyph(), glyph_data) {
                 may_match_t::MATCH_YES
             } else {
@@ -303,24 +287,37 @@ impl<'a> matcher_t<'a> {
 // we cannot copy this approach. Because of this, we basically create a new skipping iterator
 // when needed, and we do not have `init` method that exist in harfbuzz. This has a performance
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
-pub struct skipping_iterator_t<'a, 'b> {
+pub struct skipping_iterator_t<'a, 'b, F> {
     buffer: &'a hb_buffer_t,
     face: &'a hb_font_t<'b>,
-    matcher: matcher_t<'a>,
+    matcher: matcher_t<F>,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
 }
 
-impl<'a, 'b> skipping_iterator_t<'a, 'b> {
+impl<'a, 'b> skipping_iterator_t<'a, 'b, fn(GlyphId, u16) -> bool> {
     pub fn new(ctx: &'a hb_ot_apply_context_t<'a, 'b>, context_match: bool) -> Self {
+        Self::with_match_fn(ctx, context_match, None)
+    }
+}
+
+impl<'a, 'b, F> skipping_iterator_t<'a, 'b, F>
+where
+    F: Fn(GlyphId, u16) -> bool,
+{
+    pub fn with_match_fn(
+        ctx: &'a hb_ot_apply_context_t<'a, 'b>,
+        context_match: bool,
+        match_fn: Option<F>,
+    ) -> Self {
         skipping_iterator_t {
             buffer: ctx.buffer,
             face: ctx.face,
             glyph_data: 0,
             buf_len: ctx.buffer.len,
             buf_idx: 0,
-            matcher: matcher_t::new(ctx, context_match),
+            matcher: matcher_t::new(ctx, context_match, match_fn),
         }
     }
 
@@ -334,10 +331,6 @@ impl<'a, 'b> skipping_iterator_t<'a, 'b> {
 
     pub fn set_lookup_props(&mut self, lookup_props: u32) {
         self.matcher.lookup_props = lookup_props;
-    }
-
-    pub fn enable_matching(&mut self, func: &'a match_func_t<'a>) {
-        self.matcher.matching = Some(func);
     }
 
     pub fn index(&self) -> usize {
