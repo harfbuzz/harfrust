@@ -175,7 +175,12 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
     while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
         let cur = ctx.buffer.cur(0);
         if (cur.mask & ctx.lookup_mask()) != 0
-            && check_glyph_property(cur, ctx.lookup_props(), ctx.mark_filter())
+            && check_glyph_property(
+                cur,
+                ctx.lookup_props(),
+                &mut ctx.mark_filter,
+                &ctx.face.ot_tables,
+            )
             && lookup.apply(ctx, &mut cache).is_some()
         {
             ret = true;
@@ -198,7 +203,12 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
     loop {
         let cur = ctx.buffer.cur(0);
         ret |= (cur.mask & ctx.lookup_mask()) != 0
-            && check_glyph_property(cur, ctx.lookup_props(), ctx.mark_filter())
+            && check_glyph_property(
+                cur,
+                ctx.lookup_props(),
+                &mut ctx.mark_filter,
+                &ctx.face.ot_tables,
+            )
             && lookup.apply(ctx, &mut cache).is_some();
 
         if ctx.buffer.idx == 0 {

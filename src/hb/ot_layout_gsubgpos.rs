@@ -215,19 +215,16 @@ enum may_skip_t {
 pub enum MarkFilter<'a> {
     #[default]
     None,
+    FilteringSetIndex(u16),
     FilteringSet(hb_set_digest_t, CoverageTable<'a>),
     AttachmentType(u16),
 }
 
-impl<'a> MarkFilter<'a> {
-    pub fn new<'b>(ctx: &hb_ot_apply_context_t<'b, 'a>, lookup_props: u32) -> Self {
+impl MarkFilter<'_> {
+    pub fn new(lookup_props: u32) -> Self {
         if (lookup_props as u16) & lookup_flags::USE_MARK_FILTERING_SET != 0 {
             let set_index = (lookup_props >> 16) as u16;
-            ctx.face
-                .ot_tables
-                .mark_set_digest_and_coverage(set_index)
-                .map(|(digest, coverage)| MarkFilter::FilteringSet(digest, coverage))
-                .unwrap_or_default()
+            Self::FilteringSetIndex(set_index)
         } else if (lookup_props as u16) & lookup_flags::MARK_ATTACHMENT_TYPE_MASK != 0 {
             MarkFilter::AttachmentType(
                 (lookup_props as u16) & lookup_flags::MARK_ATTACHMENT_TYPE_MASK,
@@ -299,8 +296,17 @@ where
         may_match_t::MATCH_MAYBE
     }
 
-    fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
-        if !check_glyph_property(info, self.lookup_props, &self.mark_filter) {
+    fn may_skip<'b>(
+        &mut self,
+        info: &hb_glyph_info_t,
+        ctx: &hb_ot_apply_context_t<'a, 'b>,
+    ) -> may_skip_t {
+        if !check_glyph_property(
+            info,
+            self.lookup_props,
+            &mut self.mark_filter,
+            &ctx.face.ot_tables,
+        ) {
             return may_skip_t::SKIP_YES;
         }
 
@@ -322,31 +328,31 @@ where
 // we cannot copy this approach. Because of this, we basically create a new skipping iterator
 // when needed, and we do not have `init` method that exist in harfbuzz. This has a performance
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
-pub struct skipping_iterator_t<'a, F> {
-    buffer: &'a hb_buffer_t,
+pub struct skipping_iterator_t<'a, 'b, F> {
+    ctx: &'a hb_ot_apply_context_t<'a, 'b>,
     matcher: matcher_t<'a, F>,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
 }
 
-impl<'a> skipping_iterator_t<'a, fn(GlyphId, u16) -> bool> {
-    pub fn new<'b>(ctx: &'a hb_ot_apply_context_t<'a, 'b>, context_match: bool) -> Self {
+impl<'a, 'b> skipping_iterator_t<'a, 'b, fn(GlyphId, u16) -> bool> {
+    pub fn new(ctx: &'a hb_ot_apply_context_t<'a, 'b>, context_match: bool) -> Self {
         Self::with_match_fn(ctx, context_match, None)
     }
 }
 
-impl<'a, F> skipping_iterator_t<'a, F>
+impl<'a, 'b, F> skipping_iterator_t<'a, 'b, F>
 where
     F: Fn(GlyphId, u16) -> bool,
 {
-    pub fn with_match_fn<'b>(
+    pub fn with_match_fn(
         ctx: &'a hb_ot_apply_context_t<'a, 'b>,
         context_match: bool,
         match_fn: Option<F>,
     ) -> Self {
         skipping_iterator_t {
-            buffer: ctx.buffer,
+            ctx,
             glyph_data: 0,
             buf_len: ctx.buffer.len,
             buf_idx: 0,
@@ -362,9 +368,9 @@ where
         self.glyph_data += 1;
     }
 
-    pub fn set_lookup_props<'b>(&mut self, lookup_props: u32, ctx: &hb_ot_apply_context_t<'b, 'a>) {
+    pub fn set_lookup_props(&mut self, lookup_props: u32) {
         self.matcher.lookup_props = lookup_props;
-        self.matcher.mark_filter = MarkFilter::new(ctx, lookup_props);
+        self.matcher.mark_filter = MarkFilter::new(lookup_props);
     }
 
     pub fn index(&self) -> usize {
@@ -377,7 +383,7 @@ where
 
         while (self.buf_idx as i32) < stop {
             self.buf_idx += 1;
-            let info = &self.buffer.info[self.buf_idx];
+            let info = &self.ctx.buffer.info[self.buf_idx];
 
             match self.match_(info) {
                 match_t::MATCH => {
@@ -408,7 +414,7 @@ where
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
-            let info = &self.buffer.out_info()[self.buf_idx];
+            let info = &self.ctx.buffer.out_info()[self.buf_idx];
 
             match self.match_(info) {
                 match_t::MATCH => {
@@ -437,9 +443,9 @@ where
 
     pub fn reset(&mut self, start_index: usize) {
         self.buf_idx = start_index;
-        self.buf_len = self.buffer.len;
-        self.matcher.syllable = if self.buf_idx == self.buffer.idx {
-            self.buffer.cur(0).syllable()
+        self.buf_len = self.ctx.buffer.len;
+        self.matcher.syllable = if self.buf_idx == self.ctx.buffer.idx {
+            self.ctx.buffer.cur(0).syllable()
         } else {
             0
         };
@@ -450,13 +456,13 @@ where
         self.buf_idx = start_index;
     }
 
-    fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
-        self.matcher.may_skip(info)
+    fn may_skip(&mut self, info: &hb_glyph_info_t) -> may_skip_t {
+        self.matcher.may_skip(info, self.ctx)
     }
 
     #[inline]
-    pub fn match_(&self, info: &hb_glyph_info_t) -> match_t {
-        let skip = self.matcher.may_skip(info);
+    pub fn match_(&mut self, info: &hb_glyph_info_t) -> match_t {
+        let skip = self.matcher.may_skip(info, self.ctx);
 
         if skip == may_skip_t::SKIP_YES {
             return match_t::SKIP;
@@ -634,12 +640,13 @@ pub struct WouldApplyContext<'a> {
 
 pub mod OT {
     use super::*;
-    use crate::hb::set_digest::hb_set_digest_t;
+    use crate::hb::{ot::OtTables, set_digest::hb_set_digest_t};
 
-    pub fn check_glyph_property(
+    pub fn check_glyph_property<'a>(
         info: &hb_glyph_info_t,
         match_props: u32,
-        mark_filter: &MarkFilter,
+        mark_filter: &mut MarkFilter<'a>,
+        ot_tables: &OtTables<'a>,
     ) -> bool {
         let glyph_props = info.glyph_props();
 
@@ -655,6 +662,21 @@ pub mod OT {
         if glyph_props & GlyphPropsFlags::MARK.bits() != 0 {
             match mark_filter {
                 MarkFilter::None => {}
+                MarkFilter::FilteringSetIndex(set_index) => {
+                    if let Some((digest, coverage)) =
+                        ot_tables.mark_set_digest_and_coverage(*set_index)
+                    {
+                        *mark_filter = MarkFilter::FilteringSet(digest.clone(), coverage.clone());
+                        let gid = info.as_glyph();
+                        if digest.may_have_glyph(gid) {
+                            return coverage.get(gid).is_some();
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        *mark_filter = MarkFilter::None;
+                    }
+                }
                 MarkFilter::FilteringSet(digest, coverage) => {
                     let gid = info.as_glyph();
                     if digest.may_have_glyph(gid) {
@@ -680,7 +702,7 @@ pub mod OT {
         pub per_syllable: bool,
         pub lookup_index: u16,
         lookup_props: u32,
-        mark_filter: MarkFilter<'b>,
+        pub mark_filter: MarkFilter<'b>,
         pub nesting_level_left: usize,
         pub auto_zwnj: bool,
         pub auto_zwj: bool,
@@ -744,7 +766,7 @@ pub mod OT {
 
         pub fn set_lookup_props(&mut self, lookup_props: u32) {
             self.lookup_props = lookup_props;
-            self.mark_filter = MarkFilter::new(self, lookup_props);
+            self.mark_filter = MarkFilter::new(lookup_props);
         }
 
         pub fn recurse(&mut self, sub_lookup_index: u16) -> Option<()> {
