@@ -456,7 +456,7 @@ where
         self.buf_idx = start_index;
     }
 
-    fn may_skip(&mut self, info: &hb_glyph_info_t) -> may_skip_t {
+    pub fn may_skip(&mut self, info: &hb_glyph_info_t) -> may_skip_t {
         self.matcher.may_skip(info, self.ctx)
     }
 
