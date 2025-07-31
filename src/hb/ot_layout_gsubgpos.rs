@@ -216,6 +216,7 @@ pub enum MarkFilter<'a> {
     #[default]
     None,
     FilteringSetIndex(u16),
+    FilteringSetDigest(hb_set_digest_t, u16),
     FilteringSet(hb_set_digest_t, CoverageTable<'a>),
     AttachmentType(u16),
 }
@@ -369,8 +370,10 @@ where
     }
 
     pub fn set_lookup_props(&mut self, lookup_props: u32) {
-        self.matcher.lookup_props = lookup_props;
-        self.matcher.mark_filter = MarkFilter::new(lookup_props);
+        if lookup_props != self.matcher.lookup_props {
+            self.matcher.lookup_props = lookup_props;
+            self.matcher.mark_filter = MarkFilter::new(lookup_props);
+        }
     }
 
     pub fn index(&self) -> usize {
@@ -642,6 +645,7 @@ pub mod OT {
     use super::*;
     use crate::hb::{ot::OtTables, set_digest::hb_set_digest_t};
 
+    #[inline(always)]
     pub fn check_glyph_property<'a>(
         info: &hb_glyph_info_t,
         match_props: u32,
@@ -663,27 +667,43 @@ pub mod OT {
             match mark_filter {
                 MarkFilter::None => {}
                 MarkFilter::FilteringSetIndex(set_index) => {
-                    if let Some((digest, coverage)) =
-                        ot_tables.mark_set_digest_and_coverage(*set_index)
-                    {
-                        *mark_filter = MarkFilter::FilteringSet(digest.clone(), coverage.clone());
+                    let set_index = *set_index;
+                    if let Some(digest) = ot_tables.mark_set_digest(set_index) {
                         let gid = info.as_glyph();
+                        *mark_filter = MarkFilter::FilteringSetDigest(digest.clone(), set_index);
                         if digest.may_have_glyph(gid) {
-                            return coverage.get(gid).is_some();
-                        } else {
-                            return false;
+                            if let Some(coverage) = ot_tables.mark_set(set_index) {
+                                *mark_filter =
+                                    MarkFilter::FilteringSet(digest.clone(), coverage.clone());
+                                return coverage.get(gid).is_some();
+                            } else {
+                                *mark_filter = MarkFilter::None;
+                            }
                         }
                     } else {
                         *mark_filter = MarkFilter::None;
                     }
+                    return false;
+                }
+                MarkFilter::FilteringSetDigest(digest, set_index) => {
+                    let gid = info.as_glyph();
+                    if digest.may_have_glyph(gid) {
+                        if let Some(coverage) = ot_tables.mark_set(*set_index) {
+                            *mark_filter =
+                                MarkFilter::FilteringSet(digest.clone(), coverage.clone());
+                            return coverage.get(gid).is_some();
+                        } else {
+                            *mark_filter = MarkFilter::None;
+                        }
+                    }
+                    return false;
                 }
                 MarkFilter::FilteringSet(digest, coverage) => {
                     let gid = info.as_glyph();
                     if digest.may_have_glyph(gid) {
                         return coverage.get(gid).is_some();
-                    } else {
-                        return false;
                     }
+                    return false;
                 }
                 MarkFilter::AttachmentType(mark_type) => {
                     return *mark_type == (glyph_props & lookup_flags::MARK_ATTACHMENT_TYPE_MASK)

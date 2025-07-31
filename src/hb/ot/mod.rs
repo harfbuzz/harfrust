@@ -187,6 +187,10 @@ impl<'a> OtTables<'a> {
             .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
     }
 
+    pub fn mark_set_digest(&self, set_index: u16) -> Option<hb_set_digest_t> {
+        self.gdef_mark_set_digests.get(set_index as usize).cloned()
+    }
+
     pub fn mark_set(&self, set_index: u16) -> Option<CoverageTable<'a>> {
         self.gdef
             .mark_sets
