@@ -203,7 +203,7 @@ enum may_match_t {
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
-enum may_skip_t {
+pub enum may_skip_t {
     SKIP_NO,
     SKIP_YES,
     SKIP_MAYBE,
@@ -415,7 +415,7 @@ where
         self.buf_idx = start_index;
     }
 
-    fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
+    pub fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
         self.matcher.may_skip(info, self.face)
     }
 
