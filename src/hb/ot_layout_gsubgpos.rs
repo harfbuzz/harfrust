@@ -622,9 +622,6 @@ pub mod OT {
             // match_props has the set index.
             if lookup_flags & lookup_flags::USE_MARK_FILTERING_SET != 0 {
                 let set_index = (match_props >> 16) as u16;
-                // TODO: harfbuzz uses a digest here to speed things up if HB_NO_GDEF_CACHE
-                // is enabled. But a bit harder to implement for us since it's taken care of by
-                // ttf-parser
                 return face
                     .ot_tables
                     .is_mark_glyph(info.as_glyph().to_u32(), set_index);
