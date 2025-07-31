@@ -88,11 +88,13 @@ impl Apply for CursivePosFormat1<'_> {
         let mut y_offset = entry_y - exit_y;
 
         // Low bits are lookup flags, so we want to truncate.
-        if ctx.lookup_props as u16 & lookup_flags::RIGHT_TO_LEFT == 0 {
+        if ctx.lookup_props() as u16 & lookup_flags::RIGHT_TO_LEFT == 0 {
             core::mem::swap(&mut child, &mut parent);
             x_offset = -x_offset;
             y_offset = -y_offset;
         }
+
+        let pos = &mut ctx.buffer.pos;
 
         // If child was already connected to someone else, walk through its old
         // chain and reverse the link direction, such that the whole tree of its

@@ -152,7 +152,7 @@ impl Apply for MarkMarkPosFormat1<'_> {
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset_fast(buffer.idx);
-        iter.set_lookup_props(ctx.lookup_props & !u32::from(lookup_flags::IGNORE_FLAGS));
+        iter.set_lookup_props(ctx.lookup_props() & !u32::from(lookup_flags::IGNORE_FLAGS));
 
         let mut unsafe_from = 0;
         if !iter.prev(Some(&mut unsafe_from)) {

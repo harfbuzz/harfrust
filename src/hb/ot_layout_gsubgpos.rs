@@ -6,9 +6,11 @@ use super::hb_font_t;
 use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
+use super::set_digest::hb_set_digest_t;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use read_fonts::tables::layout::SequenceLookupRecord;
+use read_fonts::tables::varc::CoverageTable;
 use read_fonts::types::GlyphId;
 
 /// Value represents glyph id.
@@ -209,7 +211,32 @@ pub enum may_skip_t {
     SKIP_MAYBE,
 }
 
-struct matcher_t<F> {
+#[derive(Clone, Default)]
+pub enum MarkFilter<'a> {
+    #[default]
+    None,
+    FilteringSetIndex(u16),
+    FilteringSetDigest(hb_set_digest_t, u16),
+    FilteringSet(hb_set_digest_t, CoverageTable<'a>),
+    AttachmentType(u16),
+}
+
+impl MarkFilter<'_> {
+    pub fn new(lookup_props: u32) -> Self {
+        if (lookup_props as u16) & lookup_flags::USE_MARK_FILTERING_SET != 0 {
+            let set_index = (lookup_props >> 16) as u16;
+            Self::FilteringSetIndex(set_index)
+        } else if (lookup_props as u16) & lookup_flags::MARK_ATTACHMENT_TYPE_MASK != 0 {
+            MarkFilter::AttachmentType(
+                (lookup_props as u16) & lookup_flags::MARK_ATTACHMENT_TYPE_MASK,
+            )
+        } else {
+            MarkFilter::None
+        }
+    }
+}
+
+struct matcher_t<'a, F> {
     lookup_props: u32,
     mask: hb_mask_t,
     ignore_zwnj: bool,
@@ -217,17 +244,23 @@ struct matcher_t<F> {
     ignore_hidden: bool,
     per_syllable: bool,
     syllable: u8,
+    mark_filter: MarkFilter<'a>,
     match_func: Option<F>,
 }
 
-impl<F> matcher_t<F>
+impl<'a, F> matcher_t<'a, F>
 where
     F: Fn(GlyphId, u16) -> bool,
 {
-    fn new(ctx: &hb_ot_apply_context_t, context_match: bool, match_func: Option<F>) -> Self {
+    fn new<'b>(
+        ctx: &hb_ot_apply_context_t<'a, 'b>,
+        context_match: bool,
+        match_func: Option<F>,
+    ) -> Self {
+        let mark_filter = ctx.mark_filter().clone();
         matcher_t {
             match_func,
-            lookup_props: ctx.lookup_props,
+            lookup_props: ctx.lookup_props(),
             // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
             ignore_zwnj: ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj),
             // Ignore ZWJ if we are matching context, or asked to.
@@ -242,6 +275,7 @@ where
             /* Per syllable matching is only for GSUB. */
             per_syllable: ctx.table_index == TableIndex::GSUB && ctx.per_syllable,
             syllable: 0,
+            mark_filter,
         }
     }
 
@@ -263,8 +297,17 @@ where
         may_match_t::MATCH_MAYBE
     }
 
-    fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t) -> may_skip_t {
-        if !check_glyph_property(face, info, self.lookup_props) {
+    fn may_skip<'b>(
+        &mut self,
+        info: &hb_glyph_info_t,
+        ctx: &hb_ot_apply_context_t<'a, 'b>,
+    ) -> may_skip_t {
+        if !check_glyph_property(
+            info,
+            self.lookup_props,
+            &mut self.mark_filter,
+            &ctx.face.ot_tables,
+        ) {
             return may_skip_t::SKIP_YES;
         }
 
@@ -287,9 +330,8 @@ where
 // when needed, and we do not have `init` method that exist in harfbuzz. This has a performance
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
 pub struct skipping_iterator_t<'a, 'b, F> {
-    buffer: &'a hb_buffer_t,
-    face: &'a hb_font_t<'b>,
-    matcher: matcher_t<F>,
+    ctx: &'a hb_ot_apply_context_t<'a, 'b>,
+    matcher: matcher_t<'a, F>,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
@@ -311,8 +353,7 @@ where
         match_fn: Option<F>,
     ) -> Self {
         skipping_iterator_t {
-            buffer: ctx.buffer,
-            face: ctx.face,
+            ctx,
             glyph_data: 0,
             buf_len: ctx.buffer.len,
             buf_idx: 0,
@@ -329,7 +370,10 @@ where
     }
 
     pub fn set_lookup_props(&mut self, lookup_props: u32) {
-        self.matcher.lookup_props = lookup_props;
+        if lookup_props != self.matcher.lookup_props {
+            self.matcher.lookup_props = lookup_props;
+            self.matcher.mark_filter = MarkFilter::new(lookup_props);
+        }
     }
 
     pub fn index(&self) -> usize {
@@ -342,7 +386,7 @@ where
 
         while (self.buf_idx as i32) < stop {
             self.buf_idx += 1;
-            let info = &self.buffer.info[self.buf_idx];
+            let info = &self.ctx.buffer.info[self.buf_idx];
 
             match self.match_(info) {
                 match_t::MATCH => {
@@ -373,7 +417,7 @@ where
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
-            let info = &self.buffer.out_info()[self.buf_idx];
+            let info = &self.ctx.buffer.out_info()[self.buf_idx];
 
             match self.match_(info) {
                 match_t::MATCH => {
@@ -402,9 +446,9 @@ where
 
     pub fn reset(&mut self, start_index: usize) {
         self.buf_idx = start_index;
-        self.buf_len = self.buffer.len;
-        self.matcher.syllable = if self.buf_idx == self.buffer.idx {
-            self.buffer.cur(0).syllable()
+        self.buf_len = self.ctx.buffer.len;
+        self.matcher.syllable = if self.buf_idx == self.ctx.buffer.idx {
+            self.ctx.buffer.cur(0).syllable()
         } else {
             0
         };
@@ -415,13 +459,13 @@ where
         self.buf_idx = start_index;
     }
 
-    pub fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
-        self.matcher.may_skip(info, self.face)
+    pub fn may_skip(&mut self, info: &hb_glyph_info_t) -> may_skip_t {
+        self.matcher.may_skip(info, self.ctx)
     }
 
     #[inline]
-    pub fn match_(&self, info: &hb_glyph_info_t) -> match_t {
-        let skip = self.matcher.may_skip(info, self.face);
+    pub fn match_(&mut self, info: &hb_glyph_info_t) -> match_t {
+        let skip = self.matcher.may_skip(info, self.ctx);
 
         if skip == may_skip_t::SKIP_YES {
             return match_t::SKIP;
@@ -599,12 +643,14 @@ pub struct WouldApplyContext<'a> {
 
 pub mod OT {
     use super::*;
-    use crate::hb::set_digest::hb_set_digest_t;
+    use crate::hb::{ot::OtTables, set_digest::hb_set_digest_t};
 
-    pub fn check_glyph_property(
-        face: &hb_font_t,
+    #[inline(always)]
+    pub fn check_glyph_property<'a>(
         info: &hb_glyph_info_t,
         match_props: u32,
+        mark_filter: &mut MarkFilter<'a>,
+        ot_tables: &OtTables<'a>,
     ) -> bool {
         let glyph_props = info.glyph_props();
 
@@ -618,21 +664,50 @@ pub mod OT {
         }
 
         if glyph_props & GlyphPropsFlags::MARK.bits() != 0 {
-            // If using mark filtering sets, the high short of
-            // match_props has the set index.
-            if lookup_flags & lookup_flags::USE_MARK_FILTERING_SET != 0 {
-                let set_index = (match_props >> 16) as u16;
-                return face
-                    .ot_tables
-                    .is_mark_glyph(info.as_glyph().to_u32(), set_index);
-            }
-
-            // The second byte of match_props has the meaning
-            // "ignore marks of attachment type different than
-            // the attachment type specified."
-            if lookup_flags & lookup_flags::MARK_ATTACHMENT_TYPE_MASK != 0 {
-                return (lookup_flags & lookup_flags::MARK_ATTACHMENT_TYPE_MASK)
-                    == (glyph_props & lookup_flags::MARK_ATTACHMENT_TYPE_MASK);
+            match mark_filter {
+                MarkFilter::None => {}
+                MarkFilter::FilteringSetIndex(set_index) => {
+                    let set_index = *set_index;
+                    if let Some(digest) = ot_tables.mark_set_digest(set_index) {
+                        let gid = info.as_glyph();
+                        *mark_filter = MarkFilter::FilteringSetDigest(digest.clone(), set_index);
+                        if digest.may_have_glyph(gid) {
+                            if let Some(coverage) = ot_tables.mark_set(set_index) {
+                                *mark_filter =
+                                    MarkFilter::FilteringSet(digest.clone(), coverage.clone());
+                                return coverage.get(gid).is_some();
+                            } else {
+                                *mark_filter = MarkFilter::None;
+                            }
+                        }
+                    } else {
+                        *mark_filter = MarkFilter::None;
+                    }
+                    return false;
+                }
+                MarkFilter::FilteringSetDigest(digest, set_index) => {
+                    let gid = info.as_glyph();
+                    if digest.may_have_glyph(gid) {
+                        if let Some(coverage) = ot_tables.mark_set(*set_index) {
+                            *mark_filter =
+                                MarkFilter::FilteringSet(digest.clone(), coverage.clone());
+                            return coverage.get(gid).is_some();
+                        } else {
+                            *mark_filter = MarkFilter::None;
+                        }
+                    }
+                    return false;
+                }
+                MarkFilter::FilteringSet(digest, coverage) => {
+                    let gid = info.as_glyph();
+                    if digest.may_have_glyph(gid) {
+                        return coverage.get(gid).is_some();
+                    }
+                    return false;
+                }
+                MarkFilter::AttachmentType(mark_type) => {
+                    return *mark_type == (glyph_props & lookup_flags::MARK_ATTACHMENT_TYPE_MASK)
+                }
             }
         }
 
@@ -646,7 +721,8 @@ pub mod OT {
         lookup_mask: hb_mask_t,
         pub per_syllable: bool,
         pub lookup_index: u16,
-        pub lookup_props: u32,
+        lookup_props: u32,
+        pub mark_filter: MarkFilter<'b>,
         pub nesting_level_left: usize,
         pub auto_zwnj: bool,
         pub auto_zwj: bool,
@@ -672,6 +748,7 @@ pub mod OT {
                 per_syllable: false,
                 lookup_index: u16::MAX,
                 lookup_props: 0,
+                mark_filter: MarkFilter::None,
                 nesting_level_left: MAX_NESTING_LEVEL,
                 auto_zwnj: true,
                 auto_zwj: true,
@@ -699,6 +776,19 @@ pub mod OT {
             self.lookup_mask
         }
 
+        pub fn lookup_props(&self) -> u32 {
+            self.lookup_props
+        }
+
+        pub fn mark_filter(&self) -> &MarkFilter<'b> {
+            &self.mark_filter
+        }
+
+        pub fn set_lookup_props(&mut self, lookup_props: u32) {
+            self.lookup_props = lookup_props;
+            self.mark_filter = MarkFilter::new(lookup_props);
+        }
+
         pub fn recurse(&mut self, sub_lookup_index: u16) -> Option<()> {
             if self.nesting_level_left == 0 {
                 self.buffer.shaping_failed = true;
@@ -713,6 +803,7 @@ pub mod OT {
 
             self.nesting_level_left -= 1;
             let saved_props = self.lookup_props;
+            let saved_mark_set = self.mark_filter.clone();
             let saved_index = self.lookup_index;
 
             self.lookup_index = sub_lookup_index;
@@ -722,10 +813,11 @@ pub mod OT {
                 .subtable_cache_for_index(self.table_index, sub_lookup_index)
                 .and_then(|mut cache| {
                     let lookup = cache.lookup().clone();
-                    self.lookup_props = lookup.props();
+                    self.set_lookup_props(lookup.props());
                     lookup.apply(self, &mut cache)
                 });
             self.lookup_props = saved_props;
+            self.mark_filter = saved_mark_set;
             self.lookup_index = saved_index;
             self.nesting_level_left += 1;
             applied

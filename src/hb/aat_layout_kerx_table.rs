@@ -157,7 +157,7 @@ fn apply_simple_kerning<T: SimpleKerning>(
 ) {
     let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, face, buffer);
     ctx.set_lookup_mask(plan.kern_mask);
-    ctx.lookup_props = u32::from(lookup_flags::IGNORE_FLAGS);
+    ctx.set_lookup_props(u32::from(lookup_flags::IGNORE_FLAGS));
 
     let horizontal = ctx.buffer.direction.is_horizontal();
     let cross_stream = subtable.is_cross_stream();

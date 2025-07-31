@@ -187,21 +187,26 @@ impl<'a> OtTables<'a> {
             .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
     }
 
-    pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
-        if self
-            .gdef_mark_set_digests
+    pub fn mark_set_digest(&self, set_index: u16) -> Option<hb_set_digest_t> {
+        self.gdef_mark_set_digests.get(set_index as usize).cloned()
+    }
+
+    pub fn mark_set(&self, set_index: u16) -> Option<CoverageTable<'a>> {
+        self.gdef
+            .mark_sets
+            .as_ref()
+            .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
+            .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
+    }
+
+    pub fn mark_set_digest_and_coverage(
+        &self,
+        set_index: u16,
+    ) -> Option<(hb_set_digest_t, CoverageTable<'a>)> {
+        self.gdef_mark_set_digests
             .get(set_index as usize)
-            .is_some_and(|digest| digest.may_have_glyph(glyph_id.into()))
-        {
-            self.gdef
-                .mark_sets
-                .as_ref()
-                .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
-                .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
-                .is_some_and(|coverage| coverage.get(glyph_id).is_some())
-        } else {
-            false
-        }
+            .cloned()
+            .zip(self.mark_set(set_index))
     }
 
     pub fn table_data_and_lookups(
