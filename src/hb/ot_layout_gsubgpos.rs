@@ -205,7 +205,7 @@ enum may_match_t {
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
-enum may_skip_t {
+pub enum may_skip_t {
     SKIP_NO,
     SKIP_YES,
     SKIP_MAYBE,
