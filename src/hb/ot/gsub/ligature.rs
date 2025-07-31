@@ -1,6 +1,7 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    ligate_input, match_glyph, match_input, Apply, WouldApply, WouldApplyContext,
+    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply, WouldApply,
+    WouldApplyContext,
 };
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
@@ -74,9 +75,53 @@ impl WouldApply for LigatureSet<'_> {
 
 impl Apply for LigatureSet<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
-            if lig.apply(ctx).is_some() {
-                return Some(());
+        let mut first = GlyphId::new(u32::MAX);
+        let mut unsafe_to = 0;
+        let slow_path = if self.ligatures().len() <= 4 {
+            true
+        } else {
+            let mut iter = skipping_iterator_t::new(ctx, false);
+            iter.reset(ctx.buffer.idx);
+            let matched = iter.next(Some(&mut unsafe_to));
+            if !matched {
+                true
+            } else {
+                first = ctx.buffer.info[iter.index()].glyph_id.into();
+                unsafe_to = iter.index() + 1;
+
+                // Can't use the fast path if eg. the next char is a default-ignorable
+                // or other skippable.
+                iter.may_skip(&ctx.buffer.info[iter.index()]) != may_skip_t::SKIP_NO
+            }
+        };
+
+        if slow_path {
+            // Slow path
+            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+                if lig.apply(ctx).is_some() {
+                    return Some(());
+                }
+            }
+        } else {
+            // Fast path
+            let mut unsafe_to_concat = false;
+            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+                let components = lig.component_glyph_ids();
+                if components.is_empty() || components[0].get() == first {
+                    if lig.apply(ctx).is_some() {
+                        if unsafe_to_concat {
+                            ctx.buffer
+                                .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+                        }
+                        return Some(());
+                    }
+                } else if !components.is_empty() {
+                    unsafe_to_concat = true;
+                }
+            }
+            if unsafe_to_concat {
+                ctx.buffer
+                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
             }
         }
         None
