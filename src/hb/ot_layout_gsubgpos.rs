@@ -209,34 +209,64 @@ pub enum may_skip_t {
     SKIP_MAYBE,
 }
 
-#[derive(Default)]
+#[derive(Copy, Clone, Default)]
 pub struct matcher_t {
     lookup_props: u32,
     mask: hb_mask_t,
-    ignore_zwnj: bool,
-    ignore_zwj: bool,
-    ignore_hidden: bool,
-    per_syllable: bool,
+    flags: u8,
+    syllable: u8,
 }
 
 impl matcher_t {
+    const IGNORE_ZWNJ: u8 = 1;
+    const IGNORE_ZWJ: u8 = 2;
+    const IGNORE_HIDDEN: u8 = 4;
+    const PER_SYLLABLE: u8 = 8;
+
     fn new(ctx: &hb_ot_apply_context_t, context_match: bool) -> Self {
+        let mut flags = 0;
+        // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
+        if ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj) {
+            flags |= Self::IGNORE_ZWNJ;
+        }
+        // Ignore ZWJ if we are matching context, or asked to.
+        if context_match || ctx.auto_zwj {
+            flags |= Self::IGNORE_ZWJ;
+        }
+        // Ignore hidden glyphs (like CGJ) during GPOS.
+        if ctx.table_index == TableIndex::GPOS {
+            flags |= Self::IGNORE_HIDDEN;
+        }
+        /* Per syllable matching is only for GSUB. */
+        if ctx.table_index == TableIndex::GSUB && ctx.per_syllable {
+            flags |= Self::PER_SYLLABLE;
+        }
         matcher_t {
             lookup_props: ctx.lookup_props,
-            // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
-            ignore_zwnj: ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj),
-            // Ignore ZWJ if we are matching context, or asked to.
-            ignore_zwj: context_match || ctx.auto_zwj,
-            // Ignore hidden glyphs (like CGJ) during GPOS.
-            ignore_hidden: ctx.table_index == TableIndex::GPOS,
             mask: if context_match {
                 u32::MAX
             } else {
                 ctx.lookup_mask()
             },
-            /* Per syllable matching is only for GSUB. */
-            per_syllable: ctx.table_index == TableIndex::GSUB && ctx.per_syllable,
+            flags,
+            syllable: 0,
         }
+    }
+
+    fn ignore_zwnj(&self) -> bool {
+        self.flags & Self::IGNORE_ZWNJ != 0
+    }
+
+    fn ignore_zwj(&self) -> bool {
+        self.flags & Self::IGNORE_ZWJ != 0
+    }
+
+    fn ignore_hidden(&self) -> bool {
+        self.flags & Self::IGNORE_HIDDEN != 0
+    }
+
+    fn per_syllable(&self) -> bool {
+        self.flags & Self::PER_SYLLABLE != 0
     }
 
     fn may_match(
@@ -244,10 +274,9 @@ impl matcher_t {
         info: &hb_glyph_info_t,
         glyph_data: u16,
         match_func: Option<&impl Fn(GlyphId, u16) -> bool>,
-        syllable: u8,
     ) -> may_match_t {
         if (info.mask & self.mask) == 0
-            || (self.per_syllable && syllable != 0 && syllable != info.syllable())
+            || (self.per_syllable() && self.syllable != 0 && self.syllable != info.syllable())
         {
             return may_match_t::MATCH_NO;
         }
@@ -263,15 +292,15 @@ impl matcher_t {
         may_match_t::MATCH_MAYBE
     }
 
-    fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
-        if !check_glyph_property(face, info, lookup_props) {
+    fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t) -> may_skip_t {
+        if !check_glyph_property(face, info, self.lookup_props) {
             return may_skip_t::SKIP_YES;
         }
 
         if _hb_glyph_info_is_default_ignorable(info)
-            && (self.ignore_zwnj || !_hb_glyph_info_is_zwnj(info))
-            && (self.ignore_zwj || !_hb_glyph_info_is_zwj(info))
-            && (self.ignore_hidden || !_hb_glyph_info_is_hidden(info))
+            && (self.ignore_zwnj() || !_hb_glyph_info_is_zwnj(info))
+            && (self.ignore_zwj() || !_hb_glyph_info_is_zwj(info))
+            && (self.ignore_hidden() || !_hb_glyph_info_is_hidden(info))
         {
             return may_skip_t::SKIP_MAYBE;
         }
@@ -289,13 +318,11 @@ impl matcher_t {
 pub struct skipping_iterator_t<'a, 'b, F> {
     buffer: &'a hb_buffer_t,
     face: &'a hb_font_t<'b>,
-    matcher: &'a matcher_t,
+    matcher: matcher_t,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
     match_func: Option<F>,
-    lookup_props: u32,
-    syllable: u8,
 }
 
 impl<'a, 'b> skipping_iterator_t<'a, 'b, fn(GlyphId, u16) -> bool> {
@@ -314,9 +341,9 @@ where
         match_fn: Option<F>,
     ) -> Self {
         let matcher = if context_match {
-            &ctx.context_matcher
+            ctx.context_matcher
         } else {
-            &ctx.matcher
+            ctx.matcher
         };
         skipping_iterator_t {
             buffer: ctx.buffer,
@@ -326,8 +353,6 @@ where
             buf_idx: 0,
             matcher,
             match_func: match_fn,
-            lookup_props: matcher.lookup_props,
-            syllable: 0,
         }
     }
 
@@ -340,7 +365,7 @@ where
     }
 
     pub fn set_lookup_props(&mut self, lookup_props: u32) {
-        self.lookup_props = lookup_props;
+        self.matcher.lookup_props = lookup_props;
     }
 
     pub fn index(&self) -> usize {
@@ -414,7 +439,7 @@ where
     pub fn reset(&mut self, start_index: usize) {
         self.buf_idx = start_index;
         self.buf_len = self.buffer.len;
-        self.syllable = if self.buf_idx == self.buffer.idx {
+        self.matcher.syllable = if self.buf_idx == self.buffer.idx {
             self.buffer.cur(0).syllable()
         } else {
             0
@@ -427,23 +452,20 @@ where
     }
 
     pub fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
-        self.matcher.may_skip(info, self.face, self.lookup_props)
+        self.matcher.may_skip(info, self.face)
     }
 
     #[inline]
     pub fn match_(&self, info: &hb_glyph_info_t) -> match_t {
-        let skip = self.matcher.may_skip(info, self.face, self.lookup_props);
+        let skip = self.matcher.may_skip(info, self.face);
 
         if skip == may_skip_t::SKIP_YES {
             return match_t::SKIP;
         }
 
-        let _match = self.matcher.may_match(
-            info,
-            self.glyph_data,
-            self.match_func.as_ref(),
-            self.syllable,
-        );
+        let _match = self
+            .matcher
+            .may_match(info, self.glyph_data, self.match_func.as_ref());
 
         if _match == may_match_t::MATCH_YES
             || (_match == may_match_t::MATCH_MAYBE && skip == may_skip_t::SKIP_NO)
