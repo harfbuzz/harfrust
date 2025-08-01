@@ -1,6 +1,8 @@
 use crate::hb::{
     hb_font_t,
-    ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t},
+    ot_layout_gsubgpos::{
+        Apply, ApplyWithMatcher, Matcher, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t,
+    },
     set_digest::hb_set_digest_t,
 };
 
@@ -292,6 +294,7 @@ impl LookupInfo {
         &self,
         ctx: &mut hb_ot_apply_context_t<'_, 'b>,
         cache: &mut SubtableCache<'b>,
+        matcher: &mut Matcher,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         if !self.digest.may_have_glyph(glyph) {
@@ -309,7 +312,7 @@ impl LookupInfo {
                 Subtable::SingleSubst2(subtable) => subtable.apply(ctx),
                 Subtable::MultipleSubst1(subtable) => subtable.apply(ctx),
                 Subtable::AlternateSubst1(subtable) => subtable.apply(ctx),
-                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx),
+                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx, matcher),
                 Subtable::ReverseChainContext(subtable) => subtable.apply(ctx),
                 Subtable::SinglePos1(subtable) => subtable.apply(ctx),
                 Subtable::SinglePos2(subtable) => subtable.apply(ctx),

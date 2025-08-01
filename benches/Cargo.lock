@@ -8,7 +8,7 @@ version = "0.1.0"
 dependencies = [
  "harfbuzz_rs",
  "harfrust",
- "read-fonts",
+ "read-fonts 0.29.3",
 ]
 
 [[package]]
@@ -87,7 +87,7 @@ dependencies = [
  "bitflags 2.9.0",
  "bytemuck",
  "core_maths",
- "read-fonts",
+ "read-fonts 0.30.1",
  "smallvec",
 ]
 
@@ -126,6 +126,16 @@ name = "read-fonts"
 version = "0.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04ca636dac446b5664bd16c069c00a9621806895b8bb02c2dc68542b23b8f25d"
+dependencies = [
+ "bytemuck",
+ "font-types",
+]
+
+[[package]]
+name = "read-fonts"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "192735ef611aac958468e670cb98432c925426f3cb71521fda202130f7388d91"
 dependencies = [
  "bytemuck",
  "core_maths",

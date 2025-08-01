@@ -9,7 +9,7 @@ use super::ot_layout_common::*;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use read_fonts::tables::layout::SequenceLookupRecord;
-use read_fonts::types::GlyphId;
+use read_fonts::types::{BigEndian, GlyphId, GlyphId16};
 
 /// Value represents glyph id.
 pub fn match_glyph(glyph: GlyphId, value: u16) -> bool {
@@ -58,9 +58,9 @@ pub fn match_input(
         return false;
     }
 
-    if count > match_positions.len() {
-        match_positions.resize(count, 0);
-    }
+    // if count > match_positions.len() {
+    match_positions.resize(count, 0);
+    // }
 
     let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
     iter.reset(ctx.buffer.idx);
@@ -443,6 +443,233 @@ where
     }
 }
 
+pub type ContextVec<T> = smallvec::SmallVec<[T; 8]>;
+
+pub trait ToU32: Copy {
+    fn to_u32(&self) -> u32;
+}
+
+impl ToU32 for BigEndian<GlyphId16> {
+    fn to_u32(&self) -> u32 {
+        self.get().to_u32()
+    }
+}
+
+pub struct Matcher {
+    context_match: bool,
+    needs_reset: Option<usize>,
+    inner: Option<MatcherInner>,
+}
+
+impl Matcher {
+    pub fn new(context_match: bool) -> Self {
+        Self {
+            context_match,
+            needs_reset: None,
+            inner: None,
+        }
+    }
+
+    pub fn reset(&mut self, start_index: usize) {
+        self.needs_reset = Some(start_index);
+    }
+
+    pub fn match_input<T>(
+        &mut self,
+        ctx: &hb_ot_apply_context_t,
+        input: &[T],
+        end_position: &mut usize,
+        match_positions: &mut smallvec::SmallVec<[usize; 4]>,
+        total_component_count: Option<&mut u8>,
+    ) -> bool
+    where
+        T: ToU32,
+    {
+        let start_index = self.needs_reset.take();
+        let inner = self.inner(ctx);
+        if let Some(start_index) = start_index {
+            inner.reset(ctx, start_index);
+        }
+        inner.match_input(
+            ctx,
+            input,
+            end_position,
+            match_positions,
+            total_component_count,
+        )
+    }
+
+    fn inner(&mut self, ctx: &hb_ot_apply_context_t) -> &mut MatcherInner {
+        self.inner
+            .get_or_insert_with(|| MatcherInner::new(ctx, self.context_match))
+    }
+}
+
+pub struct MatcherInner {
+    cache: ContextVec<(usize, u32, bool, u8)>,
+    lookup_props: u32,
+    mask: hb_mask_t,
+    ignore_zwnj: bool,
+    ignore_zwj: bool,
+    ignore_hidden: bool,
+    per_syllable: bool,
+    syllable: u8,
+    // (id, comp)
+    first_lig_id: u8,
+    first_lig_comp: u8,
+    first_lig_num_comps: u8,
+    checked_lig_base: bool,
+    buf_idx: usize,
+    buf_len: usize,
+    done: bool,
+}
+
+impl MatcherInner {
+    pub fn new(ctx: &hb_ot_apply_context_t, context_match: bool) -> Self {
+        Self {
+            cache: ContextVec::new(),
+            lookup_props: ctx.lookup_props,
+            // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
+            ignore_zwnj: ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj),
+            // Ignore ZWJ if we are matching context, or asked to.
+            ignore_zwj: context_match || ctx.auto_zwj,
+            // Ignore hidden glyphs (like CGJ) during GPOS.
+            ignore_hidden: ctx.table_index == TableIndex::GPOS,
+            mask: if context_match {
+                u32::MAX
+            } else {
+                ctx.lookup_mask()
+            },
+            /* Per syllable matching is only for GSUB. */
+            per_syllable: ctx.table_index == TableIndex::GSUB && ctx.per_syllable,
+            syllable: 0,
+            first_lig_id: 0,
+            first_lig_comp: 0,
+            first_lig_num_comps: 0,
+            checked_lig_base: false,
+            buf_idx: 0,
+            buf_len: 0,
+            done: false,
+        }
+    }
+
+    pub fn reset(&mut self, ctx: &hb_ot_apply_context_t, start_index: usize) {
+        self.cache.clear();
+        self.buf_idx = start_index;
+        self.buf_len = ctx.buffer.len;
+        self.syllable = if self.buf_idx == ctx.buffer.idx {
+            ctx.buffer.cur(0).syllable()
+        } else {
+            0
+        };
+        let first = ctx.buffer.cur(0);
+        self.first_lig_id = _hb_glyph_info_get_lig_id(first);
+        self.first_lig_comp = _hb_glyph_info_get_lig_num_comps(first);
+        self.first_lig_num_comps = _hb_glyph_info_get_lig_num_comps(first);
+        self.checked_lig_base = false;
+        self.done = false;
+    }
+
+    pub fn match_input<T>(
+        &mut self,
+        ctx: &hb_ot_apply_context_t,
+        input: &[T],
+        end_position: &mut usize,
+        match_positions: &mut smallvec::SmallVec<[usize; 4]>,
+        total_component_count: Option<&mut u8>,
+    ) -> bool
+    where
+        T: ToU32,
+    {
+        *end_position = ctx.buffer.idx + 1;
+        match_positions.clear();
+        match_positions.push(ctx.buffer.idx);
+        let mut idx = 0;
+        let mut running_component_count = 0u8;
+        for gid_a in input.iter().map(|glyph| glyph.to_u32()) {
+            loop {
+                let this_idx = idx;
+                idx += 1;
+                if let Some((idx, gid_b, may_skip, comp_count)) = self.cache.get(this_idx).copied()
+                {
+                    *end_position = idx + 1;
+                    if gid_a == gid_b {
+                        match_positions.push(idx);
+                        running_component_count = running_component_count.wrapping_add(comp_count);
+                        break;
+                    }
+                    if !may_skip {
+                        return false;
+                    }
+                } else if let Some((idx, gid_b, may_skip, comp_count)) = self.move_next(ctx) {
+                    *end_position = idx + 1;
+                    if gid_a == gid_b {
+                        match_positions.push(idx);
+                        running_component_count = running_component_count.wrapping_add(comp_count);
+                        break;
+                    }
+                    if !may_skip {
+                        return false;
+                    }
+                } else {
+                    *end_position = self.buf_idx + 1;
+                    return false;
+                }
+            }
+        }
+        if let Some(count) = total_component_count {
+            *count = running_component_count.wrapping_add(self.first_lig_num_comps);
+        }
+        true
+    }
+
+    fn move_next(&mut self, ctx: &hb_ot_apply_context_t) -> Option<(usize, u32, bool, u8)> {
+        if self.done {
+            return None;
+        }
+        let stop = self.buf_len as i32 - 1;
+        while (self.buf_idx as i32) < stop {
+            self.buf_idx += 1;
+            let info = &ctx.buffer.info[self.buf_idx];
+            let may_skip = self.may_skip(ctx, info);
+            match may_skip {
+                may_skip_t::SKIP_YES => continue,
+                may_skip_t::SKIP_NO | may_skip_t::SKIP_MAYBE => {
+                    if info.mask & self.mask == 0
+                        || (self.per_syllable
+                            && self.syllable != 0
+                            && self.syllable != info.syllable())
+                    {
+                        self.done = true;
+                        return None;
+                    }
+                    let gid = info.as_glyph().to_u32();
+                    let may_skip = may_skip == may_skip_t::SKIP_MAYBE;
+                    let comp_count = _hb_glyph_info_get_lig_num_comps(info);
+                    self.cache.push((self.buf_idx, gid, may_skip, comp_count));
+                    return Some((self.buf_idx, gid, may_skip, comp_count));
+                }
+            }
+        }
+        self.done = true;
+        None
+    }
+
+    fn may_skip(&self, ctx: &hb_ot_apply_context_t, info: &hb_glyph_info_t) -> may_skip_t {
+        if !check_glyph_property(&ctx.face, info, self.lookup_props) {
+            may_skip_t::SKIP_YES
+        } else if _hb_glyph_info_is_default_ignorable(info)
+            && (self.ignore_zwnj || !_hb_glyph_info_is_zwnj(info))
+            && (self.ignore_zwj || !_hb_glyph_info_is_zwj(info))
+            && (self.ignore_hidden || !_hb_glyph_info_is_hidden(info))
+        {
+            may_skip_t::SKIP_MAYBE
+        } else {
+            may_skip_t::SKIP_NO
+        }
+    }
+}
+
 pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
@@ -592,6 +819,10 @@ pub trait Apply {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()>;
 }
 
+pub trait ApplyWithMatcher {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, matcher: &mut Matcher) -> Option<()>;
+}
+
 pub struct WouldApplyContext<'a> {
     pub glyphs: &'a [GlyphId],
     pub zero_context: bool,
@@ -723,7 +954,9 @@ pub mod OT {
                 .and_then(|mut cache| {
                     let lookup = cache.lookup().clone();
                     self.lookup_props = lookup.props();
-                    lookup.apply(self, &mut cache)
+                    let mut matcher = Matcher::new(false);
+                    matcher.reset(self.buffer.idx);
+                    lookup.apply(self, &mut cache, &mut matcher)
                 });
             self.lookup_props = saved_props;
             self.lookup_index = saved_index;

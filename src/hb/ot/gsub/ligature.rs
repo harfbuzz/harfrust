@@ -1,7 +1,7 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply, WouldApply,
-    WouldApplyContext,
+    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
+    ApplyWithMatcher, Matcher, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
@@ -20,8 +20,8 @@ impl WouldApply for Ligature<'_> {
     }
 }
 
-impl Apply for Ligature<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+impl ApplyWithMatcher for Ligature<'_> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, matcher: &mut Matcher) -> Option<()> {
         // Special-case to make it in-place and not consider this
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
@@ -29,34 +29,64 @@ impl Apply for Ligature<'_> {
             ctx.replace_glyph(self.ligature_glyph().into());
             Some(())
         } else {
-            let f = |glyph, index| {
-                let value = components.get(index as usize).unwrap().get().to_u16();
-                match_glyph(glyph, value)
-            };
+            // let f = |glyph, index| {
+            //     let value = components.get(index as usize).unwrap().get().to_u16();
+            //     match_glyph(glyph, value)
+            // };
 
-            let mut match_end = 0;
-            let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
-            let mut total_component_count = 0;
+            // let mut match_end = 0;
+            // let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+            // let mut total_component_count = 0;
 
-            if !match_input(
+            let mut match_end2 = 0;
+            let mut match_positions2 = smallvec::SmallVec::from_elem(0, 4);
+            let mut total_component_count2 = 0;
+
+            // if !match_input(
+            //     ctx,
+            //     components.len() as u16,
+            //     f,
+            //     &mut match_end,
+            //     &mut match_positions,
+            //     Some(&mut total_component_count),
+            // ) {
+            //     let res2 = matcher.match_input(
+            //         ctx,
+            //         components,
+            //         &mut match_end2,
+            //         &mut match_positions2,
+            //         Some(&mut total_component_count2),
+            //     );
+            //     assert!(!res2);
+            //     assert_eq!(match_end, match_end2);
+            //     ctx.buffer
+            //         .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
+            //     return None;
+            // }
+
+            if !matcher.match_input(
                 ctx,
-                components.len() as u16,
-                f,
-                &mut match_end,
-                &mut match_positions,
-                Some(&mut total_component_count),
+                components,
+                &mut match_end2,
+                &mut match_positions2,
+                Some(&mut total_component_count2),
             ) {
                 ctx.buffer
-                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
+                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end2));
                 return None;
             }
+
+            // assert_eq!(match_end, match_end2);
+            // assert_eq!(match_positions, match_positions2);
+            // assert_eq!(total_component_count, total_component_count2);
+
             let count = components.len() + 1;
             ligate_input(
                 ctx,
                 count,
-                &match_positions,
-                match_end,
-                total_component_count,
+                &match_positions2,
+                match_end2,
+                total_component_count2,
                 self.ligature_glyph().into(),
             );
             Some(())
@@ -73,8 +103,14 @@ impl WouldApply for LigatureSet<'_> {
     }
 }
 
-impl Apply for LigatureSet<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+impl ApplyWithMatcher for LigatureSet<'_> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, matcher: &mut Matcher) -> Option<()> {
+        for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+            if lig.apply(ctx, matcher).is_some() {
+                return Some(());
+            }
+        }
+        return None;
         let mut first = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
         let slow_path = if self.ligatures().len() <= 4 {
@@ -98,7 +134,7 @@ impl Apply for LigatureSet<'_> {
         if slow_path {
             // Slow path
             for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
-                if lig.apply(ctx).is_some() {
+                if lig.apply(ctx, matcher).is_some() {
                     return Some(());
                 }
             }
@@ -108,7 +144,7 @@ impl Apply for LigatureSet<'_> {
             for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
                 let components = lig.component_glyph_ids();
                 if components.is_empty() || components[0].get() == first {
-                    if lig.apply(ctx).is_some() {
+                    if lig.apply(ctx, matcher).is_some() {
                         if unsafe_to_concat {
                             ctx.buffer
                                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -138,13 +174,13 @@ impl WouldApply for LigatureSubstFormat1<'_> {
     }
 }
 
-impl Apply for LigatureSubstFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+impl ApplyWithMatcher for LigatureSubstFormat1<'_> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, matcher: &mut Matcher) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         self.coverage()
             .ok()
             .and_then(|coverage| coverage.get(glyph))
             .and_then(|index| self.ligature_sets().get(index as usize).ok())
-            .and_then(|set| set.apply(ctx))
+            .and_then(|set| set.apply(ctx, matcher))
     }
 }
