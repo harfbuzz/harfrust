@@ -39,6 +39,12 @@ impl hb_set_digest_t {
         Self { masks: [ALL; N] }
     }
 
+    pub fn union(&mut self, other: &Self) {
+        for i in 0..N {
+            self.masks[i] |= other.masks[i];
+        }
+    }
+
     pub fn add(&mut self, g: GlyphId) {
         let gid = g.to_u32();
         for i in 0..N {

@@ -189,7 +189,7 @@ impl LookupCache {
             let subtable = subtable_info.materialize(data.table_data.as_bytes())?;
             let (coverage, coverage_offset) = subtable.coverage_and_offset()?;
             subtable_info.digest.add_coverage(&coverage);
-            entry.digest.add_coverage(&coverage);
+            entry.digest.union(&subtable_info.digest);
             subtable_info.coverage_offset = coverage_offset;
             self.subtables.push(subtable_info);
             entry.subtables_count += 1;
