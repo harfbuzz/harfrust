@@ -143,6 +143,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
     }
 
     ctx.lookup_props = lookup.props();
+    ctx.update_matchers();
 
     if !lookup.is_reverse() {
         // in/out forward substitution/positioning

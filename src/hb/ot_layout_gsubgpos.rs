@@ -209,24 +209,19 @@ pub enum may_skip_t {
     SKIP_MAYBE,
 }
 
-struct matcher_t<F> {
+#[derive(Default)]
+pub struct matcher_t {
     lookup_props: u32,
     mask: hb_mask_t,
     ignore_zwnj: bool,
     ignore_zwj: bool,
     ignore_hidden: bool,
     per_syllable: bool,
-    syllable: u8,
-    match_func: Option<F>,
 }
 
-impl<F> matcher_t<F>
-where
-    F: Fn(GlyphId, u16) -> bool,
-{
-    fn new(ctx: &hb_ot_apply_context_t, context_match: bool, match_func: Option<F>) -> Self {
+impl matcher_t {
+    fn new(ctx: &hb_ot_apply_context_t, context_match: bool) -> Self {
         matcher_t {
-            match_func,
             lookup_props: ctx.lookup_props,
             // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
             ignore_zwnj: ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj),
@@ -241,18 +236,23 @@ where
             },
             /* Per syllable matching is only for GSUB. */
             per_syllable: ctx.table_index == TableIndex::GSUB && ctx.per_syllable,
-            syllable: 0,
         }
     }
 
-    fn may_match(&self, info: &hb_glyph_info_t, glyph_data: u16) -> may_match_t {
+    fn may_match(
+        &self,
+        info: &hb_glyph_info_t,
+        glyph_data: u16,
+        match_func: Option<&impl Fn(GlyphId, u16) -> bool>,
+        syllable: u8,
+    ) -> may_match_t {
         if (info.mask & self.mask) == 0
-            || (self.per_syllable && self.syllable != 0 && self.syllable != info.syllable())
+            || (self.per_syllable && syllable != 0 && syllable != info.syllable())
         {
             return may_match_t::MATCH_NO;
         }
 
-        if let Some(match_func) = &self.match_func {
+        if let Some(match_func) = match_func {
             return if match_func(info.as_glyph(), glyph_data) {
                 may_match_t::MATCH_YES
             } else {
@@ -263,8 +263,8 @@ where
         may_match_t::MATCH_MAYBE
     }
 
-    fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t) -> may_skip_t {
-        if !check_glyph_property(face, info, self.lookup_props) {
+    fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
+        if !check_glyph_property(face, info, lookup_props) {
             return may_skip_t::SKIP_YES;
         }
 
@@ -289,10 +289,13 @@ where
 pub struct skipping_iterator_t<'a, 'b, F> {
     buffer: &'a hb_buffer_t,
     face: &'a hb_font_t<'b>,
-    matcher: matcher_t<F>,
+    matcher: &'a matcher_t,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
+    match_func: Option<F>,
+    lookup_props: u32,
+    syllable: u8,
 }
 
 impl<'a, 'b> skipping_iterator_t<'a, 'b, fn(GlyphId, u16) -> bool> {
@@ -310,13 +313,21 @@ where
         context_match: bool,
         match_fn: Option<F>,
     ) -> Self {
+        let matcher = if context_match {
+            &ctx.context_matcher
+        } else {
+            &ctx.matcher
+        };
         skipping_iterator_t {
             buffer: ctx.buffer,
             face: ctx.face,
             glyph_data: 0,
             buf_len: ctx.buffer.len,
             buf_idx: 0,
-            matcher: matcher_t::new(ctx, context_match, match_fn),
+            matcher,
+            match_func: match_fn,
+            lookup_props: matcher.lookup_props,
+            syllable: 0,
         }
     }
 
@@ -329,7 +340,7 @@ where
     }
 
     pub fn set_lookup_props(&mut self, lookup_props: u32) {
-        self.matcher.lookup_props = lookup_props;
+        self.lookup_props = lookup_props;
     }
 
     pub fn index(&self) -> usize {
@@ -403,7 +414,7 @@ where
     pub fn reset(&mut self, start_index: usize) {
         self.buf_idx = start_index;
         self.buf_len = self.buffer.len;
-        self.matcher.syllable = if self.buf_idx == self.buffer.idx {
+        self.syllable = if self.buf_idx == self.buffer.idx {
             self.buffer.cur(0).syllable()
         } else {
             0
@@ -416,18 +427,23 @@ where
     }
 
     pub fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
-        self.matcher.may_skip(info, self.face)
+        self.matcher.may_skip(info, self.face, self.lookup_props)
     }
 
     #[inline]
     pub fn match_(&self, info: &hb_glyph_info_t) -> match_t {
-        let skip = self.matcher.may_skip(info, self.face);
+        let skip = self.matcher.may_skip(info, self.face, self.lookup_props);
 
         if skip == may_skip_t::SKIP_YES {
             return match_t::SKIP;
         }
 
-        let _match = self.matcher.may_match(info, self.glyph_data);
+        let _match = self.matcher.may_match(
+            info,
+            self.glyph_data,
+            self.match_func.as_ref(),
+            self.syllable,
+        );
 
         if _match == may_match_t::MATCH_YES
             || (_match == may_match_t::MATCH_MAYBE && skip == may_skip_t::SKIP_NO)
@@ -655,6 +671,8 @@ pub mod OT {
         pub last_base: i32,
         pub last_base_until: u32,
         pub digest: hb_set_digest_t,
+        pub(crate) matcher: matcher_t,
+        pub(crate) context_matcher: matcher_t,
     }
 
     impl<'a, 'b> hb_ot_apply_context_t<'a, 'b> {
@@ -680,6 +698,8 @@ pub mod OT {
                 last_base: -1,
                 last_base_until: 0,
                 digest: buffer_digest,
+                matcher: matcher_t::default(),
+                context_matcher: matcher_t::default(),
             }
         }
 
@@ -697,6 +717,11 @@ pub mod OT {
 
         pub fn lookup_mask(&self) -> hb_mask_t {
             self.lookup_mask
+        }
+
+        pub fn update_matchers(&mut self) {
+            self.matcher = matcher_t::new(self, false);
+            self.context_matcher = matcher_t::new(self, true);
         }
 
         pub fn recurse(&mut self, sub_lookup_index: u16) -> Option<()> {
@@ -723,10 +748,12 @@ pub mod OT {
                 .and_then(|mut cache| {
                     let lookup = cache.lookup().clone();
                     self.lookup_props = lookup.props();
+                    self.update_matchers();
                     lookup.apply(self, &mut cache)
                 });
             self.lookup_props = saved_props;
             self.lookup_index = saved_index;
+            self.update_matchers();
             self.nesting_level_left += 1;
             applied
         }

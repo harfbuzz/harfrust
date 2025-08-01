@@ -90,6 +90,7 @@ fn machine_kern(
     let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, face, buffer);
     ctx.set_lookup_mask(kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
+    ctx.update_matchers();
 
     let horizontal = ctx.buffer.direction.is_horizontal();
 
