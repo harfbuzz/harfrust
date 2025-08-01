@@ -105,12 +105,6 @@ impl WouldApply for LigatureSet<'_> {
 
 impl ApplyWithMatcher for LigatureSet<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t, matcher: &mut Matcher) -> Option<()> {
-        for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
-            if lig.apply(ctx, matcher).is_some() {
-                return Some(());
-            }
-        }
-        return None;
         let mut first = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
         let slow_path = if self.ligatures().len() <= 4 {
