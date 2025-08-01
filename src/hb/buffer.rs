@@ -917,11 +917,11 @@ impl hb_buffer_t {
             return;
         }
 
-        let mut cluster = self.info[start].cluster;
-
-        for i in start + 1..end {
-            cluster = min(cluster, self.info[i].cluster);
-        }
+        let cluster = self.info[start..end]
+            .iter()
+            .map(|info| info.cluster)
+            .min()
+            .unwrap();
 
         // Extend end
         if cluster != self.info[end - 1].cluster {
@@ -946,8 +946,8 @@ impl hb_buffer_t {
             }
         }
 
-        for i in start..end {
-            Self::set_cluster(&mut self.info[i], cluster, 0);
+        for info in &mut self.info[start..end] {
+            Self::set_cluster(info, cluster, 0);
         }
     }
 
@@ -960,11 +960,11 @@ impl hb_buffer_t {
             return;
         }
 
-        let mut cluster = self.out_info()[start].cluster;
-
-        for i in start + 1..end {
-            cluster = min(cluster, self.out_info()[i].cluster);
-        }
+        let cluster = self.out_info()[start..end]
+            .iter()
+            .map(|info| info.cluster)
+            .min()
+            .unwrap();
 
         // Extend start
         while start != 0 && self.out_info()[start - 1].cluster == self.out_info()[start].cluster {
@@ -986,8 +986,8 @@ impl hb_buffer_t {
             }
         }
 
-        for i in start..end {
-            Self::set_cluster(&mut self.out_info_mut()[i], cluster, 0);
+        for info in &mut self.out_info_mut()[start..end] {
+            Self::set_cluster(info, cluster, 0);
         }
     }
 
