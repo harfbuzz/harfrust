@@ -145,7 +145,7 @@ impl LookupCache {
             .split_off(data.offset)
             .ok_or(ReadError::OutOfBounds)?;
         let lookup: Lookup<()> = Lookup::read(lookup_data)?;
-        let kind = lookup.lookup_type();
+        let lookup_type = lookup.lookup_type();
         let lookup_flag = lookup.lookup_flag();
         entry.props = u32::from(lookup.lookup_flag().to_bits());
         if lookup_flag.to_bits() & LookupFlag::USE_MARK_FILTERING_SET.to_bits() != 0 {
@@ -163,27 +163,34 @@ impl LookupCache {
             .map_err(|_| ReadError::MalformedData("too many subtables"))?;
         entry.state = LookupState::Ready;
         let mut process_subtable = |mut subtable_offset: usize| {
-            let mut subtable_kind = kind;
-            match (data.is_subst, kind) {
+            let mut subtable_type = lookup_type;
+            match (data.is_subst, lookup_type) {
                 (true, 7) | (false, 9) => {
                     let subtable_data = data
                         .table_data
                         .split_off(subtable_offset)
                         .ok_or(ReadError::OutOfBounds)?;
                     let ext = ExtensionSubstFormat1::<()>::read(subtable_data)?;
-                    subtable_kind = ext.extension_lookup_type();
+                    subtable_type = ext.extension_lookup_type();
                     let ext_offset = ext.extension_offset().to_usize();
                     subtable_offset += ext_offset;
                 }
                 _ => {}
             }
+            let subtable_data = data
+                .table_data
+                .split_off(subtable_offset)
+                .ok_or(ReadError::OutOfBounds)?;
+            let kind = SubtableKind::new(subtable_data, data.is_subst, subtable_type as u8)
+                .ok_or(ReadError::MalformedData("unknown subtable type"))?;
             let mut subtable_info = SubtableInfo {
                 offset: subtable_offset
                     .try_into()
                     .map_err(|_| ReadError::OutOfBounds)?,
                 coverage_offset: 0,
-                is_subst: data.is_subst,
-                lookup_type: subtable_kind as u8,
+                _is_subst: data.is_subst,
+                _lookup_type: subtable_type as u8,
+                kind,
                 digest: hb_set_digest_t::new(),
             };
             let subtable = subtable_info.materialize(data.table_data.as_bytes())?;
@@ -205,17 +212,6 @@ impl LookupCache {
 
     pub fn subtables(&self, entry: &LookupInfo) -> Option<&[SubtableInfo]> {
         self.subtables.get(entry.subtables_range())
-    }
-
-    fn load_subtable<'a>(
-        &self,
-        lookup: &LookupInfo,
-        idx: usize,
-        table_data: &'a [u8],
-    ) -> Option<Subtable<'a>> {
-        self.subtables(lookup)
-            .and_then(|infos| infos.get(idx))
-            .and_then(|info| info.materialize(table_data).ok())
     }
 }
 
@@ -376,6 +372,76 @@ impl LookupInfo {
     }
 }
 
+/// All possible subtables in a lookup.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum SubtableKind {
+    SingleSubst1,
+    SingleSubst2,
+    MultipleSubst1,
+    AlternateSubst1,
+    LigatureSubst1,
+    SinglePos1,
+    SinglePos2,
+    PairPos1,
+    PairPos2,
+    CursivePos1,
+    MarkBasePos1,
+    MarkMarkPos1,
+    MarkLigPos1,
+    ContextFormat1,
+    ContextFormat2,
+    ContextFormat3,
+    ChainedContextFormat1,
+    ChainedContextFormat2,
+    ChainedContextFormat3,
+    ReverseChainContext,
+}
+
+impl SubtableKind {
+    fn new(data: FontData, is_subst: bool, lookup_type: u8) -> Option<Self> {
+        match (is_subst, lookup_type) {
+            (true, 1) => match SingleSubst::read(data).ok()? {
+                SingleSubst::Format1(_) => Some(Self::SingleSubst1),
+                SingleSubst::Format2(_) => Some(Self::SingleSubst2),
+            },
+            (false, 1) => match SinglePos::read(data).ok()? {
+                SinglePos::Format1(_) => Some(Self::SinglePos1),
+                SinglePos::Format2(_) => Some(Self::SinglePos2),
+            },
+            (true, 2) => Some(Self::MultipleSubst1),
+            (false, 2) => match PairPos::read(data).ok()? {
+                PairPos::Format1(_) => Some(Self::PairPos1),
+                PairPos::Format2(_) => Some(Self::PairPos2),
+            },
+            (true, 3) => Some(Self::AlternateSubst1),
+            (false, 3) => Some(Self::CursivePos1),
+            (true, 4) => Some(Self::LigatureSubst1),
+            (false, 4) => Some(Self::MarkBasePos1),
+            (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
+                SequenceContext::Format1(_) => Some(Self::ContextFormat1),
+                SequenceContext::Format2(_) => Some(Self::ContextFormat2),
+                SequenceContext::Format3(_) => Some(Self::ContextFormat3),
+            },
+            (false, 5) => Some(Self::MarkLigPos1),
+            (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
+                ChainedSequenceContext::Format1(_) => Some(Self::ChainedContextFormat1),
+                ChainedSequenceContext::Format2(_) => Some(Self::ChainedContextFormat2),
+                ChainedSequenceContext::Format3(_) => Some(Self::ChainedContextFormat3),
+            },
+            (false, 6) => Some(Self::MarkMarkPos1),
+            (true, 7) | (false, 9) => {
+                let ext = ExtensionSubstFormat1::<'_, ()>::read(data).ok()?;
+                let ext_type = ext.extension_lookup_type() as u8;
+                let offset = ext.extension_offset().to_usize();
+                let data = data.split_off(offset)?;
+                Self::new(data, is_subst, ext_type)
+            }
+            (true, 8) => Some(Self::ReverseChainContext),
+            _ => None,
+        }
+    }
+}
+
 /// Cached information about a subtable.
 #[derive(Clone)]
 pub struct SubtableInfo {
@@ -387,9 +453,10 @@ pub struct SubtableInfo {
     pub coverage_offset: u16,
     /// Indicates whether the subtable is part of GSUB or GPOS for
     /// differentiating the lookup type.
-    pub is_subst: bool,
+    pub _is_subst: bool,
     /// Original lookup type.
-    pub lookup_type: u8,
+    pub _lookup_type: u8,
+    pub kind: SubtableKind,
     pub digest: hb_set_digest_t,
 }
 
@@ -414,7 +481,56 @@ impl SubtableInfo {
                 .get(self.offset as usize..)
                 .ok_or(ReadError::OutOfBounds)?,
         );
-        Subtable::read(data, self.is_subst, self.lookup_type)
+        match self.kind {
+            SubtableKind::SingleSubst1 => {
+                SingleSubstFormat1::read(data).map(Subtable::SingleSubst1)
+            }
+            SubtableKind::SingleSubst2 => {
+                SingleSubstFormat2::read(data).map(Subtable::SingleSubst2)
+            }
+            SubtableKind::MultipleSubst1 => {
+                MultipleSubstFormat1::read(data).map(Subtable::MultipleSubst1)
+            }
+            SubtableKind::AlternateSubst1 => {
+                AlternateSubstFormat1::read(data).map(Subtable::AlternateSubst1)
+            }
+            SubtableKind::LigatureSubst1 => {
+                LigatureSubstFormat1::read(data).map(Subtable::LigatureSubst1)
+            }
+            SubtableKind::SinglePos1 => SinglePosFormat1::read(data).map(Subtable::SinglePos1),
+            SubtableKind::SinglePos2 => SinglePosFormat2::read(data).map(Subtable::SinglePos2),
+            SubtableKind::PairPos1 => PairPosFormat1::read(data).map(Subtable::PairPos1),
+            SubtableKind::PairPos2 => PairPosFormat2::read(data).map(Subtable::PairPos2),
+            SubtableKind::CursivePos1 => CursivePosFormat1::read(data).map(Subtable::CursivePos1),
+            SubtableKind::MarkBasePos1 => {
+                MarkBasePosFormat1::read(data).map(Subtable::MarkBasePos1)
+            }
+            SubtableKind::MarkMarkPos1 => {
+                MarkMarkPosFormat1::read(data).map(Subtable::MarkMarkPos1)
+            }
+            SubtableKind::MarkLigPos1 => MarkLigPosFormat1::read(data).map(Subtable::MarkLigPos1),
+            SubtableKind::ContextFormat1 => {
+                SequenceContextFormat1::read(data).map(Subtable::ContextFormat1)
+            }
+            SubtableKind::ContextFormat2 => {
+                SequenceContextFormat2::read(data).map(Subtable::ContextFormat2)
+            }
+            SubtableKind::ContextFormat3 => {
+                SequenceContextFormat3::read(data).map(Subtable::ContextFormat3)
+            }
+            SubtableKind::ChainedContextFormat1 => {
+                ChainedSequenceContextFormat1::read(data).map(Subtable::ChainedContextFormat1)
+            }
+            SubtableKind::ChainedContextFormat2 => {
+                ChainedSequenceContextFormat2::read(data).map(Subtable::ChainedContextFormat2)
+            }
+            SubtableKind::ChainedContextFormat3 => {
+                ChainedSequenceContextFormat3::read(data).map(Subtable::ChainedContextFormat3)
+            }
+            SubtableKind::ReverseChainContext => {
+                ReverseChainSingleSubstFormat1::read(data).map(Subtable::ReverseChainContext)
+            }
+        }
     }
 }
 
@@ -444,51 +560,6 @@ pub enum Subtable<'a> {
 }
 
 impl<'a> Subtable<'a> {
-    fn read(data: FontData<'a>, is_sub: bool, lookup_type: u8) -> Result<Self, ReadError> {
-        match (is_sub, lookup_type) {
-            (true, 1) => match SingleSubst::read(data)? {
-                SingleSubst::Format1(s) => Ok(Self::SingleSubst1(s)),
-                SingleSubst::Format2(s) => Ok(Self::SingleSubst2(s)),
-            },
-            (false, 1) => match SinglePos::read(data)? {
-                SinglePos::Format1(s) => Ok(Self::SinglePos1(s)),
-                SinglePos::Format2(s) => Ok(Self::SinglePos2(s)),
-            },
-            (true, 2) => Ok(Self::MultipleSubst1(MultipleSubstFormat1::read(data)?)),
-            (false, 2) => match PairPos::read(data)? {
-                PairPos::Format1(s) => Ok(Self::PairPos1(s)),
-                PairPos::Format2(s) => Ok(Self::PairPos2(s)),
-            },
-            (true, 3) => Ok(Self::AlternateSubst1(AlternateSubstFormat1::read(data)?)),
-            (false, 3) => Ok(Self::CursivePos1(CursivePosFormat1::read(data)?)),
-            (true, 4) => Ok(Self::LigatureSubst1(LigatureSubstFormat1::read(data)?)),
-            (false, 4) => Ok(Self::MarkBasePos1(MarkBasePosFormat1::read(data)?)),
-            (true, 5) | (false, 7) => match SequenceContext::read(data)? {
-                SequenceContext::Format1(s) => Ok(Self::ContextFormat1(s)),
-                SequenceContext::Format2(s) => Ok(Self::ContextFormat2(s)),
-                SequenceContext::Format3(s) => Ok(Self::ContextFormat3(s)),
-            },
-            (false, 5) => Ok(Self::MarkLigPos1(MarkLigPosFormat1::read(data)?)),
-            (true, 6) | (false, 8) => match ChainedSequenceContext::read(data)? {
-                ChainedSequenceContext::Format1(s) => Ok(Self::ChainedContextFormat1(s)),
-                ChainedSequenceContext::Format2(s) => Ok(Self::ChainedContextFormat2(s)),
-                ChainedSequenceContext::Format3(s) => Ok(Self::ChainedContextFormat3(s)),
-            },
-            (false, 6) => Ok(Self::MarkMarkPos1(MarkMarkPosFormat1::read(data)?)),
-            (true, 7) | (false, 9) => {
-                let ext = ExtensionSubstFormat1::<'a, ()>::read(data)?;
-                let ext_type = ext.extension_lookup_type() as u8;
-                let offset = ext.extension_offset().to_usize();
-                let data = data.split_off(offset).ok_or(ReadError::OutOfBounds)?;
-                Self::read(data, is_sub, ext_type)
-            }
-            (true, 8) => Ok(Self::ReverseChainContext(
-                ReverseChainSingleSubstFormat1::read(data)?,
-            )),
-            _ => Err(ReadError::MalformedData("invalid lookup type")),
-        }
-    }
-
     fn coverage_and_offset(&self) -> Result<(CoverageTable<'a>, u16), ReadError> {
         match self {
             Self::SingleSubst1(s) => Ok((s.coverage()?, s.coverage_offset().to_u32() as _)),
@@ -538,7 +609,7 @@ const SUBTABLE_CACHE_SIZE: usize = 16;
 
 pub struct SubtableCache<'a> {
     table_data: &'a [u8],
-    lookups: &'a LookupCache,
+    _lookups: &'a LookupCache,
     lookup: LookupInfo,
     subtable_infos: &'a [SubtableInfo],
     subtables: [SubtableCacheEntry<'a>; SUBTABLE_CACHE_SIZE],
@@ -550,7 +621,7 @@ impl<'a> SubtableCache<'a> {
         const VACANT_ENTRY: SubtableCacheEntry = SubtableCacheEntry::Vacant;
         Self {
             table_data,
-            lookups,
+            _lookups: lookups,
             lookup,
             subtable_infos,
             subtables: [VACANT_ENTRY; SUBTABLE_CACHE_SIZE],
@@ -570,9 +641,10 @@ impl<'a> SubtableCache<'a> {
             let entry = self.subtables.get_mut(idx).unwrap();
             match entry {
                 SubtableCacheEntry::Vacant => {
-                    if let Some(subtable) =
-                        self.lookups
-                            .load_subtable(&self.lookup, idx, self.table_data)
+                    if let Some(subtable) = self
+                        .subtable_infos
+                        .get(idx)
+                        .and_then(|info| info.materialize(self.table_data).ok())
                     {
                         *entry = SubtableCacheEntry::Present(subtable.clone());
                         Some(subtable)
@@ -585,8 +657,9 @@ impl<'a> SubtableCache<'a> {
                 SubtableCacheEntry::Error => None,
             }
         } else {
-            self.lookups
-                .load_subtable(&self.lookup, idx, self.table_data)
+            self.subtable_infos
+                .get(idx)
+                .and_then(|info| info.materialize(self.table_data).ok())
         }
     }
 }
