@@ -297,6 +297,22 @@ impl LookupInfo {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
+            if subtable_info.kind == SubtableKind::LigatureSubst1 {
+                if let Some(coverage_index) = subtable_info.coverage_index(cache.table_data, glyph)
+                {
+                    if super::gsub::apply_ligature_set(
+                        ctx,
+                        cache.table_data,
+                        subtable_info.offset as usize,
+                        coverage_index,
+                    )
+                    .is_some()
+                    {
+                        return Some(());
+                    }
+                }
+                continue;
+            }
             let Some(subtable) = cache.get(subtable_idx) else {
                 continue;
             };
@@ -305,7 +321,7 @@ impl LookupInfo {
                 Subtable::SingleSubst2(subtable) => subtable.apply(ctx),
                 Subtable::MultipleSubst1(subtable) => subtable.apply(ctx),
                 Subtable::AlternateSubst1(subtable) => subtable.apply(ctx),
-                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx),
+                Subtable::LigatureSubst1(_subtable) => return None, //subtable.apply(ctx),
                 Subtable::ReverseChainContext(subtable) => subtable.apply(ctx),
                 Subtable::SinglePos1(subtable) => subtable.apply(ctx),
                 Subtable::SinglePos2(subtable) => subtable.apply(ctx),
@@ -468,6 +484,50 @@ impl SubtableInfo {
         let offset = self.offset as usize + self.coverage_offset as usize;
         let data = FontData::new(table_data.get(offset..).ok_or(ReadError::OutOfBounds)?);
         CoverageTable::read(data)
+    }
+
+    pub fn coverage_index(&self, table_data: &[u8], glyph_id: GlyphId) -> Option<usize> {
+        let glyph_id = glyph_id.to_u32();
+        let data = FontData::new(table_data);
+        let base = self.offset as usize + self.coverage_offset as usize;
+        let format: u16 = data.read_at(base).ok()?;
+        let len = data.read_at::<u16>(base + 2).ok()? as usize;
+        let arr = base + 4;
+        match format {
+            1 => {
+                let mut lo = 0;
+                let mut hi = len;
+                while lo < hi {
+                    use core::cmp::Ordering::{Equal, Greater, Less};
+                    let i = (lo + hi) / 2;
+                    let g = data.read_at::<u16>(arr + i * 2).ok()? as u32;
+                    match glyph_id.cmp(&g) {
+                        Less => hi = i,
+                        Greater => lo = i + 1,
+                        Equal => return Some(i),
+                    }
+                }
+            }
+            2 => {
+                let mut lo = 0;
+                let mut hi = len;
+                while lo < hi {
+                    let i = (lo + hi) / 2;
+                    let rec = arr + i * 6;
+                    let start = data.read_at::<u16>(rec).ok()? as u32;
+                    if glyph_id < start {
+                        hi = i;
+                    } else if glyph_id > data.read_at::<u16>(rec + 2).ok()? as u32 {
+                        lo = i + 1;
+                    } else {
+                        let base = data.read_at::<u16>(rec + 4).ok()? as u32;
+                        return Some((base + glyph_id - start) as usize);
+                    }
+                }
+            }
+            _ => {}
+        }
+        None
     }
 
     pub(crate) fn _primary_coverage(&self, table_data: &[u8], glyph_id: GlyphId) -> Option<u16> {
