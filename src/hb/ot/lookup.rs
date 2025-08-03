@@ -297,21 +297,60 @@ impl LookupInfo {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
-            if subtable_info.kind == SubtableKind::LigatureSubst1 {
-                if let Some(coverage_index) = subtable_info.coverage_index(cache.table_data, glyph)
-                {
-                    if super::gsub::apply_ligature_set(
-                        ctx,
-                        cache.table_data,
-                        subtable_info.offset as usize,
-                        coverage_index,
-                    )
-                    .is_some()
+            match subtable_info.kind {
+                SubtableKind::LigatureSubst1 => {
+                    if let Some(coverage_index) =
+                        subtable_info.coverage_index(cache.table_data, glyph)
                     {
-                        return Some(());
+                        if super::gsub::apply_lig_subst1(
+                            ctx,
+                            cache.table_data,
+                            subtable_info.offset as usize,
+                            coverage_index,
+                        )
+                        .is_some()
+                        {
+                            return Some(());
+                        }
                     }
+                    continue;
                 }
-                continue;
+                SubtableKind::PairPos1 => {
+                    if let Some(coverage_index) =
+                        subtable_info.coverage_index(cache.table_data, glyph)
+                    {
+                        if super::gpos::apply_pair_pos1(
+                            ctx,
+                            cache.table_data,
+                            subtable_info.offset as usize,
+                            coverage_index,
+                        )
+                        .is_some()
+                        {
+                            return Some(());
+                        }
+                    }
+                    continue;
+                }
+                SubtableKind::PairPos2 => {
+                    if let Some(coverage_index) =
+                        subtable_info.coverage_index(cache.table_data, glyph)
+                    {
+                        if super::gpos::apply_pair_pos2(
+                            ctx,
+                            cache.table_data,
+                            subtable_info.offset as usize,
+                            glyph,
+                            coverage_index,
+                        )
+                        .is_some()
+                        {
+                            return Some(());
+                        }
+                    }
+                    continue;
+                }
+                _ => {}
             }
             let Some(subtable) = cache.get(subtable_idx) else {
                 continue;
@@ -325,8 +364,8 @@ impl LookupInfo {
                 Subtable::ReverseChainContext(subtable) => subtable.apply(ctx),
                 Subtable::SinglePos1(subtable) => subtable.apply(ctx),
                 Subtable::SinglePos2(subtable) => subtable.apply(ctx),
-                Subtable::PairPos1(subtable) => subtable.apply(ctx),
-                Subtable::PairPos2(subtable) => subtable.apply(ctx),
+                Subtable::PairPos1(_subtable) => return None, //subtable.apply(ctx),
+                Subtable::PairPos2(_subtable) => return None, //subtable.apply(ctx),
                 Subtable::CursivePos1(subtable) => subtable.apply(ctx),
                 Subtable::MarkBasePos1(subtable) => subtable.apply(ctx),
                 Subtable::MarkLigPos1(subtable) => subtable.apply(ctx),

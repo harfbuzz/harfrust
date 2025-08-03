@@ -1,12 +1,185 @@
+use crate::hb::ot::gpos::ValueReader;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
+use core::cmp::Ordering;
+use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, ValueFormat};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
 
 use super::Value;
 
 // TODO: HarfBuzz uses two class caches, for left and right, as well as coverage.
+
+pub fn apply_pair_pos1(
+    ctx: &mut hb_ot_apply_context_t,
+    table_data: &[u8],
+    base: usize,
+    coverage_index: usize,
+) -> Option<()> {
+    let mut iter = skipping_iterator_t::new(ctx, false);
+    iter.reset(ctx.buffer.idx);
+
+    let mut unsafe_to = 0;
+    if !iter.next(Some(&mut unsafe_to)) {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+        return None;
+    }
+
+    let second_glyph_index = iter.index();
+    let second_glyph = ctx.buffer.info[second_glyph_index].as_glyph();
+
+    let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        if has_record2 {
+            *iter_index += 1;
+            // https://github.com/harfbuzz/harfbuzz/issues/3824
+            // https://github.com/harfbuzz/harfbuzz/issues/3888#issuecomment-1326781116
+            ctx.buffer
+                .unsafe_to_break(Some(ctx.buffer.idx), Some(*iter_index + 1));
+        }
+
+        ctx.buffer.idx = *iter_index;
+
+        Some(())
+    };
+
+    let boring = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+        finish(ctx, iter_index, has_record2)
+    };
+
+    let success =
+        |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
+            if flag1 || flag2 {
+                ctx.buffer
+                    .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+                finish(ctx, iter_index, has_record2)
+            } else {
+                boring(ctx, iter_index, has_record2)
+            }
+        };
+
+    let bail = |ctx: &mut hb_ot_apply_context_t,
+                iter_index: &mut usize,
+                records: (ValueReader, ValueReader)| {
+        let flag1 = records.0.apply(ctx, ctx.buffer.idx);
+        let flag2 = records.1.apply(ctx, second_glyph_index);
+
+        let has_record2 = !records.1.is_empty();
+        success(ctx, iter_index, flag1, flag2, has_record2)
+    };
+
+    let data = FontData::new(table_data);
+    let format1 = data.read_at::<ValueFormat>(base + 4).ok()?;
+    let format2 = data.read_at::<ValueFormat>(base + 6).ok()?;
+    let len1 = format1.record_byte_len();
+    let record_size = len1 + format2.record_byte_len() + 2;
+    let set_base = base + data.read_at::<u16>(base + 10 + coverage_index * 2).ok()? as usize;
+    let count = data.read_at::<u16>(set_base).ok()? as usize;
+    let val_base = set_base + 2;
+    let mut lo = 0;
+    let mut hi = count;
+    let mut values = None;
+    while lo < hi {
+        let index = (lo + hi) / 2;
+        let rec_offset = val_base + index * record_size;
+        let glyph: GlyphId = data.read_at::<u16>(rec_offset).ok()?.into();
+        match second_glyph.cmp(&glyph) {
+            Ordering::Greater => lo = index + 1,
+            Ordering::Less => hi = index,
+            Ordering::Equal => {
+                values = Some((
+                    ValueReader::new(data, set_base, rec_offset + 2, format1),
+                    ValueReader::new(data, set_base, rec_offset + 2 + len1, format2),
+                ));
+                break;
+            }
+        }
+    }
+    bail(ctx, &mut iter.buf_idx, values?)
+}
+
+pub fn apply_pair_pos2(
+    ctx: &mut hb_ot_apply_context_t,
+    table_data: &[u8],
+    base: usize,
+    first_glyph: GlyphId,
+    _coverage_index: usize,
+) -> Option<()> {
+    let mut iter = skipping_iterator_t::new(ctx, false);
+    iter.reset(ctx.buffer.idx);
+
+    let mut unsafe_to = 0;
+    if !iter.next(Some(&mut unsafe_to)) {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+        return None;
+    }
+
+    let second_glyph_index = iter.index();
+    let second_glyph = ctx.buffer.info[second_glyph_index].as_glyph();
+
+    let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        if has_record2 {
+            *iter_index += 1;
+            // https://github.com/harfbuzz/harfbuzz/issues/3824
+            // https://github.com/harfbuzz/harfbuzz/issues/3888#issuecomment-1326781116
+            ctx.buffer
+                .unsafe_to_break(Some(ctx.buffer.idx), Some(*iter_index + 1));
+        }
+
+        ctx.buffer.idx = *iter_index;
+
+        Some(())
+    };
+
+    let boring = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+        finish(ctx, iter_index, has_record2)
+    };
+
+    let success =
+        |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
+            if flag1 || flag2 {
+                ctx.buffer
+                    .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+                finish(ctx, iter_index, has_record2)
+            } else {
+                boring(ctx, iter_index, has_record2)
+            }
+        };
+
+    let bail = |ctx: &mut hb_ot_apply_context_t,
+                iter_index: &mut usize,
+                records: (ValueReader, ValueReader)| {
+        let flag1 = records.0.apply(ctx, ctx.buffer.idx);
+        let flag2 = records.1.apply(ctx, second_glyph_index);
+
+        let has_record2 = !records.1.is_empty();
+        success(ctx, iter_index, flag1, flag2, has_record2)
+    };
+
+    let data = FontData::new(table_data);
+    let format1 = data.read_at::<ValueFormat>(base + 4).ok()?;
+    let format2 = data.read_at::<ValueFormat>(base + 6).ok()?;
+    let len1 = format1.record_byte_len();
+    let record_size = len1 + format2.record_byte_len();
+    let classdef1_offset = base + data.read_at::<u16>(base + 8).ok()? as usize;
+    let classdef2_offset = base + data.read_at::<u16>(base + 10).ok()? as usize;
+    let class1 = super::super::class_def(table_data, classdef1_offset, first_glyph)
+        .unwrap_or_default() as usize;
+    let class2 = super::super::class_def(table_data, classdef2_offset, second_glyph)
+        .unwrap_or_default() as usize;
+    let class2_count = data.read_at::<u16>(base + 14).ok()? as usize;
+    let rec_offset = base + 16 + (class1 * record_size * class2_count) + (class2 * record_size);
+    let values = (
+        ValueReader::new(data, base, rec_offset, format1),
+        ValueReader::new(data, base, rec_offset + len1, format2),
+    );
+    bail(ctx, &mut iter.buf_idx, values)
+}
 
 impl Apply for PairPosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {

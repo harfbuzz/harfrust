@@ -229,7 +229,7 @@ impl<'a> LigSet<'a> {
     }
 }
 
-pub fn apply_ligature_set(
+pub fn apply_lig_subst1(
     ctx: &mut hb_ot_apply_context_t,
     table_data: &[u8],
     base: usize,
