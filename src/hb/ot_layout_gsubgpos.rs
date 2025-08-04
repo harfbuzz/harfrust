@@ -617,6 +617,32 @@ pub mod OT {
     use super::*;
     use crate::hb::set_digest::hb_set_digest_t;
 
+    fn match_properties_mark(
+        face: &hb_font_t,
+        info: &hb_glyph_info_t,
+        glyph_props: u16,
+        match_props: u32,
+    ) -> bool {
+        // If using mark filtering sets, the high short of
+        // match_props has the set index.
+        if match_props as u16 & lookup_flags::USE_MARK_FILTERING_SET != 0 {
+            let set_index = (match_props >> 16) as u16;
+            return face
+                .ot_tables
+                .is_mark_glyph(info.as_glyph().to_u32(), set_index);
+        }
+
+        // The second byte of match_props has the meaning
+        // "ignore marks of attachment type different than
+        // the attachment type specified."
+        if match_props as u16 & lookup_flags::MARK_ATTACHMENT_TYPE_MASK != 0 {
+            return (match_props as u16 & lookup_flags::MARK_ATTACHMENT_TYPE_MASK)
+                == (glyph_props & lookup_flags::MARK_ATTACHMENT_TYPE_MASK);
+        }
+
+        true
+    }
+
     pub fn check_glyph_property(
         face: &hb_font_t,
         info: &hb_glyph_info_t,
@@ -624,32 +650,14 @@ pub mod OT {
     ) -> bool {
         let glyph_props = info.glyph_props();
 
-        // Lookup flags are lower 16-bit of match props.
-        let lookup_flags = match_props as u16;
-
         // Not covered, if, for example, glyph class is ligature and
         // match_props includes LookupFlags::IgnoreLigatures
-        if glyph_props & lookup_flags & lookup_flags::IGNORE_FLAGS != 0 {
+        if glyph_props & match_props as u16 & lookup_flags::IGNORE_FLAGS != 0 {
             return false;
         }
 
         if glyph_props & GlyphPropsFlags::MARK.bits() != 0 {
-            // If using mark filtering sets, the high short of
-            // match_props has the set index.
-            if lookup_flags & lookup_flags::USE_MARK_FILTERING_SET != 0 {
-                let set_index = (match_props >> 16) as u16;
-                return face
-                    .ot_tables
-                    .is_mark_glyph(info.as_glyph().to_u32(), set_index);
-            }
-
-            // The second byte of match_props has the meaning
-            // "ignore marks of attachment type different than
-            // the attachment type specified."
-            if lookup_flags & lookup_flags::MARK_ATTACHMENT_TYPE_MASK != 0 {
-                return (lookup_flags & lookup_flags::MARK_ATTACHMENT_TYPE_MASK)
-                    == (glyph_props & lookup_flags::MARK_ATTACHMENT_TYPE_MASK);
-            }
+            return match_properties_mark(face, info, glyph_props, match_props);
         }
 
         true
