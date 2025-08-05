@@ -489,3 +489,36 @@ fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
         .map(|class_def| class_def.get(gid16))
         .unwrap_or_default()
 }
+
+fn class_def(data: &[u8], base: usize, glyph: GlyphId) -> Option<u16> {
+    let data = FontData::new(data);
+    let format = data.read_at::<u16>(base).ok()?;
+    let glyph = glyph.to_u32();
+    if format == 1 {
+        let start = data.read_at::<u16>(base + 2).ok()? as u32;
+        let len = data.read_at::<u16>(base + 4).ok()? as u32;
+        let end = start + len;
+        if glyph >= start && glyph < end {
+            return data
+                .read_at::<u16>(base + 6 + (glyph - start) as usize * 2)
+                .ok();
+        }
+    } else {
+        let len = data.read_at::<u16>(base + 2).ok()? as usize;
+        let mut lo = 0;
+        let mut hi = len;
+        while lo < hi {
+            let index = (lo + hi) / 2;
+            let rec_offset = base + 4 + index * 6;
+            let start = data.read_at::<u16>(rec_offset).ok()? as u32;
+            if glyph < start {
+                hi = index;
+            } else if glyph > data.read_at::<u16>(rec_offset + 2).ok()? as u32 {
+                lo = index + 1;
+            } else {
+                return data.read_at::<u16>(rec_offset + 4).ok();
+            }
+        }
+    }
+    None
+}
