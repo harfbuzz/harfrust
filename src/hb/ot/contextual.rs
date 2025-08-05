@@ -1,15 +1,17 @@
 use super::{coverage_index, covered, glyph_class};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, Apply, WouldApply,
-    WouldApplyContext,
+    apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, may_skip_t,
+    skipping_iterator_t, Apply, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
-    ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
-    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
+    ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
+    ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
+    SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
-use read_fonts::types::{BigEndian, GlyphId};
+use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
+use read_fonts::{ArrayOfOffsets, FontRead};
 
 impl WouldApply for SequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -41,13 +43,7 @@ impl Apply for SequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.seq_rule_sets().get(index)?.ok()?;
-        for rule in set.seq_rules().iter().filter_map(|rule| rule.ok()) {
-            let input = rule.input_sequence();
-            if apply_context(ctx, input, match_glyph, rule.seq_lookup_records()).is_some() {
-                return Some(());
-            }
-        }
-        None
+        apply_context_rules(ctx, &set.seq_rules(), match_glyph)
     }
 }
 
@@ -79,25 +75,12 @@ impl WouldApply for SequenceContextFormat2<'_> {
 
 impl Apply for SequenceContextFormat2<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let input_classes = self.class_def().ok();
         let glyph = ctx.buffer.cur(0).as_gid16()?;
         self.coverage().ok()?.get(glyph)?;
+        let input_classes = self.class_def().ok();
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        for rule in set.class_seq_rules().iter().filter_map(|rule| rule.ok()) {
-            let input = rule.input_sequence();
-            if apply_context(
-                ctx,
-                input,
-                match_class(&input_classes),
-                rule.seq_lookup_records(),
-            )
-            .is_some()
-            {
-                return Some(());
-            }
-        }
-        None
+        apply_context_rules(ctx, &set.class_seq_rules(), match_class(&input_classes))
     }
 }
 
@@ -183,24 +166,7 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
-        for rule in set.chained_seq_rules().iter().filter_map(|rule| rule.ok()) {
-            let backtrack = rule.backtrack_sequence();
-            let input = rule.input_sequence();
-            let lookahead = rule.lookahead_sequence();
-            if apply_chain_context(
-                ctx,
-                backtrack,
-                input,
-                lookahead,
-                [match_glyph; 3],
-                rule.seq_lookup_records(),
-            )
-            .is_some()
-            {
-                return Some(());
-            }
-        }
-        None
+        apply_chain_context_rules(ctx, &set.chained_seq_rules(), [match_glyph; 3])
     }
 }
 
@@ -258,32 +224,15 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         self.coverage().ok()?.get(glyph)?;
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        for rule in set
-            .chained_class_seq_rules()
-            .iter()
-            .filter_map(|rule| rule.ok())
-        {
-            let backtrack = rule.backtrack_sequence();
-            let input = rule.input_sequence();
-            let lookahead = rule.lookahead_sequence();
-            if apply_chain_context(
-                ctx,
-                backtrack,
-                input,
-                lookahead,
-                [
-                    match_class(&backtrack_classes),
-                    match_class(&input_classes),
-                    match_class(&lookahead_classes),
-                ],
-                rule.seq_lookup_records(),
-            )
-            .is_some()
-            {
-                return Some(());
-            }
-        }
-        None
+        apply_chain_context_rules(
+            ctx,
+            &set.chained_class_seq_rules(),
+            [
+                match_class(&backtrack_classes),
+                match_class(&input_classes),
+                match_class(&lookahead_classes),
+            ],
+        )
     }
 }
 
@@ -392,7 +341,7 @@ trait ToU16: Copy {
     fn to_u16(self) -> u16;
 }
 
-impl ToU16 for BigEndian<read_fonts::types::GlyphId16> {
+impl ToU16 for BigEndian<GlyphId16> {
     fn to_u16(self) -> u16 {
         self.get().to_u16()
     }
@@ -404,98 +353,383 @@ impl ToU16 for BigEndian<u16> {
     }
 }
 
-fn apply_context<T: ToU16>(
-    ctx: &mut hb_ot_apply_context_t,
-    input: &[T],
-    match_func: impl Fn(GlyphId, u16) -> bool,
-    lookups: &[SequenceLookupRecord],
-) -> Option<()> {
-    let match_func = |glyph, index| {
-        let value = input.get(index as usize).unwrap().to_u16();
-        match_func(glyph, value)
-    };
+trait ContextRule<'a>: FontRead<'a> {
+    type Input: ToU16 + 'a;
 
-    let mut match_end = 0;
-    let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+    fn input(&self) -> &'a [Self::Input];
+    fn lookup_records(&self) -> &'a [SequenceLookupRecord];
 
-    if match_input(
-        ctx,
-        input.len() as _,
-        match_func,
-        &mut match_end,
-        &mut match_positions,
-        None,
-    ) {
-        ctx.buffer
-            .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
-        apply_lookup(ctx, input.len(), &mut match_positions, match_end, lookups);
-        return Some(());
+    fn apply(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        match_func: &impl Fn(GlyphId, u16) -> bool,
+    ) -> Option<()> {
+        let inputs = self.input();
+        let match_func = |glyph, index| {
+            let value = inputs.get(index as usize).unwrap().to_u16();
+            match_func(glyph, value)
+        };
+
+        let mut match_end = 0;
+        let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+
+        if match_input(
+            ctx,
+            inputs.len() as _,
+            match_func,
+            &mut match_end,
+            &mut match_positions,
+            None,
+        ) {
+            ctx.buffer
+                .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
+            apply_lookup(
+                ctx,
+                inputs.len(),
+                &mut match_positions,
+                match_end,
+                self.lookup_records(),
+            );
+            return Some(());
+        }
+        None
+    }
+}
+
+impl<'a> ContextRule<'a> for SequenceRule<'a> {
+    type Input = BigEndian<GlyphId16>;
+
+    fn input(&self) -> &'a [Self::Input] {
+        self.input_sequence()
     }
 
+    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        self.seq_lookup_records()
+    }
+}
+
+impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
+    type Input = BigEndian<u16>;
+
+    fn input(&self) -> &'a [Self::Input] {
+        self.input_sequence()
+    }
+
+    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        self.seq_lookup_records()
+    }
+}
+
+fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
+    ctx: &mut hb_ot_apply_context_t,
+    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    match_func: impl Fn(GlyphId, u16) -> bool,
+) -> Option<()> {
+    if rules.len() <= 4 {
+        for rule in rules.iter().filter_map(|r| r.ok()) {
+            if rule.apply(ctx, &match_func).is_some() {
+                return Some(());
+            };
+        }
+        return None;
+    }
+    // This version is optimized for speed by matching the first & second
+    // components of the rule here, instead of calling into the matching code.
+    let mut skippy_iter = skipping_iterator_t::new(ctx, true);
+    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.set_glyph_data(0);
+    let mut unsafe_to;
+    let mut unsafe_to2 = 0;
+    let mut second = None;
+    let first = if skippy_iter.next(None) {
+        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        unsafe_to = Some(skippy_iter.index() + 1);
+        if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply(ctx, &match_func).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
+        g1.as_glyph()
+    } else {
+        // Failed to match a next glyph. Only try applying rules that have no
+        // further impact.
+        for rule in rules
+            .iter()
+            .filter_map(|r| r.ok())
+            .filter(|r| r.input().len() <= 1)
+        {
+            if rule.apply(ctx, &match_func).is_some() {
+                return Some(());
+            };
+        }
+        return None;
+    };
+    let matched = skippy_iter.next(None);
+    let g2 = &ctx.buffer.info[skippy_iter.index()];
+    if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
+        second = Some(g2.as_glyph());
+        unsafe_to2 = skippy_iter.index() + 1;
+    }
+    for rule in rules.iter().filter_map(|r| r.ok()) {
+        let inputs = rule.input();
+        let match_func2 = |glyph, index| {
+            if let Some(value) = inputs.get(index as usize).map(|v| v.to_u16()) {
+                match_func(glyph, value)
+            } else {
+                false
+            }
+        };
+        if inputs.len() <= 1 || match_func2(first, 0) {
+            if second.is_none() || (inputs.len() <= 2 || match_func2(second.unwrap(), 1)) {
+                if rule.apply(ctx, &match_func).is_some() {
+                    if let Some(unsafe_to) = unsafe_to {
+                        ctx.buffer
+                            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+                    }
+                    return Some(());
+                }
+            } else {
+                unsafe_to = Some(unsafe_to2);
+            }
+        }
+    }
+    if let Some(unsafe_to) = unsafe_to {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+    }
     None
 }
 
-fn apply_chain_context<T: ToU16, F: Fn(GlyphId, u16) -> bool>(
+trait ChainContextRule<'a>: ContextRule<'a> {
+    fn backtrack(&self) -> &'a [Self::Input];
+    fn lookahead(&self) -> &'a [Self::Input];
+
+    fn apply_chain<F: Fn(GlyphId, u16) -> bool>(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        match_funcs: &[F; 3],
+    ) -> Option<()> {
+        let input = self.input();
+        let backtrack = self.backtrack();
+        let lookahead = self.lookahead();
+
+        // NOTE: Whenever something in this method changes, we also need to
+        // change it in the `apply` implementation for ChainedContextLookup.
+        let f1 = |glyph, index| {
+            let value = (*backtrack.get(index as usize).unwrap()).to_u16();
+            match_funcs[0](glyph, value)
+        };
+
+        let f2 = |glyph, index| {
+            let value = (*lookahead.get(index as usize).unwrap()).to_u16();
+            match_funcs[2](glyph, value)
+        };
+
+        let f3 = |glyph, index| {
+            let value = (*input.get(index as usize).unwrap()).to_u16();
+            match_funcs[1](glyph, value)
+        };
+
+        let mut end_index = ctx.buffer.idx;
+        let mut match_end = 0;
+        let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+
+        let input_matches = match_input(
+            ctx,
+            input.len() as u16,
+            f3,
+            &mut match_end,
+            &mut match_positions,
+            None,
+        );
+
+        if input_matches {
+            end_index = match_end;
+        }
+
+        if !(input_matches
+            && match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index))
+        {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
+            return None;
+        }
+
+        let mut start_index = ctx.buffer.out_len;
+
+        if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
+            ctx.buffer
+                .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
+            return None;
+        }
+
+        ctx.buffer
+            .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
+        apply_lookup(
+            ctx,
+            input.len(),
+            &mut match_positions,
+            match_end,
+            self.lookup_records(),
+        );
+
+        Some(())
+    }
+}
+
+impl<'a> ContextRule<'a> for ChainedSequenceRule<'a> {
+    type Input = BigEndian<GlyphId16>;
+
+    fn input(&self) -> &'a [Self::Input] {
+        self.input_sequence()
+    }
+
+    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        self.seq_lookup_records()
+    }
+}
+
+impl<'a> ChainContextRule<'a> for ChainedSequenceRule<'a> {
+    fn backtrack(&self) -> &'a [Self::Input] {
+        self.backtrack_sequence()
+    }
+
+    fn lookahead(&self) -> &'a [Self::Input] {
+        self.lookahead_sequence()
+    }
+}
+
+impl<'a> ContextRule<'a> for ChainedClassSequenceRule<'a> {
+    type Input = BigEndian<u16>;
+
+    fn input(&self) -> &'a [Self::Input] {
+        self.input_sequence()
+    }
+
+    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+        self.seq_lookup_records()
+    }
+}
+
+impl<'a> ChainContextRule<'a> for ChainedClassSequenceRule<'a> {
+    fn backtrack(&self) -> &'a [Self::Input] {
+        self.backtrack_sequence()
+    }
+
+    fn lookahead(&self) -> &'a [Self::Input] {
+        self.lookahead_sequence()
+    }
+}
+
+fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16) -> bool>(
     ctx: &mut hb_ot_apply_context_t,
-    backtrack: &[T],
-    input: &[T],
-    lookahead: &[T],
+    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: [F; 3],
-    lookups: &[SequenceLookupRecord],
 ) -> Option<()> {
-    // NOTE: Whenever something in this method changes, we also need to
-    // change it in the `apply` implementation for ChainedContextLookup.
-    let f1 = |glyph, index| {
-        let value = (*backtrack.get(index as usize).unwrap()).to_u16();
-        match_funcs[0](glyph, value)
-    };
-
-    let f2 = |glyph, index| {
-        let value = (*lookahead.get(index as usize).unwrap()).to_u16();
-        match_funcs[2](glyph, value)
-    };
-
-    let f3 = |glyph, index| {
-        let value = (*input.get(index as usize).unwrap()).to_u16();
-        match_funcs[1](glyph, value)
-    };
-
-    let mut end_index = ctx.buffer.idx;
-    let mut match_end = 0;
-    let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
-
-    let input_matches = match_input(
-        ctx,
-        input.len() as u16,
-        f3,
-        &mut match_end,
-        &mut match_positions,
-        None,
-    );
-
-    if input_matches {
-        end_index = match_end;
-    }
-
-    if !(input_matches
-        && match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index))
-    {
-        ctx.buffer
-            .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
+    // If the input skippy has non-auto joiners behavior (as in Indic shapers),
+    // skip this fast path, as we don't distinguish between input & lookahead
+    // matching in the fast path.
+    // https://github.com/harfbuzz/harfbuzz/issues/4813
+    if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+        for rule in rules.iter().filter_map(|r| r.ok()) {
+            if rule.apply_chain(ctx, &match_funcs).is_some() {
+                return Some(());
+            };
+        }
         return None;
     }
-
-    let mut start_index = ctx.buffer.out_len;
-
-    if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
-        ctx.buffer
-            .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
+    // This version is optimized for speed by matching the first & second
+    // components of the rule here, instead of calling into the matching code.
+    let mut skippy_iter = skipping_iterator_t::new(ctx, true);
+    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.set_glyph_data(0);
+    let mut unsafe_to;
+    let mut unsafe_to2 = 0;
+    let mut second = None;
+    let first = if skippy_iter.next(None) {
+        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        unsafe_to = Some(skippy_iter.index() + 1);
+        if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
+        g1.as_glyph()
+    } else {
+        // Failed to match a next glyph. Only try applying rules that have no
+        // further impact.
+        for rule in rules
+            .iter()
+            .filter_map(|r| r.ok())
+            .filter(|r| r.input().len() <= 1 && r.lookahead().is_empty())
+        {
+            if rule.apply_chain(ctx, &match_funcs).is_some() {
+                return Some(());
+            };
+        }
         return None;
+    };
+    let matched = skippy_iter.next(None);
+    let g2 = &ctx.buffer.info[skippy_iter.index()];
+    if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
+        second = Some(g2.as_glyph());
+        unsafe_to2 = skippy_iter.index() + 1;
     }
-
-    ctx.buffer
-        .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
-    apply_lookup(ctx, input.len(), &mut match_positions, match_end, lookups);
-
-    Some(())
+    for rule in rules.iter().filter_map(|r| r.ok()) {
+        let input = rule.input();
+        let lookahead = rule.lookahead();
+        let match_input = |glyph, index: usize| {
+            input
+                .get(index)
+                .is_some_and(|v| match_funcs[1](glyph, v.to_u16()))
+        };
+        let match_lookahead = |glyph, index: usize| {
+            lookahead
+                .get(index)
+                .is_some_and(|v| match_funcs[2](glyph, v.to_u16()))
+        };
+        let len_p1 = (input.len() + 1).max(1);
+        let matched_first = if len_p1 > 1 {
+            match_input(first, 0)
+        } else {
+            lookahead.is_empty() || match_lookahead(first, 0)
+        };
+        if matched_first {
+            let matched_second = if let Some(second) = second {
+                if len_p1 > 2 {
+                    match_input(second, 1)
+                } else {
+                    (lookahead.len() <= 2 - len_p1) || match_lookahead(second, 2 - len_p1)
+                }
+            } else {
+                true
+            };
+            if matched_second {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                    if let Some(unsafe_to) = unsafe_to {
+                        ctx.buffer
+                            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+                    }
+                    return Some(());
+                }
+            } else {
+                unsafe_to = Some(unsafe_to2);
+            }
+        }
+    }
+    if let Some(unsafe_to) = unsafe_to {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+    }
+    None
 }
