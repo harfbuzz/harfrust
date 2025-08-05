@@ -11,3 +11,10 @@ read-fonts = "0.29.0"
 [features]
 default = ["hb"]
 hb = []
+
+[profile.release]
+strip = true
+lto = "fat"
+panic = "abort"
+overflow-checks = false
+codegen-units = 1
