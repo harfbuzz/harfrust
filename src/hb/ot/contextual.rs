@@ -356,7 +356,7 @@ impl ToU16 for BigEndian<u16> {
 trait ContextRule<'a>: FontRead<'a> {
     type Input: ToU16 + 'a;
 
-    fn inputs(&self) -> &'a [Self::Input];
+    fn input(&self) -> &'a [Self::Input];
     fn lookup_records(&self) -> &'a [SequenceLookupRecord];
 
     fn apply(
@@ -364,7 +364,7 @@ trait ContextRule<'a>: FontRead<'a> {
         ctx: &mut hb_ot_apply_context_t,
         match_func: &impl Fn(GlyphId, u16) -> bool,
     ) -> Option<()> {
-        let inputs = self.inputs();
+        let inputs = self.input();
         let match_func = |glyph, index| {
             let value = inputs.get(index as usize).unwrap().to_u16();
             match_func(glyph, value)
@@ -399,7 +399,7 @@ trait ContextRule<'a>: FontRead<'a> {
 impl<'a> ContextRule<'a> for SequenceRule<'a> {
     type Input = BigEndian<GlyphId16>;
 
-    fn inputs(&self) -> &'a [Self::Input] {
+    fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
@@ -411,7 +411,7 @@ impl<'a> ContextRule<'a> for SequenceRule<'a> {
 impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
     type Input = BigEndian<u16>;
 
-    fn inputs(&self) -> &'a [Self::Input] {
+    fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
@@ -461,7 +461,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         for rule in rules
             .iter()
             .filter_map(|r| r.ok())
-            .filter(|r| r.inputs().len() <= 1)
+            .filter(|r| r.input().len() <= 1)
         {
             if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
@@ -476,7 +476,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         unsafe_to2 = skippy_iter.index() + 1;
     }
     for rule in rules.iter().filter_map(|r| r.ok()) {
-        let inputs = rule.inputs();
+        let inputs = rule.input();
         let match_func2 = |glyph, index| {
             if let Some(value) = inputs.get(index as usize).map(|v| v.to_u16()) {
                 match_func(glyph, value)
@@ -514,7 +514,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
         ctx: &mut hb_ot_apply_context_t,
         match_funcs: &[F; 3],
     ) -> Option<()> {
-        let input = self.inputs();
+        let input = self.input();
         let backtrack = self.backtrack();
         let lookahead = self.lookahead();
 
@@ -585,7 +585,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
 impl<'a> ContextRule<'a> for ChainedSequenceRule<'a> {
     type Input = BigEndian<GlyphId16>;
 
-    fn inputs(&self) -> &'a [Self::Input] {
+    fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
@@ -607,7 +607,7 @@ impl<'a> ChainContextRule<'a> for ChainedSequenceRule<'a> {
 impl<'a> ContextRule<'a> for ChainedClassSequenceRule<'a> {
     type Input = BigEndian<u16>;
 
-    fn inputs(&self) -> &'a [Self::Input] {
+    fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
@@ -631,8 +631,11 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: [F; 3],
 ) -> Option<()> {
-    // if rules.len() <= 4
-    {
+    // If the input skippy has non-auto joiners behavior (as in Indic shapers),
+    // skip this fast path, as we don't distinguish between input & lookahead
+    // matching in the fast path.
+    // https://github.com/harfbuzz/harfbuzz/issues/4813
+    if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());
@@ -640,4 +643,93 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
         }
         return None;
     }
+    // This version is optimized for speed by matching the first & second
+    // components of the rule here, instead of calling into the matching code.
+    let mut skippy_iter = skipping_iterator_t::new(ctx, true);
+    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.set_glyph_data(0);
+    let mut unsafe_to;
+    let mut unsafe_to2 = 0;
+    let mut second = None;
+    let first = if skippy_iter.next(None) {
+        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        unsafe_to = Some(skippy_iter.index() + 1);
+        if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
+        g1.as_glyph()
+    } else {
+        // Failed to match a next glyph. Only try applying rules that have no
+        // further impact.
+        for rule in rules
+            .iter()
+            .filter_map(|r| r.ok())
+            .filter(|r| r.input().len() <= 1 && r.lookahead().is_empty())
+        {
+            if rule.apply_chain(ctx, &match_funcs).is_some() {
+                return Some(());
+            };
+        }
+        return None;
+    };
+    let matched = skippy_iter.next(None);
+    let g2 = &ctx.buffer.info[skippy_iter.index()];
+    if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
+        second = Some(g2.as_glyph());
+        unsafe_to2 = skippy_iter.index() + 1;
+    }
+    for rule in rules.iter().filter_map(|r| r.ok()) {
+        let input = rule.input();
+        let lookahead = rule.lookahead();
+        let match_input = |glyph, index: usize| {
+            input
+                .get(index)
+                .is_some_and(|v| match_funcs[1](glyph, v.to_u16()))
+        };
+        let match_lookahead = |glyph, index: usize| {
+            lookahead
+                .get(index)
+                .is_some_and(|v| match_funcs[2](glyph, v.to_u16()))
+        };
+        let len_p1 = (input.len() + 1).max(1);
+        let matched_first = if len_p1 > 1 {
+            match_input(first, 0)
+        } else {
+            lookahead.is_empty() || match_lookahead(first, 0)
+        };
+        if matched_first {
+            let matched_second = if let Some(second) = second {
+                if len_p1 > 2 {
+                    match_input(second, 1)
+                } else {
+                    (lookahead.len() <= 2 - len_p1) || match_lookahead(second, 2 - len_p1)
+                }
+            } else {
+                true
+            };
+            if matched_second {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                    if let Some(unsafe_to) = unsafe_to {
+                        ctx.buffer
+                            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+                    }
+                    return Some(());
+                }
+            } else {
+                unsafe_to = Some(unsafe_to2);
+            }
+        }
+    }
+    if let Some(unsafe_to) = unsafe_to {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+    }
+    None
 }
