@@ -1,7 +1,7 @@
 use crate::hb::ot_layout::MAX_NESTING_LEVEL;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    match_backtrack, match_lookahead, Apply, WouldApply, WouldApplyContext,
+    match_backtrack, match_lookahead, Apply, ApplyState, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ReverseChainSingleSubstFormat1;
 use read_fonts::types::GlyphId;
@@ -18,21 +18,11 @@ impl WouldApply for ReverseChainSingleSubstFormat1<'_> {
 }
 
 impl Apply for ReverseChainSingleSubstFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         // No chaining to this type.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
             return None;
         }
-
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let coverage = self.coverage().ok()?;
-        let index = coverage.get(glyph)? as usize;
-        let substitutes = self.substitute_glyph_ids();
-        if index >= substitutes.len() {
-            return None;
-        }
-
-        let subst = substitutes.get(index)?.get();
 
         let backtrack_coverages = self.backtrack_coverages();
         let lookahead_coverages = self.lookahead_coverages();
@@ -66,6 +56,7 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
             ) {
                 ctx.buffer
                     .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
+                let subst = self.substitute_glyph_ids().get(state.index)?.get();
                 ctx.replace_glyph_inplace(subst.into());
 
                 // Note: We DON'T decrease buffer.idx.  The main loop does it

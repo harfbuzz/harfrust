@@ -2,7 +2,7 @@ use super::{coverage_index, covered, glyph_class};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, may_skip_t,
-    skipping_iterator_t, Apply, WouldApply, WouldApplyContext,
+    skipping_iterator_t, Apply, ApplyState, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -39,10 +39,8 @@ impl WouldApply for SequenceContextFormat1<'_> {
 }
 
 impl Apply for SequenceContextFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let set = self.seq_rule_sets().get(index)?.ok()?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let set = self.seq_rule_sets().get(state.index)?.ok()?;
         apply_context_rules(ctx, &set.seq_rules(), match_glyph)
     }
 }
@@ -74,11 +72,9 @@ impl WouldApply for SequenceContextFormat2<'_> {
 }
 
 impl Apply for SequenceContextFormat2<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         let input_classes = self.class_def().ok();
-        let index = input_classes.as_ref()?.get(glyph) as usize;
+        let index = input_classes.as_ref()?.get(state.glyph.try_into().ok()?) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(ctx, &set.class_seq_rules(), match_class(&input_classes))
     }
@@ -96,10 +92,8 @@ impl WouldApply for SequenceContextFormat3<'_> {
 }
 
 impl Apply for SequenceContextFormat3<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, _state: &ApplyState) -> Option<()> {
         let input_coverages = self.coverages();
-        input_coverages.get(0).ok()?.get(glyph)?;
         let input = |glyph: GlyphId, index: u16| {
             input_coverages
                 .get(index as usize + 1)
@@ -162,10 +156,8 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
 }
 
 impl Apply for ChainedSequenceContextFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let set = self.chained_seq_rule_sets().get(index)?.ok()?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let set = self.chained_seq_rule_sets().get(state.index)?.ok()?;
         apply_chain_context_rules(ctx, &set.chained_seq_rules(), [match_glyph; 3])
     }
 }
@@ -216,13 +208,11 @@ fn match_class<'a>(class_def: &'a Option<ClassDef<'a>>) -> impl Fn(GlyphId, u16)
 }
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
-        let index = input_classes.as_ref()?.get(glyph) as usize;
+        let index = input_classes.as_ref()?.get(state.glyph.try_into().ok()?) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
             ctx,
@@ -252,8 +242,8 @@ impl WouldApply for ChainedSequenceContextFormat3<'_> {
 }
 
 impl Apply for ChainedSequenceContextFormat3<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let glyph = state.glyph;
 
         let input_coverages = self.input_coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
