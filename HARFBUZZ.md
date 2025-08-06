@@ -166,7 +166,7 @@ over time [here](https://docs.google.com/spreadsheets/d/1lyPPZHXIF8gE0Tpx7_Iscwh
 
 ## Running against local HarfRust and Fontations
 
-By default, HarfBuzz will HarfRust from github `main` branch,
+By default, HarfBuzz will use HarfRust from github `main` branch,
 as can bee seen in `src/rust/Cargo.toml` file:
 ```toml
 [dependencies]
