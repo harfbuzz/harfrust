@@ -1,5 +1,5 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
+use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply, ApplyState};
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
@@ -9,9 +9,8 @@ use super::Value;
 // TODO: HarfBuzz uses two class caches, for left and right, as well as coverage.
 
 impl Apply for PairPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let first_glyph = ctx.buffer.cur(0).as_glyph();
-        let first_glyph_coverage_index = self.coverage().ok()?.get(first_glyph)?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let first_glyph_coverage_index = state.index;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(ctx.buffer.idx);
@@ -123,9 +122,8 @@ fn find_second_glyph<'a>(
 }
 
 impl Apply for PairPosFormat2<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let first_glyph = ctx.buffer.cur(0).as_glyph();
-        self.coverage().ok()?.get(first_glyph)?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let first_glyph = state.glyph;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(ctx.buffer.idx);

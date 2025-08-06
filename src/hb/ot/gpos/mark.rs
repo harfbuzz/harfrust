@@ -6,7 +6,7 @@ use crate::hb::ot_layout::{
 use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply};
+use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, ApplyState};
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
@@ -53,10 +53,9 @@ impl MarkArrayExt for MarkArray<'_> {
 }
 
 impl Apply for MarkBasePosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         let buffer = &ctx.buffer;
-        let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
+        let mark_index = state.index;
 
         let base_coverage = self.base_coverage().ok()?;
 
@@ -144,10 +143,9 @@ fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
 }
 
 impl Apply for MarkMarkPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         let buffer = &ctx.buffer;
-        let mark1_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
+        let mark1_index = state.index;
 
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -208,10 +206,9 @@ impl Apply for MarkMarkPosFormat1<'_> {
 }
 
 impl Apply for MarkLigPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         let buffer = &ctx.buffer;
-        let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
+        let mark_index = state.index;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.

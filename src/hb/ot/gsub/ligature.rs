@@ -1,7 +1,7 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply, WouldApply,
-    WouldApplyContext,
+    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply, ApplyState,
+    WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
@@ -21,7 +21,7 @@ impl WouldApply for Ligature<'_> {
 }
 
 impl Apply for Ligature<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, _state: &ApplyState) -> Option<()> {
         // Special-case to make it in-place and not consider this
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
@@ -74,10 +74,11 @@ impl WouldApply for LigatureSet<'_> {
 }
 
 impl Apply for LigatureSet<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         let mut first = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
-        let slow_path = if self.ligatures().len() <= 4 {
+        let ligatures = self.ligatures();
+        let slow_path = if ligatures.len() <= 4 {
             true
         } else {
             let mut iter = skipping_iterator_t::new(ctx, false);
@@ -97,18 +98,18 @@ impl Apply for LigatureSet<'_> {
 
         if slow_path {
             // Slow path
-            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
-                if lig.apply(ctx).is_some() {
+            for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
+                if lig.apply(ctx, state).is_some() {
                     return Some(());
                 }
             }
         } else {
             // Fast path
             let mut unsafe_to_concat = false;
-            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+            for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
                 let components = lig.component_glyph_ids();
                 if components.is_empty() || components[0].get() == first {
-                    if lig.apply(ctx).is_some() {
+                    if lig.apply(ctx, state).is_some() {
                         if unsafe_to_concat {
                             ctx.buffer
                                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -139,12 +140,10 @@ impl WouldApply for LigatureSubstFormat1<'_> {
 }
 
 impl Apply for LigatureSubstFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        self.coverage()
-            .ok()
-            .and_then(|coverage| coverage.get(glyph))
-            .and_then(|index| self.ligature_sets().get(index as usize).ok())
-            .and_then(|set| set.apply(ctx))
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        self.ligature_sets()
+            .get(state.index)
+            .ok()?
+            .apply(ctx, state)
     }
 }

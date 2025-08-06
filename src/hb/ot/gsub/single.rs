@@ -1,5 +1,5 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext};
+use crate::hb::ot_layout_gsubgpos::{Apply, ApplyState, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::{SingleSubstFormat1, SingleSubstFormat2};
 
 impl WouldApply for SingleSubstFormat1<'_> {
@@ -10,10 +10,8 @@ impl WouldApply for SingleSubstFormat1<'_> {
 }
 
 impl Apply for SingleSubstFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        self.coverage().ok()?.get(glyph)?;
-        let subst = (glyph.to_u32() as i32 + self.delta_glyph_id() as i32) as u16;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let subst = (state.glyph.to_u32() as i32 + self.delta_glyph_id() as i32) as u16;
         ctx.replace_glyph(subst.into());
         Some(())
     }
@@ -29,10 +27,8 @@ impl WouldApply for SingleSubstFormat2<'_> {
 }
 
 impl Apply for SingleSubstFormat2<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let subst = self.substitute_glyph_ids().get(index)?.get().to_u16();
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let subst = self.substitute_glyph_ids().get(state.index)?.get().to_u16();
         ctx.replace_glyph(subst.into());
         Some(())
     }

@@ -9,6 +9,7 @@ use super::ot_layout_common::*;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use read_fonts::tables::layout::SequenceLookupRecord;
+use read_fonts::tables::varc::CoverageTable;
 use read_fonts::types::GlyphId;
 
 /// Value represents glyph id.
@@ -605,7 +606,14 @@ pub trait WouldApply {
 /// Apply a lookup.
 pub trait Apply {
     /// Apply the lookup.
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()>;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()>;
+}
+
+#[derive(Clone)]
+pub struct ApplyState<'a> {
+    pub glyph: GlyphId,
+    pub coverage: CoverageTable<'a>,
+    pub index: usize,
 }
 
 pub struct WouldApplyContext<'a> {

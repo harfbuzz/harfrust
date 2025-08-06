@@ -1,6 +1,8 @@
 use crate::hb::{
     hb_font_t,
-    ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t},
+    ot_layout_gsubgpos::{
+        Apply, ApplyState, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t,
+    },
     set_digest::hb_set_digest_t,
 };
 
@@ -301,30 +303,41 @@ impl LookupInfo {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
+            let Ok(coverage) = subtable_info.primary_coverage_table(cache.table_data) else {
+                continue;
+            };
+            let Some(index) = coverage.get(glyph) else {
+                continue;
+            };
             let Some(subtable) = cache.get(subtable_idx) else {
                 continue;
             };
+            let state = ApplyState {
+                glyph,
+                coverage,
+                index: index as usize,
+            };
             let result = match subtable {
-                Subtable::SingleSubst1(subtable) => subtable.apply(ctx),
-                Subtable::SingleSubst2(subtable) => subtable.apply(ctx),
-                Subtable::MultipleSubst1(subtable) => subtable.apply(ctx),
-                Subtable::AlternateSubst1(subtable) => subtable.apply(ctx),
-                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx),
-                Subtable::ReverseChainContext(subtable) => subtable.apply(ctx),
-                Subtable::SinglePos1(subtable) => subtable.apply(ctx),
-                Subtable::SinglePos2(subtable) => subtable.apply(ctx),
-                Subtable::PairPos1(subtable) => subtable.apply(ctx),
-                Subtable::PairPos2(subtable) => subtable.apply(ctx),
-                Subtable::CursivePos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkBasePos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkLigPos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkMarkPos1(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat1(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat2(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat3(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat1(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat2(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat3(subtable) => subtable.apply(ctx),
+                Subtable::SingleSubst1(subtable) => subtable.apply(ctx, &state),
+                Subtable::SingleSubst2(subtable) => subtable.apply(ctx, &state),
+                Subtable::MultipleSubst1(subtable) => subtable.apply(ctx, &state),
+                Subtable::AlternateSubst1(subtable) => subtable.apply(ctx, &state),
+                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx, &state),
+                Subtable::ReverseChainContext(subtable) => subtable.apply(ctx, &state),
+                Subtable::SinglePos1(subtable) => subtable.apply(ctx, &state),
+                Subtable::SinglePos2(subtable) => subtable.apply(ctx, &state),
+                Subtable::PairPos1(subtable) => subtable.apply(ctx, &state),
+                Subtable::PairPos2(subtable) => subtable.apply(ctx, &state),
+                Subtable::CursivePos1(subtable) => subtable.apply(ctx, &state),
+                Subtable::MarkBasePos1(subtable) => subtable.apply(ctx, &state),
+                Subtable::MarkLigPos1(subtable) => subtable.apply(ctx, &state),
+                Subtable::MarkMarkPos1(subtable) => subtable.apply(ctx, &state),
+                Subtable::ContextFormat1(subtable) => subtable.apply(ctx, &state),
+                Subtable::ContextFormat2(subtable) => subtable.apply(ctx, &state),
+                Subtable::ContextFormat3(subtable) => subtable.apply(ctx, &state),
+                Subtable::ChainedContextFormat1(subtable) => subtable.apply(ctx, &state),
+                Subtable::ChainedContextFormat2(subtable) => subtable.apply(ctx, &state),
+                Subtable::ChainedContextFormat3(subtable) => subtable.apply(ctx, &state),
             };
             if result.is_some() {
                 return Some(());
@@ -394,7 +407,7 @@ pub struct SubtableInfo {
 }
 
 impl SubtableInfo {
-    pub(crate) fn _primary_coverage_table<'a>(
+    pub(crate) fn primary_coverage_table<'a>(
         &self,
         table_data: &'a [u8],
     ) -> Result<CoverageTable<'a>, ReadError> {
@@ -404,7 +417,7 @@ impl SubtableInfo {
     }
 
     pub(crate) fn _primary_coverage(&self, table_data: &[u8], glyph_id: GlyphId) -> Option<u16> {
-        let coverage = self._primary_coverage_table(table_data).ok()?;
+        let coverage = self.primary_coverage_table(table_data).ok()?;
         coverage.get(glyph_id)
     }
 
