@@ -178,6 +178,26 @@ pub(crate) struct buffer_var_shape {
     pub(crate) index: u8,
 }
 
+impl buffer_var_shape {
+    #[inline]
+    pub fn start(&self) -> u8 {
+        (self.var_index - 1) * 4 + self.index * self.width
+    }
+
+    #[inline]
+    pub fn count(&self) -> u8 {
+        self.width
+    }
+
+    #[inline]
+    pub fn bits(&self) -> u8 {
+        let start = self.start();
+        let end = start + self.count();
+        debug_assert!(end <= 8);
+        ((1u16 << end) - (1u16 << start)) as u8
+    }
+}
+
 macro_rules! declare_buffer_var {
     ($ty:ty, $var_index:expr, $index:expr, $var_name:ident, $getter:ident, $setter:ident) => {
         #[allow(dead_code)]
@@ -212,7 +232,7 @@ macro_rules! declare_buffer_var_alias {
 
         #[inline]
         pub(crate) fn $getter(&self) -> $ty {
-            assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
+            debug_assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
             let v: &[$ty; LEN] = bytemuck::cast_ref(
                 &self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
@@ -222,7 +242,7 @@ macro_rules! declare_buffer_var_alias {
 
         #[inline]
         pub(crate) fn $setter(&mut self, value: $ty) {
-            assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
+            debug_assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
             let v: &mut [$ty; LEN] = bytemuck::cast_mut(
                 &mut self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
@@ -407,6 +427,7 @@ pub struct hb_buffer_t {
     pub context_len: [usize; 2],
 
     // Managed by enter / leave
+    pub allocated_var_bits: u8,
     pub serial: u8,
     pub scratch_flags: hb_buffer_scratch_flags_t,
     /// Maximum allowed len.
@@ -449,6 +470,7 @@ impl hb_buffer_t {
             info: Vec::new(),
             pos: Vec::new(),
             have_separate_output: false,
+            allocated_var_bits: 0,
             serial: 0,
             context: [
                 ['\0', '\0', '\0', '\0', '\0'],
@@ -456,6 +478,48 @@ impl hb_buffer_t {
             ],
             context_len: [0, 0],
         }
+    }
+
+    #[inline]
+    pub fn allocate_var(&mut self, shape: buffer_var_shape) {
+        let bits = shape.bits();
+        assert_eq!(
+            self.allocated_var_bits & bits,
+            0,
+            "Variable already allocated"
+        );
+        self.allocated_var_bits |= bits;
+    }
+
+    #[inline]
+    pub fn try_allocate_var(&mut self, shape: buffer_var_shape) -> bool {
+        let bits = shape.bits();
+        if self.allocated_var_bits & bits != 0 {
+            return false;
+        }
+        self.allocated_var_bits |= bits;
+        true
+    }
+
+    #[inline]
+    pub fn deallocate_var(&mut self, shape: buffer_var_shape) {
+        let bits = shape.bits();
+        assert_eq!(
+            self.allocated_var_bits & bits,
+            bits,
+            "Deallocating unallocated var"
+        );
+        self.allocated_var_bits &= !bits;
+    }
+
+    #[inline]
+    pub fn assert_var(&self, shape: buffer_var_shape) {
+        let bits = shape.bits();
+        assert_eq!(
+            self.allocated_var_bits & bits,
+            bits,
+            "Variable not allocated"
+        );
     }
 
     #[inline]
