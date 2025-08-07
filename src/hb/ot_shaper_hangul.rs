@@ -14,13 +14,13 @@ const VJMO: u8 = 2;
 const TJMO: u8 = 3;
 
 impl hb_glyph_info_t {
-    fn hangul_shaping_feature(&self) -> u8 {
-        self.ot_shaper_var_u8_auxiliary()
-    }
-
-    fn set_hangul_shaping_feature(&mut self, feature: u8) {
-        self.set_ot_shaper_var_u8_auxiliary(feature);
-    }
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
+        u8,
+        HANGUL_SHAPING_FEATURE_VAR,
+        hangul_shaping_feature,
+        set_hangul_shaping_feature
+    );
 }
 
 fn collect_features_hangul(planner: &mut hb_ot_shape_planner_t) {

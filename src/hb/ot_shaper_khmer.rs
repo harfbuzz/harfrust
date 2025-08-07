@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use super::buffer::hb_buffer_t;
+use super::buffer::*;
 use super::ot_map::*;
 use super::ot_shape::*;
 use super::ot_shape_normalize::*;
@@ -25,6 +25,16 @@ pub const KHMER_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
     fallback_position: false,
 };
+
+impl hb_glyph_info_t {
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
+        u8,
+        KHMER_CATEGORY_VAR,
+        khmer_category,
+        set_khmer_category
+    );
+}
 
 const KHMER_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
     // Basic features.
@@ -57,7 +67,7 @@ impl hb_glyph_info_t {
         let u = self.glyph_id;
         let (cat, _) = crate::hb::ot_shaper_indic_table::get_categories(u);
 
-        self.set_indic_category(cat);
+        self.set_khmer_category(cat);
     }
 }
 

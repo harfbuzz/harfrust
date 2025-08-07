@@ -1,4 +1,4 @@
-use super::buffer::hb_buffer_t;
+use super::buffer::*;
 use super::ot_map::*;
 use super::ot_shape::*;
 use super::ot_shape_normalize::*;
@@ -23,6 +23,23 @@ pub const MYANMAR_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY,
     fallback_position: false,
 };
+
+impl hb_glyph_info_t {
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
+        u8,
+        MYANMAR_CATEGORY_VAR,
+        myanmar_category,
+        set_myanmar_category
+    );
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
+        u8,
+        MYANMAR_POSITION_VAR,
+        myanmar_position,
+        set_myanmar_position
+    );
+}
 
 // Ugly Zawgyi encoding.
 // Disable all auto processing.

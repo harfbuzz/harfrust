@@ -171,13 +171,13 @@ const STATE_TABLE: &[[(u8, u8, u16); 6]] = &[
 ];
 
 impl hb_glyph_info_t {
-    fn arabic_shaping_action(&self) -> u8 {
-        self.ot_shaper_var_u8_auxiliary()
-    }
-
-    fn set_arabic_shaping_action(&mut self, action: u8) {
-        self.set_ot_shaper_var_u8_auxiliary(action);
-    }
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
+        u8,
+        ARABIC_SHAPING_ACTION_VAR,
+        arabic_shaping_action,
+        set_arabic_shaping_action
+    );
 }
 
 fn collect_features(planner: &mut hb_ot_shape_planner_t) {

@@ -188,6 +188,7 @@ macro_rules! declare_buffer_var {
         };
 
         #[inline]
+        #[allow(dead_code)]
         pub(crate) fn $getter(&self) -> $ty {
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
             let v: &[$ty; LEN] = bytemuck::cast_ref(&self.vars[$var_index - 1usize]);
@@ -195,10 +196,38 @@ macro_rules! declare_buffer_var {
         }
 
         #[inline]
+        #[allow(dead_code)]
         pub(crate) fn $setter(&mut self, value: $ty) {
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
             let v: &mut [$ty; LEN] = bytemuck::cast_mut(&mut self.vars[$var_index - 1usize]);
             v[$index] = value;
+        }
+    };
+}
+
+macro_rules! declare_buffer_var_alias {
+    ($alias_var:ident, $ty:ty, $var_name:ident, $getter:ident, $setter:ident) => {
+        #[allow(dead_code)]
+        pub(crate) const $var_name: buffer_var_shape = hb_glyph_info_t::$alias_var;
+
+        #[inline]
+        pub(crate) fn $getter(&self) -> $ty {
+            assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
+            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            let v: &[$ty; LEN] = bytemuck::cast_ref(
+                &self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
+            );
+            v[hb_glyph_info_t::$alias_var.index as usize]
+        }
+
+        #[inline]
+        pub(crate) fn $setter(&mut self, value: $ty) {
+            assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
+            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            let v: &mut [$ty; LEN] = bytemuck::cast_mut(
+                &mut self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
+            );
+            v[hb_glyph_info_t::$alias_var.index as usize] = value;
         }
     };
 }

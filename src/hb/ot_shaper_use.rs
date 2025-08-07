@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 
 use super::algs::*;
-use super::buffer::hb_buffer_t;
+use super::buffer::*;
 use super::ot_layout::*;
 use super::ot_map::*;
 use super::ot_shape::*;
@@ -27,6 +27,23 @@ pub const UNIVERSAL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY,
     fallback_position: false,
 };
+
+impl hb_glyph_info_t {
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
+        u8,
+        USE_CATEGORY_VAR,
+        use_category,
+        set_use_category
+    );
+
+    fn is_halant_use(&self) -> bool {
+        matches!(
+            self.use_category(),
+            category::H | category::HVM | category::IS
+        ) && !_hb_glyph_info_ligated(self)
+    }
+}
 
 pub type Category = u8;
 #[allow(dead_code)]
@@ -140,23 +157,6 @@ const OTHER_FEATURES: &[hb_tag_t] = &[
     hb_tag_t::new(b"pres"),
     hb_tag_t::new(b"psts"),
 ];
-
-impl hb_glyph_info_t {
-    pub(crate) fn use_category(&self) -> Category {
-        self.ot_shaper_var_u8_category()
-    }
-
-    fn set_use_category(&mut self, c: Category) {
-        self.set_ot_shaper_var_u8_category(c);
-    }
-
-    fn is_halant_use(&self) -> bool {
-        matches!(
-            self.use_category(),
-            category::H | category::HVM | category::IS
-        ) && !_hb_glyph_info_ligated(self)
-    }
-}
 
 struct UniversalShapePlan {
     rphf_mask: hb_mask_t,
