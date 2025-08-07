@@ -9,8 +9,20 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_tag_t, script, Direction, Script};
 
 impl hb_glyph_info_t {
-    declare_buffer_var!(u8, 2, 2, ot_shaper_var_u8_category, set_ot_shaper_var_u8_category);
-    declare_buffer_var!(u8, 2, 3, ot_shaper_var_u8_auxiliary, set_ot_shaper_var_u8_auxiliary);
+    declare_buffer_var!(
+        u8,
+        2,
+        2,
+        ot_shaper_var_u8_category,
+        set_ot_shaper_var_u8_category
+    );
+    declare_buffer_var!(
+        u8,
+        2,
+        3,
+        ot_shaper_var_u8_auxiliary,
+        set_ot_shaper_var_u8_auxiliary
+    );
 }
 
 pub const MAX_COMBINING_MARKS: usize = 32;

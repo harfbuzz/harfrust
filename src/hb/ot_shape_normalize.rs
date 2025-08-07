@@ -6,6 +6,16 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
 use super::unicode::{hb_unicode_funcs_t, CharExt};
 
+impl hb_glyph_info_t {
+    declare_buffer_var!(
+        u32,
+        1,
+        0,
+        normalizer_glyph_index,
+        set_normalizer_glyph_index
+    );
+}
+
 pub struct hb_ot_shape_normalize_context_t<'a> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub buffer: &'a mut hb_buffer_t,
@@ -217,7 +227,9 @@ fn handle_variation_selector_cluster(
             if let Some(glyph_id) =
                 face.get_nominal_variant_glyph(buffer.cur(0).as_char(), buffer.cur(1).as_char())
             {
-                buffer.cur_mut(0).set_normalizer_glyph_index(u32::from(glyph_id));
+                buffer
+                    .cur_mut(0)
+                    .set_normalizer_glyph_index(u32::from(glyph_id));
                 let unicode = buffer.cur(0).glyph_id;
                 buffer.replace_glyphs(2, 1, &[unicode]);
             } else {

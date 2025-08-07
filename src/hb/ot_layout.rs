@@ -10,6 +10,13 @@ use super::unicode::{hb_unicode_funcs_t, hb_unicode_general_category_t, GeneralC
 use super::{hb_font_t, hb_glyph_info_t};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 
+impl hb_glyph_info_t {
+    declare_buffer_var!(u16, 1, 0, glyph_props, set_glyph_props);
+    declare_buffer_var!(u8, 1, 2, lig_props, set_lig_props);
+    declare_buffer_var!(u8, 1, 3, syllable, set_syllable);
+    declare_buffer_var!(u16, 2, 0, unicode_props, set_unicode_props);
+}
+
 pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
 

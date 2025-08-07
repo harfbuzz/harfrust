@@ -263,20 +263,6 @@ impl hb_glyph_info_t {
         Some(gid.into())
     }
 
-    // Var allocations:
-    declare_buffer_var!(u16, 1, 0, glyph_props, set_glyph_props);
-    declare_buffer_var!(u8, 1, 2, lig_props, set_lig_props);
-    declare_buffer_var!(u8, 1, 3, syllable, set_syllable);
-    declare_buffer_var!(u16, 2, 0, unicode_props, set_unicode_props);
-    // normalizer_glyph_index: Used during the normalization process to store glyph indices
-    declare_buffer_var!(
-        u32,
-        1,
-        0,
-        normalizer_glyph_index,
-        set_normalizer_glyph_index
-    );
-
     pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
         let u = self.as_char();
         let gc = u.general_category();
