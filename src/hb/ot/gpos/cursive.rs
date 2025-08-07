@@ -3,6 +3,7 @@ use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
+use crate::impl_subtable_apply_gpos;
 use crate::{Direction, GlyphPosition};
 use read_fonts::tables::gpos::CursivePosFormat1;
 
@@ -158,3 +159,5 @@ fn reverse_cursive_minor_offset(
     pos[j].set_attach_chain(-chain);
     pos[j].set_attach_type(attach_type);
 }
+
+impl_subtable_apply_gpos!(CursivePosFormat1<'a>);

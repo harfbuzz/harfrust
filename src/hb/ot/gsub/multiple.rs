@@ -5,6 +5,7 @@ use crate::hb::ot_layout::{
 };
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext};
+use crate::impl_subtable_apply_gsub;
 use read_fonts::tables::gsub::MultipleSubstFormat1;
 
 impl WouldApply for MultipleSubstFormat1<'_> {
@@ -55,3 +56,5 @@ impl Apply for MultipleSubstFormat1<'_> {
         Some(())
     }
 }
+
+impl_subtable_apply_gsub!(MultipleSubstFormat1<'a>);

@@ -1,5 +1,6 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
+use crate::impl_subtable_apply_gpos;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
@@ -207,3 +208,6 @@ impl Apply for PairPosFormat2<'_> {
         }
     }
 }
+
+impl_subtable_apply_gpos!(PairPosFormat1<'a>);
+impl_subtable_apply_gpos!(PairPosFormat2<'a>);

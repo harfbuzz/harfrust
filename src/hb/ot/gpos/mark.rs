@@ -7,6 +7,7 @@ use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply};
+use crate::impl_subtable_apply_mark;
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
@@ -297,3 +298,7 @@ impl Apply for MarkLigPosFormat1<'_> {
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx)
     }
 }
+
+impl_subtable_apply_mark!(MarkBasePosFormat1<'a>, mark_coverage, mark_coverage_offset);
+impl_subtable_apply_mark!(MarkMarkPosFormat1<'a>, mark1_coverage, mark1_coverage_offset);
+impl_subtable_apply_mark!(MarkLigPosFormat1<'a>, mark_coverage, mark_coverage_offset);

@@ -2,6 +2,7 @@ use super::Value;
 use crate::hb::ot_layout_gsubgpos::Apply;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use read_fonts::tables::gpos::{SinglePosFormat1, SinglePosFormat2};
+use crate::impl_subtable_apply_gpos;
 
 impl Apply for SinglePosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
@@ -32,3 +33,7 @@ impl Apply for SinglePosFormat2<'_> {
         Some(())
     }
 }
+
+impl_subtable_apply_gpos!(SinglePosFormat1<'a>);
+
+impl_subtable_apply_gpos!(SinglePosFormat2<'a>);

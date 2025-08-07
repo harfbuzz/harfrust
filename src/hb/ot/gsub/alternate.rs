@@ -1,5 +1,6 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext};
+use crate::impl_subtable_apply_gsub;
 use read_fonts::tables::gsub::{AlternateSet, AlternateSubstFormat1};
 
 impl Apply for AlternateSet<'_> {
@@ -48,3 +49,5 @@ impl Apply for AlternateSubstFormat1<'_> {
         set.apply(ctx)
     }
 }
+
+impl_subtable_apply_gsub!(AlternateSubstFormat1<'a>);

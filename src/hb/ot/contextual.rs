@@ -4,6 +4,7 @@ use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, may_skip_t,
     skipping_iterator_t, Apply, WouldApply, WouldApplyContext,
 };
+use crate::impl_subtable_apply_gsub;
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
     ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
@@ -732,4 +733,121 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
     }
     None
+}
+
+
+// Manual implementations for contextual subtables since they need custom coverage logic
+use crate::hb::ot::lookup::SubtableApply;
+use read_fonts::tables::layout::CoverageTable;
+use read_fonts::ReadError;
+use alloc::boxed::Box;
+
+impl<'a> SubtableApply for SequenceContextFormat1<'a> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        Apply::apply(self, ctx)
+    }
+    
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        WouldApply::would_apply(self, ctx)
+    }
+    
+    fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
+        Ok((self.coverage()?, self.coverage_offset().to_u32() as u16))
+    }
+    
+    fn clone_box(&self) -> Box<dyn SubtableApply + '_> {
+        Box::new(self.clone())
+    }
+}
+
+impl<'a> SubtableApply for SequenceContextFormat2<'a> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        Apply::apply(self, ctx)
+    }
+    
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        WouldApply::would_apply(self, ctx)
+    }
+    
+    fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
+        Ok((self.coverage()?, self.coverage_offset().to_u32() as u16))
+    }
+    
+    fn clone_box(&self) -> Box<dyn SubtableApply + '_> {
+        Box::new(self.clone())
+    }
+}
+
+impl<'a> SubtableApply for SequenceContextFormat3<'a> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        Apply::apply(self, ctx)
+    }
+    
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        WouldApply::would_apply(self, ctx)
+    }
+    
+    fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
+        let offset = self.coverage_offsets().first().ok_or(ReadError::OutOfBounds)?;
+        Ok((self.coverages().get(0)?, offset.get().to_u32() as u16))
+    }
+    
+    fn clone_box(&self) -> Box<dyn SubtableApply + '_> {
+        Box::new(self.clone())
+    }
+}
+
+impl<'a> SubtableApply for ChainedSequenceContextFormat1<'a> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        Apply::apply(self, ctx)
+    }
+    
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        WouldApply::would_apply(self, ctx)
+    }
+    
+    fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
+        Ok((self.coverage()?, self.coverage_offset().to_u32() as u16))
+    }
+    
+    fn clone_box(&self) -> Box<dyn SubtableApply + '_> {
+        Box::new(self.clone())
+    }
+}
+
+impl<'a> SubtableApply for ChainedSequenceContextFormat2<'a> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        Apply::apply(self, ctx)
+    }
+    
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        WouldApply::would_apply(self, ctx)
+    }
+    
+    fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
+        Ok((self.coverage()?, self.coverage_offset().to_u32() as u16))
+    }
+    
+    fn clone_box(&self) -> Box<dyn SubtableApply + '_> {
+        Box::new(self.clone())
+    }
+}
+
+impl<'a> SubtableApply for ChainedSequenceContextFormat3<'a> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        Apply::apply(self, ctx)
+    }
+    
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        WouldApply::would_apply(self, ctx)
+    }
+    
+    fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
+        let offset = self.input_coverage_offsets().first().ok_or(ReadError::OutOfBounds)?;
+        Ok((self.input_coverages().get(0)?, offset.get().to_u32() as u16))
+    }
+    
+    fn clone_box(&self) -> Box<dyn SubtableApply + '_> {
+        Box::new(self.clone())
+    }
 }

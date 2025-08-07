@@ -5,6 +5,7 @@ use crate::hb::ot_layout_gsubgpos::{
 };
 use read_fonts::tables::gsub::ReverseChainSingleSubstFormat1;
 use read_fonts::types::GlyphId;
+use crate::impl_subtable_apply_gsub;
 
 impl WouldApply for ReverseChainSingleSubstFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -80,3 +81,5 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
         None
     }
 }
+
+impl_subtable_apply_gsub!(ReverseChainSingleSubstFormat1<'a>);

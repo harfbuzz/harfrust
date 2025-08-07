@@ -5,6 +5,7 @@ use crate::hb::ot_layout_gsubgpos::{
 };
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
+use crate::impl_subtable_apply_gsub;
 
 // TODO HarfBuzz caches coverage ala PairPos1
 
@@ -148,3 +149,5 @@ impl Apply for LigatureSubstFormat1<'_> {
             .and_then(|set| set.apply(ctx))
     }
 }
+
+impl_subtable_apply_gsub!(LigatureSubstFormat1<'a>);

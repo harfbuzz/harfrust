@@ -1,5 +1,6 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext};
+use crate::impl_subtable_apply_gsub;
 use read_fonts::tables::gsub::{SingleSubstFormat1, SingleSubstFormat2};
 
 impl WouldApply for SingleSubstFormat1<'_> {
@@ -19,6 +20,8 @@ impl Apply for SingleSubstFormat1<'_> {
     }
 }
 
+impl_subtable_apply_gsub!(SingleSubstFormat1<'a>);
+
 impl WouldApply for SingleSubstFormat2<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         ctx.glyphs.len() == 1
@@ -37,3 +40,5 @@ impl Apply for SingleSubstFormat2<'_> {
         Some(())
     }
 }
+
+impl_subtable_apply_gsub!(SingleSubstFormat2<'a>);
