@@ -168,23 +168,22 @@ pub struct hb_glyph_info_t {
     ///
     /// [Read more on clusters](https://harfbuzz.github.io/clusters.html).
     pub cluster: u32,
-    pub(crate) var1: u32,
-    pub(crate) var2: u32,
+    pub(crate) vars: [u32; 2],
 }
 
 macro_rules! declare_buffer_var {
-    ($ty:ty, $field:ident, $index:expr, $getter:ident, $setter:ident) => {
+    ($ty:ty, $var_index:expr, $index:expr, $getter:ident, $setter:ident) => {
         #[inline]
         pub(crate) fn $getter(&self) -> $ty {
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
-            let v: &[$ty; LEN] = bytemuck::cast_ref(&self.$field);
+            let v: &[$ty; LEN] = bytemuck::cast_ref(&self.vars[$var_index - 1usize]);
             v[$index]
         }
 
         #[inline]
         pub(crate) fn $setter(&mut self, value: $ty) {
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
-            let v: &mut [$ty; LEN] = bytemuck::cast_mut(&mut self.$field);
+            let v: &mut [$ty; LEN] = bytemuck::cast_mut(&mut self.vars[$var_index - 1usize]);
             v[$index] = value;
         }
     };
@@ -265,14 +264,14 @@ impl hb_glyph_info_t {
     }
 
     // Var allocations:
-    declare_buffer_var!(u16, var1, 0, glyph_props, set_glyph_props);
-    declare_buffer_var!(u8, var1, 2, lig_props, set_lig_props);
-    declare_buffer_var!(u8, var1, 3, syllable, set_syllable);
-    declare_buffer_var!(u16, var2, 0, unicode_props, set_unicode_props);
+    declare_buffer_var!(u16, 1, 0, glyph_props, set_glyph_props);
+    declare_buffer_var!(u8, 1, 2, lig_props, set_lig_props);
+    declare_buffer_var!(u8, 1, 3, syllable, set_syllable);
+    declare_buffer_var!(u16, 2, 0, unicode_props, set_unicode_props);
     // normalizer_glyph_index: Used during the normalization process to store glyph indices
     declare_buffer_var!(
         u32,
-        var1,
+        1,
         0,
         normalizer_glyph_index,
         set_normalizer_glyph_index
@@ -557,8 +556,7 @@ impl hb_buffer_t {
             glyph_id: codepoint,
             mask: 0,
             cluster,
-            var1: 0,
-            var2: 0,
+            vars: [0, 0],
         };
 
         self.len += 1;
