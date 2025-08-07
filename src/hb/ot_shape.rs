@@ -793,14 +793,14 @@ fn rotate_chars(ctx: &mut hb_ot_shape_context_t) {
 }
 
 fn map_glyphs_fast(buffer: &mut hb_buffer_t) {
-    // Normalization process sets up glyph_index(), we just copy it.
+    // Normalization process sets up normalizer_glyph_index(), we just copy it.
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
-        info.glyph_id = info.glyph_index();
+        info.glyph_id = info.normalizer_glyph_index();
     }
 
     for info in &mut buffer.out_info_mut()[..len] {
-        info.glyph_id = info.glyph_index();
+        info.glyph_id = info.normalizer_glyph_index();
     }
 }
 

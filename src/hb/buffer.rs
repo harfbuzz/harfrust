@@ -172,6 +172,24 @@ pub struct hb_glyph_info_t {
     pub(crate) var2: u32,
 }
 
+macro_rules! declare_buffer_var {
+    ($ty:ty, $field:ident, $index:expr, $getter:ident, $setter:ident) => {
+        #[inline]
+        pub(crate) fn $getter(&self) -> $ty {
+            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            let v: &[$ty; LEN] = bytemuck::cast_ref(&self.$field);
+            v[$index]
+        }
+
+        #[inline]
+        pub(crate) fn $setter(&mut self, value: $ty) {
+            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            let v: &mut [$ty; LEN] = bytemuck::cast_mut(&mut self.$field);
+            v[$index] = value;
+        }
+    };
+}
+
 impl hb_glyph_info_t {
     /// Indicates that if input text is broken at the beginning of the cluster this glyph
     /// is part of, then both sides need to be re-shaped, as the result might be different.
@@ -246,20 +264,19 @@ impl hb_glyph_info_t {
         Some(gid.into())
     }
 
-    // Var allocation: unicode_props
-    // Used during the entire shaping process to store unicode properties
-
-    #[inline]
-    pub(crate) fn unicode_props(&self) -> u16 {
-        let v: &[u16; 2] = bytemuck::cast_ref(&self.var2);
-        v[0]
-    }
-
-    #[inline]
-    pub(crate) fn set_unicode_props(&mut self, n: u16) {
-        let v: &mut [u16; 2] = bytemuck::cast_mut(&mut self.var2);
-        v[0] = n;
-    }
+    // Var allocations:
+    declare_buffer_var!(u16, var1, 0, glyph_props, set_glyph_props);
+    declare_buffer_var!(u8, var1, 2, lig_props, set_lig_props);
+    declare_buffer_var!(u8, var1, 3, syllable, set_syllable);
+    declare_buffer_var!(u16, var2, 0, unicode_props, set_unicode_props);
+    // normalizer_glyph_index: Used during the normalization process to store glyph indices
+    declare_buffer_var!(
+        u32,
+        var1,
+        0,
+        normalizer_glyph_index,
+        set_normalizer_glyph_index
+    );
 
     pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
         let u = self.as_char();
@@ -315,55 +332,6 @@ impl hb_glyph_info_t {
         let mut n = self.unicode_props();
         n &= !UnicodeProps::HIDDEN.bits();
         self.set_unicode_props(n);
-    }
-
-    #[inline]
-    pub(crate) fn lig_props(&self) -> u8 {
-        let v: &[u8; 4] = bytemuck::cast_ref(&self.var1);
-        v[2]
-    }
-
-    #[inline]
-    pub(crate) fn set_lig_props(&mut self, n: u8) {
-        let v: &mut [u8; 4] = bytemuck::cast_mut(&mut self.var1);
-        v[2] = n;
-    }
-
-    #[inline]
-    pub(crate) fn glyph_props(&self) -> u16 {
-        let v: &[u16; 2] = bytemuck::cast_ref(&self.var1);
-        v[0]
-    }
-
-    #[inline]
-    pub(crate) fn set_glyph_props(&mut self, n: u16) {
-        let v: &mut [u16; 2] = bytemuck::cast_mut(&mut self.var1);
-        v[0] = n;
-    }
-
-    #[inline]
-    pub(crate) fn syllable(&self) -> u8 {
-        let v: &[u8; 4] = bytemuck::cast_ref(&self.var1);
-        v[3]
-    }
-
-    #[inline]
-    pub(crate) fn set_syllable(&mut self, n: u8) {
-        let v: &mut [u8; 4] = bytemuck::cast_mut(&mut self.var1);
-        v[3] = n;
-    }
-
-    // Var allocation: glyph_index
-    // Used during the normalization process to store glyph indices
-
-    #[inline]
-    pub(crate) fn glyph_index(&mut self) -> u32 {
-        self.var1
-    }
-
-    #[inline]
-    pub(crate) fn set_glyph_index(&mut self, n: u32) {
-        self.var1 = n;
     }
 }
 
