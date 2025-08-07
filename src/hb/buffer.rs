@@ -171,8 +171,22 @@ pub struct hb_glyph_info_t {
     pub(crate) vars: [u32; 2],
 }
 
+#[allow(dead_code)]
+pub(crate) struct buffer_var_shape {
+    pub(crate) width: u8,
+    pub(crate) var_index: u8,
+    pub(crate) index: u8,
+}
+
 macro_rules! declare_buffer_var {
-    ($ty:ty, $var_index:expr, $index:expr, $getter:ident, $setter:ident) => {
+    ($ty:ty, $var_index:expr, $index:expr, $var_name:ident, $getter:ident, $setter:ident) => {
+        #[allow(dead_code)]
+        pub(crate) const $var_name: buffer_var_shape = buffer_var_shape {
+            width: std::mem::size_of::<$ty>() as u8,
+            var_index: $var_index,
+            index: $index,
+        };
+
         #[inline]
         pub(crate) fn $getter(&self) -> $ty {
             const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();

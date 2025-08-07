@@ -11,6 +11,7 @@ impl hb_glyph_info_t {
         u32,
         1,
         0,
+        NORMALIZER_GLYPH_INDEX_VAR,
         normalizer_glyph_index,
         set_normalizer_glyph_index
     );

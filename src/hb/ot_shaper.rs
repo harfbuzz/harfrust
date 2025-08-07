@@ -13,6 +13,7 @@ impl hb_glyph_info_t {
         u8,
         2,
         2,
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
         ot_shaper_var_u8_category,
         set_ot_shaper_var_u8_category
     );
@@ -20,6 +21,7 @@ impl hb_glyph_info_t {
         u8,
         2,
         3,
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
         ot_shaper_var_u8_auxiliary,
         set_ot_shaper_var_u8_auxiliary
     );
