@@ -1,11 +1,10 @@
 use crate::hb::{
     hb_font_t,
-    ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t},
+    ot_layout_gsubgpos::{WouldApplyContext, OT::hb_ot_apply_context_t},
     set_digest::hb_set_digest_t,
 };
 
 use alloc::vec::Vec;
-use alloc::boxed::Box;
 use core::ops::Range;
 use read_fonts::{
     tables::{
@@ -39,9 +38,6 @@ pub trait SubtableApply {
     
     /// Get the coverage table and its offset.
     fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError>;
-    
-    /// Clone the subtable into a new boxed trait object.
-    fn clone_box(&self) -> Box<dyn SubtableApply + '_>;
 }
 
 /// Macro to implement SubtableApply for types that already implement Apply and have coverage methods.
@@ -60,10 +56,6 @@ macro_rules! impl_subtable_apply_gsub {
             
             fn coverage_and_offset(&self) -> Result<(read_fonts::tables::layout::CoverageTable<'_>, u16), read_fonts::ReadError> {
                 Ok((self.coverage()?, self.coverage_offset().to_u32() as u16))
-            }
-            
-            fn clone_box(&self) -> alloc::boxed::Box<dyn $crate::hb::ot::lookup::SubtableApply + '_> {
-                alloc::boxed::Box::new(self.clone())
             }
         }
     };
@@ -84,10 +76,6 @@ macro_rules! impl_subtable_apply_gpos {
             
             fn coverage_and_offset(&self) -> Result<(read_fonts::tables::layout::CoverageTable<'_>, u16), read_fonts::ReadError> {
                 Ok((self.coverage()?, self.coverage_offset().to_u32() as u16))
-            }
-            
-            fn clone_box(&self) -> alloc::boxed::Box<dyn $crate::hb::ot::lookup::SubtableApply + '_> {
-                alloc::boxed::Box::new(self.clone())
             }
         }
     };
@@ -182,10 +170,6 @@ macro_rules! impl_subtable_apply_mark {
             
             fn coverage_and_offset(&self) -> Result<(read_fonts::tables::layout::CoverageTable<'_>, u16), read_fonts::ReadError> {
                 Ok((self.$coverage_method()?, self.$offset_method().to_u32() as u16))
-            }
-            
-            fn clone_box(&self) -> alloc::boxed::Box<dyn $crate::hb::ot::lookup::SubtableApply + '_> {
-                alloc::boxed::Box::new(self.clone())
             }
         }
     };
@@ -468,9 +452,8 @@ impl LookupInfo {
             let Some(subtable) = cache.get(subtable_idx) else {
                 continue;
             };
-            let result = match subtable {
-                Subtable::Dynamic(subtable) => subtable.apply(ctx),
-            };
+            // Use dynamic dispatch through the new subtable method
+            let result = subtable.apply(ctx);
             if result.is_some() {
                 return Some(());
             }
@@ -500,9 +483,8 @@ impl LookupInfo {
             let Ok(subtable) = subtable_info.materialize(table_data) else {
                 continue;
             };
-            let result = match subtable {
-                Subtable::Dynamic(subtable) => subtable.would_apply(ctx),
-            };
+            // Use dynamic dispatch through the new subtable method
+            let result = subtable.would_apply(ctx);
             return Some(result);
         }
         None
@@ -551,74 +533,146 @@ impl SubtableInfo {
     }
 }
 
-/// All possible subtables in a lookup, stored as trait objects for dynamic dispatch.
+/// All possible subtables in a lookup.
+#[derive(Clone)]
 pub enum Subtable<'a> {
-    /// Trait object wrapper for all subtable implementations
-    Dynamic(Box<dyn SubtableApply + 'a>),
-}
-
-impl<'a> Clone for Subtable<'a> {
-    fn clone(&self) -> Self {
-        match self {
-            Subtable::Dynamic(boxed) => {
-                // Use unsafe to work around lifetime issues in clone_box
-                let cloned = boxed.clone_box();
-                let cloned_ptr = Box::into_raw(cloned);
-                let adjusted_ptr = unsafe { Box::from_raw(cloned_ptr as *mut dyn SubtableApply) };
-                Subtable::Dynamic(adjusted_ptr)
-            }
-        }
-    }
+    SingleSubst1(SingleSubstFormat1<'a>),
+    SingleSubst2(SingleSubstFormat2<'a>),
+    MultipleSubst1(MultipleSubstFormat1<'a>),
+    AlternateSubst1(AlternateSubstFormat1<'a>),
+    LigatureSubst1(LigatureSubstFormat1<'a>),
+    SinglePos1(SinglePosFormat1<'a>),
+    SinglePos2(SinglePosFormat2<'a>),
+    PairPos1(PairPosFormat1<'a>),
+    PairPos2(PairPosFormat2<'a>),
+    CursivePos1(CursivePosFormat1<'a>),
+    MarkBasePos1(MarkBasePosFormat1<'a>),
+    MarkMarkPos1(MarkMarkPosFormat1<'a>),
+    MarkLigPos1(MarkLigPosFormat1<'a>),
+    ContextFormat1(SequenceContextFormat1<'a>),
+    ContextFormat2(SequenceContextFormat2<'a>),
+    ContextFormat3(SequenceContextFormat3<'a>),
+    ChainedContextFormat1(ChainedSequenceContextFormat1<'a>),
+    ChainedContextFormat2(ChainedSequenceContextFormat2<'a>),
+    ChainedContextFormat3(ChainedSequenceContextFormat3<'a>),
+    ReverseChainContext(ReverseChainSingleSubstFormat1<'a>),
 }
 
 impl<'a> Subtable<'a> {
     fn read(data: FontData<'a>, is_sub: bool, lookup_type: u8) -> Result<Self, ReadError> {
-        let subtable: Box<dyn SubtableApply + 'a> = match (is_sub, lookup_type) {
+        match (is_sub, lookup_type) {
             (true, 1) => match SingleSubst::read(data)? {
-                SingleSubst::Format1(s) => Box::new(s),
-                SingleSubst::Format2(s) => Box::new(s),
+                SingleSubst::Format1(s) => Ok(Self::SingleSubst1(s)),
+                SingleSubst::Format2(s) => Ok(Self::SingleSubst2(s)),
             },
             (false, 1) => match SinglePos::read(data)? {
-                SinglePos::Format1(s) => Box::new(s),
-                SinglePos::Format2(s) => Box::new(s),
+                SinglePos::Format1(s) => Ok(Self::SinglePos1(s)),
+                SinglePos::Format2(s) => Ok(Self::SinglePos2(s)),
             },
-            (true, 2) => Box::new(MultipleSubstFormat1::read(data)?),
+            (true, 2) => Ok(Self::MultipleSubst1(MultipleSubstFormat1::read(data)?)),
             (false, 2) => match PairPos::read(data)? {
-                PairPos::Format1(s) => Box::new(s),
-                PairPos::Format2(s) => Box::new(s),
+                PairPos::Format1(s) => Ok(Self::PairPos1(s)),
+                PairPos::Format2(s) => Ok(Self::PairPos2(s)),
             },
-            (true, 3) => Box::new(AlternateSubstFormat1::read(data)?),
-            (false, 3) => Box::new(CursivePosFormat1::read(data)?),
-            (true, 4) => Box::new(LigatureSubstFormat1::read(data)?),
-            (false, 4) => Box::new(MarkBasePosFormat1::read(data)?),
+            (true, 3) => Ok(Self::AlternateSubst1(AlternateSubstFormat1::read(data)?)),
+            (false, 3) => Ok(Self::CursivePos1(CursivePosFormat1::read(data)?)),
+            (true, 4) => Ok(Self::LigatureSubst1(LigatureSubstFormat1::read(data)?)),
+            (false, 4) => Ok(Self::MarkBasePos1(MarkBasePosFormat1::read(data)?)),
             (true, 5) | (false, 7) => match SequenceContext::read(data)? {
-                SequenceContext::Format1(s) => Box::new(s),
-                SequenceContext::Format2(s) => Box::new(s),
-                SequenceContext::Format3(s) => Box::new(s),
+                SequenceContext::Format1(s) => Ok(Self::ContextFormat1(s)),
+                SequenceContext::Format2(s) => Ok(Self::ContextFormat2(s)),
+                SequenceContext::Format3(s) => Ok(Self::ContextFormat3(s)),
             },
-            (false, 5) => Box::new(MarkLigPosFormat1::read(data)?),
+            (false, 5) => Ok(Self::MarkLigPos1(MarkLigPosFormat1::read(data)?)),
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data)? {
-                ChainedSequenceContext::Format1(s) => Box::new(s),
-                ChainedSequenceContext::Format2(s) => Box::new(s),
-                ChainedSequenceContext::Format3(s) => Box::new(s),
+                ChainedSequenceContext::Format1(s) => Ok(Self::ChainedContextFormat1(s)),
+                ChainedSequenceContext::Format2(s) => Ok(Self::ChainedContextFormat2(s)),
+                ChainedSequenceContext::Format3(s) => Ok(Self::ChainedContextFormat3(s)),
             },
-            (false, 6) => Box::new(MarkMarkPosFormat1::read(data)?),
+            (false, 6) => Ok(Self::MarkMarkPos1(MarkMarkPosFormat1::read(data)?)),
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<'a, ()>::read(data)?;
                 let ext_type = ext.extension_lookup_type() as u8;
                 let offset = ext.extension_offset().to_usize();
                 let data = data.split_off(offset).ok_or(ReadError::OutOfBounds)?;
-                return Self::read(data, is_sub, ext_type);
+                Self::read(data, is_sub, ext_type)
             }
-            (true, 8) => Box::new(ReverseChainSingleSubstFormat1::read(data)?),
-            _ => return Err(ReadError::MalformedData("invalid lookup type")),
-        };
-        Ok(Self::Dynamic(subtable))
+            (true, 8) => Ok(Self::ReverseChainContext(
+                ReverseChainSingleSubstFormat1::read(data)?,
+            )),
+            _ => Err(ReadError::MalformedData("invalid lookup type")),
+        }
     }
 
     fn coverage_and_offset(&self) -> Result<(CoverageTable<'_>, u16), ReadError> {
         match self {
-            Self::Dynamic(subtable) => subtable.coverage_and_offset(),
+            Self::SingleSubst1(s) => s.coverage_and_offset(),
+            Self::SingleSubst2(s) => s.coverage_and_offset(),
+            Self::MultipleSubst1(s) => s.coverage_and_offset(),
+            Self::AlternateSubst1(s) => s.coverage_and_offset(),
+            Self::LigatureSubst1(s) => s.coverage_and_offset(),
+            Self::ReverseChainContext(s) => s.coverage_and_offset(),
+            Self::SinglePos1(s) => s.coverage_and_offset(),
+            Self::SinglePos2(s) => s.coverage_and_offset(),
+            Self::PairPos1(s) => s.coverage_and_offset(),
+            Self::PairPos2(s) => s.coverage_and_offset(),
+            Self::CursivePos1(s) => s.coverage_and_offset(),
+            Self::MarkBasePos1(s) => s.coverage_and_offset(),
+            Self::MarkMarkPos1(s) => s.coverage_and_offset(),
+            Self::MarkLigPos1(s) => s.coverage_and_offset(),
+            Self::ContextFormat1(s) => s.coverage_and_offset(),
+            Self::ContextFormat2(s) => s.coverage_and_offset(),
+            Self::ContextFormat3(s) => s.coverage_and_offset(),
+            Self::ChainedContextFormat1(s) => s.coverage_and_offset(),
+            Self::ChainedContextFormat2(s) => s.coverage_and_offset(),
+            Self::ChainedContextFormat3(s) => s.coverage_and_offset(),
+        }
+    }
+    
+    /// Apply the subtable using dynamic dispatch through the SubtableApply trait.
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        match self {
+            Self::SingleSubst1(s) => s.apply(ctx),
+            Self::SingleSubst2(s) => s.apply(ctx),
+            Self::MultipleSubst1(s) => s.apply(ctx),
+            Self::AlternateSubst1(s) => s.apply(ctx),
+            Self::LigatureSubst1(s) => s.apply(ctx),
+            Self::ReverseChainContext(s) => s.apply(ctx),
+            Self::SinglePos1(s) => s.apply(ctx),
+            Self::SinglePos2(s) => s.apply(ctx),
+            Self::PairPos1(s) => s.apply(ctx),
+            Self::PairPos2(s) => s.apply(ctx),
+            Self::CursivePos1(s) => s.apply(ctx),
+            Self::MarkBasePos1(s) => s.apply(ctx),
+            Self::MarkMarkPos1(s) => s.apply(ctx),
+            Self::MarkLigPos1(s) => s.apply(ctx),
+            Self::ContextFormat1(s) => s.apply(ctx),
+            Self::ContextFormat2(s) => s.apply(ctx),
+            Self::ContextFormat3(s) => s.apply(ctx),
+            Self::ChainedContextFormat1(s) => s.apply(ctx),
+            Self::ChainedContextFormat2(s) => s.apply(ctx),
+            Self::ChainedContextFormat3(s) => s.apply(ctx),
+        }
+    }
+    
+    /// Check if the subtable would apply using dynamic dispatch through the SubtableApply trait.
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        match self {
+            Self::SingleSubst1(s) => s.would_apply(ctx),
+            Self::SingleSubst2(s) => s.would_apply(ctx),
+            Self::MultipleSubst1(s) => s.would_apply(ctx),
+            Self::AlternateSubst1(s) => s.would_apply(ctx),
+            Self::LigatureSubst1(s) => s.would_apply(ctx),
+            Self::ReverseChainContext(s) => s.would_apply(ctx),
+            Self::ContextFormat1(s) => s.would_apply(ctx),
+            Self::ContextFormat2(s) => s.would_apply(ctx),
+            Self::ContextFormat3(s) => s.would_apply(ctx),
+            Self::ChainedContextFormat1(s) => s.would_apply(ctx),
+            Self::ChainedContextFormat2(s) => s.would_apply(ctx),
+            Self::ChainedContextFormat3(s) => s.would_apply(ctx),
+            // GPOS subtables don't implement would_apply, so return false
+            Self::SinglePos1(_) | Self::SinglePos2(_) | Self::PairPos1(_) | Self::PairPos2(_) |
+            Self::CursivePos1(_) | Self::MarkBasePos1(_) | Self::MarkMarkPos1(_) | Self::MarkLigPos1(_) => false,
         }
     }
 }
