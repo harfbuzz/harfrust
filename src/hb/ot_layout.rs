@@ -10,6 +10,45 @@ use super::unicode::{hb_unicode_funcs_t, hb_unicode_general_category_t, GeneralC
 use super::{hb_font_t, hb_glyph_info_t};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 
+impl hb_glyph_info_t {
+    declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
+    declare_buffer_var!(u8, 1, 2, LIG_PROPS_VAR, lig_props, set_lig_props);
+    declare_buffer_var!(u8, 1, 3, SYLLABLE_VAR, syllable, set_syllable);
+    declare_buffer_var!(
+        u16,
+        2,
+        0,
+        UNICODE_PROPS_VAR,
+        unicode_props,
+        set_unicode_props
+    );
+}
+
+impl hb_buffer_t {
+    pub(crate) fn allocate_unicode_vars(&mut self) {
+        self.allocate_var(hb_glyph_info_t::UNICODE_PROPS_VAR);
+    }
+    pub(crate) fn deallocate_unicode_vars(&mut self) {
+        self.deallocate_var(hb_glyph_info_t::UNICODE_PROPS_VAR);
+    }
+    pub(crate) fn assert_unicode_vars(&mut self) {
+        self.assert_var(hb_glyph_info_t::UNICODE_PROPS_VAR);
+    }
+
+    pub(crate) fn allocate_gsubgpos_vars(&mut self) {
+        self.allocate_var(hb_glyph_info_t::LIG_PROPS_VAR);
+        self.allocate_var(hb_glyph_info_t::GLYPH_PROPS_VAR);
+    }
+    pub(crate) fn deallocate_gsubgpos_vars(&mut self) {
+        self.deallocate_var(hb_glyph_info_t::LIG_PROPS_VAR);
+        self.deallocate_var(hb_glyph_info_t::GLYPH_PROPS_VAR);
+    }
+    pub(crate) fn assert_gsubgpos_vars(&mut self) {
+        self.assert_var(hb_glyph_info_t::LIG_PROPS_VAR);
+        self.assert_var(hb_glyph_info_t::GLYPH_PROPS_VAR);
+    }
+}
+
 pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
 
@@ -42,6 +81,8 @@ pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
 // OT::GDEF::is_blocklisted unsupported
 
 pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.assert_gsubgpos_vars();
+
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         info.set_glyph_props(face.glyph_props(info.as_glyph()));

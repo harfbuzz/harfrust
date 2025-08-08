@@ -9,25 +9,22 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_tag_t, script, Direction, Script};
 
 impl hb_glyph_info_t {
-    pub(crate) fn ot_shaper_var_u8_category(&self) -> u8 {
-        let v: &[u8; 4] = bytemuck::cast_ref(&self.var2);
-        v[2]
-    }
-
-    pub(crate) fn set_ot_shaper_var_u8_category(&mut self, c: u8) {
-        let v: &mut [u8; 4] = bytemuck::cast_mut(&mut self.var2);
-        v[2] = c;
-    }
-
-    pub(crate) fn ot_shaper_var_u8_auxiliary(&self) -> u8 {
-        let v: &[u8; 4] = bytemuck::cast_ref(&self.var2);
-        v[3]
-    }
-
-    pub(crate) fn set_ot_shaper_var_u8_auxiliary(&mut self, c: u8) {
-        let v: &mut [u8; 4] = bytemuck::cast_mut(&mut self.var2);
-        v[3] = c;
-    }
+    declare_buffer_var!(
+        u8,
+        2,
+        2,
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
+        ot_shaper_var_u8_category,
+        set_ot_shaper_var_u8_category
+    );
+    declare_buffer_var!(
+        u8,
+        2,
+        3,
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
+        ot_shaper_var_u8_auxiliary,
+        set_ot_shaper_var_u8_auxiliary
+    );
 }
 
 pub const MAX_COMBINING_MARKS: usize = 32;

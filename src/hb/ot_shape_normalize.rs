@@ -6,6 +6,17 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
 use super::unicode::{hb_unicode_funcs_t, CharExt};
 
+impl hb_glyph_info_t {
+    declare_buffer_var!(
+        u32,
+        1,
+        0,
+        NORMALIZER_GLYPH_INDEX_VAR,
+        normalizer_glyph_index,
+        set_normalizer_glyph_index
+    );
+}
+
 pub struct hb_ot_shape_normalize_context_t<'a> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub buffer: &'a mut hb_buffer_t,
@@ -95,13 +106,13 @@ fn compose_unicode(
 
 fn set_glyph(info: &mut hb_glyph_info_t, font: &hb_font_t) {
     if let Some(glyph_id) = font.get_nominal_glyph(info.glyph_id) {
-        info.set_glyph_index(u32::from(glyph_id));
+        info.set_normalizer_glyph_index(u32::from(glyph_id));
     }
 }
 
 fn output_char(buffer: &mut hb_buffer_t, unichar: u32, glyph: u32) {
     // This is very confusing indeed.
-    buffer.cur_mut(0).set_glyph_index(glyph);
+    buffer.cur_mut(0).set_normalizer_glyph_index(glyph);
     buffer.output_glyph(unichar);
     // TODO: should be _hb_glyph_info_set_unicode_props (&buffer->prev(), buffer);
     let mut flags = buffer.scratch_flags;
@@ -110,7 +121,7 @@ fn output_char(buffer: &mut hb_buffer_t, unichar: u32, glyph: u32) {
 }
 
 fn next_char(buffer: &mut hb_buffer_t, glyph: u32) {
-    buffer.cur_mut(0).set_glyph_index(glyph);
+    buffer.cur_mut(0).set_normalizer_glyph_index(glyph);
     buffer.next_glyph();
 }
 
@@ -217,7 +228,9 @@ fn handle_variation_selector_cluster(
             if let Some(glyph_id) =
                 face.get_nominal_variant_glyph(buffer.cur(0).as_char(), buffer.cur(1).as_char())
             {
-                buffer.cur_mut(0).set_glyph_index(u32::from(glyph_id));
+                buffer
+                    .cur_mut(0)
+                    .set_normalizer_glyph_index(u32::from(glyph_id));
                 let unicode = buffer.cur(0).glyph_id;
                 buffer.replace_glyphs(2, 1, &[unicode]);
             } else {
@@ -288,6 +301,8 @@ pub fn _hb_ot_shape_normalize(
         return;
     }
 
+    buffer.assert_unicode_vars();
+
     let mut mode = plan.shaper.normalization_preference;
     if mode == HB_OT_SHAPE_NORMALIZATION_MODE_AUTO {
         if plan.has_gpos_mark {
@@ -344,7 +359,7 @@ pub fn _hb_ot_shape_normalize(
                 let mut done = 0;
                 while done < len {
                     let cur = buffer.cur_mut(done);
-                    cur.set_glyph_index(match face.get_nominal_glyph(cur.glyph_id) {
+                    cur.set_normalizer_glyph_index(match face.get_nominal_glyph(cur.glyph_id) {
                         Some(glyph_id) => u32::from(glyph_id),
                         None => break,
                     });
@@ -471,7 +486,7 @@ pub fn _hb_ot_shape_normalize(
                         let mut flags = buffer.scratch_flags;
                         let info = &mut buffer.out_info_mut()[starter];
                         info.glyph_id = u32::from(composed);
-                        info.set_glyph_index(u32::from(glyph_id));
+                        info.set_normalizer_glyph_index(u32::from(glyph_id));
                         info.init_unicode_props(&mut flags);
                         buffer.scratch_flags = flags;
 
