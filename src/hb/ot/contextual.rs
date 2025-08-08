@@ -90,6 +90,31 @@ impl Apply for SequenceContextFormat2<'_> {
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(ctx, &set.class_seq_rules(), match_class(&input_classes))
     }
+    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
+        let input_classes = self.class_def().ok();
+        let index = input_classes.as_ref()?.get(glyph) as usize; // TODO: Use cached index
+        let set = self.class_seq_rule_sets().get(index)?.ok()?;
+        apply_context_rules(ctx, &set.class_seq_rules(), match_class_cached(&input_classes))
+    }
+    fn cache_cost(&self) -> u32 {
+        self.class_def().ok().map_or(0, |class_def| class_def.cost())
+    }
+    fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
+        if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
+            return false;
+        }
+        for info in ctx.buffer.info.iter_mut() {
+            info.set_syllable(255);
+        }
+        ctx.new_syllables = Some(255);
+        true
+    }
+    fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
+	ctx.new_syllables = None;
+        ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+    }
 }
 
 impl WouldApply for SequenceContextFormat3<'_> {
@@ -229,6 +254,28 @@ fn match_class<'a>(
         class_def
             .as_ref()
             .is_some_and(|class_def| get_class(class_def, info.as_glyph()) == value)
+    }
+}
+fn match_class_cached<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| {
+        let mut klass = info.syllable() as u16;
+        if klass < 255 {
+            return klass == value;
+        }
+
+        klass = if let Some(class_def) = class_def.as_ref() {
+            get_class(class_def, info.as_glyph())
+        } else {
+            0
+        };
+
+        if klass < 255 {
+            info.set_syllable(klass as u8);
+        }
+
+        klass == value
     }
 }
 

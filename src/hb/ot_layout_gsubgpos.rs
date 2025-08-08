@@ -612,8 +612,31 @@ pub trait WouldApply {
 
 /// Apply a lookup.
 pub trait Apply {
-    /// Apply the lookup.
+
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()>;
+
+    // The rest are relevant to subtables only
+
+    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        // Default implementation just calls `apply`.
+        // This is used to apply the lookup with caching.
+        self.apply(ctx)
+    }
+
+    fn cache_cost(&self) -> u32 {
+        // Default implementation returns 0, meaning no cache cost.
+        // This is used to determine the cost of caching the subtable.
+        0
+    }
+    fn cache_enter(&self, _ctx: &mut hb_ot_apply_context_t) -> bool {
+        // Default implementation does nothing.
+        // This is used to enter the cache for the subtable.
+        false
+    }
+    fn cache_leave(&self, _ctx: &mut hb_ot_apply_context_t) {
+        // Default implementation does nothing.
+        // This is used to exit the cache for the subtable.
+    }
 }
 
 pub struct WouldApplyContext<'a> {
@@ -684,6 +707,7 @@ pub mod OT {
         pub auto_zwj: bool,
         pub random: bool,
         pub random_state: u32,
+        pub new_syllables: Option<u8>,
         pub last_base: i32,
         pub last_base_until: u32,
         pub digest: hb_set_digest_t,
@@ -711,6 +735,7 @@ pub mod OT {
                 auto_zwj: true,
                 random: false,
                 random_state: 1,
+                new_syllables: None,
                 last_base: -1,
                 last_base_until: 0,
                 digest: buffer_digest,
@@ -782,6 +807,10 @@ pub mod OT {
             component: bool,
         ) {
             self.digest.add(glyph_id);
+
+            if let Some(syllable) = self.new_syllables {
+                self.buffer.cur_mut(0).set_syllable(syllable);
+            }
 
             let cur = self.buffer.cur_mut(0);
             let mut props = cur.glyph_props();
