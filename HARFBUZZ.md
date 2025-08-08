@@ -60,12 +60,19 @@ and
 
 This is pretty good. In total, there are 24 shaping tests failing.
 Those are mostly due to HarfRust not supporting some esoteric
-shaping features of HarfBuzz. TODO: Document missing features.
+shaping features of HarfBuzz.
 
 To see specific failures, you can run inspect the test log:
 ```sh
 $ less build/meson-logs/testlog.txt
 ```
+
+Currently the following tests fail:
+- `SHBALI-3.tests`: Rounding differences with unusual UPEM.
+- `arabic-fallback-positioning.tests`: Not implemented.
+- `collections.tests`: `DFONT` format is not supported.
+- `item-context.tests`: Needs investigation.
+- `vertical.tests`: Fallback based on glyph extents not supported.
 
 
 ## Running HarfBuzz's Benchmark Tests
