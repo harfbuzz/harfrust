@@ -281,7 +281,7 @@ fn parse_cluster(s: &str) -> Result<harfrust::BufferClusterLevel, String> {
 
 fn system_language() -> harfrust::Language {
     unsafe {
-        libc::setlocale(libc::LC_ALL, c"".as_ptr());
+        libc::setlocale(libc::LC_ALL, b"\0" as *const _ as *const i8);
         let s = libc::setlocale(libc::LC_CTYPE, std::ptr::null());
         let s = std::ffi::CStr::from_ptr(s);
         let s = s.to_str().expect("locale must be ASCII");
