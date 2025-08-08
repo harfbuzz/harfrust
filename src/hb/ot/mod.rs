@@ -346,7 +346,7 @@ impl<'a> LayoutTable<'a> {
                 .conditions()
                 .iter()
                 // .. except we ignore errors
-                .filter_map(|cond| cond.ok())
+                .filter_map(Result::ok)
                 .all(|cond| match cond {
                     Condition::Format1AxisRange(format1) => {
                         let coord = coords
