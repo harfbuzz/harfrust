@@ -3,7 +3,6 @@ use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo, SubtableCache};
-use read_fonts::tables::layout::FeatureTableSubstitutionRecord;
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -379,10 +378,7 @@ impl<'a> LayoutTable<'a> {
             .feature_table_substitution(feature_variations.offset_data())?
             .ok()?;
         let subst_records = subst_table.substitutions();
-        match subst_records.binary_search_by_key(
-            &feature_index,
-            FeatureTableSubstitutionRecord::feature_index,
-        ) {
+        match subst_records.binary_search_by_key(&feature_index, |subst| subst.feature_index()) {
             Ok(ix) => Some(
                 subst_records
                     .get(ix)?

@@ -31,6 +31,8 @@ unused_qualifications = "warn"
 [lints.clippy]
 cargo = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+# Reviewed Lints
+redundant_closure_for_method_calls = "allow"  # use for Result and Into, allow the rest
 # These are the currently triggering clippy lints, which should be fixed in the subsequent PRs.
 # This list was generated with this command:
 #  cargo clippy --all-targets --workspace --all-features --message-format=json --quiet | jq -r '.message.code.code | select(. != null and startswith("clippy::"))' | sort | uniq -c | sort -h -r
