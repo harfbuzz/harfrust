@@ -202,7 +202,7 @@ macro_rules! declare_buffer_var {
     ($ty:ty, $var_index:expr, $index:expr, $var_name:ident, $getter:ident, $setter:ident) => {
         #[allow(dead_code)]
         pub(crate) const $var_name: buffer_var_shape = buffer_var_shape {
-            width: std::mem::size_of::<$ty>() as u8,
+            width: core::mem::size_of::<$ty>() as u8,
             var_index: $var_index,
             index: $index,
         };
@@ -210,7 +210,7 @@ macro_rules! declare_buffer_var {
         #[inline]
         #[allow(dead_code)]
         pub(crate) fn $getter(&self) -> $ty {
-            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &[$ty; LEN] = bytemuck::cast_ref(&self.vars[$var_index - 1usize]);
             v[$index]
         }
@@ -218,7 +218,7 @@ macro_rules! declare_buffer_var {
         #[inline]
         #[allow(dead_code)]
         pub(crate) fn $setter(&mut self, value: $ty) {
-            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &mut [$ty; LEN] = bytemuck::cast_mut(&mut self.vars[$var_index - 1usize]);
             v[$index] = value;
         }
@@ -232,8 +232,8 @@ macro_rules! declare_buffer_var_alias {
 
         #[inline]
         pub(crate) fn $getter(&self) -> $ty {
-            debug_assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
-            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            debug_assert!(hb_glyph_info_t::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &[$ty; LEN] = bytemuck::cast_ref(
                 &self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
             );
@@ -242,8 +242,8 @@ macro_rules! declare_buffer_var_alias {
 
         #[inline]
         pub(crate) fn $setter(&mut self, value: $ty) {
-            debug_assert!(hb_glyph_info_t::$alias_var.width == std::mem::size_of::<$ty>() as u8);
-            const LEN: usize = std::mem::size_of::<u32>() / std::mem::size_of::<$ty>();
+            debug_assert!(hb_glyph_info_t::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &mut [$ty; LEN] = bytemuck::cast_mut(
                 &mut self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
             );
