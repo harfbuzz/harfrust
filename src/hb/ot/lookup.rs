@@ -370,7 +370,9 @@ impl LookupInfo {
                 Subtable::ChainedContextFormat3(subtable) => subtable.would_apply(ctx),
                 _ => false,
             };
-            return Some(result);
+            if result {
+                return Some(result);
+            }
         }
         None
     }
