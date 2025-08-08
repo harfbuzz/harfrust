@@ -9,6 +9,7 @@ use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_arabic::arabic_shape_plan_t;
+use super::ot_shaper_syllabic::*;
 use super::unicode::{CharExt, GeneralCategoryExt};
 use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
 
@@ -235,6 +236,8 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
 }
 
 fn setup_syllables(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+
     super::ot_shaper_use_machine::find_syllables(buffer);
 
     foreach_syllable!(buffer, start, end, {
@@ -380,7 +383,7 @@ fn reorder_use(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_
 
     let mut ret = false;
 
-    if crate::hb::ot_shaper_syllabic::insert_dotted_circles(
+    if insert_dotted_circles(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
@@ -398,6 +401,8 @@ fn reorder_use(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_
         start = end;
         end = buffer.next_syllable(start);
     }
+
+    buffer.deallocate_var(hb_glyph_info_t::USE_CATEGORY_VAR);
 
     ret
 }
@@ -556,6 +561,8 @@ fn setup_masks(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_
     if let Some(ref arabic_plan) = universal_plan.arabic_plan {
         crate::hb::ot_shaper_arabic::setup_masks_inner(arabic_plan, plan.script, buffer);
     }
+
+    buffer.allocate_var(hb_glyph_info_t::USE_CATEGORY_VAR);
 
     // We cannot setup masks here. We save information about characters
     // and setup masks later on in a pause-callback.

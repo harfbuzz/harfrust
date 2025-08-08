@@ -492,7 +492,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn try_allocate_var(&mut self, shape: buffer_var_shape) -> bool {
+    pub fn _try_allocate_var(&mut self, shape: buffer_var_shape) -> bool {
         let bits = shape.bits();
         if self.allocated_var_bits & bits != 0 {
             return false;

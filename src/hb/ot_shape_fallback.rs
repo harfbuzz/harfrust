@@ -407,6 +407,8 @@ pub fn position_marks(
     buffer: &mut hb_buffer_t,
     adjust_offsets_when_zeroing: bool,
 ) {
+    buffer.assert_gsubgpos_vars();
+
     let mut start = 0;
     let len = buffer.len;
     for i in 1..len {

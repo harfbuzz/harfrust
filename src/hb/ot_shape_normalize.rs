@@ -301,6 +301,8 @@ pub fn _hb_ot_shape_normalize(
         return;
     }
 
+    buffer.assert_unicode_vars();
+
     let mut mode = plan.shaper.normalization_preference;
     if mode == HB_OT_SHAPE_NORMALIZATION_MODE_AUTO {
         if plan.has_gpos_mark {

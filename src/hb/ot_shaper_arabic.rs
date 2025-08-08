@@ -180,6 +180,12 @@ impl hb_glyph_info_t {
     );
 }
 
+fn deallocate_buffer_var(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+    buffer.deallocate_var(hb_glyph_info_t::ARABIC_SHAPING_ACTION_VAR);
+
+    false
+}
+
 fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     // We apply features according to the Arabic spec, with pauses
     // in between most.
@@ -224,6 +230,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
             .add_feature(*feature, F_MANUAL_ZWJ | flags, 1);
         planner.ot_map.add_gsub_pause(None);
     }
+    planner.ot_map.add_gsub_pause(Some(deallocate_buffer_var));
 
     // Normally, Unicode says a ZWNJ means "don't ligate".  In Arabic script
     // however, it says a ZWJ should also mean "don't ligate".  So we run
@@ -382,6 +389,8 @@ fn mongolian_variation_selectors(buffer: &mut hb_buffer_t) {
 }
 
 fn setup_masks_arabic_plan(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::ARABIC_SHAPING_ACTION_VAR);
+
     let arabic_plan = plan.data::<arabic_shape_plan_t>();
     setup_masks_inner(arabic_plan, plan.script, buffer);
 }

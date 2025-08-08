@@ -7,6 +7,7 @@ use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_indic::ot_category_t;
+use super::ot_shaper_syllabic::*;
 use super::unicode::{CharExt, GeneralCategoryExt};
 use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t};
 
@@ -124,6 +125,8 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
 }
 
 fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+
     super::ot_shaper_khmer_machine::find_syllables_khmer(buffer);
 
     let mut start = 0;
@@ -142,7 +145,7 @@ fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_bu
 
     let mut ret = false;
 
-    if super::ot_shaper_syllabic::insert_dotted_circles(
+    if insert_dotted_circles(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
@@ -162,6 +165,8 @@ fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_bu
         start = end;
         end = buffer.next_syllable(start);
     }
+
+    buffer.deallocate_var(hb_glyph_info_t::KHMER_CATEGORY_VAR);
 
     ret
 }
@@ -295,6 +300,8 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::KHMER_CATEGORY_VAR);
+
     // We cannot setup masks here.  We save information about characters
     // and setup masks later on in a pause-callback.
     for info in buffer.info_slice_mut() {

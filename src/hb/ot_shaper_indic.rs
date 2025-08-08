@@ -14,6 +14,7 @@ use super::ot_shape::*;
 use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
+use super::ot_shaper_syllabic::*;
 use super::unicode::{hb_gc, CharExt, GeneralCategoryExt};
 use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
 
@@ -619,6 +620,9 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::INDIC_CATEGORY_VAR);
+    buffer.allocate_var(hb_glyph_info_t::INDIC_POSITION_VAR);
+
     // We cannot setup masks here.  We save information about characters
     // and setup masks later on in a pause-callback.
     for info in buffer.info_slice_mut() {
@@ -627,6 +631,8 @@ fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) 
 }
 
 fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+
     super::ot_shaper_indic_machine::find_syllables_indic(buffer);
 
     let mut start = 0;
@@ -652,7 +658,7 @@ fn initial_reordering(
     let indic_plan = plan.data::<IndicShapePlan>();
 
     update_consonant_positions(plan, indic_plan, face, buffer);
-    if super::ot_shaper_syllabic::insert_dotted_circles(
+    if insert_dotted_circles(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
@@ -1334,6 +1340,9 @@ fn final_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb
     foreach_syllable!(buffer, start, end, {
         final_reordering_impl(plan, face, start, end, buffer);
     });
+
+    buffer.deallocate_var(hb_glyph_info_t::INDIC_CATEGORY_VAR);
+    buffer.deallocate_var(hb_glyph_info_t::INDIC_POSITION_VAR);
 
     false
 }

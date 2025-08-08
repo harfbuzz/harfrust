@@ -311,6 +311,8 @@ pub struct hb_ot_shape_context_t<'a> {
 pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
     ctx.buffer.enter();
 
+    ctx.buffer.allocate_unicode_vars();
+
     initialize_masks(ctx);
     set_unicode_props(ctx.buffer);
     insert_dotted_circle(ctx.buffer, ctx.face);
@@ -329,12 +331,17 @@ pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
 
     propagate_flags(ctx.buffer);
 
+    ctx.buffer.deallocate_unicode_vars();
+
     ctx.buffer.direction = ctx.target_direction;
     ctx.buffer.leave();
 }
 
 fn substitute_pre(ctx: &mut hb_ot_shape_context_t) {
     hb_ot_substitute_default(ctx);
+
+    ctx.buffer.allocate_gsubgpos_vars();
+
     hb_ot_substitute_plan(ctx);
 
     if ctx.plan.apply_morx && ctx.plan.apply_gpos {
@@ -358,6 +365,9 @@ fn substitute_post(ctx: &mut hb_ot_shape_context_t) {
 fn hb_ot_substitute_default(ctx: &mut hb_ot_shape_context_t) {
     rotate_chars(ctx);
 
+    ctx.buffer
+        .allocate_var(hb_glyph_info_t::NORMALIZER_GLYPH_INDEX_VAR);
+
     ot_shape_normalize::_hb_ot_shape_normalize(ctx.plan, ctx.buffer, ctx.face);
 
     setup_masks(ctx);
@@ -370,6 +380,9 @@ fn hb_ot_substitute_default(ctx: &mut hb_ot_shape_context_t) {
     }
 
     map_glyphs_fast(ctx.buffer);
+
+    ctx.buffer
+        .deallocate_var(hb_glyph_info_t::NORMALIZER_GLYPH_INDEX_VAR);
 }
 
 fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
@@ -396,6 +409,8 @@ fn position(ctx: &mut hb_ot_shape_context_t) {
     if ctx.buffer.direction.is_backward() {
         ctx.buffer.reverse();
     }
+
+    ctx.buffer.deallocate_gsubgpos_vars();
 }
 
 fn position_default(ctx: &mut hb_ot_shape_context_t) {
@@ -659,18 +674,6 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
 
         i += 1;
     }
-}
-
-pub(crate) fn syllabic_clear_var(
-    _: &hb_ot_shape_plan_t,
-    _: &hb_font_t,
-    buffer: &mut hb_buffer_t,
-) -> bool {
-    for info in &mut buffer.info {
-        info.set_syllable(0);
-    }
-
-    false
 }
 
 fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {

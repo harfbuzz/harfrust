@@ -108,6 +108,8 @@ fn is_zero_width_char(face: &hb_font_t, c: char) -> bool {
 }
 
 fn preprocess_text_hangul(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::HANGUL_SHAPING_FEATURE_VAR);
+
     // Hangul syllables come in two shapes: LV, and LVT.  Of those:
     //
     //   - LV can be precomposed, or decomposed.  Lets call those
@@ -354,6 +356,8 @@ fn setup_masks_hangul(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_
     for info in buffer.info_slice_mut() {
         info.mask |= hangul_plan.mask_array[info.hangul_shaping_feature() as usize];
     }
+
+    buffer.deallocate_var(hb_glyph_info_t::HANGUL_SHAPING_FEATURE_VAR);
 }
 
 pub const HANGUL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {

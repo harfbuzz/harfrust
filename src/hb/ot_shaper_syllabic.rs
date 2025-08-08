@@ -1,4 +1,5 @@
-use super::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use super::buffer::*;
+use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_glyph_info_t};
 use crate::BufferFlags;
 
@@ -69,4 +70,17 @@ pub fn insert_dotted_circles(
     buffer.sync();
 
     true
+}
+
+pub(crate) fn syllabic_clear_var(
+    _: &hb_ot_shape_plan_t,
+    _: &hb_font_t,
+    buffer: &mut hb_buffer_t,
+) -> bool {
+    for info in &mut buffer.info {
+        info.set_syllable(0);
+    }
+    buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+
+    false
 }
