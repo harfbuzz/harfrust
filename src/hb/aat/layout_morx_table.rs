@@ -1,8 +1,8 @@
-use super::aat_layout::*;
-use super::aat_map::{hb_aat_map_builder_t, hb_aat_map_t, range_flags_t};
-use super::{hb_font_t, hb_glyph_info_t};
-use crate::hb::aat_layout_common::hb_aat_apply_context_t;
+use super::layout::*;
+use super::map::{hb_aat_map_builder_t, hb_aat_map_t, range_flags_t};
+use crate::hb::aat::layout_common::hb_aat_apply_context_t;
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
+use crate::hb::{hb_font_t, hb_glyph_info_t};
 use alloc::vec;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{

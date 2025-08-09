@@ -23,11 +23,6 @@ mod algs;
 #[macro_use]
 pub mod buffer;
 mod aat;
-mod aat_layout;
-mod aat_layout_kerx_table;
-mod aat_layout_morx_table;
-mod aat_layout_trak_table;
-mod aat_map;
 mod cache;
 mod charmap;
 pub mod common;
@@ -67,7 +62,6 @@ mod ot_shaper_use_machine;
 #[rustfmt::skip]
 #[allow(clippy::unreadable_literal)]
 mod ot_shaper_use_table;
-mod aat_layout_common;
 mod ot_shaper_vowel_constraints;
 mod set_digest;
 mod tag;

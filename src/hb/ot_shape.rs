@@ -7,7 +7,7 @@ use super::ot_shaper::*;
 use super::unicode::{hb_unicode_general_category_t, CharExt, GeneralCategoryExt};
 use super::*;
 use super::{hb_font_t, hb_tag_t};
-use crate::hb::aat_layout::hb_aat_layout_remove_deleted_glyphs;
+use crate::hb::aat::layout::hb_aat_layout_remove_deleted_glyphs;
 use crate::hb::algs::{rb_flag, rb_flag_unsafe};
 use crate::hb::buffer::glyph_flag::{SAFE_TO_INSERT_TATWEEL, UNSAFE_TO_BREAK, UNSAFE_TO_CONCAT};
 use crate::hb::unicode::hb_gc::{
@@ -393,7 +393,7 @@ fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
     }
 
     if ctx.plan.apply_morx {
-        aat_layout::hb_aat_layout_substitute(ctx.plan, ctx.face, ctx.buffer, ctx.features);
+        aat::layout::hb_aat_layout_substitute(ctx.plan, ctx.face, ctx.buffer, ctx.features);
     } else {
         ot_layout_gsub_table::substitute(ctx.plan, ctx.face, ctx.buffer);
     }
@@ -475,7 +475,7 @@ fn position_complex(ctx: &mut hb_ot_shape_context_t) {
     zero_width_default_ignorables(ctx.buffer);
 
     if ctx.plan.apply_morx {
-        aat_layout::hb_aat_layout_zero_width_deleted_glyphs(ctx.buffer);
+        aat::layout::hb_aat_layout_zero_width_deleted_glyphs(ctx.buffer);
     }
 
     GPOS::position_finish_offsets(ctx.face, ctx.buffer);
@@ -494,7 +494,7 @@ fn position_by_plan(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb
     if plan.apply_gpos {
         ot_layout_gpos_table::position(plan, face, buffer);
     } else if plan.apply_kerx {
-        aat_layout::hb_aat_layout_position(plan, face, buffer);
+        aat::layout::hb_aat_layout_position(plan, face, buffer);
     }
     if plan.apply_kern {
         kerning::hb_ot_layout_kern(plan, face, buffer);
@@ -503,7 +503,7 @@ fn position_by_plan(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb
     }
 
     if plan.apply_trak {
-        aat_layout::hb_aat_layout_track(plan, face, buffer);
+        aat::layout::hb_aat_layout_track(plan, face, buffer);
     }
 }
 

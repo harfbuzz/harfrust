@@ -4,8 +4,8 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
-use super::aat_layout::*;
-use super::{hb_font_t, hb_mask_t, hb_tag_t};
+use super::layout::*;
+use crate::hb::{hb_font_t, hb_mask_t, hb_tag_t};
 
 #[derive(Default)]
 pub struct hb_aat_map_t {
@@ -227,7 +227,7 @@ impl hb_aat_map_builder_t {
                     self.current_features.truncate(j + 1);
                 }
 
-                super::aat_layout_morx_table::compile_flags(face, self, m);
+                super::layout_morx_table::compile_flags(face, self, m);
                 last_index = event.index;
             }
 

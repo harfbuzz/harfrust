@@ -1,13 +1,14 @@
 #![allow(dead_code)]
 
-use super::buffer::{hb_buffer_t, hb_glyph_info_t};
-use super::hb_tag_t;
-use super::ot_shape_plan::hb_ot_shape_plan_t;
-use super::{aat_layout_kerx_table, aat_layout_morx_table, aat_layout_trak_table};
-use super::{aat_map, hb_font_t};
-use crate::hb::aat_layout_common::hb_aat_apply_context_t;
-use crate::hb::aat_layout_common::HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
+use super::map;
+use super::{layout_kerx_table, layout_morx_table, layout_trak_table};
+use crate::hb::aat::layout_common::{
+    hb_aat_apply_context_t, HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED,
+};
 use crate::hb::ot_layout::_hb_glyph_info_is_aat_deleted;
+use crate::hb::{
+    buffer::hb_buffer_t, hb_font_t, hb_glyph_info_t, hb_tag_t, ot_shape_plan::hb_ot_shape_plan_t,
+};
 use crate::Feature;
 
 pub type hb_aat_layout_feature_type_t = u8;
@@ -500,19 +501,19 @@ pub fn hb_aat_layout_substitute(
     buffer: &mut hb_buffer_t,
     features: &[Feature],
 ) {
-    let mut builder = aat_map::hb_aat_map_builder_t::default();
+    let mut builder = map::hb_aat_map_builder_t::default();
 
     for feature in features {
         builder.add_feature(face, feature);
     }
 
-    let mut aat_map = aat_map::hb_aat_map_t::default();
+    let mut aat_map = map::hb_aat_map_t::default();
     if plan.apply_morx {
         builder.compile(face, &mut aat_map);
     }
 
     let mut c = hb_aat_apply_context_t::new(face, buffer);
-    aat_layout_morx_table::apply(&mut c, &mut aat_map);
+    layout_morx_table::apply(&mut c, &mut aat_map);
 }
 
 pub fn hb_aat_layout_zero_width_deleted_glyphs(buffer: &mut hb_buffer_t) {
@@ -541,9 +542,9 @@ pub fn hb_aat_layout_position(
     face: &hb_font_t,
     buffer: &mut hb_buffer_t,
 ) {
-    aat_layout_kerx_table::apply(plan, face, buffer);
+    layout_kerx_table::apply(plan, face, buffer);
 }
 
 pub fn hb_aat_layout_track(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
-    aat_layout_trak_table::apply(plan, face, buffer);
+    layout_trak_table::apply(plan, face, buffer);
 }

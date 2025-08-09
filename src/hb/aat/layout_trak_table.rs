@@ -6,9 +6,7 @@ use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
 
-use super::buffer::hb_buffer_t;
-use super::hb_font_t;
-use super::ot_shape_plan::hb_ot_shape_plan_t;
+use crate::hb::{buffer::hb_buffer_t, hb_font_t, ot_shape_plan::hb_ot_shape_plan_t};
 
 pub fn apply(_plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) -> Option<()> {
     let trak = face.aat_tables.trak.as_ref()?;

@@ -1,5 +1,5 @@
-use crate::hb::aat_layout::AAT::DELETED_GLYPH;
-use crate::hb::aat_map::range_flags_t;
+use super::layout::AAT::DELETED_GLYPH;
+use super::map::range_flags_t;
 use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
