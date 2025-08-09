@@ -54,15 +54,16 @@ impl MarkArrayExt for MarkArray<'_> {
 
 impl Apply for MarkBasePosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let buffer = &ctx.buffer;
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
 
         let base_coverage = self.base_coverage().ok()?;
+        let last_base_until = ctx.last_base_until;
+        let mut last_base = ctx.last_base;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.
-        if ctx.last_base_until > buffer.idx as u32 {
+        if ctx.last_base_until > ctx.buffer.idx as u32 {
             ctx.last_base_until = 0;
             ctx.last_base = -1;
         }
@@ -72,42 +73,45 @@ impl Apply for MarkBasePosFormat1<'_> {
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
 
-        let mut j = buffer.idx;
-        while j > ctx.last_base_until as usize {
-            let mut _match = iter.match_(&buffer.info[j - 1]);
+        let mut j = iter.buffer.idx;
+        while j > last_base_until as usize {
+            let mut _match = iter.match_(&iter.buffer.info[j - 1]);
             if _match == match_t::MATCH {
                 // https://github.com/harfbuzz/harfbuzz/issues/4124
-                if !accept(buffer, j - 1)
-                    && base_coverage.get(buffer.info[j - 1].as_glyph()).is_none()
+                if !accept(iter.buffer, j - 1)
+                    && base_coverage
+                        .get(iter.buffer.info[j - 1].as_glyph())
+                        .is_none()
                 {
                     _match = match_t::SKIP;
                 }
             }
 
             if _match == match_t::MATCH {
-                ctx.last_base = j as i32 - 1;
+                last_base = j as i32 - 1;
                 break;
             }
 
             j -= 1;
         }
-        ctx.last_base_until = buffer.idx as u32;
+        ctx.last_base_until = ctx.buffer.idx as u32;
+        ctx.last_base = last_base;
 
         if ctx.last_base == -1 {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(0), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(0), Some(ctx.buffer.idx + 1));
             return None;
         }
 
         let idx = ctx.last_base as u32;
 
-        let info = &buffer.info;
+        let info = &ctx.buffer.info;
 
         // Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled
         let base_glyph = info[idx as usize].as_glyph();
         let Some(base_index) = self.base_coverage().ok()?.get(base_glyph) else {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(idx as usize), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(idx as usize), Some(ctx.buffer.idx + 1));
             return None;
         };
 
@@ -145,33 +149,32 @@ fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
 
 impl Apply for MarkMarkPosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let buffer = &ctx.buffer;
         let mark1_glyph = ctx.buffer.cur(0).as_glyph();
         let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
-
+        let lookup_props = ctx.lookup_props;
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
         let mut iter = skipping_iterator_t::new(ctx, false);
-        iter.reset_fast(buffer.idx);
-        iter.set_lookup_props(ctx.lookup_props & !u32::from(lookup_flags::IGNORE_FLAGS));
+        iter.reset_fast(iter.buffer.idx);
+        iter.set_lookup_props(lookup_props & !u32::from(lookup_flags::IGNORE_FLAGS));
 
         let mut unsafe_from = 0;
         if !iter.prev(Some(&mut unsafe_from)) {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(unsafe_from), Some(ctx.buffer.idx + 1));
+            iter.buffer
+                .unsafe_to_concat_from_outbuffer(Some(unsafe_from), Some(iter.buffer.idx + 1));
             return None;
         }
 
         let iter_idx = iter.index();
-        if !_hb_glyph_info_is_mark(&buffer.info[iter_idx]) {
+        if !_hb_glyph_info_is_mark(&ctx.buffer.info[iter_idx]) {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
             return None;
         }
 
-        let id1 = _hb_glyph_info_get_lig_id(buffer.cur(0));
-        let id2 = _hb_glyph_info_get_lig_id(&buffer.info[iter_idx]);
-        let comp1 = _hb_glyph_info_get_lig_comp(buffer.cur(0));
-        let comp2 = _hb_glyph_info_get_lig_comp(&buffer.info[iter_idx]);
+        let id1 = _hb_glyph_info_get_lig_id(ctx.buffer.cur(0));
+        let id2 = _hb_glyph_info_get_lig_id(&ctx.buffer.info[iter_idx]);
+        let comp1 = _hb_glyph_info_get_lig_comp(ctx.buffer.cur(0));
+        let comp2 = _hb_glyph_info_get_lig_comp(&ctx.buffer.info[iter_idx]);
 
         let matches = if id1 == id2 {
             // Marks belonging to the same base
@@ -185,11 +188,11 @@ impl Apply for MarkMarkPosFormat1<'_> {
 
         if !matches {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
             return None;
         }
 
-        let mark2_glyph = buffer.info[iter_idx].as_glyph();
+        let mark2_glyph = ctx.buffer.info[iter_idx].as_glyph();
         let mark2_index = self.mark2_coverage().ok()?.get(mark2_glyph)?;
 
         let mark1_array = self.mark1_array().ok()?;
@@ -209,36 +212,39 @@ impl Apply for MarkMarkPosFormat1<'_> {
 
 impl Apply for MarkLigPosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let buffer = &ctx.buffer;
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.
-        if ctx.last_base_until > buffer.idx as u32 {
+        if ctx.last_base_until > ctx.buffer.idx as u32 {
             ctx.last_base_until = 0;
             ctx.last_base = -1;
         }
+
+        let last_base_until = ctx.last_base_until;
+        let mut last_base = ctx.last_base;
 
         // Now we search backwards for a non-mark glyph
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
 
-        let mut j = buffer.idx;
-        while j > ctx.last_base_until as usize {
-            let mut _match = iter.match_(&buffer.info[j - 1]);
+        let mut j = iter.buffer.idx;
+        while j > last_base_until as usize {
+            let mut _match = iter.match_(&iter.buffer.info[j - 1]);
             if _match == match_t::MATCH {
-                ctx.last_base = j as i32 - 1;
+                last_base = j as i32 - 1;
                 break;
             }
             j -= 1;
         }
 
-        ctx.last_base_until = buffer.idx as u32;
+        ctx.last_base_until = ctx.buffer.idx as u32;
+        ctx.last_base = last_base;
 
         if ctx.last_base == -1 {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(0), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(0), Some(ctx.buffer.idx + 1));
             return None;
         }
 
@@ -246,10 +252,10 @@ impl Apply for MarkLigPosFormat1<'_> {
 
         // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
 
-        let lig_glyph = buffer.info[idx].as_glyph();
+        let lig_glyph = ctx.buffer.info[idx].as_glyph();
         let Some(lig_index) = self.ligature_coverage().ok()?.get(lig_glyph) else {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(idx), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
             return None;
         };
         let lig_attach = self
@@ -263,7 +269,7 @@ impl Apply for MarkLigPosFormat1<'_> {
         let comp_count = lig_attach.component_count();
         if comp_count == 0 {
             ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(idx), Some(buffer.idx + 1));
+                .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
             return None;
         }
 
@@ -271,9 +277,9 @@ impl Apply for MarkLigPosFormat1<'_> {
         // is identical to the ligature ID of the found ligature.  If yes, we
         // can directly use the component index.  If not, we attach the mark
         // glyph to the last component of the ligature.
-        let lig_id = _hb_glyph_info_get_lig_id(&buffer.info[idx]);
-        let mark_id = _hb_glyph_info_get_lig_id(buffer.cur(0));
-        let mark_comp = u16::from(_hb_glyph_info_get_lig_comp(buffer.cur(0)));
+        let lig_id = _hb_glyph_info_get_lig_id(&ctx.buffer.info[idx]);
+        let mark_id = _hb_glyph_info_get_lig_id(ctx.buffer.cur(0));
+        let mark_comp = u16::from(_hb_glyph_info_get_lig_comp(ctx.buffer.cur(0)));
         let matches = lig_id != 0 && lig_id == mark_id && mark_comp > 0;
         let comp_index = if matches {
             mark_comp.min(comp_count)

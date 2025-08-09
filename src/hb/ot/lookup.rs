@@ -288,10 +288,10 @@ impl LookupInfo {
 }
 
 impl LookupInfo {
-    pub(crate) fn apply<'b>(
+    pub(crate) fn apply(
         &self,
-        ctx: &mut hb_ot_apply_context_t<'_, 'b>,
-        cache: &mut SubtableCache<'b>,
+        ctx: &mut hb_ot_apply_context_t,
+        cache: &mut SubtableCache,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         if !self.digest.may_have_glyph(glyph) {

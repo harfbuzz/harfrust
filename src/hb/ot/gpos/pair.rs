@@ -14,7 +14,7 @@ impl Apply for PairPosFormat1<'_> {
         let first_glyph_coverage_index = self.coverage().ok()?.get(first_glyph)?;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
-        iter.reset(ctx.buffer.idx);
+        iter.reset(iter.buffer.idx);
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -24,7 +24,7 @@ impl Apply for PairPosFormat1<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = ctx.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
             if has_record2 {
@@ -87,7 +87,8 @@ impl Apply for PairPosFormat1<'_> {
                 data,
             },
         );
-        bail(ctx, &mut iter.buf_idx, values)
+        let mut buf_idx = iter.buf_idx;
+        bail(ctx, &mut buf_idx, values)
     }
 }
 
@@ -128,7 +129,7 @@ impl Apply for PairPosFormat2<'_> {
         self.coverage().ok()?.get(first_glyph)?;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
-        iter.reset(ctx.buffer.idx);
+        iter.reset(iter.buffer.idx);
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -138,7 +139,7 @@ impl Apply for PairPosFormat2<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = ctx.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
             if has_record2 {
@@ -199,10 +200,11 @@ impl Apply for PairPosFormat2<'_> {
                     data,
                 },
             );
-            bail(ctx, &mut iter.buf_idx, values)
+            let mut buf_idx = iter.buf_idx;
+            bail(ctx, &mut buf_idx, values)
         } else {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(iter.index() + 1));
+            iter.buffer
+                .unsafe_to_concat(Some(iter.buffer.idx), Some(iter.index() + 1));
             None
         }
     }

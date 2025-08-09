@@ -63,12 +63,12 @@ pub fn match_input(
     }
 
     let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
-    iter.reset(ctx.buffer.idx);
+    iter.reset(iter.buffer.idx);
     iter.set_glyph_data(0);
 
-    let first = ctx.buffer.cur(0);
-    let first_lig_id = _hb_glyph_info_get_lig_id(first);
-    let first_lig_comp = _hb_glyph_info_get_lig_comp(first);
+    let first = *iter.buffer.cur(0);
+    let first_lig_id = _hb_glyph_info_get_lig_id(&first);
+    let first_lig_comp = _hb_glyph_info_get_lig_comp(&first);
     let mut total_component_count = 0;
     let mut ligbase = Ligbase::NotChecked;
 
@@ -81,7 +81,7 @@ pub fn match_input(
 
         *position = iter.index();
 
-        let this = ctx.buffer.info[iter.index()];
+        let this = iter.buffer.info[iter.index()];
         let this_lig_id = _hb_glyph_info_get_lig_id(&this);
         let this_lig_comp = _hb_glyph_info_get_lig_comp(&this);
 
@@ -93,8 +93,8 @@ pub fn match_input(
                 // ...unless, we are attached to a base ligature and that base
                 // ligature is ignorable.
                 if ligbase == Ligbase::NotChecked {
-                    let out = ctx.buffer.out_info();
-                    let mut j = ctx.buffer.out_len;
+                    let out = iter.buffer.out_info();
+                    let mut j = iter.buffer.out_len;
                     let mut found = false;
                     while j > 0 && _hb_glyph_info_get_lig_id(&out[j - 1]) == first_lig_id {
                         if _hb_glyph_info_get_lig_comp(&out[j - 1]) == 0 {
@@ -131,11 +131,11 @@ pub fn match_input(
     *end_position = iter.index() + 1;
 
     if let Some(p_total_component_count) = p_total_component_count {
-        total_component_count += _hb_glyph_info_get_lig_num_comps(first);
+        total_component_count += _hb_glyph_info_get_lig_num_comps(&first);
         *p_total_component_count = total_component_count;
     }
 
-    match_positions[0] = ctx.buffer.idx;
+    match_positions[0] = iter.buffer.idx;
 
     true
 }
@@ -147,7 +147,7 @@ pub fn match_backtrack(
     match_start: &mut usize,
 ) -> bool {
     let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
-    iter.reset(ctx.buffer.backtrack_len());
+    iter.reset(iter.buffer.backtrack_len());
     iter.set_glyph_data(0);
 
     for _ in 0..backtrack_len {
@@ -286,10 +286,10 @@ impl matcher_t {
 // we cannot copy this approach. Because of this, we basically create a new skipping iterator
 // when needed, and we do not have `init` method that exist in harfbuzz. This has a performance
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
-pub struct skipping_iterator_t<'a, 'b, F> {
-    buffer: &'a hb_buffer_t,
-    face: &'a hb_font_t<'b>,
-    matcher: &'a matcher_t,
+pub struct skipping_iterator_t<'f, 'c, F> {
+    pub(crate) buffer: &'c mut hb_buffer_t,
+    face: &'c hb_font_t<'f>,
+    matcher: &'c matcher_t,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
@@ -298,18 +298,18 @@ pub struct skipping_iterator_t<'a, 'b, F> {
     syllable: u8,
 }
 
-impl<'a, 'b> skipping_iterator_t<'a, 'b, fn(GlyphId, u16) -> bool> {
-    pub fn new(ctx: &'a hb_ot_apply_context_t<'a, 'b>, context_match: bool) -> Self {
+impl<'f, 'c> skipping_iterator_t<'f, 'c, fn(GlyphId, u16) -> bool> {
+    pub fn new(ctx: &'c mut hb_ot_apply_context_t<'f>, context_match: bool) -> Self {
         Self::with_match_fn(ctx, context_match, None)
     }
 }
 
-impl<'a, 'b, F> skipping_iterator_t<'a, 'b, F>
+impl<'f, 'c, F> skipping_iterator_t<'f, 'c, F>
 where
     F: Fn(GlyphId, u16) -> bool,
 {
     pub fn with_match_fn(
-        ctx: &'a hb_ot_apply_context_t<'a, 'b>,
+        ctx: &'c mut hb_ot_apply_context_t<'f>,
         context_match: bool,
         match_fn: Option<F>,
     ) -> Self {
@@ -318,11 +318,12 @@ where
         } else {
             &ctx.matcher
         };
+        let buf_len = ctx.buffer.len;
         skipping_iterator_t {
             buffer: ctx.buffer,
             face: ctx.face,
             glyph_data: 0,
-            buf_len: ctx.buffer.len,
+            buf_len,
             buf_idx: 0,
             matcher,
             match_func: match_fn,
@@ -663,9 +664,9 @@ pub mod OT {
         true
     }
 
-    pub struct hb_ot_apply_context_t<'a, 'b> {
+    pub struct hb_ot_apply_context_t<'a> {
         pub table_index: TableIndex,
-        pub face: &'a hb_font_t<'b>,
+        pub face: &'a hb_font_t<'a>,
         pub buffer: &'a mut hb_buffer_t,
         lookup_mask: hb_mask_t,
         pub per_syllable: bool,
@@ -683,10 +684,10 @@ pub mod OT {
         pub(crate) context_matcher: matcher_t,
     }
 
-    impl<'a, 'b> hb_ot_apply_context_t<'a, 'b> {
+    impl<'a> hb_ot_apply_context_t<'a> {
         pub fn new(
             table_index: TableIndex,
-            face: &'a hb_font_t<'b>,
+            face: &'a hb_font_t<'a>,
             buffer: &'a mut hb_buffer_t,
         ) -> Self {
             let buffer_digest = buffer.digest();
