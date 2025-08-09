@@ -7,83 +7,37 @@ use core::cmp::Ordering;
 use super::layout::*;
 use crate::hb::{hb_font_t, hb_mask_t, hb_tag_t};
 
+/// HB: hb_aat_map_t
+///
+/// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L33>
+#[doc(alias = "hb_aat_map_t")]
 #[derive(Default)]
-pub struct hb_aat_map_t {
-    pub chain_flags: Vec<Vec<range_flags_t>>,
+pub struct AatMap {
+    pub chain_flags: Vec<Vec<RangeFlags>>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Default)]
-pub struct feature_info_t {
-    pub kind: u16,
-    pub setting: u16,
-    pub is_exclusive: bool,
-}
-
-impl Ord for feature_info_t {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for feature_info_t {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.kind != other.kind {
-            Some(self.kind.cmp(&other.kind))
-        } else if !self.is_exclusive && (self.setting & !1) != (other.setting & !1) {
-            Some(self.setting.cmp(&other.setting))
-        } else {
-            Some(Ordering::Equal)
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct feature_range_t {
-    pub info: feature_info_t,
-    pub start: u32,
-    pub end: u32,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-struct feature_event_t {
-    pub index: usize,
-    pub start: bool,
-    pub feature: feature_info_t,
-}
-
+/// HB: hb_aat_map_t::range_flags_t
+///
+/// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L38>
 #[derive(Copy, Clone)]
-pub struct range_flags_t {
+pub struct RangeFlags {
     pub flags: hb_mask_t,
     pub cluster_first: u32,
     pub cluster_last: u32, // end - 1
 }
 
-impl Ord for feature_event_t {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for feature_event_t {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.index != other.index {
-            Some(self.index.cmp(&other.index))
-        } else if self.start != other.start {
-            Some(self.start.cmp(&other.start))
-        } else {
-            Some(Ordering::Equal)
-        }
-    }
-}
-
-pub struct hb_aat_map_builder_t {
-    pub current_features: Vec<feature_info_t>,
-    pub features: Vec<feature_range_t>,
+/// HB: hb_aat_map_builder_t
+///
+/// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L49>
+#[doc(alias = "hb_aat_map_builder_t")]
+pub struct AatMapBuilder {
+    pub current_features: Vec<FeatureInfo>,
+    pub features: Vec<FeatureRange>,
     pub range_first: usize,
     pub range_last: usize,
 }
 
-impl Default for hb_aat_map_builder_t {
+impl Default for AatMapBuilder {
     fn default() -> Self {
         Self {
             range_first: HB_FEATURE_GLOBAL_START as usize,
@@ -94,24 +48,24 @@ impl Default for hb_aat_map_builder_t {
     }
 }
 
-impl hb_aat_map_builder_t {
+impl AatMapBuilder {
     pub fn add_feature(&mut self, face: &hb_font_t, feature: &Feature) -> Option<()> {
         let feat = face.aat_tables.feat.as_ref()?;
 
         if feature.tag == hb_tag_t::new(b"aalt") {
             let exposes_feature = feat
-                .find(HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16)
+                .find(FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16)
                 .is_some_and(|f| f.n_settings() != 0);
 
             if !exposes_feature {
                 return Some(());
             }
 
-            self.features.push(feature_range_t {
+            self.features.push(FeatureRange {
                 start: feature.start,
                 end: feature.end,
-                info: feature_info_t {
-                    kind: HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16,
+                info: FeatureInfo {
+                    kind: FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16,
                     setting: u16::try_from(feature.value).unwrap(),
                     is_exclusive: true,
                 },
@@ -131,11 +85,10 @@ impl hb_aat_map_builder_t {
                 // Special case: Chain::compile_flags will fall back to the deprecated version of
                 // small-caps if necessary, so we need to check for that possibility.
                 // https://github.com/harfbuzz/harfbuzz/issues/2307
-                if mapping.aat_feature_type == HB_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE
-                    && mapping.selector_to_enable
-                        == HB_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS
+                if mapping.aat_feature_type == FEATURE_TYPE_LOWER_CASE
+                    && mapping.selector_to_enable == FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS
                 {
-                    feature_name = feat.find(HB_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE as u16);
+                    feature_name = feat.find(FEATURE_TYPE_LETTER_CASE as u16);
                 }
             }
         }
@@ -148,10 +101,10 @@ impl hb_aat_map_builder_t {
                     mapping.selector_to_disable
                 } as u16;
 
-                self.features.push(feature_range_t {
+                self.features.push(FeatureRange {
                     start: feature.start,
                     end: feature.end,
-                    info: feature_info_t {
+                    info: FeatureInfo {
                         kind: mapping.aat_feature_type as u16,
                         setting,
                         is_exclusive: feature_name.is_exclusive(),
@@ -164,7 +117,7 @@ impl hb_aat_map_builder_t {
         Some(())
     }
 
-    pub fn compile(&mut self, face: &hb_font_t, m: &mut hb_aat_map_t) {
+    pub fn compile(&mut self, face: &hb_font_t, m: &mut AatMap) {
         // Compute active features per range, and compile each.
         let mut feature_events = vec![];
         for feature in &self.features {
@@ -172,13 +125,13 @@ impl hb_aat_map_builder_t {
                 continue;
             }
 
-            feature_events.push(feature_event_t {
+            feature_events.push(FeatureEvent {
                 index: feature.start as usize,
                 start: true,
                 feature: feature.info,
             });
 
-            feature_events.push(feature_event_t {
+            feature_events.push(FeatureEvent {
                 index: feature.end as usize,
                 start: false,
                 feature: feature.info,
@@ -188,10 +141,10 @@ impl hb_aat_map_builder_t {
         feature_events.sort();
 
         // Add a strategic final event.
-        feature_events.push(feature_event_t {
+        feature_events.push(FeatureEvent {
             index: u32::MAX as usize,
             start: false,
-            feature: feature_info_t::default(),
+            feature: FeatureInfo::default(),
         });
 
         // Scan events and save features for each range.
@@ -244,6 +197,72 @@ impl hb_aat_map_builder_t {
             if let Some(last) = chain_flags.last_mut() {
                 last.cluster_last = HB_FEATURE_GLOBAL_END;
             }
+        }
+    }
+}
+
+/// HB: hb_aat_map_builder_t::feature_info_t
+///
+/// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L63>
+#[derive(Copy, Clone, PartialEq, Eq, Default)]
+pub struct FeatureInfo {
+    pub kind: u16,
+    pub setting: u16,
+    pub is_exclusive: bool,
+}
+
+impl Ord for FeatureInfo {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for FeatureInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.kind != other.kind {
+            Some(self.kind.cmp(&other.kind))
+        } else if !self.is_exclusive && (self.setting & !1) != (other.setting & !1) {
+            Some(self.setting.cmp(&other.setting))
+        } else {
+            Some(Ordering::Equal)
+        }
+    }
+}
+
+/// HB: hb_aat_map_builder_t::feature_range_t
+///
+/// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L88>
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct FeatureRange {
+    pub info: FeatureInfo,
+    pub start: u32,
+    pub end: u32,
+}
+
+/// HB: hb_aat_map_builder_t::feature_event_t
+///
+/// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L96>
+#[derive(Copy, Clone, Eq, PartialEq)]
+struct FeatureEvent {
+    pub index: usize,
+    pub start: bool,
+    pub feature: FeatureInfo,
+}
+
+impl Ord for FeatureEvent {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for FeatureEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.index != other.index {
+            Some(self.index.cmp(&other.index))
+        } else if self.start != other.start {
+            Some(self.start.cmp(&other.start))
+        } else {
+            Some(Ordering::Equal)
         }
     }
 }
