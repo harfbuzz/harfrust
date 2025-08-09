@@ -17,7 +17,7 @@ impl Apply for CursivePosFormat1<'_> {
         let entry_this = records.get(index_this)?.entry_anchor(offset_data)?.ok()?;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
-        iter.reset_fast(ctx.buffer.idx);
+        iter.reset_fast(iter.buffer.idx);
 
         let mut unsafe_from = 0;
         if !iter.prev(Some(&mut unsafe_from)) {
@@ -27,14 +27,14 @@ impl Apply for CursivePosFormat1<'_> {
         }
 
         let i = iter.index();
-        let prev = ctx.buffer.info[i].as_glyph();
+        let prev = iter.buffer.info[i].as_glyph();
         let index_prev = coverage.get(prev)? as usize;
         let Some(exit_prev) = records
             .get(index_prev)
             .and_then(|rec| rec.exit_anchor(offset_data).transpose().ok().flatten())
         else {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(iter.index()), Some(ctx.buffer.idx + 1));
+            iter.buffer
+                .unsafe_to_concat_from_outbuffer(Some(iter.index()), Some(iter.buffer.idx + 1));
             return None;
         };
 
