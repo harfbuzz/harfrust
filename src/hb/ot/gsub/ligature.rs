@@ -81,17 +81,17 @@ impl Apply for LigatureSet<'_> {
             true
         } else {
             let mut iter = skipping_iterator_t::new(ctx, false);
-            iter.reset(ctx.buffer.idx);
+            iter.reset(iter.buffer.idx);
             let matched = iter.next(Some(&mut unsafe_to));
             if !matched {
                 true
             } else {
-                first = ctx.buffer.info[iter.index()].glyph_id.into();
+                first = iter.buffer.info[iter.index()].glyph_id.into();
                 unsafe_to = iter.index() + 1;
 
                 // Can't use the fast path if eg. the next char is a default-ignorable
                 // or other skippable.
-                iter.may_skip(&ctx.buffer.info[iter.index()]) != may_skip_t::SKIP_NO
+                iter.may_skip(&iter.buffer.info[iter.index()]) != may_skip_t::SKIP_NO
             }
         };
 

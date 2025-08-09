@@ -436,13 +436,13 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
     let mut skippy_iter = skipping_iterator_t::new(ctx, true);
-    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
-        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        let g1 = &skippy_iter.buffer.info[skippy_iter.index()];
         unsafe_to = Some(skippy_iter.index() + 1);
         if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
@@ -470,7 +470,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         return None;
     };
     let matched = skippy_iter.next(None);
-    let g2 = &ctx.buffer.info[skippy_iter.index()];
+    let g2 = &skippy_iter.buffer.info[skippy_iter.index()];
     if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
         second = Some(g2.as_glyph());
         unsafe_to2 = skippy_iter.index() + 1;
@@ -646,13 +646,13 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
     let mut skippy_iter = skipping_iterator_t::new(ctx, true);
-    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
-        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        let g1 = &skippy_iter.buffer.info[skippy_iter.index()];
         unsafe_to = Some(skippy_iter.index() + 1);
         if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
@@ -680,7 +680,7 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
         return None;
     };
     let matched = skippy_iter.next(None);
-    let g2 = &ctx.buffer.info[skippy_iter.index()];
+    let g2 = &skippy_iter.buffer.info[skippy_iter.index()];
     if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
         second = Some(g2.as_glyph());
         unsafe_to2 = skippy_iter.index() + 1;
