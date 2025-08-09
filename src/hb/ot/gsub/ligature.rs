@@ -1,3 +1,4 @@
+use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply, WouldApply,
@@ -29,9 +30,9 @@ impl Apply for Ligature<'_> {
             ctx.replace_glyph(self.ligature_glyph().into());
             Some(())
         } else {
-            let f = |glyph, index| {
+            let f = |info: &mut hb_glyph_info_t, index| {
                 let value = components.get(index as usize).unwrap().get().to_u16();
-                match_glyph(glyph, value)
+                match_glyph(info, value)
             };
 
             let mut match_end = 0;
