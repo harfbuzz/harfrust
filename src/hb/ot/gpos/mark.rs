@@ -6,7 +6,7 @@ use crate::hb::ot_layout::{
 use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply};
+use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, MatchSource};
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
@@ -75,7 +75,7 @@ impl Apply for MarkBasePosFormat1<'_> {
 
         let mut j = iter.buffer.idx;
         while j > last_base_until as usize {
-            let mut _match = iter.match_(&iter.buffer.info[j - 1]);
+            let mut _match = iter.match_at(j - 1, MatchSource::Info);
             if _match == match_t::MATCH {
                 // https://github.com/harfbuzz/harfbuzz/issues/4124
                 if !accept(iter.buffer, j - 1)
@@ -231,7 +231,7 @@ impl Apply for MarkLigPosFormat1<'_> {
 
         let mut j = iter.buffer.idx;
         while j > last_base_until as usize {
-            let mut _match = iter.match_(&iter.buffer.info[j - 1]);
+            let mut _match = iter.match_at(j - 1, MatchSource::Info);
             if _match == match_t::MATCH {
                 last_base = j as i32 - 1;
                 break;

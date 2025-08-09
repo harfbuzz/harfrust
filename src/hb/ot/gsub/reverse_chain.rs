@@ -37,7 +37,7 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
         let backtrack_coverages = self.backtrack_coverages();
         let lookahead_coverages = self.lookahead_coverages();
 
-        let f1 = |info: &hb_glyph_info_t, index| {
+        let f1 = |info: &mut hb_glyph_info_t, index| {
             backtrack_coverages
                 .get(index as usize)
                 .ok()
@@ -45,7 +45,7 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
                 .is_some()
         };
 
-        let f2 = |info: &hb_glyph_info_t, index| {
+        let f2 = |info: &mut hb_glyph_info_t, index| {
             lookahead_coverages
                 .get(index as usize)
                 .ok()

@@ -30,7 +30,7 @@ impl Apply for Ligature<'_> {
             ctx.replace_glyph(self.ligature_glyph().into());
             Some(())
         } else {
-            let f = |info: &hb_glyph_info_t, index| {
+            let f = |info: &mut hb_glyph_info_t, index| {
                 let value = components.get(index as usize).unwrap().get().to_u16();
                 match_glyph(info, value)
             };

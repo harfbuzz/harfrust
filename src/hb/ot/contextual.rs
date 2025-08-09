@@ -30,11 +30,11 @@ impl WouldApply for SequenceContextFormat1<'_> {
                         let input = rule.input_sequence();
                         ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
-                                let info = hb_glyph_info_t {
+                                let mut info = hb_glyph_info_t {
                                     glyph_id: ctx.glyphs[i + 1].into(),
                                     ..hb_glyph_info_t::default()
                                 };
-                                match_glyph(&info, value.get().to_u16())
+                                match_glyph(&mut info, value.get().to_u16())
                             })
                     })
                     .unwrap_or(false)
@@ -68,11 +68,11 @@ impl WouldApply for SequenceContextFormat2<'_> {
                         let input = rule.input_sequence();
                         ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
-                                let info = hb_glyph_info_t {
+                                let mut info = hb_glyph_info_t {
                                     glyph_id: ctx.glyphs[i + 1].into(),
                                     ..hb_glyph_info_t::default()
                                 };
-                                match_fn(&info, value.get())
+                                match_fn(&mut info, value.get())
                             })
                     })
                     .unwrap_or(false)
@@ -108,7 +108,7 @@ impl Apply for SequenceContextFormat3<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let input_coverages = self.coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
-        let input = |info: &hb_glyph_info_t, index: u16| {
+        let input = |info: &mut hb_glyph_info_t, index: u16| {
             input_coverages
                 .get(index as usize + 1)
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
@@ -160,11 +160,11 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
                                 && rule.lookahead_glyph_count() == 0))
                             && ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
-                                let info = hb_glyph_info_t {
+                                let mut info = hb_glyph_info_t {
                                     glyph_id: ctx.glyphs[i + 1].into(),
                                     ..hb_glyph_info_t::default()
                                 };
-                                match_glyph(&info, value.get().to_u16())
+                                match_glyph(&mut info, value.get().to_u16())
                             })
                     })
                     .unwrap_or(false)
@@ -201,11 +201,11 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
                                 && rule.lookahead_glyph_count() == 0))
                             && ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
-                                let info = hb_glyph_info_t {
+                                let mut info = hb_glyph_info_t {
                                     glyph_id: ctx.glyphs[i + 1].into(),
                                     ..hb_glyph_info_t::default()
                                 };
-                                match_fn(&info, value.get())
+                                match_fn(&mut info, value.get())
                             })
                     })
                     .unwrap_or(false)
@@ -224,8 +224,8 @@ fn get_class(class_def: &ClassDef, gid: GlyphId) -> u16 {
 /// Value represents glyph class.
 fn match_class<'a>(
     class_def: &'a Option<ClassDef<'a>>,
-) -> impl Fn(&hb_glyph_info_t, u16) -> bool + 'a {
-    |&info, value| {
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |&mut info, value| {
         class_def
             .as_ref()
             .is_some_and(|class_def| get_class(class_def, info.as_glyph()) == value)
@@ -278,19 +278,19 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         let backtrack_coverages = self.backtrack_coverages();
         let lookahead_coverages = self.lookahead_coverages();
 
-        let back = |info: &hb_glyph_info_t, index: u16| {
+        let back = |info: &mut hb_glyph_info_t, index: u16| {
             backtrack_coverages
                 .get(index as usize)
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
 
-        let ahead = |info: &hb_glyph_info_t, index: u16| {
+        let ahead = |info: &mut hb_glyph_info_t, index: u16| {
             lookahead_coverages
                 .get(index as usize)
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
 
-        let input = |info: &hb_glyph_info_t, index: u16| {
+        let input = |info: &mut hb_glyph_info_t, index: u16| {
             input_coverages
                 .get(index as usize + 1)
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
@@ -379,10 +379,10 @@ trait ContextRule<'a>: FontRead<'a> {
     fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        match_func: &impl Fn(&hb_glyph_info_t, u16) -> bool,
+        match_func: &impl Fn(&mut hb_glyph_info_t, u16) -> bool,
     ) -> Option<()> {
         let inputs = self.input();
-        let match_func = |info: &hb_glyph_info_t, index| {
+        let match_func = |info: &mut hb_glyph_info_t, index| {
             let value = inputs.get(index as usize).unwrap().to_u16();
             match_func(info, value)
         };
@@ -440,7 +440,7 @@ impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
 fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
-    match_func: impl Fn(&hb_glyph_info_t, u16) -> bool,
+    match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
 ) -> Option<()> {
     if rules.len() <= 4 {
         for rule in rules.iter().filter_map(|r| r.ok()) {
@@ -494,16 +494,16 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     }
     for rule in rules.iter().filter_map(|r| r.ok()) {
         let inputs = rule.input();
-        let match_func2 = |info, index| {
+        let match_func2 = |info: &mut hb_glyph_info_t, index| {
             if let Some(value) = inputs.get(index as usize).map(|v| v.to_u16()) {
                 match_func(info, value)
             } else {
                 false
             }
         };
-        if inputs.len() <= 1 || match_func2(&ctx.buffer.info[first], 0) {
+        if inputs.len() <= 1 || match_func2(&mut ctx.buffer.info[first], 0) {
             if second.is_none()
-                || (inputs.len() <= 2 || match_func2(&ctx.buffer.info[second.unwrap()], 1))
+                || (inputs.len() <= 2 || match_func2(&mut ctx.buffer.info[second.unwrap()], 1))
             {
                 if rule.apply(ctx, &match_func).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
@@ -528,7 +528,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
     fn backtrack(&self) -> &'a [Self::Input];
     fn lookahead(&self) -> &'a [Self::Input];
 
-    fn apply_chain<F: Fn(&hb_glyph_info_t, u16) -> bool>(
+    fn apply_chain<F: Fn(&mut hb_glyph_info_t, u16) -> bool>(
         &self,
         ctx: &mut hb_ot_apply_context_t,
         match_funcs: &[F; 3],
@@ -539,17 +539,17 @@ trait ChainContextRule<'a>: ContextRule<'a> {
 
         // NOTE: Whenever something in this method changes, we also need to
         // change it in the `apply` implementation for ChainedContextLookup.
-        let f1 = |info: &hb_glyph_info_t, index| {
+        let f1 = |info: &mut hb_glyph_info_t, index| {
             let value = (*backtrack.get(index as usize).unwrap()).to_u16();
             match_funcs[0](info, value)
         };
 
-        let f2 = |info: &hb_glyph_info_t, index| {
+        let f2 = |info: &mut hb_glyph_info_t, index| {
             let value = (*lookahead.get(index as usize).unwrap()).to_u16();
             match_funcs[2](info, value)
         };
 
-        let f3 = |info: &hb_glyph_info_t, index| {
+        let f3 = |info: &mut hb_glyph_info_t, index| {
             let value = (*input.get(index as usize).unwrap()).to_u16();
             match_funcs[1](info, value)
         };
@@ -649,7 +649,7 @@ fn apply_chain_context_rules<
     'a,
     'b,
     R: ChainContextRule<'a>,
-    F: Fn(&hb_glyph_info_t, u16) -> bool,
+    F: Fn(&mut hb_glyph_info_t, u16) -> bool,
 >(
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
@@ -712,29 +712,29 @@ fn apply_chain_context_rules<
     for rule in rules.iter().filter_map(|r| r.ok()) {
         let input = rule.input();
         let lookahead = rule.lookahead();
-        let match_input = |info, index: usize| {
+        let match_input = |info: &mut hb_glyph_info_t, index: usize| {
             input
                 .get(index)
                 .is_some_and(|v| match_funcs[1](info, v.to_u16()))
         };
-        let match_lookahead = |info, index: usize| {
+        let match_lookahead = |info: &mut hb_glyph_info_t, index: usize| {
             lookahead
                 .get(index)
                 .is_some_and(|v| match_funcs[2](info, v.to_u16()))
         };
         let len_p1 = (input.len() + 1).max(1);
         let matched_first = if len_p1 > 1 {
-            match_input(&ctx.buffer.info[first], 0)
+            match_input(&mut ctx.buffer.info[first], 0)
         } else {
-            lookahead.is_empty() || match_lookahead(&ctx.buffer.info[first], 0)
+            lookahead.is_empty() || match_lookahead(&mut ctx.buffer.info[first], 0)
         };
         if matched_first {
             let matched_second = if let Some(second) = second {
                 if len_p1 > 2 {
-                    match_input(&ctx.buffer.info[second], 1)
+                    match_input(&mut ctx.buffer.info[second], 1)
                 } else {
                     (lookahead.len() <= 2 - len_p1)
-                        || match_lookahead(&ctx.buffer.info[second], 2 - len_p1)
+                        || match_lookahead(&mut ctx.buffer.info[second], 2 - len_p1)
                 }
             } else {
                 true
