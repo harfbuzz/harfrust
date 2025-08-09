@@ -215,17 +215,27 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
     else {
         return false;
     };
+
+    let use_hot_subtable_cache = lookup.cache_enter(ctx, &mut cache);
+
     while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
         let cur = ctx.buffer.cur(0);
         if (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
-            && lookup.apply(ctx, &mut cache).is_some()
+            && lookup
+                .apply(ctx, &mut cache, use_hot_subtable_cache)
+                .is_some()
         {
             ret = true;
         } else {
             ctx.buffer.next_glyph();
         }
     }
+
+    if use_hot_subtable_cache {
+        lookup.cache_leave(ctx, &mut cache);
+    }
+
     ret
 }
 
@@ -242,7 +252,7 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
         let cur = ctx.buffer.cur(0);
         ret |= (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
-            && lookup.apply(ctx, &mut cache).is_some();
+            && lookup.apply(ctx, &mut cache, false).is_some();
 
         if ctx.buffer.idx == 0 {
             break;

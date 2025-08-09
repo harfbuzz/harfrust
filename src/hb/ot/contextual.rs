@@ -96,10 +96,16 @@ impl Apply for SequenceContextFormat2<'_> {
         let input_classes = self.class_def().ok();
         let index = input_classes.as_ref()?.get(glyph) as usize; // TODO: Use cached index
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules(ctx, &set.class_seq_rules(), match_class_cached(&input_classes))
+        apply_context_rules(
+            ctx,
+            &set.class_seq_rules(),
+            match_class_cached(&input_classes),
+        )
     }
     fn cache_cost(&self) -> u32 {
-        self.class_def().ok().map_or(0, |class_def| class_def.cost())
+        self.class_def()
+            .ok()
+            .map_or(0, |class_def| class_def.cost())
     }
     fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
         if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
@@ -112,7 +118,7 @@ impl Apply for SequenceContextFormat2<'_> {
         true
     }
     fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
-	ctx.new_syllables = None;
+        ctx.new_syllables = None;
         ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
     }
 }

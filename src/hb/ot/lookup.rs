@@ -162,6 +162,7 @@ impl LookupCache {
             .try_into()
             .map_err(|_| ReadError::MalformedData("too many subtables"))?;
         entry.state = LookupState::Ready;
+        let mut subtable_cache_user_cost = 0;
         let mut process_subtable = |mut subtable_offset: usize| {
             let mut subtable_kind = kind;
             match (data.is_subst, kind) {
@@ -191,6 +192,13 @@ impl LookupCache {
             subtable_info.digest.add_coverage(&coverage);
             entry.digest.union(&subtable_info.digest);
             subtable_info.coverage_offset = coverage_offset;
+
+            let cache_cost = subtable.cache_cost();
+            if cache_cost > subtable_cache_user_cost {
+                entry.subtable_cache_user_idx = Some(entry.subtables_count as usize);
+                subtable_cache_user_cost = cache_cost;
+            }
+
             self.subtables.push(subtable_info);
             entry.subtables_count += 1;
             Ok::<(), ReadError>(())
@@ -266,6 +274,7 @@ pub struct LookupInfo {
     /// Bloom filter representing the set of glyphs from the primary
     /// coverage of all subtables in the lookup.
     pub digest: hb_set_digest_t,
+    pub subtable_cache_user_idx: Option<usize>,
 }
 
 impl LookupInfo {
@@ -292,6 +301,7 @@ impl LookupInfo {
         &self,
         ctx: &mut hb_ot_apply_context_t,
         cache: &mut SubtableCache,
+        use_hot_subtable_cache: bool,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         if !self.digest.may_have_glyph(glyph) {
@@ -304,33 +314,43 @@ impl LookupInfo {
             let Some(subtable) = cache.get(subtable_idx) else {
                 continue;
             };
-            let result = match subtable {
-                Subtable::SingleSubst1(subtable) => subtable.apply(ctx),
-                Subtable::SingleSubst2(subtable) => subtable.apply(ctx),
-                Subtable::MultipleSubst1(subtable) => subtable.apply(ctx),
-                Subtable::AlternateSubst1(subtable) => subtable.apply(ctx),
-                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx),
-                Subtable::ReverseChainContext(subtable) => subtable.apply(ctx),
-                Subtable::SinglePos1(subtable) => subtable.apply(ctx),
-                Subtable::SinglePos2(subtable) => subtable.apply(ctx),
-                Subtable::PairPos1(subtable) => subtable.apply(ctx),
-                Subtable::PairPos2(subtable) => subtable.apply(ctx),
-                Subtable::CursivePos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkBasePos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkLigPos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkMarkPos1(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat1(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat2(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat3(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat1(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat2(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat3(subtable) => subtable.apply(ctx),
+            let cached = use_hot_subtable_cache
+                && self
+                    .subtable_cache_user_idx
+                    .is_some_and(|idx| idx == subtable_idx);
+            let result = if cached {
+                subtable.apply_cached(ctx)
+            } else {
+                subtable.apply(ctx)
             };
             if result.is_some() {
                 return Some(());
             }
         }
         None
+    }
+
+    pub(crate) fn cache_enter(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        cache: &mut SubtableCache,
+    ) -> bool {
+        let Some(idx) = self.subtable_cache_user_idx else {
+            return false;
+        };
+        let Some(subtable) = cache.get(idx) else {
+            return false;
+        };
+        subtable.cache_enter(ctx)
+    }
+    pub(crate) fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t, cache: &mut SubtableCache) {
+        let Some(idx) = self.subtable_cache_user_idx else {
+            return;
+        };
+        let Some(subtable) = cache.get(idx) else {
+            return;
+        };
+        subtable.cache_leave(ctx)
     }
 }
 
@@ -532,6 +552,129 @@ impl<'a> Subtable<'a> {
                     .ok_or(ReadError::OutOfBounds)?;
                 Ok((s.input_coverages().get(0)?, offset.get().to_u32() as _))
             }
+        }
+    }
+}
+
+impl Apply for Subtable<'_> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        match self {
+            Self::SingleSubst1(s) => s.apply(ctx),
+            Self::SingleSubst2(s) => s.apply(ctx),
+            Self::MultipleSubst1(s) => s.apply(ctx),
+            Self::AlternateSubst1(s) => s.apply(ctx),
+            Self::LigatureSubst1(s) => s.apply(ctx),
+            Self::ReverseChainContext(s) => s.apply(ctx),
+            Self::SinglePos1(s) => s.apply(ctx),
+            Self::SinglePos2(s) => s.apply(ctx),
+            Self::PairPos1(s) => s.apply(ctx),
+            Self::PairPos2(s) => s.apply(ctx),
+            Self::CursivePos1(s) => s.apply(ctx),
+            Self::MarkBasePos1(s) => s.apply(ctx),
+            Self::MarkMarkPos1(s) => s.apply(ctx),
+            Self::MarkLigPos1(s) => s.apply(ctx),
+            Self::ContextFormat1(s) => s.apply(ctx),
+            Self::ContextFormat2(s) => s.apply(ctx),
+            Self::ContextFormat3(s) => s.apply(ctx),
+            Self::ChainedContextFormat1(s) => s.apply(ctx),
+            Self::ChainedContextFormat2(s) => s.apply(ctx),
+            Self::ChainedContextFormat3(s) => s.apply(ctx),
+        }
+    }
+    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        match self {
+            Self::SingleSubst1(s) => s.apply_cached(ctx),
+            Self::SingleSubst2(s) => s.apply_cached(ctx),
+            Self::MultipleSubst1(s) => s.apply_cached(ctx),
+            Self::AlternateSubst1(s) => s.apply_cached(ctx),
+            Self::LigatureSubst1(s) => s.apply_cached(ctx),
+            Self::ReverseChainContext(s) => s.apply_cached(ctx),
+            Self::SinglePos1(s) => s.apply_cached(ctx),
+            Self::SinglePos2(s) => s.apply_cached(ctx),
+            Self::PairPos1(s) => s.apply_cached(ctx),
+            Self::PairPos2(s) => s.apply_cached(ctx),
+            Self::CursivePos1(s) => s.apply_cached(ctx),
+            Self::MarkBasePos1(s) => s.apply_cached(ctx),
+            Self::MarkMarkPos1(s) => s.apply_cached(ctx),
+            Self::MarkLigPos1(s) => s.apply_cached(ctx),
+            Self::ContextFormat1(s) => s.apply_cached(ctx),
+            Self::ContextFormat2(s) => s.apply_cached(ctx),
+            Self::ContextFormat3(s) => s.apply_cached(ctx),
+            Self::ChainedContextFormat1(s) => s.apply_cached(ctx),
+            Self::ChainedContextFormat2(s) => s.apply_cached(ctx),
+            Self::ChainedContextFormat3(s) => s.apply_cached(ctx),
+        }
+    }
+    fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
+        match self {
+            Subtable::SingleSubst1(subtable) => subtable.cache_enter(ctx),
+            Subtable::SingleSubst2(subtable) => subtable.cache_enter(ctx),
+            Subtable::MultipleSubst1(subtable) => subtable.cache_enter(ctx),
+            Subtable::AlternateSubst1(subtable) => subtable.cache_enter(ctx),
+            Subtable::LigatureSubst1(subtable) => subtable.cache_enter(ctx),
+            Subtable::ReverseChainContext(subtable) => subtable.cache_enter(ctx),
+            Subtable::SinglePos1(subtable) => subtable.cache_enter(ctx),
+            Subtable::SinglePos2(subtable) => subtable.cache_enter(ctx),
+            Subtable::PairPos1(subtable) => subtable.cache_enter(ctx),
+            Subtable::PairPos2(subtable) => subtable.cache_enter(ctx),
+            Subtable::CursivePos1(subtable) => subtable.cache_enter(ctx),
+            Subtable::MarkBasePos1(subtable) => subtable.cache_enter(ctx),
+            Subtable::MarkLigPos1(subtable) => subtable.cache_enter(ctx),
+            Subtable::MarkMarkPos1(subtable) => subtable.cache_enter(ctx),
+            Subtable::ContextFormat1(subtable) => subtable.cache_enter(ctx),
+            Subtable::ContextFormat2(subtable) => subtable.cache_enter(ctx),
+            Subtable::ContextFormat3(subtable) => subtable.cache_enter(ctx),
+            Subtable::ChainedContextFormat1(subtable) => subtable.cache_enter(ctx),
+            Subtable::ChainedContextFormat2(subtable) => subtable.cache_enter(ctx),
+            Subtable::ChainedContextFormat3(subtable) => subtable.cache_enter(ctx),
+        }
+    }
+    fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
+        match self {
+            Subtable::SingleSubst1(subtable) => subtable.cache_leave(ctx),
+            Subtable::SingleSubst2(subtable) => subtable.cache_leave(ctx),
+            Subtable::MultipleSubst1(subtable) => subtable.cache_leave(ctx),
+            Subtable::AlternateSubst1(subtable) => subtable.cache_leave(ctx),
+            Subtable::LigatureSubst1(subtable) => subtable.cache_leave(ctx),
+            Subtable::ReverseChainContext(subtable) => subtable.cache_leave(ctx),
+            Subtable::SinglePos1(subtable) => subtable.cache_leave(ctx),
+            Subtable::SinglePos2(subtable) => subtable.cache_leave(ctx),
+            Subtable::PairPos1(subtable) => subtable.cache_leave(ctx),
+            Subtable::PairPos2(subtable) => subtable.cache_leave(ctx),
+            Subtable::CursivePos1(subtable) => subtable.cache_leave(ctx),
+            Subtable::MarkBasePos1(subtable) => subtable.cache_leave(ctx),
+            Subtable::MarkLigPos1(subtable) => subtable.cache_leave(ctx),
+            Subtable::MarkMarkPos1(subtable) => subtable.cache_leave(ctx),
+            Subtable::ContextFormat1(subtable) => subtable.cache_leave(ctx),
+            Subtable::ContextFormat2(subtable) => subtable.cache_leave(ctx),
+            Subtable::ContextFormat3(subtable) => subtable.cache_leave(ctx),
+            Subtable::ChainedContextFormat1(subtable) => subtable.cache_leave(ctx),
+            Subtable::ChainedContextFormat2(subtable) => subtable.cache_leave(ctx),
+            Subtable::ChainedContextFormat3(subtable) => subtable.cache_leave(ctx),
+        }
+    }
+    fn cache_cost(&self) -> u32 {
+        match self {
+            Subtable::SingleSubst1(subtable) => subtable.cache_cost(),
+            Subtable::SingleSubst2(subtable) => subtable.cache_cost(),
+            Subtable::MultipleSubst1(subtable) => subtable.cache_cost(),
+            Subtable::AlternateSubst1(subtable) => subtable.cache_cost(),
+            Subtable::LigatureSubst1(subtable) => subtable.cache_cost(),
+            Subtable::ReverseChainContext(subtable) => subtable.cache_cost(),
+            Subtable::SinglePos1(subtable) => subtable.cache_cost(),
+            Subtable::SinglePos2(subtable) => subtable.cache_cost(),
+            Subtable::PairPos1(subtable) => subtable.cache_cost(),
+            Subtable::PairPos2(subtable) => subtable.cache_cost(),
+            Subtable::CursivePos1(subtable) => subtable.cache_cost(),
+            Subtable::MarkBasePos1(subtable) => subtable.cache_cost(),
+            Subtable::MarkLigPos1(subtable) => subtable.cache_cost(),
+            Subtable::MarkMarkPos1(subtable) => subtable.cache_cost(),
+            Subtable::ContextFormat1(subtable) => subtable.cache_cost(),
+            Subtable::ContextFormat2(subtable) => subtable.cache_cost(),
+            Subtable::ContextFormat3(subtable) => subtable.cache_cost(),
+            Subtable::ChainedContextFormat1(subtable) => subtable.cache_cost(),
+            Subtable::ChainedContextFormat2(subtable) => subtable.cache_cost(),
+            Subtable::ChainedContextFormat3(subtable) => subtable.cache_cost(),
         }
     }
 }

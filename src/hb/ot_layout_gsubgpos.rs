@@ -612,7 +612,6 @@ pub trait WouldApply {
 
 /// Apply a lookup.
 pub trait Apply {
-
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()>;
 
     // The rest are relevant to subtables only
@@ -790,7 +789,7 @@ pub mod OT {
                     let lookup = cache.lookup().clone();
                     self.lookup_props = lookup.props();
                     self.update_matchers();
-                    lookup.apply(self, &mut cache)
+                    lookup.apply(self, &mut cache, false)
                 });
             self.lookup_props = saved_props;
             self.lookup_index = saved_index;
