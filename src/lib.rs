@@ -3,9 +3,6 @@ A complete [harfbuzz](https://github.com/harfbuzz/harfbuzz) shaping algorithm po
 */
 
 #![cfg_attr(not(feature = "std"), no_std)]
-// Forbidding unsafe code only applies to the lib
-// examples continue to use it, so this cannot be placed into Cargo.toml
-#![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 extern crate alloc;

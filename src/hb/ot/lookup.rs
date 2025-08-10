@@ -1,3 +1,5 @@
+use alloc::rc::Rc;
+use core::mem::transmute;
 use crate::hb::{
     hb_font_t,
     ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t},
@@ -185,12 +187,18 @@ impl LookupCache {
                 is_subst: data.is_subst,
                 lookup_type: subtable_kind as u8,
                 digest: hb_set_digest_t::new(),
+                apply: None,
             };
             let subtable = subtable_info.materialize(data.table_data.as_bytes())?;
             let (coverage, coverage_offset) = subtable.coverage_and_offset()?;
             subtable_info.digest.add_coverage(&coverage);
             entry.digest.union(&subtable_info.digest);
             subtable_info.coverage_offset = coverage_offset;
+
+            // Need some unsafe cast here...
+            let b: Rc<dyn Apply + 'a> = subtable.to_apply();
+            subtable_info.apply = Some(unsafe { transmute::<_, Rc<dyn Apply + 'static>>(b) });
+
             self.subtables.push(subtable_info);
             entry.subtables_count += 1;
             Ok::<(), ReadError>(())
@@ -301,31 +309,7 @@ impl LookupInfo {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
-            let Some(subtable) = cache.get(subtable_idx) else {
-                continue;
-            };
-            let result = match subtable {
-                Subtable::SingleSubst1(subtable) => subtable.apply(ctx),
-                Subtable::SingleSubst2(subtable) => subtable.apply(ctx),
-                Subtable::MultipleSubst1(subtable) => subtable.apply(ctx),
-                Subtable::AlternateSubst1(subtable) => subtable.apply(ctx),
-                Subtable::LigatureSubst1(subtable) => subtable.apply(ctx),
-                Subtable::ReverseChainContext(subtable) => subtable.apply(ctx),
-                Subtable::SinglePos1(subtable) => subtable.apply(ctx),
-                Subtable::SinglePos2(subtable) => subtable.apply(ctx),
-                Subtable::PairPos1(subtable) => subtable.apply(ctx),
-                Subtable::PairPos2(subtable) => subtable.apply(ctx),
-                Subtable::CursivePos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkBasePos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkLigPos1(subtable) => subtable.apply(ctx),
-                Subtable::MarkMarkPos1(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat1(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat2(subtable) => subtable.apply(ctx),
-                Subtable::ContextFormat3(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat1(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat2(subtable) => subtable.apply(ctx),
-                Subtable::ChainedContextFormat3(subtable) => subtable.apply(ctx),
-            };
+            let result = subtable_info.apply.as_ref().unwrap().apply(ctx);
             if result.is_some() {
                 return Some(());
             }
@@ -393,6 +377,7 @@ pub struct SubtableInfo {
     /// Original lookup type.
     pub lookup_type: u8,
     pub digest: hb_set_digest_t,
+    pub apply: Option<Rc<dyn Apply + 'static>>,
 }
 
 impl SubtableInfo {
@@ -532,6 +517,33 @@ impl<'a> Subtable<'a> {
                     .ok_or(ReadError::OutOfBounds)?;
                 Ok((s.input_coverages().get(0)?, offset.get().to_u32() as _))
             }
+        }
+    }
+}
+
+impl<'a> Subtable<'a> {
+    fn to_apply(self) -> Rc<dyn Apply + 'a> {
+        match self {
+            Self::SingleSubst1(s) => Rc::new(s),
+            Self::SingleSubst2(s) => Rc::new(s),
+            Self::MultipleSubst1(s) => Rc::new(s),
+            Self::AlternateSubst1(s) => Rc::new(s),
+            Self::LigatureSubst1(s) => Rc::new(s),
+            Self::ReverseChainContext(s) => Rc::new(s),
+            Self::SinglePos1(s) => Rc::new(s),
+            Self::SinglePos2(s) => Rc::new(s),
+            Self::PairPos1(s) => Rc::new(s),
+            Self::PairPos2(s) => Rc::new(s),
+            Self::CursivePos1(s) => Rc::new(s),
+            Self::MarkBasePos1(s) => Rc::new(s),
+            Self::MarkMarkPos1(s) => Rc::new(s),
+            Self::MarkLigPos1(s) => Rc::new(s),
+            Self::ContextFormat1(s) => Rc::new(s),
+            Self::ContextFormat2(s) => Rc::new(s),
+            Self::ContextFormat3(s) => Rc::new(s),
+            Self::ChainedContextFormat1(s) => Rc::new(s),
+            Self::ChainedContextFormat2(s) => Rc::new(s),
+            Self::ChainedContextFormat3(s) => Rc::new(s),
         }
     }
 }
