@@ -90,6 +90,37 @@ impl Apply for SequenceContextFormat2<'_> {
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(ctx, &set.class_seq_rules(), match_class(&input_classes))
     }
+    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
+        let input_classes = self.class_def().ok();
+        let index = get_class_cached(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let set = self.class_seq_rule_sets().get(index)?.ok()?;
+        apply_context_rules(
+            ctx,
+            &set.class_seq_rules(),
+            match_class_cached(&input_classes),
+        )
+    }
+    fn cache_cost(&self) -> u32 {
+        self.class_def()
+            .ok()
+            .map_or(0, |class_def| class_def.cost())
+    }
+    fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
+        if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
+            return false;
+        }
+        for info in &mut ctx.buffer.info {
+            info.set_syllable(255);
+        }
+        ctx.new_syllables = Some(255);
+        true
+    }
+    fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
+        ctx.new_syllables = None;
+        ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+    }
 }
 
 impl WouldApply for SequenceContextFormat3<'_> {
@@ -178,7 +209,11 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules(ctx, &set.chained_seq_rules(), [match_glyph; 3])
+        apply_chain_context_rules(
+            ctx,
+            &set.chained_seq_rules(),
+            (match_glyph, match_glyph, match_glyph),
+        )
     }
 }
 
@@ -231,6 +266,75 @@ fn match_class<'a>(
             .is_some_and(|class_def| get_class(class_def, info.as_glyph()) == value)
     }
 }
+fn get_class_cached<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = info.syllable() as u16;
+    if klass < 255 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        get_class(class_def, info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 255 {
+        info.set_syllable(klass as u8);
+    }
+
+    klass
+}
+fn match_class_cached<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| get_class_cached(class_def, info) == value
+}
+fn get_class_cached1<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = (info.syllable() & 0x0F) as u16;
+    if klass < 15 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        get_class(class_def, info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 15 {
+        info.set_syllable((info.syllable() & 0xF0) | klass as u8);
+    }
+
+    klass
+}
+fn match_class_cached1<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| get_class_cached1(class_def, info) == value
+}
+fn get_class_cached2<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = (info.syllable() & 0xF0) as u16 >> 4;
+    if klass < 15 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        get_class(class_def, info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 15 {
+        info.set_syllable((info.syllable() & 0x0F) | ((klass as u8) << 4));
+    }
+
+    klass
+}
+fn match_class_cached2<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| get_class_cached2(class_def, info) == value
+}
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
@@ -244,12 +348,54 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         apply_chain_context_rules(
             ctx,
             &set.chained_class_seq_rules(),
-            [
+            (
                 match_class(&backtrack_classes),
                 match_class(&input_classes),
                 match_class(&lookahead_classes),
-            ],
+            ),
         )
+    }
+    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        let backtrack_classes = self.backtrack_class_def().ok();
+        let input_classes = self.input_class_def().ok();
+        let lookahead_classes = self.lookahead_class_def().ok();
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
+        let index =
+            get_class_cached2(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+        apply_chain_context_rules(
+            ctx,
+            &set.chained_class_seq_rules(),
+            (
+                match_class(&backtrack_classes),
+                match_class_cached2(&input_classes),
+                match_class_cached1(&lookahead_classes),
+            ),
+        )
+    }
+    fn cache_cost(&self) -> u32 {
+        self.input_class_def()
+            .ok()
+            .map_or(0, |class_def| class_def.cost())
+            + self
+                .lookahead_class_def()
+                .ok()
+                .map_or(0, |class_def| class_def.cost())
+    }
+    fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
+        if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
+            return false;
+        }
+        for info in &mut ctx.buffer.info {
+            info.set_syllable(255);
+        }
+        ctx.new_syllables = Some(255);
+        true
+    }
+    fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
+        ctx.new_syllables = None;
+        ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
     }
 }
 
@@ -528,10 +674,14 @@ trait ChainContextRule<'a>: ContextRule<'a> {
     fn backtrack(&self) -> &'a [Self::Input];
     fn lookahead(&self) -> &'a [Self::Input];
 
-    fn apply_chain<F: Fn(&mut hb_glyph_info_t, u16) -> bool>(
+    fn apply_chain<
+        F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
+        F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
+        F3: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    >(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        match_funcs: &[F; 3],
+        match_funcs: &(F1, F2, F3),
     ) -> Option<()> {
         let input = self.input();
         let backtrack = self.backtrack();
@@ -541,17 +691,17 @@ trait ChainContextRule<'a>: ContextRule<'a> {
         // change it in the `apply` implementation for ChainedContextLookup.
         let f1 = |info: &mut hb_glyph_info_t, index| {
             let value = (*backtrack.get(index as usize).unwrap()).to_u16();
-            match_funcs[0](info, value)
+            match_funcs.0(info, value)
         };
 
         let f2 = |info: &mut hb_glyph_info_t, index| {
             let value = (*lookahead.get(index as usize).unwrap()).to_u16();
-            match_funcs[2](info, value)
+            match_funcs.2(info, value)
         };
 
         let f3 = |info: &mut hb_glyph_info_t, index| {
             let value = (*input.get(index as usize).unwrap()).to_u16();
-            match_funcs[1](info, value)
+            match_funcs.1(info, value)
         };
 
         let mut end_index = ctx.buffer.idx;
@@ -649,11 +799,13 @@ fn apply_chain_context_rules<
     'a,
     'b,
     R: ChainContextRule<'a>,
-    F: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    F3: Fn(&mut hb_glyph_info_t, u16) -> bool,
 >(
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
-    match_funcs: [F; 3],
+    match_funcs: (F1, F2, F3),
 ) -> Option<()> {
     // If the input skippy has non-auto joiners behavior (as in Indic shapers),
     // skip this fast path, as we don't distinguish between input & lookahead
@@ -715,12 +867,12 @@ fn apply_chain_context_rules<
         let match_input = |info: &mut hb_glyph_info_t, index: usize| {
             input
                 .get(index)
-                .is_some_and(|v| match_funcs[1](info, v.to_u16()))
+                .is_some_and(|v| match_funcs.1(info, v.to_u16()))
         };
         let match_lookahead = |info: &mut hb_glyph_info_t, index: usize| {
             lookahead
                 .get(index)
-                .is_some_and(|v| match_funcs[2](info, v.to_u16()))
+                .is_some_and(|v| match_funcs.2(info, v.to_u16()))
         };
         let len_p1 = (input.len() + 1).max(1);
         let matched_first = if len_p1 > 1 {
