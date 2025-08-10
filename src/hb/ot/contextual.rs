@@ -209,7 +209,11 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules(ctx, &set.chained_seq_rules(), (match_glyph, match_glyph, match_glyph))
+        apply_chain_context_rules(
+            ctx,
+            &set.chained_seq_rules(),
+            (match_glyph, match_glyph, match_glyph),
+        )
     }
 }
 
@@ -357,7 +361,8 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         let lookahead_classes = self.lookahead_class_def().ok();
         let glyph = ctx.buffer.cur(0).as_gid16()?;
         self.coverage().ok()?.get(glyph)?;
-        let index = get_class_cached2(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let index =
+            get_class_cached2(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
             ctx,
@@ -373,10 +378,10 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         self.input_class_def()
             .ok()
             .map_or(0, |class_def| class_def.cost())
-        +
-        self.lookahead_class_def()
-            .ok()
-            .map_or(0, |class_def| class_def.cost())
+            + self
+                .lookahead_class_def()
+                .ok()
+                .map_or(0, |class_def| class_def.cost())
     }
     fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
         if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
@@ -669,12 +674,14 @@ trait ChainContextRule<'a>: ContextRule<'a> {
     fn backtrack(&self) -> &'a [Self::Input];
     fn lookahead(&self) -> &'a [Self::Input];
 
-    fn apply_chain<F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
-                   F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
-                   F3: Fn(&mut hb_glyph_info_t, u16) -> bool>(
+    fn apply_chain<
+        F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
+        F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
+        F3: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    >(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        match_funcs: &(F1, F2, F3)
+        match_funcs: &(F1, F2, F3),
     ) -> Option<()> {
         let input = self.input();
         let backtrack = self.backtrack();
