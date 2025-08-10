@@ -94,7 +94,7 @@ impl Apply for SequenceContextFormat2<'_> {
         let glyph = ctx.buffer.cur(0).as_gid16()?;
         self.coverage().ok()?.get(glyph)?;
         let input_classes = self.class_def().ok();
-        let index = input_classes.as_ref()?.get(glyph) as usize; // TODO: Use cached index
+        let index = get_class_cached(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(
             ctx,
@@ -262,27 +262,28 @@ fn match_class<'a>(
             .is_some_and(|class_def| get_class(class_def, info.as_glyph()) == value)
     }
 }
+fn get_class_cached<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = info.syllable() as u16;
+    if klass < 255 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        get_class(class_def, info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 255 {
+        info.set_syllable(klass as u8);
+    }
+
+    klass
+}
 fn match_class_cached<'a>(
     class_def: &'a Option<ClassDef<'a>>,
 ) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
-    |info: &mut hb_glyph_info_t, value| {
-        let mut klass = info.syllable() as u16;
-        if klass < 255 {
-            return klass == value;
-        }
-
-        klass = if let Some(class_def) = class_def.as_ref() {
-            get_class(class_def, info.as_glyph())
-        } else {
-            0
-        };
-
-        if klass < 255 {
-            info.set_syllable(klass as u8);
-        }
-
-        klass == value
-    }
+    |info: &mut hb_glyph_info_t, value| get_class_cached(class_def, info) == value
 }
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
