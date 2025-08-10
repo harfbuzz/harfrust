@@ -350,7 +350,7 @@ impl LookupInfo {
         let Some(subtable) = cache.get(idx) else {
             return;
         };
-        subtable.cache_leave(ctx)
+        subtable.cache_leave(ctx);
     }
 }
 

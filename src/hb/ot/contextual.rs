@@ -111,7 +111,7 @@ impl Apply for SequenceContextFormat2<'_> {
         if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
             return false;
         }
-        for info in ctx.buffer.info.iter_mut() {
+        for info in &mut ctx.buffer.info {
             info.set_syllable(255);
         }
         ctx.new_syllables = Some(255);
@@ -387,7 +387,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
             return false;
         }
-        for info in ctx.buffer.info.iter_mut() {
+        for info in &mut ctx.buffer.info {
             info.set_syllable(255);
         }
         ctx.new_syllables = Some(255);
