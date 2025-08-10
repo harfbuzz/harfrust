@@ -1,21 +1,24 @@
-use core::convert::TryFrom;
-
-use super::buffer::*;
-use super::hb_font_t;
-use super::ot_layout::TableIndex;
-use super::ot_layout_common::lookup_flags;
-use super::ot_layout_gpos_table::attach_type;
-use super::ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t};
-use super::ot_shape_plan::hb_ot_shape_plan_t;
-use read_fonts::tables::{
-    aat,
-    ankr::Ankr,
-    kerx::{
-        Subtable, Subtable0, Subtable1, Subtable2, Subtable4, Subtable4Actions, Subtable6,
-        SubtableKind,
-    },
+use crate::hb::{
+    buffer::*,
+    hb_font_t,
+    ot_layout::TableIndex,
+    ot_layout_common::lookup_flags,
+    ot_layout_gpos_table::attach_type,
+    ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t},
+    ot_shape_plan::hb_ot_shape_plan_t,
 };
-use read_fonts::types::{BigEndian, FixedSize, GlyphId};
+use core::convert::TryFrom;
+use read_fonts::{
+    tables::{
+        aat,
+        ankr::Ankr,
+        kerx::{
+            Subtable, Subtable0, Subtable1, Subtable2, Subtable4, Subtable4Actions, Subtable6,
+            SubtableKind,
+        },
+    },
+    types::{BigEndian, FixedSize, GlyphId},
+};
 
 // TODO: Use set_t, similarly to how it's used in harfbuzz.
 // HarfBuzz commit 9a4601b06b50cb0197c02203b6b19467ad4b4da8

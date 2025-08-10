@@ -3,7 +3,7 @@ use read_fonts::{
     types::GlyphId,
 };
 
-use super::aat_layout_kerx_table::SimpleKerning;
+use super::aat::layout_kerx_table::SimpleKerning;
 use super::buffer::*;
 use super::ot_layout::TableIndex;
 use super::ot_layout_common::lookup_flags;

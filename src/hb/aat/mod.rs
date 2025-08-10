@@ -1,3 +1,10 @@
+pub mod layout;
+pub mod layout_common;
+pub mod layout_kerx_table;
+pub mod layout_morx_table;
+pub mod layout_trak_table;
+pub mod map;
+
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
     FontRef, TableProvider,
