@@ -22,8 +22,23 @@ default = ["std"]
 std = ["read-fonts/std"]
 
 [dev-dependencies]
+criterion = "0.5.1"
+harfbuzz_rs = { git = "https://github.com/harfbuzz/harfbuzz_rs/", rev = "66dae27" }
 libc = "0.2"
 pico-args = { version = "0.5", features = ["eq-separator"] }
+
+[lib]
+bench = false
+
+[[bench]]
+name = "shaping"
+harness = false
+
+[profile.bench]
+strip = true
+lto = "fat"
+overflow-checks = false
+codegen-units = 1
 
 [lints.rust]
 unused_qualifications = "warn"
