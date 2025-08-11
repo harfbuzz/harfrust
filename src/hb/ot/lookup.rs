@@ -181,7 +181,7 @@ impl LookupCache {
             let subtable_data = data
                 .table_data
                 .split_off(subtable_offset)
-                .ok_or(ReadError::OutOfBounds)?;            
+                .ok_or(ReadError::OutOfBounds)?;
             let apply_fns = subtable_apply_fns(subtable_data, data.is_subst, subtable_kind as u8)?;
             let mut subtable_info = SubtableInfo {
                 offset: subtable_offset
