@@ -66,9 +66,9 @@ fn bench(c: &mut Criterion) {
                             &[],
                         )
                     });
-                    shared_buffer = Some(shaper.shape_with_plan(&plan, buffer, &[]).clear());
+                    shared_buffer = Some(shaper.shape_with_plan(plan, buffer, &[]).clear());
                 }
-            })
+            });
         });
         c.bench_function(&(test_name + "/hb"), |b| {
             let face = harfbuzz_rs::Face::from_bytes(&font_data, 0);
@@ -83,7 +83,7 @@ fn bench(c: &mut Criterion) {
                         .guess_segment_properties();
                     shared_buffer = Some(harfbuzz_rs::shape(&font, buffer, &[]).clear());
                 }
-            })
+            });
         });
     }
 }
