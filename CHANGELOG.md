@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minimum supported Rust version) of 1.75.
+## [0.1.1] - 2025-08-11
 
-## Changed
+This release matches HarfBuzz [v11.3.3][harfbuzz-11.3.3], and has an MSRV (minimum supported Rust version) of 1.75.
 
-- Updated the README. ([#65][] by [@khaledhosny][])
+- Major optimizations to speed up shaping.
 
 ## [0.1.0] - 2025-06-10
 
