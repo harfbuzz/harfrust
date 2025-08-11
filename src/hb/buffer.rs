@@ -885,6 +885,7 @@ impl hb_buffer_t {
     /// Copies glyph at idx to output and advance idx.
     ///
     /// If there's no output, just advance idx.
+    #[inline]
     pub fn next_glyph(&mut self) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
@@ -892,7 +893,8 @@ impl hb_buffer_t {
                     return;
                 }
 
-                self.set_out_info(self.out_len, self.info[self.idx]);
+                let i = self.out_len;
+                self.out_info_mut()[i] = self.info[self.idx];
             }
 
             self.out_len += 1;
