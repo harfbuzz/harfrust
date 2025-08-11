@@ -347,6 +347,7 @@ impl<'a> crate::Shaper<'a> {
         GlyphNames::new(&self.font)
     }
 
+    #[inline]
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
         let glyph = glyph.to_u32();
         match self.ot_tables.glyph_class(glyph) {
