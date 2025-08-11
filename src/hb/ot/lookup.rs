@@ -297,6 +297,7 @@ impl LookupInfo {
 }
 
 impl LookupInfo {
+    #[inline]
     pub(crate) fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
