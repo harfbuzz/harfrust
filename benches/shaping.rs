@@ -33,6 +33,8 @@ const BENCHES: &[(&str, &str)] = &[
 ];
 
 fn bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("shaping");
+    group.sampling_mode(criterion::SamplingMode::Flat);
     for (font_path, text_path) in BENCHES {
         let font_path: &Path = font_path.as_ref();
         let text_path: &Path = text_path.as_ref();
@@ -46,7 +48,7 @@ fn bench(c: &mut Criterion) {
             .into_owned();
         test_name.push('/');
         test_name.push_str(&text_path.file_name().unwrap().to_string_lossy());
-        c.bench_function(&(test_name.clone() + "/hr"), |b| {
+        group.bench_function(&(test_name.clone() + "/hr"), |b| {
             let font = harfrust::FontRef::from_index(&font_data, 0).unwrap();
             let state = HrTestState::new(&font);
             let shaper = state.shaper();
@@ -70,7 +72,7 @@ fn bench(c: &mut Criterion) {
                 }
             });
         });
-        c.bench_function(&(test_name + "/hb"), |b| {
+        group.bench_function(&(test_name + "/hb"), |b| {
             let face = harfbuzz_rs::Face::from_bytes(&font_data, 0);
             let font = harfbuzz_rs::Font::new(face);
             let mut shared_buffer = Some(harfbuzz_rs::UnicodeBuffer::new());
@@ -86,11 +88,15 @@ fn bench(c: &mut Criterion) {
             });
         });
     }
+    group.finish();
 }
 
-criterion_group!{
+criterion_group! {
     name = benches;
-    config = Criterion::default().sample_size(30);
+    config = Criterion::default()
+        .warm_up_time(std::time::Duration::from_millis(100))
+        .measurement_time(std::time::Duration::from_millis(500))
+        .sample_size(10);
     targets = bench
 }
 criterion_main!(benches);
