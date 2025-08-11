@@ -164,13 +164,13 @@ impl LookupCache {
         entry.state = LookupState::Ready;
         let mut subtable_cache_user_cost = 0;
         let mut process_subtable = |mut subtable_offset: usize| {
+            let subtable_data = data
+                .table_data
+                .split_off(subtable_offset)
+                .ok_or(ReadError::OutOfBounds)?;
             let mut subtable_kind = kind;
             match (data.is_subst, kind) {
                 (true, 7) | (false, 9) => {
-                    let subtable_data = data
-                        .table_data
-                        .split_off(subtable_offset)
-                        .ok_or(ReadError::OutOfBounds)?;
                     let ext = ExtensionSubstFormat1::<()>::read(subtable_data)?;
                     subtable_kind = ext.extension_lookup_type();
                     let ext_offset = ext.extension_offset().to_usize();
@@ -178,6 +178,11 @@ impl LookupCache {
                 }
                 _ => {}
             }
+            let subtable_data = data
+                .table_data
+                .split_off(subtable_offset)
+                .ok_or(ReadError::OutOfBounds)?;            
+            let apply_fns = subtable_apply_fns(subtable_data, data.is_subst, subtable_kind as u8)?;
             let mut subtable_info = SubtableInfo {
                 offset: subtable_offset
                     .try_into()
@@ -186,6 +191,7 @@ impl LookupCache {
                 is_subst: data.is_subst,
                 lookup_type: subtable_kind as u8,
                 digest: hb_set_digest_t::new(),
+                apply_fns,
             };
             let subtable = subtable_info.materialize(data.table_data.as_bytes())?;
             let (coverage, coverage_offset) = subtable.coverage_and_offset()?;
@@ -312,21 +318,29 @@ impl LookupInfo {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
-            let Some(subtable) = cache.get(subtable_idx) else {
-                continue;
-            };
-            let cached = use_hot_subtable_cache
-                && self
-                    .subtable_cache_user_idx
-                    .is_some_and(|idx| idx == subtable_idx);
-            let result = if cached {
-                subtable.apply_cached(ctx)
-            } else {
-                subtable.apply(ctx)
-            };
-            if result.is_some() {
+            let is_cached =
+                use_hot_subtable_cache & (self.subtable_cache_user_idx == Some(subtable_idx));
+            if subtable_info
+                .apply(ctx, cache.table_data, is_cached)
+                .is_some()
+            {
                 return Some(());
             }
+            // let Some(subtable) = cache.get(subtable_idx) else {
+            //     continue;
+            // };
+            // let cached = use_hot_subtable_cache
+            //     && self
+            //         .subtable_cache_user_idx
+            //         .is_some_and(|idx| idx == subtable_idx);
+            // let result = if cached {
+            //     subtable.apply_cached(ctx)
+            // } else {
+            //     subtable.apply(ctx)
+            // };
+            // if result.is_some() {
+            //     return Some(());
+            // }
         }
         None
     }
@@ -414,9 +428,23 @@ pub struct SubtableInfo {
     /// Original lookup type.
     pub lookup_type: u8,
     pub digest: hb_set_digest_t,
+    pub apply_fns: [SubtableApplyFn; 2],
 }
 
+pub type SubtableApplyFn = fn(&mut hb_ot_apply_context_t, &[u8]) -> Option<()>;
+
 impl SubtableInfo {
+    #[inline]
+    pub(crate) fn apply(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        table_data: &[u8],
+        is_cached: bool,
+    ) -> Option<()> {
+        let subtable_data = table_data.get(self.offset as usize..)?;
+        self.apply_fns[is_cached as usize](ctx, subtable_data)
+    }
+
     pub(crate) fn _primary_coverage_table<'a>(
         &self,
         table_data: &'a [u8],
@@ -464,6 +492,115 @@ pub enum Subtable<'a> {
     ChainedContextFormat2(ChainedSequenceContextFormat2<'a>),
     ChainedContextFormat3(ChainedSequenceContextFormat3<'a>),
     ReverseChainContext(ReverseChainSingleSubstFormat1<'a>),
+}
+
+macro_rules! apply_fns {
+    ($apply:ident, $apply_cached:ident, $ty:ident) => {
+        fn $apply(ctx: &mut hb_ot_apply_context_t, table_data: &[u8]) -> Option<()> {
+            let t = $ty::read(FontData::new(table_data)).ok()?;
+            t.apply(ctx)
+        }
+
+        fn $apply_cached(ctx: &mut hb_ot_apply_context_t, table_data: &[u8]) -> Option<()> {
+            let t = $ty::read(FontData::new(table_data)).ok()?;
+            t.apply_cached(ctx)
+        }
+    };
+}
+
+apply_fns!(single_subst1, single_subst1_cached, SingleSubstFormat1);
+apply_fns!(single_subst2, single_subst2_cached, SingleSubstFormat2);
+apply_fns!(
+    multiple_subst1,
+    multiple_subst1_cached,
+    MultipleSubstFormat1
+);
+apply_fns!(
+    alternate_subst1,
+    alternate_subst1_cached,
+    AlternateSubstFormat1
+);
+apply_fns!(
+    ligature_subst1,
+    ligature_subst1_cached,
+    LigatureSubstFormat1
+);
+apply_fns!(single_pos1, single_pos1_cached, SinglePosFormat1);
+apply_fns!(single_pos2, single_pos2_cached, SinglePosFormat2);
+apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
+apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
+apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
+apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
+apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
+apply_fns!(mark_lig_pos1, mark_lig_pos1_cached, MarkLigPosFormat1);
+apply_fns!(context1, context1_cached, SequenceContextFormat1);
+apply_fns!(context2, context2_cached, SequenceContextFormat2);
+apply_fns!(context3, context3_cached, SequenceContextFormat3);
+apply_fns!(
+    chained_context1,
+    chained_context1_cached,
+    ChainedSequenceContextFormat1
+);
+apply_fns!(
+    chained_context2,
+    chained_context2_cached,
+    ChainedSequenceContextFormat2
+);
+apply_fns!(
+    chained_context3,
+    chained_context3_cached,
+    ChainedSequenceContextFormat3
+);
+apply_fns!(
+    rev_chain_single_subst1,
+    rev_chain_single_subst1_cached,
+    ReverseChainSingleSubstFormat1
+);
+
+fn subtable_apply_fns(
+    data: FontData,
+    is_sub: bool,
+    lookup_type: u8,
+) -> Result<[SubtableApplyFn; 2], ReadError> {
+    match (is_sub, lookup_type) {
+        (true, 1) => match SingleSubst::read(data)? {
+            SingleSubst::Format1(_) => Ok([single_subst1, single_subst1_cached as _]),
+            SingleSubst::Format2(_) => Ok([single_subst2, single_subst2_cached as _]),
+        },
+        (false, 1) => match SinglePos::read(data)? {
+            SinglePos::Format1(_) => Ok([single_pos1, single_pos1_cached as _]),
+            SinglePos::Format2(_) => Ok([single_pos2, single_pos2_cached as _]),
+        },
+        (true, 2) => Ok([multiple_subst1, multiple_subst1_cached as _]),
+        (false, 2) => match PairPos::read(data)? {
+            PairPos::Format1(_) => Ok([pair_pos1, pair_pos1_cached as _]),
+            PairPos::Format2(_) => Ok([pair_pos2, pair_pos2_cached as _]),
+        },
+        (true, 3) => Ok([alternate_subst1, alternate_subst1_cached as _]),
+        (false, 3) => Ok([cursive_pos1, cursive_pos1_cached as _]),
+        (true, 4) => Ok([ligature_subst1, ligature_subst1_cached as _]),
+        (false, 4) => Ok([mark_base_pos1, mark_base_pos1_cached as _]),
+        (true, 5) | (false, 7) => match SequenceContext::read(data)? {
+            SequenceContext::Format1(_) => Ok([context1, context1_cached as _]),
+            SequenceContext::Format2(_) => Ok([context2, context2_cached as _]),
+            SequenceContext::Format3(_) => Ok([context3, context3_cached as _]),
+        },
+        (false, 5) => Ok([mark_lig_pos1, mark_lig_pos1_cached as _]),
+        (true, 6) | (false, 8) => match ChainedSequenceContext::read(data)? {
+            ChainedSequenceContext::Format1(_) => {
+                Ok([chained_context1, chained_context1_cached as _])
+            }
+            ChainedSequenceContext::Format2(_) => {
+                Ok([chained_context2, chained_context2_cached as _])
+            }
+            ChainedSequenceContext::Format3(_) => {
+                Ok([chained_context3, chained_context3_cached as _])
+            }
+        },
+        (false, 6) => Ok([mark_mark_pos1, mark_mark_pos1_cached as _]),
+        (true, 8) => Ok([rev_chain_single_subst1, rev_chain_single_subst1_cached as _]),
+        _ => Err(ReadError::MalformedData("invalid lookup type")),
+    }
 }
 
 impl<'a> Subtable<'a> {
