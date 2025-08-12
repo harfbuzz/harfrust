@@ -114,14 +114,17 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
     }
 
     #[inline]
-    pub fn set(&self, key: u32, value: u32) -> bool {
+    pub fn set(&self, key: u32, value: u32) {
         if (key >> KEY_BITS) != 0 || (value >> VALUE_BITS) != 0 {
-            return false;
+            return;
         }
+        self.set_unchecked(key, value);
+    }
 
+    #[inline]
+    pub fn set_unchecked(&self, key: u32, value: u32) {
         let index = (key as usize) & (CACHE_SIZE - 1);
         let packed = ((key >> (CACHE_SIZE as u32).ilog2()) << VALUE_BITS) | value;
         self.values[index].set(packed);
-        true
     }
 }

@@ -141,22 +141,10 @@ impl Apply for PairPosFormat2<'_> {
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
-        let get_coverage = || {
-            self.coverage()
-                .ok()
-                .and_then(|coverage| coverage.get(first_glyph))
-        };
-
         let _ = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            if let Some(index) = cache.coverage.get(first_glyph.into()) {
-                index as u16
-            } else {
-                let index = get_coverage()?;
-                cache.coverage.set(first_glyph.into(), index as u32);
-                index
-            }
+            coverage_index_cached(self.coverage(), first_glyph, &cache.coverage)?
         } else {
-            get_coverage()?
+            coverage_index(self.coverage(), first_glyph)?
         };
 
         let mut iter = skipping_iterator_t::new(ctx, false);

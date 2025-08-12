@@ -473,12 +473,12 @@ fn coverage_index_cached(
     } else {
         let index = coverage_index(coverage, gid);
         if index.is_none() {
-            cache.set(gid.into(), MappingCache::MAX_VALUE);
+            cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
             return None;
         }
         let index = index.unwrap();
         if (index as u32) < MappingCache::MAX_VALUE {
-            cache.set(gid.into(), index as u32);
+            cache.set_unchecked(gid.into(), index as u32);
         }
         Some(index)
     }
