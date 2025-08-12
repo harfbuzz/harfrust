@@ -1,17 +1,27 @@
+use crate::hb::ot::{coverage_index, coverage_index_cached};
+use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
+use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply, SubtableExternalCache};
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
 
 use super::Value;
 
-// TODO: HarfBuzz uses two class caches, for left and right, as well as coverage.
-
 impl Apply for PairPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_with_external_cache(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
-        let first_glyph_coverage_index = self.coverage().ok()?.get(first_glyph)?;
+
+        let first_glyph_coverage_index =
+            if let SubtableExternalCache::MappingCache(cache) = external_cache {
+                coverage_index_cached(|gid| self.coverage().ok()?.get(gid), first_glyph, cache)?
+            } else {
+                coverage_index(self.coverage(), first_glyph)?
+            };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(iter.buffer.idx);
@@ -124,9 +134,22 @@ fn find_second_glyph<'a>(
 }
 
 impl Apply for PairPosFormat2<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_with_external_cache(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
-        self.coverage().ok()?.get(first_glyph)?;
+
+        let _ = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
+            coverage_index_cached(
+                |gid| self.coverage().ok()?.get(gid),
+                first_glyph,
+                &cache.coverage,
+            )?
+        } else {
+            coverage_index(self.coverage(), first_glyph)?
+        };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(iter.buffer.idx);
@@ -181,8 +204,24 @@ impl Apply for PairPosFormat2<'_> {
                 success(ctx, iter_index, flag1, flag2, has_record2)
             };
 
-        let class1 = super::super::glyph_class(self.class_def1(), first_glyph);
-        let class2 = super::super::glyph_class(self.class_def2(), second_glyph);
+        let class1 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
+            glyph_class_cached(
+                |gid| glyph_class(self.class_def1(), gid),
+                first_glyph,
+                &cache.first,
+            )
+        } else {
+            glyph_class(self.class_def1(), first_glyph)
+        };
+        let class2 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
+            glyph_class_cached(
+                |gid| glyph_class(self.class_def2(), gid),
+                second_glyph,
+                &cache.second,
+            )
+        } else {
+            glyph_class(self.class_def2(), second_glyph)
+        };
 
         let data = self.offset_data();
         if let Ok(class2_record) = self

@@ -1,6 +1,7 @@
 use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
+use crate::hb::ot_layout_gsubgpos::MappingCache;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
 use read_fonts::{
@@ -458,6 +459,32 @@ fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> O
     coverage.ok().and_then(|coverage| coverage.get(gid))
 }
 
+fn coverage_index_cached(
+    coverage: impl Fn(GlyphId) -> Option<u16>,
+    gid: GlyphId,
+    cache: &MappingCache,
+) -> Option<u16> {
+    if let Some(index) = cache.get(gid.into()) {
+        if index == MappingCache::MAX_VALUE {
+            None
+        } else {
+            Some(index as u16)
+        }
+    } else {
+        let index = coverage(gid);
+        if index.is_none() {
+            cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
+            None
+        } else {
+            let index = index.unwrap();
+            if (index as u32) < MappingCache::MAX_VALUE {
+                cache.set_unchecked(gid.into(), index as u32);
+            }
+            Some(index)
+        }
+    }
+}
+
 fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
     coverage_index(coverage, gid).is_some()
 }
@@ -469,4 +496,18 @@ fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
     class_def
         .map(|class_def| class_def.get(gid16))
         .unwrap_or_default()
+}
+
+fn glyph_class_cached(
+    class_def: impl Fn(GlyphId) -> u16,
+    gid: GlyphId,
+    cache: &MappingCache,
+) -> u16 {
+    if let Some(index) = cache.get(gid.into()) {
+        index as u16
+    } else {
+        let index = class_def(gid);
+        cache.set(gid.into(), index as u32);
+        index
+    }
 }

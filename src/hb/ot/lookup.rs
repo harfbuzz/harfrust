@@ -1,6 +1,11 @@
+use alloc::boxed::Box;
+
 use crate::hb::{
     hb_font_t, hb_glyph_info_t,
-    ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t},
+    ot_layout_gsubgpos::{
+        Apply, MappingCache, PairPosFormat2Cache, SubtableExternalCache, WouldApply,
+        WouldApplyContext, OT::hb_ot_apply_context_t,
+    },
     set_digest::hb_set_digest_t,
 };
 
@@ -90,7 +95,7 @@ pub struct LookupData<'a> {
 
 /// Cache containing lookup and subtable information for a single GSUB or
 /// GPOS table.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct LookupCache {
     pub lookups: Vec<LookupInfo>,
     pub subtables: Vec<SubtableInfo>,
@@ -384,7 +389,6 @@ impl LookupInfo {
 }
 
 /// Cached information about a subtable.
-#[derive(Clone)]
 pub struct SubtableInfo {
     /// The fully resolved type of the subtable.
     pub kind: SubtableKind,
@@ -393,9 +397,11 @@ pub struct SubtableInfo {
     pub offset: u32,
     pub digest: hb_set_digest_t,
     pub apply_fns: [SubtableApplyFn; 2],
+    pub external_cache: SubtableExternalCache,
 }
 
-pub type SubtableApplyFn = fn(&mut hb_ot_apply_context_t, &[u8]) -> Option<()>;
+pub type SubtableApplyFn =
+    fn(&mut hb_ot_apply_context_t, &SubtableExternalCache, &[u8]) -> Option<()>;
 
 impl SubtableInfo {
     #[inline]
@@ -406,20 +412,28 @@ impl SubtableInfo {
         is_cached: bool,
     ) -> Option<()> {
         let subtable_data = table_data.get(self.offset as usize..)?;
-        self.apply_fns[is_cached as usize](ctx, subtable_data)
+        self.apply_fns[is_cached as usize](ctx, &self.external_cache, subtable_data)
     }
 }
 
 macro_rules! apply_fns {
     ($apply:ident, $apply_cached:ident, $ty:ident) => {
-        fn $apply(ctx: &mut hb_ot_apply_context_t, table_data: &[u8]) -> Option<()> {
+        fn $apply(
+            ctx: &mut hb_ot_apply_context_t,
+            external_cache: &SubtableExternalCache,
+            table_data: &[u8],
+        ) -> Option<()> {
             let t = $ty::read(FontData::new(table_data)).ok()?;
-            t.apply(ctx)
+            t.apply_with_external_cache(ctx, external_cache)
         }
 
-        fn $apply_cached(ctx: &mut hb_ot_apply_context_t, table_data: &[u8]) -> Option<()> {
+        fn $apply_cached(
+            ctx: &mut hb_ot_apply_context_t,
+            external_cache: &SubtableExternalCache,
+            table_data: &[u8],
+        ) -> Option<()> {
             let t = $ty::read(FontData::new(table_data)).ok()?;
-            t.apply_cached(ctx)
+            t.apply_cached(ctx, external_cache)
         }
     };
 }
@@ -652,12 +666,22 @@ impl SubtableInfo {
         };
         let mut digest = hb_set_digest_t::new();
         digest.add_coverage(&coverage);
+        let external_cache = match kind {
+            SubtableKind::LigatureSubst1 | SubtableKind::PairPos1 => {
+                SubtableExternalCache::MappingCache(Box::new(MappingCache::new()))
+            }
+            SubtableKind::PairPos2 => {
+                SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
+            }
+            _ => SubtableExternalCache::None,
+        };
         Some((
             SubtableInfo {
                 kind,
                 offset: subtable_offset,
                 digest,
                 apply_fns,
+                external_cache,
             },
             cache_cost,
         ))

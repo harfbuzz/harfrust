@@ -2,12 +2,14 @@
 
 use super::buffer::hb_glyph_info_t;
 use super::buffer::{hb_buffer_t, GlyphPropsFlags};
+use super::cache::hb_cache_t;
 use super::hb_font_t;
 use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
+use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
@@ -610,16 +612,61 @@ pub trait WouldApply {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool;
 }
 
+pub(crate) type MappingCache = hb_cache_t<
+    15,  // KEY_BITS
+    8,   // VALUE_BITS
+    128, // CACHE_SIZE
+    16,  // STORAGE_BITS
+>;
+
+pub(crate) struct PairPosFormat2Cache {
+    pub coverage: MappingCache,
+    pub first: MappingCache,
+    pub second: MappingCache,
+}
+
+impl PairPosFormat2Cache {
+    pub fn new() -> Self {
+        PairPosFormat2Cache {
+            coverage: MappingCache::new(),
+            first: MappingCache::new(),
+            second: MappingCache::new(),
+        }
+    }
+}
+
+pub(crate) enum SubtableExternalCache {
+    None,
+    MappingCache(Box<MappingCache>),
+    PairPosFormat2Cache(Box<PairPosFormat2Cache>),
+}
+
 /// Apply a lookup.
 pub trait Apply {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()>;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        // Default implementation just calls `apply_with_external_cache`.
+        self.apply_with_external_cache(ctx, &SubtableExternalCache::None)
+    }
 
     // The rest are relevant to subtables only
 
-    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_with_external_cache(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        _external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
         // Default implementation just calls `apply`.
-        // This is used to apply the lookup with caching.
         self.apply(ctx)
+    }
+
+    fn apply_cached(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
+        // Default implementation just calls `apply_with_external_cache`.
+        // This is used to apply the lookup with glyph-info caching.
+        self.apply_with_external_cache(ctx, external_cache)
     }
 
     fn cache_cost(&self) -> u32 {
