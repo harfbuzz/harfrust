@@ -460,7 +460,7 @@ fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> O
 }
 
 fn coverage_index_cached(
-    coverage: Result<CoverageTable, ReadError>,
+    coverage: impl Fn(GlyphId) -> Option<u16>,
     gid: GlyphId,
     cache: &MappingCache,
 ) -> Option<u16> {
@@ -471,7 +471,7 @@ fn coverage_index_cached(
             Some(index as u16)
         }
     } else {
-        let index = coverage_index(coverage, gid);
+        let index = coverage(gid);
         if index.is_none() {
             cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
             return None;
@@ -498,14 +498,14 @@ fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
 }
 
 fn glyph_class_cached(
-    class_def: Result<ClassDef, ReadError>,
+    class_def: impl Fn(GlyphId) -> u16,
     gid: GlyphId,
     cache: &MappingCache,
 ) -> u16 {
     if let Some(index) = cache.get(gid.into()) {
         index as u16
     } else {
-        let index = glyph_class(class_def, gid);
+        let index = class_def(gid);
         cache.set(gid.into(), index as u32);
         index
     }
