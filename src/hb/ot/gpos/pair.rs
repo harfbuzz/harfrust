@@ -18,7 +18,7 @@ impl Apply for PairPosFormat1<'_> {
 
         let first_glyph_coverage_index =
             if let SubtableExternalCache::MappingCache(cache) = external_cache {
-                coverage_index_cached(self.coverage(), first_glyph, cache)?
+                coverage_index_cached(|gid| self.coverage().ok()?.get(gid), first_glyph, cache)?
             } else {
                 coverage_index(self.coverage(), first_glyph)?
             };
@@ -142,7 +142,11 @@ impl Apply for PairPosFormat2<'_> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
         let _ = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            coverage_index_cached(self.coverage(), first_glyph, &cache.coverage)?
+            coverage_index_cached(
+                |gid| self.coverage().ok()?.get(gid),
+                first_glyph,
+                &cache.coverage,
+            )?
         } else {
             coverage_index(self.coverage(), first_glyph)?
         };
@@ -201,12 +205,20 @@ impl Apply for PairPosFormat2<'_> {
             };
 
         let class1 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            glyph_class_cached(self.class_def1(), first_glyph, &cache.first)
+            glyph_class_cached(
+                |gid| glyph_class(self.class_def1(), gid),
+                first_glyph,
+                &cache.first,
+            )
         } else {
             glyph_class(self.class_def1(), first_glyph)
         };
         let class2 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            glyph_class_cached(self.class_def2(), second_glyph, &cache.second)
+            glyph_class_cached(
+                |gid| glyph_class(self.class_def2(), gid),
+                second_glyph,
+                &cache.second,
+            )
         } else {
             glyph_class(self.class_def2(), second_glyph)
         };

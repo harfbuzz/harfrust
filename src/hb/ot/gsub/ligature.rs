@@ -147,7 +147,7 @@ impl Apply for LigatureSubstFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
 
         let index = if let SubtableExternalCache::MappingCache(cache) = external_cache {
-            coverage_index_cached(self.coverage(), glyph, cache)?
+            coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, cache)?
         } else {
             coverage_index(self.coverage(), glyph)?
         };
