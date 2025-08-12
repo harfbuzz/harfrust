@@ -450,15 +450,15 @@ apply_fns!(
     alternate_subst1_cached,
     AlternateSubstFormat1
 );
-apply_fns!(
-    ligature_subst1,
-    ligature_subst1_cached,
-    LigatureSubstFormat1
-);
+// apply_fns!(
+//     ligature_subst1,
+//     ligature_subst1_cached,
+//     LigatureSubstFormat1
+// );
 apply_fns!(single_pos1, single_pos1_cached, SinglePosFormat1);
 apply_fns!(single_pos2, single_pos2_cached, SinglePosFormat2);
-apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
-apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
+// apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
+// apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
 apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
 apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
 apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
@@ -486,6 +486,54 @@ apply_fns!(
     rev_chain_single_subst1_cached,
     ReverseChainSingleSubstFormat1
 );
+
+fn ligature_subst1(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gsub::apply_lig_subst1(ctx, table_data, 0, external_cache)
+}
+
+fn ligature_subst1_cached(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gsub::apply_lig_subst1(ctx, table_data, 0, external_cache)
+}
+
+fn pair_pos1(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gpos::apply_pair_pos1(ctx, table_data, 0, external_cache)
+}
+
+fn pair_pos1_cached(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gpos::apply_pair_pos1(ctx, table_data, 0, external_cache)
+}
+
+fn pair_pos2(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gpos::apply_pair_pos2(ctx, table_data, 0, external_cache)
+}
+
+fn pair_pos2_cached(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gpos::apply_pair_pos2(ctx, table_data, 0, external_cache)
+}
 
 /// All possible subtables in a lookup.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

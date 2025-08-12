@@ -4,6 +4,7 @@ use crate::hb::hb_tag_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
+use read_fonts::FontRead;
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -510,4 +511,92 @@ fn glyph_class_cached(
         cache.set(gid.into(), index as u32);
         index
     }
+}
+
+fn read_coverage_index(
+    table_data: &[u8],
+    base: usize,
+    offset_offset: usize,
+    glyph_id: GlyphId,
+) -> Option<u16> {
+    let data = FontData::new(table_data);
+    let base = base + data.read_at::<u16>(base + offset_offset).ok()? as usize;
+    let data = data.split_off(base)?;
+    return CoverageTable::read(data).ok()?.get(glyph_id);
+    let glyph_id = glyph_id.to_u32();
+    let format: u16 = data.read_at(base).ok()?;
+    let len = data.read_at::<u16>(base + 2).ok()? as usize;
+    let arr = base + 4;
+    match format {
+        1 => {
+            let mut lo = 0;
+            let mut hi = len;
+            while lo < hi {
+                use core::cmp::Ordering::{Equal, Greater, Less};
+                let i = (lo + hi) / 2;
+                let g = data.read_at::<u16>(arr + i * 2).ok()? as u32;
+                match glyph_id.cmp(&g) {
+                    Less => hi = i,
+                    Greater => lo = i + 1,
+                    Equal => return Some(i as u16),
+                }
+            }
+        }
+        2 => {
+            let mut lo = 0;
+            let mut hi = len;
+            while lo < hi {
+                let i = (lo + hi) / 2;
+                let rec = arr + i * 6;
+                let start = data.read_at::<u16>(rec).ok()? as u32;
+                if glyph_id < start {
+                    hi = i;
+                } else if glyph_id > data.read_at::<u16>(rec + 2).ok()? as u32 {
+                    lo = i + 1;
+                } else {
+                    let base = data.read_at::<u16>(rec + 4).ok()? as u32;
+                    return Some((base + glyph_id - start) as u16);
+                }
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+fn read_class_def(data: &[u8], base: usize, offset_offset: usize, glyph: GlyphId) -> Option<u16> {
+    let data = FontData::new(data);
+    let base = base + data.read_at::<u16>(base + offset_offset).ok()? as usize;
+    let data = data.split_off(base)?;
+    return Some(glyph_class(ClassDef::read(data), glyph));
+
+    let format = data.read_at::<u16>(base).ok()?;
+    let glyph = glyph.to_u32();
+    if format == 1 {
+        let start = data.read_at::<u16>(base + 2).ok()? as u32;
+        let len = data.read_at::<u16>(base + 4).ok()? as u32;
+        let end = start + len;
+        if glyph >= start && glyph < end {
+            return data
+                .read_at::<u16>(base + 6 + (glyph - start) as usize * 2)
+                .ok();
+        }
+    } else {
+        let len = data.read_at::<u16>(base + 2).ok()? as usize;
+        let mut lo = 0;
+        let mut hi = len;
+        while lo < hi {
+            let index = (lo + hi) / 2;
+            let rec_offset = base + 4 + index * 6;
+            let start = data.read_at::<u16>(rec_offset).ok()? as u32;
+            if glyph < start {
+                hi = index;
+            } else if glyph > data.read_at::<u16>(rec_offset + 2).ok()? as u32 {
+                lo = index + 1;
+            } else {
+                return data.read_at::<u16>(rec_offset + 4).ok();
+            }
+        }
+    }
+    None
 }
