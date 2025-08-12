@@ -328,11 +328,11 @@ fn match_class_cached2<'a>(
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
@@ -350,11 +350,11 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         ctx: &mut hb_ot_apply_context_t,
         _: &SubtableExternalCache,
     ) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
         let index =
             get_class_cached2(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
