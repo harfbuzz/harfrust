@@ -1,5 +1,5 @@
-use crate::hb::ot::{coverage_index, coverage_index_cached};
-use crate::hb::ot::{glyph_class, glyph_class_cached};
+use crate::hb::ot::coverage_index_cached;
+use crate::hb::ot::glyph_class_cached;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply, SubtableExternalCache};
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
@@ -16,12 +16,11 @@ impl Apply for PairPosFormat1<'_> {
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
+        let SubtableExternalCache::MappingCache(cache) = external_cache else {
+            return None;
+        };
         let first_glyph_coverage_index =
-            if let SubtableExternalCache::MappingCache(cache) = external_cache {
-                coverage_index_cached(self.coverage(), first_glyph, cache)?
-            } else {
-                coverage_index(self.coverage(), first_glyph)?
-            };
+            coverage_index_cached(self.coverage(), first_glyph, cache)?;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(iter.buffer.idx);
@@ -141,11 +140,10 @@ impl Apply for PairPosFormat2<'_> {
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
-        let _ = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            coverage_index_cached(self.coverage(), first_glyph, &cache.coverage)?
-        } else {
-            coverage_index(self.coverage(), first_glyph)?
+        let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache else {
+            return None;
         };
+        let _ = coverage_index_cached(self.coverage(), first_glyph, &cache.coverage)?;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(iter.buffer.idx);
@@ -200,16 +198,8 @@ impl Apply for PairPosFormat2<'_> {
                 success(ctx, iter_index, flag1, flag2, has_record2)
             };
 
-        let class1 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            glyph_class_cached(self.class_def1(), first_glyph, &cache.first)
-        } else {
-            glyph_class(self.class_def1(), first_glyph)
-        };
-        let class2 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
-            glyph_class_cached(self.class_def2(), second_glyph, &cache.second)
-        } else {
-            glyph_class(self.class_def2(), second_glyph)
-        };
+        let class1 = glyph_class_cached(self.class_def1(), first_glyph, &cache.first);
+        let class2 = glyph_class_cached(self.class_def2(), second_glyph, &cache.second);
 
         let data = self.offset_data();
         if let Ok(class2_record) = self
