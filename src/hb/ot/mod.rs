@@ -2,7 +2,7 @@ use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
 use alloc::vec::Vec;
-use lookup::{LookupCache, LookupInfo, SubtableCache};
+use lookup::{LookupCache, LookupInfo};
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -215,25 +215,6 @@ impl<'a> OtTables<'a> {
             let table = self.gpos.as_ref()?;
             Some((table.table.offset_data().as_bytes(), table.lookups))
         }
-    }
-
-    pub fn subtable_cache(
-        &self,
-        table_index: TableIndex,
-        lookup: LookupInfo,
-    ) -> Option<SubtableCache<'a>> {
-        let (table_data, lookups) = self.table_data_and_lookups(table_index)?;
-        Some(SubtableCache::new(table_data, lookups, lookup))
-    }
-
-    pub fn subtable_cache_for_index(
-        &self,
-        table_index: TableIndex,
-        lookup_index: u16,
-    ) -> Option<SubtableCache<'a>> {
-        let (table_data, lookups) = self.table_data_and_lookups(table_index)?;
-        let lookup = lookups.get(lookup_index)?;
-        Some(SubtableCache::new(table_data, lookups, lookup.clone()))
     }
 
     pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (i32, i32) {

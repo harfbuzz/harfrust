@@ -627,15 +627,6 @@ pub trait Apply {
         // This is used to determine the cost of caching the subtable.
         0
     }
-    fn cache_enter(&self, _ctx: &mut hb_ot_apply_context_t) -> bool {
-        // Default implementation does nothing.
-        // This is used to enter the cache for the subtable.
-        false
-    }
-    fn cache_leave(&self, _ctx: &mut hb_ot_apply_context_t) {
-        // Default implementation does nothing.
-        // This is used to exit the cache for the subtable.
-    }
 }
 
 pub struct WouldApplyContext<'a> {
@@ -784,12 +775,14 @@ pub mod OT {
             let applied = self
                 .face
                 .ot_tables
-                .subtable_cache_for_index(self.table_index, sub_lookup_index)
-                .and_then(|mut cache| {
-                    let lookup = cache.lookup().clone();
+                .table_data_and_lookups(self.table_index)
+                .and_then(|(table_data, lookups)| {
+                    Some((table_data, lookups.get(sub_lookup_index)?, lookups))
+                })
+                .and_then(|(table_data, lookup, lookups)| {
                     self.lookup_props = lookup.props();
                     self.update_matchers();
-                    lookup.apply(self, &mut cache, false)
+                    lookup.apply(self, table_data, lookups, false)
                 });
             self.lookup_props = saved_props;
             self.lookup_index = saved_index;

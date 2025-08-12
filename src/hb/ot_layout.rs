@@ -208,22 +208,19 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
 
 fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
     let mut ret = false;
-    let Some(mut cache) = ctx
-        .face
-        .ot_tables
-        .subtable_cache(ctx.table_index, lookup.clone())
+    let Some((table_data, lookups)) = ctx.face.ot_tables.table_data_and_lookups(ctx.table_index)
     else {
         return false;
     };
 
-    let use_hot_subtable_cache = lookup.cache_enter(ctx, &mut cache);
+    let use_hot_subtable_cache = lookup.cache_enter(ctx, lookups);
 
     while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
         let cur = ctx.buffer.cur(0);
         if (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
             && lookup
-                .apply(ctx, &mut cache, use_hot_subtable_cache)
+                .apply(ctx, table_data, lookups, use_hot_subtable_cache)
                 .is_some()
         {
             ret = true;
@@ -233,7 +230,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
     }
 
     if use_hot_subtable_cache {
-        lookup.cache_leave(ctx, &mut cache);
+        lookup.cache_leave(ctx, lookups);
     }
 
     ret
@@ -241,10 +238,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
 
 fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
     let mut ret = false;
-    let Some(mut cache) = ctx
-        .face
-        .ot_tables
-        .subtable_cache(ctx.table_index, lookup.clone())
+    let Some((table_data, lookups)) = ctx.face.ot_tables.table_data_and_lookups(ctx.table_index)
     else {
         return false;
     };
@@ -252,7 +246,7 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
         let cur = ctx.buffer.cur(0);
         ret |= (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
-            && lookup.apply(ctx, &mut cache, false).is_some();
+            && lookup.apply(ctx, table_data, lookups, false).is_some();
 
         if ctx.buffer.idx == 0 {
             break;
