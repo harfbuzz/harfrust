@@ -3,7 +3,7 @@ use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, may_skip_t,
-    skipping_iterator_t, Apply, WouldApply, WouldApplyContext,
+    skipping_iterator_t, Apply, SubtableExternalCache, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -90,7 +90,11 @@ impl Apply for SequenceContextFormat2<'_> {
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(ctx, &set.class_seq_rules(), match_class(&input_classes))
     }
-    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_cached(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        _: &SubtableExternalCache,
+    ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_gid16()?;
         self.coverage().ok()?.get(glyph)?;
         let input_classes = self.class_def().ok();
@@ -341,7 +345,11 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
             ),
         )
     }
-    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_cached(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        _: &SubtableExternalCache,
+    ) -> Option<()> {
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
