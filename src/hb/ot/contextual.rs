@@ -107,20 +107,6 @@ impl Apply for SequenceContextFormat2<'_> {
             .ok()
             .map_or(0, |class_def| class_def.cost())
     }
-    fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
-        if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
-            return false;
-        }
-        for info in &mut ctx.buffer.info {
-            info.set_syllable(255);
-        }
-        ctx.new_syllables = Some(255);
-        true
-    }
-    fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
-        ctx.new_syllables = None;
-        ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
-    }
 }
 
 impl WouldApply for SequenceContextFormat3<'_> {
@@ -382,20 +368,6 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 .lookahead_class_def()
                 .ok()
                 .map_or(0, |class_def| class_def.cost())
-    }
-    fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
-        if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
-            return false;
-        }
-        for info in &mut ctx.buffer.info {
-            info.set_syllable(255);
-        }
-        ctx.new_syllables = Some(255);
-        true
-    }
-    fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
-        ctx.new_syllables = None;
-        ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
     }
 }
 
