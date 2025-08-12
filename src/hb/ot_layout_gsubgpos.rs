@@ -9,7 +9,7 @@ use super::ot_layout::*;
 use super::ot_layout_common::*;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
-use alloc::rc::Rc;
+use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
@@ -635,11 +635,10 @@ impl PairPosFormat2Cache {
     }
 }
 
-#[derive(Clone)]
 pub(crate) enum SubtableExternalCache {
     None,
-    MappingCache(Rc<MappingCache>),
-    PairPosFormat2Cache(Rc<PairPosFormat2Cache>),
+    MappingCache(Box<MappingCache>),
+    PairPosFormat2Cache(Box<PairPosFormat2Cache>),
 }
 
 /// Apply a lookup.

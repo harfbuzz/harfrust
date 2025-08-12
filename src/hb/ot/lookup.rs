@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use crate::hb::{
     hb_font_t, hb_glyph_info_t,
     ot_layout_gsubgpos::{
@@ -7,7 +9,6 @@ use crate::hb::{
     set_digest::hb_set_digest_t,
 };
 
-use alloc::rc::Rc;
 use alloc::vec::Vec;
 use core::ops::Range;
 use read_fonts::{
@@ -94,7 +95,7 @@ pub struct LookupData<'a> {
 
 /// Cache containing lookup and subtable information for a single GSUB or
 /// GPOS table.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct LookupCache {
     pub lookups: Vec<LookupInfo>,
     pub subtables: Vec<SubtableInfo>,
@@ -388,7 +389,6 @@ impl LookupInfo {
 }
 
 /// Cached information about a subtable.
-#[derive(Clone)]
 pub struct SubtableInfo {
     /// The fully resolved type of the subtable.
     pub kind: SubtableKind,
@@ -668,10 +668,10 @@ impl SubtableInfo {
         digest.add_coverage(&coverage);
         let external_cache = match kind {
             SubtableKind::LigatureSubst1 | SubtableKind::PairPos1 => {
-                SubtableExternalCache::MappingCache(Rc::new(MappingCache::new()))
+                SubtableExternalCache::MappingCache(Box::new(MappingCache::new()))
             }
             SubtableKind::PairPos2 => {
-                SubtableExternalCache::PairPosFormat2Cache(Rc::new(PairPosFormat2Cache::new()))
+                SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
             }
             _ => SubtableExternalCache::None,
         };

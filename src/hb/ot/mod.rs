@@ -474,13 +474,14 @@ fn coverage_index_cached(
         let index = coverage(gid);
         if index.is_none() {
             cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
-            return None;
+            None
+        } else {
+            let index = index.unwrap();
+            if (index as u32) < MappingCache::MAX_VALUE {
+                cache.set_unchecked(gid.into(), index as u32);
+            }
+            Some(index)
         }
-        let index = index.unwrap();
-        if (index as u32) < MappingCache::MAX_VALUE {
-            cache.set_unchecked(gid.into(), index as u32);
-        }
-        Some(index)
     }
 }
 
