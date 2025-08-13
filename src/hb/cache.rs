@@ -128,3 +128,17 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
         self.values[index].set(packed);
     }
 }
+
+impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T: AtomicStorage>
+    Clone for hb_cache_core_t<KEY_BITS, VALUE_BITS, CACHE_SIZE, T>
+{
+    fn clone(&self) -> Self {
+        Self {
+            values: core::array::from_fn(|i| {
+                let t = T::default();
+                t.set(self.values[i].get());
+                t
+            }),
+        }
+    }
+}

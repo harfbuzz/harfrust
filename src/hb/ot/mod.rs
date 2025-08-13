@@ -133,6 +133,7 @@ pub struct OtTables<'a> {
     pub gsub: Option<GsubTable<'a>>,
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
+    pub gdef_glyph_props_cache: MappingCache,
     pub gdef_mark_set_digests: &'a [hb_set_digest_t],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
@@ -165,6 +166,7 @@ impl<'a> OtTables<'a> {
             gsub,
             gpos,
             gdef,
+            gdef_glyph_props_cache: MappingCache::new(),
             gdef_mark_set_digests: &cache.gdef_mark_set_digests,
             var_store,
             coords,
@@ -191,7 +193,12 @@ impl<'a> OtTables<'a> {
 
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
         let glyph = glyph.to_u32();
-        match self.glyph_class(glyph) {
+
+        if let Some(props) = self.gdef_glyph_props_cache.get(glyph.into()) {
+            return props as u16;
+        }
+
+        let props = match self.glyph_class(glyph) {
             1 => GlyphPropsFlags::BASE_GLYPH.bits(),
             2 => GlyphPropsFlags::LIGATURE.bits(),
             3 => {
@@ -199,7 +206,11 @@ impl<'a> OtTables<'a> {
                 (class << 8) | GlyphPropsFlags::MARK.bits()
             }
             _ => 0,
-        }
+        };
+
+        self.gdef_glyph_props_cache.set(glyph.into(), props as u32);
+
+        props
     }
 
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
