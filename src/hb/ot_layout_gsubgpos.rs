@@ -711,6 +711,7 @@ pub mod OT {
         true
     }
 
+    #[inline(always)]
     pub fn check_glyph_property(
         face: &hb_font_t,
         info: &hb_glyph_info_t,
