@@ -1,3 +1,4 @@
+use super::buffer::GlyphPropsFlags;
 use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
@@ -25,6 +26,7 @@ pub mod lookup;
 pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
+    pub gdef_glyph_props_cache: MappingCache,
     pub gdef_mark_set_digests: Vec<hb_set_digest_t>,
 }
 
@@ -59,6 +61,7 @@ impl OtCache {
         Self {
             gsub,
             gpos,
+            gdef_glyph_props_cache: MappingCache::new(),
             gdef_mark_set_digests,
         }
     }
@@ -132,6 +135,7 @@ pub struct OtTables<'a> {
     pub gsub: Option<GsubTable<'a>>,
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
+    pub gdef_glyph_props_cache: &'a MappingCache,
     pub gdef_mark_set_digests: &'a [hb_set_digest_t],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
@@ -164,6 +168,7 @@ impl<'a> OtTables<'a> {
             gsub,
             gpos,
             gdef,
+            gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
             gdef_mark_set_digests: &cache.gdef_mark_set_digests,
             var_store,
             coords,
@@ -186,6 +191,28 @@ impl<'a> OtTables<'a> {
             .mark_classes
             .as_ref()
             .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
+    }
+
+    pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
+        let glyph = glyph.to_u32();
+
+        if let Some(props) = self.gdef_glyph_props_cache.get(glyph) {
+            return props as u16;
+        }
+
+        let props = match self.glyph_class(glyph) {
+            1 => GlyphPropsFlags::BASE_GLYPH.bits(),
+            2 => GlyphPropsFlags::LIGATURE.bits(),
+            3 => {
+                let class = self.glyph_mark_attachment_class(glyph);
+                (class << 8) | GlyphPropsFlags::MARK.bits()
+            }
+            _ => 0,
+        };
+
+        self.gdef_glyph_props_cache.set(glyph, props as u32);
+
+        props
     }
 
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {

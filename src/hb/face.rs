@@ -3,7 +3,6 @@ use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
 
 use super::aat::AatTables;
-use super::buffer::GlyphPropsFlags;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::glyph_metrics::GlyphMetrics;
 use super::glyph_names::GlyphNames;
@@ -345,20 +344,6 @@ impl<'a> crate::Shaper<'a> {
 
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
         GlyphNames::new(&self.font)
-    }
-
-    #[inline]
-    pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
-        let glyph = glyph.to_u32();
-        match self.ot_tables.glyph_class(glyph) {
-            1 => GlyphPropsFlags::BASE_GLYPH.bits(),
-            2 => GlyphPropsFlags::LIGATURE.bits(),
-            3 => {
-                let class = self.ot_tables.glyph_mark_attachment_class(glyph);
-                (class << 8) | GlyphPropsFlags::MARK.bits()
-            }
-            _ => 0,
-        }
     }
 
     pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {
