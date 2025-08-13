@@ -3,6 +3,7 @@ use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
+use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
 use read_fonts::{
@@ -108,8 +109,8 @@ pub struct GdefTable<'a> {
 }
 
 impl<'a> GdefTable<'a> {
-    fn new(font: &FontRef<'a>) -> Self {
-        if let Ok(gdef) = font.gdef() {
+    fn new(font: &FontRef<'a>, table_offsets: &TableOffsets) -> Self {
+        if let Some(gdef) = table_offsets.gdef.resolve_table::<Gdef>(font) {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
             let mark_sets = gdef
@@ -142,21 +143,32 @@ pub struct OtTables<'a> {
 }
 
 impl<'a> OtTables<'a> {
-    pub fn new(font: &FontRef<'a>, cache: &'a OtCache, coords: &'a [F2Dot14]) -> Self {
-        let gsub = font.gsub().ok().map(|table| GsubTable {
-            table,
-            lookups: &cache.gsub,
-        });
-        let gpos = font.gpos().ok().map(|table| GposTable {
-            table,
-            lookups: &cache.gpos,
-        });
+    pub fn new(
+        font: &FontRef<'a>,
+        cache: &'a OtCache,
+        table_offsets: &TableOffsets,
+        coords: &'a [F2Dot14],
+    ) -> Self {
+        let gsub = table_offsets
+            .gsub
+            .resolve_table(font)
+            .map(|table| GsubTable {
+                table,
+                lookups: &cache.gsub,
+            });
+        let gpos = table_offsets
+            .gpos
+            .resolve_table(font)
+            .map(|table| GposTable {
+                table,
+                lookups: &cache.gpos,
+            });
         let coords = if coords.iter().any(|coord| *coord != F2Dot14::ZERO) {
             coords
         } else {
             &[]
         };
-        let gdef = GdefTable::new(font);
+        let gdef = GdefTable::new(font, table_offsets);
         let var_store = if !coords.is_empty() {
             gdef.table
                 .as_ref()
