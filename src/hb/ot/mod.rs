@@ -26,6 +26,7 @@ pub mod lookup;
 pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
+    pub gdef_glyph_props_cache: MappingCache,
     pub gdef_mark_set_digests: Vec<hb_set_digest_t>,
 }
 
@@ -60,6 +61,7 @@ impl OtCache {
         Self {
             gsub,
             gpos,
+            gdef_glyph_props_cache: MappingCache::new(),
             gdef_mark_set_digests,
         }
     }
@@ -133,7 +135,7 @@ pub struct OtTables<'a> {
     pub gsub: Option<GsubTable<'a>>,
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
-    pub gdef_glyph_props_cache: MappingCache,
+    pub gdef_glyph_props_cache: &'a MappingCache,
     pub gdef_mark_set_digests: &'a [hb_set_digest_t],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
@@ -166,7 +168,7 @@ impl<'a> OtTables<'a> {
             gsub,
             gpos,
             gdef,
-            gdef_glyph_props_cache: MappingCache::new(),
+            gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
             gdef_mark_set_digests: &cache.gdef_mark_set_digests,
             var_store,
             coords,
