@@ -65,6 +65,7 @@ mod ot_shaper_use_machine;
 mod ot_shaper_use_table;
 mod ot_shaper_vowel_constraints;
 mod set_digest;
+mod tables;
 mod tag;
 mod tag_table;
 mod text_parser;
