@@ -874,7 +874,7 @@ pub mod OT {
 
             if has_glyph_classes {
                 props &= GlyphPropsFlags::PRESERVE.bits();
-                cur.set_glyph_props(props | self.face.glyph_props(glyph_id));
+                cur.set_glyph_props(props | self.face.ot_tables.glyph_props(glyph_id));
             } else if !class_guess.is_empty() {
                 props &= GlyphPropsFlags::PRESERVE.bits();
                 cur.set_glyph_props(props | class_guess.bits());

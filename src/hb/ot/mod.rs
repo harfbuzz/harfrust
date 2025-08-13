@@ -1,3 +1,4 @@
+use super::buffer::GlyphPropsFlags;
 use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
@@ -186,6 +187,19 @@ impl<'a> OtTables<'a> {
             .mark_classes
             .as_ref()
             .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
+    }
+
+    pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
+        let glyph = glyph.to_u32();
+        match self.glyph_class(glyph) {
+            1 => GlyphPropsFlags::BASE_GLYPH.bits(),
+            2 => GlyphPropsFlags::LIGATURE.bits(),
+            3 => {
+                let class = self.glyph_mark_attachment_class(glyph);
+                (class << 8) | GlyphPropsFlags::MARK.bits()
+            }
+            _ => 0,
+        }
     }
 
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
