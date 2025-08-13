@@ -196,7 +196,7 @@ impl<'a> OtTables<'a> {
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
         let glyph = glyph.to_u32();
 
-        if let Some(props) = self.gdef_glyph_props_cache.get(glyph.into()) {
+        if let Some(props) = self.gdef_glyph_props_cache.get(glyph) {
             return props as u16;
         }
 
@@ -210,7 +210,7 @@ impl<'a> OtTables<'a> {
             _ => 0,
         };
 
-        self.gdef_glyph_props_cache.set(glyph.into(), props as u32);
+        self.gdef_glyph_props_cache.set(glyph, props as u32);
 
         props
     }
