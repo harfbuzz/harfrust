@@ -11,6 +11,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::wildcard_in_or_patterns)]
 #![allow(clippy::identity_op)]
+#![allow(clippy::inline_always)]
 #![allow(clippy::mut_range_bound)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::manual_range_patterns)]
