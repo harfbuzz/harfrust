@@ -3,7 +3,7 @@
 use crate::{hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t, GlyphPosition};
 use read_fonts::{
     tables::{
-        gpos::{DeviceOrVariationIndex, ValueRecord},
+        gpos::{DeviceOrVariationIndex, Value, ValueFormat, ValueRecord},
         variations::DeltaSetIndex,
     },
     FontData, ReadError,
@@ -14,12 +14,29 @@ mod mark;
 mod pair;
 mod single;
 
-struct Value<'a> {
+fn apply_value_to_pos(ctx: &mut hb_ot_apply_context_t, idx: usize, value: &Value) -> bool {
+    let pos = &mut ctx.buffer.pos[idx];
+    let is_horizontal = ctx.buffer.direction.is_horizontal();
+    pos.x_offset += value.x_placement as i32 + value.x_placement_delta;
+    pos.y_offset += value.y_placement as i32 + value.y_placement_delta;
+    let advance = if is_horizontal {
+        pos.x_advance += value.x_advance as i32 + value.x_advance_delta;
+        value.x_advance
+    } else {
+        pos.y_advance -= value.y_advance as i32 + value.y_advance_delta;
+        value.y_advance
+    };
+    ((value.x_placement | value.y_placement | advance) != 0)
+        | value.format.contains(ValueFormat::ANY_DEVICE_OR_VARIDX)
+}
+
+// TODO: remove me
+struct ValueResolver<'a> {
     record: ValueRecord,
     data: FontData<'a>,
 }
 
-impl Value<'_> {
+impl ValueResolver<'_> {
     fn is_empty(&self) -> bool {
         self.record.format.is_empty()
     }

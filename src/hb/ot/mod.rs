@@ -5,6 +5,7 @@ use crate::hb::hb_tag_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
+use read_fonts::tables::gpos::ValueContext;
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -139,6 +140,7 @@ pub struct OtTables<'a> {
     pub gdef_mark_set_digests: &'a [hb_set_digest_t],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
+    pub value_context: ValueContext<'a>,
 }
 
 impl<'a> OtTables<'a> {
@@ -157,12 +159,16 @@ impl<'a> OtTables<'a> {
             &[]
         };
         let gdef = GdefTable::new(font);
-        let var_store = if !coords.is_empty() {
-            gdef.table
-                .as_ref()
-                .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten())
+        let var_store = gdef
+            .table
+            .as_ref()
+            .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten());
+        let value_context = if !coords.is_empty() {
+            ValueContext::new()
+                .with_coords(coords)
+                .with_var_store(var_store.clone())
         } else {
-            None
+            ValueContext::new()
         };
         Self {
             gsub,
@@ -172,6 +178,7 @@ impl<'a> OtTables<'a> {
             gdef_mark_set_digests: &cache.gdef_mark_set_digests,
             var_store,
             coords,
+            value_context,
         }
     }
 
