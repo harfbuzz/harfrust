@@ -18,6 +18,7 @@ use crate::hb::unicode::hb_gc::{
 use crate::BufferClusterLevel;
 use crate::BufferFlags;
 use crate::{Direction, Feature, Language, Script};
+use core::ptr;
 use read_fonts::TableProvider;
 
 pub struct hb_ot_shape_planner_t<'a> {
@@ -57,7 +58,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             && (direction.is_horizontal() || face.ot_tables.gsub.is_none());
 
         // https://github.com/harfbuzz/harfbuzz/issues/1528
-        if apply_morx && !core::ptr::eq(shaper as *const _, &DEFAULT_SHAPER as *const _) {
+        if apply_morx && !ptr::eq(ptr::from_ref(shaper), ptr::from_ref(&DEFAULT_SHAPER)) {
             shaper = &DUMBER_SHAPER;
         }
 
