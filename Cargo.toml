@@ -1,8 +1,8 @@
 [package]
 name = "harfrust"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-rust-version = "1.75"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
+rust-version = "1.80"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
 description = "A complete HarfBuzz shaping algorithm port to Rust."
 repository = "https://github.com/harfbuzz/harfrust"
 license = "MIT"
@@ -14,7 +14,8 @@ exclude = ["benches/", "tests/"]
 bitflags = "2.9"
 bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
 core_maths = "0.1" # only for no_std builds
-read-fonts = { version = "0.30.1", default-features = false, features = ["libm"] }
+# read-fonts = { version = "0.31.1", default-features = false, features = ["libm"] }
+read-fonts = { git = "https://github.com/googlefonts/fontations", default-features = false, features = ["libm"] }
 smallvec = "1.14"
 
 [features]
@@ -22,8 +23,23 @@ default = ["std"]
 std = ["read-fonts/std"]
 
 [dev-dependencies]
+criterion = "0.5.1"
+harfbuzz_rs = { git = "https://github.com/harfbuzz/harfbuzz_rs/", rev = "66dae27" }
 libc = "0.2"
 pico-args = { version = "0.5", features = ["eq-separator"] }
+
+[lib]
+bench = false
+
+[[bench]]
+name = "shaping"
+harness = false
+
+[profile.bench]
+strip = true
+lto = "fat"
+overflow-checks = false
+codegen-units = 1
 
 [lints.rust]
 unused_qualifications = "warn"

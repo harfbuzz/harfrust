@@ -1,11 +1,11 @@
-use crate::Tag;
+use crate::{hb::tables::TableOffsets, Tag};
 use read_fonts::{
     tables::{
         glyf::Glyf, gvar::Gvar, hmtx::Hmtx, hvar::Hvar, loca::Loca, mvar::Mvar, vmtx::Vmtx,
         vorg::Vorg, vvar::Vvar,
     },
     types::{BoundingBox, F2Dot14, Fixed, GlyphId, Point},
-    FontRef, TableProvider,
+    FontRef,
 };
 
 #[derive(Clone)]
@@ -31,34 +31,34 @@ struct GlyfTables<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    pub fn new(font: &FontRef<'a>) -> Self {
-        let num_glyphs = font
-            .maxp()
-            .map(|maxp| maxp.num_glyphs() as u32)
-            .unwrap_or(0);
-        let upem = font.head().map(|head| head.units_per_em()).unwrap_or(1024);
-        let hmtx = font.hmtx().ok();
-        let hvar = font.hvar().ok();
-        let vmtx = font.vmtx().ok();
-        let vvar = font.vvar().ok();
-        let vorg = font.vorg().ok();
-        let glyf = if let (Ok(glyf), Ok(loca)) = (font.glyf(), font.loca(None)) {
-            Some(GlyfTables {
-                glyf,
-                loca,
-                gvar: font.gvar().ok(),
-            })
+    pub fn new(font: &FontRef<'a>, table_offsets: &TableOffsets) -> Self {
+        let num_glyphs = table_offsets.num_glyphs;
+        let upem = table_offsets.units_per_em;
+        let hmtx = table_offsets
+            .hmtx
+            .resolve_data(font)
+            .and_then(|data| Hmtx::read(data, table_offsets.num_h_metrics).ok());
+        let hvar = table_offsets.hvar.resolve_table(font);
+        let vmtx = table_offsets
+            .vmtx
+            .resolve_data(font)
+            .and_then(|data| Vmtx::read(data, table_offsets.num_v_metrics).ok());
+        let vvar = table_offsets.vvar.resolve_table(font);
+        let vorg = table_offsets.vorg.resolve_table(font);
+        let loca = table_offsets
+            .loca
+            .resolve_data(font)
+            .and_then(|data| Loca::read(data, table_offsets.loca_long).ok());
+        let glyf = table_offsets.glyf.resolve_table(font);
+        let glyf = if let Some((loca, glyf)) = loca.zip(glyf) {
+            let gvar = table_offsets.gvar.resolve_table(font);
+            Some(GlyfTables { loca, glyf, gvar })
         } else {
             None
         };
-        let mvar = font.mvar().ok();
-        let (ascent, descent) = if let Ok(os2) = font.os2() {
-            (os2.s_typo_ascender(), os2.s_typo_descender())
-        } else if let Ok(hhea) = font.hhea() {
-            (hhea.ascender().to_i16(), hhea.descender().to_i16())
-        } else {
-            (0, 0) // TODO
-        };
+        let mvar = table_offsets.mvar.resolve_table(font);
+        let ascent = table_offsets.ascent;
+        let descent = table_offsets.descent;
         Self {
             hmtx,
             hvar,

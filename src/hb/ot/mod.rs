@@ -1,8 +1,12 @@
+use super::buffer::GlyphPropsFlags;
 use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
+use crate::hb::ot_layout_gsubgpos::MappingCache;
+use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
-use lookup::{LookupCache, LookupInfo, SubtableCache};
+use lookup::{LookupCache, LookupInfo};
+use read_fonts::tables::gpos::ValueContext;
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -24,6 +28,7 @@ pub mod lookup;
 pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
+    pub gdef_glyph_props_cache: MappingCache,
     pub gdef_mark_set_digests: Vec<hb_set_digest_t>,
 }
 
@@ -58,6 +63,7 @@ impl OtCache {
         Self {
             gsub,
             gpos,
+            gdef_glyph_props_cache: MappingCache::new(),
             gdef_mark_set_digests,
         }
     }
@@ -104,8 +110,8 @@ pub struct GdefTable<'a> {
 }
 
 impl<'a> GdefTable<'a> {
-    fn new(font: &FontRef<'a>) -> Self {
-        if let Ok(gdef) = font.gdef() {
+    fn new(font: &FontRef<'a>, table_offsets: &TableOffsets) -> Self {
+        if let Some(gdef) = table_offsets.gdef.resolve_table::<Gdef>(font) {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
             let mark_sets = gdef
@@ -131,41 +137,60 @@ pub struct OtTables<'a> {
     pub gsub: Option<GsubTable<'a>>,
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
+    pub gdef_glyph_props_cache: &'a MappingCache,
     pub gdef_mark_set_digests: &'a [hb_set_digest_t],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
+    pub value_context: ValueContext<'a>,
 }
 
 impl<'a> OtTables<'a> {
-    pub fn new(font: &FontRef<'a>, cache: &'a OtCache, coords: &'a [F2Dot14]) -> Self {
-        let gsub = font.gsub().ok().map(|table| GsubTable {
-            table,
-            lookups: &cache.gsub,
-        });
-        let gpos = font.gpos().ok().map(|table| GposTable {
-            table,
-            lookups: &cache.gpos,
-        });
+    pub fn new(
+        font: &FontRef<'a>,
+        cache: &'a OtCache,
+        table_offsets: &TableOffsets,
+        coords: &'a [F2Dot14],
+    ) -> Self {
+        let gsub = table_offsets
+            .gsub
+            .resolve_table(font)
+            .map(|table| GsubTable {
+                table,
+                lookups: &cache.gsub,
+            });
+        let gpos = table_offsets
+            .gpos
+            .resolve_table(font)
+            .map(|table| GposTable {
+                table,
+                lookups: &cache.gpos,
+            });
         let coords = if coords.iter().any(|coord| *coord != F2Dot14::ZERO) {
             coords
         } else {
             &[]
         };
-        let gdef = GdefTable::new(font);
-        let var_store = if !coords.is_empty() {
-            gdef.table
-                .as_ref()
-                .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten())
+        let gdef = GdefTable::new(font, table_offsets);
+        let var_store = gdef
+            .table
+            .as_ref()
+            .and_then(|gdef| gdef.item_var_store().transpose().ok().flatten());
+        let value_context = if !coords.is_empty() {
+            ValueContext::new()
+                .with_coords(coords)
+                .with_var_store(var_store.clone())
         } else {
-            None
+            ValueContext::new()
         };
         Self {
             gsub,
             gpos,
             gdef,
+            gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
             gdef_mark_set_digests: &cache.gdef_mark_set_digests,
             var_store,
             coords,
+            value_context,
         }
     }
 
@@ -177,14 +202,36 @@ impl<'a> OtTables<'a> {
         self.gdef
             .classes
             .as_ref()
-            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
+            .map_or(0, |class_def| class_def.get(glyph_id))
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
         self.gdef
             .mark_classes
             .as_ref()
-            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
+            .map_or(0, |class_def| class_def.get(glyph_id))
+    }
+
+    pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
+        let glyph = glyph.to_u32();
+
+        if let Some(props) = self.gdef_glyph_props_cache.get(glyph) {
+            return props as u16;
+        }
+
+        let props = match self.glyph_class(glyph) {
+            1 => GlyphPropsFlags::BASE_GLYPH.bits(),
+            2 => GlyphPropsFlags::LIGATURE.bits(),
+            3 => {
+                let class = self.glyph_mark_attachment_class(glyph);
+                (class << 8) | GlyphPropsFlags::MARK.bits()
+            }
+            _ => 0,
+        };
+
+        self.gdef_glyph_props_cache.set(glyph, props as u32);
+
+        props
     }
 
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
@@ -215,25 +262,6 @@ impl<'a> OtTables<'a> {
             let table = self.gpos.as_ref()?;
             Some((table.table.offset_data().as_bytes(), table.lookups))
         }
-    }
-
-    pub fn subtable_cache(
-        &self,
-        table_index: TableIndex,
-        lookup: LookupInfo,
-    ) -> Option<SubtableCache<'a>> {
-        let (table_data, lookups) = self.table_data_and_lookups(table_index)?;
-        Some(SubtableCache::new(table_data, lookups, lookup))
-    }
-
-    pub fn subtable_cache_for_index(
-        &self,
-        table_index: TableIndex,
-        lookup_index: u16,
-    ) -> Option<SubtableCache<'a>> {
-        let (table_data, lookups) = self.table_data_and_lookups(table_index)?;
-        let lookup = lookups.get(lookup_index)?;
-        Some(SubtableCache::new(table_data, lookups, lookup.clone()))
     }
 
     pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (i32, i32) {
@@ -477,15 +505,51 @@ fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> O
     coverage.ok().and_then(|coverage| coverage.get(gid))
 }
 
+fn coverage_index_cached(
+    coverage: impl Fn(GlyphId) -> Option<u16>,
+    gid: GlyphId,
+    cache: &MappingCache,
+) -> Option<u16> {
+    if let Some(index) = cache.get(gid.into()) {
+        if index == MappingCache::MAX_VALUE {
+            None
+        } else {
+            Some(index as u16)
+        }
+    } else {
+        let index = coverage(gid);
+        if let Some(index) = index {
+            if (index as u32) < MappingCache::MAX_VALUE {
+                cache.set_unchecked(gid.into(), index as u32);
+            }
+            Some(index)
+        } else {
+            cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
+            None
+        }
+    }
+}
+
 fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
     coverage_index(coverage, gid).is_some()
 }
 
 fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
-    let Ok(gid16) = gid.try_into() else {
-        return 0;
-    };
     class_def
-        .map(|class_def| class_def.get(gid16))
+        .map(|class_def| class_def.get(gid))
         .unwrap_or_default()
+}
+
+fn glyph_class_cached(
+    class_def: impl Fn(GlyphId) -> u16,
+    gid: GlyphId,
+    cache: &MappingCache,
+) -> u16 {
+    if let Some(index) = cache.get(gid.into()) {
+        index as u16
+    } else {
+        let index = class_def(gid);
+        cache.set(gid.into(), index as u32);
+        index
+    }
 }

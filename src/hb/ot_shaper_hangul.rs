@@ -14,13 +14,13 @@ const VJMO: u8 = 2;
 const TJMO: u8 = 3;
 
 impl hb_glyph_info_t {
-    fn hangul_shaping_feature(&self) -> u8 {
-        self.ot_shaper_var_u8_auxiliary()
-    }
-
-    fn set_hangul_shaping_feature(&mut self, feature: u8) {
-        self.set_ot_shaper_var_u8_auxiliary(feature);
-    }
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
+        u8,
+        HANGUL_SHAPING_FEATURE_VAR,
+        hangul_shaping_feature,
+        set_hangul_shaping_feature
+    );
 }
 
 fn collect_features_hangul(planner: &mut hb_ot_shape_planner_t) {
@@ -108,6 +108,8 @@ fn is_zero_width_char(face: &hb_font_t, c: char) -> bool {
 }
 
 fn preprocess_text_hangul(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::HANGUL_SHAPING_FEATURE_VAR);
+
     // Hangul syllables come in two shapes: LV, and LVT.  Of those:
     //
     //   - LV can be precomposed, or decomposed.  Lets call those
@@ -354,6 +356,8 @@ fn setup_masks_hangul(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_
     for info in buffer.info_slice_mut() {
         info.mask |= hangul_plan.mask_array[info.hangul_shaping_feature() as usize];
     }
+
+    buffer.deallocate_var(hb_glyph_info_t::HANGUL_SHAPING_FEATURE_VAR);
 }
 
 pub const HANGUL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {

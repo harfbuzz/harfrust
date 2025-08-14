@@ -1,12 +1,13 @@
 use alloc::boxed::Box;
 
-use super::buffer::hb_buffer_t;
+use super::buffer::*;
 use super::ot_map::*;
 use super::ot_shape::*;
 use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_indic::ot_category_t;
+use super::ot_shaper_syllabic::*;
 use super::unicode::{CharExt, GeneralCategoryExt};
 use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t};
 
@@ -25,6 +26,16 @@ pub const KHMER_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
     fallback_position: false,
 };
+
+impl hb_glyph_info_t {
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
+        u8,
+        KHMER_CATEGORY_VAR,
+        khmer_category,
+        set_khmer_category
+    );
+}
 
 const KHMER_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
     // Basic features.
@@ -57,7 +68,7 @@ impl hb_glyph_info_t {
         let u = self.glyph_id;
         let (cat, _) = crate::hb::ot_shaper_indic_table::get_categories(u);
 
-        self.set_indic_category(cat);
+        self.set_khmer_category(cat);
     }
 }
 
@@ -114,6 +125,8 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
 }
 
 fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+
     super::ot_shaper_khmer_machine::find_syllables_khmer(buffer);
 
     let mut start = 0;
@@ -132,7 +145,7 @@ fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_bu
 
     let mut ret = false;
 
-    if super::ot_shaper_syllabic::insert_dotted_circles(
+    if insert_dotted_circles(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
@@ -152,6 +165,8 @@ fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_bu
         start = end;
         end = buffer.next_syllable(start);
     }
+
+    buffer.deallocate_var(hb_glyph_info_t::KHMER_CATEGORY_VAR);
 
     ret
 }
@@ -285,6 +300,8 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::KHMER_CATEGORY_VAR);
+
     // We cannot setup masks here.  We save information about characters
     // and setup masks later on in a pause-callback.
     for info in buffer.info_slice_mut() {

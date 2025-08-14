@@ -46628,6 +46628,18 @@ fn indic_special_cases_008() {
 }
 
 #[test]
+fn indic_special_cases_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/c825900b8a5b6571f0eb6c8c25c6512880bc42e9.ttf",
+            "\u{0D15}\u{0D4D}\u{0D2F}",
+            "",
+        ),
+        "[gid1=0+1038|gid6=0+243]"
+    );
+}
+
+#[test]
 fn indic_syllable_001() {
     assert_eq!(
         shape(
@@ -47572,6 +47584,78 @@ fn item_context_011() {
             "--bot --unicodes-before=0627",
         ),
         "[uni064E=0+0]"
+    );
+}
+
+#[test]
+fn kbts_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/872d2955d326bd6676a06f66b8238ebbaabc212f.ttf",
+            "\u{0628}\u{0628}\u{0628}",
+            "",
+        ),
+        "[uni0628.fina=2+883|uni0628.medi_High=1+244|uni0628.init_High=0+233]"
+    );
+}
+
+#[test]
+fn kbts_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/872d2955d326bd6676a06f66b8238ebbaabc212f.ttf",
+            "\u{0628}\u{0628}\u{0628}\u{0628}\u{0628}",
+            "--features=-calt[0]",
+        ),
+        "[uni0628.fina=4+883|uni0628.medi=3+244|uni0628.medi_High=2+244|uni0628.medi=1+244|uni0628.init=0+190]"
+    );
+}
+
+#[test]
+fn kbts_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/872d2955d326bd6676a06f66b8238ebbaabc212f.ttf",
+            "\u{0628}\u{0628}\u{0628}\u{0628}\u{0628}",
+            "--features=-calt",
+        ),
+        "[uni0628.fina=4+883|uni0628.medi=3+244|uni0628.medi=2+244|uni0628.medi=1+244|uni0628.init=0+190]"
+    );
+}
+
+#[test]
+fn kbts_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7bbd3175734d5d291e1c15271ec0cbb97b626ebf.ttf",
+            "\u{0066}\u{0066}\u{0069}",
+            "",
+        ),
+        "[f_f_i=0+795]"
+    );
+}
+
+#[test]
+fn kbts_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7bbd3175734d5d291e1c15271ec0cbb97b626ebf.ttf",
+            "\u{0066}\u{0066}\u{0069}",
+            "--features=-liga",
+        ),
+        "[f=0+300|f=1+300|i=2+263]"
+    );
+}
+
+#[test]
+fn kbts_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7bbd3175734d5d291e1c15271ec0cbb97b626ebf.ttf",
+            "\u{0648}\u{0628}\u{0627}",
+            "",
+        ),
+        "[alef-ar.fina=2+229|beh-ar.init=1+190|waw-ar=0@83,0+483]"
     );
 }
 
@@ -57238,54 +57322,6 @@ fn vertical_006() {
 fn vertical_007() {
     assert_eq!(
         shape(
-            "tests/fonts/in-house/NotoSansCJK-VF.abc.ttf",
-            "\u{0041}\u{0042}",
-            "--direction=t --variations wght=700",
-        ),
-        "[gid1=0@-320,-880+0,-1000|gid2=1@-340,-880+0,-1000]"
-    );
-}
-
-#[test]
-fn vertical_009() {
-    assert_eq!(
-        shape(
-            "tests/fonts/in-house/4cbbc461be066fccc611dcc634af6e8cb2705537.ttf",
-            "\u{FF38}",
-            "--direction=t",
-        ),
-        "[gid2=0@-500,-867+0,-1000]"
-    );
-}
-
-#[test]
-fn vertical_010() {
-    assert_eq!(
-        shape(
-            "tests/fonts/in-house/191826b9643e3f124d865d617ae609db6a2ce203.ttf",
-            "\u{300C}",
-            "--direction=t",
-        ),
-        "[uni300C.vert=0@-512,-578+0,-1024]"
-    );
-}
-
-#[test]
-fn vertical_011() {
-    assert_eq!(
-        shape(
-            "tests/fonts/in-house/f9b1dd4dcb515e757789a22cb4241107746fd3d0.ttf",
-            "\u{0041}\u{0042}",
-            "--direction=t",
-        ),
-        "[gid1=0@-654,-2128+0,-2789|gid2=1@-665,-2125+0,-2789]"
-    );
-}
-
-#[test]
-fn vertical_012() {
-    assert_eq!(
-        shape(
             "tests/fonts/in-house/NotoSerifHK-subset.ttf",
             "\u{0041}\u{0042}",
             "--direction=t",
@@ -57295,7 +57331,19 @@ fn vertical_012() {
 }
 
 #[test]
-fn vertical_013() {
+fn vertical_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/NotoSansCJK-VF.abc.ttf",
+            "\u{0041}\u{0042}",
+            "--direction=t --variations wght=700",
+        ),
+        "[gid1=0@-320,-880+0,-1000|gid2=1@-340,-880+0,-1000]"
+    );
+}
+
+#[test]
+fn vertical_010() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/NotoSerifHK-subset.ttf",
@@ -57307,14 +57355,38 @@ fn vertical_013() {
 }
 
 #[test]
+fn vertical_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4cbbc461be066fccc611dcc634af6e8cb2705537.ttf",
+            "\u{FF38}",
+            "--direction=t",
+        ),
+        "[gid2=0@-500,-867+0,-1000]"
+    );
+}
+
+#[test]
+fn vertical_013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/191826b9643e3f124d865d617ae609db6a2ce203.ttf",
+            "\u{300C}",
+            "--direction=t",
+        ),
+        "[uni300C.vert=0@-512,-578+0,-1024]"
+    );
+}
+
+#[test]
 fn vertical_014() {
     assert_eq!(
         shape(
-            "tests/fonts/in-house/NotoSans-VF.abc.ttf",
-            "\u{0061}\u{0062}",
+            "tests/fonts/in-house/f9b1dd4dcb515e757789a22cb4241107746fd3d0.ttf",
+            "\u{0041}\u{0042}",
             "--direction=t",
         ),
-        "[gid1=0@-280,-948+0,-1362|gid2=1@-307,-1056+0,-1362]"
+        "[gid1=0@-654,-2128+0,-2789|gid2=1@-665,-2125+0,-2789]"
     );
 }
 

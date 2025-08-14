@@ -1,12 +1,12 @@
+use crate::hb::buffer::hb_glyph_info_t;
+use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply, WouldApply,
-    WouldApplyContext,
+    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
+    SubtableExternalCache, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
-
-// TODO HarfBuzz caches coverage ala PairPos1
 
 impl WouldApply for Ligature<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -29,9 +29,9 @@ impl Apply for Ligature<'_> {
             ctx.replace_glyph(self.ligature_glyph().into());
             Some(())
         } else {
-            let f = |glyph, index| {
+            let f = |info: &mut hb_glyph_info_t, index| {
                 let value = components.get(index as usize).unwrap().get().to_u16();
-                match_glyph(glyph, value)
+                match_glyph(info, value)
             };
 
             let mut match_end = 0;
@@ -77,27 +77,28 @@ impl Apply for LigatureSet<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mut first = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
-        let slow_path = if self.ligatures().len() <= 4 {
+        let ligatures = self.ligatures();
+        let slow_path = if ligatures.len() <= 4 {
             true
         } else {
             let mut iter = skipping_iterator_t::new(ctx, false);
-            iter.reset(ctx.buffer.idx);
+            iter.reset(iter.buffer.idx);
             let matched = iter.next(Some(&mut unsafe_to));
             if !matched {
                 true
             } else {
-                first = ctx.buffer.info[iter.index()].glyph_id.into();
+                first = iter.buffer.info[iter.index()].glyph_id.into();
                 unsafe_to = iter.index() + 1;
 
                 // Can't use the fast path if eg. the next char is a default-ignorable
                 // or other skippable.
-                iter.may_skip(&ctx.buffer.info[iter.index()]) != may_skip_t::SKIP_NO
+                iter.may_skip(&iter.buffer.info[iter.index()]) != may_skip_t::SKIP_NO
             }
         };
 
         if slow_path {
             // Slow path
-            for lig in self.ligatures().iter().filter_map(Result::ok) {
+            for lig in ligatures.iter().filter_map(Result::ok) {
                 if lig.apply(ctx).is_some() {
                     return Some(());
                 }
@@ -105,7 +106,7 @@ impl Apply for LigatureSet<'_> {
         } else {
             // Fast path
             let mut unsafe_to_concat = false;
-            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+            for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
                 let components = lig.component_glyph_ids();
                 if components.is_empty() || components[0].get() == first {
                     if lig.apply(ctx).is_some() {
@@ -139,12 +140,21 @@ impl WouldApply for LigatureSubstFormat1<'_> {
 }
 
 impl Apply for LigatureSubstFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_with_external_cache(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
-        self.coverage()
+
+        let index = if let SubtableExternalCache::MappingCache(cache) = external_cache {
+            coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, cache)?
+        } else {
+            coverage_index(self.coverage(), glyph)?
+        };
+        self.ligature_sets()
+            .get(index as usize)
             .ok()
-            .and_then(|coverage| coverage.get(glyph))
-            .and_then(|index| self.ligature_sets().get(index as usize).ok())
             .and_then(|set| set.apply(ctx))
     }
 }

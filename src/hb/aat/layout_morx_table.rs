@@ -1,8 +1,8 @@
-use super::aat_layout::*;
-use super::aat_map::{hb_aat_map_builder_t, hb_aat_map_t, range_flags_t};
-use super::{hb_font_t, hb_glyph_info_t};
-use crate::hb::aat_layout_common::hb_aat_apply_context_t;
+use super::layout::*;
+use super::map::{AatMap, AatMapBuilder, RangeFlags};
+use crate::hb::aat::layout_common::AatApplyContext;
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
+use crate::hb::{hb_font_t, hb_glyph_info_t};
 use alloc::vec;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{
@@ -20,11 +20,7 @@ use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
 // https://github.com/harfbuzz/harfbuzz/pull/5041
 
 // Chain::compile_flags in harfbuzz
-pub fn compile_flags(
-    face: &hb_font_t,
-    builder: &hb_aat_map_builder_t,
-    map: &mut hb_aat_map_t,
-) -> Option<()> {
+pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
     let has_feature = |kind: u16, setting: u16| {
         builder
             .current_features
@@ -54,14 +50,13 @@ pub fn compile_flags(
             if has_feature(feature.feature_type(), feature.feature_settings()) {
                 flags &= feature.disable_flags();
                 flags |= feature.enable_flags();
-            } else if feature.feature_type() == HB_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE as u16
-                && feature.feature_settings()
-                    == u16::from(HB_AAT_LAYOUT_FEATURE_SELECTOR_SMALL_CAPS)
+            } else if feature.feature_type() == FEATURE_TYPE_LETTER_CASE as u16
+                && feature.feature_settings() == u16::from(FEATURE_SELECTOR_SMALL_CAPS)
             {
                 // Deprecated. https://github.com/harfbuzz/harfbuzz/issues/1342
                 let ok = has_feature(
-                    HB_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE as u16,
-                    u16::from(HB_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS),
+                    FEATURE_TYPE_LOWER_CASE as u16,
+                    u16::from(FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS),
                 );
                 if ok {
                     flags &= feature.disable_flags();
@@ -71,7 +66,7 @@ pub fn compile_flags(
             // TODO: Port the following commit: https://github.com/harfbuzz/harfbuzz/commit/2124ad890
         }
 
-        chain_flags.push(range_flags_t {
+        chain_flags.push(RangeFlags {
             flags,
             cluster_first: builder.range_first as u32,
             cluster_last: builder.range_last as u32,
@@ -82,7 +77,7 @@ pub fn compile_flags(
 }
 
 // Chain::apply in harfbuzz
-pub fn apply<'a>(c: &mut hb_aat_apply_context_t<'a>, map: &'a mut hb_aat_map_t) -> Option<()> {
+pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
     let chains = c.face.aat_tables.morx.as_ref()?.chains();
@@ -163,19 +158,19 @@ pub fn apply<'a>(c: &mut hb_aat_apply_context_t<'a>, map: &'a mut hb_aat_map_t) 
     Some(())
 }
 
-trait driver_context_t<T> {
+trait DriverContext<T> {
     fn in_place(&self) -> bool;
     fn can_advance(&self, entry: &StateEntry<T>) -> bool;
     fn is_actionable(&self, entry: &StateEntry<T>) -> bool;
-    fn transition(&mut self, entry: &StateEntry<T>, ac: &mut hb_aat_apply_context_t) -> Option<()>;
+    fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
 const START_OF_TEXT: u16 = 0;
 
 fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
     machine: &ExtendedStateTable<'_, T>,
-    c: &mut dyn driver_context_t<T>,
-    ac: &mut hb_aat_apply_context_t,
+    c: &mut dyn DriverContext<T>,
+    ac: &mut AatApplyContext,
 ) {
     if !c.in_place() {
         ac.buffer.clear_output();
@@ -330,7 +325,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
     }
 }
 
-fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut hb_aat_apply_context_t<'a>) {
+fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     match kind {
         SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
@@ -416,7 +411,7 @@ impl RearrangementCtx {
     const VERB: u16 = 0x000F;
 }
 
-impl driver_context_t<NoPayload> for RearrangementCtx {
+impl DriverContext<NoPayload> for RearrangementCtx {
     fn in_place(&self) -> bool {
         true
     }
@@ -429,7 +424,7 @@ impl driver_context_t<NoPayload> for RearrangementCtx {
         entry.flags & Self::VERB != 0 && self.start < self.end
     }
 
-    fn transition(&mut self, entry: &StateEntry, ac: &mut hb_aat_apply_context_t) -> Option<()> {
+    fn transition(&mut self, entry: &StateEntry, ac: &mut AatApplyContext) -> Option<()> {
         let buffer = &mut ac.buffer;
         let flags = entry.flags;
 
@@ -528,7 +523,7 @@ impl ContextualCtx<'_> {
     const DONT_ADVANCE: u16 = 0x4000;
 }
 
-impl driver_context_t<ContextualEntryData> for ContextualCtx<'_> {
+impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
     fn in_place(&self) -> bool {
         true
     }
@@ -544,7 +539,7 @@ impl driver_context_t<ContextualEntryData> for ContextualCtx<'_> {
     fn transition(
         &mut self,
         entry: &StateEntry<ContextualEntryData>,
-        ac: &mut hb_aat_apply_context_t,
+        ac: &mut AatApplyContext,
     ) -> Option<()> {
         // Looks like CoreText applies neither mark nor current substitution for
         // end-of-text if mark was not explicitly set.
@@ -613,7 +608,7 @@ impl InsertionCtx<'_> {
     const MARKED_INSERT_COUNT: u16 = 0x001F;
 }
 
-impl driver_context_t<InsertionEntryData> for InsertionCtx<'_> {
+impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
     fn in_place(&self) -> bool {
         false
     }
@@ -631,7 +626,7 @@ impl driver_context_t<InsertionEntryData> for InsertionCtx<'_> {
     fn transition(
         &mut self,
         entry: &StateEntry<InsertionEntryData>,
-        ac: &mut hb_aat_apply_context_t,
+        ac: &mut AatApplyContext,
     ) -> Option<()> {
         let flags = entry.flags;
         let mark_loc = ac.buffer.out_len;
@@ -743,7 +738,7 @@ impl LigatureCtx<'_> {
     const LIG_ACTION_OFFSET: u32 = 0x3FFF_FFFF;
 }
 
-impl driver_context_t<BigEndian<u16>> for LigatureCtx<'_> {
+impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
     fn in_place(&self) -> bool {
         false
     }
@@ -759,7 +754,7 @@ impl driver_context_t<BigEndian<u16>> for LigatureCtx<'_> {
     fn transition(
         &mut self,
         entry: &StateEntry<BigEndian<u16>>,
-        ac: &mut hb_aat_apply_context_t,
+        ac: &mut AatApplyContext,
     ) -> Option<()> {
         if entry.flags & Self::SET_COMPONENT != 0 {
             // Never mark same index twice, in case DONT_ADVANCE was used...

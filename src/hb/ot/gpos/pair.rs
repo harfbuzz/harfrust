@@ -1,20 +1,30 @@
+use crate::hb::ot::{coverage_index, coverage_index_cached};
+use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
+use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply, SubtableExternalCache};
+use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, Value};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
 
-use super::Value;
-
-// TODO: HarfBuzz uses two class caches, for left and right, as well as coverage.
+use super::{apply_value_to_pos, ValueResolver};
 
 impl Apply for PairPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_with_external_cache(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
-        let first_glyph_coverage_index = self.coverage().ok()?.get(first_glyph)?;
+
+        let first_glyph_coverage_index =
+            if let SubtableExternalCache::MappingCache(cache) = external_cache {
+                coverage_index_cached(|gid| self.coverage().ok()?.get(gid), first_glyph, cache)?
+            } else {
+                coverage_index(self.coverage(), first_glyph)?
+            };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
-        iter.reset(ctx.buffer.idx);
+        iter.reset(iter.buffer.idx);
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -24,7 +34,7 @@ impl Apply for PairPosFormat1<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = ctx.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
             if has_record2 {
@@ -57,14 +67,15 @@ impl Apply for PairPosFormat1<'_> {
                 }
             };
 
-        let bail =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: (Value, Value)| {
-                let flag1 = records.0.apply(ctx, ctx.buffer.idx);
-                let flag2 = records.1.apply(ctx, second_glyph_index);
+        let bail = |ctx: &mut hb_ot_apply_context_t,
+                    iter_index: &mut usize,
+                    records: (ValueResolver, ValueResolver)| {
+            let flag1 = records.0.apply(ctx, ctx.buffer.idx);
+            let flag2 = records.1.apply(ctx, second_glyph_index);
 
-                let has_record2 = !records.1.is_empty();
-                success(ctx, iter_index, flag1, flag2, has_record2)
-            };
+            let has_record2 = !records.1.is_empty();
+            success(ctx, iter_index, flag1, flag2, has_record2)
+        };
 
         let (pair, data) =
             find_second_glyph(self, first_glyph_coverage_index as usize, second_glyph)?;
@@ -78,16 +89,17 @@ impl Apply for PairPosFormat1<'_> {
         //     .filter_map(|value| value.ok())
         //     .find(|value| value.second_glyph() == second_glyph)?;
         let values = (
-            Value {
+            ValueResolver {
                 record: pair.value_record1,
                 data,
             },
-            Value {
+            ValueResolver {
                 record: pair.value_record2,
                 data,
             },
         );
-        bail(ctx, &mut iter.buf_idx, values)
+        let mut buf_idx = iter.buf_idx;
+        bail(ctx, &mut buf_idx, values)
     }
 }
 
@@ -123,12 +135,25 @@ fn find_second_glyph<'a>(
 }
 
 impl Apply for PairPosFormat2<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply_with_external_cache(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        external_cache: &SubtableExternalCache,
+    ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
-        self.coverage().ok()?.get(first_glyph)?;
+
+        let _ = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
+            coverage_index_cached(
+                |gid| self.coverage().ok()?.get(gid),
+                first_glyph,
+                &cache.coverage,
+            )?
+        } else {
+            coverage_index(self.coverage(), first_glyph)?
+        };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
-        iter.reset(ctx.buffer.idx);
+        iter.reset(iter.buffer.idx);
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -138,7 +163,7 @@ impl Apply for PairPosFormat2<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = ctx.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
             if has_record2 {
@@ -172,37 +197,39 @@ impl Apply for PairPosFormat2<'_> {
             };
 
         let bail =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: (Value, Value)| {
-                let flag1 = records.0.apply(ctx, ctx.buffer.idx);
-                let flag2 = records.1.apply(ctx, second_glyph_index);
+            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: &[Value; 2]| {
+                let flag1 = apply_value_to_pos(ctx, ctx.buffer.idx, &records[0]);
+                let flag2 = apply_value_to_pos(ctx, second_glyph_index, &records[1]);
 
-                let has_record2 = !records.1.is_empty();
+                let has_record2 = !records[1].format.is_empty();
                 success(ctx, iter_index, flag1, flag2, has_record2)
             };
 
-        let class1 = super::super::glyph_class(self.class_def1(), first_glyph);
-        let class2 = super::super::glyph_class(self.class_def2(), second_glyph);
-
-        let data = self.offset_data();
-        if let Ok(class2_record) = self
-            .class1_records()
-            .get(class1 as usize)
-            .and_then(|rec| rec.class2_records().get(class2 as usize))
-        {
-            let values = (
-                Value {
-                    record: class2_record.value_record1,
-                    data,
-                },
-                Value {
-                    record: class2_record.value_record2,
-                    data,
-                },
-            );
-            bail(ctx, &mut iter.buf_idx, values)
+        let class1 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
+            glyph_class_cached(
+                |gid| glyph_class(self.class_def1(), gid),
+                first_glyph,
+                &cache.first,
+            )
+        } else {
+            glyph_class(self.class_def1(), first_glyph)
+        };
+        let class2 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
+            glyph_class_cached(
+                |gid| glyph_class(self.class_def2(), gid),
+                second_glyph,
+                &cache.second,
+            )
+        } else {
+            glyph_class(self.class_def2(), second_glyph)
+        };
+        let mut buf_idx = iter.buf_idx;
+        let end_idx = iter.index() + 1;
+        if let Ok(values) = self.values(class1, class2, &ctx.face.ot_tables.value_context) {
+            bail(ctx, &mut buf_idx, &values)
         } else {
             ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(iter.index() + 1));
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_idx));
             None
         }
     }

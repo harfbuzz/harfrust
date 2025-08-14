@@ -1,7 +1,16 @@
+pub mod layout;
+pub mod layout_common;
+pub mod layout_kerx_table;
+pub mod layout_morx_table;
+pub mod layout_trak_table;
+pub mod map;
+
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
-    FontRef, TableProvider,
+    FontRef,
 };
+
+use crate::hb::tables::TableOffsets;
 
 #[derive(Clone, Default)]
 pub struct AatTables<'a> {
@@ -14,14 +23,20 @@ pub struct AatTables<'a> {
 }
 
 impl<'a> AatTables<'a> {
-    pub fn new(font: &FontRef<'a>) -> Self {
+    pub fn new(font: &FontRef<'a>, table_offsets: &TableOffsets) -> Self {
+        let morx = table_offsets.morx.resolve_table(font);
+        let ankr = table_offsets.ankr.resolve_table(font);
+        let kern = table_offsets.kern.resolve_table(font);
+        let kerx = table_offsets.kerx.resolve_table(font);
+        let trak = table_offsets.trak.resolve_table(font);
+        let feat = table_offsets.feat.resolve_table(font);
         Self {
-            morx: font.morx().ok(),
-            ankr: font.ankr().ok(),
-            kern: font.kern().ok(),
-            kerx: font.kerx().ok(),
-            trak: font.trak().ok(),
-            feat: font.feat().ok(),
+            morx,
+            ankr,
+            kern,
+            kerx,
+            trak,
+            feat,
         }
     }
 }

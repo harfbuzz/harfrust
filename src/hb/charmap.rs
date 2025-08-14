@@ -1,94 +1,79 @@
+use crate::hb::tables::{SelectedCmapSubtable, TableOffsets};
+
 use super::cache::hb_cache_t;
 use read_fonts::{
-    tables::cmap::{Cmap, Cmap14, CmapSubtable, MapVariant, PlatformId},
+    tables::cmap::{Cmap, Cmap14, CmapSubtable, MapVariant},
     types::GlyphId,
-    FontRef, TableProvider,
+    FontRef,
 };
-
-// https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
-const WINDOWS_SYMBOL_ENCODING: u16 = 0;
-const WINDOWS_UNICODE_BMP_ENCODING: u16 = 1;
-const WINDOWS_UNICODE_FULL_ENCODING: u16 = 10;
-
-// https://docs.microsoft.com/en-us/typography/opentype/spec/name#platform-specific-encoding-and-language-ids-unicode-platform-platform-id--0
-const UNICODE_1_0_ENCODING: u16 = 0;
-const UNICODE_1_1_ENCODING: u16 = 1;
-const UNICODE_ISO_ENCODING: u16 = 2;
-const UNICODE_2_0_BMP_ENCODING: u16 = 3;
-const UNICODE_2_0_FULL_ENCODING: u16 = 4;
-
-//const UNICODE_VARIATION_ENCODING: u16 = 5;
-const UNICODE_FULL_ENCODING: u16 = 6;
 
 pub type cache_t = hb_cache_t<21, 19, 256, 32>;
 
 #[derive(Clone)]
 pub struct Charmap<'a> {
-    subtable: Option<(PlatformId, u16, CmapSubtable<'a>)>,
+    subtable: Option<(SelectedCmapSubtable, CmapSubtable<'a>)>,
     vs_subtable: Option<Cmap14<'a>>,
     cache: &'a cache_t,
 }
 
 impl<'a> Charmap<'a> {
-    pub fn new(font: &FontRef<'a>, cache: &'a cache_t) -> Self {
-        if let Ok(cmap) = font.cmap() {
-            let subtable = find_best_cmap_subtable(&cmap);
-            let offset_data = cmap.offset_data();
-            let vs_subtable = cmap
-                .encoding_records()
-                .iter()
-                .filter_map(|record| record.subtable(offset_data).ok())
-                .find_map(|subtable| match subtable {
+    pub fn new(font: &FontRef<'a>, table_offsets: &TableOffsets, cache: &'a cache_t) -> Self {
+        if let Some(cmap) = table_offsets.cmap.resolve_table::<Cmap>(font) {
+            let data = cmap.offset_data();
+            let records = cmap.encoding_records();
+            let subtable = table_offsets
+                .cmap_subtable
+                .and_then(|s| Some((s, records.get(s.index as usize)?.subtable(data).ok()?)));
+            let vs_subtable = table_offsets
+                .cmap_vs_subtable
+                .and_then(|index| records.get(index as usize))
+                .and_then(|rec| rec.subtable(data).ok())
+                .and_then(|subtable| match subtable {
                     CmapSubtable::Format14(table) => Some(table),
                     _ => None,
                 });
-            return Self {
+            Self {
                 subtable,
                 vs_subtable,
                 cache,
-            };
-        }
-        Self {
-            subtable: None,
-            vs_subtable: None,
-            cache,
+            }
+        } else {
+            Self {
+                subtable: None,
+                vs_subtable: None,
+                cache,
+            }
         }
     }
 
     fn map_impl(&self, mut c: u32) -> Option<GlyphId> {
         let subtable = self.subtable.as_ref()?;
-        if subtable.0 == PlatformId::Macintosh && c > 0x7F {
+        if subtable.0.is_mac_roman && c > 0x7F {
             c = unicode_to_macroman(c);
         }
-        let result = match &subtable.2 {
-            CmapSubtable::Format0(table) => table
-                .glyph_id_array()
-                .get(c as usize)
-                .map(|gid| GlyphId::from(*gid as u16)),
-            CmapSubtable::Format6(table) => {
-                let index = c.checked_sub(table.first_code() as u32)?;
-                table
-                    .glyph_id_array()
-                    .get(index as usize)
-                    .map(|gid| GlyphId::from(gid.get()))
-            }
+        let result = match &subtable.1 {
+            CmapSubtable::Format0(table) => table.map_codepoint(c),
+            CmapSubtable::Format6(table) => table.map_codepoint(c),
             CmapSubtable::Format10(table) => {
-                let index = c.checked_sub(table.start_char_code())?;
-                table
-                    .glyph_id_array()
-                    .get(index as usize)
-                    .map(|gid| GlyphId::from(gid.get()))
+                if let Some(index) = c.checked_sub(table.start_char_code()) {
+                    if index < table.num_chars() {
+                        table
+                            .glyph_id_array()
+                            .get(index as usize)
+                            .map(|gid| GlyphId::from(gid.get()))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             }
             CmapSubtable::Format4(table) => table.map_codepoint(c),
             CmapSubtable::Format12(table) => table.map_codepoint(c),
             CmapSubtable::Format13(table) => table.map_codepoint(c),
             _ => None,
         };
-        if result.is_none()
-            && subtable.0 == PlatformId::Windows
-            && subtable.1 == WINDOWS_SYMBOL_ENCODING
-            && c <= 0x00FF
-        {
+        if result.is_none() && subtable.0.is_symbol && c <= 0x00FF {
             // For symbol-encoded OpenType fonts, we duplicate the
             // U+F000..F0FF range at U+0000..U+00FF.  That's what
             // Windows seems to do, and that's hinted about at:
@@ -118,50 +103,6 @@ impl<'a> Charmap<'a> {
             MapVariant::Variant(gid) => Some(gid),
         }
     }
-}
-
-fn find_best_cmap_subtable<'a>(cmap: &Cmap<'a>) -> Option<(PlatformId, u16, CmapSubtable<'a>)> {
-    // Symbol subtable.
-    // Prefer symbol if available.
-    // https://github.com/harfbuzz/harfbuzz/issues/1918
-    find_cmap_subtable(cmap, PlatformId::Windows, WINDOWS_SYMBOL_ENCODING)
-        // 32-bit subtables:
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Windows, WINDOWS_UNICODE_FULL_ENCODING))
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Unicode, UNICODE_FULL_ENCODING))
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Unicode, UNICODE_2_0_FULL_ENCODING))
-        // 16-bit subtables:
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Windows, WINDOWS_UNICODE_BMP_ENCODING))
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Unicode, UNICODE_2_0_BMP_ENCODING))
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Unicode, UNICODE_ISO_ENCODING))
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Unicode, UNICODE_1_1_ENCODING))
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Unicode, UNICODE_1_0_ENCODING))
-        // MacRoman subtable:
-        .or_else(|| find_cmap_subtable(cmap, PlatformId::Macintosh, 0))
-}
-
-fn find_cmap_subtable<'a>(
-    cmap: &Cmap<'a>,
-    platform_id: PlatformId,
-    encoding_id: u16,
-) -> Option<(PlatformId, u16, CmapSubtable<'a>)> {
-    let offset_data = cmap.offset_data();
-    for record in cmap.encoding_records() {
-        if record.platform_id() != platform_id || record.encoding_id() != encoding_id {
-            continue;
-        }
-        if let Ok(subtable) = record.subtable(offset_data) {
-            match subtable {
-                CmapSubtable::Format0(_)
-                | CmapSubtable::Format4(_)
-                | CmapSubtable::Format6(_)
-                | CmapSubtable::Format10(_)
-                | CmapSubtable::Format12(_)
-                | CmapSubtable::Format13(_) => return Some((platform_id, encoding_id, subtable)),
-                _ => {}
-            }
-        }
-    }
-    None
 }
 
 #[rustfmt::skip]

@@ -168,8 +168,88 @@ pub struct hb_glyph_info_t {
     ///
     /// [Read more on clusters](https://harfbuzz.github.io/clusters.html).
     pub cluster: u32,
-    pub(crate) var1: u32,
-    pub(crate) var2: u32,
+    pub(crate) vars: [u32; 2],
+}
+
+#[allow(dead_code)]
+pub(crate) struct buffer_var_shape {
+    pub(crate) width: u8,
+    pub(crate) var_index: u8,
+    pub(crate) index: u8,
+}
+
+impl buffer_var_shape {
+    #[inline]
+    pub fn start(&self) -> u8 {
+        (self.var_index - 1) * 4 + self.index * self.width
+    }
+
+    #[inline]
+    pub fn count(&self) -> u8 {
+        self.width
+    }
+
+    #[inline]
+    pub fn bits(&self) -> u8 {
+        let start = self.start();
+        let end = start + self.count();
+        debug_assert!(end <= 8);
+        ((1u16 << end) - (1u16 << start)) as u8
+    }
+}
+
+macro_rules! declare_buffer_var {
+    ($ty:ty, $var_index:expr, $index:expr, $var_name:ident, $getter:ident, $setter:ident) => {
+        #[allow(dead_code)]
+        pub(crate) const $var_name: buffer_var_shape = buffer_var_shape {
+            width: core::mem::size_of::<$ty>() as u8,
+            var_index: $var_index,
+            index: $index,
+        };
+
+        #[inline]
+        #[allow(dead_code)]
+        pub(crate) fn $getter(&self) -> $ty {
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
+            let v: &[$ty; LEN] = bytemuck::cast_ref(&self.vars[$var_index - 1usize]);
+            v[$index]
+        }
+
+        #[inline]
+        #[allow(dead_code)]
+        pub(crate) fn $setter(&mut self, value: $ty) {
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
+            let v: &mut [$ty; LEN] = bytemuck::cast_mut(&mut self.vars[$var_index - 1usize]);
+            v[$index] = value;
+        }
+    };
+}
+
+macro_rules! declare_buffer_var_alias {
+    ($alias_var:ident, $ty:ty, $var_name:ident, $getter:ident, $setter:ident) => {
+        #[allow(dead_code)]
+        pub(crate) const $var_name: buffer_var_shape = hb_glyph_info_t::$alias_var;
+
+        #[inline]
+        pub(crate) fn $getter(&self) -> $ty {
+            debug_assert!(hb_glyph_info_t::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
+            let v: &[$ty; LEN] = bytemuck::cast_ref(
+                &self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
+            );
+            v[hb_glyph_info_t::$alias_var.index as usize]
+        }
+
+        #[inline]
+        pub(crate) fn $setter(&mut self, value: $ty) {
+            debug_assert!(hb_glyph_info_t::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
+            let v: &mut [$ty; LEN] = bytemuck::cast_mut(
+                &mut self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
+            );
+            v[hb_glyph_info_t::$alias_var.index as usize] = value;
+        }
+    };
 }
 
 impl hb_glyph_info_t {
@@ -246,21 +326,6 @@ impl hb_glyph_info_t {
         Some(gid.into())
     }
 
-    // Var allocation: unicode_props
-    // Used during the entire shaping process to store unicode properties
-
-    #[inline]
-    pub(crate) fn unicode_props(&self) -> u16 {
-        let v: &[u16; 2] = bytemuck::cast_ref(&self.var2);
-        v[0]
-    }
-
-    #[inline]
-    pub(crate) fn set_unicode_props(&mut self, n: u16) {
-        let v: &mut [u16; 2] = bytemuck::cast_mut(&mut self.var2);
-        v[0] = n;
-    }
-
     pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
         let u = self.as_char();
         let gc = u.general_category();
@@ -316,55 +381,6 @@ impl hb_glyph_info_t {
         n &= !UnicodeProps::HIDDEN.bits();
         self.set_unicode_props(n);
     }
-
-    #[inline]
-    pub(crate) fn lig_props(&self) -> u8 {
-        let v: &[u8; 4] = bytemuck::cast_ref(&self.var1);
-        v[2]
-    }
-
-    #[inline]
-    pub(crate) fn set_lig_props(&mut self, n: u8) {
-        let v: &mut [u8; 4] = bytemuck::cast_mut(&mut self.var1);
-        v[2] = n;
-    }
-
-    #[inline]
-    pub(crate) fn glyph_props(&self) -> u16 {
-        let v: &[u16; 2] = bytemuck::cast_ref(&self.var1);
-        v[0]
-    }
-
-    #[inline]
-    pub(crate) fn set_glyph_props(&mut self, n: u16) {
-        let v: &mut [u16; 2] = bytemuck::cast_mut(&mut self.var1);
-        v[0] = n;
-    }
-
-    #[inline]
-    pub(crate) fn syllable(&self) -> u8 {
-        let v: &[u8; 4] = bytemuck::cast_ref(&self.var1);
-        v[3]
-    }
-
-    #[inline]
-    pub(crate) fn set_syllable(&mut self, n: u8) {
-        let v: &mut [u8; 4] = bytemuck::cast_mut(&mut self.var1);
-        v[3] = n;
-    }
-
-    // Var allocation: glyph_index
-    // Used during the normalization process to store glyph indices
-
-    #[inline]
-    pub(crate) fn glyph_index(&mut self) -> u32 {
-        self.var1
-    }
-
-    #[inline]
-    pub(crate) fn set_glyph_index(&mut self, n: u32) {
-        self.var1 = n;
-    }
 }
 
 pub type hb_buffer_cluster_level_t = u32;
@@ -411,6 +427,7 @@ pub struct hb_buffer_t {
     pub context_len: [usize; 2],
 
     // Managed by enter / leave
+    pub allocated_var_bits: u8,
     pub serial: u8,
     pub scratch_flags: hb_buffer_scratch_flags_t,
     /// Maximum allowed len.
@@ -453,6 +470,7 @@ impl hb_buffer_t {
             info: Vec::new(),
             pos: Vec::new(),
             have_separate_output: false,
+            allocated_var_bits: 0,
             serial: 0,
             context: [
                 ['\0', '\0', '\0', '\0', '\0'],
@@ -460,6 +478,48 @@ impl hb_buffer_t {
             ],
             context_len: [0, 0],
         }
+    }
+
+    #[inline]
+    pub fn allocate_var(&mut self, shape: buffer_var_shape) {
+        let bits = shape.bits();
+        assert_eq!(
+            self.allocated_var_bits & bits,
+            0,
+            "Variable already allocated"
+        );
+        self.allocated_var_bits |= bits;
+    }
+
+    #[inline]
+    pub fn try_allocate_var(&mut self, shape: buffer_var_shape) -> bool {
+        let bits = shape.bits();
+        if self.allocated_var_bits & bits != 0 {
+            return false;
+        }
+        self.allocated_var_bits |= bits;
+        true
+    }
+
+    #[inline]
+    pub fn deallocate_var(&mut self, shape: buffer_var_shape) {
+        let bits = shape.bits();
+        assert_eq!(
+            self.allocated_var_bits & bits,
+            bits,
+            "Deallocating unallocated var"
+        );
+        self.allocated_var_bits &= !bits;
+    }
+
+    #[inline]
+    pub fn assert_var(&self, shape: buffer_var_shape) {
+        let bits = shape.bits();
+        assert_eq!(
+            self.allocated_var_bits & bits,
+            bits,
+            "Variable not allocated"
+        );
     }
 
     #[inline]
@@ -583,16 +643,11 @@ impl hb_buffer_t {
         if !self.ensure(self.len + 1) {
             return;
         }
-
-        let i = self.len;
-        self.info[i] = hb_glyph_info_t {
+        self.info[self.len] = hb_glyph_info_t {
             glyph_id: codepoint,
-            mask: 0,
             cluster,
-            var1: 0,
-            var2: 0,
+            ..hb_glyph_info_t::default()
         };
-
         self.len += 1;
     }
 
@@ -826,6 +881,7 @@ impl hb_buffer_t {
     /// Copies glyph at idx to output and advance idx.
     ///
     /// If there's no output, just advance idx.
+    #[inline(always)]
     pub fn next_glyph(&mut self) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
@@ -833,7 +889,8 @@ impl hb_buffer_t {
                     return;
                 }
 
-                self.set_out_info(self.out_len, self.info[self.idx]);
+                let i = self.out_len;
+                self.out_info_mut()[i] = self.info[self.idx];
             }
 
             self.out_len += 1;
@@ -1472,7 +1529,12 @@ impl hb_buffer_t {
         }
 
         for (i, c) in text.char_indices() {
-            self.add(c as u32, i as u32);
+            self.info[self.len] = hb_glyph_info_t {
+                glyph_id: c as u32,
+                cluster: i as u32,
+                ..hb_glyph_info_t::default()
+            };
+            self.len += 1;
         }
     }
 
@@ -1631,6 +1693,11 @@ impl UnicodeBuffer {
     #[inline]
     pub fn len(&self) -> usize {
         self.0.len
+    }
+
+    /// Ensures that the buffer can hold at least `size` codepoints.
+    pub fn reserve(&mut self, size: usize) -> bool {
+        self.0.ensure(size)
     }
 
     /// Returns `true` if the buffer contains no elements.

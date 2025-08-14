@@ -80,9 +80,13 @@ pub mod GPOS {
         }
     }
 
-    pub fn position_finish_advances(_: &hb_font_t, _: &mut hb_buffer_t) {}
+    pub fn position_finish_advances(_: &hb_font_t, _: &mut hb_buffer_t) {
+        //buffer.assert_gsubgpos_vars();
+    }
 
     pub fn position_finish_offsets(_: &hb_font_t, buffer: &mut hb_buffer_t) {
+        buffer.assert_gsubgpos_vars();
+
         let len = buffer.len;
         let direction = buffer.direction;
 

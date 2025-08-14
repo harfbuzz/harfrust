@@ -1,8 +1,9 @@
 use super::{coverage_index, covered, glyph_class};
+use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, may_skip_t,
-    skipping_iterator_t, Apply, WouldApply, WouldApplyContext,
+    skipping_iterator_t, Apply, SubtableExternalCache, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -10,7 +11,7 @@ use read_fonts::tables::layout::{
     ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
-use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
+use read_fonts::types::{BigEndian, GlyphId16, Offset16};
 use read_fonts::{ArrayOfOffsets, FontRead};
 
 impl WouldApply for SequenceContextFormat1<'_> {
@@ -29,7 +30,11 @@ impl WouldApply for SequenceContextFormat1<'_> {
                         let input = rule.input_sequence();
                         ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
-                                match_glyph(ctx.glyphs[i + 1], value.get().to_u16())
+                                let mut info = hb_glyph_info_t {
+                                    glyph_id: ctx.glyphs[i + 1].into(),
+                                    ..hb_glyph_info_t::default()
+                                };
+                                match_glyph(&mut info, value.get().to_u16())
                             })
                     })
                     .unwrap_or(false)
@@ -62,10 +67,13 @@ impl WouldApply for SequenceContextFormat2<'_> {
                     rule.map(|rule| {
                         let input = rule.input_sequence();
                         ctx.glyphs.len() == input.len() + 1
-                            && input
-                                .iter()
-                                .enumerate()
-                                .all(|(i, value)| match_fn(ctx.glyphs[i + 1], value.get()))
+                            && input.iter().enumerate().all(|(i, value)| {
+                                let mut info = hb_glyph_info_t {
+                                    glyph_id: ctx.glyphs[i + 1].into(),
+                                    ..hb_glyph_info_t::default()
+                                };
+                                match_fn(&mut info, value.get())
+                            })
                     })
                     .unwrap_or(false)
                 })
@@ -81,6 +89,27 @@ impl Apply for SequenceContextFormat2<'_> {
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(ctx, &set.class_seq_rules(), match_class(&input_classes))
+    }
+    fn apply_cached(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        _: &SubtableExternalCache,
+    ) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
+        let input_classes = self.class_def().ok();
+        let index = get_class_cached(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let set = self.class_seq_rule_sets().get(index)?.ok()?;
+        apply_context_rules(
+            ctx,
+            &set.class_seq_rules(),
+            match_class_cached(&input_classes),
+        )
+    }
+    fn cache_cost(&self) -> u32 {
+        self.class_def()
+            .ok()
+            .map_or(0, |class_def| class_def.cost())
     }
 }
 
@@ -100,10 +129,10 @@ impl Apply for SequenceContextFormat3<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let input_coverages = self.coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
-        let input = |glyph: GlyphId, index: u16| {
+        let input = |info: &mut hb_glyph_info_t, index: u16| {
             input_coverages
                 .get(index as usize + 1)
-                .is_ok_and(|cov| cov.get(glyph).is_some())
+                .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
         let mut match_end = 0;
         let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
@@ -152,7 +181,11 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
                                 && rule.lookahead_glyph_count() == 0))
                             && ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
-                                match_glyph(ctx.glyphs[i + 1], value.get().to_u16())
+                                let mut info = hb_glyph_info_t {
+                                    glyph_id: ctx.glyphs[i + 1].into(),
+                                    ..hb_glyph_info_t::default()
+                                };
+                                match_glyph(&mut info, value.get().to_u16())
                             })
                     })
                     .unwrap_or(false)
@@ -166,7 +199,11 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules(ctx, &set.chained_seq_rules(), [match_glyph; 3])
+        apply_chain_context_rules(
+            ctx,
+            &set.chained_seq_rules(),
+            (match_glyph, match_glyph, match_glyph),
+        )
     }
 }
 
@@ -188,10 +225,13 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
                             || (rule.backtrack_glyph_count() == 0
                                 && rule.lookahead_glyph_count() == 0))
                             && ctx.glyphs.len() == input.len() + 1
-                            && input
-                                .iter()
-                                .enumerate()
-                                .all(|(i, value)| match_fn(ctx.glyphs[i + 1], value.get()))
+                            && input.iter().enumerate().all(|(i, value)| {
+                                let mut info = hb_glyph_info_t {
+                                    glyph_id: ctx.glyphs[i + 1].into(),
+                                    ..hb_glyph_info_t::default()
+                                };
+                                match_fn(&mut info, value.get())
+                            })
                     })
                     .unwrap_or(false)
                 })
@@ -199,40 +239,136 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
     }
 }
 
-fn get_class(class_def: &ClassDef, gid: GlyphId) -> u16 {
-    let Ok(gid16) = gid.try_into() else {
-        return 0;
-    };
-    class_def.get(gid16)
-}
-
 /// Value represents glyph class.
-fn match_class<'a>(class_def: &'a Option<ClassDef<'a>>) -> impl Fn(GlyphId, u16) -> bool + 'a {
-    |glyph, value| {
+fn match_class<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |&mut info, value| {
         class_def
             .as_ref()
-            .is_some_and(|class_def| get_class(class_def, glyph) == value)
+            .is_some_and(|class_def| class_def.get(info.as_glyph()) == value)
     }
+}
+fn get_class_cached<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = info.syllable() as u16;
+    if klass < 255 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        class_def.get(info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 255 {
+        info.set_syllable(klass as u8);
+    }
+
+    klass
+}
+fn match_class_cached<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| get_class_cached(class_def, info) == value
+}
+fn get_class_cached1<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = (info.syllable() & 0x0F) as u16;
+    if klass < 15 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        class_def.get(info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 15 {
+        info.set_syllable((info.syllable() & 0xF0) | klass as u8);
+    }
+
+    klass
+}
+fn match_class_cached1<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| get_class_cached1(class_def, info) == value
+}
+fn get_class_cached2<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
+    let mut klass = (info.syllable() & 0xF0) as u16 >> 4;
+    if klass < 15 {
+        return klass;
+    }
+
+    klass = if let Some(class_def) = class_def.as_ref() {
+        class_def.get(info.as_glyph())
+    } else {
+        0
+    };
+
+    if klass < 15 {
+        info.set_syllable((info.syllable() & 0x0F) | ((klass as u8) << 4));
+    }
+
+    klass
+}
+fn match_class_cached2<'a>(
+    class_def: &'a Option<ClassDef<'a>>,
+) -> impl Fn(&mut hb_glyph_info_t, u16) -> bool + 'a {
+    |info: &mut hb_glyph_info_t, value| get_class_cached2(class_def, info) == value
 }
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
             ctx,
             &set.chained_class_seq_rules(),
-            [
+            (
                 match_class(&backtrack_classes),
                 match_class(&input_classes),
                 match_class(&lookahead_classes),
-            ],
+            ),
         )
+    }
+    fn apply_cached(
+        &self,
+        ctx: &mut hb_ot_apply_context_t,
+        _: &SubtableExternalCache,
+    ) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
+        let backtrack_classes = self.backtrack_class_def().ok();
+        let input_classes = self.input_class_def().ok();
+        let lookahead_classes = self.lookahead_class_def().ok();
+        let index =
+            get_class_cached2(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+        apply_chain_context_rules(
+            ctx,
+            &set.chained_class_seq_rules(),
+            (
+                match_class(&backtrack_classes),
+                match_class_cached2(&input_classes),
+                match_class_cached1(&lookahead_classes),
+            ),
+        )
+    }
+    fn cache_cost(&self) -> u32 {
+        self.input_class_def()
+            .ok()
+            .map_or(0, |class_def| class_def.cost())
+            + self
+                .lookahead_class_def()
+                .ok()
+                .map_or(0, |class_def| class_def.cost())
     }
 }
 
@@ -261,22 +397,22 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         let backtrack_coverages = self.backtrack_coverages();
         let lookahead_coverages = self.lookahead_coverages();
 
-        let back = |glyph: GlyphId, index: u16| {
+        let back = |info: &mut hb_glyph_info_t, index: u16| {
             backtrack_coverages
                 .get(index as usize)
-                .is_ok_and(|cov| cov.get(glyph).is_some())
+                .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
 
-        let ahead = |glyph: GlyphId, index: u16| {
+        let ahead = |info: &mut hb_glyph_info_t, index: u16| {
             lookahead_coverages
                 .get(index as usize)
-                .is_ok_and(|cov| cov.get(glyph).is_some())
+                .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
 
-        let input = |glyph: GlyphId, index: u16| {
+        let input = |info: &mut hb_glyph_info_t, index: u16| {
             input_coverages
                 .get(index as usize + 1)
-                .is_ok_and(|cov| cov.get(glyph).is_some())
+                .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
 
         let mut end_index = ctx.buffer.idx;
@@ -362,12 +498,12 @@ trait ContextRule<'a>: FontRead<'a> {
     fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        match_func: &impl Fn(GlyphId, u16) -> bool,
+        match_func: &impl Fn(&mut hb_glyph_info_t, u16) -> bool,
     ) -> Option<()> {
         let inputs = self.input();
-        let match_func = |glyph, index| {
+        let match_func = |info: &mut hb_glyph_info_t, index| {
             let value = inputs.get(index as usize).unwrap().to_u16();
-            match_func(glyph, value)
+            match_func(info, value)
         };
 
         let mut match_end = 0;
@@ -423,9 +559,13 @@ impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
 fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
-    match_func: impl Fn(GlyphId, u16) -> bool,
+    match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
 ) -> Option<()> {
-    if rules.len() <= 4 {
+    // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
+    // faster. But our lookup code is slower, so NOT using this condition
+    // makes us faster.  Reconsider when lookup code is faster.
+    //if rules.len() <= 4 {
+    if false {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
@@ -436,15 +576,15 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
     let mut skippy_iter = skipping_iterator_t::new(ctx, true);
-    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
-        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        let g1 = skippy_iter.index();
         unsafe_to = Some(skippy_iter.index() + 1);
-        if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for rule in rules.iter().filter_map(|r| r.ok()) {
@@ -454,7 +594,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             }
             return None;
         }
-        g1.as_glyph()
+        g1
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
         // further impact.
@@ -470,22 +610,24 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         return None;
     };
     let matched = skippy_iter.next(None);
-    let g2 = &ctx.buffer.info[skippy_iter.index()];
-    if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
-        second = Some(g2.as_glyph());
+    let g2 = skippy_iter.index();
+    if matched && skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) == may_skip_t::SKIP_NO {
+        second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
     }
     for rule in rules.iter().filter_map(|r| r.ok()) {
         let inputs = rule.input();
-        let match_func2 = |glyph, index| {
+        let match_func2 = |info: &mut hb_glyph_info_t, index| {
             if let Some(value) = inputs.get(index as usize).map(|v| v.to_u16()) {
-                match_func(glyph, value)
+                match_func(info, value)
             } else {
                 false
             }
         };
-        if inputs.len() <= 1 || match_func2(first, 0) {
-            if second.is_none() || (inputs.len() <= 2 || match_func2(second.unwrap(), 1)) {
+        if inputs.len() <= 1 || match_func2(&mut ctx.buffer.info[first], 0) {
+            if second.is_none()
+                || (inputs.len() <= 2 || match_func2(&mut ctx.buffer.info[second.unwrap()], 1))
+            {
                 if rule.apply(ctx, &match_func).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
@@ -509,10 +651,14 @@ trait ChainContextRule<'a>: ContextRule<'a> {
     fn backtrack(&self) -> &'a [Self::Input];
     fn lookahead(&self) -> &'a [Self::Input];
 
-    fn apply_chain<F: Fn(GlyphId, u16) -> bool>(
+    fn apply_chain<
+        F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
+        F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
+        F3: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    >(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        match_funcs: &[F; 3],
+        match_funcs: &(F1, F2, F3),
     ) -> Option<()> {
         let input = self.input();
         let backtrack = self.backtrack();
@@ -520,19 +666,19 @@ trait ChainContextRule<'a>: ContextRule<'a> {
 
         // NOTE: Whenever something in this method changes, we also need to
         // change it in the `apply` implementation for ChainedContextLookup.
-        let f1 = |glyph, index| {
+        let f1 = |info: &mut hb_glyph_info_t, index| {
             let value = (*backtrack.get(index as usize).unwrap()).to_u16();
-            match_funcs[0](glyph, value)
+            match_funcs.0(info, value)
         };
 
-        let f2 = |glyph, index| {
+        let f2 = |info: &mut hb_glyph_info_t, index| {
             let value = (*lookahead.get(index as usize).unwrap()).to_u16();
-            match_funcs[2](glyph, value)
+            match_funcs.2(info, value)
         };
 
-        let f3 = |glyph, index| {
+        let f3 = |info: &mut hb_glyph_info_t, index| {
             let value = (*input.get(index as usize).unwrap()).to_u16();
-            match_funcs[1](glyph, value)
+            match_funcs.1(info, value)
         };
 
         let mut end_index = ctx.buffer.idx;
@@ -626,16 +772,28 @@ impl<'a> ChainContextRule<'a> for ChainedClassSequenceRule<'a> {
     }
 }
 
-fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16) -> bool>(
+fn apply_chain_context_rules<
+    'a,
+    'b,
+    R: ChainContextRule<'a>,
+    F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    F3: Fn(&mut hb_glyph_info_t, u16) -> bool,
+>(
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
-    match_funcs: [F; 3],
+    match_funcs: (F1, F2, F3),
 ) -> Option<()> {
     // If the input skippy has non-auto joiners behavior (as in Indic shapers),
     // skip this fast path, as we don't distinguish between input & lookahead
     // matching in the fast path.
     // https://github.com/harfbuzz/harfbuzz/issues/4813
-    if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+    //
+    // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
+    // faster. But our lookup code is slower, so NOT using this condition
+    // makes us faster.  Reconsider when lookup code is faster.
+    //if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+    if !ctx.auto_zwnj || !ctx.auto_zwj {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());
@@ -646,15 +804,15 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
     let mut skippy_iter = skipping_iterator_t::new(ctx, true);
-    skippy_iter.reset(ctx.buffer.idx);
+    skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
-        let g1 = &ctx.buffer.info[skippy_iter.index()];
+        let g1 = skippy_iter.index();
         unsafe_to = Some(skippy_iter.index() + 1);
-        if skippy_iter.may_skip(g1) != may_skip_t::SKIP_NO {
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for rule in rules.iter().filter_map(|r| r.ok()) {
@@ -664,7 +822,7 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
             }
             return None;
         }
-        g1.as_glyph()
+        g1
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
         // further impact.
@@ -680,36 +838,37 @@ fn apply_chain_context_rules<'a, 'b, R: ChainContextRule<'a>, F: Fn(GlyphId, u16
         return None;
     };
     let matched = skippy_iter.next(None);
-    let g2 = &ctx.buffer.info[skippy_iter.index()];
-    if matched && skippy_iter.may_skip(g2) == may_skip_t::SKIP_NO {
-        second = Some(g2.as_glyph());
+    let g2 = skippy_iter.index();
+    if matched && skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) == may_skip_t::SKIP_NO {
+        second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
     }
     for rule in rules.iter().filter_map(|r| r.ok()) {
         let input = rule.input();
         let lookahead = rule.lookahead();
-        let match_input = |glyph, index: usize| {
+        let match_input = |info: &mut hb_glyph_info_t, index: usize| {
             input
                 .get(index)
-                .is_some_and(|v| match_funcs[1](glyph, v.to_u16()))
+                .is_some_and(|v| match_funcs.1(info, v.to_u16()))
         };
-        let match_lookahead = |glyph, index: usize| {
+        let match_lookahead = |info: &mut hb_glyph_info_t, index: usize| {
             lookahead
                 .get(index)
-                .is_some_and(|v| match_funcs[2](glyph, v.to_u16()))
+                .is_some_and(|v| match_funcs.2(info, v.to_u16()))
         };
         let len_p1 = (input.len() + 1).max(1);
         let matched_first = if len_p1 > 1 {
-            match_input(first, 0)
+            match_input(&mut ctx.buffer.info[first], 0)
         } else {
-            lookahead.is_empty() || match_lookahead(first, 0)
+            lookahead.is_empty() || match_lookahead(&mut ctx.buffer.info[first], 0)
         };
         if matched_first {
             let matched_second = if let Some(second) = second {
                 if len_p1 > 2 {
-                    match_input(second, 1)
+                    match_input(&mut ctx.buffer.info[second], 1)
                 } else {
-                    (lookahead.len() <= 2 - len_p1) || match_lookahead(second, 2 - len_p1)
+                    (lookahead.len() <= 2 - len_p1)
+                        || match_lookahead(&mut ctx.buffer.info[second], 2 - len_p1)
                 }
             } else {
                 true

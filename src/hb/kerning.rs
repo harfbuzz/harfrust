@@ -3,7 +3,7 @@ use read_fonts::{
     types::GlyphId,
 };
 
-use super::aat_layout_kerx_table::SimpleKerning;
+use super::aat::layout_kerx_table::SimpleKerning;
 use super::buffer::*;
 use super::ot_layout::TableIndex;
 use super::ot_layout_common::lookup_flags;
@@ -101,7 +101,7 @@ fn machine_kern(
             continue;
         }
 
-        let mut iter = skipping_iterator_t::new(&ctx, false);
+        let mut iter = skipping_iterator_t::new(&mut ctx, false);
         iter.reset(i);
 
         let mut unsafe_to = 0;

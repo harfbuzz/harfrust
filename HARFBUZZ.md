@@ -5,8 +5,8 @@ We aspire to match HarfBuzz, in correctness and performance.
 We have our own subset of the HarfBuzz shaping tests in `tests`,
 which all pass (`cargo test`).
 
-We also have our own benchmark suite against HarfBuzz in `benches`,
-that runs the same shaping benchmarks using the
+We also have our own benchmark suite against HarfBuzz with
+`cargo bench` that runs the same shaping benchmarks using the
 [`harfbuzz_rs`](https://github.com/harfbuzz/harfbuzz_rs)
 Rust HarfBuzz bindings crate.
 

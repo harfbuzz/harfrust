@@ -11,6 +11,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::wildcard_in_or_patterns)]
 #![allow(clippy::identity_op)]
+#![allow(clippy::inline_always)]
 #![allow(clippy::mut_range_bound)]
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::manual_range_patterns)]
@@ -23,11 +24,6 @@ mod algs;
 #[macro_use]
 pub mod buffer;
 mod aat;
-mod aat_layout;
-mod aat_layout_kerx_table;
-mod aat_layout_morx_table;
-mod aat_layout_trak_table;
-mod aat_map;
 mod cache;
 mod charmap;
 pub mod common;
@@ -67,9 +63,9 @@ mod ot_shaper_use_machine;
 #[rustfmt::skip]
 #[allow(clippy::unreadable_literal)]
 mod ot_shaper_use_table;
-mod aat_layout_common;
 mod ot_shaper_vowel_constraints;
 mod set_digest;
+mod tables;
 mod tag;
 mod tag_table;
 mod text_parser;

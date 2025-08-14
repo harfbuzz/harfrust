@@ -6,7 +6,7 @@ use core::ops::Range;
 use read_fonts::types::GlyphId;
 
 use super::algs::*;
-use super::buffer::hb_buffer_t;
+use super::buffer::*;
 use super::ot_layout::*;
 use super::ot_layout_gsubgpos::WouldApplyContext;
 use super::ot_map::*;
@@ -14,6 +14,7 @@ use super::ot_shape::*;
 use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
+use super::ot_shaper_syllabic::*;
 use super::unicode::{hb_gc, CharExt, GeneralCategoryExt};
 use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
 
@@ -32,6 +33,56 @@ pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
     fallback_position: false,
 };
+
+impl hb_glyph_info_t {
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_CATEGORY_VAR,
+        u8,
+        INDIC_CATEGORY_VAR,
+        indic_category,
+        set_indic_category
+    );
+    declare_buffer_var_alias!(
+        OT_SHAPER_VAR_U8_AUXILIARY_VAR,
+        u8,
+        INDIC_POSITION_VAR,
+        indic_position,
+        set_indic_position
+    );
+
+    fn is_one_of(&self, flags: u32) -> bool {
+        // If it ligated, all bets are off.
+        if _hb_glyph_info_ligated(self) {
+            return false;
+        }
+
+        rb_flag_unsafe(self.indic_category() as u32) & flags != 0
+    }
+
+    fn is_joiner(&self) -> bool {
+        self.is_one_of(JOINER_FLAGS)
+    }
+
+    pub(crate) fn is_consonant(&self) -> bool {
+        self.is_one_of(CONSONANT_FLAGS_INDIC)
+    }
+
+    pub(crate) fn is_consonant_myanmar(&self) -> bool {
+        self.is_one_of(CONSONANT_FLAGS_MYANMAR)
+    }
+
+    fn is_halant(&self) -> bool {
+        self.is_one_of(rb_flag(ot_category_t::OT_H as u32))
+    }
+
+    fn set_indic_properties(&mut self) {
+        let u = self.glyph_id;
+        let (cat, pos) = crate::hb::ot_shaper_indic_table::get_categories(u);
+
+        self.set_indic_category(cat);
+        self.set_indic_position(pos);
+    }
+}
 
 pub type Category = u8;
 
@@ -92,7 +143,6 @@ pub mod ot_category_t {
     pub const IV: u8 = 2;
 }
 
-pub type Position = u8;
 pub mod ot_position_t {
     pub const POS_START: u8 = 0;
 
@@ -505,77 +555,6 @@ impl IndicShapePlan {
     }
 }
 
-impl hb_glyph_info_t {
-    pub(crate) fn indic_category(&self) -> Category {
-        self.ot_shaper_var_u8_category()
-    }
-
-    pub(crate) fn myanmar_category(&self) -> Category {
-        self.ot_shaper_var_u8_category()
-    }
-
-    pub(crate) fn khmer_category(&self) -> Category {
-        self.ot_shaper_var_u8_category()
-    }
-
-    pub(crate) fn set_indic_category(&mut self, c: Category) {
-        self.set_ot_shaper_var_u8_category(c);
-    }
-
-    pub(crate) fn set_myanmar_category(&mut self, c: Category) {
-        self.set_ot_shaper_var_u8_category(c);
-    }
-
-    pub(crate) fn indic_position(&self) -> Position {
-        self.ot_shaper_var_u8_auxiliary()
-    }
-
-    pub(crate) fn myanmar_position(&self) -> Position {
-        self.ot_shaper_var_u8_auxiliary()
-    }
-
-    pub(crate) fn set_indic_position(&mut self, c: Position) {
-        self.set_ot_shaper_var_u8_auxiliary(c);
-    }
-
-    pub(crate) fn set_myanmar_position(&mut self, c: Position) {
-        self.set_ot_shaper_var_u8_auxiliary(c);
-    }
-
-    fn is_one_of(&self, flags: u32) -> bool {
-        // If it ligated, all bets are off.
-        if _hb_glyph_info_ligated(self) {
-            return false;
-        }
-
-        rb_flag_unsafe(self.indic_category() as u32) & flags != 0
-    }
-
-    fn is_joiner(&self) -> bool {
-        self.is_one_of(JOINER_FLAGS)
-    }
-
-    pub(crate) fn is_consonant(&self) -> bool {
-        self.is_one_of(CONSONANT_FLAGS_INDIC)
-    }
-
-    pub(crate) fn is_consonant_myanmar(&self) -> bool {
-        self.is_one_of(CONSONANT_FLAGS_MYANMAR)
-    }
-
-    fn is_halant(&self) -> bool {
-        self.is_one_of(rb_flag(ot_category_t::OT_H as u32))
-    }
-
-    fn set_indic_properties(&mut self) {
-        let u = self.glyph_id;
-        let (cat, pos) = crate::hb::ot_shaper_indic_table::get_categories(u);
-
-        self.set_indic_category(cat);
-        self.set_indic_position(pos);
-    }
-}
-
 fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     // Do this before any lookups have been applied.
     planner.ot_map.add_gsub_pause(Some(setup_syllables));
@@ -641,6 +620,9 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+    buffer.allocate_var(hb_glyph_info_t::INDIC_CATEGORY_VAR);
+    buffer.allocate_var(hb_glyph_info_t::INDIC_POSITION_VAR);
+
     // We cannot setup masks here.  We save information about characters
     // and setup masks later on in a pause-callback.
     for info in buffer.info_slice_mut() {
@@ -649,6 +631,8 @@ fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) 
 }
 
 fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+
     super::ot_shaper_indic_machine::find_syllables_indic(buffer);
 
     let mut start = 0;
@@ -674,7 +658,7 @@ fn initial_reordering(
     let indic_plan = plan.data::<IndicShapePlan>();
 
     update_consonant_positions(plan, indic_plan, face, buffer);
-    if super::ot_shaper_syllabic::insert_dotted_circles(
+    if insert_dotted_circles(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
@@ -1356,6 +1340,9 @@ fn final_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb
     foreach_syllable!(buffer, start, end, {
         final_reordering_impl(plan, face, start, end, buffer);
     });
+
+    buffer.deallocate_var(hb_glyph_info_t::INDIC_CATEGORY_VAR);
+    buffer.deallocate_var(hb_glyph_info_t::INDIC_POSITION_VAR);
 
     false
 }
