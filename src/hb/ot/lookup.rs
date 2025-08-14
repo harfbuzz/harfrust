@@ -271,9 +271,6 @@ impl LookupInfo {
         use_hot_subtable_cache: bool,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
-        if !self.digest.may_have_glyph(glyph) {
-            return None;
-        }
         for (subtable_idx, subtable_info) in cache.subtables(self)?.iter().enumerate() {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;

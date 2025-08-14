@@ -217,7 +217,8 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
 
     while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
         let cur = ctx.buffer.cur(0);
-        if (cur.mask & ctx.lookup_mask()) != 0
+        if lookup.digest.may_have_glyph(cur.as_glyph())
+            && (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
             && lookup
                 .apply(ctx, table_data, lookups, use_hot_subtable_cache)
