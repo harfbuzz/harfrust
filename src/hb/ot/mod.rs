@@ -202,14 +202,14 @@ impl<'a> OtTables<'a> {
         self.gdef
             .classes
             .as_ref()
-            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
+            .map_or(0, |class_def| class_def.get(glyph_id))
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
         self.gdef
             .mark_classes
             .as_ref()
-            .map_or(0, |class_def| class_def.get((glyph_id as u16).into()))
+            .map_or(0, |class_def| class_def.get(glyph_id))
     }
 
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
@@ -535,11 +535,8 @@ fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
 }
 
 fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
-    let Ok(gid16) = gid.try_into() else {
-        return 0;
-    };
     class_def
-        .map(|class_def| class_def.get(gid16))
+        .map(|class_def| class_def.get(gid))
         .unwrap_or_default()
 }
 

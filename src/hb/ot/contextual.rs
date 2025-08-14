@@ -11,7 +11,7 @@ use read_fonts::tables::layout::{
     ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
-use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
+use read_fonts::types::{BigEndian, GlyphId16, Offset16};
 use read_fonts::{ArrayOfOffsets, FontRead};
 
 impl WouldApply for SequenceContextFormat1<'_> {
@@ -239,13 +239,6 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
     }
 }
 
-fn get_class(class_def: &ClassDef, gid: GlyphId) -> u16 {
-    let Ok(gid16) = gid.try_into() else {
-        return 0;
-    };
-    class_def.get(gid16)
-}
-
 /// Value represents glyph class.
 fn match_class<'a>(
     class_def: &'a Option<ClassDef<'a>>,
@@ -253,7 +246,7 @@ fn match_class<'a>(
     |&mut info, value| {
         class_def
             .as_ref()
-            .is_some_and(|class_def| get_class(class_def, info.as_glyph()) == value)
+            .is_some_and(|class_def| class_def.get(info.as_glyph()) == value)
     }
 }
 fn get_class_cached<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph_info_t) -> u16 {
@@ -263,7 +256,7 @@ fn get_class_cached<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyph
     }
 
     klass = if let Some(class_def) = class_def.as_ref() {
-        get_class(class_def, info.as_glyph())
+        class_def.get(info.as_glyph())
     } else {
         0
     };
@@ -286,7 +279,7 @@ fn get_class_cached1<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyp
     }
 
     klass = if let Some(class_def) = class_def.as_ref() {
-        get_class(class_def, info.as_glyph())
+        class_def.get(info.as_glyph())
     } else {
         0
     };
@@ -309,7 +302,7 @@ fn get_class_cached2<'a>(class_def: &'a Option<ClassDef<'a>>, info: &mut hb_glyp
     }
 
     klass = if let Some(class_def) = class_def.as_ref() {
-        get_class(class_def, info.as_glyph())
+        class_def.get(info.as_glyph())
     } else {
         0
     };
