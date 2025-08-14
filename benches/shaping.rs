@@ -117,7 +117,7 @@ impl<'a> HrTestState<'a> {
         }
     }
 
-    fn shaper(&self) -> harfrust::Shaper {
+    fn shaper(&self) -> harfrust::Shaper<'_> {
         self.data
             .shaper(self.font)
             .instance(self._instance.as_ref())
