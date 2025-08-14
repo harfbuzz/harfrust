@@ -78,7 +78,7 @@ impl Apply for LigatureSet<'_> {
         let mut first = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
         let ligatures = self.ligatures();
-        let slow_path = if ligatures.len() <= 4 {
+        let slow_path = if ligatures.len() <= 1 {
             true
         } else {
             let mut iter = skipping_iterator_t::new(ctx, false);
