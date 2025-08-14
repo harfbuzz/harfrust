@@ -2,8 +2,8 @@ use super::{coverage_index, covered, glyph_class};
 use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    apply_lookup, match_backtrack, match_glyph, match_input, match_lookahead, may_skip_t,
-    skipping_iterator_t, Apply, SubtableExternalCache, WouldApply, WouldApplyContext,
+    apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
+    may_skip_t, skipping_iterator_t, Apply, SubtableExternalCache, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -575,7 +575,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     }
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
-    let mut skippy_iter = skipping_iterator_t::new(ctx, true);
+    let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to;
@@ -803,7 +803,7 @@ fn apply_chain_context_rules<
     }
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
-    let mut skippy_iter = skipping_iterator_t::new(ctx, true);
+    let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to;

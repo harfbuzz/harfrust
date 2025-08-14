@@ -18,6 +18,10 @@ pub fn match_glyph(info: &mut hb_glyph_info_t, value: u16) -> bool {
     info.glyph_id == value as u32
 }
 
+pub fn match_always(_info: &mut hb_glyph_info_t, _value: u16) -> bool {
+    true
+}
+
 pub fn match_input(
     ctx: &mut hb_ot_apply_context_t,
     input_len: u16,
