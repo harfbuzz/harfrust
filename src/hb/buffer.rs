@@ -644,6 +644,10 @@ impl hb_buffer_t {
             return;
         }
 
+        self.add_ensured(codepoint, cluster);
+    }
+
+    fn add_ensured(&mut self, codepoint: u32, cluster: u32) {
         let i = self.len;
         self.info[i] = hb_glyph_info_t {
             glyph_id: codepoint,
@@ -1533,7 +1537,7 @@ impl hb_buffer_t {
         }
 
         for (i, c) in text.char_indices() {
-            self.add(c as u32, i as u32);
+            self.add_ensured(c as u32, i as u32);
         }
     }
 
