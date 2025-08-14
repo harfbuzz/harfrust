@@ -2,7 +2,7 @@ use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    ligate_input, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
+    ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
     SubtableExternalCache, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
@@ -81,7 +81,7 @@ impl Apply for LigatureSet<'_> {
         let slow_path = if ligatures.len() <= 1 {
             true
         } else {
-            let mut iter = skipping_iterator_t::new(ctx, false);
+            let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_always));
             iter.reset(iter.buffer.idx);
             let matched = iter.next(Some(&mut unsafe_to));
             if !matched {
