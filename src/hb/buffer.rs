@@ -885,7 +885,7 @@ impl hb_buffer_t {
     /// Copies glyph at idx to output and advance idx.
     ///
     /// If there's no output, just advance idx.
-    #[inline]
+    #[inline(always)]
     pub fn next_glyph(&mut self) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
