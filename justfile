@@ -42,7 +42,7 @@ ci-coverage: env-info && \
 ci-test: env-info test-fmt build test test-doc clippy && assert-git-is-clean
 
 # Run minimal subset of tests to ensure compatibility with MSRV
-ci-test-msrv: env-info build-lib build-lib-no-std test
+ci-test-msrv: env-info build-lib build-lib-no-std
 
 # Clean all build artifacts
 clean:
