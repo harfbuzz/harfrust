@@ -1698,6 +1698,11 @@ impl UnicodeBuffer {
         self.0.len
     }
 
+    /// Ensures that the buffer can hold at least `size` codepoints.
+    pub fn ensure(&mut self, size: usize) -> bool {
+        self.0.ensure(size)
+    }
+
     /// Returns `true` if the buffer contains no elements.
     #[inline]
     pub fn is_empty(&self) -> bool {
