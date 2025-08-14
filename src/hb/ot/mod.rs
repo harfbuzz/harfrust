@@ -567,5 +567,5 @@ fn read_coverage_index(
     let data = FontData::new(table_data);
     let base = base + data.read_at::<u16>(base + offset_offset).ok()? as usize;
     let data = data.split_off(base)?;
-    return CoverageTable::read(data).ok()?.get(glyph_id);
+    CoverageTable::read(data).ok()?.get(glyph_id)
 }
