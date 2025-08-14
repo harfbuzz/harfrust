@@ -3,7 +3,7 @@
 use crate::{hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t, GlyphPosition};
 use read_fonts::{
     tables::{
-        gpos::{DeviceOrVariationIndex, ValueFormat, ValueRecord},
+        gpos::{DeviceOrVariationIndex, Value, ValueFormat, ValueRecord},
         variations::DeltaSetIndex,
     },
     FontData, ReadError,
@@ -14,138 +14,29 @@ mod mark;
 mod pair;
 mod single;
 
-pub(crate) use pair::{apply_pair_pos1, apply_pair_pos2};
-
-struct ValueReader<'a> {
-    data: FontData<'a>,
-    parent_offset: usize,
-    offset: usize,
-    format: ValueFormat,
+fn apply_value_to_pos(ctx: &mut hb_ot_apply_context_t, idx: usize, value: &Value) -> bool {
+    let pos = &mut ctx.buffer.pos[idx];
+    let is_horizontal = ctx.buffer.direction.is_horizontal();
+    pos.x_offset += value.x_placement as i32 + value.x_placement_delta;
+    pos.y_offset += value.y_placement as i32 + value.y_placement_delta;
+    let advance = if is_horizontal {
+        pos.x_advance += value.x_advance as i32 + value.x_advance_delta;
+        value.x_advance
+    } else {
+        pos.y_advance -= value.y_advance as i32 + value.y_advance_delta;
+        value.y_advance
+    };
+    ((value.x_placement | value.y_placement | advance) != 0)
+        | value.format.contains(ValueFormat::ANY_DEVICE_OR_VARIDX)
 }
 
-impl<'a> ValueReader<'a> {
-    pub fn new(
-        data: FontData<'a>,
-        parent_offset: usize,
-        offset: usize,
-        format: ValueFormat,
-    ) -> Self {
-        Self {
-            data,
-            parent_offset,
-            offset,
-            format,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.format.is_empty()
-    }
-
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t, idx: usize) -> bool {
-        let mut pos = ctx.buffer.pos[idx];
-        let worked = self.apply_to_pos(ctx, &mut pos);
-        ctx.buffer.pos[idx] = pos;
-        worked == Some(true)
-    }
-
-    fn apply_to_pos(
-        &self,
-        ctx: &mut hb_ot_apply_context_t,
-        pos: &mut GlyphPosition,
-    ) -> Option<bool> {
-        let horizontal = ctx.buffer.direction.is_horizontal();
-        let mut worked = false;
-        let mut offset = self.offset;
-        if self.format.contains(ValueFormat::X_PLACEMENT) {
-            let value = self.data.read_at::<i16>(offset).ok()?;
-            offset += 2;
-            if value != 0 {
-                pos.x_offset += value as i32;
-                worked = true;
-            }
-        }
-        if self.format.contains(ValueFormat::Y_PLACEMENT) {
-            let value = self.data.read_at::<i16>(offset).ok()?;
-            offset += 2;
-            if value != 0 {
-                pos.y_offset += value as i32;
-                worked = true;
-            }
-        }
-        if self.format.contains(ValueFormat::X_ADVANCE) {
-            if horizontal {
-                let value = self.data.read_at::<i16>(offset).ok()?;
-                if value != 0 {
-                    pos.x_advance += value as i32;
-                    worked = true;
-                }
-            }
-            offset += 2;
-        }
-        if self.format.contains(ValueFormat::Y_ADVANCE) {
-            if !horizontal {
-                let value = self.data.read_at::<i16>(offset).ok()?;
-                if value != 0 {
-                    // y_advance values grow downward but font-space grows upward, hence negation
-                    pos.y_advance -= value as i32;
-                    worked = true;
-                }
-            }
-            offset += 2;
-        }
-        if let (false, Some(vs)) = (
-            ctx.face.ot_tables.coords.is_empty(),
-            ctx.face.ot_tables.var_store.as_ref(),
-        ) {
-            let coords = ctx.face.ot_tables.coords;
-            let delta = |offset: usize| {
-                let rec_offset =
-                    self.parent_offset + self.data.read_at::<u16>(offset).ok()? as usize;
-                let format = self.data.read_at::<u16>(rec_offset + 4).ok()?;
-                if format != 0x8000 {
-                    return Some(0);
-                }
-                let outer = self.data.read_at::<u16>(rec_offset).ok()?;
-                let inner = self.data.read_at::<u16>(rec_offset + 2).ok()?;
-                vs.compute_delta(DeltaSetIndex { outer, inner }, coords)
-                    .ok()
-            };
-            if self.format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-                pos.x_offset += delta(offset).unwrap_or_default();
-                offset += 2;
-                worked = true;
-            }
-            if self.format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-                pos.y_offset += delta(offset).unwrap_or_default();
-                offset += 2;
-                worked = true;
-            }
-            if self.format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-                if horizontal {
-                    pos.x_advance += delta(offset).unwrap_or_default();
-                    worked = true;
-                }
-                offset += 2;
-            }
-            if self.format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-                if !horizontal {
-                    // y_advance values grow downward but face-space grows upward, hence negation
-                    pos.y_advance -= delta(offset).unwrap_or_default();
-                    worked = true;
-                }
-            }
-        }
-        Some(worked)
-    }
-}
-
-struct Value<'a> {
+// TODO: remove me
+struct ValueResolver<'a> {
     record: ValueRecord,
     data: FontData<'a>,
 }
 
-impl Value<'_> {
+impl ValueResolver<'_> {
     fn is_empty(&self) -> bool {
         self.record.format.is_empty()
     }

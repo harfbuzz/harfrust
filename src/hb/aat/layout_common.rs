@@ -38,7 +38,7 @@ impl<'a> AatApplyContext<'a> {
             if self.has_glyph_classes {
                 self.buffer
                     .cur_mut(0)
-                    .set_glyph_props(self.face.glyph_props(glyph.into()));
+                    .set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
             }
         }
         self.buffer.output_glyph(glyph);
@@ -53,7 +53,7 @@ impl<'a> AatApplyContext<'a> {
         if self.has_glyph_classes {
             self.buffer
                 .cur_mut(0)
-                .set_glyph_props(self.face.glyph_props(glyph.into()));
+                .set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
         }
         self.buffer.replace_glyph(glyph);
     }
@@ -67,7 +67,7 @@ impl<'a> AatApplyContext<'a> {
     pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
         self.buffer.info[i].glyph_id = glyph;
         if self.has_glyph_classes {
-            self.buffer.info[i].set_glyph_props(self.face.glyph_props(glyph.into()));
+            self.buffer.info[i].set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
         }
     }
 }

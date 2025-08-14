@@ -328,11 +328,11 @@ fn match_class_cached2<'a>(
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
         let index = input_classes.as_ref()?.get(glyph) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
@@ -350,11 +350,11 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         ctx: &mut hb_ot_apply_context_t,
         _: &SubtableExternalCache,
     ) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_gid16()?;
+        self.coverage().ok()?.get(glyph)?;
         let backtrack_classes = self.backtrack_class_def().ok();
         let input_classes = self.input_class_def().ok();
         let lookahead_classes = self.lookahead_class_def().ok();
-        let glyph = ctx.buffer.cur(0).as_gid16()?;
-        self.coverage().ok()?.get(glyph)?;
         let index =
             get_class_cached2(&input_classes, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
@@ -568,7 +568,11 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
 ) -> Option<()> {
-    if rules.len() <= 4 {
+    // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
+    // faster. But our lookup code is slower, so NOT using this condition
+    // makes us faster.  Reconsider when lookup code is faster.
+    //if rules.len() <= 4 {
+    if false {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
@@ -791,7 +795,12 @@ fn apply_chain_context_rules<
     // skip this fast path, as we don't distinguish between input & lookahead
     // matching in the fast path.
     // https://github.com/harfbuzz/harfbuzz/issues/4813
-    if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+    //
+    // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
+    // faster. But our lookup code is slower, so NOT using this condition
+    // makes us faster.  Reconsider when lookup code is faster.
+    //if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+    if !ctx.auto_zwnj || !ctx.auto_zwj {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());

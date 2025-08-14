@@ -644,6 +644,10 @@ impl hb_buffer_t {
             return;
         }
 
+        self.add_ensured(codepoint, cluster);
+    }
+
+    fn add_ensured(&mut self, codepoint: u32, cluster: u32) {
         let i = self.len;
         self.info[i] = hb_glyph_info_t {
             glyph_id: codepoint,
@@ -885,7 +889,7 @@ impl hb_buffer_t {
     /// Copies glyph at idx to output and advance idx.
     ///
     /// If there's no output, just advance idx.
-    #[inline]
+    #[inline(always)]
     pub fn next_glyph(&mut self) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
@@ -1533,7 +1537,7 @@ impl hb_buffer_t {
         }
 
         for (i, c) in text.char_indices() {
-            self.add(c as u32, i as u32);
+            self.add_ensured(c as u32, i as u32);
         }
     }
 
@@ -1692,6 +1696,11 @@ impl UnicodeBuffer {
     #[inline]
     pub fn len(&self) -> usize {
         self.0.len
+    }
+
+    /// Ensures that the buffer can hold at least `size` codepoints.
+    pub fn ensure(&mut self, size: usize) -> bool {
+        self.0.ensure(size)
     }
 
     /// Returns `true` if the buffer contains no elements.

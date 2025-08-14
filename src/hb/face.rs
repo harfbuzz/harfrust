@@ -3,17 +3,18 @@ use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
 
 use super::aat::AatTables;
-use super::buffer::GlyphPropsFlags;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::glyph_metrics::GlyphMetrics;
 use super::glyph_names::GlyphNames;
 use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::{hb_ot_shape_context_t, shape_internal};
+use crate::hb::tables::TableOffsets;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
 /// Data required for shaping with a single font.
 pub struct ShaperData {
+    table_offsets: TableOffsets,
     ot_cache: OtCache,
     cmap_cache: cmap_cache_t,
 }
@@ -22,8 +23,10 @@ impl ShaperData {
     /// Creates new cached shaper data for the given font.
     pub fn new(font: &FontRef) -> Self {
         let ot_cache = OtCache::new(font);
+        let table_offsets = TableOffsets::new(font);
         let cmap_cache = cmap_cache_t::new();
         Self {
+            table_offsets,
             ot_cache,
             cmap_cache,
         }
@@ -179,15 +182,15 @@ impl<'a> ShaperBuilder<'a> {
     /// Builds the shaper with the current configuration.
     pub fn build(self) -> crate::Shaper<'a> {
         let font = self.font;
-        let units_per_em = font.head().map(|head| head.units_per_em()).unwrap_or(1000);
-        let charmap = Charmap::new(&font, &self.data.cmap_cache);
-        let glyph_metrics = GlyphMetrics::new(&font);
+        let units_per_em = self.data.table_offsets.units_per_em;
+        let charmap = Charmap::new(&font, &self.data.table_offsets, &self.data.cmap_cache);
+        let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_offsets);
         let coords = self
             .instance
             .map(|instance| instance.coords())
             .unwrap_or_default();
-        let ot_tables = OtTables::new(&font, &self.data.ot_cache, coords);
-        let aat_tables = AatTables::new(&font);
+        let ot_tables = OtTables::new(&font, &self.data.ot_cache, &self.data.table_offsets, coords);
+        let aat_tables = AatTables::new(&font, &self.data.table_offsets);
         hb_font_t {
             font,
             units_per_em,
@@ -345,20 +348,6 @@ impl<'a> crate::Shaper<'a> {
 
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
         GlyphNames::new(&self.font)
-    }
-
-    #[inline]
-    pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
-        let glyph = glyph.to_u32();
-        match self.ot_tables.glyph_class(glyph) {
-            1 => GlyphPropsFlags::BASE_GLYPH.bits(),
-            2 => GlyphPropsFlags::LIGATURE.bits(),
-            3 => {
-                let class = self.ot_tables.glyph_mark_attachment_class(glyph);
-                (class << 8) | GlyphPropsFlags::MARK.bits()
-            }
-            _ => 0,
-        }
     }
 
     pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {

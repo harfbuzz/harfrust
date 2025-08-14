@@ -4,11 +4,11 @@ use crate::hb::ot::{coverage_index, coverage_index_cached, read_class_def, read_
 use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply, SubtableExternalCache};
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, ValueFormat};
+use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, Value};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
 
-use super::{Value, ValueReader};
+use super::{apply_value_to_pos, ValueResolver};
 
 impl Apply for PairPosFormat1<'_> {
     fn apply_with_external_cache(
@@ -69,14 +69,15 @@ impl Apply for PairPosFormat1<'_> {
                 }
             };
 
-        let bail =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: (Value, Value)| {
-                let flag1 = records.0.apply(ctx, ctx.buffer.idx);
-                let flag2 = records.1.apply(ctx, second_glyph_index);
+        let bail = |ctx: &mut hb_ot_apply_context_t,
+                    iter_index: &mut usize,
+                    records: (ValueResolver, ValueResolver)| {
+            let flag1 = records.0.apply(ctx, ctx.buffer.idx);
+            let flag2 = records.1.apply(ctx, second_glyph_index);
 
-                let has_record2 = !records.1.is_empty();
-                success(ctx, iter_index, flag1, flag2, has_record2)
-            };
+            let has_record2 = !records.1.is_empty();
+            success(ctx, iter_index, flag1, flag2, has_record2)
+        };
 
         let (pair, data) =
             find_second_glyph(self, first_glyph_coverage_index as usize, second_glyph)?;
@@ -90,11 +91,11 @@ impl Apply for PairPosFormat1<'_> {
         //     .filter_map(|value| value.ok())
         //     .find(|value| value.second_glyph() == second_glyph)?;
         let values = (
-            Value {
+            ValueResolver {
                 record: pair.value_record1,
                 data,
             },
-            Value {
+            ValueResolver {
                 record: pair.value_record2,
                 data,
             },
@@ -198,11 +199,11 @@ impl Apply for PairPosFormat2<'_> {
             };
 
         let bail =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: (Value, Value)| {
-                let flag1 = records.0.apply(ctx, ctx.buffer.idx);
-                let flag2 = records.1.apply(ctx, second_glyph_index);
+            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: &[Value; 2]| {
+                let flag1 = apply_value_to_pos(ctx, ctx.buffer.idx, &records[0]);
+                let flag2 = apply_value_to_pos(ctx, second_glyph_index, &records[1]);
 
-                let has_record2 = !records.1.is_empty();
+                let has_record2 = !records[1].format.is_empty();
                 success(ctx, iter_index, flag1, flag2, has_record2)
             };
 
@@ -224,28 +225,13 @@ impl Apply for PairPosFormat2<'_> {
         } else {
             glyph_class(self.class_def2(), second_glyph)
         };
-
-        let data = self.offset_data();
-        if let Ok(class2_record) = self
-            .class1_records()
-            .get(class1 as usize)
-            .and_then(|rec| rec.class2_records().get(class2 as usize))
-        {
-            let values = (
-                Value {
-                    record: class2_record.value_record1,
-                    data,
-                },
-                Value {
-                    record: class2_record.value_record2,
-                    data,
-                },
-            );
-            let mut buf_idx = iter.buf_idx;
-            bail(ctx, &mut buf_idx, values)
+        let mut buf_idx = iter.buf_idx;
+        let end_idx = iter.index() + 1;
+        if let Ok(values) = self.values(class1, class2, &ctx.face.ot_tables.value_context) {
+            bail(ctx, &mut buf_idx, &values)
         } else {
-            iter.buffer
-                .unsafe_to_concat(Some(iter.buffer.idx), Some(iter.index() + 1));
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_idx));
             None
         }
     }

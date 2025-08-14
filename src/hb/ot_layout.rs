@@ -85,7 +85,7 @@ pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut hb_buffer_t)
 
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
-        info.set_glyph_props(face.glyph_props(info.as_glyph()));
+        info.set_glyph_props(face.ot_tables.glyph_props(info.as_glyph()));
         info.set_lig_props(0);
     }
 }
@@ -217,7 +217,8 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
 
     while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
         let cur = ctx.buffer.cur(0);
-        if (cur.mask & ctx.lookup_mask()) != 0
+        if lookup.digest.may_have_glyph(cur.as_glyph())
+            && (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
             && lookup
                 .apply(ctx, table_data, lookups, use_hot_subtable_cache)
@@ -244,7 +245,8 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
     };
     loop {
         let cur = ctx.buffer.cur(0);
-        ret |= (cur.mask & ctx.lookup_mask()) != 0
+        ret |= lookup.digest.may_have_glyph(cur.as_glyph())
+            && (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
             && lookup.apply(ctx, table_data, lookups, false).is_some();
 
