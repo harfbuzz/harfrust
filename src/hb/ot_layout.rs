@@ -245,7 +245,8 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
     };
     loop {
         let cur = ctx.buffer.cur(0);
-        ret |= (cur.mask & ctx.lookup_mask()) != 0
+        ret |= lookup.digest.may_have_glyph(cur.as_glyph())
+            && (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props)
             && lookup.apply(ctx, table_data, lookups, false).is_some();
 
