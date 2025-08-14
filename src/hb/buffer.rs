@@ -1304,11 +1304,17 @@ impl hb_buffer_t {
     }
 
     #[must_use]
+    #[inline(always)]
     pub fn ensure(&mut self, size: usize) -> bool {
         if size <= self.info.len() {
-            return true;
+            true
+        } else {
+            self.enlarge(size)
         }
+    }
 
+    #[must_use]
+    fn enlarge(&mut self, size: usize) -> bool {
         if size > self.max_len {
             self.successful = false;
             return false;
