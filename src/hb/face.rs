@@ -109,7 +109,7 @@ impl ShaperInstance {
                 font.avar().ok().as_ref(),
                 variations
                     .into_iter()
-                    .map(|var| var.into())
+                    .map(Into::into)
                     .map(|var| (var.tag, Fixed::from_f64(var.value as _))),
                 self.coords.as_mut_slice(),
             );
