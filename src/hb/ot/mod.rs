@@ -1,6 +1,6 @@
 use super::buffer::GlyphPropsFlags;
 use super::ot_layout::TableIndex;
-use super::{common::TagExt, set_digest::hb_set_digest_t};
+use super::{common::TagExt};
 use crate::hb::hb_tag_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
@@ -16,8 +16,9 @@ use read_fonts::{
         varc::{Condition, CoverageTable},
         variations::{DeltaSetIndex, ItemVariationStore},
     },
-    types::{BigEndian, F2Dot14, GlyphId, Offset32},
-    FontData, FontRef, ReadError, ResolveOffset, TableProvider,
+    types::{F2Dot14, GlyphId},
+    collections::int_set::U32Set,
+    FontRef, ReadError, TableProvider,
 };
 
 pub mod contextual;
@@ -29,7 +30,7 @@ pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
     pub gdef_glyph_props_cache: MappingCache,
-    pub gdef_mark_set_digests: Vec<hb_set_digest_t>,
+    pub gdef_mark_sets: Vec<U32Set>,
 }
 
 impl OtCache {
@@ -50,12 +51,29 @@ impl OtCache {
                 cache
             })
             .unwrap_or_default();
-        let mut gdef_mark_set_digests = Vec::new();
+        let mut gdef_mark_sets = Vec::new();
         if let Ok(gdef) = font.gdef() {
             if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
-                gdef_mark_set_digests.extend(mark_sets.coverages().iter().map(|set| {
+                gdef_mark_sets.extend(mark_sets.coverages().iter().map(|set| {
                     set.ok()
-                        .map(|coverage| hb_set_digest_t::from_coverage(&coverage))
+                        .map(|coverage| {
+                            let mut set = U32Set::empty();
+
+                            // TODO Move somewhere in Coverage.
+                            match coverage {
+                                CoverageTable::Format1(table) => {
+                                    for glyph in table.glyph_array() {
+                                        set.insert(glyph.get().into());
+                                    }
+                                }
+                                CoverageTable::Format2(table) => {
+                                    for range in table.range_records() {
+                                        set.insert_range(range.start_glyph_id().into()..=range.end_glyph_id().into());
+                                    }
+                                }
+                            }
+                            set
+                        })
                         .unwrap_or_default()
                 }));
             }
@@ -64,7 +82,7 @@ impl OtCache {
             gsub,
             gpos,
             gdef_glyph_props_cache: MappingCache::new(),
-            gdef_mark_set_digests,
+            gdef_mark_sets,
         }
     }
 }
@@ -106,7 +124,6 @@ pub struct GdefTable<'a> {
     table: Option<Gdef<'a>>,
     classes: Option<ClassDef<'a>>,
     mark_classes: Option<ClassDef<'a>>,
-    mark_sets: Option<(FontData<'a>, &'a [BigEndian<Offset32>])>,
 }
 
 impl<'a> GdefTable<'a> {
@@ -114,17 +131,10 @@ impl<'a> GdefTable<'a> {
         if let Some(gdef) = table_offsets.gdef.resolve_table::<Gdef>(font) {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
-            let mark_sets = gdef
-                .mark_glyph_sets_def()
-                .transpose()
-                .ok()
-                .flatten()
-                .map(|sets| (sets.offset_data(), sets.coverage_offsets()));
             Self {
                 table: Some(gdef),
                 classes,
                 mark_classes,
-                mark_sets,
             }
         } else {
             Self::default()
@@ -138,7 +148,7 @@ pub struct OtTables<'a> {
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
     pub gdef_glyph_props_cache: &'a MappingCache,
-    pub gdef_mark_set_digests: &'a [hb_set_digest_t],
+    pub gdef_mark_sets: &'a [U32Set],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
     pub value_context: ValueContext<'a>,
@@ -187,7 +197,7 @@ impl<'a> OtTables<'a> {
             gpos,
             gdef,
             gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
-            gdef_mark_set_digests: &cache.gdef_mark_set_digests,
+            gdef_mark_sets: &cache.gdef_mark_sets,
             var_store,
             coords,
             value_context,
@@ -235,20 +245,10 @@ impl<'a> OtTables<'a> {
     }
 
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
-        if self
-            .gdef_mark_set_digests
+        self
+            .gdef_mark_sets
             .get(set_index as usize)
-            .is_some_and(|digest| digest.may_have_glyph(glyph_id.into()))
-        {
-            self.gdef
-                .mark_sets
-                .as_ref()
-                .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
-                .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
-                .is_some_and(|coverage| coverage.get(glyph_id).is_some())
-        } else {
-            false
-        }
+            .is_some_and(|set| set.contains(glyph_id.into()))
     }
 
     pub fn table_data_and_lookups(
