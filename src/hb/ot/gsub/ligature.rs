@@ -77,7 +77,8 @@ impl Apply for LigatureSet<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mut first = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
-        let slow_path = if self.ligatures().len() <= 4 {
+        let ligatures = self.ligatures();
+        let slow_path = if ligatures.len() <= 4 {
             true
         } else {
             let mut iter = skipping_iterator_t::new(ctx, false);
@@ -97,7 +98,7 @@ impl Apply for LigatureSet<'_> {
 
         if slow_path {
             // Slow path
-            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+            for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
                 if lig.apply(ctx).is_some() {
                     return Some(());
                 }
@@ -105,7 +106,7 @@ impl Apply for LigatureSet<'_> {
         } else {
             // Fast path
             let mut unsafe_to_concat = false;
-            for lig in self.ligatures().iter().filter_map(|lig| lig.ok()) {
+            for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
                 let components = lig.component_glyph_ids();
                 if components.is_empty() || components[0].get() == first {
                     if lig.apply(ctx).is_some() {
