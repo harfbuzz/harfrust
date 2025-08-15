@@ -7,6 +7,7 @@ use super::hb_font_t;
 use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
+use super::set_digest::hb_set_digest_t;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use alloc::boxed::Box;
@@ -623,6 +624,32 @@ pub(crate) type MappingCache = hb_cache_t<
     16,  // STORAGE_BITS
 >;
 
+pub(crate) struct LigatureSubstFormat1Cache {
+    pub coverage: MappingCache,
+    pub seconds: hb_set_digest_t,
+}
+
+impl LigatureSubstFormat1Cache {
+    pub fn new(seconds: hb_set_digest_t) -> Self {
+        LigatureSubstFormat1Cache {
+            coverage: MappingCache::new(),
+            seconds,
+        }
+    }
+}
+
+pub(crate) struct PairPosFormat1Cache {
+    pub coverage: MappingCache,
+}
+
+impl PairPosFormat1Cache {
+    pub fn new() -> Self {
+        PairPosFormat1Cache {
+            coverage: MappingCache::new(),
+        }
+    }
+}
+
 pub(crate) struct PairPosFormat2Cache {
     pub coverage: MappingCache,
     pub first: MappingCache,
@@ -641,7 +668,8 @@ impl PairPosFormat2Cache {
 
 pub(crate) enum SubtableExternalCache {
     None,
-    MappingCache(Box<MappingCache>),
+    LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
+    PairPosFormat1Cache(Box<PairPosFormat1Cache>),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
 }
 
@@ -677,6 +705,12 @@ pub trait Apply {
         // Default implementation returns 0, meaning no cache cost.
         // This is used to determine the cost of caching the subtable.
         0
+    }
+
+    fn external_cache_create(&self) -> SubtableExternalCache {
+        // Default implementation returns None, meaning no external cache.
+        // This is used to create an external cache for the subtable.
+        SubtableExternalCache::None
     }
 }
 

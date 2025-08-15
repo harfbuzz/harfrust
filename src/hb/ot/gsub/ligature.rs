@@ -3,8 +3,10 @@ use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
-    SubtableExternalCache, WouldApply, WouldApplyContext,
+    LigatureSubstFormat1Cache, SubtableExternalCache, WouldApply, WouldApplyContext,
 };
+use crate::hb::set_digest::hb_set_digest_t;
+use alloc::boxed::Box;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
 
@@ -73,9 +75,13 @@ impl WouldApply for LigatureSet<'_> {
     }
 }
 
-impl Apply for LigatureSet<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let mut first = GlyphId::new(u32::MAX);
+pub trait ApplyLigatureSet {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()>;
+}
+
+impl ApplyLigatureSet for LigatureSet<'_> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()> {
+        let mut second = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
         let ligatures = self.ligatures();
         let slow_path = if ligatures.len() <= 1 {
@@ -87,7 +93,7 @@ impl Apply for LigatureSet<'_> {
             if !matched {
                 true
             } else {
-                first = iter.buffer.info[iter.index()].glyph_id.into();
+                second = iter.buffer.info[iter.index()].glyph_id.into();
                 unsafe_to = iter.index() + 1;
 
                 // Can't use the fast path if eg. the next char is a default-ignorable
@@ -105,10 +111,13 @@ impl Apply for LigatureSet<'_> {
             }
         } else {
             // Fast path
+            if !seconds.may_have_glyph(second) {
+                return None;
+            }
             let mut unsafe_to_concat = false;
             for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
                 let components = lig.component_glyph_ids();
-                if components.is_empty() || components[0].get() == first {
+                if components.is_empty() || components[0].get() == second {
                     if lig.apply(ctx).is_some() {
                         if unsafe_to_concat {
                             ctx.buffer
@@ -147,14 +156,44 @@ impl Apply for LigatureSubstFormat1<'_> {
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
 
-        let index = if let SubtableExternalCache::MappingCache(cache) = external_cache {
-            coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, cache)?
+        let index = if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache
+        {
+            coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, &cache.coverage)?
         } else {
             coverage_index(self.coverage(), glyph)?
         };
+        let seconds =
+            if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache {
+                &cache.seconds
+            } else {
+                &hb_set_digest_t::full()
+            };
         self.ligature_sets()
             .get(index as usize)
             .ok()
-            .and_then(|set| set.apply(ctx))
+            .and_then(|set| set.apply(ctx, seconds))
+    }
+
+    fn external_cache_create(&self) -> SubtableExternalCache {
+        let mut seconds = hb_set_digest_t::new();
+        self.ligature_sets()
+            .iter()
+            .filter_map(Result::ok)
+            .for_each(|lig_set| {
+                lig_set
+                    .ligatures()
+                    .iter()
+                    .filter_map(Result::ok)
+                    .for_each(|lig| {
+                        seconds.add(if let Some(gid) = lig.component_glyph_ids().first() {
+                            gid.get().into()
+                        } else {
+                            GlyphId::new(0)
+                        });
+                    });
+            });
+        SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(LigatureSubstFormat1Cache::new(
+            seconds,
+        )))
     }
 }
