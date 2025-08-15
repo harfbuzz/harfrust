@@ -3,7 +3,8 @@ use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    may_skip_t, skipping_iterator_t, Apply, SubtableExternalCache, WouldApply, WouldApplyContext,
+    may_skip_t, skipping_iterator_t, Apply, MatchPositions, SubtableExternalCache, WouldApply,
+    WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -135,7 +136,7 @@ impl Apply for SequenceContextFormat3<'_> {
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
         let mut match_end = 0;
-        let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+        let mut match_positions = MatchPositions::from_elem(0, 4);
         if match_input(
             ctx,
             input_coverages.len() as u16 - 1,
@@ -417,7 +418,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
 
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
-        let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+        let mut match_positions = MatchPositions::from_elem(0, 4);
 
         let input_matches = match_input(
             ctx,
@@ -507,7 +508,7 @@ trait ContextRule<'a>: FontRead<'a> {
         };
 
         let mut match_end = 0;
-        let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+        let mut match_positions = MatchPositions::from_elem(0, 4);
 
         if match_input(
             ctx,
@@ -683,7 +684,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
 
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
-        let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
+        let mut match_positions = MatchPositions::from_elem(0, 4);
 
         let input_matches = match_input(
             ctx,
