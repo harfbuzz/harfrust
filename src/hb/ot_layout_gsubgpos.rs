@@ -269,7 +269,7 @@ impl matcher_t {
 
         may_match_t::MATCH_MAYBE
     }
-    
+
     #[inline(always)]
     fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
         if !check_glyph_property(face, info, lookup_props) {
