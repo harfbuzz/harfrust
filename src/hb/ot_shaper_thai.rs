@@ -347,7 +347,7 @@ fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_
     // Nikhahit:    U+0E4D  U+0ECD
     //
     // Testing shows that Uniscribe reorder the following marks:
-    // Thai:	<0E31,0E34..0E37,0E47..0E4E>
+    // Thai:    <0E31,0E34..0E37,0E47..0E4E>
     // Lao:     <0EB1,0EB4..0EB7,0EBB,0EC8..0ECD>
     //
     // Note how the Lao versions are the same as Thai + 0x80.

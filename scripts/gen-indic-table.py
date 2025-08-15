@@ -82,64 +82,64 @@ combined = {k: v for k, v in combined.items() if k in ALLOWED_SINGLES or v[2] in
 # Convert categories & positions types
 
 category_map = {
-  'Other'			: 'X',
-  'Avagraha'			: 'Symbol',
-  'Bindu'			: 'SM',
-  'Brahmi_Joining_Number'	: 'PLACEHOLDER', # Don't care.
-  'Cantillation_Mark'		: 'A',
-  'Consonant'			: 'C',
-  'Consonant_Dead'		: 'C',
-  'Consonant_Final'		: 'CM',
-  'Consonant_Head_Letter'	: 'C',
-  'Consonant_Initial_Postfixed'	: 'C', # TODO
-  'Consonant_Killer'		: 'M', # U+17CD only.
-  'Consonant_Medial'		: 'CM',
-  'Consonant_Placeholder'	: 'PLACEHOLDER',
-  'Consonant_Preceding_Repha'	: 'Repha',
-  'Consonant_Prefixed'		: 'X', # Don't care.
-  'Consonant_Subjoined'		: 'CM',
-  'Consonant_Succeeding_Repha'	: 'CM',
-  'Consonant_With_Stacker'	: 'CS',
-  'Gemination_Mark'		: 'SM', # https://github.com/harfbuzz/harfbuzz/issues/552
-  'Invisible_Stacker'		: 'H',
-  'Joiner'			: 'ZWJ',
-  'Modifying_Letter'		: 'X',
-  'Non_Joiner'			: 'ZWNJ',
-  'Nukta'			: 'N',
-  'Number'			: 'PLACEHOLDER',
-  'Number_Joiner'		: 'PLACEHOLDER', # Don't care.
-  'Pure_Killer'			: 'M', # Is like a vowel matra.
-  'Register_Shifter'		: 'RS',
-  'Syllable_Modifier'		: 'SM',
-  'Tone_Letter'			: 'X',
-  'Tone_Mark'			: 'N',
-  'Virama'			: 'H',
-  'Visarga'			: 'SM',
-  'Vowel'			: 'V',
-  'Vowel_Dependent'		: 'M',
-  'Vowel_Independent'		: 'V',
+  'Other'           : 'X',
+  'Avagraha'            : 'Symbol',
+  'Bindu'           : 'SM',
+  'Brahmi_Joining_Number'   : 'PLACEHOLDER', # Don't care.
+  'Cantillation_Mark'       : 'A',
+  'Consonant'           : 'C',
+  'Consonant_Dead'      : 'C',
+  'Consonant_Final'     : 'CM',
+  'Consonant_Head_Letter'   : 'C',
+  'Consonant_Initial_Postfixed' : 'C', # TODO
+  'Consonant_Killer'        : 'M', # U+17CD only.
+  'Consonant_Medial'        : 'CM',
+  'Consonant_Placeholder'   : 'PLACEHOLDER',
+  'Consonant_Preceding_Repha'   : 'Repha',
+  'Consonant_Prefixed'      : 'X', # Don't care.
+  'Consonant_Subjoined'     : 'CM',
+  'Consonant_Succeeding_Repha'  : 'CM',
+  'Consonant_With_Stacker'  : 'CS',
+  'Gemination_Mark'     : 'SM', # https://github.com/harfbuzz/harfbuzz/issues/552
+  'Invisible_Stacker'       : 'H',
+  'Joiner'          : 'ZWJ',
+  'Modifying_Letter'        : 'X',
+  'Non_Joiner'          : 'ZWNJ',
+  'Nukta'           : 'N',
+  'Number'          : 'PLACEHOLDER',
+  'Number_Joiner'       : 'PLACEHOLDER', # Don't care.
+  'Pure_Killer'         : 'M', # Is like a vowel matra.
+  'Register_Shifter'        : 'RS',
+  'Syllable_Modifier'       : 'SM',
+  'Tone_Letter'         : 'X',
+  'Tone_Mark'           : 'N',
+  'Virama'          : 'H',
+  'Visarga'         : 'SM',
+  'Vowel'           : 'V',
+  'Vowel_Dependent'     : 'M',
+  'Vowel_Independent'       : 'V',
 }
 
 position_map = {
-  'Not_Applicable'		: 'END',
+  'Not_Applicable'      : 'END',
 
-  'Left'			: 'PRE_C',
-  'Top'				: 'ABOVE_C',
-  'Bottom'			: 'BELOW_C',
-  'Right'			: 'POST_C',
+  'Left'            : 'PRE_C',
+  'Top'             : 'ABOVE_C',
+  'Bottom'          : 'BELOW_C',
+  'Right'           : 'POST_C',
 
   # These should resolve to the position of the last part of the split sequence.
-  'Bottom_And_Right'		: 'POST_C',
-  'Left_And_Right'		: 'POST_C',
-  'Top_And_Bottom'		: 'BELOW_C',
-  'Top_And_Bottom_And_Left'	: 'BELOW_C',
-  'Top_And_Bottom_And_Right'	: 'POST_C',
-  'Top_And_Left'		: 'ABOVE_C',
-  'Top_And_Left_And_Right'	: 'POST_C',
-  'Top_And_Right'		: 'POST_C',
+  'Bottom_And_Right'        : 'POST_C',
+  'Left_And_Right'      : 'POST_C',
+  'Top_And_Bottom'      : 'BELOW_C',
+  'Top_And_Bottom_And_Left' : 'BELOW_C',
+  'Top_And_Bottom_And_Right'    : 'POST_C',
+  'Top_And_Left'        : 'ABOVE_C',
+  'Top_And_Left_And_Right'  : 'POST_C',
+  'Top_And_Right'       : 'POST_C',
 
-  'Overstruck'			: 'AFTER_MAIN',
-  'Visual_order_left'		: 'PRE_M',
+  'Overstruck'          : 'AFTER_MAIN',
+  'Visual_order_left'       : 'PRE_M',
 }
 
 category_overrides = {
@@ -176,13 +176,13 @@ category_overrides = {
   0x0930: 'Ra', # Devanagari
   0x09B0: 'Ra', # Bengali
   0x09F0: 'Ra', # Bengali
-  0x0A30: 'Ra', # Gurmukhi 	No Reph
+  0x0A30: 'Ra', # Gurmukhi  No Reph
   0x0AB0: 'Ra', # Gujarati
   0x0B30: 'Ra', # Oriya
-  0x0BB0: 'Ra', # Tamil 	No Reph
-  0x0C30: 'Ra', # Telugu 	Reph formed only with ZWJ
+  0x0BB0: 'Ra', # Tamil     No Reph
+  0x0C30: 'Ra', # Telugu    Reph formed only with ZWJ
   0x0CB0: 'Ra', # Kannada
-  0x0D30: 'Ra', # Malayalam 	No Reph, Logical Repha
+  0x0D30: 'Ra', # Malayalam     No Reph, Logical Repha
 
   # The following act more like the Bindus.
   0x0953: 'SM',
@@ -333,49 +333,49 @@ position_overrides = {
 def matra_pos_left(u, block):
   return "PRE_M"
 def matra_pos_right(u, block):
-  if block == 'Devanagari':	return  'AFTER_SUB'
-  if block == 'Bengali':	return  'AFTER_POST'
-  if block == 'Gurmukhi':	return  'AFTER_POST'
-  if block == 'Gujarati':	return  'AFTER_POST'
-  if block == 'Oriya':		return  'AFTER_POST'
-  if block == 'Tamil':		return  'AFTER_POST'
-  if block == 'Telugu':		return  'BEFORE_SUB' if u <= 0x0C42 else 'AFTER_SUB'
-  if block == 'Kannada':	return  'BEFORE_SUB' if u < 0x0CC3 or u > 0x0CD6 else 'AFTER_SUB'
-  if block == 'Malayalam':	return  'AFTER_POST'
+  if block == 'Devanagari': return  'AFTER_SUB'
+  if block == 'Bengali':    return  'AFTER_POST'
+  if block == 'Gurmukhi':   return  'AFTER_POST'
+  if block == 'Gujarati':   return  'AFTER_POST'
+  if block == 'Oriya':      return  'AFTER_POST'
+  if block == 'Tamil':      return  'AFTER_POST'
+  if block == 'Telugu':     return  'BEFORE_SUB' if u <= 0x0C42 else 'AFTER_SUB'
+  if block == 'Kannada':    return  'BEFORE_SUB' if u < 0x0CC3 or u > 0x0CD6 else 'AFTER_SUB'
+  if block == 'Malayalam':  return  'AFTER_POST'
   return 'AFTER_SUB'
 def matra_pos_top(u, block):
   # BENG and MLYM don't have top matras.
-  if block == 'Devanagari':	return  'AFTER_SUB'
-  if block == 'Gurmukhi':	return  'AFTER_POST' # Deviate from spec
-  if block == 'Gujarati':	return  'AFTER_SUB'
-  if block == 'Oriya':		return  'AFTER_MAIN'
-  if block == 'Tamil':		return  'AFTER_SUB'
-  if block == 'Telugu':		return  'BEFORE_SUB'
-  if block == 'Kannada':	return  'BEFORE_SUB'
+  if block == 'Devanagari': return  'AFTER_SUB'
+  if block == 'Gurmukhi':   return  'AFTER_POST' # Deviate from spec
+  if block == 'Gujarati':   return  'AFTER_SUB'
+  if block == 'Oriya':      return  'AFTER_MAIN'
+  if block == 'Tamil':      return  'AFTER_SUB'
+  if block == 'Telugu':     return  'BEFORE_SUB'
+  if block == 'Kannada':    return  'BEFORE_SUB'
   return 'AFTER_SUB'
 def matra_pos_bottom(u, block):
-  if block == 'Devanagari':	return  'AFTER_SUB'
-  if block == 'Bengali':	return  'AFTER_SUB'
-  if block == 'Gurmukhi':	return  'AFTER_POST'
-  if block == 'Gujarati':	return  'AFTER_POST'
-  if block == 'Oriya':		return  'AFTER_SUB'
-  if block == 'Tamil':		return  'AFTER_POST'
-  if block == 'Telugu':		return  'BEFORE_SUB'
-  if block == 'Kannada':	return  'BEFORE_SUB'
-  if block == 'Malayalam':	return  'AFTER_POST'
+  if block == 'Devanagari': return  'AFTER_SUB'
+  if block == 'Bengali':    return  'AFTER_SUB'
+  if block == 'Gurmukhi':   return  'AFTER_POST'
+  if block == 'Gujarati':   return  'AFTER_POST'
+  if block == 'Oriya':      return  'AFTER_SUB'
+  if block == 'Tamil':      return  'AFTER_POST'
+  if block == 'Telugu':     return  'BEFORE_SUB'
+  if block == 'Kannada':    return  'BEFORE_SUB'
+  if block == 'Malayalam':  return  'AFTER_POST'
   return "AFTER_SUB"
 def indic_matra_position(u, pos, block): # Reposition matra
-  if pos == 'PRE_C':	return matra_pos_left(u, block)
-  if pos == 'POST_C':	return matra_pos_right(u, block)
-  if pos == 'ABOVE_C':	return matra_pos_top(u, block)
-  if pos == 'BELOW_C':	return matra_pos_bottom(u, block)
+  if pos == 'PRE_C':    return matra_pos_left(u, block)
+  if pos == 'POST_C':   return matra_pos_right(u, block)
+  if pos == 'ABOVE_C':  return matra_pos_top(u, block)
+  if pos == 'BELOW_C':  return matra_pos_bottom(u, block)
   assert (False)
 
 def position_to_category(pos):
-  if pos == 'PRE_C':	return 'VPre'
-  if pos == 'ABOVE_C':	return 'VAbv'
-  if pos == 'BELOW_C':	return 'VBlw'
-  if pos == 'POST_C':	return 'VPst'
+  if pos == 'PRE_C':    return 'VPre'
+  if pos == 'ABOVE_C':  return 'VAbv'
+  if pos == 'BELOW_C':  return 'VBlw'
+  if pos == 'POST_C':   return 'VPst'
   assert(False)
 
 
@@ -445,29 +445,29 @@ print('use super::ot_shaper_indic::ot_position_t::*;')
 
 # Shorten values
 short = [{
-	"Repha":		'Rf',
-	"PLACEHOLDER":		'GB',
-	"DOTTEDCIRCLE":		'DC',
+    "Repha":        'Rf',
+    "PLACEHOLDER":      'GB',
+    "DOTTEDCIRCLE":     'DC',
     "SMPst":        'SP',
-    "VPst":			'VR',
-    "VPre":			'VL',
-    "Robatic":		'Rt',
-    "Xgroup":		'Xg',
-    "Ygroup":		'Yg',
-    "As":			'As',
+    "VPst":         'VR',
+    "VPre":         'VL',
+    "Robatic":      'Rt',
+    "Xgroup":       'Xg',
+    "Ygroup":       'Yg',
+    "As":           'As',
 },{
-	"END":			'X',
-	"BASE_C":		'C',
-	"ABOVE_C":		'T',
-	"BELOW_C":		'B',
-	"POST_C":		'R',
-	"PRE_C":		'L',
-	"PRE_M":		'LM',
-	"AFTER_MAIN":		'A',
-	"AFTER_SUB":		'AS',
-	"BEFORE_SUB":		'BS',
-	"AFTER_POST":		'AP',
-	"SMVD":			'SM',
+    "END":          'X',
+    "BASE_C":       'C',
+    "ABOVE_C":      'T',
+    "BELOW_C":      'B',
+    "POST_C":       'R',
+    "PRE_C":        'L',
+    "PRE_M":        'LM',
+    "AFTER_MAIN":       'A',
+    "AFTER_SUB":        'AS',
+    "BEFORE_SUB":       'BS',
+    "AFTER_POST":       'AP',
+    "SMVD":         'SM',
 }]
 all_shorts = [{},{}]
 
@@ -501,7 +501,7 @@ for s in what_short:
     print()
     for c in [c for c in cat_defs if s in c[0]]:
         print ("use %s as %s /* %s chars; %s */" %
-        			(c[1].ljust (maxlen_s), (c[0] + ";").ljust (maxlen_l), c[2].rjust (maxlen_n), c[3]))
+                    (c[1].ljust (maxlen_s), (c[0] + ";").ljust (maxlen_l), c[2].rjust (maxlen_n), c[3]))
 print()
 print()
 
