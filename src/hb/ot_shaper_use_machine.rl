@@ -32,53 +32,53 @@ use super::ot_shaper_use::category;
 # Categories used in the Universal Shaping Engine spec:
 # https://docs.microsoft.com/en-us/typography/script-development/use
 
-O	= 0; # OTHER
+O   = 0; # OTHER
 
-B	= 1; # BASE
-N	= 4; # BASE_NUM
-GB	= 5; # BASE_OTHER
-CGJ	= 6; # CGJ
-SUB	= 11; # CONS_SUB
-H	= 12; # HALANT
+B   = 1; # BASE
+N   = 4; # BASE_NUM
+GB  = 5; # BASE_OTHER
+CGJ = 6; # CGJ
+SUB = 11; # CONS_SUB
+H   = 12; # HALANT
 
-HN	= 13; # HALANT_NUM
-ZWNJ	= 14; # Zero width non-joiner
+HN  = 13; # HALANT_NUM
+ZWNJ    = 14; # Zero width non-joiner
 WJ = 16; # Word joiner
-R	= 18; # REPHA
-CS	= 43; # CONS_WITH_STACKER
-IS	= 44; # HALANT_OR_VOWEL_MODIFIER
-Sk	= 48; # SAKOT
-G	= 49; # HIEROGLYPH
-J	= 50; # HIEROGLYPH_JOINER
-SB	= 51; # HIEROGLYPH_SEGMENT_BEGIN
-SE	= 52; # HIEROGLYPH_SEGMENT_END
-HVM	= 53; # HALANT_OR_VOWEL_MODIFIER
-HM	= 54; # HIEROGLYPH_MOD
-HR	= 55; # HIEROGLYPH_MIRROR
-RK	= 56; # REORDERING_KILLER
+R   = 18; # REPHA
+CS  = 43; # CONS_WITH_STACKER
+IS  = 44; # HALANT_OR_VOWEL_MODIFIER
+Sk  = 48; # SAKOT
+G   = 49; # HIEROGLYPH
+J   = 50; # HIEROGLYPH_JOINER
+SB  = 51; # HIEROGLYPH_SEGMENT_BEGIN
+SE  = 52; # HIEROGLYPH_SEGMENT_END
+HVM = 53; # HALANT_OR_VOWEL_MODIFIER
+HM  = 54; # HIEROGLYPH_MOD
+HR  = 55; # HIEROGLYPH_MIRROR
+RK  = 56; # REORDERING_KILLER
 
-FAbv	= 24; # CONS_FINAL_ABOVE
-FBlw	= 25; # CONS_FINAL_BELOW
-FPst	= 26; # CONS_FINAL_POST
-MAbv	= 27; # CONS_MED_ABOVE
-MBlw	= 28; # CONS_MED_BELOW
-MPst	= 29; # CONS_MED_POST
-MPre	= 30; # CONS_MED_PRE
-CMAbv	= 31; # CONS_MOD_ABOVE
-CMBlw	= 32; # CONS_MOD_BELOW
-VAbv	= 33; # VOWEL_ABOVE / VOWEL_ABOVE_BELOW / VOWEL_ABOVE_BELOW_POST / VOWEL_ABOVE_POST
-VBlw	= 34; # VOWEL_BELOW / VOWEL_BELOW_POST
-VPst	= 35; # VOWEL_POST	UIPC = Right
-VPre	= 22; # VOWEL_PRE / VOWEL_PRE_ABOVE / VOWEL_PRE_ABOVE_POST / VOWEL_PRE_POST
-VMAbv	= 37; # VOWEL_MOD_ABOVE
-VMBlw	= 38; # VOWEL_MOD_BELOW
-VMPst	= 39; # VOWEL_MOD_POST
-VMPre	= 23; # VOWEL_MOD_PRE
-SMAbv	= 41; # SYM_MOD_ABOVE
-SMBlw	= 42; # SYM_MOD_BELOW
-FMAbv	= 45; # CONS_FINAL_MOD	UIPC = Top
-FMBlw	= 46; # CONS_FINAL_MOD	UIPC = Bottom
-FMPst	= 47; # CONS_FINAL_MOD	UIPC = Not_Applicable
+FAbv    = 24; # CONS_FINAL_ABOVE
+FBlw    = 25; # CONS_FINAL_BELOW
+FPst    = 26; # CONS_FINAL_POST
+MAbv    = 27; # CONS_MED_ABOVE
+MBlw    = 28; # CONS_MED_BELOW
+MPst    = 29; # CONS_MED_POST
+MPre    = 30; # CONS_MED_PRE
+CMAbv   = 31; # CONS_MOD_ABOVE
+CMBlw   = 32; # CONS_MOD_BELOW
+VAbv    = 33; # VOWEL_ABOVE / VOWEL_ABOVE_BELOW / VOWEL_ABOVE_BELOW_POST / VOWEL_ABOVE_POST
+VBlw    = 34; # VOWEL_BELOW / VOWEL_BELOW_POST
+VPst    = 35; # VOWEL_POST  UIPC = Right
+VPre    = 22; # VOWEL_PRE / VOWEL_PRE_ABOVE / VOWEL_PRE_ABOVE_POST / VOWEL_PRE_POST
+VMAbv   = 37; # VOWEL_MOD_ABOVE
+VMBlw   = 38; # VOWEL_MOD_BELOW
+VMPst   = 39; # VOWEL_MOD_POST
+VMPre   = 23; # VOWEL_MOD_PRE
+SMAbv   = 41; # SYM_MOD_ABOVE
+SMBlw   = 42; # SYM_MOD_BELOW
+FMAbv   = 45; # CONS_FINAL_MOD  UIPC = Top
+FMBlw   = 46; # CONS_FINAL_MOD  UIPC = Bottom
+FMPst   = 47; # CONS_FINAL_MOD  UIPC = Not_Applicable
 
 h = H | HVM | IS | Sk;
 
@@ -91,45 +91,45 @@ final_modifiers = FMAbv* FMBlw* | FMPst?;
 
 complex_syllable_start = (R | CS)? (B | GB);
 complex_syllable_middle =
-	consonant_modifiers
-	medial_consonants
-	dependent_vowels
-	vowel_modifiers
-	(Sk B)*
+    consonant_modifiers
+    medial_consonants
+    dependent_vowels
+    vowel_modifiers
+    (Sk B)*
 ;
 complex_syllable_tail =
-	complex_syllable_middle
-	final_consonants
-	final_modifiers
+    complex_syllable_middle
+    final_consonants
+    final_modifiers
 ;
 number_joiner_terminated_cluster_tail = (HN N)* HN;
 numeral_cluster_tail = (HN N)+;
 symbol_cluster_tail = SMAbv+ SMBlw* | SMBlw+;
 
 virama_terminated_cluster_tail =
-	consonant_modifiers
-	(IS | RK)
+    consonant_modifiers
+    (IS | RK)
 ;
 virama_terminated_cluster =
-	complex_syllable_start
-	virama_terminated_cluster_tail
+    complex_syllable_start
+    virama_terminated_cluster_tail
 ;
 sakot_terminated_cluster_tail =
-	complex_syllable_middle
-	Sk
+    complex_syllable_middle
+    Sk
 ;
 sakot_terminated_cluster =
-	complex_syllable_start
-	sakot_terminated_cluster_tail
+    complex_syllable_start
+    sakot_terminated_cluster_tail
 ;
 standard_cluster =
-	complex_syllable_start
-	complex_syllable_tail
+    complex_syllable_start
+    complex_syllable_tail
 ;
 tail = complex_syllable_tail | sakot_terminated_cluster_tail | symbol_cluster_tail | virama_terminated_cluster_tail;
 broken_cluster =
-	R?
-	(tail | number_joiner_terminated_cluster_tail | numeral_cluster_tail)
+    R?
+    (tail | number_joiner_terminated_cluster_tail | numeral_cluster_tail)
 ;
 
 number_joiner_terminated_cluster = N number_joiner_terminated_cluster_tail;
@@ -139,16 +139,16 @@ hieroglyph_cluster = SB* G HR? HM? SE* (J SB* (G HR? HM? SE*)?)*;
 other = any;
 
 main := |*
-	virama_terminated_cluster ZWNJ?		=> { found_syllable!(SyllableType::ViramaTerminatedCluster); };
-	sakot_terminated_cluster ZWNJ?		=> { found_syllable!(SyllableType::SakotTerminatedCluster); };
-	standard_cluster ZWNJ?			=> { found_syllable!(SyllableType::StandardCluster); };
-	number_joiner_terminated_cluster ZWNJ?	=> { found_syllable!(SyllableType::NumberJoinerTerminatedCluster); };
-	numeral_cluster ZWNJ?			=> { found_syllable!(SyllableType::NumeralCluster); };
-	symbol_cluster ZWNJ?			=> { found_syllable!(SyllableType::SymbolCluster); };
-	hieroglyph_cluster ZWNJ?		=> { found_syllable! (SyllableType::HieroglyphCluster); };
-	FMPst* ZWNJ?				=> { found_syllable!(SyllableType::NonCluster); };
-	broken_cluster ZWNJ?			=> { found_syllable!(SyllableType::BrokenCluster); buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
-	other					=> { found_syllable!(SyllableType::NonCluster); };
+    virama_terminated_cluster ZWNJ?     => { found_syllable!(SyllableType::ViramaTerminatedCluster); };
+    sakot_terminated_cluster ZWNJ?      => { found_syllable!(SyllableType::SakotTerminatedCluster); };
+    standard_cluster ZWNJ?          => { found_syllable!(SyllableType::StandardCluster); };
+    number_joiner_terminated_cluster ZWNJ?  => { found_syllable!(SyllableType::NumberJoinerTerminatedCluster); };
+    numeral_cluster ZWNJ?           => { found_syllable!(SyllableType::NumeralCluster); };
+    symbol_cluster ZWNJ?            => { found_syllable!(SyllableType::SymbolCluster); };
+    hieroglyph_cluster ZWNJ?        => { found_syllable! (SyllableType::HieroglyphCluster); };
+    FMPst* ZWNJ?                => { found_syllable!(SyllableType::NonCluster); };
+    broken_cluster ZWNJ?            => { found_syllable!(SyllableType::BrokenCluster); buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
+    other                   => { found_syllable!(SyllableType::NonCluster); };
 *|;
 
 

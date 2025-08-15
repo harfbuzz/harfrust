@@ -408,14 +408,14 @@ impl GeneralCategoryExt for hb_unicode_general_category_t {
     }
 
     fn is_mark(&self) -> bool {
-        matches!(*self, 
+        matches!(*self,
             hb_unicode_general_category_t::SpacingMark |
             hb_unicode_general_category_t::EnclosingMark |
             hb_unicode_general_category_t::NonspacingMark)
     }
 
     fn is_letter(&self) -> bool {
-        matches!(*self, 
+        matches!(*self,
             hb_unicode_general_category_t::LowercaseLetter |
             hb_unicode_general_category_t::ModifierLetter |
             hb_unicode_general_category_t::OtherLetter |

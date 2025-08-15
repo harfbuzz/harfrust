@@ -45,10 +45,10 @@ Symbol= 17;
 CS    = 18;
 SMPst = 57;
 
-c = (C | Ra);			# is_consonant
-n = ((ZWNJ?.RS)? (N.N?)?);	# is_consonant_modifier
-z = ZWJ|ZWNJ;			# is_joiner
-reph = (Ra H | Repha);		# possible reph
+c = (C | Ra);           # is_consonant
+n = ((ZWNJ?.RS)? (N.N?)?);  # is_consonant_modifier
+z = ZWJ|ZWNJ;           # is_joiner
+reph = (Ra H | Repha);      # possible reph
 sm = SM | SMPst;
 
 cn = c.ZWJ?.n?;
@@ -62,21 +62,21 @@ halant_or_matra_group = (final_halant_group | matra_group*);
 
 complex_syllable_tail = (halant_group.cn)* medial_group halant_or_matra_group syllable_tail;
 
-consonant_syllable =	(Repha|CS)? cn complex_syllable_tail;
-vowel_syllable =	reph? V.n? (ZWJ | complex_syllable_tail);
-standalone_cluster =	((Repha|CS)? PLACEHOLDER | reph? DOTTEDCIRCLE).n? complex_syllable_tail;
-symbol_cluster =	symbol syllable_tail;
-broken_cluster =	reph? n? complex_syllable_tail;
-other =			any;
+consonant_syllable =    (Repha|CS)? cn complex_syllable_tail;
+vowel_syllable =    reph? V.n? (ZWJ | complex_syllable_tail);
+standalone_cluster =    ((Repha|CS)? PLACEHOLDER | reph? DOTTEDCIRCLE).n? complex_syllable_tail;
+symbol_cluster =    symbol syllable_tail;
+broken_cluster =    reph? n? complex_syllable_tail;
+other =         any;
 
 main := |*
-	consonant_syllable	=> { found_syllable!(SyllableType::ConsonantSyllable); };
-	vowel_syllable		=> { found_syllable!(SyllableType::VowelSyllable); };
-	standalone_cluster	=> { found_syllable!(SyllableType::StandaloneCluster); };
-	symbol_cluster		=> { found_syllable!(SyllableType::SymbolCluster); };
-	SMPst			=> { found_syllable!(SyllableType::NonIndicCluster); };
-	broken_cluster		=> { found_syllable!(SyllableType::BrokenCluster); buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
-	other			=> { found_syllable!(SyllableType::NonIndicCluster); };
+    consonant_syllable  => { found_syllable!(SyllableType::ConsonantSyllable); };
+    vowel_syllable      => { found_syllable!(SyllableType::VowelSyllable); };
+    standalone_cluster  => { found_syllable!(SyllableType::StandaloneCluster); };
+    symbol_cluster      => { found_syllable!(SyllableType::SymbolCluster); };
+    SMPst           => { found_syllable!(SyllableType::NonIndicCluster); };
+    broken_cluster      => { found_syllable!(SyllableType::BrokenCluster); buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
+    other           => { found_syllable!(SyllableType::NonIndicCluster); };
 *|;
 
 

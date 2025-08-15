@@ -284,14 +284,14 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
  */
 
 //  enum hb_unicode_props_flags_t {
-//     UPROPS_MASK_GEN_CAT	= 0x001Fu,
-//     UPROPS_MASK_IGNORABLE	= 0x0020u,
-//     UPROPS_MASK_HIDDEN	= 0x0040u, /* MONGOLIAN FREE VARIATION SELECTOR 1..4, or TAG characters */
+//     UPROPS_MASK_GEN_CAT  = 0x001Fu,
+//     UPROPS_MASK_IGNORABLE    = 0x0020u,
+//     UPROPS_MASK_HIDDEN   = 0x0040u, /* MONGOLIAN FREE VARIATION SELECTOR 1..4, or TAG characters */
 //     UPROPS_MASK_CONTINUATION=0x0080u,
 
 //     /* If GEN_CAT=FORMAT, top byte masks: */
-//     UPROPS_MASK_Cf_ZWJ	= 0x0100u,
-//     UPROPS_MASK_Cf_ZWNJ	= 0x0200u
+//     UPROPS_MASK_Cf_ZWJ   = 0x0100u,
+//     UPROPS_MASK_Cf_ZWNJ  = 0x0200u
 //   };
 //   HB_MARK_AS_FLAG_T (hb_unicode_props_flags_t);
 

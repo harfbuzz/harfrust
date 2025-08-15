@@ -57,14 +57,14 @@ matra_group = VPre? xgroup VBlw? xgroup (joiner?.VAbv)? xgroup VPst?;
 syllable_tail = xgroup matra_group xgroup (H.c)? ygroup;
 
 
-broken_cluster =	Robatic? (H.cn)* (H | syllable_tail);
-consonant_syllable =	(cn|PLACEHOLDER|DOTTEDCIRCLE) broken_cluster;
-other =			any;
+broken_cluster =    Robatic? (H.cn)* (H | syllable_tail);
+consonant_syllable =    (cn|PLACEHOLDER|DOTTEDCIRCLE) broken_cluster;
+other =         any;
 
 main := |*
-	consonant_syllable	=> { found_syllable!(SyllableType::ConsonantSyllable); };
-	broken_cluster		=> { found_syllable!(SyllableType::BrokenCluster); buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
-	other			=> { found_syllable!(SyllableType::NonKhmerCluster); };
+    consonant_syllable  => { found_syllable!(SyllableType::ConsonantSyllable); };
+    broken_cluster      => { found_syllable!(SyllableType::BrokenCluster); buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
+    other           => { found_syllable!(SyllableType::NonKhmerCluster); };
 *|;
 
 
