@@ -5,11 +5,7 @@ use crate::hb::ot_layout_gsubgpos::{
     skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat2Cache, SubtableExternalCache,
 };
 use alloc::boxed::Box;
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord};
-use read_fonts::types::GlyphId;
-use read_fonts::FontData;
-
-use super::ValueResolver;
+use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
 
 impl Apply for PairPosFormat1<'_> {
     fn apply_with_external_cache(
@@ -74,75 +70,58 @@ impl Apply for PairPosFormat1<'_> {
                 }
             };
 
-        let bail = |ctx: &mut hb_ot_apply_context_t,
-                    iter_index: &mut usize,
-                    records: (ValueResolver, ValueResolver)| {
-            let flag1 = records.0.apply(ctx, ctx.buffer.idx);
-            let flag2 = records.1.apply(ctx, second_glyph_index);
-
-            let has_record2 = !records.1.is_empty();
-            success(ctx, iter_index, flag1, flag2, has_record2)
-        };
-
-        let (pair, data) =
-            find_second_glyph(self, first_glyph_coverage_index as usize, second_glyph)?;
-        // let sets = self.pair_sets();
-        // let data = sets.offset_data();
-        // let sets = self.pair_sets();
-        // let pair_sets = sets.get(first_glyph_coverage_index as usize).ok()?;
-        // let pair = pair_sets
-        //     .pair_value_records()
-        //     .iter()
-        //     .filter_map(|value| value.ok())
-        //     .find(|value| value.second_glyph() == second_glyph)?;
-        let values = (
-            ValueResolver {
-                record: pair.value_record1,
-                data,
-            },
-            ValueResolver {
-                record: pair.value_record2,
-                data,
-            },
-        );
         let mut buf_idx = iter.buf_idx;
-        bail(ctx, &mut buf_idx, values)
+        let set_offset = self
+            .pair_set_offsets()
+            .get(first_glyph_coverage_index as usize)?
+            .get()
+            .to_u32() as usize;
+        let format1 = self.value_format1();
+        let format1_len = format1.record_byte_len();
+        let format2 = self.value_format2();
+        let record_size = format1_len + format2.record_byte_len() + 2;
+        let data = self.offset_data();
+        let set_data = data.split_off(set_offset)?;
+        let pair_count = set_data.read_at::<u16>(0).ok()? as usize;
+        let mut hi = pair_count;
+        let mut lo = 0;
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            let record_offset = 2 + mid * record_size;
+            let glyph_id = set_data
+                .read_at::<read_fonts::types::GlyphId16>(record_offset)
+                .ok()?;
+            if glyph_id < second_glyph {
+                lo = mid + 1;
+            } else if glyph_id > second_glyph {
+                hi = mid;
+            } else {
+                let has_record2 = !format2.is_empty();
+                let worked1 = !format1.is_empty()
+                    && super::apply_value(
+                        ctx,
+                        ctx.buffer.idx,
+                        &set_data,
+                        record_offset + 2,
+                        format1,
+                    ) == Some(true);
+                let worked2 = has_record2
+                    && super::apply_value(
+                        ctx,
+                        second_glyph_index,
+                        &set_data,
+                        record_offset + format1_len + 2,
+                        format2,
+                    ) == Some(true);
+                return success(ctx, &mut buf_idx, worked1, worked2, has_record2);
+            }
+        }
+        None
     }
 
     fn external_cache_create(&self) -> SubtableExternalCache {
         SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
     }
-}
-
-fn find_second_glyph<'a>(
-    pair_pos: &PairPosFormat1<'a>,
-    set_index: usize,
-    second_glyph: GlyphId,
-) -> Option<(PairValueRecord, FontData<'a>)> {
-    let set_offset = pair_pos.pair_set_offsets().get(set_index)?.get().to_u32() as usize;
-    let format1 = pair_pos.value_format1();
-    let format2 = pair_pos.value_format2();
-    let record_size = format1.record_byte_len() + format2.record_byte_len() + 2;
-    let base_data = pair_pos.offset_data();
-    let pair_value_count = base_data.read_at::<u16>(set_offset).ok()? as usize;
-    let mut hi = pair_value_count;
-    let mut lo = 0;
-    while lo < hi {
-        let mid = (lo + hi) / 2;
-        let record_offset = set_offset + 2 + mid * record_size;
-        let glyph_id = base_data
-            .read_at::<read_fonts::types::GlyphId16>(record_offset)
-            .ok()?;
-        if glyph_id < second_glyph {
-            lo = mid + 1;
-        } else if glyph_id > second_glyph {
-            hi = mid;
-        } else {
-            let set = pair_pos.pair_sets().get(set_index).ok()?;
-            return Some((set.pair_value_records().get(mid).ok()?, set.offset_data()));
-        }
-    }
-    None
 }
 
 impl Apply for PairPosFormat2<'_> {
