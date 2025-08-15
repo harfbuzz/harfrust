@@ -194,6 +194,7 @@ impl<'a> ShaperBuilder<'a> {
         hb_font_t {
             font,
             units_per_em,
+            pixels_per_em: None,
             points_per_em: self.point_size,
             charmap,
             glyph_metrics,
@@ -208,6 +209,7 @@ impl<'a> ShaperBuilder<'a> {
 pub struct hb_font_t<'a> {
     pub(crate) font: FontRef<'a>,
     pub(crate) units_per_em: u16,
+    pixels_per_em: Option<(u16, u16)>,
     pub(crate) points_per_em: Option<f32>,
     charmap: Charmap<'a>,
     glyph_metrics: GlyphMetrics<'a>,
@@ -286,6 +288,11 @@ impl<'a> crate::Shaper<'a> {
         }
 
         GlyphBuffer(buffer)
+    }
+
+    #[inline]
+    pub(crate) fn pixels_per_em(&self) -> Option<(u16, u16)> {
+        self.pixels_per_em
     }
 
     pub(crate) fn has_glyph(&self, c: u32) -> bool {
