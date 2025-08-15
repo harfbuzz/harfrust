@@ -4,7 +4,7 @@ use super::ot_layout_gpos_table::GPOS;
 use super::ot_map::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
-use super::unicode::{hb_unicode_general_category_t, CharExt, GeneralCategoryExt};
+use super::unicode::CharExt;
 use super::*;
 use super::{hb_font_t, hb_tag_t};
 use crate::hb::aat;
@@ -15,6 +15,7 @@ use crate::hb::unicode::hb_gc::{
     HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR, HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER,
     HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER,
 };
+use crate::hb::unicode::GeneralCategory;
 use crate::BufferClusterLevel;
 use crate::BufferFlags;
 use crate::{Direction, Feature, Language, Script};
@@ -555,7 +556,7 @@ fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
             let mut start = i;
             while start > 0
                 && _hb_glyph_info_get_general_category(&buffer.info[start - 1])
-                    == hb_unicode_general_category_t::DecimalNumber
+                    == GeneralCategory::DECIMAL_NUMBER
             {
                 start -= 1;
             }
@@ -563,7 +564,7 @@ fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
             let mut end = i + 1;
             while end < len
                 && _hb_glyph_info_get_general_category(&buffer.info[end])
-                    == hb_unicode_general_category_t::DecimalNumber
+                    == GeneralCategory::DECIMAL_NUMBER
             {
                 end += 1;
             }
@@ -622,7 +623,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
 
         let gen_cat = _hb_glyph_info_get_general_category(info);
 
-        if (rb_flag_unsafe(gen_cat.to_u32())
+        if (rb_flag_unsafe(gen_cat.to_u8() as u32)
             & (rb_flag(HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER)
                 | rb_flag(HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER)
                 | rb_flag(HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER)
@@ -636,8 +637,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
 
         // Marks are already set as continuation by the above line.
         // Handle Emoji_Modifier and ZWJ-continuation.
-        if gen_cat == hb_unicode_general_category_t::ModifierSymbol
-            && matches!(info.glyph_id, 0x1F3FB..=0x1F3FF)
+        if gen_cat == GeneralCategory::MODIFIER_SYMBOL && matches!(info.glyph_id, 0x1F3FB..=0x1F3FF)
         {
             _hb_glyph_info_set_continuation(info);
         } else if i != 0 && matches!(info.glyph_id, 0x1F1E6..=0x1F1FF) {
@@ -742,7 +742,7 @@ fn ensure_native_direction(buffer: &mut hb_buffer_t) {
         let mut found_ri = false;
         for info in &buffer.info {
             let gc = _hb_glyph_info_get_general_category(info);
-            if gc == hb_unicode_general_category_t::DecimalNumber {
+            if gc == GeneralCategory::DECIMAL_NUMBER {
                 found_number = true;
             } else if gc.is_letter() {
                 found_letter = true;
@@ -820,7 +820,7 @@ fn hb_synthesize_glyph_classes(buffer: &mut hb_buffer_t) {
         // GDEF rely on this.  Another notable character that
         // this applies to is COMBINING GRAPHEME JOINER.
         let class = if _hb_glyph_info_get_general_category(info)
-            != hb_unicode_general_category_t::NonspacingMark
+            != GeneralCategory::NON_SPACING_MARK
             || _hb_glyph_info_is_default_ignorable(info)
         {
             GlyphPropsFlags::BASE_GLYPH

@@ -17,8 +17,8 @@ const HB_BUFFER_SCRATCH_FLAG_ARABIC_HAS_STCH: hb_buffer_scratch_flags_t =
 
 // See:
 // https://github.com/harfbuzz/harfbuzz/commit/6e6f82b6f3dde0fc6c3c7d991d9ec6cfff57823d#commitcomment-14248516
-fn is_word_category(gc: hb_unicode_general_category_t) -> bool {
-    (rb_flag_unsafe(gc.to_u32())
+fn is_word_category(gc: GeneralCategory) -> bool {
+    (rb_flag_unsafe(gc.to_u8() as u32)
         & (rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED)
             | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_PRIVATE_USE)
             | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MODIFIER_LETTER)
@@ -49,13 +49,13 @@ pub enum hb_arabic_joining_type_t {
     X = 8, // means: use general-category to choose between U or T.
 }
 
-fn get_joining_type(u: char, gc: hb_unicode_general_category_t) -> hb_arabic_joining_type_t {
+fn get_joining_type(u: char, gc: GeneralCategory) -> hb_arabic_joining_type_t {
     let j_type = super::ot_shaper_arabic_table::joining_type(u);
     if j_type != hb_arabic_joining_type_t::X {
         return j_type;
     }
 
-    let ok = rb_flag_unsafe(gc.to_u32())
+    let ok = rb_flag_unsafe(gc.to_u8() as u32)
         & (rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK)
             | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_ENCLOSING_MARK)
             | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT));
