@@ -3,7 +3,7 @@
 use crate::{hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t, GlyphPosition};
 use read_fonts::{
     tables::{
-        gpos::{DeviceOrVariationIndex, Value, ValueContext, ValueFormat, ValueRecord},
+        gpos::{DeviceOrVariationIndex, ValueFormat, ValueRecord},
         variations::DeltaSetIndex,
     },
     FontData, ReadError,
@@ -15,7 +15,7 @@ mod pair;
 mod single;
 
 #[allow(unused_assignments)]
-fn read_value_to_pos(
+fn apply_value(
     ctx: &mut hb_ot_apply_context_t,
     idx: usize,
     data: &FontData,
@@ -25,7 +25,7 @@ fn read_value_to_pos(
     let pos = &mut ctx.buffer.pos[idx];
     let is_horizontal = ctx.buffer.direction.is_horizontal();
     let mut worked = false;
-    macro_rules! read_i16 {
+    macro_rules! read_value {
         () => {{
             let value = data.read_at::<i16>(offset).ok()? as i32;
             worked |= value != 0;
@@ -34,21 +34,21 @@ fn read_value_to_pos(
         }};
     }
     if format.contains(ValueFormat::X_PLACEMENT) {
-        pos.x_offset += read_i16!();
+        pos.x_offset += read_value!();
     }
     if format.contains(ValueFormat::Y_PLACEMENT) {
-        pos.y_offset += read_i16!();
+        pos.y_offset += read_value!();
     }
     if format.contains(ValueFormat::X_ADVANCE) {
         if is_horizontal {
-            pos.x_advance += read_i16!();
+            pos.x_advance += read_value!();
         } else {
             offset += 2;
         }
     }
     if format.contains(ValueFormat::Y_ADVANCE) {
         if !is_horizontal {
-            pos.y_advance -= read_i16!();
+            pos.y_advance -= read_value!();
         } else {
             offset += 2;
         }
@@ -56,54 +56,53 @@ fn read_value_to_pos(
     if !format.contains(ValueFormat::ANY_DEVICE_OR_VARIDX) {
         return Some(worked);
     }
-    // if let Some((ivs, coords)) = value_context.var_store_and_coords() {
-    //     let compute_delta = |offset: u16| {
-    //         let rec_offset = data.read_at::<u16>(offset as usize).ok()? as usize;
-    //         if rec_offset == 0 {
-    //             return Some(0);
-    //         }
-    //         let format = data.read_at::<u16>(rec_offset + 4).ok()?;
-    //         // DeltaFormat specifier for a VariationIndex table
-    //         // See <https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables>
-    //         const VARIATION_INDEX_FORMAT: u16 = 0x8000;
-    //         if format != VARIATION_INDEX_FORMAT {
-    //             return Some(0);
-    //         }
-    //         let outer = data.read_at::<u16>(rec_offset).ok()?;
-    //         let inner = data.read_at::<u16>(rec_offset + 2).ok()?;
-    //         ivs.compute_delta(DeltaSetIndex { outer, inner }, coords)
-    //             .ok()
-    //     };
-    //     if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-    //         value.x_placement_delta = compute_delta(cursor.read()?).unwrap_or_default();
-    //     }
-    //     if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-    //         value.y_placement_delta = compute_delta(cursor.read()?).unwrap_or_default();
-    //     }
-    //     if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-    //         value.x_advance_delta = compute_delta(cursor.read()?).unwrap_or_default();
-    //     }
-    //     if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-    //         value.y_advance_delta = compute_delta(cursor.read()?).unwrap_or_default();
-    //     }
-    // }
+    if let Some(vs) = &ctx.face.ot_tables.var_store {
+        let coords = ctx.face.ot_tables.coords;
+        macro_rules! read_delta {
+            () => {{
+                let rec_offset = data.read_at::<u16>(offset).ok()? as usize;
+                offset += 2;
+                let mut value = 0;
+                // Offset is nullable
+                if rec_offset != 0 {
+                    let format = data.read_at::<u16>(rec_offset + 4).ok()?;
+                    // DeltaFormat specifier for a VariationIndex table
+                    // See <https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables>
+                    const VARIATION_INDEX_FORMAT: u16 = 0x8000;
+                    if format == VARIATION_INDEX_FORMAT {
+                        let outer = data.read_at::<u16>(rec_offset).ok()?;
+                        let inner = data.read_at::<u16>(rec_offset + 2).ok()?;
+                        value = vs
+                            .compute_delta(DeltaSetIndex { outer, inner }, coords)
+                            .unwrap_or_default();
+                        worked |= value != 0;
+                    }
+                }
+                value
+            }};
+        }
+        if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
+            pos.x_offset += read_delta!();
+        }
+        if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
+            pos.y_offset += read_delta!();
+        }
+        if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
+            if is_horizontal {
+                pos.x_advance += read_delta!();
+            } else {
+                offset += 2;
+            }
+        }
+        if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
+            if !is_horizontal {
+                pos.y_advance -= read_delta!();
+            } else {
+                offset += 2;
+            }
+        }
+    }
     Some(worked)
-}
-
-fn apply_value_to_pos(ctx: &mut hb_ot_apply_context_t, idx: usize, value: &Value) -> bool {
-    let pos = &mut ctx.buffer.pos[idx];
-    let is_horizontal = ctx.buffer.direction.is_horizontal();
-    pos.x_offset += value.x_placement as i32 + value.x_placement_delta;
-    pos.y_offset += value.y_placement as i32 + value.y_placement_delta;
-    let advance = if is_horizontal {
-        pos.x_advance += value.x_advance as i32 + value.x_advance_delta;
-        value.x_advance
-    } else {
-        pos.y_advance -= value.y_advance as i32 + value.y_advance_delta;
-        value.y_advance
-    };
-    ((value.x_placement | value.y_placement | advance) != 0)
-        | value.format.contains(ValueFormat::ANY_DEVICE_OR_VARIDX)
 }
 
 // TODO: remove me
