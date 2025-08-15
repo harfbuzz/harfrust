@@ -5,10 +5,11 @@ use crate::hb::ot_layout_gsubgpos::{
     skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat2Cache, SubtableExternalCache,
 };
 use alloc::boxed::Box;
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, Value, ValueContext};
+use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, Value};
 use read_fonts::types::GlyphId;
+use read_fonts::FontData;
 
-use super::apply_value_to_pos;
+use super::{apply_value_to_pos, ValueResolver};
 
 impl Apply for PairPosFormat1<'_> {
     fn apply_with_external_cache(
@@ -73,22 +74,38 @@ impl Apply for PairPosFormat1<'_> {
                 }
             };
 
-        let bail =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: [Value; 2]| {
-                let flag1 = apply_value_to_pos(ctx, ctx.buffer.idx, &records[0]);
-                let flag2 = apply_value_to_pos(ctx, second_glyph_index, &records[1]);
+        let bail = |ctx: &mut hb_ot_apply_context_t,
+                    iter_index: &mut usize,
+                    records: (ValueResolver, ValueResolver)| {
+            let flag1 = records.0.apply(ctx, ctx.buffer.idx);
+            let flag2 = records.1.apply(ctx, second_glyph_index);
 
-                let has_record2 = !records[1].format.is_empty();
-                success(ctx, iter_index, flag1, flag2, has_record2)
-            };
+            let has_record2 = !records.1.is_empty();
+            success(ctx, iter_index, flag1, flag2, has_record2)
+        };
 
+        let (pair, data) =
+            find_second_glyph(self, first_glyph_coverage_index as usize, second_glyph)?;
+        // let sets = self.pair_sets();
+        // let data = sets.offset_data();
+        // let sets = self.pair_sets();
+        // let pair_sets = sets.get(first_glyph_coverage_index as usize).ok()?;
+        // let pair = pair_sets
+        //     .pair_value_records()
+        //     .iter()
+        //     .filter_map(|value| value.ok())
+        //     .find(|value| value.second_glyph() == second_glyph)?;
+        let values = (
+            ValueResolver {
+                record: pair.value_record1,
+                data,
+            },
+            ValueResolver {
+                record: pair.value_record2,
+                data,
+            },
+        );
         let mut buf_idx = iter.buf_idx;
-        let values = pair_pos1_values(
-            self,
-            first_glyph_coverage_index as usize,
-            second_glyph,
-            &ctx.face.ot_tables.value_context,
-        )?;
         bail(ctx, &mut buf_idx, values)
     }
 
@@ -97,17 +114,15 @@ impl Apply for PairPosFormat1<'_> {
     }
 }
 
-fn pair_pos1_values(
-    pair_pos: &PairPosFormat1,
+fn find_second_glyph<'a>(
+    pair_pos: &PairPosFormat1<'a>,
     set_index: usize,
     second_glyph: GlyphId,
-    value_context: &ValueContext,
-) -> Option<[Value; 2]> {
+) -> Option<(PairValueRecord, FontData<'a>)> {
     let set_offset = pair_pos.pair_set_offsets().get(set_index)?.get().to_u32() as usize;
     let format1 = pair_pos.value_format1();
     let format2 = pair_pos.value_format2();
-    let format1_len = format1.record_byte_len();
-    let record_size = format1_len + format2.record_byte_len() + 2;
+    let record_size = format1.record_byte_len() + format2.record_byte_len() + 2;
     let base_data = pair_pos.offset_data();
     let pair_value_count = base_data.read_at::<u16>(set_offset).ok()? as usize;
     let mut hi = pair_value_count;
@@ -123,16 +138,8 @@ fn pair_pos1_values(
         } else if glyph_id > second_glyph {
             hi = mid;
         } else {
-            return Some([
-                Value::read(base_data, record_offset + 2, format1, value_context).ok()?,
-                Value::read(
-                    base_data,
-                    record_offset + 2 + format1_len,
-                    format2,
-                    value_context,
-                )
-                .ok()?,
-            ]);
+            let set = pair_pos.pair_sets().get(set_index).ok()?;
+            return Some((set.pair_value_records().get(mid).ok()?, set.offset_data()));
         }
     }
     None
