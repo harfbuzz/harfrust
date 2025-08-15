@@ -2535,11 +2535,11 @@ static _hb_ucd_i16: [i16; 196]=
 
 pub fn _hb_ucd_gc (u: usize) -> u8
 {
-  if u<1114110 { _hb_ucd_u8[6472usize+((((_hb_ucd_u8[816usize+((((_hb_ucd_u16[(((_hb_ucd_u8[272usize+((((_hb_ucd_u8[(u>>1>>3>>4>>4) as usize]) as usize)<<4) as usize+((u>>1>>3>>4)&15) as usize) as usize]) as usize)<<4) as usize+((u>>1>>3)&15) as usize]) as usize)<<3) as usize+((u>>1)&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize] } else { 2 }
+  if u<1114110 { unsafe { *(_hb_ucd_u8.get_unchecked(6472usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(816usize+((((unsafe { *(_hb_ucd_u16.get_unchecked((((unsafe { *(_hb_ucd_u8.get_unchecked(272usize+((((unsafe { *(_hb_ucd_u8.get_unchecked((u>>1>>3>>4>>4) as usize)) }) as usize)<<4) as usize+((u>>1>>3>>4)&15) as usize) as usize)) }) as usize)<<4) as usize+((u>>1>>3)&15) as usize)) }) as usize)<<3) as usize+((u>>1)&7) as usize) as usize)) }) as usize)<<1) as usize+((u)&1) as usize) as usize)) } } else { 2 }
 }
 pub fn _hb_ucd_ccc (u: usize) -> u8
 {
-  if u<125259 { _hb_ucd_u8[8504usize+((((_hb_ucd_u8[7936usize+((((_hb_ucd_u8[7460usize+((((_hb_ucd_u8[7100usize+((((_hb_ucd_u8[6854usize+((u>>2>>2>>2>>3) as usize) as usize]) as usize)<<3) as usize+((u>>2>>2>>2)&7) as usize) as usize]) as usize)<<2) as usize+((u>>2>>2)&3) as usize) as usize]) as usize)<<2) as usize+((u>>2)&3) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize) as usize] } else { 0 }
+  if u<125259 { unsafe { *(_hb_ucd_u8.get_unchecked(8504usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(7936usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(7460usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(7100usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(6854usize+((u>>2>>2>>2>>3) as usize) as usize)) }) as usize)<<3) as usize+((u>>2>>2>>2)&7) as usize) as usize)) }) as usize)<<2) as usize+((u>>2>>2)&3) as usize) as usize)) }) as usize)<<2) as usize+((u>>2)&3) as usize) as usize)) }) as usize)<<2) as usize+((u)&3) as usize) as usize)) } } else { 0 }
 }
 fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
 {
@@ -2547,15 +2547,15 @@ fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
 }
 pub fn _hb_ucd_bmg (u: usize) -> i16
 {
-  if u<65380 { _hb_ucd_i16[(((_hb_ucd_u8[9252usize+((((_hb_ucd_u8[9132usize+((((_hb_ucd_b4(&_hb_ucd_u8[9004usize..],(u>>2>>3>>3) as usize)) as usize)<<3) as usize+((u>>2>>3)&7) as usize) as usize]) as usize)<<3) as usize+((u>>2)&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize] } else { 0 }
+  if u<65380 { unsafe { *(_hb_ucd_i16.get_unchecked((((unsafe { *(_hb_ucd_u8.get_unchecked(9252usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(9132usize+((((_hb_ucd_b4(&_hb_ucd_u8[9004usize..],(u>>2>>3>>3) as usize)) as usize)<<3) as usize+((u>>2>>3)&7) as usize) as usize)) }) as usize)<<3) as usize+((u>>2)&7) as usize) as usize)) }) as usize)<<2) as usize+((u)&3) as usize)) } } else { 0 }
 }
 pub fn _hb_ucd_sc (u: usize) -> u8
 {
-  if u<918000 { _hb_ucd_u8[10486usize+((((_hb_ucd_u16[3744usize+((((_hb_ucd_u16[2624usize+((((_hb_ucd_u8[9588usize+((u>>3>>3>>4) as usize) as usize]) as usize)<<4) as usize+((u>>3>>3)&15) as usize) as usize]) as usize)<<3) as usize+((u>>3)&7) as usize) as usize]) as usize)<<3) as usize+((u)&7) as usize) as usize] } else { 2 }
+  if u<918000 { unsafe { *(_hb_ucd_u8.get_unchecked(10486usize+((((unsafe { *(_hb_ucd_u16.get_unchecked(3744usize+((((unsafe { *(_hb_ucd_u16.get_unchecked(2624usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(9588usize+((u>>3>>3>>4) as usize) as usize)) }) as usize)<<4) as usize+((u>>3>>3)&15) as usize) as usize)) }) as usize)<<3) as usize+((u>>3)&7) as usize) as usize)) }) as usize)<<3) as usize+((u)&7) as usize) as usize)) } } else { 2 }
 }
 pub fn _hb_ucd_dm (u: usize) -> u16
 {
-  if u<195102 { _hb_ucd_u16[6976usize+((((_hb_ucd_u8[16716usize+((((_hb_ucd_u8[16334usize+((u>>4>>5) as usize) as usize]) as usize)<<5) as usize+((u>>4)&31) as usize) as usize]) as usize)<<4) as usize+((u)&15) as usize) as usize] } else { 0 }
+  if u<195102 { unsafe { *(_hb_ucd_u16.get_unchecked(6976usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(16716usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(16334usize+((u>>4>>5) as usize) as usize)) }) as usize)<<5) as usize+((u>>4)&31) as usize) as usize)) }) as usize)<<4) as usize+((u)&15) as usize) as usize)) } } else { 0 }
 }
 
 }
