@@ -703,6 +703,12 @@ pub trait Apply {
         // This is used to determine the cost of caching the subtable.
         0
     }
+
+    fn external_cache_create(&self) -> SubtableExternalCache {
+        // Default implementation returns None, meaning no external cache.
+        // This is used to create an external cache for the subtable.
+        SubtableExternalCache::None
+    }
 }
 
 pub struct WouldApplyContext<'a> {

@@ -3,8 +3,9 @@ use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
-    SubtableExternalCache, WouldApply, WouldApplyContext,
+    LigatureSubstFormat1Cache, SubtableExternalCache, WouldApply, WouldApplyContext,
 };
+use alloc::boxed::Box;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
 
@@ -147,7 +148,8 @@ impl Apply for LigatureSubstFormat1<'_> {
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
 
-        let index = if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache {
+        let index = if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache
+        {
             coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, &cache.coverage)?
         } else {
             coverage_index(self.coverage(), glyph)?
@@ -156,5 +158,9 @@ impl Apply for LigatureSubstFormat1<'_> {
             .get(index as usize)
             .ok()
             .and_then(|set| set.apply(ctx))
+    }
+
+    fn external_cache_create(&self) -> SubtableExternalCache {
+        SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(LigatureSubstFormat1Cache::new()))
     }
 }

@@ -1,10 +1,7 @@
-use alloc::boxed::Box;
-
 use crate::hb::{
     hb_font_t, hb_glyph_info_t,
     ot_layout_gsubgpos::{
-        Apply, LigatureSubstFormat1Cache, PairPosFormat1Cache, PairPosFormat2Cache, SubtableExternalCache, WouldApply,
-        WouldApplyContext, OT::hb_ot_apply_context_t,
+        Apply, SubtableExternalCache, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t,
     },
     set_digest::hb_set_digest_t,
 };
@@ -517,120 +514,192 @@ impl SubtableInfo {
         lookup_type: u8,
     ) -> Option<(Self, u32)> {
         let data = table_data.split_off(subtable_offset as usize)?;
-        let (kind, (cache_cost, coverage), apply_fns): (
+        let (kind, (external_cache, cache_cost, coverage), apply_fns): (
             SubtableKind,
-            (u32, CoverageTable),
+            (SubtableExternalCache, u32, CoverageTable),
             [SubtableApplyFn; 2],
         ) = match (is_subst, lookup_type) {
             (true, 1) => match SingleSubst::read(data).ok()? {
                 SingleSubst::Format1(s) => (
                     SubtableKind::SingleSubst1,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [single_subst1, single_subst1_cached as _],
                 ),
                 SingleSubst::Format2(s) => (
                     SubtableKind::SingleSubst2,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [single_subst2, single_subst2_cached as _],
                 ),
             },
             (false, 1) => match SinglePos::read(data).ok()? {
                 SinglePos::Format1(s) => (
                     SubtableKind::SinglePos1,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [single_pos1, single_pos1_cached as _],
                 ),
                 SinglePos::Format2(s) => (
                     SubtableKind::SinglePos2,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [single_pos2, single_pos2_cached as _],
                 ),
             },
             (true, 2) => (
                 SubtableKind::MultipleSubst1,
-                MultipleSubstFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.coverage().ok()?)))?,
+                MultipleSubstFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.coverage().ok()?,
+                    ))
+                })?,
                 [multiple_subst1, multiple_subst1_cached as _],
             ),
             (false, 2) => match PairPos::read(data).ok()? {
                 PairPos::Format1(s) => (
                     SubtableKind::PairPos1,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [pair_pos1, pair_pos1_cached as _],
                 ),
                 PairPos::Format2(s) => (
                     SubtableKind::PairPos2,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [pair_pos2, pair_pos2_cached as _],
                 ),
             },
             (true, 3) => (
                 SubtableKind::AlternateSubst1,
-                AlternateSubstFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.coverage().ok()?)))?,
+                AlternateSubstFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.coverage().ok()?,
+                    ))
+                })?,
                 [alternate_subst1, alternate_subst1_cached as _],
             ),
             (false, 3) => (
                 SubtableKind::CursivePos1,
-                CursivePosFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.coverage().ok()?)))?,
+                CursivePosFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.coverage().ok()?,
+                    ))
+                })?,
                 [cursive_pos1, cursive_pos1_cached as _],
             ),
             (true, 4) => (
                 SubtableKind::LigatureSubst1,
-                LigatureSubstFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.coverage().ok()?)))?,
+                LigatureSubstFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.coverage().ok()?,
+                    ))
+                })?,
                 [ligature_subst1, ligature_subst1_cached as _],
             ),
             (false, 4) => (
                 SubtableKind::MarkBasePos1,
-                MarkBasePosFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.mark_coverage().ok()?)))?,
+                MarkBasePosFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.mark_coverage().ok()?,
+                    ))
+                })?,
                 [mark_base_pos1, mark_base_pos1_cached as _],
             ),
             (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
                 SequenceContext::Format1(s) => (
                     SubtableKind::ContextFormat1,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [context1, context1_cached as _],
                 ),
                 SequenceContext::Format2(s) => (
                     SubtableKind::ContextFormat2,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [context2, context2_cached as _],
                 ),
                 SequenceContext::Format3(s) => (
                     SubtableKind::ContextFormat3,
-                    (s.cache_cost(), s.coverages().get(0).ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverages().get(0).ok()?,
+                    ),
                     [context3, context3_cached as _],
                 ),
             },
             (false, 5) => (
                 SubtableKind::MarkLigPos1,
-                MarkLigPosFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.mark_coverage().ok()?)))?,
+                MarkLigPosFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.mark_coverage().ok()?,
+                    ))
+                })?,
                 [mark_lig_pos1, mark_lig_pos1_cached as _],
             ),
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
                 ChainedSequenceContext::Format1(s) => (
                     SubtableKind::ChainedContextFormat1,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [chained_context1, chained_context1_cached as _],
                 ),
                 ChainedSequenceContext::Format2(s) => (
                     SubtableKind::ChainedContextFormat2,
-                    (s.cache_cost(), s.coverage().ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.coverage().ok()?,
+                    ),
                     [chained_context2, chained_context2_cached as _],
                 ),
                 ChainedSequenceContext::Format3(s) => (
                     SubtableKind::ChainedContextFormat3,
-                    (s.cache_cost(), s.input_coverages().get(0).ok()?),
+                    (
+                        s.external_cache_create(),
+                        s.cache_cost(),
+                        s.input_coverages().get(0).ok()?,
+                    ),
                     [chained_context3, chained_context3_cached as _],
                 ),
             },
@@ -647,34 +716,32 @@ impl SubtableInfo {
             }
             (false, 6) => (
                 SubtableKind::MarkMarkPos1,
-                MarkMarkPosFormat1::read(data)
-                    .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.mark1_coverage().ok()?)))?,
+                MarkMarkPosFormat1::read(data).ok().and_then(|t| {
+                    Some((
+                        t.external_cache_create(),
+                        t.cache_cost(),
+                        t.mark1_coverage().ok()?,
+                    ))
+                })?,
                 [mark_mark_pos1, mark_mark_pos1_cached as _],
             ),
             (true, 8) => (
                 SubtableKind::ReverseChainContext,
                 ReverseChainSingleSubstFormat1::read(data)
                     .ok()
-                    .and_then(|t| Some((t.cache_cost(), t.coverage().ok()?)))?,
+                    .and_then(|t| {
+                        Some((
+                            t.external_cache_create(),
+                            t.cache_cost(),
+                            t.coverage().ok()?,
+                        ))
+                    })?,
                 [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
             ),
             _ => return None,
         };
         let mut digest = hb_set_digest_t::new();
         digest.add_coverage(&coverage);
-        let external_cache = match kind {
-            SubtableKind::LigatureSubst1 => {
-                SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(LigatureSubstFormat1Cache::new()))
-            }
-            SubtableKind::PairPos1 => {
-                SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
-            }
-            SubtableKind::PairPos2 => {
-                SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
-            }
-            _ => SubtableExternalCache::None,
-        };
         Some((
             SubtableInfo {
                 kind,

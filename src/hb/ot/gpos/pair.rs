@@ -1,7 +1,10 @@
 use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply, SubtableExternalCache};
+use crate::hb::ot_layout_gsubgpos::{
+    skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat2Cache, SubtableExternalCache,
+};
+use alloc::boxed::Box;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, Value};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
@@ -18,7 +21,11 @@ impl Apply for PairPosFormat1<'_> {
 
         let first_glyph_coverage_index =
             if let SubtableExternalCache::PairPosFormat1Cache(cache) = external_cache {
-                coverage_index_cached(|gid| self.coverage().ok()?.get(gid), first_glyph, &cache.coverage)?
+                coverage_index_cached(
+                    |gid| self.coverage().ok()?.get(gid),
+                    first_glyph,
+                    &cache.coverage,
+                )?
             } else {
                 coverage_index(self.coverage(), first_glyph)?
             };
@@ -100,6 +107,10 @@ impl Apply for PairPosFormat1<'_> {
         );
         let mut buf_idx = iter.buf_idx;
         bail(ctx, &mut buf_idx, values)
+    }
+
+    fn external_cache_create(&self) -> SubtableExternalCache {
+        SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
     }
 }
 
@@ -232,5 +243,9 @@ impl Apply for PairPosFormat2<'_> {
                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_idx));
             None
         }
+    }
+
+    fn external_cache_create(&self) -> SubtableExternalCache {
+        SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
     }
 }
