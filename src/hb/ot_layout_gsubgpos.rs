@@ -623,6 +623,30 @@ pub(crate) type MappingCache = hb_cache_t<
     16,  // STORAGE_BITS
 >;
 
+pub(crate) struct LigatureSubstFormat1Cache {
+    pub coverage: MappingCache,
+}
+
+impl LigatureSubstFormat1Cache {
+    pub fn new() -> Self {
+        LigatureSubstFormat1Cache {
+            coverage: MappingCache::new(),
+        }
+    }
+}
+
+pub(crate) struct PairPosFormat1Cache {
+    pub coverage: MappingCache,
+}
+
+impl PairPosFormat1Cache {
+    pub fn new() -> Self {
+        PairPosFormat1Cache {
+            coverage: MappingCache::new(),
+        }
+    }
+}
+
 pub(crate) struct PairPosFormat2Cache {
     pub coverage: MappingCache,
     pub first: MappingCache,
@@ -641,7 +665,8 @@ impl PairPosFormat2Cache {
 
 pub(crate) enum SubtableExternalCache {
     None,
-    MappingCache(Box<MappingCache>),
+    LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
+    PairPosFormat1Cache(Box<PairPosFormat1Cache>),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
 }
 

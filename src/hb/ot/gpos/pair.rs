@@ -17,8 +17,8 @@ impl Apply for PairPosFormat1<'_> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
         let first_glyph_coverage_index =
-            if let SubtableExternalCache::MappingCache(cache) = external_cache {
-                coverage_index_cached(|gid| self.coverage().ok()?.get(gid), first_glyph, cache)?
+            if let SubtableExternalCache::PairPosFormat1Cache(cache) = external_cache {
+                coverage_index_cached(|gid| self.coverage().ok()?.get(gid), first_glyph, &cache.coverage)?
             } else {
                 coverage_index(self.coverage(), first_glyph)?
             };

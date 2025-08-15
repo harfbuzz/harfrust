@@ -3,7 +3,7 @@ use alloc::boxed::Box;
 use crate::hb::{
     hb_font_t, hb_glyph_info_t,
     ot_layout_gsubgpos::{
-        Apply, MappingCache, PairPosFormat2Cache, SubtableExternalCache, WouldApply,
+        Apply, LigatureSubstFormat1Cache, PairPosFormat1Cache, PairPosFormat2Cache, SubtableExternalCache, WouldApply,
         WouldApplyContext, OT::hb_ot_apply_context_t,
     },
     set_digest::hb_set_digest_t,
@@ -664,8 +664,11 @@ impl SubtableInfo {
         let mut digest = hb_set_digest_t::new();
         digest.add_coverage(&coverage);
         let external_cache = match kind {
-            SubtableKind::LigatureSubst1 | SubtableKind::PairPos1 => {
-                SubtableExternalCache::MappingCache(Box::new(MappingCache::new()))
+            SubtableKind::LigatureSubst1 => {
+                SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(LigatureSubstFormat1Cache::new()))
+            }
+            SubtableKind::PairPos1 => {
+                SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
             }
             SubtableKind::PairPos2 => {
                 SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
