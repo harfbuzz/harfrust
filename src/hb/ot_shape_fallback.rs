@@ -94,9 +94,7 @@ pub fn _hb_ot_shape_fallback_mark_position_recategorize_marks(
 ) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
-        if _hb_glyph_info_get_general_category(info)
-            == hb_unicode_general_category_t::NonspacingMark
-        {
+        if _hb_glyph_info_get_general_category(info) == GeneralCategory::NON_SPACING_MARK {
             let mut class = _hb_glyph_info_get_modified_combining_class(info);
             class = recategorize_combining_class(info.glyph_id, class);
             _hb_glyph_info_set_modified_combining_class(info, class);
@@ -114,9 +112,7 @@ fn zero_mark_advances(
         .iter()
         .zip(&mut buffer.pos[start..end])
     {
-        if _hb_glyph_info_get_general_category(info)
-            == hb_unicode_general_category_t::NonspacingMark
-        {
+        if _hb_glyph_info_get_general_category(info) == GeneralCategory::NON_SPACING_MARK {
             if adjust_offsets_when_zeroing {
                 pos.x_offset -= pos.x_advance;
                 pos.y_offset -= pos.y_advance;

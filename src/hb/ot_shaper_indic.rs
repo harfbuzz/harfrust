@@ -15,7 +15,7 @@ use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_syllabic::*;
-use super::unicode::{hb_gc, CharExt, GeneralCategoryExt};
+use super::unicode::{hb_gc, CharExt};
 use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
 
 pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
@@ -1836,7 +1836,7 @@ fn final_reordering_impl(
     if buffer.info[start].indic_position() == ot_position_t::POS_PRE_M {
         if start == 0
             || (rb_flag_unsafe(
-                _hb_glyph_info_get_general_category(&buffer.info[start - 1]).to_u32(),
+                _hb_glyph_info_get_general_category(&buffer.info[start - 1]).to_u8() as u32,
             ) & rb_flag_range(
                 hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT,
                 hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK,

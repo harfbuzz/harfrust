@@ -8,8 +8,8 @@ use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
 use super::set_digest::hb_set_digest_t;
-use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
+use crate::hb::unicode::GeneralCategory;
 use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
@@ -1027,10 +1027,8 @@ pub fn ligate_input(
 
     if is_ligature {
         _hb_glyph_info_set_lig_props_for_ligature(first, lig_id, total_component_count);
-        if _hb_glyph_info_get_general_category(first)
-            == hb_unicode_general_category_t::NonspacingMark
-        {
-            _hb_glyph_info_set_general_category(first, hb_unicode_general_category_t::OtherLetter);
+        if _hb_glyph_info_get_general_category(first) == GeneralCategory::NON_SPACING_MARK {
+            _hb_glyph_info_set_general_category(first, GeneralCategory::OTHER_LETTER);
         }
     }
 

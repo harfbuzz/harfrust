@@ -6,9 +6,10 @@ use super::buffer::*;
 use super::ot::lookup::LookupInfo;
 use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
-use super::unicode::{hb_unicode_funcs_t, hb_unicode_general_category_t, GeneralCategoryExt};
+use super::unicode::hb_unicode_funcs_t;
 use super::{hb_font_t, hb_glyph_info_t};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
+use crate::hb::unicode::GeneralCategory;
 
 impl hb_glyph_info_t {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
@@ -344,23 +345,18 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
 //   }
 
 #[inline]
-pub fn _hb_glyph_info_set_general_category(
-    info: &mut hb_glyph_info_t,
-    gen_cat: hb_unicode_general_category_t,
-) {
+pub fn _hb_glyph_info_set_general_category(info: &mut hb_glyph_info_t, gen_cat: GeneralCategory) {
     /* Clears top-byte. */
-    let gen_cat = gen_cat.to_u32();
+    let gen_cat = gen_cat.0 as u32;
     let n =
         (gen_cat as u16) | (info.unicode_props() & (0xFF & !UnicodeProps::GENERAL_CATEGORY.bits()));
     info.set_unicode_props(n);
 }
 
 #[inline]
-pub fn _hb_glyph_info_get_general_category(
-    info: &hb_glyph_info_t,
-) -> hb_unicode_general_category_t {
+pub fn _hb_glyph_info_get_general_category(info: &hb_glyph_info_t) -> GeneralCategory {
     let n = info.unicode_props() & UnicodeProps::GENERAL_CATEGORY.bits();
-    hb_unicode_general_category_t::from_u32(n as u32)
+    GeneralCategory(n as u8)
 }
 
 #[inline]
@@ -398,7 +394,7 @@ pub fn _hb_glyph_info_get_modified_combining_class(info: &hb_glyph_info_t) -> u8
 
 #[inline]
 pub(crate) fn _hb_glyph_info_is_unicode_space(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_get_general_category(info) == hb_unicode_general_category_t::SpaceSeparator
+    _hb_glyph_info_get_general_category(info) == GeneralCategory::SPACE_SEPARATOR
 }
 
 #[inline]
@@ -427,7 +423,7 @@ pub(crate) fn _hb_glyph_info_get_unicode_space_fallback_type(
 
 #[inline]
 pub(crate) fn _hb_glyph_info_is_variation_selector(info: &hb_glyph_info_t) -> bool {
-    let a = _hb_glyph_info_get_general_category(info) == hb_unicode_general_category_t::Format;
+    let a = _hb_glyph_info_get_general_category(info) == GeneralCategory::FORMAT;
     let b = (info.unicode_props() & UnicodeProps::CF_VS.bits()) != 0;
     a && b
 }
@@ -435,11 +431,11 @@ pub(crate) fn _hb_glyph_info_is_variation_selector(info: &hb_glyph_info_t) -> bo
 #[inline]
 pub(crate) fn _hb_glyph_info_set_variation_selector(info: &mut hb_glyph_info_t, customize: bool) {
     if customize {
-        _hb_glyph_info_set_general_category(info, hb_unicode_general_category_t::Format);
+        _hb_glyph_info_set_general_category(info, GeneralCategory::FORMAT);
         info.set_unicode_props(info.unicode_props() | UnicodeProps::CF_VS.bits());
     } else {
         // Reset to their original condition
-        _hb_glyph_info_set_general_category(info, hb_unicode_general_category_t::NonspacingMark);
+        _hb_glyph_info_set_general_category(info, GeneralCategory::NON_SPACING_MARK);
     }
 }
 
@@ -506,7 +502,7 @@ pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut hb_buffer_t) {
 
 #[inline]
 pub(crate) fn _hb_glyph_info_is_unicode_format(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_get_general_category(info) == hb_unicode_general_category_t::Format
+    _hb_glyph_info_get_general_category(info) == GeneralCategory::FORMAT
 }
 
 #[inline]
@@ -543,7 +539,7 @@ pub(crate) fn _hb_glyph_info_is_aat_deleted(info: &hb_glyph_info_t) -> bool {
 
 #[inline]
 pub(crate) fn _hb_glyph_info_set_aat_deleted(info: &mut hb_glyph_info_t) {
-    _hb_glyph_info_set_general_category(info, hb_unicode_general_category_t::Format);
+    _hb_glyph_info_set_general_category(info, GeneralCategory::FORMAT);
     info.set_unicode_props(
         info.unicode_props() | UnicodeProps::CF_AAT_DELETED.bits() | UnicodeProps::HIDDEN.bits(),
     );

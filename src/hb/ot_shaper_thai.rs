@@ -3,7 +3,7 @@ use super::ot_layout::*;
 use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
-use super::unicode::hb_unicode_general_category_t;
+use super::unicode::GeneralCategory;
 use super::{hb_font_t, script};
 
 pub const THAI_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
@@ -393,7 +393,7 @@ fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_
         let end = buffer.out_len;
         _hb_glyph_info_set_general_category(
             &mut buffer.out_info_mut()[end - 2],
-            hb_unicode_general_category_t::NonspacingMark,
+            GeneralCategory::NON_SPACING_MARK,
         );
 
         // Ok, let's see...
