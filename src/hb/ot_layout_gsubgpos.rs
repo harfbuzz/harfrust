@@ -224,6 +224,7 @@ pub struct matcher_t {
     ignore_zwj: bool,
     ignore_hidden: bool,
     per_syllable: bool,
+    cached_props: u32, // Cached glyph properties for the current lookup.
 }
 
 impl matcher_t {
@@ -243,6 +244,7 @@ impl matcher_t {
             },
             /* Per syllable matching is only for GSUB. */
             per_syllable: ctx.table_index == TableIndex::GSUB && ctx.per_syllable,
+            cached_props: ctx.cached_props,
         }
     }
 
@@ -272,7 +274,7 @@ impl matcher_t {
 
     #[inline(always)]
     fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
-        if !check_glyph_property(face, info, lookup_props) {
+        if !check_glyph_property(face, info, lookup_props, self.cached_props) {
             return may_skip_t::SKIP_YES;
         }
 
@@ -729,10 +731,15 @@ pub mod OT {
         info: &hb_glyph_info_t,
         glyph_props: u16,
         match_props: u32,
+        cached_props: u32,
     ) -> bool {
         // If using mark filtering sets, the high short of
         // match_props has the set index.
         if match_props as u16 & lookup_flags::USE_MARK_FILTERING_SET != 0 {
+            if match_props == cached_props {
+                return _hb_glyph_info_matches(info);
+            }
+
             let set_index = (match_props >> 16) as u16;
             return face
                 .ot_tables
@@ -755,6 +762,7 @@ pub mod OT {
         face: &hb_font_t,
         info: &hb_glyph_info_t,
         match_props: u32,
+        cached_props: u32,
     ) -> bool {
         let glyph_props = info.glyph_props();
 
@@ -765,7 +773,7 @@ pub mod OT {
         }
 
         if glyph_props & GlyphPropsFlags::MARK.bits() != 0 {
-            return match_properties_mark(face, info, glyph_props, match_props);
+            return match_properties_mark(face, info, glyph_props, match_props, cached_props);
         }
 
         true
@@ -779,6 +787,7 @@ pub mod OT {
         pub per_syllable: bool,
         pub lookup_index: u16,
         pub lookup_props: u32,
+        pub cached_props: u32, // Cached glyph properties for the current lookup.
         pub nesting_level_left: usize,
         pub auto_zwnj: bool,
         pub auto_zwj: bool,
@@ -806,7 +815,8 @@ pub mod OT {
                 lookup_mask: 1,
                 per_syllable: false,
                 lookup_index: u16::MAX,
-                lookup_props: 0,
+                lookup_props: u32::MAX,
+                cached_props: u32::MAX,
                 nesting_level_left: MAX_NESTING_LEVEL,
                 auto_zwnj: true,
                 auto_zwj: true,
@@ -920,6 +930,11 @@ pub mod OT {
                 cur.set_glyph_props(props | class_guess.bits());
             } else {
                 cur.set_glyph_props(props);
+            }
+
+            if self.cached_props != u32::MAX {
+                let matches = check_glyph_property(self.face, cur, self.lookup_props, u32::MAX);
+                _hb_glyph_info_set_matches(cur, matches);
             }
         }
 

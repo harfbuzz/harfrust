@@ -1657,9 +1657,10 @@ bitflags::bitflags! {
         const CLASS_MASK    = Self::BASE_GLYPH.bits() | Self::LIGATURE.bits() | Self::MARK.bits();
 
         // The following are used internally; not derived from GDEF.
-        const SUBSTITUTED   = 0x10;
-        const LIGATED       = 0x20;
-        const MULTIPLIED    = 0x40;
+        const MATCHES       = 0x10;
+        const SUBSTITUTED   = 0x20;
+        const LIGATED       = 0x40;
+        const MULTIPLIED    = 0x80;
 
         const PRESERVE      = Self::SUBSTITUTED.bits() | Self::LIGATED.bits() | Self::MULTIPLIED.bits();
     }
