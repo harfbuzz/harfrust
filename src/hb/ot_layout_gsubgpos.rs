@@ -7,6 +7,7 @@ use super::hb_font_t;
 use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
+use super::set_digest::hb_set_digest_t;
 use super::unicode::hb_unicode_general_category_t;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use alloc::boxed::Box;
@@ -625,12 +626,14 @@ pub(crate) type MappingCache = hb_cache_t<
 
 pub(crate) struct LigatureSubstFormat1Cache {
     pub coverage: MappingCache,
+    pub seconds: hb_set_digest_t,
 }
 
 impl LigatureSubstFormat1Cache {
-    pub fn new() -> Self {
+    pub fn new(seconds: hb_set_digest_t) -> Self {
         LigatureSubstFormat1Cache {
             coverage: MappingCache::new(),
+            seconds,
         }
     }
 }
