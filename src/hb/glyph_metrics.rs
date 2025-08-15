@@ -1,8 +1,15 @@
 use crate::{hb::tables::TableOffsets, Tag};
 use read_fonts::{
     tables::{
-        glyf::Glyf, gvar::Gvar, hmtx::Hmtx, hvar::Hvar, loca::Loca, mvar::Mvar, vmtx::Vmtx,
-        vorg::Vorg, vvar::Vvar,
+        glyf::Glyf,
+        gvar::Gvar,
+        hmtx::{Hmtx, LongMetric},
+        hvar::Hvar,
+        loca::Loca,
+        mvar::Mvar,
+        vmtx::Vmtx,
+        vorg::Vorg,
+        vvar::Vvar,
     },
     types::{BoundingBox, F2Dot14, Fixed, GlyphId, Point},
     FontRef,
@@ -10,7 +17,8 @@ use read_fonts::{
 
 #[derive(Clone)]
 pub(crate) struct GlyphMetrics<'a> {
-    hmtx: Option<Hmtx<'a>>,
+    _hmtx: Option<Hmtx<'a>>,
+    h_metrics: &'a [LongMetric],
     hvar: Option<Hvar<'a>>,
     vmtx: Option<Vmtx<'a>>,
     vvar: Option<Vvar<'a>>,
@@ -38,6 +46,10 @@ impl<'a> GlyphMetrics<'a> {
             .hmtx
             .resolve_data(font)
             .and_then(|data| Hmtx::read(data, table_offsets.num_h_metrics).ok());
+        let h_metrics = hmtx
+            .as_ref()
+            .map(|hmtx| hmtx.h_metrics())
+            .unwrap_or_default();
         let hvar = table_offsets.hvar.resolve_table(font);
         let vmtx = table_offsets
             .vmtx
@@ -60,7 +72,8 @@ impl<'a> GlyphMetrics<'a> {
         let ascent = table_offsets.ascent;
         let descent = table_offsets.descent;
         Self {
-            hmtx,
+            _hmtx: hmtx,
+            h_metrics,
             hvar,
             vmtx,
             vvar,
@@ -77,10 +90,10 @@ impl<'a> GlyphMetrics<'a> {
     pub fn advance_width(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
         let gid = gid.into();
         let Some(mut advance) = self
-            .hmtx
-            .as_ref()
-            .and_then(|hmtx| hmtx.advance(gid))
-            .map(|advance| advance as i32)
+            .h_metrics
+            .get(gid.to_u32() as usize)
+            .or_else(|| self.h_metrics.last())
+            .map(|metric| metric.advance() as i32)
         else {
             return (gid.to_u32() < self.num_glyphs).then_some(self.upem as i32 / 2);
         };
@@ -99,7 +112,7 @@ impl<'a> GlyphMetrics<'a> {
 
     pub fn _left_side_bearing(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
         let gid = gid.into();
-        let mut bearing = if let Some(hmtx) = self.hmtx.as_ref() {
+        let mut bearing = if let Some(hmtx) = self._hmtx.as_ref() {
             hmtx.side_bearing(gid).unwrap_or_default() as i32
         } else if let Some(extents) = self.extents(gid, coords) {
             return Some(extents.x_min);
