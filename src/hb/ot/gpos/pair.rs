@@ -5,7 +5,9 @@ use crate::hb::ot_layout_gsubgpos::{
     skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat2Cache, SubtableExternalCache,
 };
 use alloc::boxed::Box;
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2, PairValueRecord, Value};
+use read_fonts::tables::gpos::{
+    PairPosFormat1, PairPosFormat2, PairValueRecord, Value, ValueContext,
+};
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
 
@@ -207,14 +209,14 @@ impl Apply for PairPosFormat2<'_> {
                 }
             };
 
-        let bail =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, records: &[Value; 2]| {
-                let flag1 = apply_value_to_pos(ctx, ctx.buffer.idx, &records[0]);
-                let flag2 = apply_value_to_pos(ctx, second_glyph_index, &records[1]);
+        // let bail =
+        //     |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flags: [bool; 2], has_record2| {
+        //         let flag1 = apply_value_to_pos(ctx, ctx.buffer.idx, &records[0]);
+        //         let flag2 = apply_value_to_pos(ctx, second_glyph_index, &records[1]);
 
-                let has_record2 = !records[1].format.is_empty();
-                success(ctx, iter_index, flag1, flag2, has_record2)
-            };
+        //         let has_record2 = !records[1].format.is_empty();
+        //         success(ctx, iter_index, flag1, flag2, has_record2)
+        //     };
 
         let class1 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
             glyph_class_cached(
@@ -235,14 +237,31 @@ impl Apply for PairPosFormat2<'_> {
             glyph_class(self.class_def2(), second_glyph)
         };
         let mut buf_idx = iter.buf_idx;
-        let end_idx = iter.index() + 1;
-        if let Ok(values) = self.values(class1, class2, &ctx.face.ot_tables.value_context) {
-            bail(ctx, &mut buf_idx, &values)
-        } else {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_idx));
-            None
-        }
+        // let end_idx = iter.index() + 1;
+
+        let format1 = self.value_format1();
+        let format1_len = format1.record_byte_len();
+        let format2 = self.value_format2();
+        let record_size = format1_len + format2.record_byte_len();
+        let data = self.offset_data();
+        // Compute an offset into the 2D array of positioning records
+        let record_offset = (class1 as usize * record_size * self.class2_count() as usize)
+            + (class2 as usize * record_size)
+            + self.shape().class1_records_byte_range().start;
+
+        let has_record2 = !format2.is_empty();
+        let worked1 = !format1.is_empty()
+            && super::read_value_to_pos(ctx, ctx.buffer.idx, &data, record_offset, format1)
+                == Some(true);
+        let worked2 = has_record2
+            && super::read_value_to_pos(
+                ctx,
+                second_glyph_index,
+                &data,
+                record_offset + format1_len,
+                format2,
+            ) == Some(true);
+        success(ctx, &mut buf_idx, worked1, worked2, has_record2)
     }
 
     fn external_cache_create(&self) -> SubtableExternalCache {
