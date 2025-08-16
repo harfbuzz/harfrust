@@ -368,7 +368,7 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L260>
     #[doc(alias = "_hb_glyph_info_set_general_category")]
     #[inline]
-    pub fn set_general_category(&mut self, gen_cat: GeneralCategory) {
+    pub(crate) fn set_general_category(&mut self, gen_cat: GeneralCategory) {
         /* Clears top-byte. */
         let gen_cat = gen_cat.0 as u32;
         let n = (gen_cat as u16)
@@ -381,7 +381,7 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L268>
     #[doc(alias = "_hb_glyph_info_get_general_category")]
     #[inline]
-    pub fn general_category(&self) -> GeneralCategory {
+    pub(crate) fn general_category(&self) -> GeneralCategory {
         let n = self.unicode_props() & UnicodeProps::GENERAL_CATEGORY.bits();
         GeneralCategory(n as u8)
     }
@@ -391,7 +391,7 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L274>
     #[doc(alias = "_hb_glyph_info_is_unicode_mark")]
     #[inline]
-    pub fn is_unicode_mark(&self) -> bool {
+    pub(crate) fn is_unicode_mark(&self) -> bool {
         self.general_category().is_mark()
     }
 
@@ -413,7 +413,7 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L287>
     #[doc(alias = "_hb_glyph_info_get_modified_combining_class")]
     #[inline]
-    pub fn modified_combining_class(&self) -> u8 {
+    pub(crate) fn modified_combining_class(&self) -> u8 {
         if self.is_unicode_mark() {
             (self.unicode_props() >> 8) as u8
         } else {
