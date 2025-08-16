@@ -16,10 +16,9 @@
 use core::cell::Cell;
 
 use super::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
-use super::hb_glyph_info_t;
 use super::machine_cursor::MachineCursor;
-use super::ot_layout::*;
 use super::ot_shaper_use::category;
+use super::GlyphInfo;
 
 static _use_syllable_machine_trans_keys: [u8; 260] = [
     35, 37, 0, 42, 5, 42, 5, 42, 1, 39, 8, 34, 8, 33, 8, 33, 8, 33, 8, 32, 8, 32, 8, 8, 8, 34, 8,
@@ -541,7 +540,7 @@ fn found_syllable(
     end: usize,
     syllable_serial: &mut u8,
     kind: SyllableType,
-    buffer: &[Cell<hb_glyph_info_t>],
+    buffer: &[Cell<GlyphInfo>],
 ) {
     for i in start..end {
         let mut glyph = buffer[i].get();
@@ -556,11 +555,11 @@ fn found_syllable(
     }
 }
 
-fn not_ccs_default_ignorable(i: &hb_glyph_info_t) -> bool {
+fn not_ccs_default_ignorable(i: &GlyphInfo) -> bool {
     i.use_category() != category::CGJ
 }
 
-fn included(infos: &[Cell<hb_glyph_info_t>], i: usize) -> bool {
+fn included(infos: &[Cell<GlyphInfo>], i: usize) -> bool {
     let glyph = infos[i].get();
     if !not_ccs_default_ignorable(&glyph) {
         return false;
@@ -568,7 +567,7 @@ fn included(infos: &[Cell<hb_glyph_info_t>], i: usize) -> bool {
     if glyph.use_category() == category::ZWNJ {
         for glyph2 in &infos[i + 1..] {
             if not_ccs_default_ignorable(&glyph2.get()) {
-                return !_hb_glyph_info_is_unicode_mark(&glyph2.get());
+                return !glyph2.get().is_unicode_mark();
             }
         }
     }

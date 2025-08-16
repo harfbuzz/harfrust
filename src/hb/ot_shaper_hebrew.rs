@@ -2,7 +2,6 @@ use super::ot_shape_normalize::*;
 use super::ot_shaper::*;
 use super::{hb_tag_t, unicode};
 use crate::hb::buffer::hb_buffer_t;
-use crate::hb::ot_layout::_hb_glyph_info_get_modified_combining_class;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
 use crate::hb::unicode::{combining_class, modified_combining_class};
 
@@ -33,13 +32,13 @@ fn reorder_marks_hebrew(
         let c1 = buffer.info[i - 1];
         let c2 = buffer.info[i - 0];
 
-        if (_hb_glyph_info_get_modified_combining_class(&c0) == modified_combining_class::CCC17
-                || _hb_glyph_info_get_modified_combining_class(&c0) == modified_combining_class::CCC18) /* patach or qamats */
+        if (c0.modified_combining_class() == modified_combining_class::CCC17
+                || c0.modified_combining_class() == modified_combining_class::CCC18) /* patach or qamats */
                 &&
-            (_hb_glyph_info_get_modified_combining_class(&c1) == modified_combining_class::CCC10
-                || _hb_glyph_info_get_modified_combining_class(&c1) == modified_combining_class::CCC14) /* sheva or hiriq */ &&
-            (_hb_glyph_info_get_modified_combining_class(&c2) == modified_combining_class::CCC22
-                || _hb_glyph_info_get_modified_combining_class(&c2) == combining_class::Below)
+            (c1.modified_combining_class() == modified_combining_class::CCC10
+                || c1.modified_combining_class() == modified_combining_class::CCC14) /* sheva or hiriq */ &&
+            (c2.modified_combining_class() == modified_combining_class::CCC22
+                || c2.modified_combining_class() == combining_class::Below)
         /* meteg or below */
         {
             buffer.merge_clusters(i - 1, i + 1);

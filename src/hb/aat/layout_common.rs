@@ -3,7 +3,6 @@ use super::map::RangeFlags;
 use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
-use crate::hb::ot_layout::_hb_glyph_info_set_aat_deleted;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
@@ -33,7 +32,7 @@ impl<'a> AatApplyContext<'a> {
     pub fn output_glyph(&mut self, glyph: u32) {
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            _hb_glyph_info_set_aat_deleted(self.buffer.cur_mut(0));
+            self.buffer.cur_mut(0).set_aat_deleted();
         } else {
             if self.has_glyph_classes {
                 self.buffer
@@ -47,7 +46,7 @@ impl<'a> AatApplyContext<'a> {
     pub fn replace_glyph(&mut self, glyph: u32) {
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            _hb_glyph_info_set_aat_deleted(self.buffer.cur_mut(0));
+            self.buffer.cur_mut(0).set_aat_deleted();
         }
 
         if self.has_glyph_classes {
@@ -60,7 +59,7 @@ impl<'a> AatApplyContext<'a> {
 
     pub fn delete_glyph(&mut self) {
         self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-        _hb_glyph_info_set_aat_deleted(self.buffer.cur_mut(0));
+        self.buffer.cur_mut(0).set_aat_deleted();
         self.buffer.replace_glyph(DELETED_GLYPH);
     }
 

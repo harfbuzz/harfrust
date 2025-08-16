@@ -3,9 +3,8 @@
 use super::map;
 use super::{layout_kerx_table, layout_morx_table, layout_trak_table};
 use crate::hb::aat::layout_common::{AatApplyContext, HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED};
-use crate::hb::ot_layout::_hb_glyph_info_is_aat_deleted;
 use crate::hb::{
-    buffer::hb_buffer_t, hb_font_t, hb_glyph_info_t, hb_tag_t, ot_shape_plan::hb_ot_shape_plan_t,
+    buffer::hb_buffer_t, hb_font_t, hb_tag_t, ot_shape_plan::hb_ot_shape_plan_t, GlyphInfo,
 };
 use crate::Feature;
 
@@ -532,8 +531,8 @@ pub fn zero_width_deleted_glyphs(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn is_deleted_glyph(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_is_aat_deleted(info)
+fn is_deleted_glyph(info: &GlyphInfo) -> bool {
+    info.is_aat_deleted()
 }
 
 /// HB: hb_aat_layout_remove_deleted_glyphs

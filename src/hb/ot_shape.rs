@@ -368,7 +368,7 @@ fn hb_ot_substitute_default(ctx: &mut hb_ot_shape_context_t) {
     rotate_chars(ctx);
 
     ctx.buffer
-        .allocate_var(hb_glyph_info_t::NORMALIZER_GLYPH_INDEX_VAR);
+        .allocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
 
     ot_shape_normalize::_hb_ot_shape_normalize(ctx.plan, ctx.buffer, ctx.face);
 
@@ -384,7 +384,7 @@ fn hb_ot_substitute_default(ctx: &mut hb_ot_shape_context_t) {
     map_glyphs_fast(ctx.buffer);
 
     ctx.buffer
-        .deallocate_var(hb_glyph_info_t::NORMALIZER_GLYPH_INDEX_VAR);
+        .deallocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
 }
 
 fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
@@ -555,16 +555,14 @@ fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
         if buffer.info[i].glyph_id == 0x2044 {
             let mut start = i;
             while start > 0
-                && _hb_glyph_info_get_general_category(&buffer.info[start - 1])
-                    == GeneralCategory::DECIMAL_NUMBER
+                && buffer.info[start - 1].general_category() == GeneralCategory::DECIMAL_NUMBER
             {
                 start -= 1;
             }
 
             let mut end = i + 1;
             while end < len
-                && _hb_glyph_info_get_general_category(&buffer.info[end])
-                    == GeneralCategory::DECIMAL_NUMBER
+                && buffer.info[end].general_category() == GeneralCategory::DECIMAL_NUMBER
             {
                 end += 1;
             }
@@ -621,7 +619,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
         let info = &mut later[0];
         info.init_unicode_props(&mut buffer.scratch_flags);
 
-        let gen_cat = _hb_glyph_info_get_general_category(info);
+        let gen_cat = info.general_category();
 
         if (rb_flag_unsafe(gen_cat.to_u8() as u32)
             & (rb_flag(HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER)
@@ -639,20 +637,20 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
         // Handle Emoji_Modifier and ZWJ-continuation.
         if gen_cat == GeneralCategory::MODIFIER_SYMBOL && matches!(info.glyph_id, 0x1F3FB..=0x1F3FF)
         {
-            _hb_glyph_info_set_continuation(info);
+            info.set_continuation();
         } else if i != 0 && matches!(info.glyph_id, 0x1F1E6..=0x1F1FF) {
             // Should never fail because we checked for i > 0.
             // TODO: use let chains when they become stable
             let prev = prior.last().unwrap();
-            if matches!(prev.glyph_id, 0x1F1E6..=0x1F1FF) && !_hb_glyph_info_is_continuation(prev) {
-                _hb_glyph_info_set_continuation(info);
+            if matches!(prev.glyph_id, 0x1F1E6..=0x1F1FF) && !prev.is_continuation() {
+                info.set_continuation();
             }
-        } else if _hb_glyph_info_is_zwj(info) {
-            _hb_glyph_info_set_continuation(info);
+        } else if info.is_zwj() {
+            info.set_continuation();
             if let Some(next) = buffer.info[..len].get_mut(i + 1) {
                 if next.as_char().is_emoji_extended_pictographic() {
                     next.init_unicode_props(&mut buffer.scratch_flags);
-                    _hb_glyph_info_set_continuation(next);
+                    next.set_continuation();
                     i += 1;
                 }
             }
@@ -670,7 +668,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
             // https://github.com/harfbuzz/harfbuzz/issues/1556
             // Katakana ones were requested:
             // https://github.com/harfbuzz/harfbuzz/issues/3844
-            _hb_glyph_info_set_continuation(info);
+            info.set_continuation();
         }
 
         i += 1;
@@ -683,14 +681,14 @@ fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {
         .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)
         && buffer.flags.contains(BufferFlags::BEGINNING_OF_TEXT)
         && buffer.context_len[0] == 0
-        && _hb_glyph_info_is_unicode_mark(&buffer.info[0])
+        && buffer.info[0].is_unicode_mark()
         && face.has_glyph(0x25CC)
     {
-        let mut info = hb_glyph_info_t {
+        let mut info = GlyphInfo {
             glyph_id: 0x25CC,
             mask: buffer.cur(0).mask,
             cluster: buffer.cur(0).cluster,
-            ..hb_glyph_info_t::default()
+            ..GlyphInfo::default()
         };
 
         info.init_unicode_props(&mut buffer.scratch_flags);
@@ -741,7 +739,7 @@ fn ensure_native_direction(buffer: &mut hb_buffer_t) {
         let mut found_letter = false;
         let mut found_ri = false;
         for info in &buffer.info {
-            let gc = _hb_glyph_info_get_general_category(info);
+            let gc = info.general_category();
             if gc == GeneralCategory::DECIMAL_NUMBER {
                 found_number = true;
             } else if gc.is_letter() {
@@ -819,9 +817,8 @@ fn hb_synthesize_glyph_classes(buffer: &mut hb_buffer_t) {
         // marks them as non-mark.  Some Mongolian fonts without
         // GDEF rely on this.  Another notable character that
         // this applies to is COMBINING GRAPHEME JOINER.
-        let class = if _hb_glyph_info_get_general_category(info)
-            != GeneralCategory::NON_SPACING_MARK
-            || _hb_glyph_info_is_default_ignorable(info)
+        let class = if info.general_category() != GeneralCategory::NON_SPACING_MARK
+            || info.is_default_ignorable()
         {
             GlyphPropsFlags::BASE_GLYPH
         } else {
@@ -843,7 +840,7 @@ fn zero_width_default_ignorables(buffer: &mut hb_buffer_t) {
     {
         let len = buffer.len;
         for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
-            if _hb_glyph_info_is_default_ignorable(info) {
+            if info.is_default_ignorable() {
                 pos.x_advance = 0;
                 pos.y_advance = 0;
                 pos.x_offset = 0;
@@ -869,13 +866,13 @@ fn deal_with_variation_selectors(buffer: &mut hb_buffer_t) {
     let pos = &mut buffer.pos;
 
     for i in 0..count {
-        if _hb_glyph_info_is_variation_selector(&info[i]) {
+        if info[i].is_variation_selector() {
             info[i].glyph_id = nf;
             pos[i].x_advance = 0;
             pos[i].y_advance = 0;
             pos[i].x_offset = 0;
             pos[i].y_offset = 0;
-            _hb_glyph_info_set_variation_selector(&mut info[i], false);
+            info[0].set_variation_selector(false);
         }
     }
 }
@@ -883,7 +880,7 @@ fn deal_with_variation_selectors(buffer: &mut hb_buffer_t) {
 fn zero_mark_widths_by_gdef(buffer: &mut hb_buffer_t, adjust_offsets: bool) {
     let len = buffer.len;
     for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
-        if _hb_glyph_info_is_mark(info) {
+        if info.is_mark() {
             if adjust_offsets {
                 pos.x_offset -= pos.x_advance;
                 pos.y_offset -= pos.y_advance;
@@ -911,7 +908,7 @@ fn hide_default_ignorables(buffer: &mut hb_buffer_t, face: &hb_font_t) {
             {
                 let len = buffer.len;
                 for info in &mut buffer.info[..len] {
-                    if _hb_glyph_info_is_default_ignorable(info) {
+                    if info.is_default_ignorable() {
                         info.glyph_id = invisible.to_u32();
                     }
                 }
@@ -919,7 +916,7 @@ fn hide_default_ignorables(buffer: &mut hb_buffer_t, face: &hb_font_t) {
             }
         }
 
-        buffer.delete_glyphs_inplace(_hb_glyph_info_is_default_ignorable);
+        buffer.delete_glyphs_inplace(GlyphInfo::is_default_ignorable);
     }
 }
 

@@ -2,7 +2,7 @@ use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use crate::hb::aat::layout_common::AatApplyContext;
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
-use crate::hb::{hb_font_t, hb_glyph_info_t};
+use crate::hb::{hb_font_t, GlyphInfo};
 use alloc::vec;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{
@@ -470,7 +470,7 @@ impl DriverContext<NoPayload> for RearrangementCtx {
                 buffer.merge_clusters(self.start, (buffer.idx + 1).min(buffer.len));
                 buffer.merge_clusters(self.start, self.end);
 
-                let mut buf = [hb_glyph_info_t::default(); 4];
+                let mut buf = [GlyphInfo::default(); 4];
 
                 for (i, glyph_info) in buf[..l].iter_mut().enumerate() {
                     *glyph_info = buffer.info[self.start + i];

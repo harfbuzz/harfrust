@@ -11,7 +11,7 @@ use super::ot_shaper::*;
 use super::ot_shaper_arabic::arabic_shape_plan_t;
 use super::ot_shaper_syllabic::*;
 use super::unicode::CharExt;
-use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
+use super::{hb_font_t, hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
 
 pub const UNIVERSAL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: Some(collect_features),
@@ -29,7 +29,7 @@ pub const UNIVERSAL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     fallback_position: false,
 };
 
-impl hb_glyph_info_t {
+impl GlyphInfo {
     declare_buffer_var_alias!(
         OT_SHAPER_VAR_U8_CATEGORY_VAR,
         u8,
@@ -42,7 +42,7 @@ impl hb_glyph_info_t {
         matches!(
             self.use_category(),
             category::H | category::HVM | category::IS
-        ) && !_hb_glyph_info_ligated(self)
+        ) && !self.ligated()
     }
 }
 
@@ -236,7 +236,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
 }
 
 fn setup_syllables(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
-    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+    buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     super::ot_shaper_use_machine::find_syllables(buffer);
 
@@ -365,7 +365,7 @@ fn record_rphf(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_
                 break;
             }
 
-            if _hb_glyph_info_substituted(&buffer.info[i]) {
+            if buffer.info[i].substituted() {
                 buffer.info[i].set_use_category(category::R);
                 break;
             }
@@ -402,7 +402,7 @@ fn reorder_use(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_
         end = buffer.next_syllable(start);
     }
 
-    buffer.deallocate_var(hb_glyph_info_t::USE_CATEGORY_VAR);
+    buffer.deallocate_var(GlyphInfo::USE_CATEGORY_VAR);
 
     ret
 }
@@ -488,7 +488,7 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut hb_buffer_t) {
             // shift things in between forward.
             j = i + 1;
         } else if (flag & (category_flag(category::VPre) | category_flag(category::VMPre))) != 0
-            && _hb_glyph_info_get_lig_comp(&buffer.info[i]) == 0
+            && buffer.info[i].lig_comp() == 0
             && j < i
         {
             // Only move the first component of a MultipleSubst.
@@ -508,7 +508,7 @@ fn record_pref(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) 
     while start < buffer.len {
         // Mark a substituted pref as VPre, as they behave the same way.
         for i in start..end {
-            if _hb_glyph_info_substituted(&buffer.info[i]) {
+            if buffer.info[i].substituted() {
                 buffer.info[i].set_use_category(category::VPre);
                 break;
             }
@@ -562,7 +562,7 @@ fn setup_masks(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_
         crate::hb::ot_shaper_arabic::setup_masks_inner(arabic_plan, plan.script, buffer);
     }
 
-    buffer.allocate_var(hb_glyph_info_t::USE_CATEGORY_VAR);
+    buffer.allocate_var(GlyphInfo::USE_CATEGORY_VAR);
 
     // We cannot setup masks here. We save information about characters
     // and setup masks later on in a pause-callback.

@@ -1,12 +1,11 @@
 use super::buffer::*;
 use super::common::hb_codepoint_t;
 use super::hb_font_t;
-use super::ot_layout::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
 use super::unicode::{hb_unicode_funcs_t, CharExt};
 
-impl hb_glyph_info_t {
+impl GlyphInfo {
     declare_buffer_var!(
         u32,
         1,
@@ -104,7 +103,7 @@ fn compose_unicode(
     super::unicode::compose(a, b)
 }
 
-fn set_glyph(info: &mut hb_glyph_info_t, font: &hb_font_t) {
+fn set_glyph(info: &mut GlyphInfo, font: &hb_font_t) {
     if let Some(glyph_id) = font.get_nominal_glyph(info.glyph_id) {
         info.set_normalizer_glyph_index(u32::from(glyph_id));
     }
@@ -187,13 +186,15 @@ fn decompose_current_character(ctx: &mut hb_ot_shape_normalize_context_t, shorte
         return;
     }
 
-    if _hb_glyph_info_is_unicode_space(ctx.buffer.cur(0)) {
+    if ctx.buffer.cur(0).is_unicode_space() {
         let space_type = u.space_fallback();
         if space_type != hb_unicode_funcs_t::NOT_SPACE {
             let space_glyph = ctx.face.get_nominal_glyph(0x0020).or(ctx.buffer.invisible);
 
             if let Some(space_glyph) = space_glyph {
-                _hb_glyph_info_set_unicode_space_fallback_type(ctx.buffer.cur_mut(0), space_type);
+                ctx.buffer
+                    .cur_mut(0)
+                    .set_unicode_space_fallback_type(space_type);
                 next_char(ctx.buffer, u32::from(space_glyph));
                 ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK;
                 return;
@@ -240,10 +241,10 @@ fn handle_variation_selector_cluster(
 
                 buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK;
 
-                _hb_glyph_info_set_variation_selector(buffer.cur_mut(0), true);
+                buffer.cur_mut(0).set_variation_selector(true);
 
                 if buffer.not_found_variation_selector.is_some() {
-                    _hb_glyph_info_clear_default_ignorable(buffer.cur_mut(0));
+                    buffer.cur_mut(0).clear_default_ignorable();
                 }
 
                 set_glyph(buffer.cur_mut(0), face);
@@ -286,9 +287,9 @@ fn decompose_multi_char_cluster(
     }
 }
 
-fn compare_combining_class(pa: &hb_glyph_info_t, pb: &hb_glyph_info_t) -> bool {
-    let a = _hb_glyph_info_get_modified_combining_class(pa);
-    let b = _hb_glyph_info_get_modified_combining_class(pb);
+fn compare_combining_class(pa: &GlyphInfo, pb: &GlyphInfo) -> bool {
+    let a = pa.modified_combining_class();
+    let b = pb.modified_combining_class();
     a > b
 }
 
@@ -344,7 +345,7 @@ pub fn _hb_ot_shape_normalize(
         buffer.idx = 0;
         loop {
             let mut end = buffer.idx + 1;
-            while end < count && !_hb_glyph_info_is_unicode_mark(&buffer.info[end]) {
+            while end < count && !buffer.info[end].is_unicode_mark() {
                 end += 1;
             }
 
@@ -381,7 +382,7 @@ pub fn _hb_ot_shape_normalize(
 
             // Find all the marks now.
             end = buffer.idx + 1;
-            while end < count && _hb_glyph_info_is_unicode_mark(&buffer.info[end]) {
+            while end < count && buffer.info[end].is_unicode_mark() {
                 end += 1;
             }
 
@@ -402,14 +403,13 @@ pub fn _hb_ot_shape_normalize(
         let count = buffer.len;
         let mut i = 0;
         while i < count {
-            if _hb_glyph_info_get_modified_combining_class(&buffer.info[i]) == 0 {
+            if buffer.info[i].modified_combining_class() == 0 {
                 i += 1;
                 continue;
             }
 
             let mut end = i + 1;
-            while end < count && _hb_glyph_info_get_modified_combining_class(&buffer.info[end]) != 0
-            {
+            while end < count && buffer.info[end].modified_combining_class() != 0 {
                 end += 1;
             }
 
@@ -433,8 +433,8 @@ pub fn _hb_ot_shape_normalize(
             if buffer.info[i].glyph_id == 0x034F
             /* CGJ */
             {
-                let last = _hb_glyph_info_get_modified_combining_class(&buffer.info[i - 1]);
-                let next = _hb_glyph_info_get_modified_combining_class(&buffer.info[i + 1]);
+                let last = buffer.info[i - 1].modified_combining_class();
+                let next = buffer.info[i + 1].modified_combining_class();
                 if next == 0 || last <= next {
                     buffer.info[i].unhide();
                 }
@@ -461,11 +461,11 @@ pub fn _hb_ot_shape_normalize(
             // glyphs in most scripts AND a desired feature for Hangul.  Apparently Hangul
             // fonts are not designed to mix-and-match pre-composed syllables and Jamo.
             let cur = buffer.cur(0);
-            if _hb_glyph_info_is_unicode_mark(cur) &&
+            if cur.is_unicode_mark() &&
                 // If there's anything between the starter and this char, they should have CCC
                 // smaller than this character's.
                 (starter == buffer.out_len - 1
-                    || _hb_glyph_info_get_modified_combining_class(buffer.prev()) < _hb_glyph_info_get_modified_combining_class(cur))
+                    || buffer.prev().modified_combining_class() < cur.modified_combining_class())
             {
                 let a = buffer.out_info()[starter].as_char();
                 let b = cur.as_char();
@@ -499,7 +499,7 @@ pub fn _hb_ot_shape_normalize(
             buffer = &mut ctx.buffer;
             buffer.next_glyph();
 
-            if _hb_glyph_info_get_modified_combining_class(buffer.prev()) == 0 {
+            if buffer.prev().modified_combining_class() == 0 {
                 starter = buffer.out_len - 1;
             }
         }

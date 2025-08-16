@@ -7,12 +7,12 @@ use super::ot::lookup::LookupInfo;
 use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::unicode::hb_unicode_funcs_t;
-use super::{hb_font_t, hb_glyph_info_t};
+use super::{hb_font_t, GlyphInfo};
 use crate::hb::ot_layout_common::*;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::unicode::GeneralCategory;
 
-impl hb_glyph_info_t {
+impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
     declare_buffer_var!(u8, 1, 2, LIG_PROPS_VAR, lig_props, set_lig_props);
     declare_buffer_var!(u8, 1, 3, SYLLABLE_VAR, syllable, set_syllable);
@@ -28,26 +28,26 @@ impl hb_glyph_info_t {
 
 impl hb_buffer_t {
     pub(crate) fn allocate_unicode_vars(&mut self) {
-        self.allocate_var(hb_glyph_info_t::UNICODE_PROPS_VAR);
+        self.allocate_var(GlyphInfo::UNICODE_PROPS_VAR);
     }
     pub(crate) fn deallocate_unicode_vars(&mut self) {
-        self.deallocate_var(hb_glyph_info_t::UNICODE_PROPS_VAR);
+        self.deallocate_var(GlyphInfo::UNICODE_PROPS_VAR);
     }
     pub(crate) fn assert_unicode_vars(&mut self) {
-        self.assert_var(hb_glyph_info_t::UNICODE_PROPS_VAR);
+        self.assert_var(GlyphInfo::UNICODE_PROPS_VAR);
     }
 
     pub(crate) fn allocate_gsubgpos_vars(&mut self) {
-        self.allocate_var(hb_glyph_info_t::LIG_PROPS_VAR);
-        self.allocate_var(hb_glyph_info_t::GLYPH_PROPS_VAR);
+        self.allocate_var(GlyphInfo::LIG_PROPS_VAR);
+        self.allocate_var(GlyphInfo::GLYPH_PROPS_VAR);
     }
     pub(crate) fn deallocate_gsubgpos_vars(&mut self) {
-        self.deallocate_var(hb_glyph_info_t::LIG_PROPS_VAR);
-        self.deallocate_var(hb_glyph_info_t::GLYPH_PROPS_VAR);
+        self.deallocate_var(GlyphInfo::LIG_PROPS_VAR);
+        self.deallocate_var(GlyphInfo::GLYPH_PROPS_VAR);
     }
     pub(crate) fn assert_gsubgpos_vars(&mut self) {
-        self.assert_var(hb_glyph_info_t::LIG_PROPS_VAR);
-        self.assert_var(hb_glyph_info_t::GLYPH_PROPS_VAR);
+        self.assert_var(GlyphInfo::LIG_PROPS_VAR);
+        self.assert_var(GlyphInfo::GLYPH_PROPS_VAR);
     }
 }
 
@@ -192,13 +192,10 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
         let cache_it =
             subtable_count > 1 && (lookup_props as u16 & lookup_flags::USE_MARK_FILTERING_SET != 0);
         if cache_it {
-            ctx.buffer
-                .info
-                .iter_mut()
-                .for_each(|info: &mut hb_glyph_info_t| {
-                    let matches = check_glyph_property(ctx.face, info, lookup_props, u32::MAX);
-                    _hb_glyph_info_set_matches(info, matches);
-                });
+            ctx.buffer.info.iter_mut().for_each(|info: &mut GlyphInfo| {
+                let matches = check_glyph_property(ctx.face, info, lookup_props, u32::MAX);
+                info.set_matches(matches);
+            });
             ctx.cached_props = lookup_props;
         } else {
             ctx.cached_props = u32::MAX;
@@ -365,151 +362,211 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
 //     info->unicode_props() = props;
 //   }
 
-#[inline]
-pub fn _hb_glyph_info_set_general_category(info: &mut hb_glyph_info_t, gen_cat: GeneralCategory) {
-    /* Clears top-byte. */
-    let gen_cat = gen_cat.0 as u32;
-    let n =
-        (gen_cat as u16) | (info.unicode_props() & (0xFF & !UnicodeProps::GENERAL_CATEGORY.bits()));
-    info.set_unicode_props(n);
-}
-
-#[inline]
-pub fn _hb_glyph_info_get_general_category(info: &hb_glyph_info_t) -> GeneralCategory {
-    let n = info.unicode_props() & UnicodeProps::GENERAL_CATEGORY.bits();
-    GeneralCategory(n as u8)
-}
-
-#[inline]
-pub fn _hb_glyph_info_is_unicode_mark(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_get_general_category(info).is_mark()
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_modified_combining_class(
-    info: &mut hb_glyph_info_t,
-    modified_class: u8,
-) {
-    if !_hb_glyph_info_is_unicode_mark(info) {
-        return;
+impl GlyphInfo {
+    /// HB: _hb_glyph_info_set_general_category
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L260>
+    #[doc(alias = "_hb_glyph_info_set_general_category")]
+    #[inline]
+    pub fn set_general_category(&mut self, gen_cat: GeneralCategory) {
+        /* Clears top-byte. */
+        let gen_cat = gen_cat.0 as u32;
+        let n = (gen_cat as u16)
+            | (self.unicode_props() & (0xFF & !UnicodeProps::GENERAL_CATEGORY.bits()));
+        self.set_unicode_props(n);
     }
 
-    let n = ((modified_class as u16) << 8) | (info.unicode_props() & 0xFF);
-    info.set_unicode_props(n);
-}
+    /// HB: _hb_glyph_info_get_general_category
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L268>
+    #[doc(alias = "_hb_glyph_info_get_general_category")]
+    #[inline]
+    pub fn general_category(&self) -> GeneralCategory {
+        let n = self.unicode_props() & UnicodeProps::GENERAL_CATEGORY.bits();
+        GeneralCategory(n as u8)
+    }
 
-#[inline]
-pub fn _hb_glyph_info_get_modified_combining_class(info: &hb_glyph_info_t) -> u8 {
-    if _hb_glyph_info_is_unicode_mark(info) {
-        (info.unicode_props() >> 8) as u8
-    } else {
-        0
+    /// HB: _hb_glyph_info_is_unicode_mark
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L274>
+    #[doc(alias = "_hb_glyph_info_is_unicode_mark")]
+    #[inline]
+    pub fn is_unicode_mark(&self) -> bool {
+        self.general_category().is_mark()
+    }
+
+    /// HB: _hb_glyph_info_set_modified_combining_class
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L279>
+    #[doc(alias = "_hb_glyph_info_set_modified_combining_class")]
+    #[inline]
+    pub(crate) fn set_modified_combining_class(&mut self, modified_class: u8) {
+        if !self.is_unicode_mark() {
+            return;
+        }
+        let n = ((modified_class as u16) << 8) | (self.unicode_props() & 0xFF);
+        self.set_unicode_props(n);
+    }
+
+    /// HB: _hb_glyph_info_get_modified_combining_class
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L287>
+    #[doc(alias = "_hb_glyph_info_get_modified_combining_class")]
+    #[inline]
+    pub fn modified_combining_class(&self) -> u8 {
+        if self.is_unicode_mark() {
+            (self.unicode_props() >> 8) as u8
+        } else {
+            0
+        }
+    }
+
+    // TODO: use
+    // #[inline]
+    // pub fn info_cc(info: &hb_glyph_info_t) -> u8 {
+    //     _hb_glyph_info_get_modified_combining_class(info)
+    // }
+
+    /// HB: _hb_glyph_info_is_unicode_space
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L294>
+    #[doc(alias = "_hb_glyph_info_is_unicode_space")]
+    #[inline]
+    pub(crate) fn is_unicode_space(&self) -> bool {
+        self.general_category() == GeneralCategory::SPACE_SEPARATOR
+    }
+
+    /// HB: _hb_glyph_info_set_unicode_space_fallback_type
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L300>
+    #[doc(alias = "_hb_glyph_info_set_unicode_space_fallback_type")]
+    #[inline]
+    pub(crate) fn set_unicode_space_fallback_type(&mut self, s: hb_unicode_funcs_t::space_t) {
+        if !self.is_unicode_space() {
+            return;
+        }
+        let n = ((s as u16) << 8) | (self.unicode_props() & 0xFF);
+        self.set_unicode_props(n);
+    }
+
+    /// HB: _hb_glyph_info_get_unicode_space_fallback_type
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L307>
+    #[doc(alias = "_hb_glyph_info_get_unicode_space_fallback_type")]
+    #[inline]
+    pub(crate) fn unicode_space_fallback_type(&self) -> hb_unicode_funcs_t::space_t {
+        if self.is_unicode_space() {
+            (self.unicode_props() >> 8) as u8
+        } else {
+            hb_unicode_funcs_t::NOT_SPACE
+        }
+    }
+
+    /// HB: _hb_glyph_info_is_variation_selector
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L314>
+    #[doc(alias = "_hb_glyph_info_is_variation_selector")]
+    #[inline]
+    pub(crate) fn is_variation_selector(&self) -> bool {
+        let a = self.general_category() == GeneralCategory::FORMAT;
+        let b = (self.unicode_props() & UnicodeProps::CF_VS.bits()) != 0;
+        a && b
+    }
+
+    /// HB: _hb_glyph_info_set_variation_selector
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L321>
+    #[doc(alias = "_hb_glyph_info_set_variation_selector")]
+    #[inline]
+    pub(crate) fn set_variation_selector(&mut self, customize: bool) {
+        if customize {
+            self.set_general_category(GeneralCategory::FORMAT);
+            self.set_unicode_props(self.unicode_props() | UnicodeProps::CF_VS.bits());
+        } else {
+            // Reset to their original condition
+            self.set_general_category(GeneralCategory::NON_SPACING_MARK);
+        }
+    }
+
+    /// HB: _hb_glyph_info_is_default_ignorable
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L338>
+    #[doc(alias = "_hb_glyph_info_is_default_ignorable")]
+    #[inline]
+    pub(crate) fn is_default_ignorable(&self) -> bool {
+        let n = self.unicode_props() & UnicodeProps::IGNORABLE.bits();
+        n != 0 && !self.substituted()
+    }
+
+    /// HB: _hb_glyph_info_set_default_ignorable
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L344>
+    #[doc(alias = "_hb_glyph_info_set_default_ignorable")]
+    #[inline]
+    pub(crate) fn _set_default_ignorable(&mut self) {
+        self.set_unicode_props(self.unicode_props() | UnicodeProps::IGNORABLE.bits());
+    }
+
+    /// HB: _hb_glyph_info_clear_default_ignorable
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L349>
+    #[doc(alias = "_hb_glyph_info_clear_default_ignorable")]
+    #[inline]
+    pub(crate) fn clear_default_ignorable(&mut self) {
+        let mut n = self.unicode_props();
+        n &= !UnicodeProps::IGNORABLE.bits();
+        self.set_unicode_props(n);
+    }
+
+    /// HB: _hb_glyph_info_is_hidden
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L354>
+    #[doc(alias = "_hb_glyph_info_is_hidden")]
+    #[inline]
+    pub(crate) fn is_hidden(&self) -> bool {
+        (self.unicode_props() & UnicodeProps::HIDDEN.bits()) != 0
+    }
+
+    //   static inline void
+    //   _hb_glyph_info_unhide (hb_glyph_info_t *info)
+    //   {
+    //     info->unicode_props() &= ~ UPROPS_MASK_HIDDEN;
+    //   }
+
+    /// HB: _hb_glyph_info_set_continuation
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L365>
+    #[doc(alias = "_hb_glyph_info_set_continuation")]
+    #[inline]
+    pub(crate) fn set_continuation(&mut self) {
+        let mut n = self.unicode_props();
+        n |= UnicodeProps::CONTINUATION.bits();
+        self.set_unicode_props(n);
+    }
+
+    /// HB: _hb_glyph_info_clear_continuation
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L370>
+    #[doc(alias = "_hb_glyph_info_clear_continuation")]
+    #[inline]
+    pub(crate) fn clear_continuation(&mut self) {
+        let mut n = self.unicode_props();
+        n &= !UnicodeProps::CONTINUATION.bits();
+        self.set_unicode_props(n);
+    }
+
+    /// HB: _hb_glyph_info_is_continuation
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L375>
+    #[doc(alias = "_hb_glyph_info_is_continuation")]
+    #[inline]
+    pub(crate) fn is_continuation(&self) -> bool {
+        self.unicode_props() & UnicodeProps::CONTINUATION.bits() != 0
     }
 }
 
-// TODO: use
-// #[inline]
-// pub fn info_cc(info: &hb_glyph_info_t) -> u8 {
-//     _hb_glyph_info_get_modified_combining_class(info)
-// }
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_unicode_space(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_get_general_category(info) == GeneralCategory::SPACE_SEPARATOR
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_unicode_space_fallback_type(
-    info: &mut hb_glyph_info_t,
-    s: hb_unicode_funcs_t::space_t,
-) {
-    if !_hb_glyph_info_is_unicode_space(info) {
-        return;
-    }
-
-    let n = ((s as u16) << 8) | (info.unicode_props() & 0xFF);
-    info.set_unicode_props(n);
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_get_unicode_space_fallback_type(
-    info: &hb_glyph_info_t,
-) -> hb_unicode_funcs_t::space_t {
-    if _hb_glyph_info_is_unicode_space(info) {
-        (info.unicode_props() >> 8) as u8
-    } else {
-        hb_unicode_funcs_t::NOT_SPACE
-    }
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_variation_selector(info: &hb_glyph_info_t) -> bool {
-    let a = _hb_glyph_info_get_general_category(info) == GeneralCategory::FORMAT;
-    let b = (info.unicode_props() & UnicodeProps::CF_VS.bits()) != 0;
-    a && b
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_variation_selector(info: &mut hb_glyph_info_t, customize: bool) {
-    if customize {
-        _hb_glyph_info_set_general_category(info, GeneralCategory::FORMAT);
-        info.set_unicode_props(info.unicode_props() | UnicodeProps::CF_VS.bits());
-    } else {
-        // Reset to their original condition
-        _hb_glyph_info_set_general_category(info, GeneralCategory::NON_SPACING_MARK);
-    }
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_default_ignorable(info: &hb_glyph_info_t) -> bool {
-    let n = info.unicode_props() & UnicodeProps::IGNORABLE.bits();
-    n != 0 && !_hb_glyph_info_substituted(info)
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_default_ignorable(info: &mut hb_glyph_info_t) {
-    info.set_unicode_props(info.unicode_props() | UnicodeProps::IGNORABLE.bits());
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_clear_default_ignorable(info: &mut hb_glyph_info_t) {
-    let mut n = info.unicode_props();
-    n &= !UnicodeProps::IGNORABLE.bits();
-    info.set_unicode_props(n);
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_hidden(info: &hb_glyph_info_t) -> bool {
-    (info.unicode_props() & UnicodeProps::HIDDEN.bits()) != 0
-}
-
-//   static inline void
-//   _hb_glyph_info_unhide (hb_glyph_info_t *info)
-//   {
-//     info->unicode_props() &= ~ UPROPS_MASK_HIDDEN;
-//   }
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_continuation(info: &mut hb_glyph_info_t) {
-    let mut n = info.unicode_props();
-    n |= UnicodeProps::CONTINUATION.bits();
-    info.set_unicode_props(n);
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_clear_continuation(info: &mut hb_glyph_info_t) {
-    let mut n = info.unicode_props();
-    n &= !UnicodeProps::CONTINUATION.bits();
-    info.set_unicode_props(n);
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_continuation(info: &hb_glyph_info_t) -> bool {
-    info.unicode_props() & UnicodeProps::CONTINUATION.bits() != 0
-}
-
-pub(crate) fn _hb_grapheme_group_func(_: &hb_glyph_info_t, b: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_is_continuation(b)
+pub(crate) fn _hb_grapheme_group_func(_: &GlyphInfo, b: &GlyphInfo) -> bool {
+    b.is_continuation()
 }
 
 pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut hb_buffer_t) {
@@ -521,210 +578,294 @@ pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut hb_buffer_t) {
     );
 }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_is_unicode_format(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_get_general_category(info) == GeneralCategory::FORMAT
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_zwnj(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_is_unicode_format(info)
-        && (info.unicode_props() & UnicodeProps::CF_ZWNJ.bits() != 0)
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_zwj(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_is_unicode_format(info)
-        && (info.unicode_props() & UnicodeProps::CF_ZWJ.bits() != 0)
-}
-
-//   static inline bool
-//   _hb_glyph_info_is_joiner (const hb_glyph_info_t *info)
-//   {
-//     return _hb_glyph_info_is_unicode_format (info) && (info->unicode_props() & (UPROPS_MASK_Cf_ZWNJ|UPROPS_MASK_Cf_ZWJ));
-//   }
-
-//   static inline void
-//   _hb_glyph_info_flip_joiners (hb_glyph_info_t *info)
-//   {
-//     if (!_hb_glyph_info_is_unicode_format (info))
-//       return;
-//     info->unicode_props() ^= UPROPS_MASK_Cf_ZWNJ | UPROPS_MASK_Cf_ZWJ;
-//   }
-
-#[inline]
-pub(crate) fn _hb_glyph_info_is_aat_deleted(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_is_unicode_format(info)
-        && (info.unicode_props() & UnicodeProps::CF_AAT_DELETED.bits() != 0)
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_aat_deleted(info: &mut hb_glyph_info_t) {
-    _hb_glyph_info_set_general_category(info, GeneralCategory::FORMAT);
-    info.set_unicode_props(
-        info.unicode_props() | UnicodeProps::CF_AAT_DELETED.bits() | UnicodeProps::HIDDEN.bits(),
-    );
-}
-
-//   /* lig_props: aka lig_id / lig_comp
-//    *
-//    * When a ligature is formed:
-//    *
-//    *   - The ligature glyph and any marks in between all the same newly allocated
-//    *     lig_id,
-//    *   - The ligature glyph will get lig_num_comps set to the number of components
-//    *   - The marks get lig_comp > 0, reflecting which component of the ligature
-//    *     they were applied to.
-//    *   - This is used in GPOS to attach marks to the right component of a ligature
-//    *     in MarkLigPos,
-//    *   - Note that when marks are ligated together, much of the above is skipped
-//    *     and the current lig_id reused.
-//    *
-//    * When a multiple-substitution is done:
-//    *
-//    *   - All resulting glyphs will have lig_id = 0,
-//    *   - The resulting glyphs will have lig_comp = 0, 1, 2, ... respectively.
-//    *   - This is used in GPOS to attach marks to the first component of a
-//    *     multiple substitution in MarkBasePos.
-//    *
-//    * The numbers are also used in GPOS to do mark-to-mark positioning only
-//    * to marks that belong to the same component of the same ligature.
-//    */
-//   static inline void
-//   _hb_glyph_info_clear_lig_props (hb_glyph_info_t *info)
-//   {
-//     info->lig_props() = 0;
-//   }
-
-const IS_LIG_BASE: u8 = 0x10;
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_lig_props_for_ligature(
-    info: &mut hb_glyph_info_t,
-    lig_id: u8,
-    lig_num_comps: u8,
-) {
-    info.set_lig_props((lig_id << 5) | IS_LIG_BASE | (lig_num_comps & 0x0F));
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_lig_props_for_mark(
-    info: &mut hb_glyph_info_t,
-    lig_id: u8,
-    lig_comp: u8,
-) {
-    info.set_lig_props((lig_id << 5) | (lig_comp & 0x0F));
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_set_lig_props_for_component(info: &mut hb_glyph_info_t, comp: u8) {
-    _hb_glyph_info_set_lig_props_for_mark(info, 0, comp);
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_get_lig_id(info: &hb_glyph_info_t) -> u8 {
-    info.lig_props() >> 5
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_ligated_internal(info: &hb_glyph_info_t) -> bool {
-    info.lig_props() & IS_LIG_BASE != 0
-}
-
-#[inline]
-pub(crate) fn _hb_glyph_info_get_lig_comp(info: &hb_glyph_info_t) -> u8 {
-    if _hb_glyph_info_ligated_internal(info) {
-        0
-    } else {
-        info.lig_props() & 0x0F
+impl GlyphInfo {
+    /// HB: _hb_glyph_info_is_unicode_format
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L398>
+    #[doc(alias = "_hb_glyph_info_is_unicode_format")]
+    #[inline]
+    pub(crate) fn is_unicode_format(&self) -> bool {
+        self.general_category() == GeneralCategory::FORMAT
     }
-}
 
-#[inline]
-pub(crate) fn _hb_glyph_info_get_lig_num_comps(info: &hb_glyph_info_t) -> u8 {
-    if info.glyph_props() & GlyphPropsFlags::LIGATURE.bits() != 0
-        && _hb_glyph_info_ligated_internal(info)
-    {
-        info.lig_props() & 0x0F
-    } else {
-        1
+    /// HB: _hb_glyph_info_is_zwnj
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L404>
+    #[doc(alias = "_hb_glyph_info_is_zwnj")]
+    #[inline]
+    pub(crate) fn is_zwnj(&self) -> bool {
+        self.is_unicode_format() && (self.unicode_props() & UnicodeProps::CF_ZWNJ.bits() != 0)
     }
-}
 
-//   /* glyph_props: */
-//   static inline void
-//   _hb_glyph_info_set_glyph_props (hb_glyph_info_t *info, unsigned int props)
-//   {
-//     info->glyph_props() = props;
-//   }
+    /// HB: _hb_glyph_info_is_zwj
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L409>
+    #[doc(alias = "_hb_glyph_info_is_zwnj")]
+    #[inline]
+    pub(crate) fn is_zwj(&self) -> bool {
+        self.is_unicode_format() && (self.unicode_props() & UnicodeProps::CF_ZWJ.bits() != 0)
+    }
 
-//   static inline unsigned int
-//   _hb_glyph_info_get_glyph_props (const hb_glyph_info_t *info)
-//   {
-//     return info->glyph_props();
-//   }
+    /// HB: _hb_glyph_info_is_aat_deleted
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L426>
+    #[doc(alias = "_hb_glyph_info_is_aat_deleted")]
+    #[inline]
+    pub(crate) fn is_aat_deleted(&self) -> bool {
+        self.is_unicode_format()
+            && (self.unicode_props() & UnicodeProps::CF_AAT_DELETED.bits() != 0)
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_is_base_glyph(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::BASE_GLYPH.bits() != 0
-}
+    /// HB: _hb_glyph_info_set_aat_deleted
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L431>
+    #[doc(alias = "_hb_glyph_info_set_aat_deleted")]
+    #[inline]
+    pub(crate) fn set_aat_deleted(&mut self) {
+        self.set_general_category(GeneralCategory::FORMAT);
+        self.set_unicode_props(
+            self.unicode_props()
+                | UnicodeProps::CF_AAT_DELETED.bits()
+                | UnicodeProps::HIDDEN.bits(),
+        );
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_is_ligature(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::LIGATURE.bits() != 0
-}
+    //   static inline bool
+    //   _hb_glyph_info_is_joiner (const hb_glyph_info_t *info)
+    //   {
+    //     return _hb_glyph_info_is_unicode_format (info) && (info->unicode_props() & (UPROPS_MASK_Cf_ZWNJ|UPROPS_MASK_Cf_ZWJ));
+    //   }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_is_mark(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::MARK.bits() != 0
-}
+    //   static inline void
+    //   _hb_glyph_info_flip_joiners (hb_glyph_info_t *info)
+    //   {
+    //     if (!_hb_glyph_info_is_unicode_format (info))
+    //       return;
+    //     info->unicode_props() ^= UPROPS_MASK_Cf_ZWNJ | UPROPS_MASK_Cf_ZWJ;
+    //   }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_substituted(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::SUBSTITUTED.bits() != 0
-}
+    //   /* lig_props: aka lig_id / lig_comp
+    //    *
+    //    * When a ligature is formed:
+    //    *
+    //    *   - The ligature glyph and any marks in between all the same newly allocated
+    //    *     lig_id,
+    //    *   - The ligature glyph will get lig_num_comps set to the number of components
+    //    *   - The marks get lig_comp > 0, reflecting which component of the ligature
+    //    *     they were applied to.
+    //    *   - This is used in GPOS to attach marks to the right component of a ligature
+    //    *     in MarkLigPos,
+    //    *   - Note that when marks are ligated together, much of the above is skipped
+    //    *     and the current lig_id reused.
+    //    *
+    //    * When a multiple-substitution is done:
+    //    *
+    //    *   - All resulting glyphs will have lig_id = 0,
+    //    *   - The resulting glyphs will have lig_comp = 0, 1, 2, ... respectively.
+    //    *   - This is used in GPOS to attach marks to the first component of a
+    //    *     multiple substitution in MarkBasePos.
+    //    *
+    //    * The numbers are also used in GPOS to do mark-to-mark positioning only
+    //    * to marks that belong to the same component of the same ligature.
+    //    */
+    //   static inline void
+    //   _hb_glyph_info_clear_lig_props (hb_glyph_info_t *info)
+    //   {
+    //     info->lig_props() = 0;
+    //   }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_ligated(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::LIGATED.bits() != 0
-}
+    const IS_LIG_BASE: u8 = 0x10;
 
-#[inline]
-pub(crate) fn _hb_glyph_info_multiplied(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::MULTIPLIED.bits() != 0
-}
+    /// HB: _hb_glyph_info_set_lig_props_for_ligature
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L472>
+    #[doc(alias = "_hb_glyph_info_set_lig_props_for_ligature")]
+    #[inline]
+    pub(crate) fn set_lig_props_for_ligature(&mut self, lig_id: u8, lig_num_comps: u8) {
+        self.set_lig_props((lig_id << 5) | Self::IS_LIG_BASE | (lig_num_comps & 0x0F));
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_ligated_and_didnt_multiply(info: &hb_glyph_info_t) -> bool {
-    _hb_glyph_info_ligated(info) && !_hb_glyph_info_multiplied(info)
-}
+    /// HB: _hb_glyph_info_set_lig_props_for_mark
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L480>
+    #[doc(alias = "_hb_glyph_info_set_lig_props_for_mark")]
+    #[inline]
+    pub(crate) fn set_lig_props_for_mark(&mut self, lig_id: u8, lig_comp: u8) {
+        self.set_lig_props((lig_id << 5) | (lig_comp & 0x0F));
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_clear_ligated_and_multiplied(info: &mut hb_glyph_info_t) {
-    let mut n = info.glyph_props();
-    n &= !(GlyphPropsFlags::LIGATED | GlyphPropsFlags::MULTIPLIED).bits();
-    info.set_glyph_props(n);
-}
+    /// HB: _hb_glyph_info_set_lig_props_for_component
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L488>
+    #[doc(alias = "_hb_glyph_info_set_lig_props_for_component")]
+    #[inline]
+    pub(crate) fn set_lig_props_for_component(&mut self, comp: u8) {
+        self.set_lig_props_for_mark(0, comp);
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_clear_substituted(info: &mut hb_glyph_info_t) {
-    let mut n = info.glyph_props();
-    n &= !GlyphPropsFlags::SUBSTITUTED.bits();
-    info.set_glyph_props(n);
-}
+    /// HB: _hb_glyph_info_get_lig_id
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L494>
+    #[doc(alias = "_hb_glyph_info_get_lig_id")]
+    #[inline]
+    pub(crate) fn lig_id(&self) -> u8 {
+        self.lig_props() >> 5
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_matches(info: &hb_glyph_info_t) -> bool {
-    info.glyph_props() & GlyphPropsFlags::MATCHES.bits() != 0
-}
+    /// HB: _hb_glyph_info_ligated_internal
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L500>
+    #[doc(alias = "_hb_glyph_info_ligated_internal")]
+    #[inline]
+    pub(crate) fn ligated_internal(&self) -> bool {
+        self.lig_props() & Self::IS_LIG_BASE != 0
+    }
 
-#[inline]
-pub(crate) fn _hb_glyph_info_set_matches(info: &mut hb_glyph_info_t, matches: bool) {
-    let n = info.glyph_props();
-    if matches {
-        info.set_glyph_props(n | GlyphPropsFlags::MATCHES.bits());
-    } else {
-        info.set_glyph_props(n & !GlyphPropsFlags::MATCHES.bits());
+    /// HB: _hb_glyph_info_get_lig_comp
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L506>
+    #[doc(alias = "_hb_glyph_info_get_lig_comp")]
+    #[inline]
+    pub(crate) fn lig_comp(&self) -> u8 {
+        if self.ligated_internal() {
+            0
+        } else {
+            self.lig_props() & 0x0F
+        }
+    }
+
+    /// HB: _hb_glyph_info_get_lig_num_comps
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L515>
+    #[doc(alias = "_hb_glyph_info_get_lig_num_comps")]
+    #[inline]
+    pub(crate) fn lig_num_comps(&self) -> u8 {
+        if self.glyph_props() & GlyphPropsFlags::LIGATURE.bits() != 0 && self.ligated_internal() {
+            self.lig_props() & 0x0F
+        } else {
+            1
+        }
+    }
+
+    //   /* glyph_props: */
+    //   static inline void
+    //   _hb_glyph_info_set_glyph_props (hb_glyph_info_t *info, unsigned int props)
+    //   {
+    //     info->glyph_props() = props;
+    //   }
+
+    //   static inline unsigned int
+    //   _hb_glyph_info_get_glyph_props (const hb_glyph_info_t *info)
+    //   {
+    //     return info->glyph_props();
+    //   }
+
+    /// HB: _hb_glyph_info_is_base_glyph
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L548>
+    #[doc(alias = "_hb_glyph_info_is_base_glyph")]
+    #[inline]
+    pub(crate) fn is_base_glyph(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::BASE_GLYPH.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_is_ligature
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L554>
+    #[doc(alias = "_hb_glyph_info_is_ligature")]
+    #[inline]
+    pub(crate) fn is_ligature(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::LIGATURE.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_is_mark
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L560>
+    #[doc(alias = "_hb_glyph_info_is_mark")]
+    #[inline]
+    pub(crate) fn is_mark(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::MARK.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_substituted
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L566>
+    #[doc(alias = "_hb_glyph_info_substituted")]
+    #[inline]
+    pub(crate) fn substituted(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::SUBSTITUTED.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_ligated
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L572>
+    #[doc(alias = "_hb_glyph_info_ligated")]
+    #[inline]
+    pub(crate) fn ligated(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::LIGATED.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_multiplied
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L578>
+    #[doc(alias = "_hb_glyph_info_multiplied")]
+    #[inline]
+    pub(crate) fn multiplied(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::MULTIPLIED.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_ligated_and_didnt_multiply
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L584>
+    #[doc(alias = "_hb_glyph_info_ligated_and_didnt_multiply")]
+    #[inline]
+    pub(crate) fn ligated_and_didnt_multiply(&self) -> bool {
+        self.ligated() && !self.multiplied()
+    }
+
+    /// HB: _hb_glyph_info_clear_ligated_and_multiplied
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L590>
+    #[doc(alias = "_hb_glyph_info_clear_ligated_and_multiplied")]
+    #[inline]
+    pub(crate) fn clear_ligated_and_multiplied(&mut self) {
+        let mut n = self.glyph_props();
+        n &= !(GlyphPropsFlags::LIGATED | GlyphPropsFlags::MULTIPLIED).bits();
+        self.set_glyph_props(n);
+    }
+
+    /// HB: _hb_glyph_info_clear_substituted
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L597>
+    #[doc(alias = "_hb_glyph_info_clear_substituted")]
+    #[inline]
+    pub(crate) fn clear_substituted(&mut self) {
+        let mut n = self.glyph_props();
+        n &= !GlyphPropsFlags::SUBSTITUTED.bits();
+        self.set_glyph_props(n);
+    }
+
+    /// HB: _hb_glyph_info_matches
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L615>
+    #[doc(alias = "_hb_glyph_info_matches")]
+    #[inline]
+    pub(crate) fn matches(&self) -> bool {
+        self.glyph_props() & GlyphPropsFlags::MATCHES.bits() != 0
+    }
+
+    /// HB: _hb_glyph_info_set_matches
+    ///
+    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L620>
+    #[doc(alias = "_hb_glyph_info_set_matches")]
+    #[inline]
+    pub(crate) fn set_matches(&mut self, matches: bool) {
+        let n = self.glyph_props();
+        if matches {
+            self.set_glyph_props(n | GlyphPropsFlags::MATCHES.bits());
+        } else {
+            self.set_glyph_props(n & !GlyphPropsFlags::MATCHES.bits());
+        }
     }
 }
 
@@ -735,7 +876,7 @@ pub fn _hb_clear_substitution_flags(
 ) -> bool {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
-        _hb_glyph_info_clear_substituted(info);
+        info.clear_substituted();
     }
 
     false

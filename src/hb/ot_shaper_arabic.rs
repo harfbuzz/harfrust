@@ -3,14 +3,13 @@ use alloc::boxed::Box;
 
 use super::algs::*;
 use super::buffer::*;
-use super::ot_layout::*;
 use super::ot_map::*;
 use super::ot_shape::*;
 use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::unicode::*;
-use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
+use super::{hb_font_t, hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
 
 const HB_BUFFER_SCRATCH_FLAG_ARABIC_HAS_STCH: hb_buffer_scratch_flags_t =
     HB_BUFFER_SCRATCH_FLAG_SHAPER0;
@@ -170,7 +169,7 @@ const STATE_TABLE: &[[(u8, u8, u16); 6]] = &[
     ],
 ];
 
-impl hb_glyph_info_t {
+impl GlyphInfo {
     declare_buffer_var_alias!(
         OT_SHAPER_VAR_U8_AUXILIARY_VAR,
         u8,
@@ -181,7 +180,7 @@ impl hb_glyph_info_t {
 }
 
 fn deallocate_buffer_var(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
-    buffer.deallocate_var(hb_glyph_info_t::ARABIC_SHAPING_ACTION_VAR);
+    buffer.deallocate_var(GlyphInfo::ARABIC_SHAPING_ACTION_VAR);
 
     false
 }
@@ -316,10 +315,8 @@ fn arabic_joining(buffer: &mut hb_buffer_t) {
     }
 
     for i in 0..buffer.len {
-        let this_type = get_joining_type(
-            buffer.info[i].as_char(),
-            _hb_glyph_info_get_general_category(&buffer.info[i]),
-        );
+        let this_type =
+            get_joining_type(buffer.info[i].as_char(), buffer.info[i].general_category());
         if this_type == hb_arabic_joining_type_t::T {
             buffer.info[i].set_arabic_shaping_action(arabic_action_t::NONE);
             continue;
@@ -389,7 +386,7 @@ fn mongolian_variation_selectors(buffer: &mut hb_buffer_t) {
 }
 
 fn setup_masks_arabic_plan(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
-    buffer.allocate_var(hb_glyph_info_t::ARABIC_SHAPING_ACTION_VAR);
+    buffer.allocate_var(GlyphInfo::ARABIC_SHAPING_ACTION_VAR);
 
     let arabic_plan = plan.data::<arabic_shape_plan_t>();
     setup_masks_inner(arabic_plan, plan.script, buffer);
@@ -434,8 +431,8 @@ fn record_stch(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_
     let info = &mut buffer.info;
     let mut has_stch = false;
     for glyph_info in &mut info[..len] {
-        if _hb_glyph_info_multiplied(glyph_info) {
-            let comp = if _hb_glyph_info_get_lig_comp(glyph_info) % 2 != 0 {
+        if glyph_info.multiplied() {
+            let comp = if glyph_info.lig_comp() % 2 != 0 {
                 arabic_action_t::STRETCHING_REPEATING
             } else {
                 arabic_action_t::STRETCHING_FIXED
@@ -513,10 +510,8 @@ fn apply_stch(face: &hb_font_t, buffer: &mut hb_buffer_t) {
             let mut context = i;
             while context != 0
                 && !arabic_action_t::is_stch(buffer.info[context - 1].arabic_shaping_action())
-                && (_hb_glyph_info_is_default_ignorable(&buffer.info[context - 1])
-                    || is_word_category(_hb_glyph_info_get_general_category(
-                        &buffer.info[context - 1],
-                    )))
+                && (buffer.info[context - 1].is_default_ignorable()
+                    || is_word_category(buffer.info[context - 1].general_category()))
             {
                 context -= 1;
                 w_total += buffer.pos[context].x_advance;
@@ -635,7 +630,7 @@ fn reorder_marks_arabic(
 ) {
     let mut i = start;
     for cc in [220u8, 230] {
-        while i < end && _hb_glyph_info_get_modified_combining_class(&buffer.info[i]) < cc {
+        while i < end && buffer.info[i].modified_combining_class() < cc {
             i += 1;
         }
 
@@ -643,13 +638,13 @@ fn reorder_marks_arabic(
             break;
         }
 
-        if _hb_glyph_info_get_modified_combining_class(&buffer.info[i]) > cc {
+        if buffer.info[i].modified_combining_class() > cc {
             continue;
         }
 
         let mut j = i;
         while j < end
-            && _hb_glyph_info_get_modified_combining_class(&buffer.info[j]) == cc
+            && buffer.info[j].modified_combining_class() == cc
             && MODIFIER_COMBINING_MARKS.contains(&buffer.info[j].glyph_id)
         {
             j += 1;
@@ -660,7 +655,7 @@ fn reorder_marks_arabic(
         }
 
         // Shift it!
-        let mut temp = [hb_glyph_info_t::default(); MAX_COMBINING_MARKS];
+        let mut temp = [GlyphInfo::default(); MAX_COMBINING_MARKS];
         debug_assert!(j - i <= MAX_COMBINING_MARKS);
         buffer.merge_clusters(start, j);
 
@@ -691,7 +686,7 @@ fn reorder_marks_arabic(
         };
 
         while start < new_start {
-            _hb_glyph_info_set_modified_combining_class(&mut buffer.info[start], new_cc);
+            buffer.info[start].set_modified_combining_class(new_cc);
             start += 1;
         }
 
