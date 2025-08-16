@@ -890,7 +890,7 @@ impl hb_buffer_t {
     pub fn next_glyph(&mut self) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
-                if !self.make_room_for(1, 1) {
+                if !self.ensure(self.out_len + 1) {
                     return;
                 }
 
