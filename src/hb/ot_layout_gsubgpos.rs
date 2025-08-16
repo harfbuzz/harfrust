@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
-pub(crate) type MatchPositions = smallvec::SmallVec<[usize; 8]>;
+pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
 
 /// Value represents glyph id.
 pub fn match_glyph(info: &mut hb_glyph_info_t, value: u16) -> bool {
@@ -143,7 +143,7 @@ pub fn match_input(
         *p_total_component_count = total_component_count;
     }
 
-    ctx.match_positions[0] = iter.buffer.idx;
+    ctx.match_positions[0] = iter.buffer.idx as u32;
 
     true
 }
@@ -351,7 +351,7 @@ where
     }
 
     pub fn set_match_position(&mut self, idx: usize, position: usize) {
-        self.match_positions[idx] = position;
+        self.match_positions[idx] = position as u32;
     }
 
     pub fn set_glyph_data(&mut self, glyph_data: u16) {
@@ -521,11 +521,11 @@ pub(crate) fn apply_lookup(
         let orig_len = ctx.buffer.backtrack_len() + ctx.buffer.lookahead_len();
 
         // This can happen if earlier recursed lookups deleted many entries.
-        if ctx.match_positions[idx] >= orig_len {
+        if ctx.match_positions[idx] as usize >= orig_len {
             continue;
         }
 
-        if !ctx.buffer.move_to(ctx.match_positions[idx]) {
+        if !ctx.buffer.move_to(ctx.match_positions[idx] as usize) {
             break;
         }
 
@@ -1025,10 +1025,12 @@ pub fn ligate_input(
     let mut buffer = &mut ctx.buffer;
     buffer.merge_clusters(buffer.idx, match_end);
 
-    let mut is_base_ligature = _hb_glyph_info_is_base_glyph(&buffer.info[ctx.match_positions[0]]);
-    let mut is_mark_ligature = _hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[0]]);
+    let mut is_base_ligature =
+        _hb_glyph_info_is_base_glyph(&buffer.info[ctx.match_positions[0] as usize]);
+    let mut is_mark_ligature =
+        _hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[0] as usize]);
     for i in 1..count {
-        if !_hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[i]]) {
+        if !_hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[i] as usize]) {
             is_base_ligature = false;
             is_mark_ligature = false;
         }
@@ -1061,7 +1063,7 @@ pub fn ligate_input(
     buffer = &mut ctx.buffer;
 
     for i in 1..count {
-        while buffer.idx < ctx.match_positions[i] && buffer.successful {
+        while buffer.idx < ctx.match_positions[i] as usize && buffer.successful {
             if is_ligature {
                 let cur = buffer.cur_mut(0);
                 let mut this_comp = _hb_glyph_info_get_lig_comp(cur);
