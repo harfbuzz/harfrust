@@ -1,5 +1,5 @@
 use crate::hb::buffer::GlyphInfo;
-use crate::hb::ot::{coverage_index, coverage_index_cached};
+use crate::hb::ot::coverage_index_cached;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
@@ -157,13 +157,13 @@ impl Apply for LigatureSubstFormat1<'_> {
         {
             coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, &cache.coverage)?
         } else {
-            coverage_index(self.coverage(), glyph)?
+            panic!(""); // Tell compiler this can't happen.
         };
         let seconds =
             if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache {
                 &cache.seconds
             } else {
-                &hb_set_digest_t::full()
+                panic!(""); // Tell compiler this can't happen.
             };
         self.ligature_sets()
             .get(index as usize)
