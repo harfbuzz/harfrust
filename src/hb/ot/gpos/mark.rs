@@ -1,8 +1,4 @@
 use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
-use crate::hb::ot_layout::{
-    _hb_glyph_info_get_lig_comp, _hb_glyph_info_get_lig_id, _hb_glyph_info_is_mark,
-    _hb_glyph_info_multiplied,
-};
 use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
@@ -136,15 +132,13 @@ fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
      * Reject others...
      * ...but stop if we find a mark in the MultipleSubst sequence:
      * https://github.com/harfbuzz/harfbuzz/issues/1020 */
-    !_hb_glyph_info_multiplied(&buffer.info[idx])
-        || 0 == _hb_glyph_info_get_lig_comp(&buffer.info[idx])
+    !buffer.info[idx].multiplied()
+        || 0 == buffer.info[idx].lig_comp()
         || (idx == 0
-            || _hb_glyph_info_is_mark(&buffer.info[idx - 1])
-            || !_hb_glyph_info_multiplied(&buffer.info[idx - 1])
-            || _hb_glyph_info_get_lig_id(&buffer.info[idx])
-                != _hb_glyph_info_get_lig_id(&buffer.info[idx - 1])
-            || _hb_glyph_info_get_lig_comp(&buffer.info[idx])
-                != _hb_glyph_info_get_lig_comp(&buffer.info[idx - 1]) + 1)
+            || buffer.info[idx - 1].is_mark()
+            || !buffer.info[idx - 1].multiplied()
+            || buffer.info[idx].lig_id() != buffer.info[idx - 1].lig_id()
+            || buffer.info[idx].lig_comp() != buffer.info[idx - 1].lig_comp() + 1)
 }
 
 impl Apply for MarkMarkPosFormat1<'_> {
@@ -165,16 +159,16 @@ impl Apply for MarkMarkPosFormat1<'_> {
         }
 
         let iter_idx = iter.index();
-        if !_hb_glyph_info_is_mark(&ctx.buffer.info[iter_idx]) {
+        if !ctx.buffer.info[iter_idx].is_mark() {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
             return None;
         }
 
-        let id1 = _hb_glyph_info_get_lig_id(ctx.buffer.cur(0));
-        let id2 = _hb_glyph_info_get_lig_id(&ctx.buffer.info[iter_idx]);
-        let comp1 = _hb_glyph_info_get_lig_comp(ctx.buffer.cur(0));
-        let comp2 = _hb_glyph_info_get_lig_comp(&ctx.buffer.info[iter_idx]);
+        let id1 = ctx.buffer.cur(0).lig_id();
+        let id2 = ctx.buffer.info[iter_idx].lig_id();
+        let comp1 = ctx.buffer.cur(0).lig_comp();
+        let comp2 = ctx.buffer.info[iter_idx].lig_comp();
 
         let matches = if id1 == id2 {
             // Marks belonging to the same base
@@ -277,9 +271,9 @@ impl Apply for MarkLigPosFormat1<'_> {
         // is identical to the ligature ID of the found ligature.  If yes, we
         // can directly use the component index.  If not, we attach the mark
         // glyph to the last component of the ligature.
-        let lig_id = _hb_glyph_info_get_lig_id(&ctx.buffer.info[idx]);
-        let mark_id = _hb_glyph_info_get_lig_id(ctx.buffer.cur(0));
-        let mark_comp = u16::from(_hb_glyph_info_get_lig_comp(ctx.buffer.cur(0)));
+        let lig_id = ctx.buffer.info[idx].lig_id();
+        let mark_id = ctx.buffer.cur(0).lig_id();
+        let mark_comp = u16::from(ctx.buffer.cur(0).lig_comp());
         let matches = lig_id != 0 && lig_id == mark_id && mark_comp > 0;
         let comp_index = if matches {
             mark_comp.min(comp_count)

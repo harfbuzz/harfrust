@@ -1,6 +1,6 @@
 //! Matching of glyph patterns.
 
-use super::buffer::hb_glyph_info_t;
+use super::buffer::GlyphInfo;
 use super::buffer::{hb_buffer_t, GlyphPropsFlags};
 use super::cache::hb_cache_t;
 use super::hb_font_t;
@@ -17,18 +17,18 @@ use read_fonts::types::GlyphId;
 pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
 
 /// Value represents glyph id.
-pub fn match_glyph(info: &mut hb_glyph_info_t, value: u16) -> bool {
+pub fn match_glyph(info: &mut GlyphInfo, value: u16) -> bool {
     info.glyph_id == value as u32
 }
 
-pub fn match_always(_info: &mut hb_glyph_info_t, _value: u16) -> bool {
+pub fn match_always(_info: &mut GlyphInfo, _value: u16) -> bool {
     true
 }
 
 pub fn match_input(
     ctx: &mut hb_ot_apply_context_t,
     input_len: u16,
-    match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
+    match_func: impl Fn(&mut GlyphInfo, u16) -> bool,
     end_position: &mut usize,
     p_total_component_count: Option<&mut u8>,
 ) -> bool {
@@ -76,8 +76,8 @@ pub fn match_input(
     iter.set_glyph_data(0);
 
     let first = *iter.buffer.cur(0);
-    let first_lig_id = _hb_glyph_info_get_lig_id(&first);
-    let first_lig_comp = _hb_glyph_info_get_lig_comp(&first);
+    let first_lig_id = first.lig_id();
+    let first_lig_comp = first.lig_comp();
     let mut total_component_count = 0;
     let mut ligbase = Ligbase::NotChecked;
 
@@ -91,8 +91,8 @@ pub fn match_input(
         iter.set_match_position(i, iter.index());
 
         let this = iter.buffer.info[iter.index()];
-        let this_lig_id = _hb_glyph_info_get_lig_id(&this);
-        let this_lig_comp = _hb_glyph_info_get_lig_comp(&this);
+        let this_lig_id = this.lig_id();
+        let this_lig_comp = this.lig_comp();
 
         if first_lig_id != 0 && first_lig_comp != 0 {
             // If first component was attached to a previous ligature component,
@@ -105,8 +105,8 @@ pub fn match_input(
                     let out = iter.buffer.out_info();
                     let mut j = iter.buffer.out_len;
                     let mut found = false;
-                    while j > 0 && _hb_glyph_info_get_lig_id(&out[j - 1]) == first_lig_id {
-                        if _hb_glyph_info_get_lig_comp(&out[j - 1]) == 0 {
+                    while j > 0 && out[j - 1].lig_id() == first_lig_id {
+                        if out[j - 1].lig_comp() == 0 {
                             j -= 1;
                             found = true;
                             break;
@@ -134,13 +134,13 @@ pub fn match_input(
             }
         }
 
-        total_component_count += _hb_glyph_info_get_lig_num_comps(&this);
+        total_component_count += this.lig_num_comps();
     }
 
     *end_position = iter.index() + 1;
 
     if let Some(p_total_component_count) = p_total_component_count {
-        total_component_count += _hb_glyph_info_get_lig_num_comps(&first);
+        total_component_count += first.lig_num_comps();
         *p_total_component_count = total_component_count;
     }
 
@@ -152,7 +152,7 @@ pub fn match_input(
 pub fn match_backtrack(
     ctx: &mut hb_ot_apply_context_t,
     backtrack_len: u16,
-    match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
+    match_func: impl Fn(&mut GlyphInfo, u16) -> bool,
     match_start: &mut usize,
 ) -> bool {
     let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
@@ -174,7 +174,7 @@ pub fn match_backtrack(
 pub fn match_lookahead(
     ctx: &mut hb_ot_apply_context_t,
     lookahead_len: u16,
-    match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
+    match_func: impl Fn(&mut GlyphInfo, u16) -> bool,
     start_index: usize,
     end_index: &mut usize,
 ) -> bool {
@@ -252,9 +252,9 @@ impl matcher_t {
 
     fn may_match(
         &self,
-        info: &mut hb_glyph_info_t,
+        info: &mut GlyphInfo,
         glyph_data: u16,
-        match_func: Option<&impl Fn(&mut hb_glyph_info_t, u16) -> bool>,
+        match_func: Option<&impl Fn(&mut GlyphInfo, u16) -> bool>,
         syllable: u8,
     ) -> may_match_t {
         if (info.mask & self.mask) == 0
@@ -275,15 +275,15 @@ impl matcher_t {
     }
 
     #[inline(always)]
-    fn may_skip(&self, info: &hb_glyph_info_t, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
+    fn may_skip(&self, info: &GlyphInfo, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
         if !check_glyph_property(face, info, lookup_props, self.cached_props) {
             return may_skip_t::SKIP_YES;
         }
 
-        if _hb_glyph_info_is_default_ignorable(info)
-            && (self.ignore_zwnj || !_hb_glyph_info_is_zwnj(info))
-            && (self.ignore_zwj || !_hb_glyph_info_is_zwj(info))
-            && (self.ignore_hidden || !_hb_glyph_info_is_hidden(info))
+        if info.is_default_ignorable()
+            && (self.ignore_zwnj || !info.is_zwnj())
+            && (self.ignore_zwj || !info.is_zwj())
+            && (self.ignore_hidden || !info.is_hidden())
         {
             return may_skip_t::SKIP_MAYBE;
         }
@@ -311,7 +311,7 @@ pub struct skipping_iterator_t<'f, 'c, F> {
     syllable: u8,
 }
 
-impl<'f, 'c> skipping_iterator_t<'f, 'c, fn(&mut hb_glyph_info_t, u16) -> bool> {
+impl<'f, 'c> skipping_iterator_t<'f, 'c, fn(&mut GlyphInfo, u16) -> bool> {
     pub fn new(ctx: &'c mut hb_ot_apply_context_t<'f>, context_match: bool) -> Self {
         Self::with_match_fn(ctx, context_match, None)
     }
@@ -324,7 +324,7 @@ pub(crate) enum MatchSource {
 
 impl<'f, 'c, F> skipping_iterator_t<'f, 'c, F>
 where
-    F: Fn(&mut hb_glyph_info_t, u16) -> bool,
+    F: Fn(&mut GlyphInfo, u16) -> bool,
 {
     pub fn with_match_fn(
         ctx: &'c mut hb_ot_apply_context_t<'f>,
@@ -448,7 +448,7 @@ where
         self.buf_idx = start_index;
     }
 
-    pub fn may_skip(&self, info: &hb_glyph_info_t) -> may_skip_t {
+    pub fn may_skip(&self, info: &GlyphInfo) -> may_skip_t {
         self.matcher.may_skip(info, self.face, self.lookup_props)
     }
 
@@ -737,7 +737,7 @@ pub mod OT {
 
     fn match_properties_mark(
         face: &hb_font_t,
-        info: &hb_glyph_info_t,
+        info: &GlyphInfo,
         glyph_props: u16,
         match_props: u32,
         cached_props: u32,
@@ -746,7 +746,7 @@ pub mod OT {
         // match_props has the set index.
         if match_props as u16 & lookup_flags::USE_MARK_FILTERING_SET != 0 {
             if match_props == cached_props {
-                return _hb_glyph_info_matches(info);
+                return info.matches();
             }
 
             let set_index = (match_props >> 16) as u16;
@@ -769,7 +769,7 @@ pub mod OT {
     #[inline(always)]
     pub fn check_glyph_property(
         face: &hb_font_t,
-        info: &hb_glyph_info_t,
+        info: &GlyphInfo,
         match_props: u32,
         cached_props: u32,
     ) -> bool {
@@ -953,7 +953,7 @@ pub mod OT {
 
             if self.cached_props != u32::MAX {
                 let matches = check_glyph_property(self.face, cur, self.lookup_props, u32::MAX);
-                _hb_glyph_info_set_matches(cur, matches);
+                cur.set_matches(matches);
             }
         }
 
@@ -1033,12 +1033,10 @@ pub fn ligate_input(
     let mut buffer = &mut ctx.buffer;
     buffer.merge_clusters(buffer.idx, match_end);
 
-    let mut is_base_ligature =
-        _hb_glyph_info_is_base_glyph(&buffer.info[ctx.match_positions[0] as usize]);
-    let mut is_mark_ligature =
-        _hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[0] as usize]);
+    let mut is_base_ligature = buffer.info[ctx.match_positions[0] as usize].is_base_glyph();
+    let mut is_mark_ligature = buffer.info[ctx.match_positions[0] as usize].is_mark();
     for i in 1..count {
-        if !_hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[i] as usize]) {
+        if !buffer.info[ctx.match_positions[i] as usize].is_mark() {
             is_base_ligature = false;
             is_mark_ligature = false;
         }
@@ -1056,14 +1054,14 @@ pub fn ligate_input(
         0
     };
     let first = buffer.cur_mut(0);
-    let mut last_lig_id = _hb_glyph_info_get_lig_id(first);
-    let mut last_num_comps = _hb_glyph_info_get_lig_num_comps(first);
+    let mut last_lig_id = first.lig_id();
+    let mut last_num_comps = first.lig_num_comps();
     let mut comps_so_far = last_num_comps;
 
     if is_ligature {
-        _hb_glyph_info_set_lig_props_for_ligature(first, lig_id, total_component_count);
-        if _hb_glyph_info_get_general_category(first) == GeneralCategory::NON_SPACING_MARK {
-            _hb_glyph_info_set_general_category(first, GeneralCategory::OTHER_LETTER);
+        first.set_lig_props_for_ligature(lig_id, total_component_count);
+        if first.general_category() == GeneralCategory::NON_SPACING_MARK {
+            first.set_general_category(GeneralCategory::OTHER_LETTER);
         }
     }
 
@@ -1074,7 +1072,7 @@ pub fn ligate_input(
         while buffer.idx < ctx.match_positions[i] as usize && buffer.successful {
             if is_ligature {
                 let cur = buffer.cur_mut(0);
-                let mut this_comp = _hb_glyph_info_get_lig_comp(cur);
+                let mut this_comp = cur.lig_comp();
                 if this_comp == 0 {
                     this_comp = last_num_comps;
                 }
@@ -1082,14 +1080,14 @@ pub fn ligate_input(
                 // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
                 assert!(comps_so_far >= last_num_comps);
                 let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
-                _hb_glyph_info_set_lig_props_for_mark(cur, lig_id, new_lig_comp);
+                cur.set_lig_props_for_mark(lig_id, new_lig_comp);
             }
             buffer.next_glyph();
         }
 
         let cur = buffer.cur(0);
-        last_lig_id = _hb_glyph_info_get_lig_id(cur);
-        last_num_comps = _hb_glyph_info_get_lig_num_comps(cur);
+        last_lig_id = cur.lig_id();
+        last_num_comps = cur.lig_num_comps();
         comps_so_far += last_num_comps;
 
         // Skip the base glyph.
@@ -1100,11 +1098,11 @@ pub fn ligate_input(
         // Re-adjust components for any marks following.
         for i in buffer.idx..buffer.len {
             let info = &mut buffer.info[i];
-            if last_lig_id != _hb_glyph_info_get_lig_id(info) {
+            if last_lig_id != info.lig_id() {
                 break;
             }
 
-            let this_comp = _hb_glyph_info_get_lig_comp(info);
+            let this_comp = info.lig_comp();
             if this_comp == 0 {
                 break;
             }
@@ -1113,7 +1111,7 @@ pub fn ligate_input(
             // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
             assert!(comps_so_far >= last_num_comps);
             let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
-            _hb_glyph_info_set_lig_props_for_mark(info, lig_id, new_lig_comp);
+            info.set_lig_props_for_mark(lig_id, new_lig_comp);
         }
     }
 }

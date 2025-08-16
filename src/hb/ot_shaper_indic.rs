@@ -16,7 +16,7 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_syllabic::*;
 use super::unicode::{hb_gc, CharExt};
-use super::{hb_font_t, hb_glyph_info_t, hb_mask_t, hb_tag_t, script, Script};
+use super::{hb_font_t, hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
 
 pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: Some(collect_features),
@@ -34,7 +34,7 @@ pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     fallback_position: false,
 };
 
-impl hb_glyph_info_t {
+impl GlyphInfo {
     declare_buffer_var_alias!(
         OT_SHAPER_VAR_U8_CATEGORY_VAR,
         u8,
@@ -52,7 +52,7 @@ impl hb_glyph_info_t {
 
     fn is_one_of(&self, flags: u32) -> bool {
         // If it ligated, all bets are off.
-        if _hb_glyph_info_ligated(self) {
+        if self.ligated() {
             return false;
         }
 
@@ -620,8 +620,8 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
-    buffer.allocate_var(hb_glyph_info_t::INDIC_CATEGORY_VAR);
-    buffer.allocate_var(hb_glyph_info_t::INDIC_POSITION_VAR);
+    buffer.allocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
+    buffer.allocate_var(GlyphInfo::INDIC_POSITION_VAR);
 
     // We cannot setup masks here.  We save information about characters
     // and setup masks later on in a pause-callback.
@@ -631,7 +631,7 @@ fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) 
 }
 
 fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
-    buffer.allocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+    buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     super::ot_shaper_indic_machine::find_syllables_indic(buffer);
 
@@ -1341,8 +1341,8 @@ fn final_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb
         final_reordering_impl(plan, face, start, end, buffer);
     });
 
-    buffer.deallocate_var(hb_glyph_info_t::INDIC_CATEGORY_VAR);
-    buffer.deallocate_var(hb_glyph_info_t::INDIC_POSITION_VAR);
+    buffer.deallocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
+    buffer.deallocate_var(GlyphInfo::INDIC_POSITION_VAR);
 
     false
 }
@@ -1372,13 +1372,10 @@ fn final_reordering_impl(
 
     if let Some(virama_glyph) = virama_glyph {
         for info in &mut buffer.info[start..end] {
-            if info.glyph_id == virama_glyph
-                && _hb_glyph_info_ligated(info)
-                && _hb_glyph_info_multiplied(info)
-            {
+            if info.glyph_id == virama_glyph && info.ligated() && info.multiplied() {
                 // This will make sure that this glyph passes is_halant() test.
                 info.set_indic_category(ot_category_t::OT_H);
-                _hb_glyph_info_clear_ligated_and_multiplied(info);
+                info.clear_ligated_and_multiplied();
             }
         }
     }
@@ -1398,8 +1395,8 @@ fn final_reordering_impl(
             if try_pref && base + 1 < end {
                 for i in base + 1..end {
                     if (buffer.info[i].mask & indic_plan.mask_array[indic_feature::PREF]) != 0 {
-                        if !(_hb_glyph_info_substituted(&buffer.info[i])
-                            && _hb_glyph_info_ligated_and_didnt_multiply(&buffer.info[i]))
+                        if !(buffer.info[i].substituted()
+                            && buffer.info[i].ligated_and_didnt_multiply())
                         {
                             // Ok, this was a 'pref' candidate but didn't form any.
                             // Base is around here...
@@ -1615,7 +1612,7 @@ fn final_reordering_impl(
     if start + 1 < end
         && buffer.info[start].indic_position() == ot_position_t::POS_RA_TO_BECOME_REPH
         && (buffer.info[start].indic_category() == ot_category_t::OT_Repha)
-            ^ _hb_glyph_info_ligated_and_didnt_multiply(&buffer.info[start])
+            ^ buffer.info[start].ligated_and_didnt_multiply()
     {
         let mut new_reph_pos;
         'reph: {
@@ -1776,7 +1773,7 @@ fn final_reordering_impl(
                 // the <pref> feature actually did it...
                 //
                 // Reorder pref only if it ligated.
-                if _hb_glyph_info_ligated_and_didnt_multiply(&buffer.info[i]) {
+                if buffer.info[i].ligated_and_didnt_multiply() {
                     // 2. Try to find a target position the same way as for pre-base matra.
                     //    If it is found, reorder pre-base consonant glyph.
                     //
@@ -1835,12 +1832,12 @@ fn final_reordering_impl(
     // Apply 'init' to the Left Matra if it's a word start.
     if buffer.info[start].indic_position() == ot_position_t::POS_PRE_M {
         if start == 0
-            || (rb_flag_unsafe(
-                _hb_glyph_info_get_general_category(&buffer.info[start - 1]).to_u8() as u32,
-            ) & rb_flag_range(
-                hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT,
-                hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK,
-            )) == 0
+            || (rb_flag_unsafe(buffer.info[start - 1].general_category().to_u8() as u32)
+                & rb_flag_range(
+                    hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT,
+                    hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK,
+                ))
+                == 0
         {
             buffer.info[start].mask |= indic_plan.mask_array[indic_feature::INIT];
         } else {

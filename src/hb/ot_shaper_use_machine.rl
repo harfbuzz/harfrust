@@ -18,7 +18,6 @@ use core::cell::Cell;
 use super::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 use super::hb_glyph_info_t;
 use super::machine_cursor::MachineCursor;
-use super::ot_layout::*;
 use super::ot_shaper_use::category;
 
 %%{
@@ -229,7 +228,7 @@ fn included(infos: &[Cell<hb_glyph_info_t>], i: usize) -> bool {
     if glyph.use_category() == category::ZWNJ {
         for glyph2 in &infos[i + 1..] {
             if not_ccs_default_ignorable(&glyph2.get()) {
-                return !_hb_glyph_info_is_unicode_mark(&glyph2.get());
+                return !glyph2.get().is_unicode_mark();
             }
         }
     }

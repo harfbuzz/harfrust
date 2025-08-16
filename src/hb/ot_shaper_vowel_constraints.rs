@@ -3,7 +3,6 @@
 #![allow(clippy::single_match)]
 
 use super::buffer::hb_buffer_t;
-use super::ot_layout::*;
 use super::script;
 use crate::BufferFlags;
 
@@ -11,7 +10,7 @@ fn output_dotted_circle(buffer: &mut hb_buffer_t) {
     buffer.output_glyph(0x25CC);
     {
         let out_idx = buffer.out_len - 1;
-        _hb_glyph_info_clear_continuation(&mut buffer.out_info_mut()[out_idx]);
+        buffer.out_info_mut()[out_idx].clear_continuation();
     }
 }
 

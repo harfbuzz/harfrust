@@ -75,7 +75,7 @@ mod unicode;
 
 use read_fonts::types::Tag as hb_tag_t;
 
-use self::buffer::hb_glyph_info_t;
+use self::buffer::GlyphInfo;
 use self::face::hb_font_t;
 
 type hb_mask_t = u32;

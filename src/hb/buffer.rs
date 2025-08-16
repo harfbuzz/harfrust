@@ -153,9 +153,15 @@ impl GlyphPosition {
 }
 
 /// A glyph info.
+///
+/// Structure that holds information about the glyphs and their relation to
+/// input text.
+///
+/// HarfBuzz calls this `hb_glyph_info_t`. See the [documentation](https://harfbuzz.github.io/harfbuzz-hb-buffer.html#hb-glyph-info-t)
+/// and [source](https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-buffer.h#L62).
 #[repr(C)]
 #[derive(Clone, Copy, Default, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct hb_glyph_info_t {
+pub struct GlyphInfo {
     // NOTE: Stores a Unicode codepoint before shaping and a glyph ID after.
     //       Just like harfbuzz, we are using the same variable for two purposes.
     //       Occupies u32 as a codepoint and u16 as a glyph id.
@@ -228,31 +234,30 @@ macro_rules! declare_buffer_var {
 macro_rules! declare_buffer_var_alias {
     ($alias_var:ident, $ty:ty, $var_name:ident, $getter:ident, $setter:ident) => {
         #[allow(dead_code)]
-        pub(crate) const $var_name: buffer_var_shape = hb_glyph_info_t::$alias_var;
+        pub(crate) const $var_name: buffer_var_shape = GlyphInfo::$alias_var;
 
         #[inline]
         pub(crate) fn $getter(&self) -> $ty {
-            debug_assert!(hb_glyph_info_t::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            debug_assert!(GlyphInfo::$alias_var.width == core::mem::size_of::<$ty>() as u8);
             const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
-            let v: &[$ty; LEN] = bytemuck::cast_ref(
-                &self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
-            );
-            v[hb_glyph_info_t::$alias_var.index as usize]
+            let v: &[$ty; LEN] =
+                bytemuck::cast_ref(&self.vars[GlyphInfo::$alias_var.var_index as usize - 1usize]);
+            v[GlyphInfo::$alias_var.index as usize]
         }
 
         #[inline]
         pub(crate) fn $setter(&mut self, value: $ty) {
-            debug_assert!(hb_glyph_info_t::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            debug_assert!(GlyphInfo::$alias_var.width == core::mem::size_of::<$ty>() as u8);
             const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &mut [$ty; LEN] = bytemuck::cast_mut(
-                &mut self.vars[hb_glyph_info_t::$alias_var.var_index as usize - 1usize],
+                &mut self.vars[GlyphInfo::$alias_var.var_index as usize - 1usize],
             );
-            v[hb_glyph_info_t::$alias_var.index as usize] = value;
+            v[GlyphInfo::$alias_var.index as usize] = value;
         }
     };
 }
 
-impl hb_glyph_info_t {
+impl GlyphInfo {
     /// Indicates that if input text is broken at the beginning of the cluster this glyph
     /// is part of, then both sides need to be re-shaped, as the result might be different.
     ///
@@ -417,7 +422,7 @@ pub struct hb_buffer_t {
     pub len: usize,
     pub out_len: usize,
 
-    pub info: Vec<hb_glyph_info_t>,
+    pub info: Vec<GlyphInfo>,
     pub pos: Vec<GlyphPosition>,
 
     // Text before / after the main buffer contents.
@@ -523,12 +528,12 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn info_slice_mut(&mut self) -> &mut [hb_glyph_info_t] {
+    pub fn info_slice_mut(&mut self) -> &mut [GlyphInfo] {
         &mut self.info[..self.len]
     }
 
     #[inline]
-    pub fn out_info(&self) -> &[hb_glyph_info_t] {
+    pub fn out_info(&self) -> &[GlyphInfo] {
         if self.have_separate_output {
             bytemuck::cast_slice(self.pos.as_slice())
         } else {
@@ -537,7 +542,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn out_info_mut(&mut self) -> &mut [hb_glyph_info_t] {
+    pub fn out_info_mut(&mut self) -> &mut [GlyphInfo] {
         if self.have_separate_output {
             bytemuck::cast_slice_mut(self.pos.as_mut_slice())
         } else {
@@ -546,17 +551,17 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    fn set_out_info(&mut self, i: usize, info: hb_glyph_info_t) {
+    fn set_out_info(&mut self, i: usize, info: GlyphInfo) {
         self.out_info_mut()[i] = info;
     }
 
     #[inline]
-    pub fn cur(&self, i: usize) -> &hb_glyph_info_t {
+    pub fn cur(&self, i: usize) -> &GlyphInfo {
         &self.info[self.idx + i]
     }
 
     #[inline]
-    pub fn cur_mut(&mut self, i: usize) -> &mut hb_glyph_info_t {
+    pub fn cur_mut(&mut self, i: usize) -> &mut GlyphInfo {
         let idx = self.idx + i;
         &mut self.info[idx]
     }
@@ -568,13 +573,13 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn prev(&self) -> &hb_glyph_info_t {
+    pub fn prev(&self) -> &GlyphInfo {
         let idx = self.out_len.saturating_sub(1);
         &self.out_info()[idx]
     }
 
     #[inline]
-    pub fn prev_mut(&mut self) -> &mut hb_glyph_info_t {
+    pub fn prev_mut(&mut self) -> &mut GlyphInfo {
         let idx = self.out_len.saturating_sub(1);
         &mut self.out_info_mut()[idx]
     }
@@ -643,10 +648,10 @@ impl hb_buffer_t {
         if !self.ensure(self.len + 1) {
             return;
         }
-        self.info[self.len] = hb_glyph_info_t {
+        self.info[self.len] = GlyphInfo {
             glyph_id: codepoint,
             cluster,
-            ..hb_glyph_info_t::default()
+            ..GlyphInfo::default()
         };
         self.len += 1;
     }
@@ -673,7 +678,7 @@ impl hb_buffer_t {
 
     pub fn reverse_groups<F>(&mut self, group: F, merge_clusters: bool)
     where
-        F: Fn(&hb_glyph_info_t, &hb_glyph_info_t) -> bool,
+        F: Fn(&GlyphInfo, &GlyphInfo) -> bool,
     {
         if self.is_empty() {
             return;
@@ -706,7 +711,7 @@ impl hb_buffer_t {
 
     pub fn group_end<F>(&self, mut start: usize, group: F) -> usize
     where
-        F: Fn(&hb_glyph_info_t, &hb_glyph_info_t) -> bool,
+        F: Fn(&GlyphInfo, &GlyphInfo) -> bool,
     {
         start += 1;
 
@@ -766,7 +771,7 @@ impl hb_buffer_t {
         if self.have_separate_output {
             // Swap info and pos buffers.
             let info: Vec<GlyphPosition> = bytemuck::cast_vec(core::mem::take(&mut self.info));
-            let pos: Vec<hb_glyph_info_t> = bytemuck::cast_vec(core::mem::take(&mut self.pos));
+            let pos: Vec<GlyphInfo> = bytemuck::cast_vec(core::mem::take(&mut self.pos));
             self.pos = info;
             self.info = pos;
             self.have_separate_output = false;
@@ -859,7 +864,7 @@ impl hb_buffer_t {
         self.out_len += 1;
     }
 
-    pub fn output_info(&mut self, glyph_info: hb_glyph_info_t) {
+    pub fn output_info(&mut self, glyph_info: GlyphInfo) {
         if !self.make_room_for(0, 1) {
             return;
         }
@@ -1085,7 +1090,7 @@ impl hb_buffer_t {
         self.skip_glyph();
     }
 
-    pub fn delete_glyphs_inplace(&mut self, filter: impl Fn(&hb_glyph_info_t) -> bool) {
+    pub fn delete_glyphs_inplace(&mut self, filter: impl Fn(&GlyphInfo) -> bool) {
         // Merge clusters and delete filtered glyphs.
         // NOTE! We can't use out-buffer as we have positioning data.
         let mut j = 0;
@@ -1320,7 +1325,7 @@ impl hb_buffer_t {
             return false;
         }
 
-        self.info.resize(size, hb_glyph_info_t::default());
+        self.info.resize(size, GlyphInfo::default());
         self.pos.resize(size, GlyphPosition::default());
         true
     }
@@ -1355,7 +1360,7 @@ impl hb_buffer_t {
 
         if self.idx + count > self.len {
             for info in &mut self.info[self.len..self.idx + count] {
-                *info = hb_glyph_info_t::default();
+                *info = GlyphInfo::default();
             }
         }
 
@@ -1367,12 +1372,7 @@ impl hb_buffer_t {
         self.context_len[side] = 0;
     }
 
-    pub fn sort(
-        &mut self,
-        start: usize,
-        end: usize,
-        cmp: impl Fn(&hb_glyph_info_t, &hb_glyph_info_t) -> bool,
-    ) {
+    pub fn sort(&mut self, start: usize, end: usize, cmp: impl Fn(&GlyphInfo, &GlyphInfo) -> bool) {
         assert!(!self.have_positions);
 
         for i in start + 1..end {
@@ -1399,7 +1399,7 @@ impl hb_buffer_t {
         }
     }
 
-    pub fn set_cluster(info: &mut hb_glyph_info_t, cluster: u32, mask: hb_mask_t) {
+    pub fn set_cluster(info: &mut GlyphInfo, cluster: u32, mask: hb_mask_t) {
         if info.cluster != cluster {
             info.mask = (info.mask & !glyph_flag::DEFINED) | (mask & glyph_flag::DEFINED);
         }
@@ -1434,7 +1434,7 @@ impl hb_buffer_t {
 
     fn _infos_find_min_cluster(
         &self,
-        info: &[hb_glyph_info_t],
+        info: &[GlyphInfo],
         start: usize,
         end: usize,
         cluster: Option<u32>,
@@ -1535,10 +1535,10 @@ impl hb_buffer_t {
         }
 
         for (i, c) in text.char_indices() {
-            self.info[self.len] = hb_glyph_info_t {
+            self.info[self.len] = GlyphInfo {
                 glyph_id: c as u32,
                 cluster: i as u32,
-                ..hb_glyph_info_t::default()
+                ..GlyphInfo::default()
             };
             self.len += 1;
         }
@@ -1586,7 +1586,7 @@ impl hb_buffer_t {
     }
 }
 
-pub(crate) fn _cluster_group_func(a: &hb_glyph_info_t, b: &hb_glyph_info_t) -> bool {
+pub(crate) fn _cluster_group_func(a: &GlyphInfo, b: &GlyphInfo) -> bool {
     a.cluster == b.cluster
 }
 
@@ -1873,7 +1873,7 @@ impl GlyphBuffer {
 
     /// Get the glyph infos.
     #[inline]
-    pub fn glyph_infos(&self) -> &[hb_glyph_info_t] {
+    pub fn glyph_infos(&self) -> &[GlyphInfo] {
         &self.0.info[0..self.0.len]
     }
 

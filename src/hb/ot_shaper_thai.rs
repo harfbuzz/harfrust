@@ -385,16 +385,14 @@ fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_
         buffer.output_glyph(nikhahit_from_sara_am(u));
         {
             let out_idx = buffer.out_len - 1;
-            _hb_glyph_info_set_continuation(&mut buffer.out_info_mut()[out_idx]);
+            buffer.out_info_mut()[out_idx].set_continuation();
         }
         buffer.replace_glyph(sara_aa_from_sara_am(u));
 
         // Make Nikhahit be recognized as a ccc=0 mark when zeroing widths.
         let end = buffer.out_len;
-        _hb_glyph_info_set_general_category(
-            &mut buffer.out_info_mut()[end - 2],
-            GeneralCategory::NON_SPACING_MARK,
-        );
+
+        buffer.out_info_mut()[end - 2].set_general_category(GeneralCategory::NON_SPACING_MARK);
 
         // Ok, let's see...
         let mut start = end - 2;

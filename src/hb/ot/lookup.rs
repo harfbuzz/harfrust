@@ -1,9 +1,10 @@
 use crate::hb::{
-    hb_font_t, hb_glyph_info_t,
+    hb_font_t,
     ot_layout_gsubgpos::{
         Apply, SubtableExternalCache, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t,
     },
     set_digest::hb_set_digest_t,
+    GlyphInfo,
 };
 
 use alloc::vec::Vec;
@@ -756,7 +757,7 @@ impl SubtableInfo {
 }
 
 fn cache_enter(ctx: &mut hb_ot_apply_context_t) -> bool {
-    if !ctx.buffer.try_allocate_var(hb_glyph_info_t::SYLLABLE_VAR) {
+    if !ctx.buffer.try_allocate_var(GlyphInfo::SYLLABLE_VAR) {
         return false;
     }
     for info in &mut ctx.buffer.info {
@@ -768,5 +769,5 @@ fn cache_enter(ctx: &mut hb_ot_apply_context_t) -> bool {
 
 fn cache_leave(ctx: &mut hb_ot_apply_context_t) {
     ctx.new_syllables = None;
-    ctx.buffer.deallocate_var(hb_glyph_info_t::SYLLABLE_VAR);
+    ctx.buffer.deallocate_var(GlyphInfo::SYLLABLE_VAR);
 }

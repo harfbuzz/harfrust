@@ -1,4 +1,4 @@
-use crate::hb::buffer::hb_glyph_info_t;
+use crate::hb::buffer::GlyphInfo;
 use crate::hb::ot_layout::MAX_NESTING_LEVEL;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
@@ -37,7 +37,7 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
         let backtrack_coverages = self.backtrack_coverages();
         let lookahead_coverages = self.lookahead_coverages();
 
-        let f1 = |info: &mut hb_glyph_info_t, index| {
+        let f1 = |info: &mut GlyphInfo, index| {
             backtrack_coverages
                 .get(index as usize)
                 .ok()
@@ -45,7 +45,7 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
                 .is_some()
         };
 
-        let f2 = |info: &mut hb_glyph_info_t, index| {
+        let f2 = |info: &mut GlyphInfo, index| {
             lookahead_coverages
                 .get(index as usize)
                 .ok()
