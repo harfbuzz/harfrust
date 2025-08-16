@@ -606,6 +606,7 @@ pub(crate) fn apply_lookup(
             .copy_within(next..count, (next as isize + delta) as _);
         next = (next as isize + delta) as _;
         count = (count as isize + delta) as _;
+        ctx.match_positions_len = count;
 
         // Fill in new entries.
         for j in idx + 1..next {
