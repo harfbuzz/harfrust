@@ -136,7 +136,7 @@ impl Apply for SequenceContextFormat3<'_> {
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
         let mut match_end = 0;
-        let mut match_positions = MatchPositions::from_elem(0, 4);
+        let mut match_positions = MatchPositions::new();
         if match_input(
             ctx,
             input_coverages.len() as u16 - 1,
@@ -418,7 +418,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
 
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
-        let mut match_positions = MatchPositions::from_elem(0, 4);
+        let mut match_positions = MatchPositions::new();
 
         let input_matches = match_input(
             ctx,
@@ -562,7 +562,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
 ) -> Option<()> {
-    let mut match_positions: MatchPositions = MatchPositions::from_elem(0, 4);
+    let mut match_positions: MatchPositions = MatchPositions::new();
 
     // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
     // faster. But our lookup code is slower, so NOT using this condition
@@ -787,7 +787,7 @@ fn apply_chain_context_rules<
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
 ) -> Option<()> {
-    let mut match_positions: MatchPositions = MatchPositions::from_elem(0, 4);
+    let mut match_positions: MatchPositions = MatchPositions::new();
 
     // If the input skippy has non-auto joiners behavior (as in Indic shapers),
     // skip this fast path, as we don't distinguish between input & lookahead
