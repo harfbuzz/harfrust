@@ -98,24 +98,25 @@ impl hb_set_digest_t {
         }
     }
 
-    #[inline(always)]
     pub fn may_have_glyph(&self, g: GlyphId) -> bool {
         let gid = g.to_u32();
-        let mut have = true;
         for i in 0..N {
             let shift = HB_SET_DIGEST_SHIFTS[i];
             let bit = (gid >> shift) & MB1;
-            have &= (self.masks[i] & (ONE << bit)) != 0;
+            if self.masks[i] & (ONE << bit) == 0 {
+                return false;
+            }
         }
-        have
+        true
     }
 
     pub fn may_intersect(&self, other: &Self) -> bool {
-        let mut have = true;
         for i in 0..N {
-            have &= (self.masks[i] & other.masks[i]) != 0;
+            if self.masks[i] & other.masks[i] == 0 {
+                return false;
+            }
         }
-        have
+        true
     }
 }
 
