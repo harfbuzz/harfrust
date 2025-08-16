@@ -637,8 +637,8 @@ pub(crate) type MappingCache = hb_cache_t<
 >;
 
 pub(crate) struct LigatureSubstFormat1Cache {
-    pub coverage: MappingCache,
     pub seconds: hb_set_digest_t,
+    pub coverage: MappingCache,
 }
 
 impl LigatureSubstFormat1Cache {
