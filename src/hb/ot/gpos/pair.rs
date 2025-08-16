@@ -23,7 +23,7 @@ impl Apply for PairPosFormat1<'_> {
                     &cache.coverage,
                 )?
             } else {
-                panic!(""); // Tell compiler this can't happen.
+                return None; // This can't actually happen.
             };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -139,7 +139,7 @@ impl Apply for PairPosFormat2<'_> {
                 &cache.coverage,
             )?
         } else {
-            panic!(""); // Tell compiler this can't happen.
+            return None; // This can't actually happen.
         };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -193,7 +193,7 @@ impl Apply for PairPosFormat2<'_> {
                 &cache.first,
             )
         } else {
-            panic!(""); // Tell compiler this can't happen.
+            return None; // This can't actually happen.
         };
         let class2 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
             glyph_class_cached(
@@ -202,7 +202,7 @@ impl Apply for PairPosFormat2<'_> {
                 &cache.second,
             )
         } else {
-            panic!(""); // Tell compiler this can't happen.
+            return None; // This can't actually happen.
         };
         let mut buf_idx = iter.buf_idx;
         let format1 = self.value_format1();
