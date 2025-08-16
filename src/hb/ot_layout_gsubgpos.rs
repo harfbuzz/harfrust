@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
-pub(crate) type MatchPositions = smallvec::SmallVec<[usize; 8]>;
+pub(crate) type MatchPositions = smallvec::SmallVec<[usize; MAX_CONTEXT_LENGTH]>;
 
 /// Value represents glyph id.
 pub fn match_glyph(info: &mut hb_glyph_info_t, value: u16) -> bool {
