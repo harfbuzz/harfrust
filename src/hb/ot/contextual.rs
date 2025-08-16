@@ -3,8 +3,7 @@ use crate::hb::buffer::hb_glyph_info_t;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    may_skip_t, skipping_iterator_t, Apply, MatchPositions, SubtableExternalCache, WouldApply,
-    WouldApplyContext,
+    may_skip_t, skipping_iterator_t, Apply, SubtableExternalCache, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -136,13 +135,11 @@ impl Apply for SequenceContextFormat3<'_> {
                 .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
         };
         let mut match_end = 0;
-        let mut match_positions = MatchPositions::new();
         if match_input(
             ctx,
             input_coverages.len() as u16 - 1,
             input,
             &mut match_end,
-            &mut match_positions,
             None,
         ) {
             ctx.buffer
@@ -150,7 +147,6 @@ impl Apply for SequenceContextFormat3<'_> {
             apply_lookup(
                 ctx,
                 input_coverages.len() - 1,
-                &mut match_positions,
                 match_end,
                 self.seq_lookup_records(),
             );
@@ -418,14 +414,12 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
 
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
-        let mut match_positions = MatchPositions::new();
 
         let input_matches = match_input(
             ctx,
             input_coverages.len() as u16 - 1,
             input,
             &mut match_end,
-            &mut match_positions,
             None,
         );
 
@@ -465,7 +459,6 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         apply_lookup(
             ctx,
             input_coverages.len() - 1,
-            &mut match_positions,
             match_end,
             self.seq_lookup_records(),
         );
@@ -500,7 +493,6 @@ trait ContextRule<'a>: FontRead<'a> {
         &self,
         ctx: &mut hb_ot_apply_context_t,
         match_func: &impl Fn(&mut hb_glyph_info_t, u16) -> bool,
-        match_positions: &mut MatchPositions,
     ) -> Option<()> {
         let inputs = self.input();
         let match_func = |info: &mut hb_glyph_info_t, index| {
@@ -510,23 +502,10 @@ trait ContextRule<'a>: FontRead<'a> {
 
         let mut match_end = 0;
 
-        if match_input(
-            ctx,
-            inputs.len() as _,
-            match_func,
-            &mut match_end,
-            match_positions,
-            None,
-        ) {
+        if match_input(ctx, inputs.len() as _, match_func, &mut match_end, None) {
             ctx.buffer
                 .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
-            apply_lookup(
-                ctx,
-                inputs.len(),
-                match_positions,
-                match_end,
-                self.lookup_records(),
-            );
+            apply_lookup(ctx, inputs.len(), match_end, self.lookup_records());
             return Some(());
         }
         None
@@ -562,15 +541,13 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
 ) -> Option<()> {
-    let mut match_positions: MatchPositions = MatchPositions::new();
-
     // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
     // faster. But our lookup code is slower, so NOT using this condition
     // makes us faster.  Reconsider when lookup code is faster.
     //if rules.len() <= 4 {
     if false {
         for rule in rules.iter().filter_map(|r| r.ok()) {
-            if rule.apply(ctx, &match_func, &mut match_positions).is_some() {
+            if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
             };
         }
@@ -591,7 +568,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for rule in rules.iter().filter_map(|r| r.ok()) {
-                if rule.apply(ctx, &match_func, &mut match_positions).is_some() {
+                if rule.apply(ctx, &match_func).is_some() {
                     return Some(());
                 };
             }
@@ -606,7 +583,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             .filter_map(|r| r.ok())
             .filter(|r| r.input().len() <= 1)
         {
-            if rule.apply(ctx, &match_func, &mut match_positions).is_some() {
+            if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
             };
         }
@@ -631,7 +608,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             if second.is_none()
                 || (inputs.len() <= 2 || match_func2(&mut ctx.buffer.info[second.unwrap()], 1))
             {
-                if rule.apply(ctx, &match_func, &mut match_positions).is_some() {
+                if rule.apply(ctx, &match_func).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -662,7 +639,6 @@ trait ChainContextRule<'a>: ContextRule<'a> {
         &self,
         ctx: &mut hb_ot_apply_context_t,
         match_funcs: &(F1, F2, F3),
-        match_positions: &mut MatchPositions,
     ) -> Option<()> {
         let input = self.input();
         let backtrack = self.backtrack();
@@ -688,14 +664,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
 
-        let input_matches = match_input(
-            ctx,
-            input.len() as u16,
-            f3,
-            &mut match_end,
-            match_positions,
-            None,
-        );
+        let input_matches = match_input(ctx, input.len() as u16, f3, &mut match_end, None);
 
         if input_matches {
             end_index = match_end;
@@ -719,13 +688,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
 
         ctx.buffer
             .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
-        apply_lookup(
-            ctx,
-            input.len(),
-            match_positions,
-            match_end,
-            self.lookup_records(),
-        );
+        apply_lookup(ctx, input.len(), match_end, self.lookup_records());
 
         Some(())
     }
@@ -787,8 +750,6 @@ fn apply_chain_context_rules<
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
 ) -> Option<()> {
-    let mut match_positions: MatchPositions = MatchPositions::new();
-
     // If the input skippy has non-auto joiners behavior (as in Indic shapers),
     // skip this fast path, as we don't distinguish between input & lookahead
     // matching in the fast path.
@@ -800,10 +761,7 @@ fn apply_chain_context_rules<
     //if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
     if !ctx.auto_zwnj || !ctx.auto_zwj {
         for rule in rules.iter().filter_map(|r| r.ok()) {
-            if rule
-                .apply_chain(ctx, &match_funcs, &mut match_positions)
-                .is_some()
-            {
+            if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());
             };
         }
@@ -824,10 +782,7 @@ fn apply_chain_context_rules<
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for rule in rules.iter().filter_map(|r| r.ok()) {
-                if rule
-                    .apply_chain(ctx, &match_funcs, &mut match_positions)
-                    .is_some()
-                {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
                     return Some(());
                 };
             }
@@ -842,10 +797,7 @@ fn apply_chain_context_rules<
             .filter_map(|r| r.ok())
             .filter(|r| r.input().len() <= 1 && r.lookahead().is_empty())
         {
-            if rule
-                .apply_chain(ctx, &match_funcs, &mut match_positions)
-                .is_some()
-            {
+            if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());
             };
         }
@@ -888,10 +840,7 @@ fn apply_chain_context_rules<
                 true
             };
             if matched_second {
-                if rule
-                    .apply_chain(ctx, &match_funcs, &mut match_positions)
-                    .is_some()
-                {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
