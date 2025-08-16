@@ -14,6 +14,8 @@ use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
+pub(crate) type MatchPositions = smallvec::SmallVec<[usize; 8]>;
+
 /// Value represents glyph id.
 pub fn match_glyph(info: &mut hb_glyph_info_t, value: u16) -> bool {
     info.glyph_id == value as u32
@@ -28,7 +30,7 @@ pub fn match_input(
     input_len: u16,
     match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
     end_position: &mut usize,
-    match_positions: &mut smallvec::SmallVec<[usize; 4]>,
+    match_positions: &mut MatchPositions,
     p_total_component_count: Option<&mut u8>,
 ) -> bool {
     // This is perhaps the trickiest part of OpenType...  Remarks:
@@ -480,15 +482,13 @@ where
 pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
-    match_positions: &mut smallvec::SmallVec<[usize; 4]>,
+    match_positions: &mut MatchPositions,
     match_end: usize,
     lookups: &[SequenceLookupRecord],
 ) {
     let mut count = input_len + 1;
 
-    if count > match_positions.len() {
-        match_positions.resize(count, 0);
-    }
+    debug_assert!(count <= match_positions.len(), "");
 
     // All positions are distance from beginning of *output* buffer.
     // Adjust.
@@ -975,7 +975,7 @@ pub fn ligate_input(
     // Including the first glyph
     count: usize,
     // Including the first glyph
-    match_positions: &smallvec::SmallVec<[usize; 4]>,
+    match_positions: &MatchPositions,
     match_end: usize,
     total_component_count: u8,
     lig_glyph: GlyphId,
