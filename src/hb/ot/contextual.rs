@@ -631,6 +631,7 @@ trait ChainContextRule<'a>: ContextRule<'a> {
     fn backtrack(&self) -> &'a [Self::Input];
     fn lookahead(&self) -> &'a [Self::Input];
 
+    #[inline(always)]
     fn apply_chain<
         F1: Fn(&mut hb_glyph_info_t, u16) -> bool,
         F2: Fn(&mut hb_glyph_info_t, u16) -> bool,
