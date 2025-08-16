@@ -14,7 +14,7 @@ use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
-pub(crate) type MatchPositions = smallvec::SmallVec<[usize; 8]>;
+pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
 
 /// Value represents glyph id.
 pub fn match_glyph(info: &mut hb_glyph_info_t, value: u16) -> bool {
@@ -30,7 +30,6 @@ pub fn match_input(
     input_len: u16,
     match_func: impl Fn(&mut hb_glyph_info_t, u16) -> bool,
     end_position: &mut usize,
-    match_positions: &mut MatchPositions,
     p_total_component_count: Option<&mut u8>,
 ) -> bool {
     // This is perhaps the trickiest part of OpenType...  Remarks:
@@ -67,8 +66,8 @@ pub fn match_input(
         return false;
     }
 
-    if count > match_positions.len() {
-        match_positions.resize(count, 0);
+    if count > ctx.match_positions.len() {
+        ctx.match_positions.resize(count, 0);
     }
 
     let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
@@ -81,14 +80,14 @@ pub fn match_input(
     let mut total_component_count = 0;
     let mut ligbase = Ligbase::NotChecked;
 
-    for position in &mut match_positions[1..count] {
+    for i in 1..count {
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
             *end_position = unsafe_to;
             return false;
         }
 
-        *position = iter.index();
+        iter.set_match_position(i, iter.index());
 
         let this = iter.buffer.info[iter.index()];
         let this_lig_id = _hb_glyph_info_get_lig_id(&this);
@@ -144,7 +143,7 @@ pub fn match_input(
         *p_total_component_count = total_component_count;
     }
 
-    match_positions[0] = iter.buffer.idx;
+    ctx.match_positions[0] = iter.buffer.idx as u32;
 
     true
 }
@@ -302,6 +301,7 @@ pub struct skipping_iterator_t<'f, 'c, F> {
     pub(crate) buffer: &'c mut hb_buffer_t,
     face: &'c hb_font_t<'f>,
     matcher: &'c matcher_t,
+    match_positions: &'c mut MatchPositions,
     buf_len: usize,
     glyph_data: u16,
     pub(crate) buf_idx: usize,
@@ -344,9 +344,14 @@ where
             buf_idx: 0,
             matcher,
             match_func: match_fn,
+            match_positions: &mut ctx.match_positions,
             lookup_props: matcher.lookup_props,
             syllable: 0,
         }
+    }
+
+    pub fn set_match_position(&mut self, idx: usize, position: usize) {
+        self.match_positions[idx] = position as u32;
     }
 
     pub fn set_glyph_data(&mut self, glyph_data: u16) {
@@ -482,13 +487,12 @@ where
 pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
-    match_positions: &mut MatchPositions,
     match_end: usize,
     lookups: &[SequenceLookupRecord],
 ) {
     let mut count = input_len + 1;
 
-    debug_assert!(count <= match_positions.len(), "");
+    debug_assert!(count <= ctx.match_positions.len(), "");
 
     // All positions are distance from beginning of *output* buffer.
     // Adjust.
@@ -498,7 +502,7 @@ pub(crate) fn apply_lookup(
 
         // Convert positions to new indexing.
         for j in 0..count {
-            match_positions[j] = (match_positions[j] as isize + delta) as _;
+            ctx.match_positions[j] = (ctx.match_positions[j] as isize + delta) as _;
         }
 
         backtrack_len as isize + match_end as isize - ctx.buffer.idx as isize
@@ -517,11 +521,11 @@ pub(crate) fn apply_lookup(
         let orig_len = ctx.buffer.backtrack_len() + ctx.buffer.lookahead_len();
 
         // This can happen if earlier recursed lookups deleted many entries.
-        if match_positions[idx] >= orig_len {
+        if ctx.match_positions[idx] as usize >= orig_len {
             continue;
         }
 
-        if !ctx.buffer.move_to(match_positions[idx]) {
+        if !ctx.buffer.move_to(ctx.match_positions[idx] as usize) {
             break;
         }
 
@@ -563,7 +567,7 @@ pub(crate) fn apply_lookup(
         // It should be possible to construct tests for both of these cases.
 
         end += delta;
-        if end < match_positions[idx] as isize {
+        if end < ctx.match_positions[idx] as isize {
             // End might end up being smaller than match_positions[idx] if the recursed
             // lookup ended up removing many items.
             // Just never rewind end beyond start of current position, since that is
@@ -572,8 +576,8 @@ pub(crate) fn apply_lookup(
             // https://bugs.chromium.org/p/chromium/issues/detail?id=659496
             // https://github.com/harfbuzz/harfbuzz/issues/1611
             //
-            delta += match_positions[idx] as isize - end;
-            end = match_positions[idx] as isize;
+            delta += ctx.match_positions[idx] as isize - end;
+            end = ctx.match_positions[idx] as isize;
         }
 
         // next now is the position after the recursed lookup.
@@ -584,9 +588,11 @@ pub(crate) fn apply_lookup(
                 break;
             }
 
-            if delta as usize + count > match_positions.len() {
-                let inner_max = (core::cmp::max(4, match_positions.len()) as f32 * 1.5) as usize;
-                match_positions.resize(core::cmp::max(delta as usize + count, inner_max), 0);
+            if delta as usize + count > ctx.match_positions.len() {
+                let inner_max =
+                    (core::cmp::max(4, ctx.match_positions.len()) as f32 * 1.5) as usize;
+                ctx.match_positions
+                    .resize(core::cmp::max(delta as usize + count, inner_max), 0);
             }
         } else {
             // NOTE: delta is non-positive.
@@ -595,18 +601,19 @@ pub(crate) fn apply_lookup(
         }
 
         // Shift!
-        match_positions.copy_within(next..count, (next as isize + delta) as _);
+        ctx.match_positions
+            .copy_within(next..count, (next as isize + delta) as _);
         next = (next as isize + delta) as _;
         count = (count as isize + delta) as _;
 
         // Fill in new entries.
         for j in idx + 1..next {
-            match_positions[j] = match_positions[j - 1] + 1;
+            ctx.match_positions[j] = ctx.match_positions[j - 1] + 1;
         }
 
         // And fixup the rest.
         while next < count {
-            match_positions[next] = (match_positions[next] as isize + delta) as _;
+            ctx.match_positions[next] = (ctx.match_positions[next] as isize + delta) as _;
             next += 1;
         }
     }
@@ -799,6 +806,7 @@ pub mod OT {
         pub digest: hb_set_digest_t,
         pub(crate) matcher: matcher_t,
         pub(crate) context_matcher: matcher_t,
+        pub(crate) match_positions: MatchPositions,
     }
 
     impl<'a> hb_ot_apply_context_t<'a> {
@@ -828,6 +836,7 @@ pub mod OT {
                 digest: buffer_digest,
                 matcher: matcher_t::default(),
                 context_matcher: matcher_t::default(),
+                match_positions: MatchPositions::new(),
             }
         }
 
@@ -867,6 +876,7 @@ pub mod OT {
             self.nesting_level_left -= 1;
             let saved_props = self.lookup_props;
             let saved_index = self.lookup_index;
+            let saved_match_positions = self.match_positions.clone();
 
             self.lookup_index = sub_lookup_index;
             let applied = self
@@ -884,6 +894,7 @@ pub mod OT {
             self.lookup_props = saved_props;
             self.lookup_index = saved_index;
             self.update_matchers();
+            self.match_positions = saved_match_positions;
             self.nesting_level_left += 1;
             applied
         }
@@ -975,7 +986,6 @@ pub fn ligate_input(
     // Including the first glyph
     count: usize,
     // Including the first glyph
-    match_positions: &MatchPositions,
     match_end: usize,
     total_component_count: u8,
     lig_glyph: GlyphId,
@@ -1015,10 +1025,12 @@ pub fn ligate_input(
     let mut buffer = &mut ctx.buffer;
     buffer.merge_clusters(buffer.idx, match_end);
 
-    let mut is_base_ligature = _hb_glyph_info_is_base_glyph(&buffer.info[match_positions[0]]);
-    let mut is_mark_ligature = _hb_glyph_info_is_mark(&buffer.info[match_positions[0]]);
+    let mut is_base_ligature =
+        _hb_glyph_info_is_base_glyph(&buffer.info[ctx.match_positions[0] as usize]);
+    let mut is_mark_ligature =
+        _hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[0] as usize]);
     for i in 1..count {
-        if !_hb_glyph_info_is_mark(&buffer.info[match_positions[i]]) {
+        if !_hb_glyph_info_is_mark(&buffer.info[ctx.match_positions[i] as usize]) {
             is_base_ligature = false;
             is_mark_ligature = false;
         }
@@ -1051,7 +1063,7 @@ pub fn ligate_input(
     buffer = &mut ctx.buffer;
 
     for i in 1..count {
-        while buffer.idx < match_positions[i] && buffer.successful {
+        while buffer.idx < ctx.match_positions[i] as usize && buffer.successful {
             if is_ligature {
                 let cur = buffer.cur_mut(0);
                 let mut this_comp = _hb_glyph_info_get_lig_comp(cur);

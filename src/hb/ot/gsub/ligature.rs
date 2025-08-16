@@ -37,7 +37,6 @@ impl Apply for Ligature<'_> {
             };
 
             let mut match_end = 0;
-            let mut match_positions = smallvec::SmallVec::from_elem(0, 4);
             let mut total_component_count = 0;
 
             if !match_input(
@@ -45,7 +44,6 @@ impl Apply for Ligature<'_> {
                 components.len() as u16,
                 f,
                 &mut match_end,
-                &mut match_positions,
                 Some(&mut total_component_count),
             ) {
                 ctx.buffer
@@ -56,7 +54,6 @@ impl Apply for Ligature<'_> {
             ligate_input(
                 ctx,
                 count,
-                &match_positions,
                 match_end,
                 total_component_count,
                 self.ligature_glyph().into(),
