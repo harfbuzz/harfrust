@@ -69,6 +69,7 @@ pub fn match_input(
     if count > ctx.match_positions.len() {
         ctx.match_positions.resize(count, 0);
     }
+    ctx.match_positions_len = count;
 
     let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
     iter.reset(iter.buffer.idx);
@@ -806,6 +807,7 @@ pub mod OT {
         pub digest: hb_set_digest_t,
         pub(crate) matcher: matcher_t,
         pub(crate) context_matcher: matcher_t,
+        pub(crate) match_positions_len: usize,
         pub(crate) match_positions: MatchPositions,
     }
 
@@ -836,6 +838,7 @@ pub mod OT {
                 digest: buffer_digest,
                 matcher: matcher_t::default(),
                 context_matcher: matcher_t::default(),
+                match_positions_len: 0,
                 match_positions: MatchPositions::new(),
             }
         }
@@ -876,7 +879,10 @@ pub mod OT {
             self.nesting_level_left -= 1;
             let saved_props = self.lookup_props;
             let saved_index = self.lookup_index;
+
+            self.match_positions.resize(self.match_positions_len, 0);
             let saved_match_positions = self.match_positions.clone();
+            let saved_match_positions_len = self.match_positions_len;
 
             self.lookup_index = sub_lookup_index;
             let applied = self
@@ -895,6 +901,7 @@ pub mod OT {
             self.lookup_index = saved_index;
             self.update_matchers();
             self.match_positions = saved_match_positions;
+            self.match_positions_len = saved_match_positions_len;
             self.nesting_level_left += 1;
             applied
         }
