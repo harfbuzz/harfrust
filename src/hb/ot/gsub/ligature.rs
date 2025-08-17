@@ -157,13 +157,13 @@ impl Apply for LigatureSubstFormat1<'_> {
         {
             coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, &cache.coverage)?
         } else {
-            return None; // This can't actually happen.
+            unreachable!();
         };
         let seconds =
             if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache {
                 &cache.seconds
             } else {
-                return None; // This can't actually happen.
+                unreachable!();
             };
         self.ligature_sets()
             .get(index as usize)
