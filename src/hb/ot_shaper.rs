@@ -1,6 +1,8 @@
 use alloc::boxed::Box;
 use core::any::Any;
 
+use crate::hb::unicode::Codepoint;
+
 use super::buffer::*;
 use super::common::TagExt;
 use super::ot_shape::*;
@@ -34,8 +36,10 @@ pub const HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE: u32 = 0;
 pub const HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY: u32 = 1;
 pub const HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE: u32 = 2;
 
-pub type DecomposeFn = fn(&hb_ot_shape_normalize_context_t, char) -> Option<(char, char)>;
-pub type ComposeFn = fn(&hb_ot_shape_normalize_context_t, char, char) -> Option<char>;
+pub type DecomposeFn =
+    fn(&hb_ot_shape_normalize_context_t, Codepoint) -> Option<(Codepoint, Codepoint)>;
+pub type ComposeFn =
+    fn(&hb_ot_shape_normalize_context_t, Codepoint, Codepoint) -> Option<Codepoint>;
 
 pub const DEFAULT_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: None,

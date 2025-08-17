@@ -8,8 +8,6 @@ use read_fonts::types::Tag;
 
 use super::text_parser::TextParser;
 
-pub type hb_codepoint_t = char; // uint32_t in C++
-
 pub const HB_FEATURE_GLOBAL_START: u32 = 0;
 pub const HB_FEATURE_GLOBAL_END: u32 = u32::MAX;
 

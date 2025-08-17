@@ -48,7 +48,7 @@ pub enum hb_arabic_joining_type_t {
     X = 8, // means: use general-category to choose between U or T.
 }
 
-fn get_joining_type(u: char, gc: GeneralCategory) -> hb_arabic_joining_type_t {
+fn get_joining_type(u: Codepoint, gc: GeneralCategory) -> hb_arabic_joining_type_t {
     let j_type = super::ot_shaper_arabic_table::joining_type(u);
     if j_type != hb_arabic_joining_type_t::X {
         return j_type;
@@ -304,7 +304,7 @@ fn arabic_joining(buffer: &mut hb_buffer_t) {
 
     // Check pre-context.
     for i in 0..buffer.context_len[0] {
-        let c = buffer.context[0][i];
+        let c = buffer.context[0][i] as Codepoint;
         let this_type = get_joining_type(c, c.general_category());
         if this_type == hb_arabic_joining_type_t::T {
             continue;
@@ -315,8 +315,10 @@ fn arabic_joining(buffer: &mut hb_buffer_t) {
     }
 
     for i in 0..buffer.len {
-        let this_type =
-            get_joining_type(buffer.info[i].as_char(), buffer.info[i].general_category());
+        let this_type = get_joining_type(
+            buffer.info[i].as_codepoint(),
+            buffer.info[i].general_category(),
+        );
         if this_type == hb_arabic_joining_type_t::T {
             buffer.info[i].set_arabic_shaping_action(arabic_action_t::NONE);
             continue;
@@ -349,7 +351,7 @@ fn arabic_joining(buffer: &mut hb_buffer_t) {
     }
 
     for i in 0..buffer.context_len[1] {
-        let c = buffer.context[1][i];
+        let c = buffer.context[1][i] as Codepoint;
         let this_type = get_joining_type(c, c.general_category());
         if this_type == hb_arabic_joining_type_t::T {
             continue;

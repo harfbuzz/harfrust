@@ -1,5 +1,7 @@
 use alloc::boxed::Box;
 
+use crate::hb::unicode::Codepoint;
+
 use super::buffer::*;
 use super::ot_map::*;
 use super::ot_shape::*;
@@ -282,15 +284,15 @@ fn override_features(planner: &mut hb_ot_shape_planner_t) {
     planner.ot_map.disable_feature(hb_tag_t::new(b"liga"));
 }
 
-fn decompose(_: &hb_ot_shape_normalize_context_t, ab: char) -> Option<(char, char)> {
+fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
     // Decompose split matras that don't have Unicode decompositions.
     match ab {
-        '\u{17BE}' | '\u{17BF}' | '\u{17C0}' | '\u{17C4}' | '\u{17C5}' => Some(('\u{17C1}', ab)),
+        0x17BE | 0x17BF | 0x17C0 | 0x17C4 | 0x17C5 => Some((0x17C1, ab)),
         _ => crate::hb::unicode::decompose(ab),
     }
 }
 
-fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char> {
+fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     // Avoid recomposing split matras.
     if a.general_category().is_mark() {
         return None;

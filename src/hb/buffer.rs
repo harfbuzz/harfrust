@@ -8,6 +8,7 @@ use super::face::hb_glyph_extents_t;
 use super::unicode::CharExt;
 use super::{hb_font_t, hb_mask_t};
 use crate::hb::set_digest::hb_set_digest_t;
+use crate::hb::unicode::Codepoint;
 use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
 
 const CONTEXT_LENGTH: usize = 5;
@@ -316,8 +317,8 @@ impl GlyphInfo {
     }
 
     #[inline]
-    pub(crate) fn as_char(&self) -> char {
-        char::try_from(self.glyph_id).unwrap()
+    pub(crate) fn as_codepoint(&self) -> Codepoint {
+        self.glyph_id
     }
 
     #[inline]
@@ -332,18 +333,18 @@ impl GlyphInfo {
     }
 
     pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
-        let u = self.as_char();
+        let u = self.as_codepoint();
         let gc = u.general_category();
         let mut props = gc.0 as u16;
 
-        if u as u32 >= 0x80 {
+        if u >= 0x80 {
             *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII;
 
             if u.is_default_ignorable() {
                 props |= UnicodeProps::IGNORABLE.bits();
                 *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES;
 
-                match u as u32 {
+                match u {
                     0x200C => props |= UnicodeProps::CF_ZWNJ.bits(),
                     0x200D => props |= UnicodeProps::CF_ZWJ.bits(),
 
@@ -428,7 +429,7 @@ pub struct hb_buffer_t {
     // Text before / after the main buffer contents.
     // Always in Unicode, and ordered outward.
     // Index 0 is for "pre-context", 1 for "post-context".
-    pub context: [[char; CONTEXT_LENGTH]; 2],
+    pub context: [[Codepoint; CONTEXT_LENGTH]; 2],
     pub context_len: [usize; 2],
 
     // Managed by enter / leave
@@ -477,10 +478,7 @@ impl hb_buffer_t {
             have_separate_output: false,
             allocated_var_bits: 0,
             serial: 0,
-            context: [
-                ['\0', '\0', '\0', '\0', '\0'],
-                ['\0', '\0', '\0', '\0', '\0'],
-            ],
+            context: Default::default(),
             context_len: [0, 0],
         }
     }
@@ -606,10 +604,7 @@ impl hb_buffer_t {
         self.out_len = 0;
         self.have_separate_output = false;
 
-        self.context = [
-            ['\0', '\0', '\0', '\0', '\0'],
-            ['\0', '\0', '\0', '\0', '\0'],
-        ];
+        self.context = Default::default();
         self.context_len = [0, 0];
 
         self.serial = 0;
@@ -732,7 +727,7 @@ impl hb_buffer_t {
     pub fn guess_segment_properties(&mut self) {
         if self.script.is_none() {
             for info in &self.info {
-                match info.as_char().script() {
+                match info.as_codepoint().script() {
                     script::COMMON | script::INHERITED | script::UNKNOWN => {}
                     s => {
                         self.script = Some(s);
@@ -1547,7 +1542,7 @@ impl hb_buffer_t {
     fn set_pre_context(&mut self, text: &str) {
         self.clear_context(0);
         for (i, c) in text.chars().rev().enumerate().take(CONTEXT_LENGTH) {
-            self.context[0][i] = c;
+            self.context[0][i] = c as Codepoint;
             self.context_len[0] += 1;
         }
     }
@@ -1555,7 +1550,7 @@ impl hb_buffer_t {
     fn set_post_context(&mut self, text: &str) {
         self.clear_context(1);
         for (i, c) in text.chars().enumerate().take(CONTEXT_LENGTH) {
-            self.context[1][i] = c;
+            self.context[1][i] = c as Codepoint;
             self.context_len[1] += 1;
         }
     }

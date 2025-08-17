@@ -3,6 +3,7 @@ use super::ot_shaper::*;
 use super::{hb_tag_t, unicode};
 use crate::hb::buffer::hb_buffer_t;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
+use crate::hb::unicode::Codepoint;
 use crate::hb::unicode::{combining_class, modified_combining_class};
 
 pub const HEBREW_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
@@ -48,37 +49,37 @@ fn reorder_marks_hebrew(
     }
 }
 
-const S_DAGESH_FORMS: &[char] = &[
-    '\u{FB30}', // ALEF
-    '\u{FB31}', // BET
-    '\u{FB32}', // GIMEL
-    '\u{FB33}', // DALET
-    '\u{FB34}', // HE
-    '\u{FB35}', // VAV
-    '\u{FB36}', // ZAYIN
-    '\u{0000}', // HET
-    '\u{FB38}', // TET
-    '\u{FB39}', // YOD
-    '\u{FB3A}', // FINAL KAF
-    '\u{FB3B}', // KAF
-    '\u{FB3C}', // LAMED
-    '\u{0000}', // FINAL MEM
-    '\u{FB3E}', // MEM
-    '\u{0000}', // FINAL NUN
-    '\u{FB40}', // NUN
-    '\u{FB41}', // SAMEKH
-    '\u{0000}', // AYIN
-    '\u{FB43}', // FINAL PE
-    '\u{FB44}', // PE
-    '\u{0000}', // FINAL TSADI
-    '\u{FB46}', // TSADI
-    '\u{FB47}', // QOF
-    '\u{FB48}', // RESH
-    '\u{FB49}', // SHIN
-    '\u{FB4A}', // TAV
+const S_DAGESH_FORMS: &[Codepoint] = &[
+    0xFB30, // ALEF
+    0xFB31, // BET
+    0xFB32, // GIMEL
+    0xFB33, // DALET
+    0xFB34, // HE
+    0xFB35, // VAV
+    0xFB36, // ZAYIN
+    0x0000, // HET
+    0xFB38, // TET
+    0xFB39, // YOD
+    0xFB3A, // FINAL KAF
+    0xFB3B, // KAF
+    0xFB3C, // LAMED
+    0x0000, // FINAL MEM
+    0xFB3E, // MEM
+    0x0000, // FINAL NUN
+    0xFB40, // NUN
+    0xFB41, // SAMEKH
+    0x0000, // AYIN
+    0xFB43, // FINAL PE
+    0xFB44, // PE
+    0x0000, // FINAL TSADI
+    0xFB46, // TSADI
+    0xFB47, // QOF
+    0xFB48, // RESH
+    0xFB49, // SHIN
+    0xFB4A, // TAV
 ];
 
-fn compose(ctx: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char> {
+fn compose(ctx: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     // Hebrew presentation-form shaping.
     // https://bugzilla.mozilla.org/show_bug.cgi?id=728866
     // Hebrew presentation forms with dagesh, for characters U+05D0..05EA;
@@ -88,35 +89,33 @@ fn compose(ctx: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<ch
         None if !ctx.plan.has_gpos_mark => {
             // Special-case Hebrew presentation forms that are excluded from
             // standard normalization, but wanted for old fonts.
-            let a = a as u32;
-            let b = b as u32;
             match b {
                 0x05B4 => {
                     // HIRIQ
                     match a {
-                        0x05D9 => Some('\u{FB1D}'), // YOD
+                        0x05D9 => Some(0xFB1D), // YOD
                         _ => None,
                     }
                 }
                 0x05B7 => {
                     // PATAH
                     match a {
-                        0x05D9 => Some('\u{FB1F}'), // YIDDISH YOD YOD
-                        0x05D0 => Some('\u{FB2E}'), // ALEF
+                        0x05D9 => Some(0xFB1F), // YIDDISH YOD YOD
+                        0x05D0 => Some(0xFB2E), // ALEF
                         _ => None,
                     }
                 }
                 0x05B8 => {
                     // QAMATS
                     match a {
-                        0x05D0 => Some('\u{FB2F}'), // ALEF
+                        0x05D0 => Some(0xFB2F), // ALEF
                         _ => None,
                     }
                 }
                 0x05B9 => {
                     // HOLAM
                     match a {
-                        0x05D5 => Some('\u{FB4B}'), // VAV
+                        0x05D5 => Some(0xFB4B), // VAV
                         _ => None,
                     }
                 }
@@ -125,39 +124,39 @@ fn compose(ctx: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<ch
                     match a {
                         0x05D0..=0x05EA => {
                             let c = S_DAGESH_FORMS[a as usize - 0x05D0];
-                            if c != '\0' {
+                            if c != 0 {
                                 Some(c)
                             } else {
                                 None
                             }
                         }
-                        0xFB2A => Some('\u{FB2C}'), // SHIN WITH SHIN DOT
-                        0xFB2B => Some('\u{FB2D}'), // SHIN WITH SIN DOT
+                        0xFB2A => Some(0xFB2C), // SHIN WITH SHIN DOT
+                        0xFB2B => Some(0xFB2D), // SHIN WITH SIN DOT
                         _ => None,
                     }
                 }
                 0x05BF => {
                     // RAFE
                     match a {
-                        0x05D1 => Some('\u{FB4C}'), // BET
-                        0x05DB => Some('\u{FB4D}'), // KAF
-                        0x05E4 => Some('\u{FB4E}'), // PE
+                        0x05D1 => Some(0xFB4C), // BET
+                        0x05DB => Some(0xFB4D), // KAF
+                        0x05E4 => Some(0xFB4E), // PE
                         _ => None,
                     }
                 }
                 0x05C1 => {
                     // SHIN DOT
                     match a {
-                        0x05E9 => Some('\u{FB2A}'), // SHIN
-                        0xFB49 => Some('\u{FB2C}'), // SHIN WITH DAGESH
+                        0x05E9 => Some(0xFB2A), // SHIN
+                        0xFB49 => Some(0xFB2C), // SHIN WITH DAGESH
                         _ => None,
                     }
                 }
                 0x05C2 => {
                     // SIN DOT
                     match a {
-                        0x05E9 => Some('\u{FB2B}'), // SHIN
-                        0xFB49 => Some('\u{FB2D}'), // SHIN WITH DAGESH
+                        0x05E9 => Some(0xFB2B), // SHIN
+                        0xFB49 => Some(0xFB2D), // SHIN WITH DAGESH
                         _ => None,
                     }
                 }

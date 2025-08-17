@@ -5,6 +5,8 @@ use core::ops::Range;
 
 use read_fonts::types::GlyphId;
 
+use crate::hb::unicode::Codepoint;
+
 use super::algs::*;
 use super::buffer::*;
 use super::ot_layout::*;
@@ -591,29 +593,29 @@ fn preprocess_text(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer
     super::ot_shaper_vowel_constraints::preprocess_text_vowel_constraints(buffer);
 }
 
-fn decompose(_: &hb_ot_shape_normalize_context_t, ab: char) -> Option<(char, char)> {
+fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
     // Don't decompose these.
     match ab {
-        '\u{0931}' |               // DEVANAGARI LETTER RRA
+        0x0931 |               // DEVANAGARI LETTER RRA
         // https://github.com/harfbuzz/harfbuzz/issues/779
-        '\u{09DC}' |               // BENGALI LETTER RRA
-        '\u{09DD}' |               // BENGALI LETTER RHA
-        '\u{0B94}' => return None, // TAMIL LETTER AU
+        0x09DC |               // BENGALI LETTER RRA
+        0x09DD |               // BENGALI LETTER RHA
+        0x0B94 => return None, // TAMIL LETTER AU
         _ => {}
     }
 
     crate::hb::unicode::decompose(ab)
 }
 
-fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char> {
+fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     // Avoid recomposing split matras.
     if a.general_category().is_mark() {
         return None;
     }
 
     // Composition-exclusion exceptions that we want to recompose.
-    if a == '\u{09AF}' && b == '\u{09BC}' {
-        return Some('\u{09DF}');
+    if a == 0x09AF && b == 0x09BC {
+        return Some(0x09DF);
     }
 
     crate::hb::unicode::compose(a, b)
