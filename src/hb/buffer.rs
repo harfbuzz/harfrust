@@ -960,6 +960,7 @@ impl hb_buffer_t {
         }
     }
 
+    #[inline(always)]
     pub fn merge_clusters(&mut self, start: usize, end: usize) {
         if end - start < 2 {
             return;
