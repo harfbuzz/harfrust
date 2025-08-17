@@ -1,5 +1,7 @@
 use alloc::boxed::Box;
 
+use crate::hb::unicode::Codepoint;
+
 use super::algs::*;
 use super::buffer::*;
 use super::ot_layout::*;
@@ -545,7 +547,7 @@ fn preprocess_text(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer
     super::ot_shaper_vowel_constraints::preprocess_text_vowel_constraints(buffer);
 }
 
-fn compose(_: &hb_ot_shape_normalize_context_t, a: char, b: char) -> Option<char> {
+fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     // Avoid recomposing split matras.
     if a.general_category().is_mark() {
         return None;

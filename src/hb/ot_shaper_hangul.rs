@@ -7,6 +7,7 @@ use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_NONE;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::*;
+use crate::hb::unicode::Codepoint;
 use crate::BufferFlags;
 
 const LJMO: u8 = 1;
@@ -99,8 +100,8 @@ fn is_hangul_tone(u: u32) -> bool {
     (0x302E..=0x302F).contains(&u)
 }
 
-fn is_zero_width_char(face: &hb_font_t, c: char) -> bool {
-    if let Some(glyph) = face.get_nominal_glyph(c as u32) {
+fn is_zero_width_char(face: &hb_font_t, c: Codepoint) -> bool {
+    if let Some(glyph) = face.get_nominal_glyph(c) {
         face.glyph_h_advance(glyph) == 0
     } else {
         false
@@ -164,7 +165,7 @@ fn preprocess_text_hangul(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut
     buffer.idx = 0;
     while buffer.idx < buffer.len {
         let u = buffer.cur(0).glyph_id;
-        let c = buffer.cur(0).as_char();
+        let c = buffer.cur(0).as_codepoint();
 
         if is_hangul_tone(u) {
             // We could cache the width of the tone marks and the existence of dotted-circle,

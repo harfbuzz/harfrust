@@ -648,7 +648,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
         } else if info.is_zwj() {
             info.set_continuation();
             if let Some(next) = buffer.info[..len].get_mut(i + 1) {
-                if next.as_char().is_emoji_extended_pictographic() {
+                if next.as_codepoint().is_emoji_extended_pictographic() {
                     next.init_unicode_props(&mut buffer.scratch_flags);
                     next.set_continuation();
                     i += 1;
@@ -773,7 +773,7 @@ fn rotate_chars(ctx: &mut hb_ot_shape_context_t) {
         let rtlm_mask = ctx.plan.rtlm_mask;
 
         for info in &mut ctx.buffer.info[..len] {
-            if let Some(c) = info.as_char().mirrored().map(u32::from) {
+            if let Some(c) = info.as_codepoint().mirrored() {
                 if ctx.face.has_glyph(c) {
                     info.glyph_id = c;
                     continue;
@@ -785,7 +785,7 @@ fn rotate_chars(ctx: &mut hb_ot_shape_context_t) {
 
     if ctx.target_direction.is_vertical() && !ctx.plan.has_vert {
         for info in &mut ctx.buffer.info[..len] {
-            if let Some(c) = info.as_char().vertical().map(u32::from) {
+            if let Some(c) = info.as_codepoint().vertical() {
                 if ctx.face.has_glyph(c) {
                     info.glyph_id = c;
                 }

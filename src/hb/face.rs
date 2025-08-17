@@ -296,8 +296,8 @@ impl<'a> crate::Shaper<'a> {
         self.charmap.map(c)
     }
 
-    pub(crate) fn get_nominal_variant_glyph(&self, c: char, vs: char) -> Option<GlyphId> {
-        self.charmap.map_variant(c as u32, vs as u32)
+    pub(crate) fn get_nominal_variant_glyph(&self, c: u32, vs: u32) -> Option<GlyphId> {
+        self.charmap.map_variant(c, vs)
     }
 
     pub(crate) fn glyph_h_advance(&self, glyph: GlyphId) -> i32 {
