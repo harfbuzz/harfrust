@@ -42,9 +42,8 @@ pub(crate) fn apply(
             continue;
         };
 
-        // We don't properly handle variations _or_ subtables with a non-zero
-        // tuple count
-        if subtable.is_variable() || subtable.tuple_count() != 0 {
+        // We don't handle variations
+        if subtable.is_variable() {
             continue;
         }
 
