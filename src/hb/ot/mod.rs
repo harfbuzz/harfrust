@@ -35,19 +35,11 @@ impl OtCache {
     pub fn new(font: &FontRef) -> Self {
         let gsub = font
             .gsub()
-            .map(|t| {
-                let mut cache = LookupCache::new();
-                cache.create_all(&t);
-                cache
-            })
+            .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
         let gpos = font
             .gpos()
-            .map(|t| {
-                let mut cache = LookupCache::new();
-                cache.create_all(&t);
-                cache
-            })
+            .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
         let mut gdef_mark_set_digests = Vec::new();
         if let Ok(gdef) = font.gdef() {
@@ -79,8 +71,7 @@ impl crate::hb::ot_layout::LayoutTable for GsubTable<'_> {
     const IN_PLACE: bool = false;
 
     fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
-        let lookup = self.lookups.get(index)?;
-        (lookup.subtables_count > 0).then_some(lookup)
+        self.lookups.get(&self.table, index)
     }
 }
 
@@ -95,8 +86,7 @@ impl crate::hb::ot_layout::LayoutTable for GposTable<'_> {
     const IN_PLACE: bool = true;
 
     fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
-        let lookup = self.lookups.get(index)?;
-        (lookup.subtables_count > 0).then_some(lookup)
+        self.lookups.get(&self.table, index)
     }
 }
 
@@ -244,16 +234,31 @@ impl<'a> OtTables<'a> {
         }
     }
 
-    pub fn table_data_and_lookups(
+    pub fn table_data(&self, table_index: TableIndex) -> Option<&'a [u8]> {
+        if table_index == TableIndex::GSUB {
+            self.gsub.as_ref().map(|t| t.table.offset_data().as_bytes())
+        } else {
+            self.gpos.as_ref().map(|t| t.table.offset_data().as_bytes())
+        }
+    }
+
+    pub fn table_data_and_lookup(
         &self,
         table_index: TableIndex,
-    ) -> Option<(&'a [u8], &'a LookupCache)> {
+        lookup_index: u16,
+    ) -> Option<(&'a [u8], &'a LookupInfo)> {
         if table_index == TableIndex::GSUB {
             let table = self.gsub.as_ref()?;
-            Some((table.table.offset_data().as_bytes(), table.lookups))
+            Some((
+                table.table.offset_data().as_bytes(),
+                table.lookups.get(&table.table, lookup_index)?,
+            ))
         } else {
             let table = self.gpos.as_ref()?;
-            Some((table.table.offset_data().as_bytes(), table.lookups))
+            Some((
+                table.table.offset_data().as_bytes(),
+                table.lookups.get(&table.table, lookup_index)?,
+            ))
         }
     }
 

@@ -185,7 +185,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
         return;
     }
 
-    let subtable_count = lookup.subtables_count;
+    let subtable_count = lookup.subtables.len();
 
     let lookup_props = lookup.props();
     if lookup_props != ctx.cached_props {
@@ -227,12 +227,11 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
 
 fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
     let mut ret = false;
-    let Some((table_data, lookups)) = ctx.face.ot_tables.table_data_and_lookups(ctx.table_index)
-    else {
+    let Some(table_data) = ctx.face.ot_tables.table_data(ctx.table_index) else {
         return false;
     };
 
-    let use_hot_subtable_cache = lookup.cache_enter(ctx, lookups);
+    let use_hot_subtable_cache = lookup.cache_enter(ctx);
 
     while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
         let cur = ctx.buffer.cur(0);
@@ -240,7 +239,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
             && (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props, ctx.cached_props)
             && lookup
-                .apply(ctx, table_data, lookups, use_hot_subtable_cache)
+                .apply(ctx, table_data, use_hot_subtable_cache)
                 .is_some()
         {
             ret = true;
@@ -250,7 +249,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
     }
 
     if use_hot_subtable_cache {
-        lookup.cache_leave(ctx, lookups);
+        lookup.cache_leave(ctx);
     }
 
     ret
@@ -258,8 +257,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
 
 fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
     let mut ret = false;
-    let Some((table_data, lookups)) = ctx.face.ot_tables.table_data_and_lookups(ctx.table_index)
-    else {
+    let Some(table_data) = ctx.face.ot_tables.table_data(ctx.table_index) else {
         return false;
     };
     loop {
@@ -267,7 +265,7 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
         ret |= lookup.digest.may_have_glyph(cur.as_glyph())
             && (cur.mask & ctx.lookup_mask()) != 0
             && check_glyph_property(ctx.face, cur, ctx.lookup_props, ctx.cached_props)
-            && lookup.apply(ctx, table_data, lookups, false).is_some();
+            && lookup.apply(ctx, table_data, false).is_some();
 
         if ctx.buffer.idx == 0 {
             break;
