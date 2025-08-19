@@ -124,7 +124,7 @@ mod cache {
 
 #[cfg(not(feature = "std"))]
 mod cache {
-    use super::{LookupHost, LookupInfo};
+    use super::{LookupHost, LookupInfo, Vec};
 
     #[derive(Default)]
     pub(crate) struct LookupCache {
@@ -187,7 +187,7 @@ impl LookupInfo {
         };
         let lookup_data = data.table_data.split_off(data.offset)?;
         let lookup: Lookup<()> = Lookup::read(lookup_data).ok()?;
-        let kind = lookup.lookup_type();
+        let lookup_type = lookup.lookup_type();
         let lookup_flag = lookup.lookup_flag();
         info.props = u32::from(lookup.lookup_flag().to_bits());
         if lookup_flag.to_bits() & LookupFlag::USE_MARK_FILTERING_SET.to_bits() != 0 {
@@ -205,7 +205,7 @@ impl LookupInfo {
                 data.table_data,
                 subtable_offset as u32,
                 data.is_subst,
-                kind as u8,
+                lookup_type as u8,
             ) {
                 info.digest.union(&subtable_info.digest);
                 if cache_cost > subtable_cache_user_cost {
