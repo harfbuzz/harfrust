@@ -82,7 +82,8 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
 
     let morx_and_caches = c.face.aat_tables.morx.as_ref()?;
     let morx = &morx_and_caches.table;
-    let _caches = &morx_and_caches.subtables;
+    #[allow(unused)]
+    let caches = &morx_and_caches.subtables;
 
     let chains = morx.chains();
     let chain_len = chains.iter().count();
