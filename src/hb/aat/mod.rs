@@ -14,8 +14,8 @@ use read_fonts::{
 
 #[derive(Default)]
 pub struct AatCache {
-    pub morx: Vec<AatSubtableCache>,
-    pub kerx: Vec<AatSubtableCache>,
+    pub morx: Vec<MorxSubtableCache>,
+    pub kerx: Vec<KerxSubtableCache>,
 }
 
 impl AatCache {
@@ -26,7 +26,7 @@ impl AatCache {
             // TODO: fill cache.morx
         }
         if let Ok(kerx) = font.kerx() {
-            // TODO: fill cache kerx
+            // TODO: fill cache.kerx
         }
         cache
     }
@@ -34,10 +34,10 @@ impl AatCache {
 
 #[derive(Clone, Default)]
 pub struct AatTables<'a> {
-    pub morx: Option<TableWithCache<'a, Morx<'a>>>,
+    pub morx: Option<(Morx<'a>, &'a [MorxSubtableCache])>,
     pub ankr: Option<Ankr<'a>>,
     pub kern: Option<Kern<'a>>,
-    pub kerx: Option<TableWithCache<'a, Kerx<'a>>>,
+    pub kerx: Option<(Kerx<'a>, &'a [KerxSubtableCache])>,
     pub trak: Option<Trak<'a>>,
     pub feat: Option<Feat<'a>>,
 }
@@ -47,19 +47,13 @@ impl<'a> AatTables<'a> {
         let morx = table_offsets
             .morx
             .resolve_table(font)
-            .map(|table| TableWithCache {
-                table,
-                subtables: &cache.morx,
-            });
+            .map(|table| (table, cache.morx.as_slice()));
         let ankr = table_offsets.ankr.resolve_table(font);
         let kern = table_offsets.kern.resolve_table(font);
         let kerx = table_offsets
             .kerx
             .resolve_table(font)
-            .map(|table| TableWithCache {
-                table,
-                subtables: &cache.kerx,
-            });
+            .map(|table| (table, cache.kerx.as_slice()));
         let trak = table_offsets.trak.resolve_table(font);
         let feat = table_offsets.feat.resolve_table(font);
         Self {
@@ -73,12 +67,10 @@ impl<'a> AatTables<'a> {
     }
 }
 
-#[derive(Clone)]
-pub struct TableWithCache<'a, T> {
-    pub table: T,
-    pub subtables: &'a [AatSubtableCache],
+pub struct MorxSubtableCache {
+    // TODO: maybe a bitset or something here?
 }
 
-pub struct AatSubtableCache {
-    // TODO: maybe a bitset or something here?
+pub struct KerxSubtableCache {
+    // TODO: and here?
 }
