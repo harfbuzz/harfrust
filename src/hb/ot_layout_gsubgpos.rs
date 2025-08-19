@@ -889,14 +889,11 @@ pub mod OT {
             let applied = self
                 .face
                 .ot_tables
-                .table_data_and_lookups(self.table_index)
-                .and_then(|(table_data, lookups)| {
-                    Some((table_data, lookups.get(sub_lookup_index)?, lookups))
-                })
-                .and_then(|(table_data, lookup, lookups)| {
+                .table_data_and_lookup(self.table_index, sub_lookup_index)
+                .and_then(|(table_data, lookup)| {
                     self.lookup_props = lookup.props();
                     self.update_matchers();
-                    lookup.apply(self, table_data, lookups, false)
+                    lookup.apply(self, table_data, false)
                 });
             self.lookup_props = saved_props;
             self.lookup_index = saved_index;

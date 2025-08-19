@@ -1,14 +1,13 @@
 use crate::hb::{
     hb_font_t,
+    ot_layout::TableIndex,
     ot_layout_gsubgpos::{
         Apply, SubtableExternalCache, WouldApply, WouldApplyContext, OT::hb_ot_apply_context_t,
     },
     set_digest::hb_set_digest_t,
     GlyphInfo,
 };
-
 use alloc::vec::Vec;
-use core::ops::Range;
 use read_fonts::{
     tables::{
         gpos::{
@@ -28,6 +27,15 @@ use read_fonts::{
     },
     FontData, FontRead, Offset, ReadError,
 };
+
+pub struct LookupData<'a> {
+    /// Offset of the lookup from the base of the layout table.
+    offset: usize,
+    /// True if the lookup comes from GSUB.
+    is_subst: bool,
+    /// Data of the layout table.
+    table_data: FontData<'a>,
+}
 
 pub trait LookupHost<'a> {
     fn lookup_count(&self) -> u16;
@@ -82,113 +90,68 @@ impl<'a> LookupHost<'a> for Gpos<'a> {
     }
 }
 
-pub struct LookupData<'a> {
-    /// Offset of the lookup from the base of the layout table.
-    offset: usize,
-    /// True if the lookup comes from GSUB.
-    is_subst: bool,
-    /// Data of the layout table.
-    table_data: FontData<'a>,
+#[cfg(feature = "std")]
+mod cache {
+    use super::{LookupHost, LookupInfo};
+    use std::sync::OnceLock;
+
+    #[derive(Default)]
+    pub(crate) struct LookupCache {
+        lookups: Vec<OnceLock<Option<Box<LookupInfo>>>>,
+    }
+
+    impl LookupCache {
+        pub fn new<'a>(host: &impl LookupHost<'a>) -> Self {
+            let mut lookups = Vec::new();
+            lookups.resize_with(host.lookup_count() as usize, Default::default);
+            Self { lookups }
+        }
+
+        pub fn get<'a>(&self, host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
+            self.lookups
+                .get(index as usize)?
+                .get_or_init(|| {
+                    host.lookup_data(index)
+                        .ok()
+                        .and_then(|data| LookupInfo::new(&data))
+                        .map(Box::new)
+                })
+                .as_ref()
+                .map(|v| &**v)
+        }
+    }
 }
 
-/// Cache containing lookup and subtable information for a single GSUB or
-/// GPOS table.
-#[derive(Default)]
-pub struct LookupCache {
-    pub lookups: Vec<LookupInfo>,
-    pub subtables: Vec<SubtableInfo>,
-}
+#[cfg(not(feature = "std"))]
+mod cache {
+    use super::{LookupHost, LookupInfo};
 
-impl LookupCache {
-    pub fn new() -> Self {
-        Self::default()
+    #[derive(Default)]
+    pub(crate) struct LookupCache {
+        lookups: Vec<Option<LookupInfo>>,
     }
 
-    pub fn clear(&mut self) {
-        self.lookups.clear();
-        self.subtables.clear();
-    }
-
-    pub fn create_all<'a>(&mut self, host: &impl LookupHost<'a>) {
-        self.clear();
-        let count = host.lookup_count();
-        self.lookups.resize(count as usize, Default::default());
-        for i in 0..count {
-            let _ = self.get_or_create(host, i);
-        }
-    }
-
-    pub fn get(&self, index: u16) -> Option<&LookupInfo> {
-        let entry = self.lookups.get(index as usize)?;
-        match entry.state {
-            LookupState::Ready => Some(entry),
-            _ => None,
-        }
-    }
-
-    pub fn get_or_create<'a>(
-        &mut self,
-        cx: &impl LookupHost<'a>,
-        index: u16,
-    ) -> Result<&LookupInfo, ReadError> {
-        let index = index as usize;
-        if index >= self.lookups.len() {
-            self.lookups.resize(index + 1, LookupInfo::default());
-        }
-        let entry = &mut self.lookups[index];
-        if entry.state != LookupState::Vacant {
-            return Ok(entry);
-        }
-        entry.state = LookupState::Error;
-        let data = cx.lookup_data(index as u16)?;
-        entry.is_subst = data.is_subst;
-        let lookup_data = data
-            .table_data
-            .split_off(data.offset)
-            .ok_or(ReadError::OutOfBounds)?;
-        let lookup: Lookup<()> = Lookup::read(lookup_data)?;
-        let kind = lookup.lookup_type();
-        let lookup_flag = lookup.lookup_flag();
-        entry.props = u32::from(lookup.lookup_flag().to_bits());
-        if lookup_flag.to_bits() & LookupFlag::USE_MARK_FILTERING_SET.to_bits() != 0 {
-            entry.props |= (lookup.mark_filtering_set().unwrap_or_default() as u32) << 16;
-        }
-        entry.is_rtl = lookup_flag.to_bits() & LookupFlag::RIGHT_TO_LEFT.to_bits() != 0;
-        if data.is_subst {
-            entry.is_reversed =
-                is_reversed(data.table_data, &lookup, data.offset).unwrap_or_default();
-        }
-        entry.subtables_start = self
-            .subtables
-            .len()
-            .try_into()
-            .map_err(|_| ReadError::MalformedData("too many subtables"))?;
-        entry.state = LookupState::Ready;
-        let mut subtable_cache_user_cost = 0;
-        for subtable_offset in lookup.subtable_offsets() {
-            let subtable_offset = subtable_offset.get().to_usize() + data.offset;
-            if let Some((subtable_info, cache_cost)) = SubtableInfo::new(
-                data.table_data,
-                subtable_offset as u32,
-                data.is_subst,
-                kind as u8,
-            ) {
-                entry.digest.union(&subtable_info.digest);
-                if cache_cost > subtable_cache_user_cost {
-                    entry.subtable_cache_user_idx = Some(entry.subtables_count as usize);
-                    subtable_cache_user_cost = cache_cost;
-                }
-                self.subtables.push(subtable_info);
-                entry.subtables_count += 1;
+    impl LookupCache {
+        pub fn new<'a>(host: &impl LookupHost<'a>) -> Self {
+            let count = host.lookup_count();
+            let mut lookups = Vec::with_capacity(count as usize);
+            for i in 0..count {
+                lookups.push(
+                    host.lookup_data(i)
+                        .ok()
+                        .and_then(|data| LookupInfo::new(&data)),
+                );
             }
+            Self { lookups }
         }
-        Ok(entry)
-    }
 
-    pub fn subtables(&self, entry: &LookupInfo) -> Option<&[SubtableInfo]> {
-        self.subtables.get(entry.subtables_range())
+        pub fn get<'a>(&self, _host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
+            self.lookups.get(index as usize).as_ref()
+        }
     }
 }
+
+pub(crate) use cache::LookupCache;
 
 fn is_reversed(table_data: FontData, lookup: &Lookup<()>, lookup_offset: usize) -> Option<bool> {
     match lookup.lookup_type() {
@@ -205,45 +168,55 @@ fn is_reversed(table_data: FontData, lookup: &Lookup<()>, lookup_offset: usize) 
     }
 }
 
-/// Current state of a lookup cache entry.
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-#[repr(u8)]
-pub enum LookupState {
-    /// Lookup has not been cached yet. This supports
-    /// lazy population of the lookup cache.
-    #[default]
-    Vacant,
-    /// Lookup is available for use.
-    Ready,
-    /// An error occurred while reading this lookup.
-    Error,
-}
-
 /// Cached information about a lookup.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct LookupInfo {
-    /// Current state of this lookup info entry.
-    pub state: LookupState,
     pub props: u32,
     pub is_subst: bool,
-    /// Indicates RTL processing for cursive lookups.
-    pub is_rtl: bool,
-    /// True if glyphs should be processed in reverse for this lookup.
     pub is_reversed: bool,
-    /// Index of the first subtable in the cache subtables vector.
-    pub subtables_start: u32,
-    /// Number of subtables in the cache subtables vector.
-    pub subtables_count: u16,
-    /// Bloom filter representing the set of glyphs from the primary
-    /// coverage of all subtables in the lookup.
     pub digest: hb_set_digest_t,
     pub subtable_cache_user_idx: Option<usize>,
+    pub subtables: Vec<SubtableInfo>,
 }
 
 impl LookupInfo {
-    pub fn subtables_range(&self) -> Range<usize> {
-        let start = self.subtables_start as usize;
-        start..start + self.subtables_count as usize
+    pub fn new(data: &LookupData) -> Option<Self> {
+        let mut info = Self {
+            is_subst: data.is_subst,
+            ..Default::default()
+        };
+        let lookup_data = data.table_data.split_off(data.offset)?;
+        let lookup: Lookup<()> = Lookup::read(lookup_data).ok()?;
+        let kind = lookup.lookup_type();
+        let lookup_flag = lookup.lookup_flag();
+        info.props = u32::from(lookup.lookup_flag().to_bits());
+        if lookup_flag.to_bits() & LookupFlag::USE_MARK_FILTERING_SET.to_bits() != 0 {
+            info.props |= (lookup.mark_filtering_set().unwrap_or_default() as u32) << 16;
+        }
+        if data.is_subst {
+            info.is_reversed =
+                is_reversed(data.table_data, &lookup, data.offset).unwrap_or_default();
+        }
+        let mut subtable_cache_user_cost = 0;
+        info.subtables.reserve(lookup.sub_table_count() as usize);
+        for subtable_offset in lookup.subtable_offsets() {
+            let subtable_offset = subtable_offset.get().to_usize() + data.offset;
+            if let Some((subtable_info, cache_cost)) = SubtableInfo::new(
+                data.table_data,
+                subtable_offset as u32,
+                data.is_subst,
+                kind as u8,
+            ) {
+                info.digest.union(&subtable_info.digest);
+                if cache_cost > subtable_cache_user_cost {
+                    info.subtable_cache_user_idx = Some(info.subtables.len());
+                    subtable_cache_user_cost = cache_cost;
+                }
+                info.subtables.push(subtable_info);
+            }
+        }
+        info.subtables.shrink_to_fit();
+        Some(info)
     }
 
     pub fn props(&self) -> u32 {
@@ -265,11 +238,10 @@ impl LookupInfo {
         &self,
         ctx: &mut hb_ot_apply_context_t,
         table_data: &[u8],
-        cache: &LookupCache,
         use_hot_subtable_cache: bool,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
-        for (subtable_idx, subtable_info) in cache.subtables(self)?.iter().enumerate() {
+        for (subtable_idx, subtable_info) in self.subtables.iter().enumerate() {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
@@ -282,11 +254,11 @@ impl LookupInfo {
         None
     }
 
-    pub(crate) fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t, cache: &LookupCache) -> bool {
+    pub(crate) fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
         let Some(idx) = self.subtable_cache_user_idx else {
             return false;
         };
-        let Some(subtable_info) = cache.subtables(self).unwrap_or_default().get(idx) else {
+        let Some(subtable_info) = self.subtables.get(idx) else {
             return false;
         };
         if matches!(
@@ -298,11 +270,11 @@ impl LookupInfo {
             false
         }
     }
-    pub(crate) fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t, cache: &LookupCache) {
+    pub(crate) fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
         let Some(idx) = self.subtable_cache_user_idx else {
             return;
         };
-        let Some(subtable_info) = cache.subtables(self).unwrap_or_default().get(idx) else {
+        let Some(subtable_info) = self.subtables.get(idx) else {
             return;
         };
         if matches!(
@@ -320,15 +292,13 @@ impl LookupInfo {
         if !self.digest.may_have_glyph(glyph) {
             return Some(false);
         }
-        let (table_data, lookups) = if self.is_subst {
-            let table = face.ot_tables.gsub.as_ref()?;
-            (table.table.offset_data().as_bytes(), &table.lookups)
+        let table_index = if self.is_subst {
+            TableIndex::GSUB
         } else {
-            let table = face.ot_tables.gpos.as_ref()?;
-            (table.table.offset_data().as_bytes(), &table.lookups)
+            TableIndex::GPOS
         };
-        let subtables = lookups.subtables(self)?;
-        for subtable_info in subtables {
+        let table_data = face.ot_tables.table_data(table_index)?;
+        for subtable_info in &self.subtables {
             if !subtable_info.digest.may_have_glyph(glyph) {
                 continue;
             }
