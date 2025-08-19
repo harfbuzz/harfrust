@@ -9,6 +9,7 @@ use super::glyph_names::GlyphNames;
 use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::{hb_ot_shape_context_t, shape_internal};
+use crate::hb::aat::AatCache;
 use crate::hb::tables::TableOffsets;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
@@ -16,6 +17,7 @@ use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuf
 pub struct ShaperData {
     table_offsets: TableOffsets,
     ot_cache: OtCache,
+    aat_cache: AatCache,
     cmap_cache: cmap_cache_t,
 }
 
@@ -23,11 +25,13 @@ impl ShaperData {
     /// Creates new cached shaper data for the given font.
     pub fn new(font: &FontRef) -> Self {
         let ot_cache = OtCache::new(font);
+        let aat_cache = AatCache::new(font);
         let table_offsets = TableOffsets::new(font);
         let cmap_cache = cmap_cache_t::new();
         Self {
             table_offsets,
             ot_cache,
+            aat_cache,
             cmap_cache,
         }
     }
@@ -190,7 +194,7 @@ impl<'a> ShaperBuilder<'a> {
             .map(|instance| instance.coords())
             .unwrap_or_default();
         let ot_tables = OtTables::new(&font, &self.data.ot_cache, &self.data.table_offsets, coords);
-        let aat_tables = AatTables::new(&font, &self.data.table_offsets);
+        let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_offsets);
         hb_font_t {
             font,
             units_per_em,

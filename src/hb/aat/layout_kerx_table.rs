@@ -32,9 +32,12 @@ pub(crate) fn apply(
     buffer: &mut hb_buffer_t,
 ) -> Option<()> {
     buffer.unsafe_to_concat(None, None);
+    let kerx_and_caches = face.aat_tables.kerx.as_ref()?;
+    let kerx = &kerx_and_caches.table;
+    let _caches = &kerx_and_caches.subtables;
 
     let mut seen_cross_stream = false;
-    for subtable in face.aat_tables.kerx.as_ref()?.subtables().iter() {
+    for subtable in kerx.subtables().iter() {
         let Ok(subtable) = subtable else {
             continue;
         };
