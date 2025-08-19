@@ -146,7 +146,7 @@ mod cache {
         }
 
         pub fn get<'a>(&self, _host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
-            self.lookups.get(index as usize).as_ref()
+            self.lookups.get(index as usize)?.as_ref()
         }
     }
 }
