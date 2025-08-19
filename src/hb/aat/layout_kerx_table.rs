@@ -33,8 +33,11 @@ pub(crate) fn apply(
 ) -> Option<()> {
     buffer.unsafe_to_concat(None, None);
 
+    #[allow(unused)]
+    let (kerx, subtables) = face.aat_tables.kerx.as_ref()?;
+
     let mut seen_cross_stream = false;
-    for subtable in face.aat_tables.kerx.as_ref()?.subtables().iter() {
+    for subtable in kerx.subtables().iter() {
         let Ok(subtable) = subtable else {
             continue;
         };

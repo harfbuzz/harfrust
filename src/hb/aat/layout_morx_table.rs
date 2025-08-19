@@ -34,7 +34,7 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
             .is_ok()
     };
 
-    let chains = face.aat_tables.morx.as_ref()?.chains();
+    let chains = face.aat_tables.morx.as_ref()?.0.chains();
     let chain_len = chains.iter().count();
     map.chain_flags.resize(chain_len, vec![]);
 
@@ -80,7 +80,10 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
 pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
-    let chains = c.face.aat_tables.morx.as_ref()?.chains();
+    #[allow(unused)]
+    let (morx, subtables) = c.face.aat_tables.morx.as_ref()?;
+
+    let chains = morx.chains();
     let chain_len = chains.iter().count();
     map.chain_flags.resize(chain_len, vec![]);
 
