@@ -2,8 +2,8 @@ use crate::hb::ot::{coverage_index, coverage_index_cached, ClassDefInfo, Coverag
 use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat2Cache, PairPosFormat2SmallCache,
-    SubtableCacheMode, SubtableExternalCache,
+    skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
+    PairPosFormat2SmallCache, SubtableExternalCache, SubtableExternalCacheMode,
 };
 use alloc::boxed::Box;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
@@ -16,16 +16,17 @@ impl Apply for PairPosFormat1<'_> {
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
-        let first_glyph_coverage_index =
-            if let SubtableExternalCache::PairPosFormat1Cache(cache) = external_cache {
-                coverage_index_cached(
-                    |gid| self.coverage().ok()?.get(gid),
-                    first_glyph,
-                    &cache.coverage,
-                )?
-            } else {
-                coverage_index(self.coverage(), first_glyph)?
-            };
+        let first_glyph_coverage_index = match external_cache {
+            SubtableExternalCache::PairPosFormat1Cache(cache) => coverage_index_cached(
+                |gid| self.coverage().ok()?.get(gid),
+                first_glyph,
+                &cache.coverage,
+            )?,
+            SubtableExternalCache::PairPosFormat1SmallCache(cache) => {
+                cache.coverage.index(&self.offset_data(), first_glyph)?
+            }
+            _ => coverage_index(self.coverage(), first_glyph)?,
+        };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset(iter.buffer.idx);
@@ -120,12 +121,23 @@ impl Apply for PairPosFormat1<'_> {
         None
     }
 
-    fn external_cache_create(&self, mode: SubtableCacheMode) -> SubtableExternalCache {
+    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         match mode {
-            SubtableCacheMode::Full => {
+            SubtableExternalCacheMode::Full => {
                 SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
             }
-            _ => SubtableExternalCache::None,
+            SubtableExternalCacheMode::Small => {
+                if let Some(coverage) =
+                    CoverageInfo::new(&self.offset_data(), self.coverage_offset().to_u32() as u16)
+                {
+                    SubtableExternalCache::PairPosFormat1SmallCache(PairPosFormat1SmallCache {
+                        coverage,
+                    })
+                } else {
+                    SubtableExternalCache::None
+                }
+            }
+            SubtableExternalCacheMode::None => SubtableExternalCache::None,
         }
     }
 }
@@ -237,12 +249,12 @@ impl Apply for PairPosFormat2<'_> {
         success(ctx, &mut buf_idx, worked1, worked2, has_record2)
     }
 
-    fn external_cache_create(&self, mode: SubtableCacheMode) -> SubtableExternalCache {
+    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         match mode {
-            SubtableCacheMode::Full => {
+            SubtableExternalCacheMode::Full => {
                 SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
             }
-            SubtableCacheMode::Small => {
+            SubtableExternalCacheMode::Small => {
                 let data = self.offset_data();
                 let coverage = CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16);
                 let class1 = ClassDefInfo::new(&data, self.class_def1_offset().to_u32() as u16);
@@ -257,7 +269,7 @@ impl Apply for PairPosFormat2<'_> {
                     SubtableExternalCache::None
                 }
             }
-            SubtableCacheMode::None => SubtableExternalCache::None,
+            SubtableExternalCacheMode::None => SubtableExternalCache::None,
         }
     }
 }

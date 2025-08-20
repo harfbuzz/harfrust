@@ -639,7 +639,7 @@ pub(crate) type MappingCache = hb_cache_t<
 >;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub(crate) enum SubtableCacheMode {
+pub(crate) enum SubtableExternalCacheMode {
     #[allow(unused)]
     None,
     Small,
@@ -660,6 +660,11 @@ impl LigatureSubstFormat1Cache {
     }
 }
 
+pub(crate) struct LigatureSubstFormat1SmallCache {
+    pub coverage: CoverageInfo,
+    pub seconds: hb_set_digest_t,
+}
+
 pub(crate) struct PairPosFormat1Cache {
     pub coverage: MappingCache,
 }
@@ -670,6 +675,10 @@ impl PairPosFormat1Cache {
             coverage: MappingCache::new(),
         }
     }
+}
+
+pub(crate) struct PairPosFormat1SmallCache {
+    pub coverage: CoverageInfo,
 }
 
 pub(crate) struct PairPosFormat2Cache {
@@ -697,7 +706,9 @@ pub(crate) struct PairPosFormat2SmallCache {
 pub(crate) enum SubtableExternalCache {
     None,
     LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
+    LigatureSubstFormat1SmallCache(LigatureSubstFormat1SmallCache),
     PairPosFormat1Cache(Box<PairPosFormat1Cache>),
+    PairPosFormat1SmallCache(PairPosFormat1SmallCache),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
     PairPosFormat2SmallCache(PairPosFormat2SmallCache),
 }
@@ -736,9 +747,10 @@ pub trait Apply {
         0
     }
 
-    fn external_cache_create(&self, mode: SubtableCacheMode) -> SubtableExternalCache {
+    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         // Default implementation returns None, meaning no external cache.
         // This is used to create an external cache for the subtable.
+        let _ = mode;
         SubtableExternalCache::None
     }
 }

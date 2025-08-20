@@ -1,10 +1,10 @@
 use crate::hb::buffer::GlyphInfo;
-use crate::hb::ot::{coverage_index, coverage_index_cached};
+use crate::hb::ot::{coverage_index, coverage_index_cached, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
-    LigatureSubstFormat1Cache, SubtableCacheMode, SubtableExternalCache, WouldApply,
-    WouldApplyContext,
+    LigatureSubstFormat1Cache, LigatureSubstFormat1SmallCache, SubtableExternalCache,
+    SubtableExternalCacheMode, WouldApply, WouldApplyContext,
 };
 use crate::hb::set_digest::hb_set_digest_t;
 use alloc::boxed::Box;
@@ -154,48 +154,72 @@ impl Apply for LigatureSubstFormat1<'_> {
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
 
-        let index = if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache
-        {
-            coverage_index_cached(|gid| self.coverage().ok()?.get(gid), glyph, &cache.coverage)?
-        } else {
-            coverage_index(self.coverage(), glyph)?
+        let (index, seconds) = match external_cache {
+            SubtableExternalCache::LigatureSubstFormat1Cache(cache) => (
+                coverage_index_cached(
+                    |gid| self.coverage().ok()?.get(gid),
+                    glyph,
+                    &cache.coverage,
+                )?,
+                &cache.seconds,
+            ),
+            SubtableExternalCache::LigatureSubstFormat1SmallCache(cache) => (
+                cache.coverage.index(&self.offset_data(), glyph)?,
+                &cache.seconds,
+            ),
+            _ => (
+                coverage_index(self.coverage(), glyph)?,
+                &hb_set_digest_t::full(),
+            ),
         };
-        let seconds =
-            if let SubtableExternalCache::LigatureSubstFormat1Cache(cache) = external_cache {
-                &cache.seconds
-            } else {
-                &hb_set_digest_t::full()
-            };
         self.ligature_sets()
             .get(index as usize)
             .ok()
             .and_then(|set| set.apply(ctx, seconds))
     }
 
-    fn external_cache_create(&self, mode: SubtableCacheMode) -> SubtableExternalCache {
-        if mode == SubtableCacheMode::Full {
-            let mut seconds = hb_set_digest_t::new();
-            self.ligature_sets()
-                .iter()
-                .filter_map(Result::ok)
-                .for_each(|lig_set| {
-                    lig_set
-                        .ligatures()
-                        .iter()
-                        .filter_map(Result::ok)
-                        .for_each(|lig| {
-                            seconds.add(if let Some(gid) = lig.component_glyph_ids().first() {
-                                gid.get().into()
-                            } else {
-                                GlyphId::new(0)
-                            });
-                        });
-                });
-            SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(
-                LigatureSubstFormat1Cache::new(seconds),
-            ))
-        } else {
-            SubtableExternalCache::None
+    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
+        match mode {
+            SubtableExternalCacheMode::Full => SubtableExternalCache::LigatureSubstFormat1Cache(
+                Box::new(LigatureSubstFormat1Cache::new(collect_seconds(self))),
+            ),
+            SubtableExternalCacheMode::Small => {
+                if let Some(coverage) =
+                    CoverageInfo::new(&self.offset_data(), self.coverage_offset().to_u32() as u16)
+                {
+                    SubtableExternalCache::LigatureSubstFormat1SmallCache(
+                        LigatureSubstFormat1SmallCache {
+                            coverage,
+                            seconds: collect_seconds(self),
+                        },
+                    )
+                } else {
+                    SubtableExternalCache::None
+                }
+            }
+            SubtableExternalCacheMode::None => SubtableExternalCache::None,
         }
     }
+}
+
+fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
+    let mut seconds = hb_set_digest_t::new();
+    lig_subst
+        .ligature_sets()
+        .iter()
+        .filter_map(Result::ok)
+        .for_each(|lig_set| {
+            lig_set
+                .ligatures()
+                .iter()
+                .filter_map(Result::ok)
+                .for_each(|lig| {
+                    seconds.add(if let Some(gid) = lig.component_glyph_ids().first() {
+                        gid.get().into()
+                    } else {
+                        GlyphId::new(0)
+                    });
+                });
+        });
+    seconds
 }

@@ -2,7 +2,7 @@ use crate::hb::{
     hb_font_t,
     ot_layout::TableIndex,
     ot_layout_gsubgpos::{
-        Apply, SubtableCacheMode, SubtableExternalCache, WouldApply, WouldApplyContext,
+        Apply, SubtableExternalCache, SubtableExternalCacheMode, WouldApply, WouldApplyContext,
         OT::hb_ot_apply_context_t,
     },
     set_digest::hb_set_digest_t,
@@ -201,14 +201,18 @@ impl LookupInfo {
         let mut subtable_cache_user_cost = 0;
         info.subtables.reserve(lookup.sub_table_count() as usize);
         for (idx, subtable_offset) in lookup.subtable_offsets().iter().enumerate() {
-            let use_full_external_cache = idx < 8;
+            let cache_mode = if idx < 8 {
+                SubtableExternalCacheMode::Full
+            } else {
+                SubtableExternalCacheMode::Small
+            };
             let subtable_offset = subtable_offset.get().to_usize() + data.offset;
             if let Some((subtable_info, cache_cost)) = SubtableInfo::new(
                 data.table_data,
                 subtable_offset as u32,
                 data.is_subst,
                 lookup_type as u8,
-                use_full_external_cache,
+                cache_mode,
             ) {
                 info.digest.union(&subtable_info.digest);
                 if cache_cost > subtable_cache_user_cost {
@@ -486,16 +490,10 @@ impl SubtableInfo {
         subtable_offset: u32,
         is_subst: bool,
         lookup_type: u8,
-        use_full_external_cache: bool,
+        cache_mode: SubtableExternalCacheMode,
     ) -> Option<(Self, u32)> {
         let data = table_data.split_off(subtable_offset as usize)?;
-        let maybe_external_cache = |s: &dyn Apply| {
-            if use_full_external_cache {
-                s.external_cache_create(SubtableCacheMode::Full)
-            } else {
-                s.external_cache_create(SubtableCacheMode::Small)
-            }
-        };
+        let maybe_external_cache = |s: &dyn Apply| s.external_cache_create(cache_mode);
         let (kind, (external_cache, cache_cost, coverage), apply_fns): (
             SubtableKind,
             (SubtableExternalCache, u32, CoverageTable),
@@ -638,7 +636,7 @@ impl SubtableInfo {
                     subtable_offset.checked_add(ext_offset)?,
                     is_subst,
                     ext_type,
-                    use_full_external_cache,
+                    cache_mode,
                 );
             }
             (false, 6) => (

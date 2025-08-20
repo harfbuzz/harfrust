@@ -620,6 +620,7 @@ impl CoverageInfo {
 pub(crate) struct ClassDefInfo {
     pub offset: u16,
     pub format: u16,
+    // For format 1 only
     pub start_glyph_id: u16,
     pub count: u16,
 }
