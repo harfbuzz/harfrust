@@ -8,6 +8,7 @@ use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
 use super::set_digest::hb_set_digest_t;
+use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::unicode::GeneralCategory;
 use alloc::boxed::Box;
@@ -637,6 +638,14 @@ pub(crate) type MappingCache = hb_cache_t<
     16,  // STORAGE_BITS
 >;
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(crate) enum SubtableExternalCacheMode {
+    #[allow(unused)]
+    None,
+    Small,
+    Full,
+}
+
 pub(crate) struct LigatureSubstFormat1Cache {
     pub seconds: hb_set_digest_t,
     pub coverage: MappingCache,
@@ -651,6 +660,11 @@ impl LigatureSubstFormat1Cache {
     }
 }
 
+pub(crate) struct LigatureSubstFormat1SmallCache {
+    pub coverage: CoverageInfo,
+    pub seconds: hb_set_digest_t,
+}
+
 pub(crate) struct PairPosFormat1Cache {
     pub coverage: MappingCache,
 }
@@ -661,6 +675,10 @@ impl PairPosFormat1Cache {
             coverage: MappingCache::new(),
         }
     }
+}
+
+pub(crate) struct PairPosFormat1SmallCache {
+    pub coverage: CoverageInfo,
 }
 
 pub(crate) struct PairPosFormat2Cache {
@@ -679,11 +697,20 @@ impl PairPosFormat2Cache {
     }
 }
 
+pub(crate) struct PairPosFormat2SmallCache {
+    pub coverage: CoverageInfo,
+    pub first: ClassDefInfo,
+    pub second: ClassDefInfo,
+}
+
 pub(crate) enum SubtableExternalCache {
     None,
     LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
+    LigatureSubstFormat1SmallCache(LigatureSubstFormat1SmallCache),
     PairPosFormat1Cache(Box<PairPosFormat1Cache>),
+    PairPosFormat1SmallCache(PairPosFormat1SmallCache),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
+    PairPosFormat2SmallCache(PairPosFormat2SmallCache),
 }
 
 /// Apply a lookup.
@@ -720,9 +747,10 @@ pub trait Apply {
         0
     }
 
-    fn external_cache_create(&self) -> SubtableExternalCache {
+    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         // Default implementation returns None, meaning no external cache.
         // This is used to create an external cache for the subtable.
+        let _ = mode;
         SubtableExternalCache::None
     }
 }
