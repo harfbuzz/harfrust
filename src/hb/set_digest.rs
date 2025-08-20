@@ -35,7 +35,7 @@ impl hb_set_digest_t {
         self.masks = [0; N];
     }
 
-    pub fn _full() -> Self {
+    pub fn full() -> Self {
         Self { masks: [ALL; N] }
     }
 
