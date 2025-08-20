@@ -3,7 +3,8 @@ use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
-    LigatureSubstFormat1Cache, SubtableExternalCache, WouldApply, WouldApplyContext,
+    LigatureSubstFormat1Cache, SubtableCacheMode, SubtableExternalCache, WouldApply,
+    WouldApplyContext,
 };
 use crate::hb::set_digest::hb_set_digest_t;
 use alloc::boxed::Box;
@@ -171,26 +172,30 @@ impl Apply for LigatureSubstFormat1<'_> {
             .and_then(|set| set.apply(ctx, seconds))
     }
 
-    fn external_cache_create(&self) -> SubtableExternalCache {
-        let mut seconds = hb_set_digest_t::new();
-        self.ligature_sets()
-            .iter()
-            .filter_map(Result::ok)
-            .for_each(|lig_set| {
-                lig_set
-                    .ligatures()
-                    .iter()
-                    .filter_map(Result::ok)
-                    .for_each(|lig| {
-                        seconds.add(if let Some(gid) = lig.component_glyph_ids().first() {
-                            gid.get().into()
-                        } else {
-                            GlyphId::new(0)
+    fn external_cache_create(&self, mode: SubtableCacheMode) -> SubtableExternalCache {
+        if mode == SubtableCacheMode::Full {
+            let mut seconds = hb_set_digest_t::new();
+            self.ligature_sets()
+                .iter()
+                .filter_map(Result::ok)
+                .for_each(|lig_set| {
+                    lig_set
+                        .ligatures()
+                        .iter()
+                        .filter_map(Result::ok)
+                        .for_each(|lig| {
+                            seconds.add(if let Some(gid) = lig.component_glyph_ids().first() {
+                                gid.get().into()
+                            } else {
+                                GlyphId::new(0)
+                            });
                         });
-                    });
-            });
-        SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(LigatureSubstFormat1Cache::new(
-            seconds,
-        )))
+                });
+            SubtableExternalCache::LigatureSubstFormat1Cache(Box::new(
+                LigatureSubstFormat1Cache::new(seconds),
+            ))
+        } else {
+            SubtableExternalCache::None
+        }
     }
 }

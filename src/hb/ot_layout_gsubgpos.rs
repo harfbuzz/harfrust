@@ -8,6 +8,7 @@ use super::hb_mask_t;
 use super::ot_layout::*;
 use super::ot_layout_common::*;
 use super::set_digest::hb_set_digest_t;
+use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::unicode::GeneralCategory;
 use alloc::boxed::Box;
@@ -637,6 +638,14 @@ pub(crate) type MappingCache = hb_cache_t<
     16,  // STORAGE_BITS
 >;
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(crate) enum SubtableCacheMode {
+    #[allow(unused)]
+    None,
+    Small,
+    Full,
+}
+
 pub(crate) struct LigatureSubstFormat1Cache {
     pub seconds: hb_set_digest_t,
     pub coverage: MappingCache,
@@ -679,11 +688,18 @@ impl PairPosFormat2Cache {
     }
 }
 
+pub(crate) struct PairPosFormat2SmallCache {
+    pub coverage: CoverageInfo,
+    pub first: ClassDefInfo,
+    pub second: ClassDefInfo,
+}
+
 pub(crate) enum SubtableExternalCache {
     None,
     LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
     PairPosFormat1Cache(Box<PairPosFormat1Cache>),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
+    PairPosFormat2SmallCache(PairPosFormat2SmallCache),
 }
 
 /// Apply a lookup.
@@ -720,7 +736,7 @@ pub trait Apply {
         0
     }
 
-    fn external_cache_create(&self) -> SubtableExternalCache {
+    fn external_cache_create(&self, mode: SubtableCacheMode) -> SubtableExternalCache {
         // Default implementation returns None, meaning no external cache.
         // This is used to create an external cache for the subtable.
         SubtableExternalCache::None

@@ -6,6 +6,8 @@ use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
+use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
+use read_fonts::types::GlyphId16;
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -549,5 +551,138 @@ fn glyph_class_cached(
         let index = class_def(gid);
         cache.set(gid.into(), index as u32);
         index
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct CoverageInfo {
+    pub offset: u16,
+    pub format: u16,
+    pub count: u16,
+}
+
+impl CoverageInfo {
+    pub fn new(parent_data: &FontData, offset: u16) -> Option<Self> {
+        if offset == 0 {
+            return None;
+        }
+        let format = parent_data.read_at::<u16>(offset as usize).ok()?;
+        if format != 1 && format != 2 {
+            return None;
+        }
+        let count = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
+        Some(Self {
+            offset,
+            format,
+            count,
+        })
+    }
+
+    pub fn index(&self, parent_data: &FontData, gid: GlyphId) -> Option<u16> {
+        let gid = gid.to_u32();
+        let data_offset = self.offset as usize + 4;
+        let len = self.count as usize;
+        if self.format == 1 {
+            let glyphs = parent_data
+                .read_array::<BigEndian<GlyphId16>>(data_offset..data_offset + len * 2)
+                .ok()?;
+            glyphs
+                .binary_search_by_key(&gid, |g| g.get().to_u32())
+                .ok()
+                .map(|idx| idx as _)
+        } else {
+            use core::cmp::Ordering;
+            let records = parent_data
+                .read_array::<RangeRecord>(
+                    data_offset..data_offset + len * size_of::<RangeRecord>(),
+                )
+                .ok()?;
+            records
+                .binary_search_by(|rec| {
+                    if rec.end_glyph_id().to_u32() < gid {
+                        Ordering::Less
+                    } else if rec.start_glyph_id().to_u32() > gid {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                })
+                .ok()
+                .map(|idx| {
+                    let rec = &records[idx];
+                    (rec.start_coverage_index() as u32 + gid - rec.start_glyph_id().to_u32()) as u16
+                })
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct ClassDefInfo {
+    pub offset: u16,
+    pub format: u16,
+    pub start_glyph_id: u16,
+    pub count: u16,
+}
+
+impl ClassDefInfo {
+    pub fn new(parent_data: &FontData, offset: u16) -> Option<Self> {
+        if offset == 0 {
+            return None;
+        }
+        let format = parent_data.read_at::<u16>(offset as usize).ok()?;
+        if format != 1 && format != 2 {
+            return None;
+        }
+        let (start_glyph_id, count) = if format == 1 {
+            let start_glyph_id = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
+            let count = parent_data.read_at::<u16>(offset as usize + 4).ok()?;
+            (start_glyph_id, count)
+        } else if format == 2 {
+            let count = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
+            (0, count)
+        } else {
+            return None;
+        };
+        Some(Self {
+            offset,
+            format,
+            start_glyph_id,
+            count,
+        })
+    }
+
+    pub fn class(&self, parent_data: &FontData, gid: GlyphId) -> u16 {
+        let offset = self.offset as usize;
+        let gid = gid.to_u32();
+        if self.format == 1 {
+            let Some(idx) = gid.checked_sub(self.start_glyph_id as u32) else {
+                return 0;
+            };
+            if idx > self.count as u32 {
+                return 0;
+            }
+            parent_data
+                .read_at::<u16>(offset + 6 + idx as usize * 2)
+                .unwrap_or(0)
+        } else {
+            use core::cmp::Ordering;
+            let start = offset + 4;
+            let end = start + self.count as usize * size_of::<ClassRangeRecord>();
+            let Ok(records) = parent_data.read_array::<ClassRangeRecord>(start..end) else {
+                return 0;
+            };
+            records
+                .binary_search_by(|rec| {
+                    if rec.end_glyph_id().to_u32() < gid {
+                        Ordering::Less
+                    } else if rec.start_glyph_id().to_u32() > gid {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                })
+                .ok()
+                .map_or(0, |idx| records[idx].class())
+        }
     }
 }
