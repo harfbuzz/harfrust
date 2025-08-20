@@ -1,8 +1,8 @@
-use alloc::string::String;
 use core::{
     ops::{Bound, RangeBounds},
     str::FromStr,
 };
+use smallvec::SmallVec;
 
 use read_fonts::types::Tag;
 
@@ -184,15 +184,36 @@ impl FromStr for Direction {
     }
 }
 
-/// A script language.
+type SmallVecLanguage = SmallVec<[u8; 8]>;
+
+/// A language tag.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Language(String);
+pub struct Language(SmallVecLanguage);
 
 impl Language {
     /// Returns the language as a string.
     #[inline]
     pub fn as_str(&self) -> &str {
-        self.0.as_str()
+        core::str::from_utf8(&self.0).unwrap_or_default()
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Self {
+        if bytes.is_empty() {
+            Language(SmallVec::new())
+        } else {
+            let mut bytes = SmallVecLanguage::from_slice(bytes);
+
+            // Convert uppercase to lowercase and replace '_' with '-'.
+            for b in &mut bytes.iter_mut() {
+                if b.is_ascii_uppercase() {
+                    *b = b.to_ascii_lowercase();
+                } else if *b == b'_' {
+                    *b = b'-';
+                }
+            }
+
+            Language(bytes)
+        }
     }
 }
 
@@ -201,7 +222,7 @@ impl FromStr for Language {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.is_empty() {
-            Ok(Language(s.to_ascii_lowercase()))
+            Ok(Language::from_bytes(s.as_bytes()))
         } else {
             Err("invalid language")
         }
