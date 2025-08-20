@@ -132,6 +132,7 @@ pub struct OtTables<'a> {
     pub gdef_mark_set_digests: &'a [hb_set_digest_t],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
+    pub feature_variations: [Option<u32>; 2],
 }
 
 impl<'a> OtTables<'a> {
@@ -140,6 +141,7 @@ impl<'a> OtTables<'a> {
         cache: &'a OtCache,
         table_offsets: &TableOffsets,
         coords: &'a [F2Dot14],
+        feature_variations: [Option<u32>; 2],
     ) -> Self {
         let gsub = table_offsets
             .gsub
@@ -176,6 +178,7 @@ impl<'a> OtTables<'a> {
             gdef_mark_set_digests: &cache.gdef_mark_set_digests,
             var_store,
             coords,
+            feature_variations,
         }
     }
 

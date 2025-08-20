@@ -58,6 +58,7 @@ const MAX_INLINE_COORDS: usize = 11;
 #[derive(Clone, Default, Debug)]
 pub struct ShaperInstance {
     coords: SmallVec<[F2Dot14; MAX_INLINE_COORDS]>,
+    pub(crate) feature_variations: [Option<u32>; 2],
     // TODO: this is a good place to hang variation specific caches
 }
 
@@ -118,6 +119,7 @@ impl ShaperInstance {
                 self.coords.as_mut_slice(),
             );
             self.check_default();
+            self.set_feature_variations(font);
         }
     }
 
@@ -129,6 +131,7 @@ impl ShaperInstance {
             self.coords.reserve(count);
             self.coords.extend(coords.into_iter().take(count));
             self.check_default();
+            self.set_feature_variations(font);
         }
     }
 
@@ -149,6 +152,21 @@ impl ShaperInstance {
                 );
             }
         }
+    }
+
+    fn set_feature_variations(&mut self, font: &FontRef) {
+        self.feature_variations = [None; 2];
+        if self.coords.is_empty() {
+            return;
+        }
+        self.feature_variations[0] = font
+            .gsub()
+            .ok()
+            .and_then(|t| LayoutTable::Gsub(t).feature_variation_index(&self.coords));
+        self.feature_variations[1] = font
+            .gpos()
+            .ok()
+            .and_then(|t| LayoutTable::Gpos(t).feature_variation_index(&self.coords));
     }
 
     fn check_default(&mut self) {
@@ -189,11 +207,17 @@ impl<'a> ShaperBuilder<'a> {
         let units_per_em = self.data.table_offsets.units_per_em;
         let charmap = Charmap::new(&font, &self.data.table_offsets, &self.data.cmap_cache);
         let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_offsets);
-        let coords = self
+        let (coords, feature_variations) = self
             .instance
-            .map(|instance| instance.coords())
+            .map(|instance| (instance.coords(), instance.feature_variations))
             .unwrap_or_default();
-        let ot_tables = OtTables::new(&font, &self.data.ot_cache, &self.data.table_offsets, coords);
+        let ot_tables = OtTables::new(
+            &font,
+            &self.data.ot_cache,
+            &self.data.table_offsets,
+            coords,
+            feature_variations,
+        );
         let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_offsets);
         hb_font_t {
             font,
