@@ -65,10 +65,6 @@ pub fn match_input(
     if count > MAX_CONTEXT_LENGTH {
         return false;
     }
-
-    if count > ctx.match_positions.len() {
-        ctx.match_positions.resize(count, 0);
-    }
     ctx.match_positions_len = count;
 
     let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
@@ -352,6 +348,11 @@ where
     }
 
     pub fn set_match_position(&mut self, idx: usize, position: usize) {
+        let count = idx + 1;
+        if count > self.match_positions.len() {
+            self.match_positions.resize(count, 0);
+        }
+
         self.match_positions[idx] = position as u32;
     }
 
@@ -840,7 +841,7 @@ pub mod OT {
                 matcher: matcher_t::default(),
                 context_matcher: matcher_t::default(),
                 match_positions_len: 0,
-                match_positions: MatchPositions::new(),
+                match_positions: MatchPositions::from_elem(0, 1),
             }
         }
 
