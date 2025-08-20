@@ -1,6 +1,6 @@
 [package]
 name = "harfrust"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.80"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
 description = "A complete HarfBuzz shaping algorithm port to Rust."
