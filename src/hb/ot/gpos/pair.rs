@@ -1,4 +1,4 @@
-use crate::hb::ot::coverage_index_cached;
+use crate::hb::ot::{coverage_index, coverage_index_cached};
 use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
@@ -23,7 +23,7 @@ impl Apply for PairPosFormat1<'_> {
                     &cache.coverage,
                 )?
             } else {
-                panic!(""); // Tell compiler this can't happen.
+                coverage_index(self.coverage(), first_glyph)?
             };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -139,7 +139,7 @@ impl Apply for PairPosFormat2<'_> {
                 &cache.coverage,
             )?
         } else {
-            panic!(""); // Tell compiler this can't happen.
+            coverage_index(self.coverage(), first_glyph)?
         };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -193,7 +193,7 @@ impl Apply for PairPosFormat2<'_> {
                 &cache.first,
             )
         } else {
-            panic!(""); // Tell compiler this can't happen.
+            glyph_class(self.class_def1(), first_glyph)
         };
         let class2 = if let SubtableExternalCache::PairPosFormat2Cache(cache) = external_cache {
             glyph_class_cached(
@@ -202,7 +202,7 @@ impl Apply for PairPosFormat2<'_> {
                 &cache.second,
             )
         } else {
-            panic!(""); // Tell compiler this can't happen.
+            glyph_class(self.class_def2(), second_glyph)
         };
         let mut buf_idx = iter.buf_idx;
         let format1 = self.value_format1();
