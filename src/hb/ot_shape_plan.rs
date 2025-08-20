@@ -8,8 +8,10 @@ use super::{hb_font_t, hb_mask_t, Direction, Feature, Language, Script};
 
 /// A reusable plan for shaping a text buffer.
 pub struct hb_ot_shape_plan_t {
-    pub(crate) direction: Direction,
-    pub(crate) script: Option<Script>,
+    /// The direction of the text buffer.
+    pub direction: Direction,
+    /// The script of the text buffer.
+    pub script: Option<Script>,
     pub(crate) shaper: &'static hb_ot_shaper_t,
     pub(crate) ot_map: hb_ot_map_t,
     pub(crate) data: Option<Box<dyn Any + Send + Sync>>,
