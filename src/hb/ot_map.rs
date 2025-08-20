@@ -18,6 +18,7 @@ pub struct hb_ot_map_t {
     features: Vec<feature_map_t>,
     lookups: [Vec<lookup_map_t>; 2],
     stages: [Vec<StageMap>; 2],
+    feature_variations: [Option<u32>; 2],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,6 +152,10 @@ impl hb_ot_map_t {
             .get(stage)
             .map_or(lookups.len(), |curr| curr.last_lookup);
         start..end
+    }
+
+    pub fn feature_variations(&self) -> &[Option<u32>; 2] {
+        &self.feature_variations
     }
 }
 
@@ -338,6 +343,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
             features,
             lookups,
             stages,
+            feature_variations: self.face.ot_tables.feature_variations,
         }
     }
 
@@ -486,10 +492,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
             let mut stage_index = 0;
             let mut last_lookup = 0;
 
-            let variation_index = self
-                .face
-                .layout_table(table_index)
-                .and_then(|t| t.feature_variation_index(self.face.ot_tables.coords));
+            let variation_index = self.face.ot_tables.feature_variations[table_index as usize];
 
             for stage in 0..self.current_stage[table_index] {
                 if let Some(feature_index) = required_feature_index[table_index] {

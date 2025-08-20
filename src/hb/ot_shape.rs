@@ -26,6 +26,7 @@ pub struct hb_ot_shape_planner_t<'a> {
     pub face: &'a hb_font_t<'a>,
     pub direction: Direction,
     pub script: Option<Script>,
+    pub language: Option<Language>,
     pub ot_map: hb_ot_map_builder_t<'a>,
     pub apply_morx: bool,
     pub script_zero_marks: bool,
@@ -67,6 +68,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             face,
             direction,
             script,
+            language: language.cloned(),
             ot_map,
             apply_morx,
             script_zero_marks,
@@ -176,7 +178,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         }
     }
 
-    pub fn compile(mut self) -> hb_ot_shape_plan_t {
+    pub fn compile(mut self, features: &[Feature]) -> hb_ot_shape_plan_t {
         let ot_map = self.ot_map.compile();
 
         let frac_mask = ot_map.get_1_mask(hb_tag_t::new(b"frac"));
@@ -268,6 +270,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         let mut plan = hb_ot_shape_plan_t {
             direction: self.direction,
             script: self.script,
+            language: self.language,
             shaper: self.shaper,
             ot_map,
             data: None,
@@ -290,6 +293,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             apply_kerx,
             apply_morx,
             apply_trak,
+            user_features: features.into(),
         };
 
         if let Some(func) = self.shaper.create_data {
