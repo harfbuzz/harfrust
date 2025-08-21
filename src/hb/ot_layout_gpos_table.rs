@@ -45,7 +45,7 @@ fn propagate_attachment_offsets(
             pos[i].x_offset += pos[j].x_offset;
             pos[i].y_offset += pos[j].y_offset;
 
-            assert!(j < i);
+            debug_assert!(j < i);
             if direction.is_forward() {
                 for k in j..i {
                     pos[i].x_offset -= pos[k].x_advance;

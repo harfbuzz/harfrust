@@ -218,7 +218,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
         }
     } else {
         // in-place backward substitution/positioning
-        assert!(!ctx.buffer.have_output);
+        debug_assert!(!ctx.buffer.have_output);
 
         ctx.buffer.idx = ctx.buffer.len - 1;
         apply_backward(ctx, lookup);

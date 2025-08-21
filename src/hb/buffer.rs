@@ -239,7 +239,7 @@ macro_rules! declare_buffer_var_alias {
 
         #[inline]
         pub(crate) fn $getter(&self) -> $ty {
-            debug_assert!(GlyphInfo::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            const { assert!(GlyphInfo::$alias_var.width == core::mem::size_of::<$ty>() as u8) };
             const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &[$ty; LEN] =
                 bytemuck::cast_ref(&self.vars[GlyphInfo::$alias_var.var_index as usize - 1usize]);
@@ -248,7 +248,7 @@ macro_rules! declare_buffer_var_alias {
 
         #[inline]
         pub(crate) fn $setter(&mut self, value: $ty) {
-            debug_assert!(GlyphInfo::$alias_var.width == core::mem::size_of::<$ty>() as u8);
+            const { assert!(GlyphInfo::$alias_var.width == core::mem::size_of::<$ty>() as u8) };
             const LEN: usize = core::mem::size_of::<u32>() / core::mem::size_of::<$ty>();
             let v: &mut [$ty; LEN] = bytemuck::cast_mut(
                 &mut self.vars[GlyphInfo::$alias_var.var_index as usize - 1usize],
@@ -747,8 +747,8 @@ impl hb_buffer_t {
     }
 
     pub fn sync(&mut self) -> bool {
-        assert!(self.have_output);
-        assert!(self.idx <= self.len);
+        debug_assert!(self.have_output);
+        debug_assert!(self.idx <= self.len);
 
         if !self.successful {
             self.have_output = false;
@@ -802,7 +802,7 @@ impl hb_buffer_t {
             return;
         }
 
-        assert!(self.idx + num_in <= self.len);
+        debug_assert!(self.idx + num_in <= self.len);
 
         self.merge_clusters(self.idx, self.idx + num_in);
 
@@ -1194,8 +1194,8 @@ impl hb_buffer_t {
                 self._infos_set_glyph_flags(false, start, end, cluster, mask);
             }
         } else {
-            assert!(start <= self.out_len);
-            assert!(self.idx <= end);
+            debug_assert!(start <= self.out_len);
+            debug_assert!(self.idx <= end);
 
             if !interior {
                 for i in start..self.out_len {
@@ -1249,7 +1249,7 @@ impl hb_buffer_t {
 
     pub fn move_to(&mut self, i: usize) -> bool {
         if !self.have_output {
-            assert!(i <= self.len);
+            debug_assert!(i <= self.len);
             self.idx = i;
             return true;
         }
@@ -1258,7 +1258,7 @@ impl hb_buffer_t {
             return false;
         }
 
-        assert!(i <= self.out_len + (self.len - self.idx));
+        debug_assert!(i <= self.out_len + (self.len - self.idx));
 
         if self.out_len < i {
             let count = i - self.out_len;
@@ -1287,7 +1287,7 @@ impl hb_buffer_t {
                 return false;
             }
 
-            assert!(self.idx >= count);
+            debug_assert!(self.idx >= count);
 
             self.idx -= count;
             self.out_len -= count;
@@ -1329,7 +1329,7 @@ impl hb_buffer_t {
         }
 
         if !self.have_separate_output && self.out_len + num_out > self.idx + num_in {
-            assert!(self.have_output);
+            debug_assert!(self.have_output);
 
             self.have_separate_output = true;
             for i in 0..self.out_len {
@@ -1341,7 +1341,7 @@ impl hb_buffer_t {
     }
 
     fn shift_forward(&mut self, count: usize) -> bool {
-        assert!(self.have_output);
+        debug_assert!(self.have_output);
         if !self.ensure(self.len + count) {
             return false;
         }
@@ -1373,7 +1373,7 @@ impl hb_buffer_t {
     }
 
     pub fn sort(&mut self, start: usize, end: usize, cmp: impl Fn(&GlyphInfo, &GlyphInfo) -> bool) {
-        assert!(!self.have_positions);
+        debug_assert!(!self.have_positions);
 
         for i in start + 1..end {
             let mut j = i;
