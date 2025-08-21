@@ -1346,6 +1346,12 @@ impl hb_buffer_t {
             return false;
         }
 
+        self.max_ops -= (self.len - self.idx) as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
+            return false;
+        }
+
         for i in (0..(self.len - self.idx)).rev() {
             self.info[self.idx + count + i] = self.info[self.idx + i];
         }
