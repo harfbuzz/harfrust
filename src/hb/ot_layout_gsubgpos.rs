@@ -177,7 +177,7 @@ pub fn match_lookahead(
 ) -> bool {
     // Function should always be called with a non-zero starting index
     // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
-    assert!(start_index >= 1);
+    debug_assert!(start_index >= 1);
     let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
     iter.reset(start_index - 1);
     iter.set_glyph_data(0);
@@ -1101,7 +1101,7 @@ pub fn ligate_input(
                 }
                 // Avoid the potential for a wrap-around bug when subtracting from an unsigned integer
                 // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
-                assert!(comps_so_far >= last_num_comps);
+                debug_assert!(comps_so_far >= last_num_comps);
                 let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
                 cur.set_lig_props_for_mark(lig_id, new_lig_comp);
             }
@@ -1132,7 +1132,7 @@ pub fn ligate_input(
 
             // Avoid the potential for a wrap-around bug when subtracting from an unsigned integer
             // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
-            assert!(comps_so_far >= last_num_comps);
+            debug_assert!(comps_so_far >= last_num_comps);
             let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
             info.set_lig_props_for_mark(lig_id, new_lig_comp);
         }
