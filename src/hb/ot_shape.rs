@@ -315,8 +315,6 @@ pub struct hb_ot_shape_context_t<'a> {
 
 // Pull it all together!
 pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
-    ctx.buffer.enter();
-
     ctx.buffer.allocate_unicode_vars();
 
     initialize_masks(ctx);
@@ -340,7 +338,6 @@ pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
     ctx.buffer.deallocate_unicode_vars();
 
     ctx.buffer.direction = ctx.target_direction;
-    ctx.buffer.leave();
 }
 
 fn substitute_pre(ctx: &mut hb_ot_shape_context_t) {

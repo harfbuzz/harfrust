@@ -313,6 +313,8 @@ impl<'a> crate::Shaper<'a> {
             });
         }
 
+        buffer.leave();
+
         GlyphBuffer(buffer)
     }
 
