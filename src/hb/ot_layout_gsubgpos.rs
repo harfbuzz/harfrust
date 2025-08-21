@@ -592,10 +592,7 @@ pub(crate) fn apply_lookup(
             }
 
             if delta as usize + count > ctx.match_positions.len() {
-                let inner_max =
-                    (core::cmp::max(4, ctx.match_positions.len()) as f32 * 1.5) as usize;
-                ctx.match_positions
-                    .resize(core::cmp::max(delta as usize + count, inner_max), 0);
+                ctx.match_positions.resize(delta as usize + count, 0);
             }
         } else {
             // NOTE: delta is non-positive.
