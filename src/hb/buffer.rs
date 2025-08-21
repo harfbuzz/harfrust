@@ -1283,8 +1283,8 @@ impl hb_buffer_t {
             // But that would leave empty slots in the buffer in case of allocation
             // failures.  See comments in shift_forward().  This can cause O(N^2)
             // behavior more severely than adding 32 empty slots can...
-            if self.idx < count {
-                self.shift_forward(count - self.idx);
+            if self.idx < count && !self.shift_forward(count - self.idx) {
+                return false;
             }
 
             assert!(self.idx >= count);
@@ -1340,10 +1340,10 @@ impl hb_buffer_t {
         true
     }
 
-    fn shift_forward(&mut self, count: usize) {
+    fn shift_forward(&mut self, count: usize) -> bool {
         assert!(self.have_output);
         if !self.ensure(self.len + count) {
-            return;
+            return false;
         }
 
         for i in (0..(self.len - self.idx)).rev() {
@@ -1358,6 +1358,8 @@ impl hb_buffer_t {
 
         self.len += count;
         self.idx += count;
+
+        true
     }
 
     fn clear_context(&mut self, side: usize) {
