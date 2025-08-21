@@ -1317,6 +1317,7 @@ impl hb_buffer_t {
     #[must_use]
     fn enlarge(&mut self, size: usize) -> bool {
         if size > self.max_len {
+            self.shaping_failed = true;
             self.successful = false;
             return false;
         }
