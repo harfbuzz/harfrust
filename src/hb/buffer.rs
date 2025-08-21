@@ -408,9 +408,6 @@ pub struct hb_buffer_t {
     pub script: Option<Script>,
     pub language: Option<Language>,
 
-    /// Shaping failure
-    pub shaping_failed: bool,
-
     /// Allocations successful.
     pub successful: bool,
     /// Whether we have an output buffer going on.
@@ -443,13 +440,13 @@ pub struct hb_buffer_t {
 }
 
 impl hb_buffer_t {
-    pub const MAX_LEN_FACTOR: usize = 64;
-    pub const MAX_LEN_MIN: usize = 16384;
+    pub const MAX_LEN_FACTOR: usize = 256;
+    pub const MAX_LEN_MIN: usize = 65536;
     // Shaping more than a billion chars? Let us know!
     pub const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
 
-    pub const MAX_OPS_FACTOR: i32 = 1024;
-    pub const MAX_OPS_MIN: i32 = 16384;
+    pub const MAX_OPS_FACTOR: i32 = 4096;
+    pub const MAX_OPS_MIN: i32 = 65536;
     // Shaping more than a billion operations? Let us know!
     pub const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
 
@@ -466,7 +463,6 @@ impl hb_buffer_t {
             direction: Direction::Invalid,
             script: None,
             language: None,
-            shaping_failed: false,
             successful: true,
             have_output: false,
             have_positions: false,
@@ -1287,8 +1283,8 @@ impl hb_buffer_t {
             // But that would leave empty slots in the buffer in case of allocation
             // failures.  See comments in shift_forward().  This can cause O(N^2)
             // behavior more severely than adding 32 empty slots can...
-            if self.idx < count {
-                self.shift_forward(count - self.idx);
+            if self.idx < count && !self.shift_forward(count - self.idx) {
+                return false;
             }
 
             assert!(self.idx >= count);
@@ -1344,10 +1340,10 @@ impl hb_buffer_t {
         true
     }
 
-    fn shift_forward(&mut self, count: usize) {
+    fn shift_forward(&mut self, count: usize) -> bool {
         assert!(self.have_output);
         if !self.ensure(self.len + count) {
-            return;
+            return false;
         }
 
         for i in (0..(self.len - self.idx)).rev() {
@@ -1362,6 +1358,8 @@ impl hb_buffer_t {
 
         self.len += count;
         self.idx += count;
+
+        true
     }
 
     fn clear_context(&mut self, side: usize) {
@@ -1406,7 +1404,6 @@ impl hb_buffer_t {
     // Called around shape()
     pub(crate) fn enter(&mut self) {
         self.serial = 0;
-        self.shaping_failed = false;
         self.scratch_flags = HB_BUFFER_SCRATCH_FLAG_DEFAULT;
 
         if let Some(len) = self.len.checked_mul(hb_buffer_t::MAX_LEN_FACTOR) {
@@ -1425,7 +1422,6 @@ impl hb_buffer_t {
         self.max_len = hb_buffer_t::MAX_LEN_DEFAULT;
         self.max_ops = hb_buffer_t::MAX_OPS_DEFAULT;
         self.serial = 0;
-        // Intentionally not resetting shaping_failed, such that it can be inspected.
     }
 
     fn _infos_find_min_cluster(

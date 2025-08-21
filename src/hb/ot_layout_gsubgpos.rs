@@ -896,13 +896,13 @@ pub mod OT {
 
         pub fn recurse(&mut self, sub_lookup_index: u16) -> Option<()> {
             if self.nesting_level_left == 0 {
-                self.buffer.shaping_failed = true;
+                self.buffer.successful = false;
                 return None;
             }
 
             self.buffer.max_ops -= 1;
             if self.buffer.max_ops < 0 {
-                self.buffer.shaping_failed = true;
+                self.buffer.successful = false;
                 return None;
             }
 

@@ -645,7 +645,9 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
             let before = flags & Self::MARKED_INSERT_BEFORE != 0;
 
             let end = ac.buffer.out_len;
-            ac.buffer.move_to(self.mark as usize);
+            if !ac.buffer.move_to(self.mark as usize) {
+                return Some(());
+            }
 
             if ac.buffer.idx < ac.buffer.len && !before {
                 ac.buffer.copy_glyph();
@@ -661,7 +663,9 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
                 ac.buffer.skip_glyph();
             }
 
-            ac.buffer.move_to(end + usize::from(count));
+            if !ac.buffer.move_to(end + usize::from(count)) {
+                return Some(());
+            }
 
             ac.buffer.unsafe_to_break_from_outbuffer(
                 Some(self.mark as usize),
@@ -712,11 +716,13 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
             // glyphs are now visible.
             //
             // https://github.com/harfbuzz/harfbuzz/issues/1224#issuecomment-427691417
-            ac.buffer.move_to(if flags & Self::DONT_ADVANCE != 0 {
+            if !ac.buffer.move_to(if flags & Self::DONT_ADVANCE != 0 {
                 end
             } else {
                 end + usize::from(count)
-            });
+            }) {
+                return Some(());
+            }
         }
 
         Some(())
@@ -795,8 +801,12 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
                 }
 
                 cursor -= 1;
-                ac.buffer
-                    .move_to(self.match_positions[cursor % LIGATURE_MAX_MATCHES]);
+                if !ac
+                    .buffer
+                    .move_to(self.match_positions[cursor % LIGATURE_MAX_MATCHES])
+                {
+                    return Some(());
+                }
 
                 // We cannot use ? in this loop, because we must call
                 // ac.buffer.move_to(end) in the end.
@@ -834,13 +844,18 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
                     // Now go and delete all subsequent components.
                     while self.match_length - 1 > cursor {
                         self.match_length -= 1;
-                        ac.buffer.move_to(
-                            self.match_positions[self.match_length % LIGATURE_MAX_MATCHES],
-                        );
+                        if !ac
+                            .buffer
+                            .move_to(self.match_positions[self.match_length % LIGATURE_MAX_MATCHES])
+                        {
+                            return Some(());
+                        }
                         ac.delete_glyph();
                     }
 
-                    ac.buffer.move_to(lig_end);
+                    if !ac.buffer.move_to(lig_end) {
+                        return Some(());
+                    }
                     ac.buffer.merge_out_clusters(
                         self.match_positions[cursor % LIGATURE_MAX_MATCHES],
                         ac.buffer.out_len,
@@ -854,7 +869,9 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
                 }
             }
 
-            ac.buffer.move_to(end);
+            if !ac.buffer.move_to(end) {
+                return Some(());
+            }
         }
 
         Some(())

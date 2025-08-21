@@ -34,11 +34,14 @@ bench = false
 name = "shaping"
 harness = false
 
-[profile.bench]
+[profile.release]
 strip = true
 lto = "fat"
 overflow-checks = false
 codegen-units = 1
+
+[profile.bench]
+inherits = "release"
 
 [lints.rust]
 unused_qualifications = "warn"
