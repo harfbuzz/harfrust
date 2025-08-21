@@ -443,13 +443,13 @@ pub struct hb_buffer_t {
 }
 
 impl hb_buffer_t {
-    pub const MAX_LEN_FACTOR: usize = 64;
-    pub const MAX_LEN_MIN: usize = 16384;
+    pub const MAX_LEN_FACTOR: usize = 256;
+    pub const MAX_LEN_MIN: usize = 65536;
     // Shaping more than a billion chars? Let us know!
     pub const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
 
-    pub const MAX_OPS_FACTOR: i32 = 1024;
-    pub const MAX_OPS_MIN: i32 = 16384;
+    pub const MAX_OPS_FACTOR: i32 = 4096;
+    pub const MAX_OPS_MIN: i32 = 65536;
     // Shaping more than a billion operations? Let us know!
     pub const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
 
