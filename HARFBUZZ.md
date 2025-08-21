@@ -71,7 +71,6 @@ Currently the following tests fail:
 - `SHBALI-3.tests`: Rounding differences with unusual UPEM.
 - `arabic-fallback-positioning.tests`: Not implemented.
 - `collections.tests`: `DFONT` format is not supported.
-- `item-context.tests`: Needs investigation.
 - `vertical.tests`: Fallback based on glyph extents not supported.
 
 
