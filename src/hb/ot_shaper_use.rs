@@ -570,7 +570,7 @@ fn setup_masks(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_
     // and setup masks later on in a pause-callback.
     for info in buffer.info_slice_mut() {
         info.set_use_category(super::ot_shaper_use_table::hb_use_get_category(
-            info.glyph_id,
+            info.glyph_id as usize,
         ));
     }
 }
