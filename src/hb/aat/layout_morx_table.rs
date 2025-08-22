@@ -1,5 +1,6 @@
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
+use super::ClassCache;
 use crate::hb::aat::layout_common::AatApplyContext;
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
@@ -8,10 +9,7 @@ use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{
     ContextualEntryData, ContextualSubtable, InsertionEntryData, LigatureSubtable, SubtableKind,
 };
-use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
-
-// TODO: Use class cache, similarly to how it's used in harfbuzz.
-// See https://github.com/harfbuzz/harfbuzz/pull/5031
+use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
 
 // TODO: [morx] Blocklist dysfunctional morx table of AALMAGHRIBI.ttf font
 // HarfBuzz commit 1e629c35113e2460fd4a77b4fa9ae3ff6ec876ba
@@ -80,12 +78,13 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
 pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
-    #[allow(unused)]
-    let (morx, subtables) = c.face.aat_tables.morx.as_ref()?;
+    let (morx, subtable_caches) = c.face.aat_tables.morx.as_ref()?;
 
     let chains = morx.chains();
     let chain_len = chains.iter().count();
     map.chain_flags.resize(chain_len, vec![]);
+
+    let mut subtable_idx = 0;
 
     for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
         let Ok(chain) = chain else {
@@ -96,6 +95,13 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
             let Ok(subtable) = subtable else {
                 continue;
             };
+
+            let subtable_cache = subtable_caches.get(subtable_idx);
+            let subtable_cache = subtable_cache.as_ref().unwrap();
+            subtable_idx += 1;
+
+            c.machine_class_cache = Some(&subtable_cache.class_cache);
+
             if let Some(range_flags) = c.range_flags.as_ref() {
                 if range_flags.len() == 1
                     && (subtable.sub_feature_flags() & range_flags[0].flags == 0)
@@ -170,6 +176,25 @@ trait DriverContext<T> {
 
 const START_OF_TEXT: u16 = 0;
 
+fn get_class<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
+    machine: &ExtendedStateTable<'_, T>,
+    glyph_id: GlyphId,
+    cache: Option<&ClassCache>,
+) -> u16 {
+    if let Some(cache) = cache {
+        if let Some(klass) = cache.get(glyph_id.to_u32()) {
+            return klass as u16;
+        }
+    }
+    let klass = machine
+        .class(glyph_id)
+        .unwrap_or(read_fonts::tables::aat::class::OUT_OF_BOUNDS as u16);
+    if let Some(cache) = cache {
+        cache.set(glyph_id.to_u32(), klass as u32);
+    }
+    klass
+}
+
 fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
     machine: &ExtendedStateTable<'_, T>,
     c: &mut dyn DriverContext<T>,
@@ -221,7 +246,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
         }
 
         let class = if ac.buffer.idx < ac.buffer.len {
-            machine.class(ac.buffer.cur(0).as_glyph()).unwrap_or(1)
+            get_class(machine, ac.buffer.cur(0).as_glyph(), ac.machine_class_cache)
         } else {
             u16::from(read_fonts::tables::aat::class::END_OF_TEXT)
         };
