@@ -5,13 +5,24 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
+use crate::hb::aat::layout_kerx_table::collect_initial_glyphs as kerx_collect_initial_glyphs;
+use crate::hb::aat::layout_kerx_table::SimpleKerning;
+use crate::hb::aat::layout_morx_table::collect_initial_glyphs as morx_collect_initial_glyphs;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
+use read_fonts::collections::int_set::U32Set;
 use read_fonts::tables::aat::ExtendedStateTable;
 use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::{
-    tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
+    tables::{
+        ankr::Ankr,
+        feat::Feat,
+        kern::Kern,
+        kerx::{Kerx, SubtableKind as KerxSubtableKind},
+        morx::{Morx, SubtableKind as MorxSubtableKind},
+        trak::Trak,
+    },
     FontRef, TableProvider,
 };
 
@@ -42,6 +53,10 @@ impl AatCache {
     #[allow(unused)]
     pub fn new(font: &FontRef) -> Self {
         let mut cache = Self::default();
+        let num_glyphs = font
+            .maxp()
+            .map(|maxp| maxp.num_glyphs() as u32)
+            .unwrap_or_default();
         if let Ok(morx) = font.morx() {
             let chains = morx.chains();
             for chain in morx.chains().iter() {
@@ -52,8 +67,17 @@ impl AatCache {
                     let Ok(subtable) = subtable else {
                         continue;
                     };
-
+                    let mut glyph_set = U32Set::default();
+                    if let Ok(kind) = subtable.kind() {
+                        match &kind {
+                            MorxSubtableKind::Rearrangement(s) => {
+                                morx_collect_initial_glyphs(s, &mut glyph_set, num_glyphs);
+                            }
+                            _ => { /* TODO Remove me */ }
+                        }
+                    };
                     cache.morx.push(MorxSubtableCache {
+                        glyph_set,
                         class_cache: ClassCache::new(),
                     });
                 }
@@ -64,7 +88,38 @@ impl AatCache {
                 let Ok(subtable) = subtable else {
                     continue;
                 };
+                let mut first_set = U32Set::default();
+                let mut second_set = U32Set::default();
+                if let Ok(kind) = subtable.kind() {
+                    match &kind {
+                        KerxSubtableKind::Format0(format0) => {
+                            format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                        }
+                        KerxSubtableKind::Format1(format1) => {
+                            kerx_collect_initial_glyphs(
+                                &format1.state_table,
+                                &mut first_set,
+                                num_glyphs,
+                            );
+                        }
+                        KerxSubtableKind::Format2(format2) => {
+                            format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                        }
+                        KerxSubtableKind::Format4(format4) => {
+                            kerx_collect_initial_glyphs(
+                                &format4.state_table,
+                                &mut first_set,
+                                num_glyphs,
+                            );
+                        }
+                        KerxSubtableKind::Format6(format6) => {
+                            format6.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                        }
+                    }
+                };
                 cache.kerx.push(KerxSubtableCache {
+                    first_set,
+                    second_set,
                     class_cache: ClassCache::new(),
                 });
             }
@@ -109,9 +164,12 @@ impl<'a> AatTables<'a> {
 }
 
 pub struct MorxSubtableCache {
+    glyph_set: U32Set,
     class_cache: ClassCache,
 }
 
 pub struct KerxSubtableCache {
+    first_set: U32Set,
+    second_set: U32Set,
     class_cache: ClassCache,
 }

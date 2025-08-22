@@ -15,6 +15,7 @@ bitflags = "2.9"
 bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
 core_maths = "0.1" # only for no_std builds
 read-fonts = { version = "0.33.0", default-features = false, features = ["libm"] }
+#read-fonts = { git = "https://github.com/googlefonts/fontations", branch = "aat-lookups-iter", default-features = false, features = ["libm"] }
 smallvec = "1.14"
 
 [features]
