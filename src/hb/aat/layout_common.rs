@@ -5,6 +5,8 @@ use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
+use read_fonts::collections::int_set::U32Set;
+use read_fonts::tables::aat::*;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
@@ -20,6 +22,8 @@ pub struct AatApplyContext<'a> {
     pub subtable_flags: hb_mask_t,
     pub has_glyph_classes: bool,
     // Caches
+    pub(crate) left_set: Option<&'a U32Set>,
+    pub(crate) right_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
 }
 
@@ -36,6 +40,8 @@ impl<'a> AatApplyContext<'a> {
             range_flags: None,
             subtable_flags: 0,
             has_glyph_classes: face.ot_tables.has_glyph_classes(),
+            left_set: None,
+            right_set: None,
             machine_class_cache: None,
         }
     }
@@ -81,3 +87,87 @@ impl<'a> AatApplyContext<'a> {
         }
     }
 }
+
+pub trait TypedCollectIndices<T: LookupValue> {
+    /// Add all indices into `set`.
+    fn collect_indices(&self, set: &mut U32Set) {
+        self.filter_indices::<_>(set, |_| true);
+    }
+
+    /// For each valid index, read the value of type `T`.
+    /// If `filter(&value)` returns true, insert the index into `set`.
+    fn filter_indices<F>(&self, _set: &mut U32Set, _filter: F)
+    where
+        F: Fn(&T) -> bool,
+    {
+        /* TODO remove me. */
+    }
+}
+
+impl<'a, T> TypedCollectIndices<T> for TypedLookup<'a, T>
+where
+    T: LookupValue,
+{
+    fn filter_indices<F>(&self, set: &mut U32Set, filter: F)
+    where
+        F: Fn(&T) -> bool,
+    {
+        self.lookup.filter_indices::<T, F>(set, filter);
+    }
+}
+
+pub trait CollectIndices {
+    /// Add all indices into `set`.
+    fn collect_indices<T>(&self, set: &mut U32Set)
+    where
+        T: LookupValue,
+    {
+        self.filter_indices::<T, _>(set, |_| true);
+    }
+
+    /// For each valid index, read the value of type `T`.
+    /// If `filter(&value)` returns true, insert the index into `set`.
+    fn filter_indices<T, F>(&self, _set: &mut U32Set, _filter: F)
+    where
+        T: LookupValue,
+        F: Fn(&T) -> bool,
+    {
+        /* TODO remove me. */
+    }
+}
+
+impl<'a> CollectIndices for Lookup<'a> {
+    fn filter_indices<T, F>(&self, set: &mut U32Set, filter: F)
+    where
+        T: LookupValue,
+        F: Fn(&T) -> bool,
+    {
+        match self {
+            Lookup::Format0(lookup) => lookup.filter_indices::<T, F>(set, filter),
+            Lookup::Format2(lookup) => lookup.filter_indices::<T, F>(set, filter),
+            Lookup::Format4(lookup) => lookup.filter_indices::<T, F>(set, filter),
+            Lookup::Format6(lookup) => lookup.filter_indices::<T, F>(set, filter),
+            Lookup::Format8(lookup) => lookup.filter_indices::<T, F>(set, filter),
+            Lookup::Format10(lookup) => lookup.filter_indices::<T, F>(set, filter),
+        }
+    }
+}
+
+impl<'a> CollectIndices for Lookup0<'a> {}
+impl<'a> CollectIndices for Lookup2<'a> {}
+impl<'a> CollectIndices for Lookup4<'a> {}
+impl<'a> CollectIndices for Lookup6<'a> {}
+impl<'a> CollectIndices for Lookup8<'a> {}
+impl<'a> CollectIndices for Lookup10<'a> {}
+
+/*
+impl<'a, T: LookupValue> CollectGlyphs for Lookup2<'a> {
+    fn collect_glyphs(&self, glyphs: &mut U32Set) {
+        if let Ok(segments) = self.segments::<T>() {
+            for segment in segments {
+            }
+        }
+
+    }
+}
+*/
