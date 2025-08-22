@@ -1,4 +1,4 @@
-use super::{get_class, KerxSubtableCache};
+use super::get_class;
 use crate::hb::aat::layout_common::AatApplyContext;
 use crate::hb::{
     buffer::*,
@@ -41,6 +41,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         let subtable_cache = subtable_caches.get(subtable_idx);
         let subtable_cache = subtable_cache.as_ref().unwrap();
         subtable_idx += 1;
+
+        c.machine_class_cache = Some(&subtable_cache.class_cache);
 
         // We don't handle variations
         if subtable.is_variable() {
@@ -93,7 +95,6 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 apply_state_machine_kerning(
                     c,
                     &subtable,
-                    subtable_cache,
                     format1,
                     &format1.state_table,
                     &mut driver,
@@ -115,7 +116,6 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 apply_state_machine_kerning(
                     c,
                     &subtable,
-                    subtable_cache,
                     format4,
                     &format4.state_table,
                     &mut driver,
@@ -265,7 +265,6 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
 fn apply_state_machine_kerning<T, E>(
     c: &mut AatApplyContext,
     subtable: &Subtable,
-    subtable_cache: &KerxSubtableCache,
     kind: &T,
     state_table: &aat::ExtendedStateTable<E>,
     driver: &mut dyn StateTableDriver<T, E>,
@@ -280,7 +279,7 @@ fn apply_state_machine_kerning<T, E>(
             get_class(
                 state_table,
                 c.buffer.cur(0).as_glyph(),
-                &subtable_cache.class_cache,
+                c.machine_class_cache.unwrap(),
             )
         } else {
             u16::from(aat::class::END_OF_TEXT)
