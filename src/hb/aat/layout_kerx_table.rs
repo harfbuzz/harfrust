@@ -1,4 +1,5 @@
 use super::{get_class, KerxSubtableCache};
+use crate::hb::aat::layout_common::AatApplyContext;
 use crate::hb::{
     buffer::*,
     hb_font_t,
@@ -24,15 +25,11 @@ use read_fonts::{
 // TODO: Use set_t, similarly to how it's used in harfbuzz.
 // HarfBuzz commit 9a4601b06b50cb0197c02203b6b19467ad4b4da8
 
-pub(crate) fn apply(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
-) -> Option<()> {
-    buffer.unsafe_to_concat(None, None);
+pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
+    c.buffer.unsafe_to_concat(None, None);
 
     #[allow(unused)]
-    let (kerx, subtable_caches) = face.aat_tables.kerx.as_ref()?;
+    let (kerx, subtable_caches) = c.face.aat_tables.kerx.as_ref()?;
 
     let mut subtable_idx = 0;
 
@@ -51,7 +48,7 @@ pub(crate) fn apply(
             continue;
         }
 
-        if buffer.direction.is_horizontal() != subtable.is_horizontal() {
+        if c.buffer.direction.is_horizontal() != subtable.is_horizontal() {
             continue;
         }
 
@@ -59,15 +56,19 @@ pub(crate) fn apply(
             continue;
         };
 
-        let reverse = buffer.direction.is_backward();
+        let reverse = c.buffer.direction.is_backward();
 
         if !seen_cross_stream && subtable.is_cross_stream() {
             seen_cross_stream = true;
 
             // Attach all glyphs into a chain.
-            for pos in &mut buffer.pos {
+            for pos in &mut c.buffer.pos {
                 pos.set_attach_type(attach_type::CURSIVE);
-                pos.set_attach_chain(if buffer.direction.is_forward() { -1 } else { 1 });
+                pos.set_attach_chain(if c.buffer.direction.is_forward() {
+                    -1
+                } else {
+                    1
+                });
                 // We intentionally don't set BufferScratchFlags::HAS_GPOS_ATTACHMENT,
                 // since there needs to be a non-zero attachment for post-positioning to
                 // be needed.
@@ -75,15 +76,15 @@ pub(crate) fn apply(
         }
 
         if reverse {
-            buffer.reverse();
+            c.buffer.reverse();
         }
 
         match &kind {
             SubtableKind::Format0(format0) => {
-                if !plan.requested_kerning {
+                if !c.plan.requested_kerning {
                     continue;
                 }
-                apply_simple_kerning(&subtable, format0, plan, face, buffer);
+                apply_simple_kerning(&subtable, format0, c.plan, c.face, c.buffer);
             }
             SubtableKind::Format1(format1) => {
                 let mut driver = Driver1 {
@@ -96,22 +97,22 @@ pub(crate) fn apply(
                     format1,
                     &format1.state_table,
                     &mut driver,
-                    plan,
-                    buffer,
+                    c.plan,
+                    c.buffer,
                 );
             }
             SubtableKind::Format2(format2) => {
-                if !plan.requested_kerning {
+                if !c.plan.requested_kerning {
                     continue;
                 }
-                buffer.unsafe_to_concat(None, None);
-                apply_simple_kerning(&subtable, format2, plan, face, buffer);
+                c.buffer.unsafe_to_concat(None, None);
+                apply_simple_kerning(&subtable, format2, c.plan, c.face, c.buffer);
             }
             SubtableKind::Format4(format4) => {
                 let mut driver = Driver4 {
                     mark_set: false,
                     mark: 0,
-                    ankr_table: face.aat_tables.ankr.clone(),
+                    ankr_table: c.face.aat_tables.ankr.clone(),
                 };
                 apply_state_machine_kerning(
                     &subtable,
@@ -119,20 +120,20 @@ pub(crate) fn apply(
                     format4,
                     &format4.state_table,
                     &mut driver,
-                    plan,
-                    buffer,
+                    c.plan,
+                    c.buffer,
                 );
             }
             SubtableKind::Format6(format6) => {
-                if !plan.requested_kerning {
+                if !c.plan.requested_kerning {
                     continue;
                 }
-                apply_simple_kerning(&subtable, format6, plan, face, buffer);
+                apply_simple_kerning(&subtable, format6, c.plan, c.face, c.buffer);
             }
         }
 
         if reverse {
-            buffer.reverse();
+            c.buffer.reverse();
         }
     }
 

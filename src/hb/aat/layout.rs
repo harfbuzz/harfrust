@@ -516,7 +516,7 @@ pub fn substitute(
         builder.compile(face, &mut aat_map);
     }
 
-    let mut c = AatApplyContext::new(face, buffer);
+    let mut c = AatApplyContext::new(plan, face, buffer);
     layout_morx_table::apply(&mut c, &mut aat_map);
 }
 
@@ -550,7 +550,8 @@ pub fn remove_deleted_glyphs(buffer: &mut hb_buffer_t) {
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L363>
 #[doc(alias = "hb_aat_layout_position")]
 pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
-    layout_kerx_table::apply(plan, face, buffer);
+    let mut c = AatApplyContext::new(plan, face, buffer);
+    layout_kerx_table::apply(&mut c);
 }
 
 /// HB: hb_aat_layout_track
