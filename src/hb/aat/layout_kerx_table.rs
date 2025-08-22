@@ -91,13 +91,12 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     depth: 0,
                 };
                 apply_state_machine_kerning(
+                    c,
                     &subtable,
                     subtable_cache,
                     format1,
                     &format1.state_table,
                     &mut driver,
-                    c.plan,
-                    c.buffer,
                 );
             }
             SubtableKind::Format2(format2) => {
@@ -114,13 +113,12 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     ankr_table: c.face.aat_tables.ankr.clone(),
                 };
                 apply_state_machine_kerning(
+                    c,
                     &subtable,
                     subtable_cache,
                     format4,
                     &format4.state_table,
                     &mut driver,
-                    c.plan,
-                    c.buffer,
                 );
             }
             SubtableKind::Format6(format6) => {
@@ -265,24 +263,23 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
 }
 
 fn apply_state_machine_kerning<T, E>(
+    c: &mut AatApplyContext,
     subtable: &Subtable,
     subtable_cache: &KerxSubtableCache,
     kind: &T,
     state_table: &aat::ExtendedStateTable<E>,
     driver: &mut dyn StateTableDriver<T, E>,
-    plan: &hb_ot_shape_plan_t,
-    buffer: &mut hb_buffer_t,
 ) where
     E: FixedSize + bytemuck::AnyBitPattern,
     aat::StateEntry<E>: KerxStateEntryExt,
 {
     let mut state = START_OF_TEXT;
-    buffer.idx = 0;
+    c.buffer.idx = 0;
     loop {
-        let class = if buffer.idx < buffer.len {
+        let class = if c.buffer.idx < c.buffer.len {
             get_class(
                 state_table,
-                buffer.cur(0).as_glyph(),
+                c.buffer.cur(0).as_glyph(),
                 &subtable_cache.class_cache,
             )
         } else {
@@ -295,25 +292,25 @@ fn apply_state_machine_kerning<T, E>(
 
         // Unsafe-to-break before this if not in state 0, as things might
         // go differently if we start from state 0 here.
-        if state != START_OF_TEXT && buffer.backtrack_len() != 0 && buffer.idx < buffer.len {
+        if state != START_OF_TEXT && c.buffer.backtrack_len() != 0 && c.buffer.idx < c.buffer.len {
             // If there's no value and we're just epsilon-transitioning to state 0, safe to break.
             if entry.is_actionable() || entry.new_state != START_OF_TEXT || entry.has_advance() {
-                buffer.unsafe_to_break_from_outbuffer(
-                    Some(buffer.backtrack_len() - 1),
-                    Some(buffer.idx + 1),
+                c.buffer.unsafe_to_break_from_outbuffer(
+                    Some(c.buffer.backtrack_len() - 1),
+                    Some(c.buffer.idx + 1),
                 );
             }
         }
 
         // Unsafe-to-break if end-of-text would kick in here.
-        if buffer.idx + 2 <= buffer.len {
+        if c.buffer.idx + 2 <= c.buffer.len {
             let end_entry = state_table
                 .entry(state, u16::from(aat::class::END_OF_TEXT))
                 .ok();
             let Some(end_entry) = end_entry else { break };
 
             if end_entry.is_actionable() {
-                buffer.unsafe_to_break(Some(buffer.idx), Some(buffer.idx + 2));
+                c.buffer.unsafe_to_break(Some(c.buffer.idx), Some(c.buffer.idx + 2));
             }
         }
 
@@ -322,20 +319,20 @@ fn apply_state_machine_kerning<T, E>(
             &entry,
             subtable.is_cross_stream(),
             subtable.tuple_count(),
-            plan,
-            buffer,
+            c.plan,
+            c.buffer,
         );
 
         state = entry.new_state;
 
-        if buffer.idx >= buffer.len {
+        if c.buffer.idx >= c.buffer.len {
             break;
         }
 
-        if entry.has_advance() || buffer.max_ops <= 0 {
-            buffer.next_glyph();
+        if entry.has_advance() || c.buffer.max_ops <= 0 {
+            c.buffer.next_glyph();
         }
-        buffer.max_ops -= 1;
+        c.buffer.max_ops -= 1;
     }
 }
 
