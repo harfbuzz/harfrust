@@ -310,7 +310,8 @@ fn apply_state_machine_kerning<T, E>(
             let Some(end_entry) = end_entry else { break };
 
             if end_entry.is_actionable() {
-                c.buffer.unsafe_to_break(Some(c.buffer.idx), Some(c.buffer.idx + 2));
+                c.buffer
+                    .unsafe_to_break(Some(c.buffer.idx), Some(c.buffer.idx + 2));
             }
         }
 
