@@ -227,7 +227,11 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
         }
 
         let class = if ac.buffer.idx < ac.buffer.len {
-            get_class(machine, ac.buffer.cur(0).as_glyph(), ac.machine_class_cache)
+            get_class(
+                machine,
+                ac.buffer.cur(0).as_glyph(),
+                ac.machine_class_cache.unwrap(),
+            )
         } else {
             u16::from(read_fonts::tables::aat::class::END_OF_TEXT)
         };
