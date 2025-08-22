@@ -5,12 +5,15 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
+use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
     FontRef, TableProvider,
 };
+
+type ClassCache = MappingCache;
 
 #[derive(Default)]
 pub struct AatCache {
@@ -23,7 +26,21 @@ impl AatCache {
     pub fn new(font: &FontRef) -> Self {
         let mut cache = Self::default();
         if let Ok(morx) = font.morx() {
-            // TODO: fill cache.morx
+            let chains = morx.chains();
+            for chain in morx.chains().iter() {
+                let Ok(chain) = chain else {
+                    continue;
+                };
+                for subtable in chain.subtables().iter() {
+                    let Ok(subtable) = subtable else {
+                        continue;
+                    };
+
+                    cache.morx.push(MorxSubtableCache {
+                        class_cache: ClassCache::new(),
+                    });
+                }
+            }
         }
         if let Ok(kerx) = font.kerx() {
             // TODO: fill cache.kerx
@@ -68,7 +85,7 @@ impl<'a> AatTables<'a> {
 }
 
 pub struct MorxSubtableCache {
-    // TODO: maybe a bitset or something here?
+    class_cache: ClassCache,
 }
 
 pub struct KerxSubtableCache {

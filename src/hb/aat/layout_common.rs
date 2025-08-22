@@ -1,5 +1,6 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
+use super::ClassCache;
 use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
@@ -16,6 +17,8 @@ pub struct AatApplyContext<'a> {
     pub range_flags: Option<&'a mut [RangeFlags]>,
     pub subtable_flags: hb_mask_t,
     pub has_glyph_classes: bool,
+    // Caches
+    pub(crate) machine_class_cache: Option<&'a ClassCache>,
 }
 
 impl<'a> AatApplyContext<'a> {
@@ -26,6 +29,7 @@ impl<'a> AatApplyContext<'a> {
             range_flags: None,
             subtable_flags: 0,
             has_glyph_classes: face.ot_tables.has_glyph_classes(),
+            machine_class_cache: None,
         }
     }
 
