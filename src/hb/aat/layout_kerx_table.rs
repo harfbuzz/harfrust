@@ -2,7 +2,6 @@ use super::{get_class, KerxSubtableCache};
 use crate::hb::aat::layout_common::AatApplyContext;
 use crate::hb::{
     buffer::*,
-    hb_font_t,
     ot_layout::TableIndex,
     ot_layout_common::lookup_flags,
     ot_layout_gpos_table::attach_type,
@@ -84,7 +83,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 if !c.plan.requested_kerning {
                     continue;
                 }
-                apply_simple_kerning(&subtable, format0, c.plan, c.face, c.buffer);
+                apply_simple_kerning(c, &subtable, format0);
             }
             SubtableKind::Format1(format1) => {
                 let mut driver = Driver1 {
@@ -106,7 +105,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     continue;
                 }
                 c.buffer.unsafe_to_concat(None, None);
-                apply_simple_kerning(&subtable, format2, c.plan, c.face, c.buffer);
+                apply_simple_kerning(c, &subtable, format2);
             }
             SubtableKind::Format4(format4) => {
                 let mut driver = Driver4 {
@@ -128,7 +127,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 if !c.plan.requested_kerning {
                     continue;
                 }
-                apply_simple_kerning(&subtable, format6, c.plan, c.face, c.buffer);
+                apply_simple_kerning(c, &subtable, format6);
             }
         }
 
@@ -162,15 +161,9 @@ impl SimpleKerning for Subtable6<'_> {
     }
 }
 
-fn apply_simple_kerning<T: SimpleKerning>(
-    subtable: &Subtable,
-    kind: &T,
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
-) {
-    let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, face, buffer);
-    ctx.set_lookup_mask(plan.kern_mask);
+fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
+    let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, c.face, c.buffer);
+    ctx.set_lookup_mask(c.plan.kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
 
@@ -179,7 +172,7 @@ fn apply_simple_kerning<T: SimpleKerning>(
 
     let mut i = 0;
     while i < ctx.buffer.len {
-        if (ctx.buffer.info[i].mask & plan.kern_mask) == 0 {
+        if (ctx.buffer.info[i].mask & c.plan.kern_mask) == 0 {
             i += 1;
             continue;
         }
