@@ -1,3 +1,4 @@
+use super::{get_class, KerxSubtableCache};
 use crate::hb::{
     buffer::*,
     hb_font_t,
@@ -23,9 +24,6 @@ use read_fonts::{
 // TODO: Use set_t, similarly to how it's used in harfbuzz.
 // HarfBuzz commit 9a4601b06b50cb0197c02203b6b19467ad4b4da8
 
-// TODO: Use a machine class cache.
-// HarfBuzz commit 83e0944f0f6cfbb46b63e2627e6ee076f4bfd489
-
 pub(crate) fn apply(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
@@ -34,13 +32,19 @@ pub(crate) fn apply(
     buffer.unsafe_to_concat(None, None);
 
     #[allow(unused)]
-    let (kerx, subtables) = face.aat_tables.kerx.as_ref()?;
+    let (kerx, subtable_caches) = face.aat_tables.kerx.as_ref()?;
+
+    let mut subtable_idx = 0;
 
     let mut seen_cross_stream = false;
     for subtable in kerx.subtables().iter() {
         let Ok(subtable) = subtable else {
             continue;
         };
+
+        let subtable_cache = subtable_caches.get(subtable_idx);
+        let subtable_cache = subtable_cache.as_ref().unwrap();
+        subtable_idx += 1;
 
         // We don't handle variations
         if subtable.is_variable() {
@@ -88,6 +92,7 @@ pub(crate) fn apply(
                 };
                 apply_state_machine_kerning(
                     &subtable,
+                    subtable_cache,
                     format1,
                     &format1.state_table,
                     &mut driver,
@@ -110,6 +115,7 @@ pub(crate) fn apply(
                 };
                 apply_state_machine_kerning(
                     &subtable,
+                    subtable_cache,
                     format4,
                     &format4.state_table,
                     &mut driver,
@@ -266,6 +272,7 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
 
 fn apply_state_machine_kerning<T, E>(
     subtable: &Subtable,
+    subtable_cache: &KerxSubtableCache,
     kind: &T,
     state_table: &aat::ExtendedStateTable<E>,
     driver: &mut dyn StateTableDriver<T, E>,
@@ -279,9 +286,11 @@ fn apply_state_machine_kerning<T, E>(
     buffer.idx = 0;
     loop {
         let class = if buffer.idx < buffer.len {
-            state_table
-                .class(buffer.info[buffer.idx].as_glyph())
-                .unwrap_or(1)
+            get_class(
+                state_table,
+                buffer.cur(0).as_glyph(),
+                &subtable_cache.class_cache,
+            )
         } else {
             u16::from(aat::class::END_OF_TEXT)
         };

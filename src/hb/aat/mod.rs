@@ -8,12 +8,29 @@ pub mod map;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
+use read_fonts::tables::aat::ExtendedStateTable;
+use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
     FontRef, TableProvider,
 };
 
 type ClassCache = MappingCache;
+
+fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
+    machine: &ExtendedStateTable<'_, T>,
+    glyph_id: GlyphId,
+    cache: &ClassCache,
+) -> u16 {
+    if let Some(klass) = cache.get(glyph_id.to_u32()) {
+        return klass as u16;
+    }
+    let klass = machine
+        .class(glyph_id)
+        .unwrap_or(read_fonts::tables::aat::class::OUT_OF_BOUNDS as u16);
+    cache.set(glyph_id.to_u32(), klass as u32);
+    klass
+}
 
 #[derive(Default)]
 pub struct AatCache {
@@ -43,7 +60,14 @@ impl AatCache {
             }
         }
         if let Ok(kerx) = font.kerx() {
-            // TODO: fill cache.kerx
+            for subtable in kerx.subtables().iter() {
+                let Ok(subtable) = subtable else {
+                    continue;
+                };
+                cache.kerx.push(KerxSubtableCache {
+                    class_cache: ClassCache::new(),
+                });
+            }
         }
         cache
     }
@@ -89,5 +113,5 @@ pub struct MorxSubtableCache {
 }
 
 pub struct KerxSubtableCache {
-    // TODO: and here?
+    class_cache: ClassCache,
 }
