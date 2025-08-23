@@ -482,7 +482,7 @@ impl hb_buffer_t {
     #[inline]
     pub fn allocate_var(&mut self, shape: buffer_var_shape) {
         let bits = shape.bits();
-        assert_eq!(
+        debug_assert_eq!(
             self.allocated_var_bits & bits,
             0,
             "Variable already allocated"
@@ -503,7 +503,7 @@ impl hb_buffer_t {
     #[inline]
     pub fn deallocate_var(&mut self, shape: buffer_var_shape) {
         let bits = shape.bits();
-        assert_eq!(
+        debug_assert_eq!(
             self.allocated_var_bits & bits,
             bits,
             "Deallocating unallocated var"
@@ -514,7 +514,7 @@ impl hb_buffer_t {
     #[inline]
     pub fn assert_var(&self, shape: buffer_var_shape) {
         let bits = shape.bits();
-        assert_eq!(
+        debug_assert_eq!(
             self.allocated_var_bits & bits,
             bits,
             "Variable not allocated"
