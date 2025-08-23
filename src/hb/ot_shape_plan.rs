@@ -55,7 +55,11 @@ impl hb_ot_shape_plan_t {
         language: Option<&Language>,
         user_features: &[Feature],
     ) -> Self {
-        assert_ne!(direction, Direction::Invalid);
+        assert_ne!(
+            direction,
+            Direction::Invalid,
+            "Direction must not be Invalid"
+        );
         let mut planner = hb_ot_shape_planner_t::new(face, direction, script, language);
         planner.collect_features(user_features);
         planner.compile(user_features)
