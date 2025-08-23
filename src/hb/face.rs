@@ -295,8 +295,15 @@ impl<'a> crate::Shaper<'a> {
         let mut buffer = buffer.0;
         buffer.enter();
 
-        assert_eq!(buffer.direction, plan.direction);
         assert_eq!(
+            buffer.direction, plan.direction,
+            "Buffer direction does not match plan direction: {:?} != {:?}",
+            buffer.direction, plan.direction
+        );
+        assert_eq!(
+            buffer.script.unwrap_or(script::UNKNOWN),
+            plan.script.unwrap_or(script::UNKNOWN),
+            "Buffer script does not match plan script: {:?} != {:?}",
             buffer.script.unwrap_or(script::UNKNOWN),
             plan.script.unwrap_or(script::UNKNOWN)
         );
