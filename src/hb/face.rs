@@ -295,8 +295,8 @@ impl<'a> crate::Shaper<'a> {
         let mut buffer = buffer.0;
         buffer.enter();
 
-        debug_assert_eq!(buffer.direction, plan.direction);
-        debug_assert_eq!(
+        assert_eq!(buffer.direction, plan.direction);
+        assert_eq!(
             buffer.script.unwrap_or(script::UNKNOWN),
             plan.script.unwrap_or(script::UNKNOWN)
         );
