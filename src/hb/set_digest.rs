@@ -25,12 +25,6 @@ impl hb_set_digest_t {
         Self { masks: [0; N] }
     }
 
-    pub fn from_coverage(coverage: &CoverageTable) -> Self {
-        let mut digest = Self::new();
-        digest.add_coverage(coverage);
-        digest
-    }
-
     pub fn _clear(&mut self) {
         self.masks = [0; N];
     }
