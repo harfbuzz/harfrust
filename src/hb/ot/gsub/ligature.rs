@@ -214,11 +214,11 @@ fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
                 .iter()
                 .filter_map(Result::ok)
                 .for_each(|lig| {
-                    seconds.add(if let Some(gid) = lig.component_glyph_ids().first() {
-                        gid.get().into()
+                    if let Some(gid) = lig.component_glyph_ids().first() {
+                        seconds.add(gid.get().into());
                     } else {
-                        GlyphId::new(0)
-                    });
+                        seconds = hb_set_digest_t::full();
+                    };
                 });
         });
     seconds
