@@ -5,13 +5,22 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
+use crate::hb::aat::layout_kerx_table::SimpleKerning;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
+use read_fonts::collections::int_set::U32Set;
 use read_fonts::tables::aat::ExtendedStateTable;
 use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::{
-    tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
+    tables::{
+        ankr::Ankr,
+        feat::Feat,
+        kern::Kern,
+        kerx::{Kerx, SubtableKind},
+        morx::Morx,
+        trak::Trak,
+    },
     FontRef, TableProvider,
 };
 
@@ -64,7 +73,25 @@ impl AatCache {
                 let Ok(subtable) = subtable else {
                     continue;
                 };
+                let mut left_set = U32Set::default();
+                let mut right_set = U32Set::default();
+                if let Ok(kind) = subtable.kind() {
+                    match &kind {
+                        SubtableKind::Format0(format0) => {
+                            format0.collect_glyphs(&mut left_set, &mut right_set);
+                        }
+                        SubtableKind::Format2(format2) => {
+                            format2.collect_glyphs(&mut left_set, &mut right_set);
+                        }
+                        SubtableKind::Format6(format6) => {
+                            format6.collect_glyphs(&mut left_set, &mut right_set);
+                        }
+                        _ => {}
+                    }
+                };
                 cache.kerx.push(KerxSubtableCache {
+                    left_set: left_set,
+                    right_set: right_set,
                     class_cache: ClassCache::new(),
                 });
             }
@@ -113,5 +140,7 @@ pub struct MorxSubtableCache {
 }
 
 pub struct KerxSubtableCache {
+    left_set: U32Set,
+    right_set: U32Set,
     class_cache: ClassCache,
 }

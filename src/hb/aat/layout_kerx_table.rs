@@ -1,5 +1,5 @@
 use super::get_class;
-use crate::hb::aat::layout_common::AatApplyContext;
+use crate::hb::aat::layout_common::{AatApplyContext, TypedCollectIndices};
 use crate::hb::{
     buffer::*,
     ot_layout::TableIndex,
@@ -9,6 +9,7 @@ use crate::hb::{
     ot_shape_plan::hb_ot_shape_plan_t,
 };
 use core::convert::TryFrom;
+use read_fonts::collections::int_set::U32Set;
 use read_fonts::{
     tables::{
         aat,
@@ -20,9 +21,6 @@ use read_fonts::{
     },
     types::{BigEndian, FixedSize, GlyphId},
 };
-
-// TODO: Use set_t, similarly to how it's used in harfbuzz.
-// HarfBuzz commit 9a4601b06b50cb0197c02203b6b19467ad4b4da8
 
 pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
@@ -42,6 +40,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         let subtable_cache = subtable_cache.as_ref().unwrap();
         subtable_idx += 1;
 
+        c.left_set = Some(&subtable_cache.left_set);
+        c.right_set = Some(&subtable_cache.right_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
 
         // We don't handle variations
@@ -139,11 +139,20 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
 pub trait SimpleKerning {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32>;
+    fn collect_glyphs(&self, _left_set: &mut U32Set, _right_set: &mut U32Set) {
+        // TODO: Remove me
+    }
 }
 
 impl SimpleKerning for Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
+    }
+    fn collect_glyphs(&self, left_set: &mut U32Set, right_set: &mut U32Set) {
+        for &pair in self.pairs() {
+            left_set.insert(pair.left.get().to_u32());
+            right_set.insert(pair.right.get().to_u32());
+        }
     }
 }
 
@@ -151,12 +160,20 @@ impl SimpleKerning for Subtable2<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
+    fn collect_glyphs(&self, left_set: &mut U32Set, right_set: &mut U32Set) {
+        let left_classes = &self.left_offset_table;
+        let right_classes = &self.right_offset_table;
+
+        left_classes.collect_indices(left_set);
+        right_classes.collect_indices(right_set);
+    }
 }
 
 impl SimpleKerning for Subtable6<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
+    fn collect_glyphs(&self, left_set: &mut U32Set, right_set: &mut U32Set) {}
 }
 
 fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
@@ -167,6 +184,9 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
 
     let horizontal = ctx.buffer.direction.is_horizontal();
     let cross_stream = subtable.is_cross_stream();
+
+    let left_set = c.left_set.as_ref().unwrap();
+    let right_set = c.right_set.as_ref().unwrap();
 
     let mut i = 0;
     while i < ctx.buffer.len {
@@ -190,7 +210,11 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
         let info = &ctx.buffer.info;
         let a = info[i].as_glyph();
         let b = info[j].as_glyph();
-        let kern = kind.simple_kerning(a, b).unwrap_or(0);
+        let kern = if !left_set.contains(a.to_u32()) || !right_set.contains(b.to_u32()) {
+            0
+        } else {
+            kind.simple_kerning(a, b).unwrap_or(0)
+        };
 
         let pos = &mut ctx.buffer.pos;
         if kern != 0 {
