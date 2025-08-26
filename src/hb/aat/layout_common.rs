@@ -24,6 +24,8 @@ pub struct AatApplyContext<'a> {
     pub subtable_flags: hb_mask_t,
     pub has_glyph_classes: bool,
     // Caches
+    using_buffer_glyph_set: bool,
+    pub(crate) buffer_glyph_set: Option<&'a mut U32Set>,
     pub(crate) first_set: Option<&'a U32Set>,
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
@@ -42,13 +44,49 @@ impl<'a> AatApplyContext<'a> {
             range_flags: None,
             subtable_flags: 0,
             has_glyph_classes: face.ot_tables.has_glyph_classes(),
+            using_buffer_glyph_set: false,
+            buffer_glyph_set: None,
             first_set: None,
             second_set: None,
             machine_class_cache: None,
         }
     }
 
+    pub(crate) fn setup_buffer_glyph_set(&mut self) {
+        self.using_buffer_glyph_set = self.buffer.len < 4 && self.buffer_glyph_set.is_some();
+
+        if self.using_buffer_glyph_set {
+            self.buffer
+                .glyph_set(self.buffer_glyph_set.as_mut().unwrap());
+        }
+    }
+
+    pub(crate) fn buffer_intersects_machine(&self) -> bool {
+        if let Some(first_set) = &self.first_set {
+            /*
+            if self.using_buffer_glyph_set {
+                return self
+                    .buffer_glyph_set
+                    .as_ref()
+                    .unwrap()
+                    .intersects(first_set);
+            }
+            */
+            for info in &self.buffer.info {
+                if first_set.contains(info.glyph_id) {
+                    return true;
+                }
+            }
+            false
+        } else {
+            true
+        }
+    }
+
     pub fn output_glyph(&mut self, glyph: u32) {
+        if self.using_buffer_glyph_set {
+            self.buffer_glyph_set.as_mut().unwrap().insert(glyph);
+        }
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
             self.buffer.cur_mut(0).set_aat_deleted();
@@ -68,6 +106,9 @@ impl<'a> AatApplyContext<'a> {
             self.buffer.cur_mut(0).set_aat_deleted();
         }
 
+        if self.using_buffer_glyph_set {
+            self.buffer_glyph_set.as_mut().unwrap().insert(glyph);
+        }
         if self.has_glyph_classes {
             self.buffer
                 .cur_mut(0)
@@ -84,21 +125,11 @@ impl<'a> AatApplyContext<'a> {
 
     pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
         self.buffer.info[i].glyph_id = glyph;
+        if self.using_buffer_glyph_set {
+            self.buffer_glyph_set.as_mut().unwrap().insert(glyph);
+        }
         if self.has_glyph_classes {
             self.buffer.info[i].set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
-        }
-    }
-
-    pub(crate) fn buffer_intersects_machine(&self) -> bool {
-        if let Some(first_set) = &self.first_set {
-            for info in &self.buffer.info {
-                if first_set.contains(info.glyph_id) {
-                    return true;
-                }
-            }
-            false
-        } else {
-            true
         }
     }
 }
@@ -150,6 +181,31 @@ pub trait CollectGlyphs {
 }
 
 impl<'a> CollectGlyphs for Lookup<'a> {
+    fn collect_glyphs<T>(&self, set: &mut U32Set, num_glyphs: u32)
+    where
+        T: LookupValue,
+    {
+        match self {
+            Lookup::Format0(lookup) => {
+                lookup.collect_glyphs::<T>(set, num_glyphs)
+            }
+            Lookup::Format2(lookup) => {
+                lookup.collect_glyphs::<T>(set, num_glyphs)
+            }
+            Lookup::Format4(lookup) => {
+                lookup.collect_glyphs::<T>(set, num_glyphs)
+            }
+            Lookup::Format6(lookup) => {
+                lookup.collect_glyphs::<T>(set, num_glyphs)
+            }
+            Lookup::Format8(lookup) => {
+                lookup.collect_glyphs::<T>(set, num_glyphs)
+            }
+            Lookup::Format10(lookup) => {
+                lookup.collect_glyphs::<T>(set, num_glyphs)
+            }
+        }
+    }
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
     where
         T: LookupValue,
@@ -238,15 +294,14 @@ impl<'a> CollectGlyphs for Lookup4<'a> {
         F: Fn(T) -> bool,
     {
         for (segment_idx, segment) in self.segments().iter().enumerate() {
+            if segment.first_glyph.get() as u32 == DELETED_GLYPH {
+                continue;
+            }
             let segment_values = self.segment_values(segment_idx);
             if let Ok(segment_values) = segment_values {
                 for (i, value) in segment_values.iter().enumerate() {
                     if filter(value.get()) {
-                        if segment.first_glyph.get() as u32 == DELETED_GLYPH {
-                            continue;
-                        }
                         set.insert(segment.first_glyph.get() as u32 + i as u32);
-                        break;
                     }
                 }
             }

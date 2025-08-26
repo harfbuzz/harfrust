@@ -1,7 +1,7 @@
 use super::get_class;
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
-use crate::hb::aat::layout_common::{AatApplyContext, START_OF_TEXT};
+use crate::hb::aat::layout_common::{AatApplyContext, TypedCollectGlyphs, START_OF_TEXT};
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
 use alloc::vec;
@@ -77,6 +77,8 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
 pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
+    c.setup_buffer_glyph_set();
+
     let (morx, subtable_caches) = c.face.aat_tables.morx.as_ref()?;
 
     let chains = morx.chains();
@@ -116,6 +118,10 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
             c.subtable_flags = subtable.sub_feature_flags();
             c.first_set = Some(&subtable_cache.glyph_set);
             c.machine_class_cache = Some(&subtable_cache.class_cache);
+
+            if !c.buffer_intersects_machine() {
+                continue;
+            }
 
             // Buffer contents is always in logical direction.  Determine if
             // we need to reverse before applying this subtable.  We reverse
@@ -169,21 +175,20 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
 
 pub(crate) fn collect_initial_glyphs<T>(
     machine: &ExtendedStateTable<T>,
+    c: &mut dyn DriverContext<T>,
     glyphs: &mut U32Set,
     num_glyphs: u32,
 ) where
     T: FixedSize + bytemuck::AnyBitPattern,
-    //aat::StateEntry<T>: KerxStateEntryExt,
 {
-    /*
     let mut classes = U32Set::default();
 
     let class_table = &machine.class_table;
     for i in 0..machine.n_classes {
         if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
             if entry.new_state == START_OF_TEXT
-                && !entry.is_action_initiable()
-                && !entry.is_actionable()
+                && !c.is_action_initiable(&entry)
+                && !c.is_actionable(&entry)
             {
                 continue;
             }
@@ -200,12 +205,12 @@ pub(crate) fn collect_initial_glyphs<T>(
     }
 
     class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
-    */
 }
 
-trait DriverContext<T> {
+pub(crate) trait DriverContext<T> {
     fn in_place(&self) -> bool;
     fn can_advance(&self, entry: &StateEntry<T>) -> bool;
+    fn is_action_initiable(&self, entry: &StateEntry<T>) -> bool;
     fn is_actionable(&self, entry: &StateEntry<T>) -> bool;
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
@@ -446,9 +451,9 @@ fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     }
 }
 
-struct RearrangementCtx {
-    start: usize,
-    end: usize,
+pub(crate) struct RearrangementCtx {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
 }
 
 impl RearrangementCtx {
@@ -467,8 +472,12 @@ impl DriverContext<NoPayload> for RearrangementCtx {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
+    fn is_action_initiable(&self, entry: &StateEntry) -> bool {
+        entry.flags & Self::MARK_FIRST != 0
+    }
+
     fn is_actionable(&self, entry: &StateEntry) -> bool {
-        entry.flags & Self::VERB != 0 && self.start < self.end
+        entry.flags & Self::VERB != 0
     }
 
     fn transition(&mut self, entry: &StateEntry, ac: &mut AatApplyContext) -> Option<()> {
@@ -559,10 +568,10 @@ impl DriverContext<NoPayload> for RearrangementCtx {
     }
 }
 
-struct ContextualCtx<'a> {
-    mark_set: bool,
-    mark: usize,
-    table: ContextualSubtable<'a>,
+pub(crate) struct ContextualCtx<'a> {
+    pub(crate) mark_set: bool,
+    pub(crate) mark: usize,
+    pub(crate) table: ContextualSubtable<'a>,
 }
 
 impl ContextualCtx<'_> {
@@ -577,6 +586,10 @@ impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
 
     fn can_advance(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
+    }
+
+    fn is_action_initiable(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
+        entry.flags & Self::SET_MARK != 0
     }
 
     fn is_actionable(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
@@ -641,9 +654,9 @@ impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
     }
 }
 
-struct InsertionCtx<'a> {
-    mark: u32,
-    glyphs: &'a [BigEndian<GlyphId16>],
+pub(crate) struct InsertionCtx<'a> {
+    pub(crate) mark: u32,
+    pub(crate) glyphs: &'a [BigEndian<GlyphId16>],
 }
 
 impl InsertionCtx<'_> {
@@ -662,6 +675,10 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
 
     fn can_advance(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
+    }
+
+    fn is_action_initiable(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
+        entry.flags & Self::SET_MARK != 0
     }
 
     fn is_actionable(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
@@ -773,12 +790,12 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
     }
 }
 
-const LIGATURE_MAX_MATCHES: usize = 64;
+pub(crate) const LIGATURE_MAX_MATCHES: usize = 64;
 
-struct LigatureCtx<'a> {
-    table: LigatureSubtable<'a>,
-    match_length: usize,
-    match_positions: [usize; LIGATURE_MAX_MATCHES],
+pub(crate) struct LigatureCtx<'a> {
+    pub(crate) table: LigatureSubtable<'a>,
+    pub(crate) match_length: usize,
+    pub(crate) match_positions: [usize; LIGATURE_MAX_MATCHES],
 }
 
 impl LigatureCtx<'_> {
@@ -798,6 +815,10 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
 
     fn can_advance(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
+    }
+
+    fn is_action_initiable(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
+        entry.flags & Self::SET_COMPONENT != 0
     }
 
     fn is_actionable(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {

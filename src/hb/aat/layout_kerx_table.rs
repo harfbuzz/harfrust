@@ -26,7 +26,8 @@ use read_fonts::{
 pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
-    #[allow(unused)]
+    c.setup_buffer_glyph_set();
+
     let (kerx, subtable_caches) = c.face.aat_tables.kerx.as_ref()?;
 
     let mut subtable_idx = 0;

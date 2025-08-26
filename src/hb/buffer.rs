@@ -1,6 +1,7 @@
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 use core::convert::TryFrom;
+use read_fonts::collections::U32Set;
 use read_fonts::types::{GlyphId, GlyphId16};
 
 use super::buffer::glyph_flag::{SAFE_TO_INSERT_TATWEEL, UNSAFE_TO_BREAK, UNSAFE_TO_CONCAT};
@@ -582,6 +583,9 @@ impl hb_buffer_t {
         let mut digest = hb_set_digest_t::new();
         digest.add_array(self.info.iter().map(|i| GlyphId::new(i.glyph_id)));
         digest
+    }
+    pub fn glyph_set(&self, set: &mut U32Set) {
+        set.extend_unsorted(self.info.iter().map(|i| i.glyph_id));
     }
 
     fn clear(&mut self) {

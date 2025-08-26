@@ -5,9 +5,13 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
+use crate::hb::aat::layout_common::TypedCollectGlyphs;
 use crate::hb::aat::layout_kerx_table::collect_initial_glyphs as kerx_collect_initial_glyphs;
 use crate::hb::aat::layout_kerx_table::SimpleKerning;
 use crate::hb::aat::layout_morx_table::collect_initial_glyphs as morx_collect_initial_glyphs;
+use crate::hb::aat::layout_morx_table::{
+    ContextualCtx, InsertionCtx, LigatureCtx, RearrangementCtx, LIGATURE_MAX_MATCHES,
+};
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
@@ -70,10 +74,56 @@ impl AatCache {
                     let mut glyph_set = U32Set::default();
                     if let Ok(kind) = subtable.kind() {
                         match &kind {
-                            MorxSubtableKind::Rearrangement(s) => {
-                                morx_collect_initial_glyphs(s, &mut glyph_set, num_glyphs);
+                            MorxSubtableKind::Rearrangement(table) => {
+                                let mut c = RearrangementCtx { start: 0, end: 0 };
+                                morx_collect_initial_glyphs(
+                                    table,
+                                    &mut c,
+                                    &mut glyph_set,
+                                    num_glyphs,
+                                );
                             }
-                            _ => { /* TODO Remove me */ }
+                            MorxSubtableKind::Contextual(table) => {
+                                let mut c = ContextualCtx {
+                                    mark_set: false,
+                                    mark: 0,
+                                    table: table.clone(),
+                                };
+                                morx_collect_initial_glyphs(
+                                    &table.state_table,
+                                    &mut c,
+                                    &mut glyph_set,
+                                    num_glyphs,
+                                );
+                            }
+                            MorxSubtableKind::Ligature(table) => {
+                                let mut c = LigatureCtx {
+                                    table: table.clone(),
+                                    match_length: 0,
+                                    match_positions: [0; LIGATURE_MAX_MATCHES],
+                                };
+                                morx_collect_initial_glyphs(
+                                    &table.state_table,
+                                    &mut c,
+                                    &mut glyph_set,
+                                    num_glyphs,
+                                );
+                            }
+                            MorxSubtableKind::NonContextual(ref lookup) => {
+                                lookup.collect_glyphs(&mut glyph_set, num_glyphs);
+                            }
+                            MorxSubtableKind::Insertion(table) => {
+                                let mut c = InsertionCtx {
+                                    mark: 0,
+                                    glyphs: table.glyphs,
+                                };
+                                morx_collect_initial_glyphs(
+                                    &table.state_table,
+                                    &mut c,
+                                    &mut glyph_set,
+                                    num_glyphs,
+                                );
+                            }
                         }
                     };
                     cache.morx.push(MorxSubtableCache {
