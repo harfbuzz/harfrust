@@ -5,7 +5,7 @@ use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
-use read_fonts::collections::int_set::U32Set;
+use crate::U32Set;
 use read_fonts::tables::aat::*;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;

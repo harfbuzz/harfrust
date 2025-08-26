@@ -4,8 +4,8 @@ use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use crate::hb::aat::layout_common::{AatApplyContext, TypedCollectGlyphs, START_OF_TEXT};
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
+use crate::U32Set;
 use alloc::vec;
-use read_fonts::collections::int_set::U32Set;
 use read_fonts::tables::aat;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{

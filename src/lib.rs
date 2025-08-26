@@ -12,6 +12,31 @@ extern crate alloc;
 
 mod hb;
 
+#[cfg(feature = "std")]
+pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
+
+pub(crate) struct DummyU32Set;
+
+#[allow(unused)]
+impl DummyU32Set {
+    pub(crate) fn default() -> Self {
+        Self
+    }
+    pub(crate) fn insert(&mut self, _value: u32) {}
+    pub(crate) fn insert_range(&mut self, _range: core::ops::RangeInclusive<u32>) {}
+    pub(crate) fn clear(&mut self) {}
+    pub(crate) fn extend_unsorted<U: IntoIterator<Item = u32>>(&mut self, _iter: U) {}
+    pub(crate) fn contains(&self, _value: u32) -> bool {
+        true
+    }
+    pub(crate) fn intersects_set(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+#[cfg(not(feature = "std"))]
+pub(crate) type U32Set = DummyU32Set;
+
 pub use read_fonts::{types::Tag, FontRef};
 
 pub use hb::buffer::{GlyphBuffer, GlyphInfo, GlyphPosition, UnicodeBuffer};

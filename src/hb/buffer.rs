@@ -1,7 +1,7 @@
+use crate::U32Set;
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 use core::convert::TryFrom;
-use read_fonts::collections::U32Set;
 use read_fonts::types::{GlyphId, GlyphId16};
 
 use super::buffer::glyph_flag::{SAFE_TO_INSERT_TATWEEL, UNSAFE_TO_BREAK, UNSAFE_TO_CONCAT};

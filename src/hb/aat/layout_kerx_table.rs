@@ -9,8 +9,8 @@ use crate::hb::{
     ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t},
     ot_shape_plan::hb_ot_shape_plan_t,
 };
+use crate::U32Set;
 use core::convert::TryFrom;
-use read_fonts::collections::int_set::U32Set;
 use read_fonts::{
     tables::{
         aat,

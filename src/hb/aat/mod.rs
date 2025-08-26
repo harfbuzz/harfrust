@@ -14,8 +14,8 @@ use crate::hb::aat::layout_morx_table::{
 };
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableOffsets;
+use crate::U32Set;
 use alloc::vec::Vec;
-use read_fonts::collections::int_set::U32Set;
 use read_fonts::tables::aat::ExtendedStateTable;
 use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::{
