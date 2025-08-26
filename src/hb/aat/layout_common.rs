@@ -61,7 +61,7 @@ impl<'a> AatApplyContext<'a> {
     pub(crate) fn buffer_intersects_machine(&self) -> bool {
         if let Some(first_set) = &self.first_set {
             if self.using_buffer_glyph_set {
-                return self.buffer.glyph_set.intersects(first_set);
+                return self.buffer.glyph_set.intersects_set(first_set);
             }
             for info in &self.buffer.info {
                 if first_set.contains(info.glyph_id) {
