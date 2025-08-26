@@ -109,7 +109,7 @@ impl ApplyLigatureSet for LigatureSet<'_> {
             }
         } else {
             // Fast path
-            if !seconds.may_have_glyph(second) {
+            if !seconds.may_have(second.into()) {
                 return None;
             }
             let mut unsafe_to_concat = false;

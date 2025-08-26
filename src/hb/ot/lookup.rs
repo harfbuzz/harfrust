@@ -247,9 +247,9 @@ impl LookupInfo {
         table_data: &[u8],
         use_hot_subtable_cache: bool,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0).glyph_id;
         for (subtable_idx, subtable_info) in self.subtables.iter().enumerate() {
-            if !subtable_info.digest.may_have_glyph(glyph) {
+            if !subtable_info.digest.may_have(glyph) {
                 continue;
             }
             let is_cached =
@@ -296,7 +296,7 @@ impl LookupInfo {
 impl LookupInfo {
     pub fn would_apply(&self, face: &hb_font_t, ctx: &WouldApplyContext) -> Option<bool> {
         let glyph = ctx.glyphs[0];
-        if !self.digest.may_have_glyph(glyph) {
+        if !self.digest.may_have(glyph.into()) {
             return Some(false);
         }
         let table_index = if self.is_subst {
@@ -306,7 +306,7 @@ impl LookupInfo {
         };
         let table_data = face.ot_tables.table_data(table_index)?;
         for subtable_info in &self.subtables {
-            if !subtable_info.digest.may_have_glyph(glyph) {
+            if !subtable_info.digest.may_have(glyph.into()) {
                 continue;
             }
             let Some(data) = table_data.get(subtable_info.offset as usize..) else {

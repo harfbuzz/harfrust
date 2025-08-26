@@ -584,7 +584,7 @@ impl hb_buffer_t {
 
     pub fn digest(&self) -> hb_set_digest_t {
         let mut digest = hb_set_digest_t::new();
-        digest.add_array(self.info.iter().map(|i| GlyphId::new(i.glyph_id)));
+        digest.add_array(self.info.iter().map(|i| i.glyph_id));
         digest
     }
     pub fn update_glyph_set(&mut self) {
