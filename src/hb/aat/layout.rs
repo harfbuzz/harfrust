@@ -505,19 +505,24 @@ pub fn substitute(
     buffer: &mut hb_buffer_t,
     features: &[Feature],
 ) {
-    let mut builder = map::AatMapBuilder::default();
-
-    for feature in features {
-        builder.add_feature(face, feature);
-    }
-
     let mut aat_map = map::AatMap::default();
-    if plan.apply_morx {
+    if !features.is_empty() {
+        let mut builder = map::AatMapBuilder::default();
+        for feature in features {
+            builder.add_feature(face, feature);
+        }
         builder.compile(face, &mut aat_map);
     }
 
     let mut c = AatApplyContext::new(plan, face, buffer);
-    layout_morx_table::apply(&mut c, &mut aat_map);
+    layout_morx_table::apply(
+        &mut c,
+        if features.is_empty() {
+            &plan.aat_map
+        } else {
+            &aat_map
+        },
+    );
 }
 
 pub fn zero_width_deleted_glyphs(buffer: &mut hb_buffer_t) {

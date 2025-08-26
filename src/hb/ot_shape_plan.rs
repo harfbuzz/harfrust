@@ -6,6 +6,7 @@ use crate::hb::common::HB_FEATURE_GLOBAL_END;
 use crate::hb::common::HB_FEATURE_GLOBAL_START;
 use crate::ShaperInstance;
 
+use super::aat::map::*;
 use super::ot_map::*;
 use super::ot_shape::*;
 use super::ot_shaper::*;
@@ -18,6 +19,7 @@ pub struct hb_ot_shape_plan_t {
     pub(crate) language: Option<Language>,
     pub(crate) shaper: &'static hb_ot_shaper_t,
     pub(crate) ot_map: hb_ot_map_t,
+    pub(crate) aat_map: AatMap,
     pub(crate) data: Option<Box<dyn Any + Send + Sync>>,
 
     pub(crate) frac_mask: hb_mask_t,

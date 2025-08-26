@@ -1,3 +1,4 @@
+use super::aat::map::*;
 use super::buffer::*;
 use super::ot_layout::*;
 use super::ot_layout_gpos_table::GPOS;
@@ -28,6 +29,7 @@ pub struct hb_ot_shape_planner_t<'a> {
     pub script: Option<Script>,
     pub language: Option<Language>,
     pub ot_map: hb_ot_map_builder_t<'a>,
+    pub aat_map: AatMapBuilder,
     pub apply_morx: bool,
     pub script_zero_marks: bool,
     pub script_fallback_mark_positioning: bool,
@@ -42,6 +44,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         language: Option<&Language>,
     ) -> Self {
         let ot_map = hb_ot_map_builder_t::new(face, script, language);
+        let aat_map = AatMapBuilder::default();
 
         let mut shaper = match script {
             Some(script) => hb_ot_shape_complex_categorize(
@@ -70,6 +73,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             script,
             language: language.cloned(),
             ot_map,
+            aat_map,
             apply_morx,
             script_zero_marks,
             script_fallback_mark_positioning,
@@ -180,6 +184,10 @@ impl<'a> hb_ot_shape_planner_t<'a> {
 
     pub fn compile(mut self, features: &[Feature]) -> hb_ot_shape_plan_t {
         let ot_map = self.ot_map.compile();
+        let mut aat_map = AatMap::default();
+        if self.apply_morx {
+            self.aat_map.compile(self.face, &mut aat_map);
+        }
 
         let frac_mask = ot_map.get_1_mask(hb_tag_t::new(b"frac"));
         let numr_mask = ot_map.get_1_mask(hb_tag_t::new(b"numr"));
@@ -273,6 +281,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             language: self.language,
             shaper: self.shaper,
             ot_map,
+            aat_map,
             data: None,
             frac_mask,
             numr_mask,
