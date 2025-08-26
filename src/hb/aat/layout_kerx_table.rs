@@ -338,12 +338,12 @@ fn collect_initial_glyphs<T>(
     class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
 }
 
-fn apply_state_machine_kerning<T, E>(
+fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
     c: &mut AatApplyContext,
     subtable: &Subtable,
     kind: &T,
     state_table: &aat::ExtendedStateTable<E>,
-    driver: &mut dyn StateTableDriver<T, E>,
+    driver: &mut Driver,
 ) where
     E: FixedSize + bytemuck::AnyBitPattern,
     aat::StateEntry<E>: KerxStateEntryExt,
