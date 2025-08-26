@@ -177,24 +177,12 @@ impl<'a> CollectGlyphs for Lookup<'a> {
         T: LookupValue,
     {
         match self {
-            Lookup::Format0(lookup) => {
-                lookup.collect_glyphs::<T>(set, num_glyphs)
-            }
-            Lookup::Format2(lookup) => {
-                lookup.collect_glyphs::<T>(set, num_glyphs)
-            }
-            Lookup::Format4(lookup) => {
-                lookup.collect_glyphs::<T>(set, num_glyphs)
-            }
-            Lookup::Format6(lookup) => {
-                lookup.collect_glyphs::<T>(set, num_glyphs)
-            }
-            Lookup::Format8(lookup) => {
-                lookup.collect_glyphs::<T>(set, num_glyphs)
-            }
-            Lookup::Format10(lookup) => {
-                lookup.collect_glyphs::<T>(set, num_glyphs)
-            }
+            Lookup::Format0(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
+            Lookup::Format2(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
+            Lookup::Format4(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
+            Lookup::Format6(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
+            Lookup::Format8(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
+            Lookup::Format10(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
         }
     }
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
