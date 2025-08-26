@@ -438,6 +438,8 @@ pub struct hb_buffer_t {
     pub max_len: usize,
     /// Maximum allowed operations.
     pub max_ops: i32,
+
+    pub(crate) glyph_set: U32Set,
 }
 
 impl hb_buffer_t {
@@ -477,6 +479,7 @@ impl hb_buffer_t {
             serial: 0,
             context: Default::default(),
             context_len: [0, 0],
+            glyph_set: U32Set::default(),
         }
     }
 
@@ -584,8 +587,10 @@ impl hb_buffer_t {
         digest.add_array(self.info.iter().map(|i| GlyphId::new(i.glyph_id)));
         digest
     }
-    pub fn glyph_set(&self, set: &mut U32Set) {
-        set.extend_unsorted(self.info.iter().map(|i| i.glyph_id));
+    pub fn update_glyph_set(&mut self) {
+        self.glyph_set.clear();
+        self.glyph_set
+            .extend_unsorted(self.info.iter().map(|i| i.glyph_id));
     }
 
     fn clear(&mut self) {

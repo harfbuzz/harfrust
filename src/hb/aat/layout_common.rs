@@ -25,7 +25,6 @@ pub struct AatApplyContext<'a> {
     pub has_glyph_classes: bool,
     // Caches
     using_buffer_glyph_set: bool,
-    pub(crate) buffer_glyph_set: Option<&'a mut U32Set>,
     pub(crate) first_set: Option<&'a U32Set>,
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
@@ -45,7 +44,6 @@ impl<'a> AatApplyContext<'a> {
             subtable_flags: 0,
             has_glyph_classes: face.ot_tables.has_glyph_classes(),
             using_buffer_glyph_set: false,
-            buffer_glyph_set: None,
             first_set: None,
             second_set: None,
             machine_class_cache: None,
@@ -53,25 +51,18 @@ impl<'a> AatApplyContext<'a> {
     }
 
     pub(crate) fn setup_buffer_glyph_set(&mut self) {
-        self.using_buffer_glyph_set = self.buffer.len < 4 && self.buffer_glyph_set.is_some();
+        self.using_buffer_glyph_set = self.buffer.len >= 4;
 
         if self.using_buffer_glyph_set {
-            self.buffer
-                .glyph_set(self.buffer_glyph_set.as_mut().unwrap());
+            self.buffer.update_glyph_set();
         }
     }
 
     pub(crate) fn buffer_intersects_machine(&self) -> bool {
         if let Some(first_set) = &self.first_set {
-            /*
             if self.using_buffer_glyph_set {
-                return self
-                    .buffer_glyph_set
-                    .as_ref()
-                    .unwrap()
-                    .intersects(first_set);
+                return self.buffer.glyph_set.intersects(first_set);
             }
-            */
             for info in &self.buffer.info {
                 if first_set.contains(info.glyph_id) {
                     return true;
@@ -85,7 +76,7 @@ impl<'a> AatApplyContext<'a> {
 
     pub fn output_glyph(&mut self, glyph: u32) {
         if self.using_buffer_glyph_set {
-            self.buffer_glyph_set.as_mut().unwrap().insert(glyph);
+            self.buffer.glyph_set.insert(glyph);
         }
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
@@ -107,7 +98,7 @@ impl<'a> AatApplyContext<'a> {
         }
 
         if self.using_buffer_glyph_set {
-            self.buffer_glyph_set.as_mut().unwrap().insert(glyph);
+            self.buffer.glyph_set.insert(glyph);
         }
         if self.has_glyph_classes {
             self.buffer
@@ -126,7 +117,7 @@ impl<'a> AatApplyContext<'a> {
     pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
         self.buffer.info[i].glyph_id = glyph;
         if self.using_buffer_glyph_set {
-            self.buffer_glyph_set.as_mut().unwrap().insert(glyph);
+            self.buffer.glyph_set.insert(glyph);
         }
         if self.has_glyph_classes {
             self.buffer.info[i].set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
