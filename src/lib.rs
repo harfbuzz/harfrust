@@ -15,7 +15,9 @@ mod hb;
 #[cfg(feature = "std")]
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 #[cfg(not(feature = "std"))]
-pub(crate) type U32Set = crate::dummy_u32_set::DummyU32Set;
+mod digest_u32_set;
+#[cfg(not(feature = "std"))]
+pub(crate) type U32Set = digest_u32_set::DigestU32Set;
 
 pub use read_fonts::{types::Tag, FontRef};
 

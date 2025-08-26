@@ -63,7 +63,7 @@ mod ot_shaper_use_machine;
 #[rustfmt::skip]
 mod ot_shaper_use_table;
 mod ot_shaper_vowel_constraints;
-mod set_digest;
+pub(crate) mod set_digest;
 mod tables;
 mod tag;
 mod tag_table;

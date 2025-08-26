@@ -31,7 +31,8 @@ impl hb_set_digest_t {
         digest
     }
 
-    pub fn _clear(&mut self) {
+    #[allow(dead_code)]
+    pub fn clear(&mut self) {
         self.masks = [0; N];
     }
 
