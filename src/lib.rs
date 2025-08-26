@@ -15,9 +15,10 @@ mod hb;
 #[cfg(feature = "std")]
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 
+#[cfg(not(feature = "std"))]
 pub(crate) struct DummyU32Set;
 
-#[allow(unused)]
+#[cfg(not(feature = "std"))]
 impl DummyU32Set {
     pub(crate) fn default() -> Self {
         Self

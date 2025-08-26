@@ -156,7 +156,7 @@ pub trait TypedCollectGlyphs<T: LookupValue> {
         F: Fn(T) -> bool;
 }
 
-impl<'a, T> TypedCollectGlyphs<T> for TypedLookup<'a, T>
+impl<T> TypedCollectGlyphs<T> for TypedLookup<'_, T>
 where
     T: LookupValue,
 {
@@ -189,7 +189,7 @@ pub trait CollectGlyphs {
         F: Fn(T) -> bool;
 }
 
-impl<'a> CollectGlyphs for Lookup<'a> {
+impl CollectGlyphs for Lookup<'_> {
     fn collect_glyphs<T>(&self, set: &mut U32Set, num_glyphs: u32)
     where
         T: LookupValue,
@@ -210,28 +210,28 @@ impl<'a> CollectGlyphs for Lookup<'a> {
     {
         match self {
             Lookup::Format0(lookup) => {
-                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter)
+                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter);
             }
             Lookup::Format2(lookup) => {
-                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter)
+                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter);
             }
             Lookup::Format4(lookup) => {
-                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter)
+                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter);
             }
             Lookup::Format6(lookup) => {
-                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter)
+                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter);
             }
             Lookup::Format8(lookup) => {
-                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter)
+                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter);
             }
             Lookup::Format10(lookup) => {
-                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter)
+                lookup.collect_glyphs_filtered::<T, F>(set, num_glyphs, filter);
             }
         }
     }
 }
 
-impl<'a> CollectGlyphs for Lookup0<'a> {
+impl CollectGlyphs for Lookup0<'_> {
     fn collect_glyphs<T>(&self, set: &mut U32Set, num_glyphs: u32)
     where
         T: LookupValue,
@@ -252,7 +252,7 @@ impl<'a> CollectGlyphs for Lookup0<'a> {
         }
     }
 }
-impl<'a> CollectGlyphs for Lookup2<'a> {
+impl CollectGlyphs for Lookup2<'_> {
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
@@ -273,7 +273,7 @@ impl<'a> CollectGlyphs for Lookup2<'a> {
         }
     }
 }
-impl<'a> CollectGlyphs for Lookup4<'a> {
+impl CollectGlyphs for Lookup4<'_> {
     fn collect_glyphs<T>(&self, set: &mut U32Set, _num_glyphs: u32)
     where
         T: LookupValue,
@@ -305,7 +305,7 @@ impl<'a> CollectGlyphs for Lookup4<'a> {
         }
     }
 }
-impl<'a> CollectGlyphs for Lookup6<'a> {
+impl CollectGlyphs for Lookup6<'_> {
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
@@ -325,7 +325,7 @@ impl<'a> CollectGlyphs for Lookup6<'a> {
         }
     }
 }
-impl<'a> CollectGlyphs for Lookup8<'a> {
+impl CollectGlyphs for Lookup8<'_> {
     fn collect_glyphs<T>(&self, set: &mut U32Set, _num_glyphs: u32)
     where
         T: LookupValue,
@@ -356,7 +356,7 @@ impl<'a> CollectGlyphs for Lookup8<'a> {
         }
     }
 }
-impl<'a> CollectGlyphs for Lookup10<'a> {
+impl CollectGlyphs for Lookup10<'_> {
     fn collect_glyphs<T>(&self, set: &mut U32Set, _num_glyphs: u32)
     where
         T: LookupValue,
