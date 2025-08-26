@@ -173,9 +173,8 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
     Some(())
 }
 
-fn collect_initial_glyphs<T>(
+fn collect_initial_glyphs<T, Ctx: DriverContext<T>>(
     machine: &ExtendedStateTable<T>,
-    c: &mut dyn DriverContext<T>,
     glyphs: &mut U32Set,
     num_glyphs: u32,
 ) where
@@ -187,8 +186,8 @@ fn collect_initial_glyphs<T>(
     for i in 0..machine.n_classes {
         if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
             if entry.new_state == START_OF_TEXT
-                && !c.is_action_initiable(&entry)
-                && !c.is_actionable(&entry)
+                && !Ctx::is_action_initiable(&entry)
+                && !Ctx::is_actionable(&entry)
             {
                 continue;
             }
@@ -208,19 +207,19 @@ fn collect_initial_glyphs<T>(
 }
 
 pub(crate) trait DriverContext<T> {
-    fn in_place(&self) -> bool;
-    fn can_advance(&self, entry: &StateEntry<T>) -> bool;
-    fn is_action_initiable(&self, entry: &StateEntry<T>) -> bool;
-    fn is_actionable(&self, entry: &StateEntry<T>) -> bool;
+    fn in_place() -> bool;
+    fn can_advance(entry: &StateEntry<T>) -> bool;
+    fn is_action_initiable(entry: &StateEntry<T>) -> bool;
+    fn is_actionable(entry: &StateEntry<T>) -> bool;
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
-fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
+fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverContext<T>>(
     machine: &ExtendedStateTable<'_, T>,
-    c: &mut dyn DriverContext<T>,
+    c: &mut Ctx,
     ac: &mut AatApplyContext,
 ) {
-    if !c.in_place() {
+    if !Ctx::in_place() {
         ac.buffer.clear_output();
     }
 
@@ -317,30 +316,30 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
             };
 
             // 2c'
-            if c.is_actionable(&wouldbe_entry) {
+            if Ctx::is_actionable(&wouldbe_entry) {
                 return false;
             }
 
             // 2c"
             next_state == wouldbe_entry.new_state
-                && c.can_advance(&entry) == c.can_advance(&wouldbe_entry)
+                && Ctx::can_advance(&entry) == Ctx::can_advance(&wouldbe_entry)
         };
 
         let is_safe_to_break =
             // 1
-            !c.is_actionable(&entry) &&
+            !Ctx::is_actionable(&entry) &&
 
             // 2
             (
                 state == START_OF_TEXT
-                || (!c.can_advance(&entry) && next_state == START_OF_TEXT)
+                || (!Ctx::can_advance(&entry) && next_state == START_OF_TEXT)
                 || is_safe_to_break_extra()
             ) &&
 
             // 3
             (
                 if let Ok(end_entry) = machine.entry(state, u16::from(aat::class::END_OF_TEXT)) {
-                    !c.is_actionable(&end_entry)
+                    !Ctx::is_actionable(&end_entry)
                 } else {
                     false
                 }
@@ -362,7 +361,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
             break;
         }
 
-        if c.can_advance(&entry) {
+        if Ctx::can_advance(&entry) {
             ac.buffer.next_glyph();
         } else {
             if ac.buffer.max_ops <= 0 {
@@ -372,7 +371,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
         }
     }
 
-    if !c.in_place() {
+    if !Ctx::in_place() {
         ac.buffer.sync();
     }
 }
@@ -464,19 +463,19 @@ impl RearrangementCtx {
 }
 
 impl DriverContext<NoPayload> for RearrangementCtx {
-    fn in_place(&self) -> bool {
+    fn in_place() -> bool {
         true
     }
 
-    fn can_advance(&self, entry: &StateEntry) -> bool {
+    fn can_advance(entry: &StateEntry) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
-    fn is_action_initiable(&self, entry: &StateEntry) -> bool {
+    fn is_action_initiable(entry: &StateEntry) -> bool {
         entry.flags & Self::MARK_FIRST != 0
     }
 
-    fn is_actionable(&self, entry: &StateEntry) -> bool {
+    fn is_actionable(entry: &StateEntry) -> bool {
         entry.flags & Self::VERB != 0
     }
 
@@ -580,19 +579,19 @@ impl ContextualCtx<'_> {
 }
 
 impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
-    fn in_place(&self) -> bool {
+    fn in_place() -> bool {
         true
     }
 
-    fn can_advance(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
+    fn can_advance(entry: &StateEntry<ContextualEntryData>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
-    fn is_action_initiable(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
+    fn is_action_initiable(entry: &StateEntry<ContextualEntryData>) -> bool {
         entry.flags & Self::SET_MARK != 0
     }
 
-    fn is_actionable(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
+    fn is_actionable(entry: &StateEntry<ContextualEntryData>) -> bool {
         entry.payload.mark_index.get() != 0xFFFF || entry.payload.current_index.get() != 0xFFFF
     }
 
@@ -669,19 +668,19 @@ impl InsertionCtx<'_> {
 }
 
 impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
-    fn in_place(&self) -> bool {
+    fn in_place() -> bool {
         false
     }
 
-    fn can_advance(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
+    fn can_advance(entry: &StateEntry<InsertionEntryData>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
-    fn is_action_initiable(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
+    fn is_action_initiable(entry: &StateEntry<InsertionEntryData>) -> bool {
         entry.flags & Self::SET_MARK != 0
     }
 
-    fn is_actionable(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
+    fn is_actionable(entry: &StateEntry<InsertionEntryData>) -> bool {
         (entry.flags & (Self::CURRENT_INSERT_COUNT | Self::MARKED_INSERT_COUNT) != 0)
             && (entry.payload.current_insert_index.get() != 0xFFFF
                 || entry.payload.marked_insert_index.get() != 0xFFFF)
@@ -809,19 +808,19 @@ impl LigatureCtx<'_> {
 }
 
 impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
-    fn in_place(&self) -> bool {
+    fn in_place() -> bool {
         false
     }
 
-    fn can_advance(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
+    fn can_advance(entry: &StateEntry<BigEndian<u16>>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
-    fn is_action_initiable(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
+    fn is_action_initiable(entry: &StateEntry<BigEndian<u16>>) -> bool {
         entry.flags & Self::SET_COMPONENT != 0
     }
 
-    fn is_actionable(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
+    fn is_actionable(entry: &StateEntry<BigEndian<u16>>) -> bool {
         entry.flags & Self::PERFORM_ACTION != 0
     }
 
@@ -954,34 +953,35 @@ impl MorxSubtableCache {
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Rearrangement(table) => {
-                    let mut c = RearrangementCtx { start: 0, end: 0 };
-                    collect_initial_glyphs(table, &mut c, &mut glyph_set, num_glyphs);
+                    collect_initial_glyphs::<_, RearrangementCtx>(
+                        table,
+                        &mut glyph_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::Contextual(table) => {
-                    let mut c = ContextualCtx {
-                        mark_set: false,
-                        mark: 0,
-                        table: table.clone(),
-                    };
-                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                    collect_initial_glyphs::<_, ContextualCtx>(
+                        &table.state_table,
+                        &mut glyph_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::Ligature(table) => {
-                    let mut c = LigatureCtx {
-                        table: table.clone(),
-                        match_length: 0,
-                        match_positions: [0; LIGATURE_MAX_MATCHES],
-                    };
-                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                    collect_initial_glyphs::<_, LigatureCtx>(
+                        &table.state_table,
+                        &mut glyph_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::NonContextual(ref lookup) => {
                     lookup.collect_glyphs(&mut glyph_set, num_glyphs);
                 }
                 SubtableKind::Insertion(table) => {
-                    let mut c = InsertionCtx {
-                        mark: 0,
-                        glyphs: table.glyphs,
-                    };
-                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                    collect_initial_glyphs::<_, InsertionCtx>(
+                        &table.state_table,
+                        &mut glyph_set,
+                        num_glyphs,
+                    );
                 }
             }
         };
