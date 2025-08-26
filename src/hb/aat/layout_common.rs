@@ -1,16 +1,34 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
-use super::ClassCache;
 use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
+use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
 use crate::U32Set;
 use read_fonts::tables::aat::*;
+use read_fonts::types::{FixedSize, GlyphId};
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
 pub(crate) const START_OF_TEXT: u16 = 0;
+
+pub(crate) type ClassCache = MappingCache;
+
+pub(crate) fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
+    machine: &ExtendedStateTable<'_, T>,
+    glyph_id: GlyphId,
+    cache: &ClassCache,
+) -> u16 {
+    if let Some(klass) = cache.get(glyph_id.to_u32()) {
+        return klass as u16;
+    }
+    let klass = machine
+        .class(glyph_id)
+        .unwrap_or(class::OUT_OF_BOUNDS as u16);
+    cache.set(glyph_id.to_u32(), klass as u32);
+    klass
+}
 
 /// HB: hb_aat_apply_context_t
 ///

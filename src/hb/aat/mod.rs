@@ -5,47 +5,14 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
-use crate::hb::aat::layout_common::TypedCollectGlyphs;
-use crate::hb::aat::layout_kerx_table::collect_initial_glyphs as kerx_collect_initial_glyphs;
-use crate::hb::aat::layout_kerx_table::SimpleKerning;
-use crate::hb::aat::layout_morx_table::collect_initial_glyphs as morx_collect_initial_glyphs;
-use crate::hb::aat::layout_morx_table::{
-    ContextualCtx, InsertionCtx, LigatureCtx, RearrangementCtx, LIGATURE_MAX_MATCHES,
-};
-use crate::hb::ot_layout_gsubgpos::MappingCache;
+use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
+use crate::hb::aat::layout_morx_table::MorxSubtableCache;
 use crate::hb::tables::TableOffsets;
-use crate::U32Set;
 use alloc::vec::Vec;
-use read_fonts::tables::aat::ExtendedStateTable;
-use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::{
-    tables::{
-        ankr::Ankr,
-        feat::Feat,
-        kern::Kern,
-        kerx::{Kerx, SubtableKind as KerxSubtableKind},
-        morx::{Morx, SubtableKind as MorxSubtableKind},
-        trak::Trak,
-    },
+    tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
     FontRef, TableProvider,
 };
-
-type ClassCache = MappingCache;
-
-fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
-    machine: &ExtendedStateTable<'_, T>,
-    glyph_id: GlyphId,
-    cache: &ClassCache,
-) -> u16 {
-    if let Some(klass) = cache.get(glyph_id.to_u32()) {
-        return klass as u16;
-    }
-    let klass = machine
-        .class(glyph_id)
-        .unwrap_or(read_fonts::tables::aat::class::OUT_OF_BOUNDS as u16);
-    cache.set(glyph_id.to_u32(), klass as u32);
-    klass
-}
 
 #[derive(Default)]
 pub struct AatCache {
@@ -71,65 +38,9 @@ impl AatCache {
                     let Ok(subtable) = subtable else {
                         continue;
                     };
-                    let mut glyph_set = U32Set::default();
-                    if let Ok(kind) = subtable.kind() {
-                        match &kind {
-                            MorxSubtableKind::Rearrangement(table) => {
-                                let mut c = RearrangementCtx { start: 0, end: 0 };
-                                morx_collect_initial_glyphs(
-                                    table,
-                                    &mut c,
-                                    &mut glyph_set,
-                                    num_glyphs,
-                                );
-                            }
-                            MorxSubtableKind::Contextual(table) => {
-                                let mut c = ContextualCtx {
-                                    mark_set: false,
-                                    mark: 0,
-                                    table: table.clone(),
-                                };
-                                morx_collect_initial_glyphs(
-                                    &table.state_table,
-                                    &mut c,
-                                    &mut glyph_set,
-                                    num_glyphs,
-                                );
-                            }
-                            MorxSubtableKind::Ligature(table) => {
-                                let mut c = LigatureCtx {
-                                    table: table.clone(),
-                                    match_length: 0,
-                                    match_positions: [0; LIGATURE_MAX_MATCHES],
-                                };
-                                morx_collect_initial_glyphs(
-                                    &table.state_table,
-                                    &mut c,
-                                    &mut glyph_set,
-                                    num_glyphs,
-                                );
-                            }
-                            MorxSubtableKind::NonContextual(ref lookup) => {
-                                lookup.collect_glyphs(&mut glyph_set, num_glyphs);
-                            }
-                            MorxSubtableKind::Insertion(table) => {
-                                let mut c = InsertionCtx {
-                                    mark: 0,
-                                    glyphs: table.glyphs,
-                                };
-                                morx_collect_initial_glyphs(
-                                    &table.state_table,
-                                    &mut c,
-                                    &mut glyph_set,
-                                    num_glyphs,
-                                );
-                            }
-                        }
-                    };
-                    cache.morx.push(MorxSubtableCache {
-                        glyph_set,
-                        class_cache: ClassCache::new(),
-                    });
+                    cache
+                        .morx
+                        .push(MorxSubtableCache::new(&subtable, num_glyphs));
                 }
             }
         }
@@ -138,40 +49,9 @@ impl AatCache {
                 let Ok(subtable) = subtable else {
                     continue;
                 };
-                let mut first_set = U32Set::default();
-                let mut second_set = U32Set::default();
-                if let Ok(kind) = subtable.kind() {
-                    match &kind {
-                        KerxSubtableKind::Format0(format0) => {
-                            format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
-                        }
-                        KerxSubtableKind::Format1(format1) => {
-                            kerx_collect_initial_glyphs(
-                                &format1.state_table,
-                                &mut first_set,
-                                num_glyphs,
-                            );
-                        }
-                        KerxSubtableKind::Format2(format2) => {
-                            format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
-                        }
-                        KerxSubtableKind::Format4(format4) => {
-                            kerx_collect_initial_glyphs(
-                                &format4.state_table,
-                                &mut first_set,
-                                num_glyphs,
-                            );
-                        }
-                        KerxSubtableKind::Format6(format6) => {
-                            format6.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
-                        }
-                    }
-                };
-                cache.kerx.push(KerxSubtableCache {
-                    first_set,
-                    second_set,
-                    class_cache: ClassCache::new(),
-                });
+                cache
+                    .kerx
+                    .push(KerxSubtableCache::new(&subtable, num_glyphs));
             }
         }
         cache
@@ -211,15 +91,4 @@ impl<'a> AatTables<'a> {
             feat,
         }
     }
-}
-
-pub struct MorxSubtableCache {
-    glyph_set: U32Set,
-    class_cache: ClassCache,
-}
-
-pub struct KerxSubtableCache {
-    first_set: U32Set,
-    second_set: U32Set,
-    class_cache: ClassCache,
 }

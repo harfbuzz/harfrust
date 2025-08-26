@@ -1,7 +1,8 @@
-use super::get_class;
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
-use crate::hb::aat::layout_common::{AatApplyContext, TypedCollectGlyphs, START_OF_TEXT};
+use crate::hb::aat::layout_common::{
+    get_class, AatApplyContext, ClassCache, TypedCollectGlyphs, START_OF_TEXT,
+};
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
 use crate::U32Set;
@@ -9,7 +10,8 @@ use alloc::vec;
 use read_fonts::tables::aat;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{
-    ContextualEntryData, ContextualSubtable, InsertionEntryData, LigatureSubtable, SubtableKind,
+    ContextualEntryData, ContextualSubtable, InsertionEntryData, LigatureSubtable, Subtable,
+    SubtableKind,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
 
@@ -173,7 +175,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
     Some(())
 }
 
-pub(crate) fn collect_initial_glyphs<T>(
+fn collect_initial_glyphs<T>(
     machine: &ExtendedStateTable<T>,
     c: &mut dyn DriverContext<T>,
     glyphs: &mut U32Set,
@@ -451,9 +453,9 @@ fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     }
 }
 
-pub(crate) struct RearrangementCtx {
-    pub(crate) start: usize,
-    pub(crate) end: usize,
+struct RearrangementCtx {
+    start: usize,
+    end: usize,
 }
 
 impl RearrangementCtx {
@@ -568,10 +570,10 @@ impl DriverContext<NoPayload> for RearrangementCtx {
     }
 }
 
-pub(crate) struct ContextualCtx<'a> {
-    pub(crate) mark_set: bool,
-    pub(crate) mark: usize,
-    pub(crate) table: ContextualSubtable<'a>,
+struct ContextualCtx<'a> {
+    mark_set: bool,
+    mark: usize,
+    table: ContextualSubtable<'a>,
 }
 
 impl ContextualCtx<'_> {
@@ -654,9 +656,9 @@ impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
     }
 }
 
-pub(crate) struct InsertionCtx<'a> {
-    pub(crate) mark: u32,
-    pub(crate) glyphs: &'a [BigEndian<GlyphId16>],
+struct InsertionCtx<'a> {
+    mark: u32,
+    glyphs: &'a [BigEndian<GlyphId16>],
 }
 
 impl InsertionCtx<'_> {
@@ -790,12 +792,12 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
     }
 }
 
-pub(crate) const LIGATURE_MAX_MATCHES: usize = 64;
+const LIGATURE_MAX_MATCHES: usize = 64;
 
-pub(crate) struct LigatureCtx<'a> {
-    pub(crate) table: LigatureSubtable<'a>,
-    pub(crate) match_length: usize,
-    pub(crate) match_positions: [usize; LIGATURE_MAX_MATCHES],
+struct LigatureCtx<'a> {
+    table: LigatureSubtable<'a>,
+    match_length: usize,
+    match_positions: [usize; LIGATURE_MAX_MATCHES],
 }
 
 impl LigatureCtx<'_> {
@@ -940,5 +942,54 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
         }
 
         Some(())
+    }
+}
+
+pub(crate) struct MorxSubtableCache {
+    glyph_set: U32Set,
+    class_cache: ClassCache,
+}
+
+impl MorxSubtableCache {
+    pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut glyph_set = U32Set::default();
+        if let Ok(kind) = subtable.kind() {
+            match &kind {
+                SubtableKind::Rearrangement(table) => {
+                    let mut c = RearrangementCtx { start: 0, end: 0 };
+                    collect_initial_glyphs(table, &mut c, &mut glyph_set, num_glyphs);
+                }
+                SubtableKind::Contextual(table) => {
+                    let mut c = ContextualCtx {
+                        mark_set: false,
+                        mark: 0,
+                        table: table.clone(),
+                    };
+                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                }
+                SubtableKind::Ligature(table) => {
+                    let mut c = LigatureCtx {
+                        table: table.clone(),
+                        match_length: 0,
+                        match_positions: [0; LIGATURE_MAX_MATCHES],
+                    };
+                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                }
+                SubtableKind::NonContextual(ref lookup) => {
+                    lookup.collect_glyphs(&mut glyph_set, num_glyphs);
+                }
+                SubtableKind::Insertion(table) => {
+                    let mut c = InsertionCtx {
+                        mark: 0,
+                        glyphs: table.glyphs,
+                    };
+                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                }
+            }
+        };
+        MorxSubtableCache {
+            glyph_set,
+            class_cache: ClassCache::new(),
+        }
     }
 }

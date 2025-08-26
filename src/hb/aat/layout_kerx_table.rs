@@ -1,6 +1,7 @@
-use super::get_class;
 use super::layout::DELETED_GLYPH;
-use crate::hb::aat::layout_common::{AatApplyContext, TypedCollectGlyphs, START_OF_TEXT};
+use crate::hb::aat::layout_common::{
+    get_class, AatApplyContext, ClassCache, TypedCollectGlyphs, START_OF_TEXT,
+};
 use crate::hb::{
     buffer::*,
     ot_layout::TableIndex,
@@ -303,7 +304,7 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
     }
 }
 
-pub(crate) fn collect_initial_glyphs<T>(
+fn collect_initial_glyphs<T>(
     machine: &aat::ExtendedStateTable<T>,
     glyphs: &mut U32Set,
     num_glyphs: u32,
@@ -594,5 +595,42 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
         }
 
         Some(())
+    }
+}
+
+pub(crate) struct KerxSubtableCache {
+    first_set: U32Set,
+    second_set: U32Set,
+    class_cache: ClassCache,
+}
+
+impl KerxSubtableCache {
+    pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut first_set = U32Set::default();
+        let mut second_set = U32Set::default();
+        if let Ok(kind) = subtable.kind() {
+            match &kind {
+                SubtableKind::Format0(format0) => {
+                    format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+                SubtableKind::Format1(format1) => {
+                    collect_initial_glyphs(&format1.state_table, &mut first_set, num_glyphs);
+                }
+                SubtableKind::Format2(format2) => {
+                    format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+                SubtableKind::Format4(format4) => {
+                    collect_initial_glyphs(&format4.state_table, &mut first_set, num_glyphs);
+                }
+                SubtableKind::Format6(format6) => {
+                    format6.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+            }
+        };
+        KerxSubtableCache {
+            first_set,
+            second_set,
+            class_cache: ClassCache::new(),
+        }
     }
 }
