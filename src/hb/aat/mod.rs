@@ -5,32 +5,14 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
-use crate::hb::ot_layout_gsubgpos::MappingCache;
+use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
+use crate::hb::aat::layout_morx_table::MorxSubtableCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
-use read_fonts::tables::aat::ExtendedStateTable;
-use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
     FontRef, TableProvider,
 };
-
-type ClassCache = MappingCache;
-
-fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
-    machine: &ExtendedStateTable<'_, T>,
-    glyph_id: GlyphId,
-    cache: &ClassCache,
-) -> u16 {
-    if let Some(klass) = cache.get(glyph_id.to_u32()) {
-        return klass as u16;
-    }
-    let klass = machine
-        .class(glyph_id)
-        .unwrap_or(read_fonts::tables::aat::class::OUT_OF_BOUNDS as u16);
-    cache.set(glyph_id.to_u32(), klass as u32);
-    klass
-}
 
 #[derive(Default)]
 pub struct AatCache {
@@ -42,6 +24,10 @@ impl AatCache {
     #[allow(unused)]
     pub fn new(font: &FontRef) -> Self {
         let mut cache = Self::default();
+        let num_glyphs = font
+            .maxp()
+            .map(|maxp| maxp.num_glyphs() as u32)
+            .unwrap_or_default();
         if let Ok(morx) = font.morx() {
             let chains = morx.chains();
             for chain in morx.chains().iter() {
@@ -52,10 +38,9 @@ impl AatCache {
                     let Ok(subtable) = subtable else {
                         continue;
                     };
-
-                    cache.morx.push(MorxSubtableCache {
-                        class_cache: ClassCache::new(),
-                    });
+                    cache
+                        .morx
+                        .push(MorxSubtableCache::new(&subtable, num_glyphs));
                 }
             }
         }
@@ -64,9 +49,9 @@ impl AatCache {
                 let Ok(subtable) = subtable else {
                     continue;
                 };
-                cache.kerx.push(KerxSubtableCache {
-                    class_cache: ClassCache::new(),
-                });
+                cache
+                    .kerx
+                    .push(KerxSubtableCache::new(&subtable, num_glyphs));
             }
         }
         cache
@@ -106,12 +91,4 @@ impl<'a> AatTables<'a> {
             feat,
         }
     }
-}
-
-pub struct MorxSubtableCache {
-    class_cache: ClassCache,
-}
-
-pub struct KerxSubtableCache {
-    class_cache: ClassCache,
 }

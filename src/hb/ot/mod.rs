@@ -226,7 +226,7 @@ impl<'a> OtTables<'a> {
         if self
             .gdef_mark_set_digests
             .get(set_index as usize)
-            .is_some_and(|digest| digest.may_have_glyph(glyph_id.into()))
+            .is_some_and(|digest| digest.may_have(glyph_id))
         {
             self.gdef
                 .mark_sets

@@ -11,6 +11,7 @@ use super::ot_layout_gpos_table::attach_type;
 use super::ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t};
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_mask_t};
+use crate::U32Set;
 
 pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
     let subtables = match face.aat_tables.kern.as_ref() {
@@ -365,16 +366,38 @@ impl SimpleKerning for kern::Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
+    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+        for &pair in self.pairs() {
+            first_set.insert(pair.left.get().to_u32());
+            second_set.insert(pair.right.get().to_u32());
+        }
+    }
 }
 
 impl SimpleKerning for kern::Subtable2<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
+    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+        let left_classes = &self.left_offset_table;
+        let right_classes = &self.right_offset_table;
+
+        let first_glyph = left_classes.first_glyph().to_u32();
+        let last_glyphs = first_glyph + left_classes.n_glyphs().saturating_sub(1) as u32;
+        first_set.insert_range(first_glyph..=last_glyphs);
+
+        let first_glyph = right_classes.first_glyph().to_u32();
+        let last_glyphs = first_glyph + right_classes.n_glyphs().saturating_sub(1) as u32;
+        second_set.insert_range(first_glyph..=last_glyphs);
+    }
 }
 
 impl SimpleKerning for kern::Subtable3<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
+    }
+    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+        first_set.insert_range(0..=self.glyph_count().saturating_sub(1) as u32);
+        second_set.insert_range(0..=self.glyph_count().saturating_sub(1) as u32);
     }
 }

@@ -1,21 +1,22 @@
-use super::get_class;
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
-use crate::hb::aat::layout_common::AatApplyContext;
+use crate::hb::aat::layout_common::{
+    get_class, AatApplyContext, ClassCache, TypedCollectGlyphs, START_OF_TEXT,
+};
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
+use crate::U32Set;
 use alloc::vec;
+use read_fonts::tables::aat;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{
-    ContextualEntryData, ContextualSubtable, InsertionEntryData, LigatureSubtable, SubtableKind,
+    ContextualEntryData, ContextualSubtable, InsertionEntryData, LigatureSubtable, Subtable,
+    SubtableKind,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
 
 // TODO: [morx] Blocklist dysfunctional morx table of AALMAGHRIBI.ttf font
 // HarfBuzz commit 1e629c35113e2460fd4a77b4fa9ae3ff6ec876ba
-
-// TODO: [morx] Only collect glyphs that can initiate action in the machine
-// https://github.com/harfbuzz/harfbuzz/pull/5041
 
 // Chain::compile_flags in harfbuzz
 pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
@@ -78,6 +79,8 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
 pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
+    c.setup_buffer_glyph_set();
+
     let (morx, subtable_caches) = c.face.aat_tables.morx.as_ref()?;
 
     let chains = morx.chains();
@@ -100,8 +103,6 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
             let subtable_cache = subtable_cache.as_ref().unwrap();
             subtable_idx += 1;
 
-            c.machine_class_cache = Some(&subtable_cache.class_cache);
-
             if let Some(range_flags) = c.range_flags.as_ref() {
                 if range_flags.len() == 1
                     && (subtable.sub_feature_flags() & range_flags[0].flags == 0)
@@ -109,11 +110,18 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
                     continue;
                 }
             }
-            c.subtable_flags = subtable.sub_feature_flags();
 
             if !subtable.is_all_directions()
                 && c.buffer.direction.is_vertical() != subtable.is_vertical()
             {
+                continue;
+            }
+
+            c.subtable_flags = subtable.sub_feature_flags();
+            c.first_set = Some(&subtable_cache.glyph_set);
+            c.machine_class_cache = Some(&subtable_cache.class_cache);
+
+            if !c.buffer_intersects_machine() {
                 continue;
             }
 
@@ -167,14 +175,47 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
     Some(())
 }
 
-trait DriverContext<T> {
+fn collect_initial_glyphs<T>(
+    machine: &ExtendedStateTable<T>,
+    c: &mut dyn DriverContext<T>,
+    glyphs: &mut U32Set,
+    num_glyphs: u32,
+) where
+    T: FixedSize + bytemuck::AnyBitPattern,
+{
+    let mut classes = U32Set::default();
+
+    let class_table = &machine.class_table;
+    for i in 0..machine.n_classes {
+        if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
+            if entry.new_state == START_OF_TEXT
+                && !c.is_action_initiable(&entry)
+                && !c.is_actionable(&entry)
+            {
+                continue;
+            }
+            classes.insert(i as u32);
+        }
+    }
+
+    // And glyphs in those classes.
+
+    let filter = |class: u16| classes.contains(class as u32);
+
+    if filter(aat::class::DELETED_GLYPH as u16) {
+        glyphs.insert(DELETED_GLYPH);
+    }
+
+    class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
+}
+
+pub(crate) trait DriverContext<T> {
     fn in_place(&self) -> bool;
     fn can_advance(&self, entry: &StateEntry<T>) -> bool;
+    fn is_action_initiable(&self, entry: &StateEntry<T>) -> bool;
     fn is_actionable(&self, entry: &StateEntry<T>) -> bool;
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
-
-const START_OF_TEXT: u16 = 0;
 
 fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
     machine: &ExtendedStateTable<'_, T>,
@@ -233,7 +274,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
                 ac.machine_class_cache.unwrap(),
             )
         } else {
-            u16::from(read_fonts::tables::aat::class::END_OF_TEXT)
+            u16::from(aat::class::END_OF_TEXT)
         };
 
         let Ok(entry) = machine.entry(state, class) else {
@@ -300,7 +341,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug>(
 
             // 3
             (
-                if let Ok(end_entry) = machine.entry(state, u16::from(read_fonts::tables::aat::class::END_OF_TEXT)) {
+                if let Ok(end_entry) = machine.entry(state, u16::from(aat::class::END_OF_TEXT)) {
                     !c.is_actionable(&end_entry)
                 } else {
                     false
@@ -433,8 +474,12 @@ impl DriverContext<NoPayload> for RearrangementCtx {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
+    fn is_action_initiable(&self, entry: &StateEntry) -> bool {
+        entry.flags & Self::MARK_FIRST != 0
+    }
+
     fn is_actionable(&self, entry: &StateEntry) -> bool {
-        entry.flags & Self::VERB != 0 && self.start < self.end
+        entry.flags & Self::VERB != 0
     }
 
     fn transition(&mut self, entry: &StateEntry, ac: &mut AatApplyContext) -> Option<()> {
@@ -545,6 +590,10 @@ impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
+    fn is_action_initiable(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
+        entry.flags & Self::SET_MARK != 0
+    }
+
     fn is_actionable(&self, entry: &StateEntry<ContextualEntryData>) -> bool {
         entry.payload.mark_index.get() != 0xFFFF || entry.payload.current_index.get() != 0xFFFF
     }
@@ -628,6 +677,10 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
 
     fn can_advance(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
         entry.flags & Self::DONT_ADVANCE == 0
+    }
+
+    fn is_action_initiable(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
+        entry.flags & Self::SET_MARK != 0
     }
 
     fn is_actionable(&self, entry: &StateEntry<InsertionEntryData>) -> bool {
@@ -766,6 +819,10 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
         entry.flags & Self::DONT_ADVANCE == 0
     }
 
+    fn is_action_initiable(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
+        entry.flags & Self::SET_COMPONENT != 0
+    }
+
     fn is_actionable(&self, entry: &StateEntry<BigEndian<u16>>) -> bool {
         entry.flags & Self::PERFORM_ACTION != 0
     }
@@ -885,5 +942,54 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
         }
 
         Some(())
+    }
+}
+
+pub(crate) struct MorxSubtableCache {
+    glyph_set: U32Set,
+    class_cache: ClassCache,
+}
+
+impl MorxSubtableCache {
+    pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut glyph_set = U32Set::default();
+        if let Ok(kind) = subtable.kind() {
+            match &kind {
+                SubtableKind::Rearrangement(table) => {
+                    let mut c = RearrangementCtx { start: 0, end: 0 };
+                    collect_initial_glyphs(table, &mut c, &mut glyph_set, num_glyphs);
+                }
+                SubtableKind::Contextual(table) => {
+                    let mut c = ContextualCtx {
+                        mark_set: false,
+                        mark: 0,
+                        table: table.clone(),
+                    };
+                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                }
+                SubtableKind::Ligature(table) => {
+                    let mut c = LigatureCtx {
+                        table: table.clone(),
+                        match_length: 0,
+                        match_positions: [0; LIGATURE_MAX_MATCHES],
+                    };
+                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                }
+                SubtableKind::NonContextual(ref lookup) => {
+                    lookup.collect_glyphs(&mut glyph_set, num_glyphs);
+                }
+                SubtableKind::Insertion(table) => {
+                    let mut c = InsertionCtx {
+                        mark: 0,
+                        glyphs: table.glyphs,
+                    };
+                    collect_initial_glyphs(&table.state_table, &mut c, &mut glyph_set, num_glyphs);
+                }
+            }
+        };
+        MorxSubtableCache {
+            glyph_set,
+            class_cache: ClassCache::new(),
+        }
     }
 }

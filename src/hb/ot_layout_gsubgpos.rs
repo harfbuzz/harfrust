@@ -937,7 +937,7 @@ pub mod OT {
             ligature: bool,
             component: bool,
         ) {
-            self.digest.add(glyph_id);
+            self.digest.add(glyph_id.into());
 
             if let Some(syllable) = self.new_syllables {
                 self.buffer.cur_mut(0).set_syllable(syllable);

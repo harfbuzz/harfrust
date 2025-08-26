@@ -1,3 +1,4 @@
+use crate::U32Set;
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 use core::convert::TryFrom;
@@ -437,6 +438,8 @@ pub struct hb_buffer_t {
     pub max_len: usize,
     /// Maximum allowed operations.
     pub max_ops: i32,
+
+    pub(crate) glyph_set: U32Set,
 }
 
 impl hb_buffer_t {
@@ -476,6 +479,7 @@ impl hb_buffer_t {
             serial: 0,
             context: Default::default(),
             context_len: [0, 0],
+            glyph_set: U32Set::default(),
         }
     }
 
@@ -580,8 +584,13 @@ impl hb_buffer_t {
 
     pub fn digest(&self) -> hb_set_digest_t {
         let mut digest = hb_set_digest_t::new();
-        digest.add_array(self.info.iter().map(|i| GlyphId::new(i.glyph_id)));
+        digest.add_array(self.info.iter().map(|i| i.glyph_id));
         digest
+    }
+    pub fn update_glyph_set(&mut self) {
+        self.glyph_set.clear();
+        self.glyph_set
+            .extend_unsorted(self.info.iter().map(|i| i.glyph_id));
     }
 
     fn clear(&mut self) {
