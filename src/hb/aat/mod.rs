@@ -46,6 +46,16 @@ impl AatCache {
                 }
             }
         }
+        if let Ok(kern) = font.kern() {
+            for subtable in kern.subtables() {
+                let Ok(subtable) = subtable else {
+                    continue;
+                };
+                cache
+                    .kern
+                    .push(KernSubtableCache::new(&subtable, num_glyphs));
+            }
+        }
         if let Ok(kerx) = font.kerx() {
             for subtable in kerx.subtables().iter() {
                 let Ok(subtable) = subtable else {
