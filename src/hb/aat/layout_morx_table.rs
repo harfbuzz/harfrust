@@ -308,23 +308,6 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
         //
         //   https://github.com/harfbuzz/harfbuzz/issues/2860
 
-        // TODO HarfBuzz doesn't use this lambda; inlines the logic.
-        let is_safe_to_break_extra = || {
-            // 2c
-            let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class) else {
-                return false;
-            };
-
-            // 2c'
-            if Ctx::is_actionable(&wouldbe_entry) {
-                return false;
-            }
-
-            // 2c"
-            next_state == wouldbe_entry.new_state
-                && Ctx::can_advance(&entry) == Ctx::can_advance(&wouldbe_entry)
-        };
-
         let is_safe_to_break =
             // 1
             !Ctx::is_actionable(&entry) &&
@@ -333,7 +316,22 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
             (
                 state == START_OF_TEXT
                 || (!Ctx::can_advance(&entry) && next_state == START_OF_TEXT)
-                || is_safe_to_break_extra()
+                ||
+                {
+                    // 2c
+                    if let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class) {
+                        // 2c'
+                        !Ctx::is_actionable(&wouldbe_entry) &&
+
+                        // 2c"
+                        (
+                            next_state == wouldbe_entry.new_state &&
+                            Ctx::can_advance(&entry) == Ctx::can_advance(&wouldbe_entry)
+                        )
+                    } else {
+                        false
+                    }
+                }
             ) &&
 
             // 3
