@@ -366,29 +366,77 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
             break;
         };
 
-        // Unsafe-to-break before this if not in state 0, as things might
-        // go differently if we start from state 0 here.
-        if state != START_OF_TEXT && c.buffer.backtrack_len() != 0 && c.buffer.idx < c.buffer.len {
-            // If there's no value and we're just epsilon-transitioning to state 0, safe to break.
-            if entry.is_actionable() || entry.new_state != START_OF_TEXT || entry.has_advance() {
-                c.buffer.unsafe_to_break_from_outbuffer(
-                    Some(c.buffer.backtrack_len() - 1),
-                    Some(c.buffer.idx + 1),
-                );
-            }
-        }
+        let next_state = entry.new_state;
 
-        // Unsafe-to-break if end-of-text would kick in here.
-        if c.buffer.idx + 2 <= c.buffer.len {
-            let end_entry = state_table
-                .entry(state, u16::from(aat::class::END_OF_TEXT))
-                .ok();
-            let Some(end_entry) = end_entry else { break };
+        // Conditions under which it's guaranteed safe-to-break before current glyph:
+        //
+        // 1. There was no action in this transition; and
+        //
+        // 2. If we break before current glyph, the results will be the same. That
+        //    is guaranteed if:
+        //
+        //    2a. We were already in start-of-text state; or
+        //
+        //    2b. We are epsilon-transitioning to start-of-text state; or
+        //
+        //    2c. Starting from start-of-text state seeing current glyph:
+        //
+        //        2c'. There won't be any actions; and
+        //
+        //        2c". We would end up in the same state that we were going to end up
+        //             in now, including whether epsilon-transitioning.
+        //
+        //    and
+        //
+        // 3. If we break before current glyph, there won't be any end-of-text action
+        //    after previous glyph.
+        //
+        // This triples the transitions we need to look up, but is worth returning
+        // granular unsafe-to-break results. See eg.:
+        //
+        //   https://github.com/harfbuzz/harfbuzz/issues/2860
 
-            if end_entry.is_actionable() {
-                c.buffer
-                    .unsafe_to_break(Some(c.buffer.idx), Some(c.buffer.idx + 2));
-            }
+        let is_safe_to_break =
+            // 1
+            !entry.is_actionable() &&
+
+            // 2
+            (
+                state == START_OF_TEXT
+                || (!entry.has_advance() && next_state == START_OF_TEXT)
+                ||
+                {
+                    // 2c
+                    if let Ok(wouldbe_entry) = state_table.entry(START_OF_TEXT, class) {
+                        // 2c'
+                        !wouldbe_entry.is_actionable() &&
+
+                        // 2c"
+                        (
+                            next_state == wouldbe_entry.new_state &&
+                            entry.has_advance() == wouldbe_entry.has_advance()
+                        )
+                    } else {
+                        false
+                    }
+                }
+            ) &&
+
+            // 3
+            (
+                if let Ok(end_entry) = state_table.entry(state, u16::from(aat::class::END_OF_TEXT)) {
+                    !end_entry.is_actionable()
+                } else {
+                    false
+                }
+            )
+        ;
+
+        if !is_safe_to_break && c.buffer.backtrack_len() > 0 && c.buffer.idx < c.buffer.len {
+            c.buffer.unsafe_to_break_from_outbuffer(
+                Some(c.buffer.backtrack_len() - 1),
+                Some(c.buffer.idx + 1),
+            );
         }
 
         let _ = driver.transition(
@@ -400,7 +448,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
             c.buffer,
         );
 
-        state = entry.new_state;
+        state = next_state;
 
         if c.buffer.idx >= c.buffer.len {
             break;
