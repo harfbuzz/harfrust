@@ -64,9 +64,9 @@ pub fn hb_ot_layout_kern(
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
 
-        //if !c.buffer_intersects_machine() {
-        //    continue;
-        //}
+        if !c.buffer_intersects_machine() {
+            continue;
+        }
 
         let reverse = c.buffer.direction.is_backward();
         let is_cross_stream = subtable.is_cross_stream();
