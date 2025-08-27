@@ -11,6 +11,7 @@ use crate::hb::{
     ot_shape_plan::hb_ot_shape_plan_t,
 };
 use crate::U32Set;
+use alloc::boxed::Box;
 use core::convert::TryFrom;
 use read_fonts::{
     tables::{
@@ -601,7 +602,7 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
 pub(crate) struct KerxSubtableCache {
     first_set: U32Set,
     second_set: U32Set,
-    class_cache: ClassCache,
+    class_cache: Box<ClassCache>,
 }
 
 impl KerxSubtableCache {
@@ -630,7 +631,7 @@ impl KerxSubtableCache {
         KerxSubtableCache {
             first_set,
             second_set,
-            class_cache: ClassCache::new(),
+            class_cache: Box::new(ClassCache::new()),
         }
     }
 }
