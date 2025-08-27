@@ -617,11 +617,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
 
     let mut i = 0;
     while i < len {
-        // Mutably borrow buffer.info[i] and immutably borrow
-        // buffer.info[i - 1] (if present) in a way that the borrow
-        // checker can understand.
-        let (prior, later) = buffer.info.split_at_mut(i);
-        let info = &mut later[0];
+        let info = &mut buffer.info[i];
         info.init_unicode_props(&mut buffer.scratch_flags);
 
         let gen_cat = info.general_category();
@@ -637,6 +633,12 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
             i += 1;
             continue;
         }
+
+        // Mutably borrow buffer.info[i] and immutably borrow
+        // buffer.info[i - 1] (if present) in a way that the borrow
+        // checker can understand.
+        let (prior, later) = buffer.info.split_at_mut(i);
+        let info = &mut later[0];
 
         // Marks are already set as continuation by the above line.
         // Handle Emoji_Modifier and ZWJ-continuation.
