@@ -57,10 +57,6 @@ pub fn hb_ot_layout_kern(
             continue;
         }
 
-        let Ok(kind) = subtable.kind() else {
-            continue;
-        };
-
         c.first_set = Some(&subtable_cache.first_set);
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
@@ -88,6 +84,10 @@ pub fn hb_ot_layout_kern(
                 // be needed.
             }
         }
+
+        let Ok(kind) = subtable.kind() else {
+            continue;
+        };
 
         if reverse {
             c.buffer.reverse();
