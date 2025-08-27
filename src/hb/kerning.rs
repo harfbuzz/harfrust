@@ -115,13 +115,16 @@ pub fn hb_ot_layout_kern(
     Some(())
 }
 
-fn machine_kern(
+fn machine_kern<F>(
     face: &hb_font_t,
     buffer: &mut hb_buffer_t,
     kern_mask: hb_mask_t,
     cross_stream: bool,
-    get_kerning: impl Fn(u32, u32) -> i32,
-) {
+    get_kerning: F,
+)
+where
+    F: Fn(u32, u32) -> i32,
+{
     buffer.unsafe_to_concat(None, None);
     let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, face, buffer);
     ctx.set_lookup_mask(kern_mask);
@@ -189,15 +192,22 @@ fn apply_simple_kerning<T: SimpleKerning>(
     subtable: &T,
     is_cross_stream: bool,
 ) {
+    let first_set = c.first_set.as_ref().unwrap();
+    let second_set = c.second_set.as_ref().unwrap();
+
     machine_kern(
         c.face,
         c.buffer,
         c.plan.kern_mask,
         is_cross_stream,
         |left, right| {
-            subtable
-                .simple_kerning(left.into(), right.into())
-                .unwrap_or(0)
+            if !first_set.contains(left) || !second_set.contains(right) {
+                0
+            } else {
+                subtable
+                    .simple_kerning(left.into(), right.into())
+                    .unwrap_or(0)
+            }
         },
     );
 }
