@@ -76,7 +76,7 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
 }
 
 // Chain::apply in harfbuzz
-pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()> {
+pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
     c.setup_buffer_glyph_set();
@@ -84,16 +84,14 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a mut AatMap) -> Option<()>
     let (morx, subtable_caches) = c.face.aat_tables.morx.as_ref()?;
 
     let chains = morx.chains();
-    let chain_len = chains.iter().count();
-    map.chain_flags.resize(chain_len, vec![]);
 
     let mut subtable_idx = 0;
 
-    for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
+    for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter()) {
         let Ok(chain) = chain else {
             continue;
         };
-        c.range_flags = Some(chain_flags.as_mut_slice());
+        c.range_flags = Some(chain_flags.as_slice());
         for subtable in chain.subtables().iter() {
             let Ok(subtable) = subtable else {
                 continue;
