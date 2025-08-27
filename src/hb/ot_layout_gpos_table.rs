@@ -98,8 +98,27 @@ pub mod GPOS {
 
         // Handle attachments
         if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT != 0 {
-            for i in 0..len {
-                propagate_attachment_offsets(&mut buffer.pos, len, i, direction, MAX_NESTING_LEVEL);
+            // https://github.com/harfbuzz/harfbuzz/issues/5514
+            if buffer.direction.is_forward() {
+                for i in 0..len {
+                    propagate_attachment_offsets(
+                        &mut buffer.pos,
+                        len,
+                        i,
+                        direction,
+                        MAX_NESTING_LEVEL,
+                    );
+                }
+            } else {
+                for i in (0..len).rev() {
+                    propagate_attachment_offsets(
+                        &mut buffer.pos,
+                        len,
+                        i,
+                        direction,
+                        MAX_NESTING_LEVEL,
+                    );
+                }
             }
         }
     }

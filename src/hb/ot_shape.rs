@@ -853,8 +853,11 @@ fn zero_width_default_ignorables(buffer: &mut hb_buffer_t) {
             if info.is_default_ignorable() {
                 pos.x_advance = 0;
                 pos.y_advance = 0;
-                pos.x_offset = 0;
-                pos.y_offset = 0;
+                if buffer.direction.is_horizontal() {
+                    pos.x_offset = 0;
+                } else {
+                    pos.y_offset = 0;
+                }
             }
         }
     }
