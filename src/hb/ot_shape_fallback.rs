@@ -363,7 +363,7 @@ fn position_around_base(
     }
 }
 
-fn position_cluster(
+fn position_cluster_impl(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
     buffer: &mut hb_buffer_t,
@@ -371,10 +371,6 @@ fn position_cluster(
     end: usize,
     adjust_offsets_when_zeroing: bool,
 ) {
-    if end - start < 2 {
-        return;
-    }
-
     // Find the base glyph
     let mut i = start;
     while i < end {
@@ -394,6 +390,22 @@ fn position_cluster(
         }
         i += 1;
     }
+}
+
+#[inline(always)]
+fn position_cluster(
+    plan: &hb_ot_shape_plan_t,
+    face: &hb_font_t,
+    buffer: &mut hb_buffer_t,
+    start: usize,
+    end: usize,
+    adjust_offsets_when_zeroing: bool,
+) {
+    if end - start < 2 {
+        return;
+    }
+
+    position_cluster_impl(plan, face, buffer, start, end, adjust_offsets_when_zeroing);
 }
 
 pub fn position_marks(
