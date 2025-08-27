@@ -34,6 +34,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
     let mut subtable_idx = 0;
 
+    let mut buffer_is_reversed = false;
     let mut seen_cross_stream = false;
     for subtable in kerx.subtables().iter() {
         let Ok(subtable) = subtable else {
@@ -84,8 +85,9 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             continue;
         };
 
-        if reverse {
+        if reverse != buffer_is_reversed {
             c.buffer.reverse();
+            buffer_is_reversed = reverse;
         }
 
         match &kind {
@@ -136,10 +138,9 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 apply_simple_kerning(c, &subtable, format6);
             }
         }
-
-        if reverse {
-            c.buffer.reverse();
-        }
+    }
+    if buffer_is_reversed {
+        c.buffer.reverse();
     }
 
     Some(())
