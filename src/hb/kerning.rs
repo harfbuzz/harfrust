@@ -245,7 +245,7 @@ fn apply_state_machine_kerning(
 fn state_machine_transition(
     subtable: &aat::StateTable,
     entry: &aat::StateEntry,
-    has_cross_stream: bool,
+    is_cross_stream: bool,
     kern_mask: hb_mask_t,
     driver: &mut StateMachineDriver,
     buffer: &mut hb_buffer_t,
@@ -295,7 +295,7 @@ fn state_machine_transition(
             let pos = &mut buffer.pos[idx];
 
             if buffer.direction.is_horizontal() {
-                if has_cross_stream {
+                if is_cross_stream {
                     // The following flag is undocumented in the spec, but described
                     // in the 'kern' table example.
                     if v == -0x8000 {
@@ -311,7 +311,7 @@ fn state_machine_transition(
                     pos.x_offset += v;
                 }
             } else {
-                if has_cross_stream {
+                if is_cross_stream {
                     // CoreText doesn't do crossStream kerning in vertical. We do.
                     if v == -0x8000 {
                         pos.set_attach_type(0);
