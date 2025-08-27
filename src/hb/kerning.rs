@@ -3,6 +3,7 @@ use read_fonts::{
     types::GlyphId,
 };
 
+use super::aat::layout_common::AatApplyContext;
 use super::aat::layout_kerx_table::SimpleKerning;
 use super::buffer::*;
 use super::ot_layout::TableIndex;
@@ -14,6 +15,8 @@ use super::{hb_font_t, hb_mask_t};
 use crate::U32Set;
 
 pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+    let mut c = AatApplyContext::new(plan, face, buffer);
+
     let subtables = match face.aat_tables.kern.as_ref() {
         Some(table) => table.subtables(),
         None => return,
@@ -29,7 +32,7 @@ pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &m
             continue;
         }
 
-        if buffer.direction.is_horizontal() != subtable.is_horizontal() {
+        if c.buffer.direction.is_horizontal() != subtable.is_horizontal() {
             continue;
         }
 
@@ -37,16 +40,20 @@ pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &m
             continue;
         };
 
-        let reverse = buffer.direction.is_backward();
+        let reverse = c.buffer.direction.is_backward();
         let is_cross_stream = subtable.is_cross_stream();
 
         if !seen_cross_stream && is_cross_stream {
             seen_cross_stream = true;
 
             // Attach all glyphs into a chain.
-            for pos in &mut buffer.pos {
+            for pos in &mut c.buffer.pos {
                 pos.set_attach_type(attach_type::CURSIVE);
-                pos.set_attach_chain(if buffer.direction.is_forward() { -1 } else { 1 });
+                pos.set_attach_chain(if c.buffer.direction.is_forward() {
+                    -1
+                } else {
+                    1
+                });
                 // We intentionally don't set BufferScratchFlags::HAS_GPOS_ATTACHMENT,
                 // since there needs to be a non-zero attachment for post-positioning to
                 // be needed.
@@ -54,32 +61,31 @@ pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &m
         }
 
         if reverse {
-            buffer.reverse();
+            c.buffer.reverse();
         }
 
         match kind {
             kern::SubtableKind::Format0(format0) if plan.requested_kerning => {
-                apply_simple_kerning(&format0, is_cross_stream, face, plan.kern_mask, buffer);
+                apply_simple_kerning(&mut c, &format0, is_cross_stream);
             }
             kern::SubtableKind::Format1(format1) => {
-                apply_state_machine_kerning(&format1, is_cross_stream, plan.kern_mask, buffer);
+                apply_state_machine_kerning(&mut c, &format1, is_cross_stream);
             }
             kern::SubtableKind::Format2(format2) if plan.requested_kerning => {
-                apply_simple_kerning(&format2, is_cross_stream, face, plan.kern_mask, buffer);
+                apply_simple_kerning(&mut c, &format2, is_cross_stream);
             }
             kern::SubtableKind::Format3(format3) if plan.requested_kerning => {
-                apply_simple_kerning(&format3, is_cross_stream, face, plan.kern_mask, buffer);
+                apply_simple_kerning(&mut c, &format3, is_cross_stream);
             }
             _ => {}
         }
 
         if reverse {
-            buffer.reverse();
+            c.buffer.reverse();
         }
     }
 }
 
-// TODO: remove
 fn machine_kern(
     face: &hb_font_t,
     buffer: &mut hb_buffer_t,
@@ -150,17 +156,21 @@ fn machine_kern(
 }
 
 fn apply_simple_kerning<T: SimpleKerning>(
+    c: &mut AatApplyContext,
     subtable: &T,
     is_cross_stream: bool,
-    face: &hb_font_t,
-    kern_mask: hb_mask_t,
-    buffer: &mut hb_buffer_t,
 ) {
-    machine_kern(face, buffer, kern_mask, is_cross_stream, |left, right| {
-        subtable
-            .simple_kerning(left.into(), right.into())
-            .unwrap_or(0)
-    });
+    machine_kern(
+        c.face,
+        c.buffer,
+        c.plan.kern_mask,
+        is_cross_stream,
+        |left, right| {
+            subtable
+                .simple_kerning(left.into(), right.into())
+                .unwrap_or(0)
+        },
+    );
 }
 
 struct StateMachineDriver {
@@ -171,10 +181,9 @@ struct StateMachineDriver {
 const START_OF_TEXT: u16 = 0;
 
 fn apply_state_machine_kerning(
+    c: &mut AatApplyContext,
     subtable: &aat::StateTable,
     is_cross_stream: bool,
-    kern_mask: hb_mask_t,
-    buffer: &mut hb_buffer_t,
 ) {
     let mut driver = StateMachineDriver {
         stack: [0; 8],
@@ -182,10 +191,10 @@ fn apply_state_machine_kerning(
     };
 
     let mut state = START_OF_TEXT;
-    buffer.idx = 0;
+    c.buffer.idx = 0;
     loop {
-        let class = if buffer.idx < buffer.len {
-            buffer.info[buffer.idx]
+        let class = if c.buffer.idx < c.buffer.len {
+            c.buffer.info[c.buffer.idx]
                 .as_gid16()
                 .and_then(|gid| subtable.class(gid).ok())
                 .unwrap_or(1)
@@ -199,57 +208,53 @@ fn apply_state_machine_kerning(
 
         // Unsafe-to-break before this if not in state 0, as things might
         // go differently if we start from state 0 here.
-        if state != START_OF_TEXT && buffer.backtrack_len() != 0 && buffer.idx < buffer.len {
+        if state != START_OF_TEXT && c.buffer.backtrack_len() != 0 && c.buffer.idx < c.buffer.len {
             // If there's no value and we're just epsilon-transitioning to state 0, safe to break.
             if entry.has_offset() || entry.new_state != START_OF_TEXT || entry.has_advance() {
-                buffer.unsafe_to_break_from_outbuffer(
-                    Some(buffer.backtrack_len() - 1),
-                    Some(buffer.idx + 1),
+                c.buffer.unsafe_to_break_from_outbuffer(
+                    Some(c.buffer.backtrack_len() - 1),
+                    Some(c.buffer.idx + 1),
                 );
             }
         }
 
         // Unsafe-to-break if end-of-text would kick in here.
-        if buffer.idx + 2 <= buffer.len {
+        if c.buffer.idx + 2 <= c.buffer.len {
             let Ok(end_entry) = subtable.entry(state, aat::class::END_OF_TEXT) else {
                 break;
             };
 
             if end_entry.has_offset() {
-                buffer.unsafe_to_break(Some(buffer.idx), Some(buffer.idx + 2));
+                c.buffer
+                    .unsafe_to_break(Some(c.buffer.idx), Some(c.buffer.idx + 2));
             }
         }
 
-        state_machine_transition(
-            subtable,
-            &entry,
-            is_cross_stream,
-            kern_mask,
-            &mut driver,
-            buffer,
-        );
+        state_machine_transition(c, subtable, &entry, is_cross_stream, &mut driver);
 
         state = entry.new_state;
 
-        if buffer.idx >= buffer.len {
+        if c.buffer.idx >= c.buffer.len {
             break;
         }
 
-        buffer.max_ops -= 1;
-        if entry.has_advance() || buffer.max_ops <= 0 {
-            buffer.next_glyph();
+        c.buffer.max_ops -= 1;
+        if entry.has_advance() || c.buffer.max_ops <= 0 {
+            c.buffer.next_glyph();
         }
     }
 }
 
 fn state_machine_transition(
+    c: &mut AatApplyContext,
     subtable: &aat::StateTable,
     entry: &aat::StateEntry,
     is_cross_stream: bool,
-    kern_mask: hb_mask_t,
     driver: &mut StateMachineDriver,
-    buffer: &mut hb_buffer_t,
 ) {
+    let buffer = &mut c.buffer;
+    let kern_mask = c.plan.kern_mask;
+
     if entry.has_push() {
         if driver.depth < driver.stack.len() {
             driver.stack[driver.depth] = buffer.idx;
