@@ -121,8 +121,7 @@ fn machine_kern<F>(
     kern_mask: hb_mask_t,
     cross_stream: bool,
     get_kerning: F,
-)
-where
+) where
     F: Fn(u32, u32) -> i32,
 {
     buffer.unsafe_to_concat(None, None);
