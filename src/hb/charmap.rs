@@ -84,7 +84,7 @@ impl<'a> Charmap<'a> {
         result
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn map(&self, c: u32) -> Option<GlyphId> {
         if let Some(gid) = self.cache.get(c) {
             return Some(GlyphId::new(gid));
