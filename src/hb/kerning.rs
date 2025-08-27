@@ -1,4 +1,5 @@
 use super::aat::layout::DELETED_GLYPH;
+use alloc::boxed::Box;
 use read_fonts::{
     tables::{
         aat,
@@ -511,7 +512,7 @@ impl SimpleKerning for Subtable3<'_> {
 pub(crate) struct KernSubtableCache {
     first_set: U32Set,
     second_set: U32Set,
-    class_cache: ClassCache,
+    class_cache: Box<ClassCache>,
 }
 
 impl KernSubtableCache {
@@ -537,7 +538,7 @@ impl KernSubtableCache {
         KernSubtableCache {
             first_set,
             second_set,
-            class_cache: ClassCache::new(),
+            class_cache: Box::new(ClassCache::new()),
         }
     }
 }
