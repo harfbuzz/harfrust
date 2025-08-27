@@ -1163,34 +1163,14 @@ impl hb_buffer_t {
         self._set_glyph_flags(SAFE_TO_INSERT_TATWEEL, start, end, Some(true), None);
     }
 
-    /// Adds glyph flags in mask to infos with clusters between start and end.
-    /// The start index will be from out-buffer if from_out_buffer is true.
-    /// If interior is true, then the cluster having the minimum value is skipped. */
-    fn _set_glyph_flags(
+    fn _set_glyph_flags_impl(
         &mut self,
         mask: hb_mask_t,
-        start: Option<usize>,
-        end: Option<usize>,
-        interior: Option<bool>,
-        from_out_buffer: Option<bool>,
+        start: usize,
+        end: usize,
+        interior: bool,
+        from_out_buffer: bool,
     ) {
-        // If the range is not specified, ie. whole buffer, allow it.
-        // But if range *is* specified, reject if range is too large.
-        if let (Some(start), Some(end)) = (start, end) {
-            if end.wrapping_sub(start) > 255 {
-                return;
-            }
-        }
-
-        let start = start.unwrap_or(0);
-        let end = min(end.unwrap_or(self.len), self.len);
-        let interior = interior.unwrap_or(false);
-        let from_out_buffer = from_out_buffer.unwrap_or(false);
-
-        if interior && !from_out_buffer && end - start < 2 {
-            return;
-        }
-
         self.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
 
         if !from_out_buffer || !self.have_output {
@@ -1228,6 +1208,37 @@ impl hb_buffer_t {
                 self._infos_set_glyph_flags(false, self.idx, end, cluster, mask);
             }
         }
+    }
+
+    /// Adds glyph flags in mask to infos with clusters between start and end.
+    /// The start index will be from out-buffer if from_out_buffer is true.
+    /// If interior is true, then the cluster having the minimum value is skipped. */
+    fn _set_glyph_flags(
+        &mut self,
+        mask: hb_mask_t,
+        start: Option<usize>,
+        end: Option<usize>,
+        interior: Option<bool>,
+        from_out_buffer: Option<bool>,
+    ) {
+        // If the range is not specified, ie. whole buffer, allow it.
+        // But if range *is* specified, reject if range is too large.
+        if let (Some(start), Some(end)) = (start, end) {
+            if end.wrapping_sub(start) > 255 {
+                return;
+            }
+        }
+
+        let start = start.unwrap_or(0);
+        let end = min(end.unwrap_or(self.len), self.len);
+        let interior = interior.unwrap_or(false);
+        let from_out_buffer = from_out_buffer.unwrap_or(false);
+
+        if interior && !from_out_buffer && end - start < 2 {
+            return;
+        }
+
+        self._set_glyph_flags_impl(mask, start, end, interior, from_out_buffer);
     }
 
     pub fn unsafe_to_concat(&mut self, start: Option<usize>, end: Option<usize>) {
