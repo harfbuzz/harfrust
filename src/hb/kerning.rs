@@ -1,9 +1,13 @@
+use super::aat::layout::DELETED_GLYPH;
 use read_fonts::{
-    tables::{aat, kern},
+    tables::{
+        aat,
+        kern::{Subtable, Subtable0, Subtable2, Subtable3, SubtableKind},
+    },
     types::GlyphId,
 };
 
-use super::aat::layout_common::AatApplyContext;
+use super::aat::layout_common::{get_class, AatApplyContext, ClassCache, START_OF_TEXT};
 use super::aat::layout_kerx_table::SimpleKerning;
 use super::buffer::*;
 use super::ot_layout::TableIndex;
@@ -14,19 +18,18 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_mask_t};
 use crate::U32Set;
 
-pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+pub fn hb_ot_layout_kern(
+    plan: &hb_ot_shape_plan_t,
+    face: &hb_font_t,
+    buffer: &mut hb_buffer_t,
+) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, buffer);
 
-    let subtables = match face.aat_tables.kern.as_ref() {
-        Some(table) => table.subtables(),
-        None => return,
-    };
+    let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
 
     let mut seen_cross_stream = false;
-    for subtable in subtables {
-        let Ok(subtable) = subtable else {
-            return;
-        };
+    for subtable in kern.subtables() {
+        let Ok(subtable) = subtable else { continue };
 
         if subtable.is_variable() {
             continue;
@@ -65,16 +68,16 @@ pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &m
         }
 
         match kind {
-            kern::SubtableKind::Format0(format0) if plan.requested_kerning => {
+            SubtableKind::Format0(format0) if plan.requested_kerning => {
                 apply_simple_kerning(&mut c, &format0, is_cross_stream);
             }
-            kern::SubtableKind::Format1(format1) => {
+            SubtableKind::Format1(format1) => {
                 apply_state_machine_kerning(&mut c, &format1, is_cross_stream);
             }
-            kern::SubtableKind::Format2(format2) if plan.requested_kerning => {
+            SubtableKind::Format2(format2) if plan.requested_kerning => {
                 apply_simple_kerning(&mut c, &format2, is_cross_stream);
             }
-            kern::SubtableKind::Format3(format3) if plan.requested_kerning => {
+            SubtableKind::Format3(format3) if plan.requested_kerning => {
                 apply_simple_kerning(&mut c, &format3, is_cross_stream);
             }
             _ => {}
@@ -84,6 +87,7 @@ pub fn hb_ot_layout_kern(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &m
             c.buffer.reverse();
         }
     }
+    Some(())
 }
 
 fn machine_kern(
@@ -178,7 +182,63 @@ struct StateMachineDriver {
     depth: usize,
 }
 
-const START_OF_TEXT: u16 = 0;
+pub trait CollectGlyphs {
+    /// For each valid index, read the value of type `T`.
+    /// If `filter(&value)` returns true, insert the index into `set`.
+    fn collect_glyphs_filtered<F>(&self, _set: &mut U32Set, _num_glyphs: u32, _filter: F)
+    where
+        F: Fn(u8) -> bool;
+}
+
+impl CollectGlyphs for aat::ClassSubtable<'_> {
+    fn collect_glyphs_filtered<F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    where
+        F: Fn(u8) -> bool,
+    {
+        let first_glyph = self.first_glyph() as u32;
+        let class_array = self.class_array();
+        for (i, class) in class_array.iter().enumerate() {
+            let gid = first_glyph + i as u32;
+            if filter(*class) {
+                set.insert(gid);
+            }
+        }
+    }
+}
+
+fn collect_initial_glyphs(machine: &aat::StateTable, glyphs: &mut U32Set, num_glyphs: u32) {
+    let mut classes = U32Set::default();
+
+    let class_table = machine.header.class_table().ok();
+    let class_table = if let Some(ct) = class_table {
+        ct
+    } else {
+        return;
+    };
+
+    let n_classes = machine.header.state_size();
+    for i in 0..n_classes {
+        if let Ok(entry) = machine.entry(START_OF_TEXT, i as u8) {
+            if entry.new_state == START_OF_TEXT
+                && !entry.is_action_initiable()
+                && !entry.is_actionable()
+            {
+                continue;
+            }
+            classes.insert(i as u32);
+        }
+    }
+
+    // And glyphs in those classes.
+
+    let filter = |class: u8| classes.contains(class as u32);
+
+    if filter(aat::class::DELETED_GLYPH) {
+        glyphs.insert(DELETED_GLYPH);
+    }
+
+    class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
+}
 
 fn apply_state_machine_kerning(
     c: &mut AatApplyContext,
@@ -344,6 +404,14 @@ fn state_machine_transition(
 trait KernStateEntryExt {
     fn flags(&self) -> u16;
 
+    fn is_action_initiable(&self) -> bool {
+        self.flags() & 0x8000 != 0
+    }
+
+    fn is_actionable(&self) -> bool {
+        self.flags() & 0x3FFF != 0
+    }
+
     fn has_offset(&self) -> bool {
         self.flags() & 0x3FFF != 0
     }
@@ -367,7 +435,7 @@ impl<T> KernStateEntryExt for aat::StateEntry<T> {
     }
 }
 
-impl SimpleKerning for kern::Subtable0<'_> {
+impl SimpleKerning for Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
@@ -379,7 +447,7 @@ impl SimpleKerning for kern::Subtable0<'_> {
     }
 }
 
-impl SimpleKerning for kern::Subtable2<'_> {
+impl SimpleKerning for Subtable2<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
@@ -397,12 +465,46 @@ impl SimpleKerning for kern::Subtable2<'_> {
     }
 }
 
-impl SimpleKerning for kern::Subtable3<'_> {
+impl SimpleKerning for Subtable3<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
     fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
         first_set.insert_range(0..=self.glyph_count().saturating_sub(1) as u32);
         second_set.insert_range(0..=self.glyph_count().saturating_sub(1) as u32);
+    }
+}
+
+pub(crate) struct KernSubtableCache {
+    first_set: U32Set,
+    second_set: U32Set,
+    class_cache: ClassCache,
+}
+
+impl KernSubtableCache {
+    pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut first_set = U32Set::default();
+        let mut second_set = U32Set::default();
+        if let Ok(kind) = subtable.kind() {
+            match &kind {
+                SubtableKind::Format0(format0) => {
+                    format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+                SubtableKind::Format1(format1) => {
+                    collect_initial_glyphs(&format1, &mut first_set, num_glyphs);
+                }
+                SubtableKind::Format2(format2) => {
+                    format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+                SubtableKind::Format3(format3) => {
+                    format3.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+            }
+        };
+        KernSubtableCache {
+            first_set,
+            second_set,
+            class_cache: ClassCache::new(),
+        }
     }
 }

@@ -7,6 +7,7 @@ pub mod map;
 
 use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
 use crate::hb::aat::layout_morx_table::MorxSubtableCache;
+use crate::hb::kerning::KernSubtableCache;
 use crate::hb::tables::TableOffsets;
 use alloc::vec::Vec;
 use read_fonts::{
@@ -17,6 +18,7 @@ use read_fonts::{
 #[derive(Default)]
 pub struct AatCache {
     pub morx: Vec<MorxSubtableCache>,
+    pub kern: Vec<KernSubtableCache>,
     pub kerx: Vec<KerxSubtableCache>,
 }
 
@@ -62,7 +64,7 @@ impl AatCache {
 pub struct AatTables<'a> {
     pub morx: Option<(Morx<'a>, &'a [MorxSubtableCache])>,
     pub ankr: Option<Ankr<'a>>,
-    pub kern: Option<Kern<'a>>,
+    pub kern: Option<(Kern<'a>, &'a [KernSubtableCache])>,
     pub kerx: Option<(Kerx<'a>, &'a [KerxSubtableCache])>,
     pub trak: Option<Trak<'a>>,
     pub feat: Option<Feat<'a>>,
@@ -75,7 +77,10 @@ impl<'a> AatTables<'a> {
             .resolve_table(font)
             .map(|table| (table, cache.morx.as_slice()));
         let ankr = table_offsets.ankr.resolve_table(font);
-        let kern = table_offsets.kern.resolve_table(font);
+        let kern = table_offsets
+            .kern
+            .resolve_table(font)
+            .map(|table| (table, cache.kern.as_slice()));
         let kerx = table_offsets
             .kerx
             .resolve_table(font)

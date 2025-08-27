@@ -61,6 +61,7 @@ pub fn hb_ot_layout_has_kerning(face: &hb_font_t) -> bool {
 pub fn hb_ot_layout_has_machine_kerning(face: &hb_font_t) -> bool {
     match face.aat_tables.kern {
         Some(ref kern) => kern
+            .0
             .subtables()
             .filter_map(Result::ok)
             .any(|s| s.is_state_machine()),
@@ -71,6 +72,7 @@ pub fn hb_ot_layout_has_machine_kerning(face: &hb_font_t) -> bool {
 pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
     match face.aat_tables.kern {
         Some(ref kern) => kern
+            .0
             .subtables()
             .filter_map(Result::ok)
             .any(|s| s.is_cross_stream()),
