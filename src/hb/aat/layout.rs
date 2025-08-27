@@ -525,17 +525,6 @@ pub fn substitute(
     );
 }
 
-pub fn zero_width_deleted_glyphs(buffer: &mut hb_buffer_t) {
-    for i in 0..buffer.len {
-        if buffer.info[i].glyph_id == DELETED_GLYPH {
-            buffer.pos[i].x_advance = 0;
-            buffer.pos[i].y_advance = 0;
-            buffer.pos[i].x_offset = 0;
-            buffer.pos[i].y_offset = 0;
-        }
-    }
-}
-
 fn is_deleted_glyph(info: &GlyphInfo) -> bool {
     info.is_aat_deleted()
 }

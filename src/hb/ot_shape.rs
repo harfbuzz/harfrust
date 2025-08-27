@@ -485,11 +485,6 @@ fn position_complex(ctx: &mut hb_ot_shape_context_t) {
     // Finish off.  Has to follow a certain order.
     GPOS::position_finish_advances(ctx.face, ctx.buffer);
     zero_width_default_ignorables(ctx.buffer);
-
-    if ctx.plan.apply_morx {
-        aat::layout::zero_width_deleted_glyphs(ctx.buffer);
-    }
-
     GPOS::position_finish_offsets(ctx.face, ctx.buffer);
 
     if ctx.plan.fallback_mark_positioning {
