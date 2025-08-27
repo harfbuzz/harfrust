@@ -17,11 +17,13 @@ pub mod attach_type {
     pub const CURSIVE: u8 = 2;
 }
 
+/// See <https://github.com/harfbuzz/harfbuzz/blob/7d936359a27abb2d7cb14ecc102463bb15c11843/src/OT/Layout/GPOS/GPOS.hh#L75>
 fn propagate_attachment_offsets(
     pos: &mut [GlyphPosition],
     len: usize,
     i: usize,
     direction: Direction,
+    nesting_level: usize,
 ) {
     // Adjusts offsets of attached glyphs (both cursive and mark) to accumulate
     // offset of glyph they are attached to.
@@ -38,7 +40,11 @@ fn propagate_attachment_offsets(
         return;
     }
 
-    propagate_attachment_offsets(pos, len, j, direction);
+    if nesting_level == 0 {
+        return;
+    }
+
+    propagate_attachment_offsets(pos, len, j, direction, nesting_level - 1);
 
     match kind {
         attach_type::MARK => {
@@ -93,7 +99,7 @@ pub mod GPOS {
         // Handle attachments
         if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT != 0 {
             for i in 0..len {
-                propagate_attachment_offsets(&mut buffer.pos, len, i, direction);
+                propagate_attachment_offsets(&mut buffer.pos, len, i, direction, MAX_NESTING_LEVEL);
             }
         }
     }
