@@ -114,7 +114,6 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 if !c.plan.requested_kerning {
                     continue;
                 }
-                c.buffer.unsafe_to_concat(None, None);
                 apply_simple_kerning(c, &subtable, format2);
             }
             SubtableKind::Format4(format4) => {
