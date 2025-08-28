@@ -389,6 +389,7 @@ fn apply_state_machine_kerning(
     }
 }
 
+#[inline(always)]
 fn state_machine_transition(
     c: &mut AatApplyContext,
     subtable: &aat::StateTable,
