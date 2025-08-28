@@ -480,6 +480,7 @@ struct Driver1 {
 }
 
 impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
+    #[inline(always)]
     fn transition(
         &mut self,
         aat: &Subtable1,
@@ -583,6 +584,7 @@ struct Driver4<'a> {
 }
 
 impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
+    #[inline(always)]
     fn transition(
         &mut self,
         aat: &Subtable4,
