@@ -478,6 +478,7 @@ impl DriverContext<NoPayload> for RearrangementCtx {
         entry.flags & Self::VERB != 0
     }
 
+    #[inline(always)]
     fn transition(&mut self, entry: &StateEntry, ac: &mut AatApplyContext) -> Option<()> {
         let buffer = &mut ac.buffer;
         let flags = entry.flags;
@@ -594,6 +595,7 @@ impl DriverContext<ContextualEntryData> for ContextualCtx<'_> {
         entry.payload.mark_index.get() != 0xFFFF || entry.payload.current_index.get() != 0xFFFF
     }
 
+    #[inline(always)]
     fn transition(
         &mut self,
         entry: &StateEntry<ContextualEntryData>,
@@ -685,6 +687,7 @@ impl DriverContext<InsertionEntryData> for InsertionCtx<'_> {
                 || entry.payload.marked_insert_index.get() != 0xFFFF)
     }
 
+    #[inline(always)]
     fn transition(
         &mut self,
         entry: &StateEntry<InsertionEntryData>,
@@ -823,6 +826,7 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
         entry.flags & Self::PERFORM_ACTION != 0
     }
 
+    #[inline(always)]
     fn transition(
         &mut self,
         entry: &StateEntry<BigEndian<u16>>,
