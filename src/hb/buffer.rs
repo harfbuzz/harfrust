@@ -1472,6 +1472,7 @@ impl hb_buffer_t {
         cluster.min(info[start].cluster.min(info[end - 1].cluster))
     }
 
+    #[inline(always)]
     fn _infos_set_glyph_flags(
         &mut self,
         out_info: bool,
