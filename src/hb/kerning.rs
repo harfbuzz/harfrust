@@ -137,14 +137,14 @@ fn machine_kern<F>(
     let horizontal = ctx.buffer.direction.is_horizontal();
 
     let mut i = 0;
-    while i < ctx.buffer.len {
-        if (ctx.buffer.info[i].mask & kern_mask) == 0 {
+    let mut iter = skipping_iterator_t::new(&mut ctx, false);
+    while i < iter.buffer.len {
+        if (iter.buffer.info[i].mask & kern_mask) == 0 {
             i += 1;
             continue;
         }
 
-        let mut iter = skipping_iterator_t::new(&mut ctx, false);
-        iter.reset(i);
+        iter.reset_fast(i);
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -154,15 +154,15 @@ fn machine_kern<F>(
 
         let j = iter.index();
 
-        let info = &ctx.buffer.info;
+        let info = &iter.buffer.info;
         let kern = get_kerning(info[i].glyph_id, info[j].glyph_id);
 
-        let pos = &mut ctx.buffer.pos;
+        let pos = &mut iter.buffer.pos;
         if kern != 0 {
             if horizontal {
                 if cross_stream {
                     pos[j].y_offset = kern;
-                    ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
@@ -173,7 +173,7 @@ fn machine_kern<F>(
             } else {
                 if cross_stream {
                     pos[j].x_offset = kern;
-                    ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
@@ -183,7 +183,7 @@ fn machine_kern<F>(
                 }
             }
 
-            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
+            iter.buffer.unsafe_to_break(Some(i), Some(j + 1));
         }
 
         i = j;
