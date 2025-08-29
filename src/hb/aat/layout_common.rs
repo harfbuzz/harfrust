@@ -46,6 +46,7 @@ pub struct AatApplyContext<'a> {
     pub(crate) first_set: Option<&'a U32Set>,
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
+    pub(crate) start_end_safe_to_break: u64,
 }
 
 impl<'a> AatApplyContext<'a> {
@@ -65,6 +66,7 @@ impl<'a> AatApplyContext<'a> {
             first_set: None,
             second_set: None,
             machine_class_cache: None,
+            start_end_safe_to_break: 0,
         }
     }
 
