@@ -42,7 +42,9 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         };
 
         let subtable_cache = subtable_caches.get(subtable_idx);
-        let subtable_cache = subtable_cache.as_ref().unwrap();
+        let Some(subtable_cache) = subtable_cache.as_ref() else {
+            break;
+        };
         subtable_idx += 1;
 
         // We don't handle variations
