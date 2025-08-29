@@ -42,7 +42,7 @@ impl PlanCache {
         buffer: &harfrust::UnicodeBuffer,
     ) -> Arc<harfrust::ShapePlan> {
         let key = harfrust::ShapePlanKey::new(Some(buffer.script()), buffer.direction());
-        if let Some(plan) = self.0.iter().find(|p| key.matches(&p)) {
+        if let Some(plan) = self.0.iter().find(|p| key.matches(p)) {
             return plan.clone();
         }
         self.0.push(Arc::new(harfrust::ShapePlan::new(
