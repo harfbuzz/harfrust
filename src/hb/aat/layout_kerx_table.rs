@@ -208,25 +208,25 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
     let second_set = c.second_set.as_ref().unwrap();
 
     let mut i = 0;
-    while i < ctx.buffer.len {
-        if (ctx.buffer.info[i].mask & c.plan.kern_mask) == 0 {
+    let mut iter = skipping_iterator_t::new(&mut ctx, false);
+    while i < iter.buffer.len {
+        if (iter.buffer.info[i].mask & c.plan.kern_mask) == 0 {
             i += 1;
             continue;
         }
 
-        let mut iter = skipping_iterator_t::new(&mut ctx, false);
-        iter.reset(i);
+        iter.reset_fast(i);
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
-            ctx.buffer.unsafe_to_concat(Some(i), Some(unsafe_to));
+            iter.buffer.unsafe_to_concat(Some(i), Some(unsafe_to));
             i += 1;
             continue;
         }
 
         let j = iter.index();
 
-        let info = &ctx.buffer.info;
+        let info = &iter.buffer.info;
         let a = info[i].as_glyph();
         let b = info[j].as_glyph();
         let kern = if !first_set.contains(a.to_u32()) || !second_set.contains(b.to_u32()) {
@@ -235,12 +235,12 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
             kind.simple_kerning(a, b).unwrap_or(0)
         };
 
-        let pos = &mut ctx.buffer.pos;
+        let pos = &mut iter.buffer.pos;
         if kern != 0 {
             if horizontal {
                 if cross_stream {
                     pos[j].y_offset = kern;
-                    ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
@@ -251,7 +251,7 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
             } else {
                 if cross_stream {
                     pos[j].x_offset = kern;
-                    ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
@@ -261,7 +261,7 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
                 }
             }
 
-            ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
+            iter.buffer.unsafe_to_break(Some(i), Some(j + 1));
         }
 
         i = j;
