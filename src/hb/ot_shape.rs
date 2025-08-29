@@ -429,12 +429,7 @@ fn position_default(ctx: &mut hb_ot_shape_context_t) {
     let len = ctx.buffer.len;
 
     if ctx.buffer.direction.is_horizontal() {
-        for (info, pos) in ctx.buffer.info[..len]
-            .iter()
-            .zip(&mut ctx.buffer.pos[..len])
-        {
-            pos.x_advance = ctx.face.glyph_h_advance(info.as_glyph());
-        }
+        ctx.face.glyph_h_advances(ctx.buffer);
     } else {
         for (info, pos) in ctx.buffer.info[..len]
             .iter()
