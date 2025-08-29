@@ -10,6 +10,7 @@ use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::{hb_ot_shape_context_t, shape_internal};
 use crate::hb::aat::AatCache;
+use crate::hb::buffer::hb_buffer_t;
 use crate::hb::tables::TableOffsets;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
@@ -341,6 +342,10 @@ impl<'a> crate::Shaper<'a> {
         self.glyph_metrics
             .advance_width(glyph, self.ot_tables.coords)
             .unwrap_or_default()
+    }
+    pub(crate) fn glyph_h_advances(&self, buffer: &mut hb_buffer_t) {
+        self.glyph_metrics
+            .populate_advance_widths(buffer, self.ot_tables.coords);
     }
 
     pub(crate) fn glyph_v_advance(&self, glyph: GlyphId) -> i32 {

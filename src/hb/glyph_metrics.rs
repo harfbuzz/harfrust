@@ -1,3 +1,4 @@
+use crate::hb::buffer::hb_buffer_t;
 use crate::{hb::tables::TableOffsets, Tag};
 use read_fonts::{
     tables::{
@@ -108,6 +109,34 @@ impl<'a> GlyphMetrics<'a> {
             }
         }
         Some(advance)
+    }
+
+    pub fn populate_advance_widths(&self, buf: &mut hb_buffer_t, coords: &[F2Dot14]) {
+        for (info, pos) in buf.info.iter().zip(buf.pos.iter_mut()) {
+            pos.x_advance = self
+                .h_metrics
+                .get(info.glyph_id as usize)
+                .or_else(|| self.h_metrics.last())
+                .map(|metric| metric.advance() as i32)
+                .or_else(|| (info.glyph_id < self.num_glyphs).then_some(self.upem as i32 / 2))
+                .unwrap_or_default();
+        }
+        if !coords.is_empty() {
+            if let Some(hvar) = self.hvar.as_ref() {
+                for (info, pos) in buf.info.iter().zip(buf.pos.iter_mut()) {
+                    pos.x_advance += hvar
+                        .advance_width_delta(info.as_glyph(), coords)
+                        .unwrap_or_default()
+                        .to_i32();
+                }
+            } else {
+                for (info, pos) in buf.info.iter().zip(buf.pos.iter_mut()) {
+                    if let Some(deltas) = self.phantom_deltas(info.as_glyph(), coords) {
+                        pos.x_advance += deltas[1].x.to_i32() - deltas[0].x.to_i32();
+                    }
+                }
+            }
+        }
     }
 
     pub fn _left_side_bearing(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
