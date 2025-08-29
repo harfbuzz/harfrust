@@ -1175,8 +1175,8 @@ impl hb_buffer_t {
 
         if !from_out_buffer || !self.have_output {
             if !interior {
-                for i in start..end {
-                    self.info[i].mask |= mask;
+                for info in &mut self.info[start..end] {
+                    info.mask |= mask;
                 }
             } else {
                 let cluster = self._infos_find_min_cluster(&self.info, start, end, None);
@@ -1187,12 +1187,13 @@ impl hb_buffer_t {
             debug_assert!(self.idx <= end);
 
             if !interior {
-                for i in start..self.out_len {
-                    self.out_info_mut()[i].mask |= mask;
+                let range_end = self.out_len;
+                for info in &mut self.out_info_mut()[start..range_end] {
+                    info.mask |= mask;
                 }
 
-                for i in self.idx..end {
-                    self.info[i].mask |= mask;
+                for info in &mut self.info[self.idx..end] {
+                    info.mask |= mask;
                 }
             } else {
                 let mut cluster = self._infos_find_min_cluster(&self.info, self.idx, end, None);
@@ -1501,10 +1502,10 @@ impl hb_buffer_t {
         if cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS
             || (cluster != cluster_first && cluster != cluster_last)
         {
-            for i in start..end {
-                if infos[i].cluster != cluster {
+            for info in &mut infos[start..end] {
+                if info.cluster != cluster {
                     apply_scratch_flags = true;
-                    infos[i].mask |= mask;
+                    info.mask |= mask;
                 }
             }
 
