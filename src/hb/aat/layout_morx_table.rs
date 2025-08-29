@@ -88,7 +88,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
     let mut subtable_idx = 0;
 
     let mut buffer_is_reversed = false;
-    for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter()) {
+    'outer: for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter()) {
         let Ok(chain) = chain else {
             continue;
         };
@@ -99,7 +99,9 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             };
 
             let subtable_cache = subtable_caches.get(subtable_idx);
-            let subtable_cache = subtable_cache.as_ref().unwrap();
+            let Some(subtable_cache) = subtable_cache.as_ref() else {
+                break 'outer;
+            };
             subtable_idx += 1;
 
             if let Some(range_flags) = c.range_flags.as_ref() {

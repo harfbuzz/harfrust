@@ -47,7 +47,9 @@ pub fn hb_ot_layout_kern(
         let Ok(subtable) = subtable else { continue };
 
         let subtable_cache = subtable_caches.get(subtable_idx);
-        let subtable_cache = subtable_cache.as_ref().unwrap();
+        let Some(subtable_cache) = subtable_cache.as_ref() else {
+            break;
+        };
         subtable_idx += 1;
 
         if subtable.is_variable() {
