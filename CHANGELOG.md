@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-08-29
+
+This release matches HarfBuzz [v11.4.4][harfbuzz-11.4.4], and has an MSRV (minimum supported Rust version) of 1.80.
+
+- Major optimizations to speed up AAT shaping.
+
 ## [0.1.2] - 2025-08-20
 
 This release matches HarfBuzz [v11.3.3][harfbuzz-11.3.3], and has an MSRV (minimum supported Rust version) of 1.80.
@@ -29,7 +35,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.1.1...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/harfbuzz/harfrust/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/harfbuzz/harfrust/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/harfbuzz/harfrust/compare/0.1.0...0.1.1
 <!-- The last release of RustyBuzz before 0.1.0. -->
@@ -37,6 +44,7 @@ See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.
 
 [harfbuzz-11.2.1]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.2.1
 [harfbuzz-11.3.3]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.3.3
+[harfbuzz-11.4.4]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.4.4
 
 [@khaledhosny]: https://github.com/khaledhosny
 
