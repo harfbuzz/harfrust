@@ -29,13 +29,10 @@ fn propagate_attachment_offsets(
     // offset of glyph they are attached to.
     let chain = pos[i].attach_chain();
     let kind = pos[i].attach_type();
-    if chain == 0 {
-        return;
-    }
 
     pos[i].set_attach_chain(0);
 
-    let j = (i as isize + isize::from(chain)) as _;
+    let j = (i as isize + isize::from(chain)) as usize;
     if j >= len {
         return;
     }
@@ -44,7 +41,9 @@ fn propagate_attachment_offsets(
         return;
     }
 
-    propagate_attachment_offsets(pos, len, j, direction, nesting_level - 1);
+    if pos[j].attach_chain() != 0 {
+        propagate_attachment_offsets(pos, len, j, direction, nesting_level - 1);
+    }
 
     match kind {
         attach_type::MARK => {
@@ -101,23 +100,27 @@ pub mod GPOS {
             // https://github.com/harfbuzz/harfbuzz/issues/5514
             if buffer.direction.is_forward() {
                 for i in 0..len {
-                    propagate_attachment_offsets(
-                        &mut buffer.pos,
-                        len,
-                        i,
-                        direction,
-                        MAX_NESTING_LEVEL,
-                    );
+                    if buffer.pos[i].attach_chain() != 0 {
+                        propagate_attachment_offsets(
+                            &mut buffer.pos,
+                            len,
+                            i,
+                            direction,
+                            MAX_NESTING_LEVEL,
+                        );
+                    }
                 }
             } else {
                 for i in (0..len).rev() {
-                    propagate_attachment_offsets(
-                        &mut buffer.pos,
-                        len,
-                        i,
-                        direction,
-                        MAX_NESTING_LEVEL,
-                    );
+                    if buffer.pos[i].attach_chain() != 0 {
+                        propagate_attachment_offsets(
+                            &mut buffer.pos,
+                            len,
+                            i,
+                            direction,
+                            MAX_NESTING_LEVEL,
+                        );
+                    }
                 }
             }
         }
