@@ -59,6 +59,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         c.first_set = Some(&subtable_cache.first_set);
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
+        c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
 
         if !c.buffer_intersects_machine() {
             continue;
@@ -341,6 +342,25 @@ fn collect_initial_glyphs<T>(
     class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
 }
 
+fn collect_start_end_safe_to_break<T>(machine: &aat::ExtendedStateTable<T>) -> u64
+where
+    T: FixedSize + bytemuck::AnyBitPattern,
+    aat::StateEntry<T>: KerxStateEntryExt,
+{
+    let mut result = 0u64;
+    for state in 0..64 {
+        let bit = if let Ok(entry) = machine.entry(state, aat::class::END_OF_TEXT as u16) {
+            !entry.is_actionable()
+        } else {
+            true
+        };
+        if bit {
+            result |= 1 << state;
+        }
+    }
+    result
+}
+
 fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
     c: &mut AatApplyContext,
     subtable: &Subtable,
@@ -426,10 +446,14 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
 
             // 3
             (
-                if let Ok(end_entry) = state_table.entry(state, u16::from(aat::class::END_OF_TEXT)) {
-                    !end_entry.is_actionable()
+                if state < 64 {
+                    (c.start_end_safe_to_break & (1 << state)) != 0
                 } else {
-                    false
+                    if let Ok(end_entry) = state_table.entry(state, u16::from(aat::class::END_OF_TEXT)) {
+                        !end_entry.is_actionable()
+                    } else {
+                        false
+                    }
                 }
             )
         ;
@@ -652,6 +676,7 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
 }
 
 pub(crate) struct KerxSubtableCache {
+    start_end_safe_to_break: u64,
     first_set: U32Set,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
@@ -659,6 +684,7 @@ pub(crate) struct KerxSubtableCache {
 
 impl KerxSubtableCache {
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut start_end_safe_to_break = 0u64;
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
@@ -667,12 +693,14 @@ impl KerxSubtableCache {
                     format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
                 SubtableKind::Format1(format1) => {
+                    start_end_safe_to_break = collect_start_end_safe_to_break(&format1.state_table);
                     collect_initial_glyphs(&format1.state_table, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format2(format2) => {
                     format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
                 SubtableKind::Format4(format4) => {
+                    start_end_safe_to_break = collect_start_end_safe_to_break(&format4.state_table);
                     collect_initial_glyphs(&format4.state_table, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format6(format6) => {
@@ -681,6 +709,7 @@ impl KerxSubtableCache {
             }
         };
         KerxSubtableCache {
+            start_end_safe_to_break,
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),

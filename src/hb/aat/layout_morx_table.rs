@@ -121,6 +121,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             c.subtable_flags = subtable.sub_feature_flags();
             c.first_set = Some(&subtable_cache.glyph_set);
             c.machine_class_cache = Some(&subtable_cache.class_cache);
+            c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
 
             if !c.buffer_intersects_machine() {
                 continue;
@@ -207,6 +208,24 @@ fn collect_initial_glyphs<T, Ctx: DriverContext<T>>(
     }
 
     class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
+}
+
+fn collect_start_end_safe_to_break<T, Ctx: DriverContext<T>>(machine: &ExtendedStateTable<T>) -> u64
+where
+    T: FixedSize + bytemuck::AnyBitPattern,
+{
+    let mut result = 0u64;
+    for state in 0..64 {
+        let bit = if let Ok(entry) = machine.entry(state, aat::class::END_OF_TEXT as u16) {
+            !Ctx::is_actionable(&entry)
+        } else {
+            true
+        };
+        if bit {
+            result |= 1 << state;
+        }
+    }
+    result
 }
 
 pub(crate) trait DriverContext<T> {
@@ -339,10 +358,14 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
 
             // 3
             (
-                if let Ok(end_entry) = machine.entry(state, u16::from(aat::class::END_OF_TEXT)) {
-                    !Ctx::is_actionable(&end_entry)
+                if state < 64 {
+                    (ac.start_end_safe_to_break & (1 << state)) != 0
                 } else {
-                    false
+                    if let Ok(end_entry) = machine.entry(state, u16::from(aat::class::END_OF_TEXT)) {
+                        !Ctx::is_actionable(&end_entry)
+                    } else {
+                        false
+                    }
                 }
             )
         ;
@@ -935,16 +958,20 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
 }
 
 pub(crate) struct MorxSubtableCache {
+    start_end_safe_to_break: u64,
     glyph_set: U32Set,
     class_cache: ClassCache,
 }
 
 impl MorxSubtableCache {
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut start_end_safe_to_break = 0u64;
         let mut glyph_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Rearrangement(table) => {
+                    start_end_safe_to_break =
+                        collect_start_end_safe_to_break::<_, RearrangementCtx>(table);
                     collect_initial_glyphs::<_, RearrangementCtx>(
                         table,
                         &mut glyph_set,
@@ -952,6 +979,8 @@ impl MorxSubtableCache {
                     );
                 }
                 SubtableKind::Contextual(table) => {
+                    start_end_safe_to_break =
+                        collect_start_end_safe_to_break::<_, ContextualCtx>(&table.state_table);
                     collect_initial_glyphs::<_, ContextualCtx>(
                         &table.state_table,
                         &mut glyph_set,
@@ -959,6 +988,8 @@ impl MorxSubtableCache {
                     );
                 }
                 SubtableKind::Ligature(table) => {
+                    start_end_safe_to_break =
+                        collect_start_end_safe_to_break::<_, LigatureCtx>(&table.state_table);
                     collect_initial_glyphs::<_, LigatureCtx>(
                         &table.state_table,
                         &mut glyph_set,
@@ -969,6 +1000,8 @@ impl MorxSubtableCache {
                     lookup.collect_glyphs(&mut glyph_set, num_glyphs);
                 }
                 SubtableKind::Insertion(table) => {
+                    start_end_safe_to_break =
+                        collect_start_end_safe_to_break::<_, InsertionCtx>(&table.state_table);
                     collect_initial_glyphs::<_, InsertionCtx>(
                         &table.state_table,
                         &mut glyph_set,
@@ -978,6 +1011,7 @@ impl MorxSubtableCache {
             }
         };
         MorxSubtableCache {
+            start_end_safe_to_break,
             glyph_set,
             class_cache: ClassCache::new(),
         }
