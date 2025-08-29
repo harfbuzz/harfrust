@@ -530,36 +530,17 @@ impl DriverContext<NoPayload> for RearrangementCtx {
                 let mut buf = [GlyphInfo::default(); 4];
 
                 buf[..l].copy_from_slice(&buffer.info[self.start..self.start + l]);
-                // for (i, glyph_info) in buf[..l].iter_mut().enumerate() {
-                //     *glyph_info = buffer.info[self.start + i];
-                // }
-
                 buf[2..2 + r].copy_from_slice(&buffer.info[self.end - r..self.end]);
-                // for i in 0..r {
-                //     buf[i + 2] = buffer.info[self.end - r + i];
-                // }
 
-                if l > r {
-                    // let len = self.end - self.start - l - r;
-                    // buffer.info.copy_within(self.start + l..self.start + l + len, self.start + r);
-                    for i in 0..(self.end - self.start - l - r) {
-                        buffer.info[self.start + r + i] = buffer.info[self.start + l + i];
-                    }
-                } else if l < r {
-                    for i in (0..(self.end - self.start - l - r)).rev() {
-                        buffer.info[self.start + r + i] = buffer.info[self.start + l + i];
-                    }
+                if l != r {
+                    let len = self.end - self.start - l - r;
+                    buffer
+                        .info
+                        .copy_within(self.start + l..self.start + l + len, self.start + r);
                 }
 
                 buffer.info[self.start..self.start + r].copy_from_slice(&buf[2..2 + r]);
-                // for i in 0..r {
-                //     buffer.info[self.start + i] = buf[2 + i];
-                // }
-
                 buffer.info[self.end - l..self.end].copy_from_slice(&buf[..l]);
-                // for i in 0..l {
-                //     buffer.info[self.end - l + i] = buf[i];
-                // }
 
                 if reverse_l {
                     buffer.info.swap(self.end - 1, self.end - 2);
