@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 const BENCHES: &[(&str, &str)] = &[
     (
@@ -32,30 +32,6 @@ const BENCHES: &[(&str, &str)] = &[
     ),
 ];
 
-#[derive(Default)]
-struct PlanCache(Vec<Arc<harfrust::ShapePlan>>);
-
-impl PlanCache {
-    fn get(
-        &mut self,
-        shaper: &harfrust::Shaper,
-        buffer: &harfrust::UnicodeBuffer,
-    ) -> Arc<harfrust::ShapePlan> {
-        let key = harfrust::ShapePlanKey::new(Some(buffer.script()), buffer.direction());
-        if let Some(plan) = self.0.iter().find(|p| key.matches(p)) {
-            return plan.clone();
-        }
-        self.0.push(Arc::new(harfrust::ShapePlan::new(
-            shaper,
-            buffer.direction(),
-            Some(buffer.script()),
-            None,
-            &[],
-        )));
-        self.0.last().unwrap().clone()
-    }
-}
-
 fn bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("shaping");
     group.sampling_mode(criterion::SamplingMode::Flat);
@@ -76,15 +52,23 @@ fn bench(c: &mut Criterion) {
             let font = harfrust::FontRef::from_index(&font_data, 0).unwrap();
             let state = HrTestState::new(&font);
             let shaper = state.shaper();
-            let mut plan_cache = PlanCache::default();
+            let mut plan = None;
             let mut shared_buffer = Some(harfrust::UnicodeBuffer::new());
             b.iter(|| {
                 for line in &lines {
                     let mut buffer = shared_buffer.take().unwrap();
                     buffer.push_str(line);
                     buffer.guess_segment_properties();
-                    let plan = plan_cache.get(&shaper, &buffer);
-                    shared_buffer = Some(shaper.shape_with_plan(&plan, buffer, &[]).clear());
+                    let plan = plan.get_or_insert_with(|| {
+                        harfrust::ShapePlan::new(
+                            &shaper,
+                            buffer.direction(),
+                            Some(buffer.script()),
+                            None,
+                            &[],
+                        )
+                    });
+                    shared_buffer = Some(shaper.shape_with_plan(plan, buffer, &[]).clear());
                 }
             });
         });
