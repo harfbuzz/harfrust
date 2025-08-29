@@ -63,6 +63,7 @@ pub fn hb_ot_layout_kern(
         c.first_set = Some(&subtable_cache.first_set);
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
+        c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
 
         if !c.buffer_intersects_machine() {
             continue;
@@ -276,6 +277,21 @@ fn collect_initial_glyphs(machine: &aat::StateTable, glyphs: &mut U32Set, num_gl
     class_table.collect_glyphs_filtered(glyphs, num_glyphs, filter);
 }
 
+fn collect_start_end_safe_to_break(machine: &aat::StateTable) -> u64 {
+    let mut result = 0u64;
+    for state in 0..64 {
+        let bit = if let Ok(entry) = machine.entry(state, aat::class::END_OF_TEXT) {
+            !entry.is_actionable()
+        } else {
+            true
+        };
+        if bit {
+            result |= 1 << state;
+        }
+    }
+    result
+}
+
 fn apply_state_machine_kerning(
     c: &mut AatApplyContext,
     subtable: &aat::StateTable,
@@ -361,10 +377,14 @@ fn apply_state_machine_kerning(
 
             // 3
             (
-                if let Ok(end_entry) = subtable.entry(state, aat::class::END_OF_TEXT) {
-                    !end_entry.is_actionable()
+                if state < 64 {
+                    (c.start_end_safe_to_break & (1 << state)) != 0
                 } else {
-                    false
+                    if let Ok(end_entry) = subtable.entry(state, aat::class::END_OF_TEXT) {
+                        !end_entry.is_actionable()
+                    } else {
+                        false
+                    }
                 }
             )
         ;
@@ -563,6 +583,7 @@ impl SimpleKerning for Subtable3<'_> {
 }
 
 pub(crate) struct KernSubtableCache {
+    start_end_safe_to_break: u64,
     first_set: U32Set,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
@@ -570,6 +591,7 @@ pub(crate) struct KernSubtableCache {
 
 impl KernSubtableCache {
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+        let mut start_end_safe_to_break = 0u64;
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
@@ -578,6 +600,7 @@ impl KernSubtableCache {
                     format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
                 SubtableKind::Format1(format1) => {
+                    start_end_safe_to_break = collect_start_end_safe_to_break(format1);
                     collect_initial_glyphs(format1, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format2(format2) => {
@@ -589,6 +612,7 @@ impl KernSubtableCache {
             }
         };
         KernSubtableCache {
+            start_end_safe_to_break,
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
