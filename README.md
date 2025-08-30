@@ -12,7 +12,7 @@ HarfRust started as a fork of [RustyBuzz](https://docs.rs/rustybuzz) to explore 
 multiple implementations of core font parsing for [`skrifa`](https://docs.rs/skrifa) consumers.
 Further context in https://github.com/googlefonts/fontations/issues/956.
 
-Matches HarfBuzz [v11.3.3](https://github.com/harfbuzz/harfbuzz/releases/tag/11.3.3).
+Matches HarfBuzz [v11.4.5](https://github.com/harfbuzz/harfbuzz/releases/tag/11.4.5).
 
 ## Why?
 
@@ -25,20 +25,20 @@ production and consumption to Rust.
 - Most of the font loading and parsing is done using [`read-fonts`](https://docs.rs/read-fonts).
 - HarfRust doesn't provide any integration with external libraries, so no FreeType, CoreText, or Uniscribe/DirectWrite font-loading integration, and no ICU, or GLib Unicode-functions integration, as well as no `graphite2` library support.
 - `mort` table is not supported, since it's deprecated by Apple.
-- No `graphite` library support.
+- No `graphite` font support.
 
 ## Conformance
 
 The following conformance issues need to be fixed:
 
-- HarfRust does not yet fully pass the HarfBuzz shaping or fuzzing tests
+- HarfRust for the most part passes the HarfBuzz test and fuzzing suites, but there are some known issues. See [HARFBUZZ.md](./HARFBUZZ.md) for details.
 - Malformed fonts will cause an error. HarfBuzz uses fallback/dummy shaper in this case.
 - No Arabic fallback shaper. This requires the ability to build lookups on the fly. In HarfBuzz (C++) this requires serialization code that is associated with subsetting.
-- `avar2` as well as other parts of the boring-expansion-spec are not supported yet.
+- Experimental HarfBuzz features like most of the boring-expansion-spec are not supported yet.
 
 ## Performance
 
-At the moment, performance isn't that great. HarfRust can be 3x slower than HarfBuzz.
+HarfRust is less than 25% slower than HarfBuzz on most common fonts. For a comparison see this [spreadsheet][3].
 
 See [benches/README.md](./benches/README.md) for details.
 
@@ -76,5 +76,6 @@ HarfRust is licensed under the **MIT** license.
 
 HarfBuzz is [licensed](https://github.com/harfbuzz/harfbuzz/blob/main/COPYING) under the **Old MIT**
 
-[2]: https://docs.google.com/document/d/1aH_waagdEM5UhslQxCeFEb82ECBhPlZjy5_MwLNLBYo/preview
 [1]: https://docs.google.com/document/d/1_VgObf6Je0J8byMLsi7HCQHnKo2emGnx_ib_sHo-bt4/preview
+[2]: https://docs.google.com/document/d/1aH_waagdEM5UhslQxCeFEb82ECBhPlZjy5_MwLNLBYo/preview
+[3]: https://docs.google.com/spreadsheets/d/1lyPPZHXIF8gE0Tpx7_IscwhwaZa4KOpdt7vnV0jQT9o/preview
