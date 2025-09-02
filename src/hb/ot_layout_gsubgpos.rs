@@ -373,7 +373,7 @@ where
         self.buf_idx
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn next(&mut self, unsafe_to: Option<&mut usize>) -> bool {
         let stop = self.buf_len as i32 - 1;
 
@@ -454,7 +454,7 @@ where
         self.matcher.may_skip(info, self.face, self.lookup_props)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn match_at(&mut self, idx: usize, source: MatchSource) -> match_t {
         let info = match source {
             MatchSource::Info => &mut self.buffer.info[idx],
