@@ -700,6 +700,18 @@ pub(crate) struct PairPosFormat2SmallCache {
     pub second: ClassDefInfo,
 }
 
+pub(crate) struct ContextFormat2Cache {
+    pub coverage: CoverageInfo,
+    pub input: ClassDefInfo,
+}
+
+pub(crate) struct ChainContextFormat2Cache {
+    pub coverage: CoverageInfo,
+    pub backtrack: ClassDefInfo,
+    pub input: ClassDefInfo,
+    pub lookahead: ClassDefInfo,
+}
+
 pub(crate) enum SubtableExternalCache {
     None,
     LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
@@ -708,6 +720,8 @@ pub(crate) enum SubtableExternalCache {
     PairPosFormat1SmallCache(PairPosFormat1SmallCache),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
     PairPosFormat2SmallCache(PairPosFormat2SmallCache),
+    ContextFormat2Cache(ContextFormat2Cache),
+    ChainContextFormat2Cache(ChainContextFormat2Cache),
 }
 
 /// Apply a lookup.
