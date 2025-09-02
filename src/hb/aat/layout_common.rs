@@ -38,9 +38,10 @@ pub struct AatApplyContext<'a> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub face: &'a hb_font_t<'a>,
     pub buffer: &'a mut hb_buffer_t,
+    pub has_glyph_classes: bool,
     pub range_flags: Option<&'a [RangeFlags]>,
     pub subtable_flags: hb_mask_t,
-    pub has_glyph_classes: bool,
+    pub(crate) buffer_is_reversed: bool,
     // Caches
     using_buffer_glyph_set: bool,
     pub(crate) first_set: Option<&'a U32Set>,
@@ -59,15 +60,21 @@ impl<'a> AatApplyContext<'a> {
             plan,
             face,
             buffer,
+            has_glyph_classes: face.ot_tables.has_glyph_classes(),
             range_flags: None,
             subtable_flags: 0,
-            has_glyph_classes: face.ot_tables.has_glyph_classes(),
+            buffer_is_reversed: false,
             using_buffer_glyph_set: false,
             first_set: None,
             second_set: None,
             machine_class_cache: None,
             start_end_safe_to_break: 0,
         }
+    }
+
+    pub(crate) fn reverse_buffer(&mut self) {
+        self.buffer.reverse();
+        self.buffer_is_reversed = !self.buffer_is_reversed;
     }
 
     pub(crate) fn setup_buffer_glyph_set(&mut self) {

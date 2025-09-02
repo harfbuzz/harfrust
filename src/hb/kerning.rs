@@ -41,7 +41,6 @@ pub fn hb_ot_layout_kern(
 
     let mut subtable_idx = 0;
 
-    let mut buffer_is_reversed = false;
     let mut seen_cross_stream = false;
     for subtable in kern.subtables() {
         let Ok(subtable) = subtable else { continue };
@@ -93,9 +92,8 @@ pub fn hb_ot_layout_kern(
             continue;
         };
 
-        if reverse != buffer_is_reversed {
-            c.buffer.reverse();
-            buffer_is_reversed = reverse;
+        if reverse != c.buffer_is_reversed {
+            c.reverse_buffer();
         }
 
         match kind {
@@ -114,8 +112,8 @@ pub fn hb_ot_layout_kern(
             _ => {}
         }
     }
-    if buffer_is_reversed {
-        c.buffer.reverse();
+    if c.buffer_is_reversed {
+        c.reverse_buffer();
     }
     Some(())
 }

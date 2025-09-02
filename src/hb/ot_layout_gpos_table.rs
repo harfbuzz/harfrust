@@ -50,16 +50,34 @@ fn propagate_attachment_offsets(
             pos[i].x_offset += pos[j].x_offset;
             pos[i].y_offset += pos[j].y_offset;
 
-            debug_assert!(j < i);
-            if direction.is_forward() {
-                for k in j..i {
-                    pos[i].x_offset -= pos[k].x_advance;
-                    pos[i].y_offset -= pos[k].y_advance;
+            // i is the position of the mark; j is the base.
+            if j < i {
+                // This is the common case: mark follows base.
+                // And currently the only way in OpenType.
+                if direction.is_forward() {
+                    for k in j..i {
+                        pos[i].x_offset -= pos[k].x_advance;
+                        pos[i].y_offset -= pos[k].y_advance;
+                    }
+                } else {
+                    for k in j + 1..i + 1 {
+                        pos[i].x_offset += pos[k].x_advance;
+                        pos[i].y_offset += pos[k].y_advance;
+                    }
                 }
             } else {
-                for k in j + 1..i + 1 {
-                    pos[i].x_offset += pos[k].x_advance;
-                    pos[i].y_offset += pos[k].y_advance;
+                // This can happen with `kerx`: a mark attaching
+                // to a base after it in the logical order.
+                if direction.is_forward() {
+                    for k in i..j {
+                        pos[i].x_offset += pos[k].x_advance;
+                        pos[i].y_offset += pos[k].y_advance;
+                    }
+                } else {
+                    for k in i + 1..j + 1 {
+                        pos[i].x_offset -= pos[k].x_advance;
+                        pos[i].y_offset -= pos[k].y_advance;
+                    }
                 }
             }
         }
