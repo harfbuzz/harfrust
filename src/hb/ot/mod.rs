@@ -557,7 +557,7 @@ fn glyph_class_cached(
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct CoverageInfo {
     pub offset: u16,
     pub format: u16,
@@ -582,6 +582,9 @@ impl CoverageInfo {
     }
 
     pub fn index(&self, parent_data: &FontData, gid: GlyphId) -> Option<u16> {
+        if self.offset == 0 {
+            return None;
+        }
         let gid = gid.to_u32();
         let data_offset = self.offset as usize + 4;
         let len = self.count as usize;
@@ -619,7 +622,7 @@ impl CoverageInfo {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct ClassDefInfo {
     pub offset: u16,
     pub format: u16,
@@ -657,12 +660,15 @@ impl ClassDefInfo {
 
     pub fn class(&self, parent_data: &FontData, gid: GlyphId) -> u16 {
         let offset = self.offset as usize;
+        if offset == 0 {
+            return 0;
+        }
         let gid = gid.to_u32();
         if self.format == 1 {
             let Some(idx) = gid.checked_sub(self.start_glyph_id as u32) else {
                 return 0;
             };
-            if idx > self.count as u32 {
+            if idx >= self.count as u32 {
                 return 0;
             }
             parent_data
