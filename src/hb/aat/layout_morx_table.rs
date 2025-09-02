@@ -87,7 +87,6 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
     let mut subtable_idx = 0;
 
-    let mut buffer_is_reversed = false;
     'outer: for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter()) {
         let Ok(chain) = chain else {
             continue;
@@ -160,17 +159,16 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
                 subtable.is_backwards() != c.buffer.direction.is_backward()
             };
 
-            if reverse != buffer_is_reversed {
-                c.buffer.reverse();
-                buffer_is_reversed = reverse;
+            if reverse != c.buffer_is_reversed {
+                c.reverse_buffer();
             }
 
             if let Ok(kind) = subtable.kind() {
                 apply_subtable(kind, c);
             }
         }
-        if buffer_is_reversed {
-            c.buffer.reverse();
+        if c.buffer_is_reversed {
+            c.reverse_buffer();
         }
     }
 

@@ -8,7 +8,6 @@ use crate::hb::{
     ot_layout_common::lookup_flags,
     ot_layout_gpos_table::attach_type,
     ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t},
-    ot_shape_plan::hb_ot_shape_plan_t,
 };
 use crate::U32Set;
 use alloc::boxed::Box;
@@ -34,7 +33,6 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
     let mut subtable_idx = 0;
 
-    let mut buffer_is_reversed = false;
     let mut seen_cross_stream = false;
     for subtable in kerx.subtables().iter() {
         let Ok(subtable) = subtable else {
@@ -88,9 +86,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             continue;
         };
 
-        if reverse != buffer_is_reversed {
-            c.buffer.reverse();
-            buffer_is_reversed = reverse;
+        if reverse != c.buffer_is_reversed {
+            c.reverse_buffer();
         }
 
         match &kind {
@@ -141,8 +138,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             }
         }
     }
-    if buffer_is_reversed {
-        c.buffer.reverse();
+    if c.buffer_is_reversed {
+        c.reverse_buffer();
     }
 
     Some(())
@@ -470,8 +467,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
             &entry,
             subtable.is_cross_stream(),
             subtable.tuple_count(),
-            c.plan,
-            c.buffer,
+            c,
         );
 
         state = next_state;
@@ -494,8 +490,7 @@ trait StateTableDriver<T, E> {
         entry: &aat::StateEntry<E>,
         has_cross_stream: bool,
         tuple_count: u32,
-        plan: &hb_ot_shape_plan_t,
-        buffer: &mut hb_buffer_t,
+        c: &mut AatApplyContext,
     ) -> Option<()>;
 }
 
@@ -512,8 +507,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
         entry: &aat::StateEntry<BigEndian<u16>>,
         has_cross_stream: bool,
         tuple_count: u32,
-        plan: &hb_ot_shape_plan_t,
-        buffer: &mut hb_buffer_t,
+        c: &mut AatApplyContext,
     ) -> Option<()> {
         if entry.has_reset() {
             self.depth = 0;
@@ -521,7 +515,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
 
         if entry.has_push() {
             if self.depth < self.stack.len() {
-                self.stack[self.depth] = buffer.idx;
+                self.stack[self.depth] = c.buffer.idx;
                 self.depth += 1;
             } else {
                 self.depth = 0; // Probably not what CoreText does, but better?
@@ -542,7 +536,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                 let idx = self.stack[self.depth];
                 let mut v = aat.values.get(action_index as usize)?.get() as i32;
                 action_index = action_index.checked_add(tuple_count)?;
-                if idx >= buffer.len {
+                if idx >= c.buffer.len {
                     continue;
                 }
 
@@ -555,10 +549,10 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                 // NOT seem to accumulate as otherwise implied by specs.
 
                 let mut has_gpos_attachment = false;
-                let glyph_mask = buffer.info[idx].mask;
-                let pos = &mut buffer.pos[idx];
+                let glyph_mask = c.buffer.info[idx].mask;
+                let pos = &mut c.buffer.pos[idx];
 
-                if buffer.direction.is_horizontal() {
+                if c.buffer.direction.is_horizontal() {
                     if has_cross_stream {
                         // The following flag is undocumented in the spec, but described
                         // in the 'kern' table example.
@@ -570,7 +564,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                             pos.y_offset += v;
                             has_gpos_attachment = true;
                         }
-                    } else if glyph_mask & plan.kern_mask != 0 {
+                    } else if glyph_mask & c.plan.kern_mask != 0 {
                         pos.x_advance += v;
                         pos.x_offset += v;
                     }
@@ -585,7 +579,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                             pos.x_offset += v;
                             has_gpos_attachment = true;
                         }
-                    } else if glyph_mask & plan.kern_mask != 0 {
+                    } else if glyph_mask & c.plan.kern_mask != 0 {
                         if pos.y_offset == 0 {
                             pos.y_advance += v;
                             pos.y_offset += v;
@@ -594,7 +588,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                 }
 
                 if has_gpos_attachment {
-                    buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+                    c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 }
             }
         }
@@ -616,16 +610,15 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
         entry: &aat::StateEntry<BigEndian<u16>>,
         _has_cross_stream: bool,
         _tuple_count: u32,
-        _opt: &hb_ot_shape_plan_t,
-        buffer: &mut hb_buffer_t,
+        c: &mut AatApplyContext,
     ) -> Option<()> {
-        if self.mark_set && entry.is_actionable() && buffer.idx < buffer.len {
+        if self.mark_set && entry.is_actionable() && c.buffer.idx < c.buffer.len {
             match (self.ankr_table.as_ref(), &aat.actions) {
                 (Some(ankr_table), Subtable4Actions::AnchorPoints(ankr_data)) => {
                     let action_idx = entry.action_index() as usize * 2;
                     let mark_action_idx = ankr_data.get(action_idx)?.get() as usize;
                     let curr_action_idx = ankr_data.get(action_idx + 1)?.get() as usize;
-                    let mark_idx = buffer.info[self.mark].as_glyph();
+                    let mark_idx = c.buffer.info[self.mark].as_glyph();
                     let mark_anchor = ankr_table
                         .anchor_points(mark_idx)
                         .ok()
@@ -633,7 +626,7 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                         .map(|point| (point.x(), point.y()))
                         .unwrap_or_default();
 
-                    let curr_idx = buffer.cur(0).as_glyph();
+                    let curr_idx = c.buffer.cur(0).as_glyph();
                     let curr_anchor = ankr_table
                         .anchor_points(curr_idx)
                         .ok()
@@ -641,7 +634,7 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                         .map(|point| (point.x(), point.y()))
                         .unwrap_or_default();
 
-                    let pos = buffer.cur_pos_mut();
+                    let pos = c.buffer.cur_pos_mut();
                     pos.x_offset = i32::from(mark_anchor.0 - curr_anchor.0);
                     pos.y_offset = i32::from(mark_anchor.1 - curr_anchor.1);
                 }
@@ -651,24 +644,26 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                     let mark_y = coords.get(action_idx + 1)?.get() as i32;
                     let curr_x = coords.get(action_idx + 2)?.get() as i32;
                     let curr_y = coords.get(action_idx + 3)?.get() as i32;
-                    let pos = buffer.cur_pos_mut();
+                    let pos = c.buffer.cur_pos_mut();
                     pos.x_offset = mark_x - curr_x;
                     pos.y_offset = mark_y - curr_y;
                 }
                 _ => {}
             }
 
-            buffer.cur_pos_mut().set_attach_type(attach_type::MARK);
-            let idx = buffer.idx;
-            buffer
-                .cur_pos_mut()
-                .set_attach_chain(self.mark as i16 - idx as i16);
-            buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+            c.buffer.cur_pos_mut().set_attach_type(attach_type::MARK);
+            let idx = c.buffer.idx;
+            let mut attach_chain = self.mark as i16 - idx as i16;
+            if c.buffer_is_reversed {
+                attach_chain = -attach_chain;
+            }
+            c.buffer.cur_pos_mut().set_attach_chain(attach_chain);
+            c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         }
 
         if entry.has_mark() {
             self.mark_set = true;
-            self.mark = buffer.idx;
+            self.mark = c.buffer.idx;
         }
 
         Some(())
