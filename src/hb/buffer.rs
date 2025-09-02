@@ -950,6 +950,11 @@ impl hb_buffer_t {
         let not_mask = !mask;
         value &= mask;
 
+        self.max_ops -= self.len as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
+        }
+
         if cluster_start == 0 && cluster_end == u32::MAX {
             for info in &mut self.info[..self.len] {
                 info.mask = (info.mask & not_mask) | value;
@@ -978,6 +983,11 @@ impl hb_buffer_t {
         if !BufferClusterLevel::new(self.cluster_level).is_monotone() {
             self.unsafe_to_break(Some(start), Some(end));
             return;
+        }
+
+        self.max_ops -= (end - start) as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
         }
 
         let cluster = self.info[start..end]
@@ -1021,6 +1031,11 @@ impl hb_buffer_t {
 
         if end - start < 2 {
             return;
+        }
+
+        self.max_ops -= (end - start) as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
         }
 
         let cluster = self.out_info()[start..end]
