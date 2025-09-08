@@ -2693,11 +2693,11 @@ static _hb_ucd_i16: [i16; 196]=
 
 pub fn _hb_ucd_gc (u: usize) -> u8
 {
-  if u<1114110 { _hb_ucd_u8[7832usize+((((_hb_ucd_u8[2176usize+((((_hb_ucd_u16[(((_hb_ucd_u8[((((((u)>>1))>>3))>>5) as usize]) as usize)<<5) as usize+((((((u)>>1))>>3))&31) as usize]) as usize)<<3) as usize+((((u)>>1))&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize] } else { 2 }
+  if u<1114110 { unsafe { *(_hb_ucd_u8.get_unchecked(7832usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(2176usize+((((unsafe { *(_hb_ucd_u16.get_unchecked((((unsafe { *(_hb_ucd_u8.get_unchecked((u>>1>>3>>5) as usize)) }) as usize)<<5) as usize+((u>>1>>3)&31) as usize)) }) as usize)<<3) as usize+((u>>1)&7) as usize) as usize)) }) as usize)<<1) as usize+((u)&1) as usize) as usize)) } } else { 2 }
 }
 pub fn _hb_ucd_ccc (u: usize) -> u8
 {
-  if u<125259 { _hb_ucd_u8[10268usize+((((_hb_ucd_u8[9180usize+((((_hb_ucd_u8[8460usize+((((_hb_ucd_u8[8214usize+(((((((u)>>2))>>3))>>4) as usize) as usize]) as usize)<<4) as usize+((((((u)>>2))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize) as usize] } else { 0 }
+  if u<125259 { unsafe { *(_hb_ucd_u8.get_unchecked(10268usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(9180usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(8460usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(8214usize+((u>>2>>3>>4) as usize) as usize)) }) as usize)<<4) as usize+((u>>2>>3)&15) as usize) as usize)) }) as usize)<<3) as usize+((u>>2)&7) as usize) as usize)) }) as usize)<<2) as usize+((u)&3) as usize) as usize)) } } else { 0 }
 }
 fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
 {
@@ -2705,15 +2705,15 @@ fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
 }
 pub fn _hb_ucd_bmg (u: usize) -> i16
 {
-  if u<65380 { _hb_ucd_i16[(((_hb_ucd_u8[11016usize+((((_hb_ucd_u8[10896usize+((((_hb_ucd_b4(&_hb_ucd_u8[10768usize..],((((((u)>>2))>>3))>>3) as usize)) as usize)<<3) as usize+((((((u)>>2))>>3))&7) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize] } else { 0 }
+  if u<65380 { unsafe { *(_hb_ucd_i16.get_unchecked((((unsafe { *(_hb_ucd_u8.get_unchecked(11016usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(10896usize+((((_hb_ucd_b4(&_hb_ucd_u8[10768usize..],(u>>2>>3>>3) as usize)) as usize)<<3) as usize+((u>>2>>3)&7) as usize) as usize)) }) as usize)<<3) as usize+((u>>2)&7) as usize) as usize)) }) as usize)<<2) as usize+((u)&3) as usize)) } } else { 0 }
 }
 pub fn _hb_ucd_sc (u: usize) -> u8
 {
-  if u<918000 { _hb_ucd_u8[12250usize+((((_hb_ucd_u16[4512usize+((((_hb_ucd_u16[3392usize+((((_hb_ucd_u8[11352usize+(((((((u)>>3))>>3))>>4) as usize) as usize]) as usize)<<4) as usize+((((((u)>>3))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>3))&7) as usize) as usize]) as usize)<<3) as usize+((u)&7) as usize) as usize] } else { 2 }
+  if u<918000 { unsafe { *(_hb_ucd_u8.get_unchecked(12250usize+((((unsafe { *(_hb_ucd_u16.get_unchecked(4512usize+((((unsafe { *(_hb_ucd_u16.get_unchecked(3392usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(11352usize+((u>>3>>3>>4) as usize) as usize)) }) as usize)<<4) as usize+((u>>3>>3)&15) as usize) as usize)) }) as usize)<<3) as usize+((u>>3)&7) as usize) as usize)) }) as usize)<<3) as usize+((u)&7) as usize) as usize)) } } else { 2 }
 }
 pub fn _hb_ucd_dm (u: usize) -> u16
 {
-  if u<195102 { _hb_ucd_u16[7744usize+((((_hb_ucd_u8[18480usize+((((_hb_ucd_u8[18098usize+(((((u)>>4))>>5) as usize) as usize]) as usize)<<5) as usize+((((u)>>4))&31) as usize) as usize]) as usize)<<4) as usize+((u)&15) as usize) as usize] } else { 0 }
+  if u<195102 { unsafe { *(_hb_ucd_u16.get_unchecked(7744usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(18480usize+((((unsafe { *(_hb_ucd_u8.get_unchecked(18098usize+((u>>4>>5) as usize) as usize)) }) as usize)<<5) as usize+((u>>4)&31) as usize) as usize)) }) as usize)<<4) as usize+((u)&15) as usize) as usize)) } } else { 0 }
 }
 
 }
