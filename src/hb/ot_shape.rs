@@ -615,6 +615,11 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
         let info = &mut buffer.info[i];
         info.init_unicode_props(&mut buffer.scratch_flags);
 
+        if info.glyph_id < 0x80 {
+            i += 1;
+            continue;
+        }
+
         let gen_cat = info.general_category();
 
         if (rb_flag_unsafe(gen_cat.to_u8() as u32)
