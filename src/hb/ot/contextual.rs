@@ -171,7 +171,7 @@ impl Apply for SequenceContextFormat3<'_> {
             None,
         ) {
             ctx.buffer
-                .unsafe_to_break_from_outbuffer(Some(ctx.buffer.idx), Some(match_end));
+                .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
             apply_lookup(
                 ctx,
                 input_coverages.len() - 1,
