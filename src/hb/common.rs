@@ -493,6 +493,11 @@ pub mod script {
     pub const SUNUWAR: Script = Script::from_bytes(b"Sunu");
     pub const TODHRI: Script = Script::from_bytes(b"Todr");
     pub const TULU_TIGALARI: Script = Script::from_bytes(b"Tutg");
+    // Since 17.0
+    pub const BERIA_ERFE: Script = Script::from_bytes(b"Berf");
+    pub const SIDETIC: Script = Script::from_bytes(b"Sidt");
+    pub const TAI_YO: Script = Script::from_bytes(b"Tayo");
+    pub const TOLONG_SIKI: Script = Script::from_bytes(b"Tols");
 
     pub const MATH: Script = Script::from_bytes(b"Zmth");
 
