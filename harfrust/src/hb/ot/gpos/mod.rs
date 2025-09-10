@@ -11,6 +11,8 @@ mod mark;
 mod pair;
 mod single;
 
+pub(crate) use pair::apply_pair_pos2_direct;
+
 #[allow(unused_assignments)]
 fn apply_value(
     ctx: &mut hb_ot_apply_context_t,
