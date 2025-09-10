@@ -57,7 +57,7 @@ pub const JOINING_TABLE: &[hb_arabic_joining_type_t] = &[
   /* Arabic Extended-B */
 
   /* 0860 */                                 R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,R,
-  /* 0880 */ R,R,R,D,D,D,D,U,U,D,D,D,D,D,R,X,U,U,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
+  /* 0880 */ R,R,R,D,D,D,D,U,U,D,D,D,D,D,R,D,U,U,X,X,X,X,X,X,X,X,X,X,X,X,X,X,
 
   /* Arabic Extended-A */
 
@@ -103,7 +103,7 @@ pub const JOINING_TABLE: &[hb_arabic_joining_type_t] = &[
 
   /* Arabic Extended-C */
 
-  /* 10EC0 */     R,D,D,
+  /* 10EC0 */     R,D,D,X,D,D,
 
   /* Sogdian */
 
@@ -142,9 +142,9 @@ const JOINING_OFFSET_0X10AC0: usize = 1050;
 const JOINING_OFFSET_0X10B80: usize = 1098;
 const JOINING_OFFSET_0X10D00: usize = 1146;
 const JOINING_OFFSET_0X10EC2: usize = 1182;
-const JOINING_OFFSET_0X10F30: usize = 1185;
-const JOINING_OFFSET_0X110BD: usize = 1341;
-const JOINING_OFFSET_0X1E900: usize = 1358;
+const JOINING_OFFSET_0X10F30: usize = 1188;
+const JOINING_OFFSET_0X110BD: usize = 1344;
+const JOINING_OFFSET_0X1E900: usize = 1361;
 
 pub fn joining_type(u: Codepoint) -> hb_arabic_joining_type_t {
     match u >> 12 {
@@ -178,7 +178,7 @@ pub fn joining_type(u: Codepoint) -> hb_arabic_joining_type_t {
             if (0x10D00..=0x10D23).contains(&u) {
                 return JOINING_TABLE[u as usize - 0x10D00 + JOINING_OFFSET_0X10D00];
             }
-            if (0x10EC2..=0x10EC4).contains(&u) {
+            if (0x10EC2..=0x10EC7).contains(&u) {
                 return JOINING_TABLE[u as usize - 0x10EC2 + JOINING_OFFSET_0X10EC2];
             }
             if (0x10F30..=0x10FCB).contains(&u) {
