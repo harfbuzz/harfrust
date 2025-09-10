@@ -27311,10 +27311,10 @@ fn emoji_clusters_2131() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F483}\u{1F3FB}",
+            "\u{1F9D1}\u{200D}\u{1FA70}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -27323,10 +27323,10 @@ fn emoji_clusters_2132() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F483}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1FA70}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27335,10 +27335,10 @@ fn emoji_clusters_2133() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F483}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1FA70}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27347,10 +27347,10 @@ fn emoji_clusters_2134() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F483}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1FA70}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27359,10 +27359,10 @@ fn emoji_clusters_2135() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F483}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1FA70}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27371,10 +27371,10 @@ fn emoji_clusters_2136() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F57A}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1FA70}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27383,7 +27383,7 @@ fn emoji_clusters_2137() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F57A}\u{1F3FC}",
+            "\u{1F483}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27395,7 +27395,7 @@ fn emoji_clusters_2138() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F57A}\u{1F3FD}",
+            "\u{1F483}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27407,7 +27407,7 @@ fn emoji_clusters_2139() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F57A}\u{1F3FE}",
+            "\u{1F483}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27419,7 +27419,7 @@ fn emoji_clusters_2140() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F57A}\u{1F3FF}",
+            "\u{1F483}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27431,7 +27431,7 @@ fn emoji_clusters_2141() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F574}\u{FE0F}",
+            "\u{1F483}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27443,7 +27443,7 @@ fn emoji_clusters_2142() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F574}\u{1F3FB}",
+            "\u{1F57A}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27455,7 +27455,7 @@ fn emoji_clusters_2143() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F574}\u{1F3FC}",
+            "\u{1F57A}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27467,7 +27467,7 @@ fn emoji_clusters_2144() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F574}\u{1F3FD}",
+            "\u{1F57A}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27479,7 +27479,7 @@ fn emoji_clusters_2145() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F574}\u{1F3FE}",
+            "\u{1F57A}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27491,7 +27491,7 @@ fn emoji_clusters_2146() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F574}\u{1F3FF}",
+            "\u{1F57A}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27503,10 +27503,10 @@ fn emoji_clusters_2147() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46F}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F574}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -27515,10 +27515,10 @@ fn emoji_clusters_2148() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46F}\u{200D}\u{2642}",
+            "\u{1F574}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -27527,10 +27527,10 @@ fn emoji_clusters_2149() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46F}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F574}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -27539,10 +27539,10 @@ fn emoji_clusters_2150() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46F}\u{200D}\u{2640}",
+            "\u{1F574}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -27551,7 +27551,7 @@ fn emoji_clusters_2151() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FB}",
+            "\u{1F574}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27563,7 +27563,7 @@ fn emoji_clusters_2152() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FC}",
+            "\u{1F574}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27575,7 +27575,7 @@ fn emoji_clusters_2153() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FD}",
+            "\u{1F46F}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27587,7 +27587,7 @@ fn emoji_clusters_2154() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FE}",
+            "\u{1F46F}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27599,7 +27599,7 @@ fn emoji_clusters_2155() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FF}",
+            "\u{1F46F}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -27611,10 +27611,10 @@ fn emoji_clusters_2156() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F46F}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -27623,10 +27623,10 @@ fn emoji_clusters_2157() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{200D}\u{2642}",
+            "\u{1F46F}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -27635,10 +27635,10 @@ fn emoji_clusters_2158() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F46F}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27647,10 +27647,10 @@ fn emoji_clusters_2159() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F46F}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -27659,7 +27659,7 @@ fn emoji_clusters_2160() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F46F}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27671,7 +27671,7 @@ fn emoji_clusters_2161() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F46F}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27683,7 +27683,7 @@ fn emoji_clusters_2162() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F46F}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27695,7 +27695,7 @@ fn emoji_clusters_2163() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F46F}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27707,7 +27707,7 @@ fn emoji_clusters_2164() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F46F}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27719,7 +27719,7 @@ fn emoji_clusters_2165() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F46F}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27731,7 +27731,7 @@ fn emoji_clusters_2166() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F46F}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27743,7 +27743,7 @@ fn emoji_clusters_2167() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F46F}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27755,10 +27755,10 @@ fn emoji_clusters_2168() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F46F}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27767,10 +27767,10 @@ fn emoji_clusters_2169() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{200D}\u{2640}",
+            "\u{1F46F}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27779,10 +27779,10 @@ fn emoji_clusters_2170() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F46F}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27791,10 +27791,10 @@ fn emoji_clusters_2171() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F46F}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -27803,7 +27803,7 @@ fn emoji_clusters_2172() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F46F}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27815,7 +27815,7 @@ fn emoji_clusters_2173() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F46F}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27827,7 +27827,7 @@ fn emoji_clusters_2174() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F46F}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27839,7 +27839,7 @@ fn emoji_clusters_2175() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F46F}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27851,7 +27851,7 @@ fn emoji_clusters_2176() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F46F}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27863,7 +27863,7 @@ fn emoji_clusters_2177() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F46F}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27875,7 +27875,7 @@ fn emoji_clusters_2178() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F46F}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -27887,7 +27887,7 @@ fn emoji_clusters_2179() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F46F}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -27899,10 +27899,10 @@ fn emoji_clusters_2180() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FB}",
+            "\u{1F46F}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27911,10 +27911,10 @@ fn emoji_clusters_2181() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FC}",
+            "\u{1F46F}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27923,10 +27923,10 @@ fn emoji_clusters_2182() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27935,10 +27935,10 @@ fn emoji_clusters_2183() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27947,10 +27947,10 @@ fn emoji_clusters_2184() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27959,10 +27959,10 @@ fn emoji_clusters_2185() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27971,10 +27971,10 @@ fn emoji_clusters_2186() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{200D}\u{2642}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27983,10 +27983,10 @@ fn emoji_clusters_2187() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -27995,10 +27995,10 @@ fn emoji_clusters_2188() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28007,10 +28007,10 @@ fn emoji_clusters_2189() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28019,10 +28019,10 @@ fn emoji_clusters_2190() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28031,10 +28031,10 @@ fn emoji_clusters_2191() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28043,10 +28043,10 @@ fn emoji_clusters_2192() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28055,10 +28055,10 @@ fn emoji_clusters_2193() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28067,10 +28067,10 @@ fn emoji_clusters_2194() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28079,10 +28079,10 @@ fn emoji_clusters_2195() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28091,10 +28091,10 @@ fn emoji_clusters_2196() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28103,10 +28103,10 @@ fn emoji_clusters_2197() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28115,10 +28115,10 @@ fn emoji_clusters_2198() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{200D}\u{2640}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28127,10 +28127,10 @@ fn emoji_clusters_2199() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28139,10 +28139,10 @@ fn emoji_clusters_2200() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28151,10 +28151,10 @@ fn emoji_clusters_2201() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28163,10 +28163,10 @@ fn emoji_clusters_2202() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28175,10 +28175,10 @@ fn emoji_clusters_2203() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28187,10 +28187,10 @@ fn emoji_clusters_2204() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28199,10 +28199,10 @@ fn emoji_clusters_2205() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28211,10 +28211,10 @@ fn emoji_clusters_2206() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28223,10 +28223,10 @@ fn emoji_clusters_2207() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28235,10 +28235,10 @@ fn emoji_clusters_2208() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28247,10 +28247,10 @@ fn emoji_clusters_2209() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C7}\u{1F3FB}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28259,10 +28259,10 @@ fn emoji_clusters_2210() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C7}\u{1F3FC}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28271,10 +28271,10 @@ fn emoji_clusters_2211() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C7}\u{1F3FD}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28283,10 +28283,10 @@ fn emoji_clusters_2212() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C7}\u{1F3FE}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28295,10 +28295,10 @@ fn emoji_clusters_2213() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C7}\u{1F3FF}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28307,10 +28307,10 @@ fn emoji_clusters_2214() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F7}\u{FE0F}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28319,10 +28319,10 @@ fn emoji_clusters_2215() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C2}\u{1F3FB}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28331,10 +28331,10 @@ fn emoji_clusters_2216() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C2}\u{1F3FC}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28343,10 +28343,10 @@ fn emoji_clusters_2217() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C2}\u{1F3FD}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28355,10 +28355,10 @@ fn emoji_clusters_2218() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C2}\u{1F3FE}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28367,10 +28367,10 @@ fn emoji_clusters_2219() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C2}\u{1F3FF}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28379,10 +28379,10 @@ fn emoji_clusters_2220() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{FE0F}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28391,10 +28391,10 @@ fn emoji_clusters_2221() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FB}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28403,10 +28403,10 @@ fn emoji_clusters_2222() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FC}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28415,10 +28415,10 @@ fn emoji_clusters_2223() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FD}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28427,10 +28427,10 @@ fn emoji_clusters_2224() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FE}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28439,10 +28439,10 @@ fn emoji_clusters_2225() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FF}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28451,10 +28451,10 @@ fn emoji_clusters_2226() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{FE0F}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28463,10 +28463,10 @@ fn emoji_clusters_2227() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28475,10 +28475,10 @@ fn emoji_clusters_2228() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{FE0F}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28487,10 +28487,10 @@ fn emoji_clusters_2229() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28499,10 +28499,10 @@ fn emoji_clusters_2230() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28511,10 +28511,10 @@ fn emoji_clusters_2231() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28523,10 +28523,10 @@ fn emoji_clusters_2232() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28535,10 +28535,10 @@ fn emoji_clusters_2233() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28547,10 +28547,10 @@ fn emoji_clusters_2234() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28559,10 +28559,10 @@ fn emoji_clusters_2235() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28571,10 +28571,10 @@ fn emoji_clusters_2236() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28583,10 +28583,10 @@ fn emoji_clusters_2237() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28595,10 +28595,10 @@ fn emoji_clusters_2238() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28607,10 +28607,10 @@ fn emoji_clusters_2239() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28619,10 +28619,10 @@ fn emoji_clusters_2240() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{FE0F}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28631,10 +28631,10 @@ fn emoji_clusters_2241() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F430}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28643,10 +28643,10 @@ fn emoji_clusters_2242() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{FE0F}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -28655,10 +28655,10 @@ fn emoji_clusters_2243() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -28667,10 +28667,10 @@ fn emoji_clusters_2244() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -28679,10 +28679,10 @@ fn emoji_clusters_2245() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -28691,10 +28691,10 @@ fn emoji_clusters_2246() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -28703,7 +28703,7 @@ fn emoji_clusters_2247() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28715,10 +28715,10 @@ fn emoji_clusters_2248() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D6}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -28727,10 +28727,10 @@ fn emoji_clusters_2249() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28739,10 +28739,10 @@ fn emoji_clusters_2250() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28751,10 +28751,10 @@ fn emoji_clusters_2251() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28763,10 +28763,10 @@ fn emoji_clusters_2252() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28775,10 +28775,10 @@ fn emoji_clusters_2253() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28787,10 +28787,10 @@ fn emoji_clusters_2254() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FB}",
+            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28799,10 +28799,10 @@ fn emoji_clusters_2255() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FC}",
+            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28811,10 +28811,10 @@ fn emoji_clusters_2256() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FD}",
+            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28823,10 +28823,10 @@ fn emoji_clusters_2257() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FE}",
+            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28835,10 +28835,10 @@ fn emoji_clusters_2258() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FF}",
+            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -28847,7 +28847,7 @@ fn emoji_clusters_2259() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D6}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28859,7 +28859,7 @@ fn emoji_clusters_2260() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{200D}\u{2642}",
+            "\u{1F9D6}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -28871,7 +28871,7 @@ fn emoji_clusters_2261() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -28883,7 +28883,7 @@ fn emoji_clusters_2262() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F9D6}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28895,7 +28895,7 @@ fn emoji_clusters_2263() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -28907,7 +28907,7 @@ fn emoji_clusters_2264() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F9D6}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28919,7 +28919,7 @@ fn emoji_clusters_2265() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -28931,7 +28931,7 @@ fn emoji_clusters_2266() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F9D6}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28943,7 +28943,7 @@ fn emoji_clusters_2267() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -28955,7 +28955,7 @@ fn emoji_clusters_2268() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F9D6}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28967,7 +28967,7 @@ fn emoji_clusters_2269() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -28979,7 +28979,7 @@ fn emoji_clusters_2270() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F9D6}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -28991,10 +28991,10 @@ fn emoji_clusters_2271() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29003,10 +29003,10 @@ fn emoji_clusters_2272() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{200D}\u{2640}",
+            "\u{1F9D7}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29015,10 +29015,10 @@ fn emoji_clusters_2273() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29027,10 +29027,10 @@ fn emoji_clusters_2274() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F9D7}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29039,10 +29039,10 @@ fn emoji_clusters_2275() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29051,7 +29051,7 @@ fn emoji_clusters_2276() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F9D7}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29063,10 +29063,10 @@ fn emoji_clusters_2277() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D7}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -29075,10 +29075,10 @@ fn emoji_clusters_2278() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29087,10 +29087,10 @@ fn emoji_clusters_2279() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29099,10 +29099,10 @@ fn emoji_clusters_2280() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29111,10 +29111,10 @@ fn emoji_clusters_2281() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29123,10 +29123,10 @@ fn emoji_clusters_2282() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29135,10 +29135,10 @@ fn emoji_clusters_2283() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FB}",
+            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29147,10 +29147,10 @@ fn emoji_clusters_2284() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FC}",
+            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29159,10 +29159,10 @@ fn emoji_clusters_2285() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FD}",
+            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29171,10 +29171,10 @@ fn emoji_clusters_2286() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FE}",
+            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29183,10 +29183,10 @@ fn emoji_clusters_2287() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FF}",
+            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29195,7 +29195,7 @@ fn emoji_clusters_2288() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D7}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29207,7 +29207,7 @@ fn emoji_clusters_2289() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{200D}\u{2642}",
+            "\u{1F9D7}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -29219,7 +29219,7 @@ fn emoji_clusters_2290() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29231,7 +29231,7 @@ fn emoji_clusters_2291() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F9D7}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29243,7 +29243,7 @@ fn emoji_clusters_2292() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29255,7 +29255,7 @@ fn emoji_clusters_2293() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F9D7}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29267,7 +29267,7 @@ fn emoji_clusters_2294() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29279,7 +29279,7 @@ fn emoji_clusters_2295() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F9D7}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29291,7 +29291,7 @@ fn emoji_clusters_2296() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29303,7 +29303,7 @@ fn emoji_clusters_2297() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F9D7}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29315,7 +29315,7 @@ fn emoji_clusters_2298() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29327,7 +29327,7 @@ fn emoji_clusters_2299() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F9D7}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29339,10 +29339,10 @@ fn emoji_clusters_2300() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C7}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29351,10 +29351,10 @@ fn emoji_clusters_2301() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{200D}\u{2640}",
+            "\u{1F3C7}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29363,10 +29363,10 @@ fn emoji_clusters_2302() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C7}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29375,10 +29375,10 @@ fn emoji_clusters_2303() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F3C7}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29387,10 +29387,10 @@ fn emoji_clusters_2304() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C7}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29399,10 +29399,10 @@ fn emoji_clusters_2305() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{26F7}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29411,10 +29411,10 @@ fn emoji_clusters_2306() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C2}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29423,10 +29423,10 @@ fn emoji_clusters_2307() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F3C2}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29435,10 +29435,10 @@ fn emoji_clusters_2308() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C2}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29447,10 +29447,10 @@ fn emoji_clusters_2309() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F3C2}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29459,10 +29459,10 @@ fn emoji_clusters_2310() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C2}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29471,10 +29471,10 @@ fn emoji_clusters_2311() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29483,7 +29483,7 @@ fn emoji_clusters_2312() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FB}",
+            "\u{1F3CC}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29495,7 +29495,7 @@ fn emoji_clusters_2313() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FC}",
+            "\u{1F3CC}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29507,7 +29507,7 @@ fn emoji_clusters_2314() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FD}",
+            "\u{1F3CC}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29519,7 +29519,7 @@ fn emoji_clusters_2315() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FE}",
+            "\u{1F3CC}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29531,7 +29531,7 @@ fn emoji_clusters_2316() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FF}",
+            "\u{1F3CC}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29543,10 +29543,10 @@ fn emoji_clusters_2317() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CC}\u{FE0F}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29555,10 +29555,10 @@ fn emoji_clusters_2318() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{200D}\u{2642}",
+            "\u{1F3CC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29567,10 +29567,10 @@ fn emoji_clusters_2319() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CC}\u{FE0F}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29579,10 +29579,10 @@ fn emoji_clusters_2320() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F3CC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -29591,7 +29591,7 @@ fn emoji_clusters_2321() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29603,7 +29603,7 @@ fn emoji_clusters_2322() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29615,7 +29615,7 @@ fn emoji_clusters_2323() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29627,7 +29627,7 @@ fn emoji_clusters_2324() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29639,7 +29639,7 @@ fn emoji_clusters_2325() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29651,7 +29651,7 @@ fn emoji_clusters_2326() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29663,7 +29663,7 @@ fn emoji_clusters_2327() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29675,7 +29675,7 @@ fn emoji_clusters_2328() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29687,10 +29687,10 @@ fn emoji_clusters_2329() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29699,10 +29699,10 @@ fn emoji_clusters_2330() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29711,7 +29711,7 @@ fn emoji_clusters_2331() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CC}\u{FE0F}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29723,7 +29723,7 @@ fn emoji_clusters_2332() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29735,10 +29735,10 @@ fn emoji_clusters_2333() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CC}\u{FE0F}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29747,10 +29747,10 @@ fn emoji_clusters_2334() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -29759,7 +29759,7 @@ fn emoji_clusters_2335() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29771,7 +29771,7 @@ fn emoji_clusters_2336() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29783,7 +29783,7 @@ fn emoji_clusters_2337() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29795,7 +29795,7 @@ fn emoji_clusters_2338() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29807,7 +29807,7 @@ fn emoji_clusters_2339() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -29819,7 +29819,7 @@ fn emoji_clusters_2340() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F3CC}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -29831,10 +29831,10 @@ fn emoji_clusters_2341() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{FE0F}",
+            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29843,10 +29843,10 @@ fn emoji_clusters_2342() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FB}",
+            "\u{1F3CC}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29855,10 +29855,10 @@ fn emoji_clusters_2343() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FC}",
+            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29867,10 +29867,10 @@ fn emoji_clusters_2344() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FD}",
+            "\u{1F3CC}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29879,7 +29879,7 @@ fn emoji_clusters_2345() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FE}",
+            "\u{1F3C4}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29891,7 +29891,7 @@ fn emoji_clusters_2346() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FF}",
+            "\u{1F3C4}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -29903,10 +29903,10 @@ fn emoji_clusters_2347() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{FE0F}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29915,10 +29915,10 @@ fn emoji_clusters_2348() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29927,10 +29927,10 @@ fn emoji_clusters_2349() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{FE0F}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -29939,10 +29939,10 @@ fn emoji_clusters_2350() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29951,10 +29951,10 @@ fn emoji_clusters_2351() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -29963,10 +29963,10 @@ fn emoji_clusters_2352() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29975,10 +29975,10 @@ fn emoji_clusters_2353() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29987,10 +29987,10 @@ fn emoji_clusters_2354() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -29999,10 +29999,10 @@ fn emoji_clusters_2355() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30011,10 +30011,10 @@ fn emoji_clusters_2356() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30023,10 +30023,10 @@ fn emoji_clusters_2357() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30035,10 +30035,10 @@ fn emoji_clusters_2358() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30047,10 +30047,10 @@ fn emoji_clusters_2359() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30059,10 +30059,10 @@ fn emoji_clusters_2360() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30071,10 +30071,10 @@ fn emoji_clusters_2361() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{FE0F}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30083,7 +30083,7 @@ fn emoji_clusters_2362() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30095,10 +30095,10 @@ fn emoji_clusters_2363() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{FE0F}\u{200D}\u{2640}",
+            "\u{1F3C4}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -30107,10 +30107,10 @@ fn emoji_clusters_2364() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{200D}\u{2640}",
+            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30119,10 +30119,10 @@ fn emoji_clusters_2365() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30131,10 +30131,10 @@ fn emoji_clusters_2366() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30143,10 +30143,10 @@ fn emoji_clusters_2367() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30155,10 +30155,10 @@ fn emoji_clusters_2368() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30167,10 +30167,10 @@ fn emoji_clusters_2369() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30179,10 +30179,10 @@ fn emoji_clusters_2370() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30191,10 +30191,10 @@ fn emoji_clusters_2371() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30203,10 +30203,10 @@ fn emoji_clusters_2372() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30215,10 +30215,10 @@ fn emoji_clusters_2373() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3C4}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30227,10 +30227,10 @@ fn emoji_clusters_2374() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{26F9}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F6A3}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30239,7 +30239,7 @@ fn emoji_clusters_2375() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -30251,7 +30251,7 @@ fn emoji_clusters_2376() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FB}",
+            "\u{1F6A3}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -30263,7 +30263,7 @@ fn emoji_clusters_2377() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FC}",
+            "\u{1F6A3}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -30275,7 +30275,7 @@ fn emoji_clusters_2378() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FD}",
+            "\u{1F6A3}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -30287,10 +30287,10 @@ fn emoji_clusters_2379() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FE}",
+            "\u{1F6A3}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30299,10 +30299,10 @@ fn emoji_clusters_2380() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FF}",
+            "\u{1F6A3}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -30311,7 +30311,7 @@ fn emoji_clusters_2381() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{FE0F}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30323,7 +30323,7 @@ fn emoji_clusters_2382() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30335,10 +30335,10 @@ fn emoji_clusters_2383() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{FE0F}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30347,10 +30347,10 @@ fn emoji_clusters_2384() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30359,7 +30359,7 @@ fn emoji_clusters_2385() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30371,7 +30371,7 @@ fn emoji_clusters_2386() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30383,7 +30383,7 @@ fn emoji_clusters_2387() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30395,7 +30395,7 @@ fn emoji_clusters_2388() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30407,7 +30407,7 @@ fn emoji_clusters_2389() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30419,7 +30419,7 @@ fn emoji_clusters_2390() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30431,10 +30431,10 @@ fn emoji_clusters_2391() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30443,10 +30443,10 @@ fn emoji_clusters_2392() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -30455,7 +30455,7 @@ fn emoji_clusters_2393() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30467,7 +30467,7 @@ fn emoji_clusters_2394() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F6A3}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30479,7 +30479,7 @@ fn emoji_clusters_2395() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{FE0F}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30491,7 +30491,7 @@ fn emoji_clusters_2396() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30503,10 +30503,10 @@ fn emoji_clusters_2397() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{FE0F}\u{200D}\u{2640}",
+            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30515,10 +30515,10 @@ fn emoji_clusters_2398() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{200D}\u{2640}",
+            "\u{1F6A3}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30527,7 +30527,7 @@ fn emoji_clusters_2399() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30539,7 +30539,7 @@ fn emoji_clusters_2400() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F6A3}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30551,7 +30551,7 @@ fn emoji_clusters_2401() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30563,7 +30563,7 @@ fn emoji_clusters_2402() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F6A3}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30575,10 +30575,10 @@ fn emoji_clusters_2403() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30587,10 +30587,10 @@ fn emoji_clusters_2404() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F3CA}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30599,10 +30599,10 @@ fn emoji_clusters_2405() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30611,10 +30611,10 @@ fn emoji_clusters_2406() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F3CA}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30623,10 +30623,10 @@ fn emoji_clusters_2407() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30635,7 +30635,7 @@ fn emoji_clusters_2408() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F3CA}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30647,10 +30647,10 @@ fn emoji_clusters_2409() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FB}",
+            "\u{1F3CA}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -30659,10 +30659,10 @@ fn emoji_clusters_2410() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FC}",
+            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30671,10 +30671,10 @@ fn emoji_clusters_2411() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FD}",
+            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30683,10 +30683,10 @@ fn emoji_clusters_2412() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FE}",
+            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30695,10 +30695,10 @@ fn emoji_clusters_2413() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FF}",
+            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30707,10 +30707,10 @@ fn emoji_clusters_2414() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30719,10 +30719,10 @@ fn emoji_clusters_2415() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{200D}\u{2642}",
+            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30731,7 +30731,7 @@ fn emoji_clusters_2416() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30743,7 +30743,7 @@ fn emoji_clusters_2417() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30755,7 +30755,7 @@ fn emoji_clusters_2418() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30767,7 +30767,7 @@ fn emoji_clusters_2419() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30779,10 +30779,10 @@ fn emoji_clusters_2420() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CA}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30791,10 +30791,10 @@ fn emoji_clusters_2421() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F3CA}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -30803,7 +30803,7 @@ fn emoji_clusters_2422() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30815,7 +30815,7 @@ fn emoji_clusters_2423() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F3CA}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30827,7 +30827,7 @@ fn emoji_clusters_2424() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30839,7 +30839,7 @@ fn emoji_clusters_2425() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F3CA}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30851,10 +30851,10 @@ fn emoji_clusters_2426() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30863,10 +30863,10 @@ fn emoji_clusters_2427() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{200D}\u{2640}",
+            "\u{1F3CA}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -30875,7 +30875,7 @@ fn emoji_clusters_2428() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30887,7 +30887,7 @@ fn emoji_clusters_2429() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F3CA}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30899,7 +30899,7 @@ fn emoji_clusters_2430() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -30911,7 +30911,7 @@ fn emoji_clusters_2431() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F3CA}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -30923,10 +30923,10 @@ fn emoji_clusters_2432() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30935,10 +30935,10 @@ fn emoji_clusters_2433() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30947,10 +30947,10 @@ fn emoji_clusters_2434() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30959,10 +30959,10 @@ fn emoji_clusters_2435() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30971,10 +30971,10 @@ fn emoji_clusters_2436() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30983,10 +30983,10 @@ fn emoji_clusters_2437() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -30995,10 +30995,10 @@ fn emoji_clusters_2438() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FB}",
+            "\u{26F9}\u{FE0F}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31007,10 +31007,10 @@ fn emoji_clusters_2439() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FC}",
+            "\u{26F9}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31019,10 +31019,10 @@ fn emoji_clusters_2440() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FD}",
+            "\u{26F9}\u{FE0F}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31031,10 +31031,10 @@ fn emoji_clusters_2441() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FE}",
+            "\u{26F9}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -31043,10 +31043,10 @@ fn emoji_clusters_2442() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FF}",
+            "\u{26F9}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31055,7 +31055,7 @@ fn emoji_clusters_2443() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{200D}\u{2642}\u{FE0F}",
+            "\u{26F9}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31067,10 +31067,10 @@ fn emoji_clusters_2444() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{200D}\u{2642}",
+            "\u{26F9}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31079,10 +31079,10 @@ fn emoji_clusters_2445() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{26F9}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31091,10 +31091,10 @@ fn emoji_clusters_2446() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{26F9}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31103,10 +31103,10 @@ fn emoji_clusters_2447() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{26F9}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31115,10 +31115,10 @@ fn emoji_clusters_2448() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{26F9}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31127,10 +31127,10 @@ fn emoji_clusters_2449() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{26F9}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31139,10 +31139,10 @@ fn emoji_clusters_2450() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{26F9}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31151,10 +31151,10 @@ fn emoji_clusters_2451() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{26F9}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31163,10 +31163,10 @@ fn emoji_clusters_2452() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{26F9}\u{FE0F}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31175,10 +31175,10 @@ fn emoji_clusters_2453() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{26F9}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31187,7 +31187,7 @@ fn emoji_clusters_2454() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{26F9}\u{FE0F}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31199,10 +31199,10 @@ fn emoji_clusters_2455() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -31211,10 +31211,10 @@ fn emoji_clusters_2456() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31223,10 +31223,10 @@ fn emoji_clusters_2457() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31235,10 +31235,10 @@ fn emoji_clusters_2458() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31247,10 +31247,10 @@ fn emoji_clusters_2459() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31259,10 +31259,10 @@ fn emoji_clusters_2460() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31271,10 +31271,10 @@ fn emoji_clusters_2461() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31283,10 +31283,10 @@ fn emoji_clusters_2462() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31295,10 +31295,10 @@ fn emoji_clusters_2463() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31307,10 +31307,10 @@ fn emoji_clusters_2464() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{26F9}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31319,10 +31319,10 @@ fn emoji_clusters_2465() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{26F9}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31331,10 +31331,10 @@ fn emoji_clusters_2466() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -31343,7 +31343,7 @@ fn emoji_clusters_2467() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FB}",
+            "\u{1F3CB}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31355,7 +31355,7 @@ fn emoji_clusters_2468() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FC}",
+            "\u{1F3CB}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31367,7 +31367,7 @@ fn emoji_clusters_2469() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FD}",
+            "\u{1F3CB}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31379,7 +31379,7 @@ fn emoji_clusters_2470() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FE}",
+            "\u{1F3CB}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31391,7 +31391,7 @@ fn emoji_clusters_2471() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FF}",
+            "\u{1F3CB}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31403,10 +31403,10 @@ fn emoji_clusters_2472() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{FE0F}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31415,10 +31415,10 @@ fn emoji_clusters_2473() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31427,10 +31427,10 @@ fn emoji_clusters_2474() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{FE0F}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31439,10 +31439,10 @@ fn emoji_clusters_2475() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -31451,7 +31451,7 @@ fn emoji_clusters_2476() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31463,7 +31463,7 @@ fn emoji_clusters_2477() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31475,7 +31475,7 @@ fn emoji_clusters_2478() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31487,7 +31487,7 @@ fn emoji_clusters_2479() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31499,7 +31499,7 @@ fn emoji_clusters_2480() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31511,7 +31511,7 @@ fn emoji_clusters_2481() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31523,7 +31523,7 @@ fn emoji_clusters_2482() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31535,7 +31535,7 @@ fn emoji_clusters_2483() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31547,10 +31547,10 @@ fn emoji_clusters_2484() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31559,10 +31559,10 @@ fn emoji_clusters_2485() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31571,7 +31571,7 @@ fn emoji_clusters_2486() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{FE0F}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31583,7 +31583,7 @@ fn emoji_clusters_2487() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31595,10 +31595,10 @@ fn emoji_clusters_2488() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{FE0F}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31607,10 +31607,10 @@ fn emoji_clusters_2489() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -31619,7 +31619,7 @@ fn emoji_clusters_2490() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31631,7 +31631,7 @@ fn emoji_clusters_2491() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31643,7 +31643,7 @@ fn emoji_clusters_2492() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31655,7 +31655,7 @@ fn emoji_clusters_2493() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31667,7 +31667,7 @@ fn emoji_clusters_2494() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31679,7 +31679,7 @@ fn emoji_clusters_2495() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F938}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31691,10 +31691,10 @@ fn emoji_clusters_2496() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93C}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31703,10 +31703,10 @@ fn emoji_clusters_2497() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93C}\u{200D}\u{2642}",
+            "\u{1F3CB}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31715,10 +31715,10 @@ fn emoji_clusters_2498() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93C}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31727,10 +31727,10 @@ fn emoji_clusters_2499() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93C}\u{200D}\u{2640}",
+            "\u{1F3CB}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -31739,7 +31739,7 @@ fn emoji_clusters_2500() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FB}",
+            "\u{1F6B4}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31751,7 +31751,7 @@ fn emoji_clusters_2501() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FC}",
+            "\u{1F6B4}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31763,7 +31763,7 @@ fn emoji_clusters_2502() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FD}",
+            "\u{1F6B4}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31775,7 +31775,7 @@ fn emoji_clusters_2503() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FE}",
+            "\u{1F6B4}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31787,7 +31787,7 @@ fn emoji_clusters_2504() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FF}",
+            "\u{1F6B4}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -31799,7 +31799,7 @@ fn emoji_clusters_2505() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B4}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31811,7 +31811,7 @@ fn emoji_clusters_2506() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{200D}\u{2642}",
+            "\u{1F6B4}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -31823,7 +31823,7 @@ fn emoji_clusters_2507() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31835,7 +31835,7 @@ fn emoji_clusters_2508() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31847,7 +31847,7 @@ fn emoji_clusters_2509() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31859,7 +31859,7 @@ fn emoji_clusters_2510() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31871,7 +31871,7 @@ fn emoji_clusters_2511() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31883,7 +31883,7 @@ fn emoji_clusters_2512() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31895,7 +31895,7 @@ fn emoji_clusters_2513() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31907,7 +31907,7 @@ fn emoji_clusters_2514() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31919,7 +31919,7 @@ fn emoji_clusters_2515() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31931,7 +31931,7 @@ fn emoji_clusters_2516() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31943,7 +31943,7 @@ fn emoji_clusters_2517() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B4}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31955,7 +31955,7 @@ fn emoji_clusters_2518() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{200D}\u{2640}",
+            "\u{1F6B4}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -31967,7 +31967,7 @@ fn emoji_clusters_2519() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -31979,7 +31979,7 @@ fn emoji_clusters_2520() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F6B4}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -31991,7 +31991,7 @@ fn emoji_clusters_2521() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32003,7 +32003,7 @@ fn emoji_clusters_2522() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F6B4}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32015,7 +32015,7 @@ fn emoji_clusters_2523() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32027,7 +32027,7 @@ fn emoji_clusters_2524() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F6B4}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32039,7 +32039,7 @@ fn emoji_clusters_2525() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32051,7 +32051,7 @@ fn emoji_clusters_2526() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F6B4}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32063,7 +32063,7 @@ fn emoji_clusters_2527() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32075,7 +32075,7 @@ fn emoji_clusters_2528() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93D}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F6B4}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32087,7 +32087,7 @@ fn emoji_clusters_2529() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FB}",
+            "\u{1F6B5}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32099,7 +32099,7 @@ fn emoji_clusters_2530() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FC}",
+            "\u{1F6B5}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32111,7 +32111,7 @@ fn emoji_clusters_2531() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FD}",
+            "\u{1F6B5}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32123,7 +32123,7 @@ fn emoji_clusters_2532() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FE}",
+            "\u{1F6B5}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32135,7 +32135,7 @@ fn emoji_clusters_2533() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FF}",
+            "\u{1F6B5}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32147,7 +32147,7 @@ fn emoji_clusters_2534() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B5}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32159,7 +32159,7 @@ fn emoji_clusters_2535() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{200D}\u{2642}",
+            "\u{1F6B5}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -32171,7 +32171,7 @@ fn emoji_clusters_2536() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32183,7 +32183,7 @@ fn emoji_clusters_2537() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32195,7 +32195,7 @@ fn emoji_clusters_2538() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32207,7 +32207,7 @@ fn emoji_clusters_2539() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32219,7 +32219,7 @@ fn emoji_clusters_2540() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32231,7 +32231,7 @@ fn emoji_clusters_2541() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32243,7 +32243,7 @@ fn emoji_clusters_2542() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32255,7 +32255,7 @@ fn emoji_clusters_2543() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32267,7 +32267,7 @@ fn emoji_clusters_2544() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32279,7 +32279,7 @@ fn emoji_clusters_2545() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32291,7 +32291,7 @@ fn emoji_clusters_2546() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B5}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32303,7 +32303,7 @@ fn emoji_clusters_2547() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{200D}\u{2640}",
+            "\u{1F6B5}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -32315,7 +32315,7 @@ fn emoji_clusters_2548() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32327,7 +32327,7 @@ fn emoji_clusters_2549() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F6B5}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32339,7 +32339,7 @@ fn emoji_clusters_2550() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32351,7 +32351,7 @@ fn emoji_clusters_2551() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F6B5}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32363,7 +32363,7 @@ fn emoji_clusters_2552() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32375,7 +32375,7 @@ fn emoji_clusters_2553() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F6B5}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32387,7 +32387,7 @@ fn emoji_clusters_2554() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32399,7 +32399,7 @@ fn emoji_clusters_2555() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F6B5}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32411,7 +32411,7 @@ fn emoji_clusters_2556() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32423,7 +32423,7 @@ fn emoji_clusters_2557() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F93E}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F6B5}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32435,7 +32435,7 @@ fn emoji_clusters_2558() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FB}",
+            "\u{1F938}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32447,7 +32447,7 @@ fn emoji_clusters_2559() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FC}",
+            "\u{1F938}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32459,7 +32459,7 @@ fn emoji_clusters_2560() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FD}",
+            "\u{1F938}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32471,7 +32471,7 @@ fn emoji_clusters_2561() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FE}",
+            "\u{1F938}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32483,7 +32483,7 @@ fn emoji_clusters_2562() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FF}",
+            "\u{1F938}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32495,7 +32495,7 @@ fn emoji_clusters_2563() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F938}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32507,7 +32507,7 @@ fn emoji_clusters_2564() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{200D}\u{2642}",
+            "\u{1F938}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -32519,7 +32519,7 @@ fn emoji_clusters_2565() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F938}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32531,7 +32531,7 @@ fn emoji_clusters_2566() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F938}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32543,7 +32543,7 @@ fn emoji_clusters_2567() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F938}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32555,7 +32555,7 @@ fn emoji_clusters_2568() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F938}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32567,7 +32567,7 @@ fn emoji_clusters_2569() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F938}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32579,7 +32579,7 @@ fn emoji_clusters_2570() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F938}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32591,7 +32591,7 @@ fn emoji_clusters_2571() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F938}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32603,7 +32603,7 @@ fn emoji_clusters_2572() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F938}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32615,7 +32615,7 @@ fn emoji_clusters_2573() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F938}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32627,7 +32627,7 @@ fn emoji_clusters_2574() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F938}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32639,7 +32639,7 @@ fn emoji_clusters_2575() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F938}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32651,7 +32651,7 @@ fn emoji_clusters_2576() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{200D}\u{2640}",
+            "\u{1F938}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -32663,7 +32663,7 @@ fn emoji_clusters_2577() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F938}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32675,7 +32675,7 @@ fn emoji_clusters_2578() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F938}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32687,7 +32687,7 @@ fn emoji_clusters_2579() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F938}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32699,7 +32699,7 @@ fn emoji_clusters_2580() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F938}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32711,7 +32711,7 @@ fn emoji_clusters_2581() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F938}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32723,7 +32723,7 @@ fn emoji_clusters_2582() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F938}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32735,7 +32735,7 @@ fn emoji_clusters_2583() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F938}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32747,7 +32747,7 @@ fn emoji_clusters_2584() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F938}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32759,7 +32759,7 @@ fn emoji_clusters_2585() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F938}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32771,7 +32771,7 @@ fn emoji_clusters_2586() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F939}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F938}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32783,7 +32783,7 @@ fn emoji_clusters_2587() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FB}",
+            "\u{1F93C}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32795,7 +32795,7 @@ fn emoji_clusters_2588() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FC}",
+            "\u{1F93C}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32807,7 +32807,7 @@ fn emoji_clusters_2589() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FD}",
+            "\u{1F93C}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32819,7 +32819,7 @@ fn emoji_clusters_2590() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FE}",
+            "\u{1F93C}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32831,7 +32831,7 @@ fn emoji_clusters_2591() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FF}",
+            "\u{1F93C}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -32843,7 +32843,7 @@ fn emoji_clusters_2592() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F93C}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32855,7 +32855,7 @@ fn emoji_clusters_2593() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{200D}\u{2642}",
+            "\u{1F93C}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -32867,7 +32867,7 @@ fn emoji_clusters_2594() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F93C}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32879,7 +32879,7 @@ fn emoji_clusters_2595() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2642}",
+            "\u{1F93C}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32891,7 +32891,7 @@ fn emoji_clusters_2596() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F93C}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32903,7 +32903,7 @@ fn emoji_clusters_2597() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2642}",
+            "\u{1F93C}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32915,7 +32915,7 @@ fn emoji_clusters_2598() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F93C}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32927,7 +32927,7 @@ fn emoji_clusters_2599() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2642}",
+            "\u{1F93C}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32939,7 +32939,7 @@ fn emoji_clusters_2600() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F93C}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32951,7 +32951,7 @@ fn emoji_clusters_2601() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2642}",
+            "\u{1F93C}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32963,7 +32963,7 @@ fn emoji_clusters_2602() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
+            "\u{1F93C}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -32975,7 +32975,7 @@ fn emoji_clusters_2603() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2642}",
+            "\u{1F93C}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32987,7 +32987,7 @@ fn emoji_clusters_2604() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F93C}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -32999,7 +32999,7 @@ fn emoji_clusters_2605() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{200D}\u{2640}",
+            "\u{1F93C}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0]"
@@ -33011,7 +33011,7 @@ fn emoji_clusters_2606() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F93C}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -33023,7 +33023,7 @@ fn emoji_clusters_2607() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2640}",
+            "\u{1F93C}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -33035,7 +33035,7 @@ fn emoji_clusters_2608() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F93C}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -33047,7 +33047,7 @@ fn emoji_clusters_2609() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2640}",
+            "\u{1F93C}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -33059,7 +33059,7 @@ fn emoji_clusters_2610() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F93C}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -33071,7 +33071,7 @@ fn emoji_clusters_2611() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2640}",
+            "\u{1F93C}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -33083,7 +33083,7 @@ fn emoji_clusters_2612() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F93C}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -33095,7 +33095,7 @@ fn emoji_clusters_2613() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2640}",
+            "\u{1F93C}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -33107,7 +33107,7 @@ fn emoji_clusters_2614() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
+            "\u{1F93C}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0]"
@@ -33119,7 +33119,7 @@ fn emoji_clusters_2615() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2640}",
+            "\u{1F93C}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0]"
@@ -33131,10 +33131,10 @@ fn emoji_clusters_2616() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6C0}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33143,10 +33143,10 @@ fn emoji_clusters_2617() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6C0}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33155,10 +33155,10 @@ fn emoji_clusters_2618() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6C0}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33167,10 +33167,10 @@ fn emoji_clusters_2619() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6C0}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33179,10 +33179,10 @@ fn emoji_clusters_2620() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6C0}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33191,10 +33191,10 @@ fn emoji_clusters_2621() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6CC}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33203,10 +33203,10 @@ fn emoji_clusters_2622() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6CC}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33215,10 +33215,10 @@ fn emoji_clusters_2623() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6CC}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33227,10 +33227,10 @@ fn emoji_clusters_2624() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6CC}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33239,10 +33239,10 @@ fn emoji_clusters_2625() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F6CC}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33251,10 +33251,10 @@ fn emoji_clusters_2626() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33263,7 +33263,7 @@ fn emoji_clusters_2627() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33275,7 +33275,7 @@ fn emoji_clusters_2628() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33287,7 +33287,7 @@ fn emoji_clusters_2629() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33299,7 +33299,7 @@ fn emoji_clusters_2630() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33311,7 +33311,7 @@ fn emoji_clusters_2631() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33323,7 +33323,7 @@ fn emoji_clusters_2632() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33335,7 +33335,7 @@ fn emoji_clusters_2633() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33347,7 +33347,7 @@ fn emoji_clusters_2634() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33359,7 +33359,7 @@ fn emoji_clusters_2635() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33371,7 +33371,7 @@ fn emoji_clusters_2636() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33383,7 +33383,7 @@ fn emoji_clusters_2637() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33395,7 +33395,7 @@ fn emoji_clusters_2638() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33407,7 +33407,7 @@ fn emoji_clusters_2639() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33419,7 +33419,7 @@ fn emoji_clusters_2640() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33431,7 +33431,7 @@ fn emoji_clusters_2641() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33443,7 +33443,7 @@ fn emoji_clusters_2642() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33455,7 +33455,7 @@ fn emoji_clusters_2643() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33467,7 +33467,7 @@ fn emoji_clusters_2644() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33479,7 +33479,7 @@ fn emoji_clusters_2645() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33491,7 +33491,7 @@ fn emoji_clusters_2646() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33503,7 +33503,7 @@ fn emoji_clusters_2647() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33515,7 +33515,7 @@ fn emoji_clusters_2648() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33527,7 +33527,7 @@ fn emoji_clusters_2649() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33539,7 +33539,7 @@ fn emoji_clusters_2650() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33551,7 +33551,7 @@ fn emoji_clusters_2651() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33563,10 +33563,10 @@ fn emoji_clusters_2652() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46D}\u{1F3FB}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33575,7 +33575,7 @@ fn emoji_clusters_2653() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33587,7 +33587,7 @@ fn emoji_clusters_2654() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33599,7 +33599,7 @@ fn emoji_clusters_2655() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33611,7 +33611,7 @@ fn emoji_clusters_2656() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33623,7 +33623,7 @@ fn emoji_clusters_2657() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33635,10 +33635,10 @@ fn emoji_clusters_2658() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46D}\u{1F3FC}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33647,7 +33647,7 @@ fn emoji_clusters_2659() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33659,7 +33659,7 @@ fn emoji_clusters_2660() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33671,7 +33671,7 @@ fn emoji_clusters_2661() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33683,7 +33683,7 @@ fn emoji_clusters_2662() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33695,7 +33695,7 @@ fn emoji_clusters_2663() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33707,10 +33707,10 @@ fn emoji_clusters_2664() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46D}\u{1F3FD}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33719,7 +33719,7 @@ fn emoji_clusters_2665() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33731,7 +33731,7 @@ fn emoji_clusters_2666() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33743,7 +33743,7 @@ fn emoji_clusters_2667() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33755,7 +33755,7 @@ fn emoji_clusters_2668() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33767,7 +33767,7 @@ fn emoji_clusters_2669() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33779,10 +33779,10 @@ fn emoji_clusters_2670() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46D}\u{1F3FE}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33791,7 +33791,7 @@ fn emoji_clusters_2671() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33803,7 +33803,7 @@ fn emoji_clusters_2672() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33815,7 +33815,7 @@ fn emoji_clusters_2673() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33827,7 +33827,7 @@ fn emoji_clusters_2674() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33839,7 +33839,7 @@ fn emoji_clusters_2675() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1FAEF}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -33851,7 +33851,7 @@ fn emoji_clusters_2676() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46D}\u{1F3FF}",
+            "\u{1F93D}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -33863,7 +33863,7 @@ fn emoji_clusters_2677() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46B}\u{1F3FB}",
+            "\u{1F93D}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -33875,10 +33875,10 @@ fn emoji_clusters_2678() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93D}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -33887,10 +33887,10 @@ fn emoji_clusters_2679() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93D}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -33899,10 +33899,10 @@ fn emoji_clusters_2680() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93D}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -33911,10 +33911,10 @@ fn emoji_clusters_2681() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93D}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33923,10 +33923,10 @@ fn emoji_clusters_2682() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93D}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -33935,10 +33935,10 @@ fn emoji_clusters_2683() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46B}\u{1F3FC}",
+            "\u{1F93D}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33947,10 +33947,10 @@ fn emoji_clusters_2684() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93D}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33959,10 +33959,10 @@ fn emoji_clusters_2685() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93D}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33971,10 +33971,10 @@ fn emoji_clusters_2686() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93D}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33983,10 +33983,10 @@ fn emoji_clusters_2687() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93D}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -33995,10 +33995,10 @@ fn emoji_clusters_2688() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93D}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34007,10 +34007,10 @@ fn emoji_clusters_2689() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46B}\u{1F3FD}",
+            "\u{1F93D}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34019,10 +34019,10 @@ fn emoji_clusters_2690() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93D}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34031,10 +34031,10 @@ fn emoji_clusters_2691() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93D}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34043,10 +34043,10 @@ fn emoji_clusters_2692() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93D}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34055,10 +34055,10 @@ fn emoji_clusters_2693() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93D}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34067,10 +34067,10 @@ fn emoji_clusters_2694() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93D}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -34079,10 +34079,10 @@ fn emoji_clusters_2695() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46B}\u{1F3FE}",
+            "\u{1F93D}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34091,10 +34091,10 @@ fn emoji_clusters_2696() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93D}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34103,10 +34103,10 @@ fn emoji_clusters_2697() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93D}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34115,10 +34115,10 @@ fn emoji_clusters_2698() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93D}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34127,10 +34127,10 @@ fn emoji_clusters_2699() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93D}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34139,10 +34139,10 @@ fn emoji_clusters_2700() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93D}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34151,10 +34151,10 @@ fn emoji_clusters_2701() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46B}\u{1F3FF}",
+            "\u{1F93D}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34163,10 +34163,10 @@ fn emoji_clusters_2702() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46C}\u{1F3FB}",
+            "\u{1F93D}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34175,10 +34175,10 @@ fn emoji_clusters_2703() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93D}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34187,10 +34187,10 @@ fn emoji_clusters_2704() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93D}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34199,10 +34199,10 @@ fn emoji_clusters_2705() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93E}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34211,10 +34211,10 @@ fn emoji_clusters_2706() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93E}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34223,10 +34223,10 @@ fn emoji_clusters_2707() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93E}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34235,7 +34235,7 @@ fn emoji_clusters_2708() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46C}\u{1F3FC}",
+            "\u{1F93E}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0]"
@@ -34247,10 +34247,10 @@ fn emoji_clusters_2709() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93E}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34259,10 +34259,10 @@ fn emoji_clusters_2710() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93E}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34271,10 +34271,10 @@ fn emoji_clusters_2711() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93E}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -34283,10 +34283,10 @@ fn emoji_clusters_2712() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93E}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34295,10 +34295,10 @@ fn emoji_clusters_2713() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93E}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34307,10 +34307,10 @@ fn emoji_clusters_2714() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46C}\u{1F3FD}",
+            "\u{1F93E}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34319,10 +34319,10 @@ fn emoji_clusters_2715() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93E}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34331,10 +34331,10 @@ fn emoji_clusters_2716() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93E}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34343,10 +34343,10 @@ fn emoji_clusters_2717() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93E}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34355,10 +34355,10 @@ fn emoji_clusters_2718() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93E}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34367,10 +34367,10 @@ fn emoji_clusters_2719() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93E}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34379,10 +34379,10 @@ fn emoji_clusters_2720() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46C}\u{1F3FE}",
+            "\u{1F93E}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34391,10 +34391,10 @@ fn emoji_clusters_2721() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F93E}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34403,10 +34403,10 @@ fn emoji_clusters_2722() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F93E}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34415,10 +34415,10 @@ fn emoji_clusters_2723() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F93E}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -34427,10 +34427,10 @@ fn emoji_clusters_2724() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F93E}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34439,10 +34439,10 @@ fn emoji_clusters_2725() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F93E}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34451,10 +34451,10 @@ fn emoji_clusters_2726() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F46C}\u{1F3FF}",
+            "\u{1F93E}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34463,10 +34463,10 @@ fn emoji_clusters_2727() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F48F}\u{1F3FB}",
+            "\u{1F93E}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34475,10 +34475,10 @@ fn emoji_clusters_2728() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F48F}\u{1F3FC}",
+            "\u{1F93E}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34487,10 +34487,10 @@ fn emoji_clusters_2729() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F48F}\u{1F3FD}",
+            "\u{1F93E}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34499,10 +34499,10 @@ fn emoji_clusters_2730() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F48F}\u{1F3FE}",
+            "\u{1F93E}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34511,10 +34511,10 @@ fn emoji_clusters_2731() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F48F}\u{1F3FF}",
+            "\u{1F93E}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34523,10 +34523,10 @@ fn emoji_clusters_2732() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F93E}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34535,10 +34535,10 @@ fn emoji_clusters_2733() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F93E}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34547,10 +34547,10 @@ fn emoji_clusters_2734() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F939}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34559,10 +34559,10 @@ fn emoji_clusters_2735() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F939}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34571,10 +34571,10 @@ fn emoji_clusters_2736() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F939}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34583,10 +34583,10 @@ fn emoji_clusters_2737() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F939}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34595,10 +34595,10 @@ fn emoji_clusters_2738() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34607,10 +34607,10 @@ fn emoji_clusters_2739() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34619,10 +34619,10 @@ fn emoji_clusters_2740() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F939}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -34631,10 +34631,10 @@ fn emoji_clusters_2741() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F939}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34643,10 +34643,10 @@ fn emoji_clusters_2742() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F939}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34655,10 +34655,10 @@ fn emoji_clusters_2743() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F939}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34667,10 +34667,10 @@ fn emoji_clusters_2744() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F939}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34679,10 +34679,10 @@ fn emoji_clusters_2745() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F939}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34691,10 +34691,10 @@ fn emoji_clusters_2746() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34703,10 +34703,10 @@ fn emoji_clusters_2747() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34715,10 +34715,10 @@ fn emoji_clusters_2748() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F939}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34727,10 +34727,10 @@ fn emoji_clusters_2749() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F939}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34739,10 +34739,10 @@ fn emoji_clusters_2750() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F939}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34751,10 +34751,10 @@ fn emoji_clusters_2751() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F939}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34763,10 +34763,10 @@ fn emoji_clusters_2752() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F939}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -34775,10 +34775,10 @@ fn emoji_clusters_2753() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F939}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34787,10 +34787,10 @@ fn emoji_clusters_2754() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34799,10 +34799,10 @@ fn emoji_clusters_2755() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34811,10 +34811,10 @@ fn emoji_clusters_2756() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F939}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34823,10 +34823,10 @@ fn emoji_clusters_2757() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F939}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34835,10 +34835,10 @@ fn emoji_clusters_2758() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F939}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34847,10 +34847,10 @@ fn emoji_clusters_2759() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F939}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34859,10 +34859,10 @@ fn emoji_clusters_2760() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F939}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34871,10 +34871,10 @@ fn emoji_clusters_2761() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F939}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34883,10 +34883,10 @@ fn emoji_clusters_2762() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F939}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34895,10 +34895,10 @@ fn emoji_clusters_2763() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "\u{1F9D8}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34907,10 +34907,10 @@ fn emoji_clusters_2764() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F9D8}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34919,10 +34919,10 @@ fn emoji_clusters_2765() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "\u{1F9D8}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34931,10 +34931,10 @@ fn emoji_clusters_2766() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F9D8}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34943,10 +34943,10 @@ fn emoji_clusters_2767() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "\u{1F9D8}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -34955,10 +34955,10 @@ fn emoji_clusters_2768() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F9D8}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34967,10 +34967,10 @@ fn emoji_clusters_2769() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "\u{1F9D8}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -34979,10 +34979,10 @@ fn emoji_clusters_2770() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -34991,10 +34991,10 @@ fn emoji_clusters_2771() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35003,10 +35003,10 @@ fn emoji_clusters_2772() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35015,10 +35015,10 @@ fn emoji_clusters_2773() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35027,10 +35027,10 @@ fn emoji_clusters_2774() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35039,10 +35039,10 @@ fn emoji_clusters_2775() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35051,10 +35051,10 @@ fn emoji_clusters_2776() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35063,10 +35063,10 @@ fn emoji_clusters_2777() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35075,10 +35075,10 @@ fn emoji_clusters_2778() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2642}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35087,10 +35087,10 @@ fn emoji_clusters_2779() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2642}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35099,10 +35099,10 @@ fn emoji_clusters_2780() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D8}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35111,10 +35111,10 @@ fn emoji_clusters_2781() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D8}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0]"
     );
 }
 
@@ -35123,10 +35123,10 @@ fn emoji_clusters_2782() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35135,10 +35135,10 @@ fn emoji_clusters_2783() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D8}\u{1F3FB}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35147,10 +35147,10 @@ fn emoji_clusters_2784() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35159,10 +35159,10 @@ fn emoji_clusters_2785() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D8}\u{1F3FC}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35171,10 +35171,10 @@ fn emoji_clusters_2786() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35183,10 +35183,10 @@ fn emoji_clusters_2787() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D8}\u{1F3FD}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35195,10 +35195,10 @@ fn emoji_clusters_2788() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35207,10 +35207,10 @@ fn emoji_clusters_2789() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D8}\u{1F3FE}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35219,10 +35219,10 @@ fn emoji_clusters_2790() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2640}\u{FE0F}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35231,10 +35231,10 @@ fn emoji_clusters_2791() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D8}\u{1F3FF}\u{200D}\u{2640}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35243,10 +35243,10 @@ fn emoji_clusters_2792() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F6C0}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35255,10 +35255,10 @@ fn emoji_clusters_2793() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F6C0}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35267,10 +35267,10 @@ fn emoji_clusters_2794() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F6C0}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35279,10 +35279,10 @@ fn emoji_clusters_2795() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F6C0}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35291,10 +35291,10 @@ fn emoji_clusters_2796() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F6C0}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35303,10 +35303,10 @@ fn emoji_clusters_2797() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F6CC}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35315,10 +35315,10 @@ fn emoji_clusters_2798() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F6CC}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35327,10 +35327,10 @@ fn emoji_clusters_2799() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F6CC}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35339,10 +35339,10 @@ fn emoji_clusters_2800() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F6CC}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35351,10 +35351,10 @@ fn emoji_clusters_2801() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F6CC}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35363,10 +35363,10 @@ fn emoji_clusters_2802() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D1}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35375,10 +35375,10 @@ fn emoji_clusters_2803() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35387,10 +35387,10 @@ fn emoji_clusters_2804() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35399,10 +35399,10 @@ fn emoji_clusters_2805() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35411,10 +35411,10 @@ fn emoji_clusters_2806() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35423,10 +35423,10 @@ fn emoji_clusters_2807() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35435,10 +35435,10 @@ fn emoji_clusters_2808() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35447,10 +35447,10 @@ fn emoji_clusters_2809() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35459,10 +35459,10 @@ fn emoji_clusters_2810() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35471,10 +35471,10 @@ fn emoji_clusters_2811() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35483,10 +35483,10 @@ fn emoji_clusters_2812() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35495,10 +35495,10 @@ fn emoji_clusters_2813() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35507,10 +35507,10 @@ fn emoji_clusters_2814() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35519,10 +35519,10 @@ fn emoji_clusters_2815() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35531,10 +35531,10 @@ fn emoji_clusters_2816() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35543,10 +35543,10 @@ fn emoji_clusters_2817() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35555,10 +35555,10 @@ fn emoji_clusters_2818() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35567,10 +35567,10 @@ fn emoji_clusters_2819() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35579,10 +35579,10 @@ fn emoji_clusters_2820() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35591,10 +35591,10 @@ fn emoji_clusters_2821() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35603,10 +35603,10 @@ fn emoji_clusters_2822() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35615,10 +35615,10 @@ fn emoji_clusters_2823() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35627,10 +35627,10 @@ fn emoji_clusters_2824() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35639,7 +35639,7 @@ fn emoji_clusters_2825() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -35651,10 +35651,10 @@ fn emoji_clusters_2826() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35663,10 +35663,10 @@ fn emoji_clusters_2827() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35675,10 +35675,10 @@ fn emoji_clusters_2828() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F46D}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35687,10 +35687,10 @@ fn emoji_clusters_2829() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35699,10 +35699,10 @@ fn emoji_clusters_2830() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35711,10 +35711,10 @@ fn emoji_clusters_2831() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35723,10 +35723,10 @@ fn emoji_clusters_2832() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35735,10 +35735,10 @@ fn emoji_clusters_2833() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35747,10 +35747,10 @@ fn emoji_clusters_2834() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F46D}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35759,10 +35759,10 @@ fn emoji_clusters_2835() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35771,10 +35771,10 @@ fn emoji_clusters_2836() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35783,10 +35783,10 @@ fn emoji_clusters_2837() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35795,10 +35795,10 @@ fn emoji_clusters_2838() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35807,10 +35807,10 @@ fn emoji_clusters_2839() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35819,10 +35819,10 @@ fn emoji_clusters_2840() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F46D}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35831,10 +35831,10 @@ fn emoji_clusters_2841() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35843,10 +35843,10 @@ fn emoji_clusters_2842() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35855,10 +35855,10 @@ fn emoji_clusters_2843() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35867,10 +35867,10 @@ fn emoji_clusters_2844() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35879,10 +35879,10 @@ fn emoji_clusters_2845() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35891,10 +35891,10 @@ fn emoji_clusters_2846() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F46D}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35903,10 +35903,10 @@ fn emoji_clusters_2847() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35915,10 +35915,10 @@ fn emoji_clusters_2848() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35927,10 +35927,10 @@ fn emoji_clusters_2849() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35939,10 +35939,10 @@ fn emoji_clusters_2850() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35951,10 +35951,10 @@ fn emoji_clusters_2851() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F469}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35963,10 +35963,10 @@ fn emoji_clusters_2852() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F46D}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35975,10 +35975,10 @@ fn emoji_clusters_2853() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F46B}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -35987,10 +35987,10 @@ fn emoji_clusters_2854() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -35999,10 +35999,10 @@ fn emoji_clusters_2855() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36011,10 +36011,10 @@ fn emoji_clusters_2856() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36023,10 +36023,10 @@ fn emoji_clusters_2857() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36035,10 +36035,10 @@ fn emoji_clusters_2858() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36047,10 +36047,10 @@ fn emoji_clusters_2859() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F46B}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36059,10 +36059,10 @@ fn emoji_clusters_2860() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36071,10 +36071,10 @@ fn emoji_clusters_2861() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36083,10 +36083,10 @@ fn emoji_clusters_2862() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36095,10 +36095,10 @@ fn emoji_clusters_2863() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36107,10 +36107,10 @@ fn emoji_clusters_2864() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36119,10 +36119,10 @@ fn emoji_clusters_2865() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F46B}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36131,10 +36131,10 @@ fn emoji_clusters_2866() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36143,10 +36143,10 @@ fn emoji_clusters_2867() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36155,10 +36155,10 @@ fn emoji_clusters_2868() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36167,10 +36167,10 @@ fn emoji_clusters_2869() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36179,10 +36179,10 @@ fn emoji_clusters_2870() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36191,10 +36191,10 @@ fn emoji_clusters_2871() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "\u{1F46B}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36203,10 +36203,10 @@ fn emoji_clusters_2872() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36215,10 +36215,10 @@ fn emoji_clusters_2873() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36227,10 +36227,10 @@ fn emoji_clusters_2874() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36239,10 +36239,10 @@ fn emoji_clusters_2875() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36251,10 +36251,10 @@ fn emoji_clusters_2876() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36263,10 +36263,10 @@ fn emoji_clusters_2877() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}",
+            "\u{1F46B}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36275,10 +36275,10 @@ fn emoji_clusters_2878() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F46C}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36287,10 +36287,10 @@ fn emoji_clusters_2879() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36299,10 +36299,10 @@ fn emoji_clusters_2880() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36311,10 +36311,10 @@ fn emoji_clusters_2881() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36323,10 +36323,10 @@ fn emoji_clusters_2882() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36335,10 +36335,10 @@ fn emoji_clusters_2883() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36347,10 +36347,10 @@ fn emoji_clusters_2884() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F46C}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36359,10 +36359,10 @@ fn emoji_clusters_2885() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36371,10 +36371,10 @@ fn emoji_clusters_2886() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36383,10 +36383,10 @@ fn emoji_clusters_2887() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36395,10 +36395,10 @@ fn emoji_clusters_2888() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36407,10 +36407,10 @@ fn emoji_clusters_2889() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36419,10 +36419,10 @@ fn emoji_clusters_2890() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F46C}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36431,10 +36431,10 @@ fn emoji_clusters_2891() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36443,10 +36443,10 @@ fn emoji_clusters_2892() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36455,10 +36455,10 @@ fn emoji_clusters_2893() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36467,10 +36467,10 @@ fn emoji_clusters_2894() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36479,10 +36479,10 @@ fn emoji_clusters_2895() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36491,10 +36491,10 @@ fn emoji_clusters_2896() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F46C}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36503,10 +36503,10 @@ fn emoji_clusters_2897() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36515,10 +36515,10 @@ fn emoji_clusters_2898() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36527,10 +36527,10 @@ fn emoji_clusters_2899() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36539,10 +36539,10 @@ fn emoji_clusters_2900() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36551,10 +36551,10 @@ fn emoji_clusters_2901() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{1F91D}\u{200D}\u{1F468}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
     );
 }
 
@@ -36563,10 +36563,10 @@ fn emoji_clusters_2902() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F46C}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36575,10 +36575,10 @@ fn emoji_clusters_2903() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F48F}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36587,10 +36587,10 @@ fn emoji_clusters_2904() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F48F}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36599,10 +36599,10 @@ fn emoji_clusters_2905() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F48F}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36611,10 +36611,10 @@ fn emoji_clusters_2906() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F48F}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36623,10 +36623,10 @@ fn emoji_clusters_2907() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F48F}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
-        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+        "[1=0|1=0]"
     );
 }
 
@@ -36635,7 +36635,7 @@ fn emoji_clusters_2908() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36647,7 +36647,7 @@ fn emoji_clusters_2909() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36659,7 +36659,7 @@ fn emoji_clusters_2910() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36671,7 +36671,7 @@ fn emoji_clusters_2911() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36683,7 +36683,7 @@ fn emoji_clusters_2912() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36695,7 +36695,7 @@ fn emoji_clusters_2913() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36707,7 +36707,7 @@ fn emoji_clusters_2914() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36719,7 +36719,7 @@ fn emoji_clusters_2915() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36731,7 +36731,7 @@ fn emoji_clusters_2916() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36743,7 +36743,7 @@ fn emoji_clusters_2917() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36755,7 +36755,7 @@ fn emoji_clusters_2918() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36767,7 +36767,7 @@ fn emoji_clusters_2919() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36779,7 +36779,7 @@ fn emoji_clusters_2920() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36791,7 +36791,7 @@ fn emoji_clusters_2921() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36803,7 +36803,7 @@ fn emoji_clusters_2922() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36815,7 +36815,7 @@ fn emoji_clusters_2923() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "\u{1F9D1}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36827,7 +36827,7 @@ fn emoji_clusters_2924() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36839,7 +36839,7 @@ fn emoji_clusters_2925() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36851,7 +36851,7 @@ fn emoji_clusters_2926() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36863,7 +36863,7 @@ fn emoji_clusters_2927() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
-            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
             "--no-glyph-names --no-positions",
         ),
         "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
@@ -36875,6 +36875,2118 @@ fn emoji_clusters_2928() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2929() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2930() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2931() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2932() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2933() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2934() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2935() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2936() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2937() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2938() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2939() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2940() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2941() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2942() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2943() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2944() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2945() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2946() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2947() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F9D1}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F9D1}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2948() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2949() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2950() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2951() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2952() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2953() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2954() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2955() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2956() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2957() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2958() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2959() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2960() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2961() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2962() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2963() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2964() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2965() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2966() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2967() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2968() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2969() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2970() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2971() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2972() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2973() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2974() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2975() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2976() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2977() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2978() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2979() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2980() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2981() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2982() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2983() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2984() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2985() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2986() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2987() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2988() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2989() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2990() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2991() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2992() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2993() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2994() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2995() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2996() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2997() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2998() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_2999() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3000() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3014() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3015() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3016() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3018() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3019() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3020() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3022() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3023() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3024() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3025() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3026() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3027() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3028() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3029() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3030() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3031() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3032() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3033() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3034() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3035() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3036() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3037() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3038() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3039() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3040() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3041() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3042() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3043() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3044() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3045() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3046() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3047() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3048() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3049() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3050() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3051() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F468}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F468}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3052() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3053() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3054() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3055() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3056() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3057() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3058() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3059() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3060() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3061() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3062() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3063() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FB}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3064() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3065() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3066() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3067() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3068() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3069() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3070() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3071() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3072() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3073() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FC}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3074() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3075() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3076() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3077() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3078() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3079() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3080() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3081() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3082() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3083() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FD}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3084() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3085() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3086() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3087() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3088() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3089() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3090() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3091() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3092() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3093() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FE}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3094() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3095() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FB}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3096() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3097() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FC}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3098() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3099() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FD}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3100() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3101() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FE}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3102() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{FE0F}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3103() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{1F469}\u{1F3FF}\u{200D}\u{2764}\u{200D}\u{1F48B}\u{200D}\u{1F469}\u{1F3FF}",
+            "--no-glyph-names --no-positions",
+        ),
+        "[1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0|1=0]"
+    );
+}
+
+#[test]
+fn emoji_clusters_3104() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
             "\u{1F491}\u{1F3FB}",
             "--no-glyph-names --no-positions",
         ),
@@ -36883,7 +38995,7 @@ fn emoji_clusters_2928() {
 }
 
 #[test]
-fn emoji_clusters_2929() {
+fn emoji_clusters_3105() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36895,7 +39007,7 @@ fn emoji_clusters_2929() {
 }
 
 #[test]
-fn emoji_clusters_2930() {
+fn emoji_clusters_3106() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36907,7 +39019,7 @@ fn emoji_clusters_2930() {
 }
 
 #[test]
-fn emoji_clusters_2931() {
+fn emoji_clusters_3107() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36919,7 +39031,7 @@ fn emoji_clusters_2931() {
 }
 
 #[test]
-fn emoji_clusters_2932() {
+fn emoji_clusters_3108() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36931,7 +39043,7 @@ fn emoji_clusters_2932() {
 }
 
 #[test]
-fn emoji_clusters_2933() {
+fn emoji_clusters_3109() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36943,7 +39055,7 @@ fn emoji_clusters_2933() {
 }
 
 #[test]
-fn emoji_clusters_2934() {
+fn emoji_clusters_3110() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36955,7 +39067,7 @@ fn emoji_clusters_2934() {
 }
 
 #[test]
-fn emoji_clusters_2935() {
+fn emoji_clusters_3111() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36967,7 +39079,7 @@ fn emoji_clusters_2935() {
 }
 
 #[test]
-fn emoji_clusters_2936() {
+fn emoji_clusters_3112() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36979,7 +39091,7 @@ fn emoji_clusters_2936() {
 }
 
 #[test]
-fn emoji_clusters_2937() {
+fn emoji_clusters_3113() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -36991,7 +39103,7 @@ fn emoji_clusters_2937() {
 }
 
 #[test]
-fn emoji_clusters_2938() {
+fn emoji_clusters_3114() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37003,7 +39115,7 @@ fn emoji_clusters_2938() {
 }
 
 #[test]
-fn emoji_clusters_2939() {
+fn emoji_clusters_3115() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37015,7 +39127,7 @@ fn emoji_clusters_2939() {
 }
 
 #[test]
-fn emoji_clusters_2940() {
+fn emoji_clusters_3116() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37027,7 +39139,7 @@ fn emoji_clusters_2940() {
 }
 
 #[test]
-fn emoji_clusters_2941() {
+fn emoji_clusters_3117() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37039,7 +39151,7 @@ fn emoji_clusters_2941() {
 }
 
 #[test]
-fn emoji_clusters_2942() {
+fn emoji_clusters_3118() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37051,7 +39163,7 @@ fn emoji_clusters_2942() {
 }
 
 #[test]
-fn emoji_clusters_2943() {
+fn emoji_clusters_3119() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37063,7 +39175,7 @@ fn emoji_clusters_2943() {
 }
 
 #[test]
-fn emoji_clusters_2944() {
+fn emoji_clusters_3120() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37075,7 +39187,7 @@ fn emoji_clusters_2944() {
 }
 
 #[test]
-fn emoji_clusters_2945() {
+fn emoji_clusters_3121() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37087,7 +39199,7 @@ fn emoji_clusters_2945() {
 }
 
 #[test]
-fn emoji_clusters_2946() {
+fn emoji_clusters_3122() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37099,7 +39211,7 @@ fn emoji_clusters_2946() {
 }
 
 #[test]
-fn emoji_clusters_2947() {
+fn emoji_clusters_3123() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37111,7 +39223,7 @@ fn emoji_clusters_2947() {
 }
 
 #[test]
-fn emoji_clusters_2948() {
+fn emoji_clusters_3124() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37123,7 +39235,7 @@ fn emoji_clusters_2948() {
 }
 
 #[test]
-fn emoji_clusters_2949() {
+fn emoji_clusters_3125() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37135,7 +39247,7 @@ fn emoji_clusters_2949() {
 }
 
 #[test]
-fn emoji_clusters_2950() {
+fn emoji_clusters_3126() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37147,7 +39259,7 @@ fn emoji_clusters_2950() {
 }
 
 #[test]
-fn emoji_clusters_2951() {
+fn emoji_clusters_3127() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37159,7 +39271,7 @@ fn emoji_clusters_2951() {
 }
 
 #[test]
-fn emoji_clusters_2952() {
+fn emoji_clusters_3128() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37171,7 +39283,7 @@ fn emoji_clusters_2952() {
 }
 
 #[test]
-fn emoji_clusters_2953() {
+fn emoji_clusters_3129() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37183,7 +39295,7 @@ fn emoji_clusters_2953() {
 }
 
 #[test]
-fn emoji_clusters_2954() {
+fn emoji_clusters_3130() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37195,7 +39307,7 @@ fn emoji_clusters_2954() {
 }
 
 #[test]
-fn emoji_clusters_2955() {
+fn emoji_clusters_3131() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37207,7 +39319,7 @@ fn emoji_clusters_2955() {
 }
 
 #[test]
-fn emoji_clusters_2956() {
+fn emoji_clusters_3132() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37219,7 +39331,7 @@ fn emoji_clusters_2956() {
 }
 
 #[test]
-fn emoji_clusters_2957() {
+fn emoji_clusters_3133() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37231,7 +39343,7 @@ fn emoji_clusters_2957() {
 }
 
 #[test]
-fn emoji_clusters_2958() {
+fn emoji_clusters_3134() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37243,7 +39355,7 @@ fn emoji_clusters_2958() {
 }
 
 #[test]
-fn emoji_clusters_2959() {
+fn emoji_clusters_3135() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37255,7 +39367,7 @@ fn emoji_clusters_2959() {
 }
 
 #[test]
-fn emoji_clusters_2960() {
+fn emoji_clusters_3136() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37267,7 +39379,7 @@ fn emoji_clusters_2960() {
 }
 
 #[test]
-fn emoji_clusters_2961() {
+fn emoji_clusters_3137() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37279,7 +39391,7 @@ fn emoji_clusters_2961() {
 }
 
 #[test]
-fn emoji_clusters_2962() {
+fn emoji_clusters_3138() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37291,7 +39403,7 @@ fn emoji_clusters_2962() {
 }
 
 #[test]
-fn emoji_clusters_2963() {
+fn emoji_clusters_3139() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37303,7 +39415,7 @@ fn emoji_clusters_2963() {
 }
 
 #[test]
-fn emoji_clusters_2964() {
+fn emoji_clusters_3140() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37315,7 +39427,7 @@ fn emoji_clusters_2964() {
 }
 
 #[test]
-fn emoji_clusters_2965() {
+fn emoji_clusters_3141() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37327,7 +39439,7 @@ fn emoji_clusters_2965() {
 }
 
 #[test]
-fn emoji_clusters_2966() {
+fn emoji_clusters_3142() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37339,7 +39451,7 @@ fn emoji_clusters_2966() {
 }
 
 #[test]
-fn emoji_clusters_2967() {
+fn emoji_clusters_3143() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37351,7 +39463,7 @@ fn emoji_clusters_2967() {
 }
 
 #[test]
-fn emoji_clusters_2968() {
+fn emoji_clusters_3144() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37363,7 +39475,7 @@ fn emoji_clusters_2968() {
 }
 
 #[test]
-fn emoji_clusters_2969() {
+fn emoji_clusters_3145() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37375,7 +39487,7 @@ fn emoji_clusters_2969() {
 }
 
 #[test]
-fn emoji_clusters_2970() {
+fn emoji_clusters_3146() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37387,7 +39499,7 @@ fn emoji_clusters_2970() {
 }
 
 #[test]
-fn emoji_clusters_2971() {
+fn emoji_clusters_3147() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37399,7 +39511,7 @@ fn emoji_clusters_2971() {
 }
 
 #[test]
-fn emoji_clusters_2972() {
+fn emoji_clusters_3148() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37411,7 +39523,7 @@ fn emoji_clusters_2972() {
 }
 
 #[test]
-fn emoji_clusters_2973() {
+fn emoji_clusters_3149() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37423,7 +39535,7 @@ fn emoji_clusters_2973() {
 }
 
 #[test]
-fn emoji_clusters_2974() {
+fn emoji_clusters_3150() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37435,7 +39547,7 @@ fn emoji_clusters_2974() {
 }
 
 #[test]
-fn emoji_clusters_2975() {
+fn emoji_clusters_3151() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37447,7 +39559,7 @@ fn emoji_clusters_2975() {
 }
 
 #[test]
-fn emoji_clusters_2976() {
+fn emoji_clusters_3152() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37459,7 +39571,7 @@ fn emoji_clusters_2976() {
 }
 
 #[test]
-fn emoji_clusters_2977() {
+fn emoji_clusters_3153() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37471,7 +39583,7 @@ fn emoji_clusters_2977() {
 }
 
 #[test]
-fn emoji_clusters_2978() {
+fn emoji_clusters_3154() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37483,7 +39595,7 @@ fn emoji_clusters_2978() {
 }
 
 #[test]
-fn emoji_clusters_2979() {
+fn emoji_clusters_3155() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37495,7 +39607,7 @@ fn emoji_clusters_2979() {
 }
 
 #[test]
-fn emoji_clusters_2980() {
+fn emoji_clusters_3156() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37507,7 +39619,7 @@ fn emoji_clusters_2980() {
 }
 
 #[test]
-fn emoji_clusters_2981() {
+fn emoji_clusters_3157() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37519,7 +39631,7 @@ fn emoji_clusters_2981() {
 }
 
 #[test]
-fn emoji_clusters_2982() {
+fn emoji_clusters_3158() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37531,7 +39643,7 @@ fn emoji_clusters_2982() {
 }
 
 #[test]
-fn emoji_clusters_2983() {
+fn emoji_clusters_3159() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37543,7 +39655,7 @@ fn emoji_clusters_2983() {
 }
 
 #[test]
-fn emoji_clusters_2984() {
+fn emoji_clusters_3160() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37555,7 +39667,7 @@ fn emoji_clusters_2984() {
 }
 
 #[test]
-fn emoji_clusters_2985() {
+fn emoji_clusters_3161() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37567,7 +39679,7 @@ fn emoji_clusters_2985() {
 }
 
 #[test]
-fn emoji_clusters_2986() {
+fn emoji_clusters_3162() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37579,7 +39691,7 @@ fn emoji_clusters_2986() {
 }
 
 #[test]
-fn emoji_clusters_2987() {
+fn emoji_clusters_3163() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37591,7 +39703,7 @@ fn emoji_clusters_2987() {
 }
 
 #[test]
-fn emoji_clusters_2988() {
+fn emoji_clusters_3164() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37603,7 +39715,7 @@ fn emoji_clusters_2988() {
 }
 
 #[test]
-fn emoji_clusters_2989() {
+fn emoji_clusters_3165() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37615,7 +39727,7 @@ fn emoji_clusters_2989() {
 }
 
 #[test]
-fn emoji_clusters_2990() {
+fn emoji_clusters_3166() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37627,7 +39739,7 @@ fn emoji_clusters_2990() {
 }
 
 #[test]
-fn emoji_clusters_2991() {
+fn emoji_clusters_3167() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37639,7 +39751,7 @@ fn emoji_clusters_2991() {
 }
 
 #[test]
-fn emoji_clusters_2992() {
+fn emoji_clusters_3168() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37651,7 +39763,7 @@ fn emoji_clusters_2992() {
 }
 
 #[test]
-fn emoji_clusters_2993() {
+fn emoji_clusters_3169() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37663,7 +39775,7 @@ fn emoji_clusters_2993() {
 }
 
 #[test]
-fn emoji_clusters_2994() {
+fn emoji_clusters_3170() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37675,7 +39787,7 @@ fn emoji_clusters_2994() {
 }
 
 #[test]
-fn emoji_clusters_2995() {
+fn emoji_clusters_3171() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37687,7 +39799,7 @@ fn emoji_clusters_2995() {
 }
 
 #[test]
-fn emoji_clusters_2996() {
+fn emoji_clusters_3172() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37699,7 +39811,7 @@ fn emoji_clusters_2996() {
 }
 
 #[test]
-fn emoji_clusters_2997() {
+fn emoji_clusters_3173() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37711,7 +39823,7 @@ fn emoji_clusters_2997() {
 }
 
 #[test]
-fn emoji_clusters_2998() {
+fn emoji_clusters_3174() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37723,7 +39835,7 @@ fn emoji_clusters_2998() {
 }
 
 #[test]
-fn emoji_clusters_2999() {
+fn emoji_clusters_3175() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37735,7 +39847,7 @@ fn emoji_clusters_2999() {
 }
 
 #[test]
-fn emoji_clusters_3000() {
+fn emoji_clusters_3176() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37747,7 +39859,7 @@ fn emoji_clusters_3000() {
 }
 
 #[test]
-fn emoji_clusters_3001() {
+fn emoji_clusters_3177() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37759,7 +39871,7 @@ fn emoji_clusters_3001() {
 }
 
 #[test]
-fn emoji_clusters_3002() {
+fn emoji_clusters_3178() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37771,7 +39883,7 @@ fn emoji_clusters_3002() {
 }
 
 #[test]
-fn emoji_clusters_3003() {
+fn emoji_clusters_3179() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37783,7 +39895,7 @@ fn emoji_clusters_3003() {
 }
 
 #[test]
-fn emoji_clusters_3004() {
+fn emoji_clusters_3180() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37795,7 +39907,7 @@ fn emoji_clusters_3004() {
 }
 
 #[test]
-fn emoji_clusters_3005() {
+fn emoji_clusters_3181() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37807,7 +39919,7 @@ fn emoji_clusters_3005() {
 }
 
 #[test]
-fn emoji_clusters_3006() {
+fn emoji_clusters_3182() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37819,7 +39931,7 @@ fn emoji_clusters_3006() {
 }
 
 #[test]
-fn emoji_clusters_3007() {
+fn emoji_clusters_3183() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37831,7 +39943,7 @@ fn emoji_clusters_3007() {
 }
 
 #[test]
-fn emoji_clusters_3008() {
+fn emoji_clusters_3184() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37843,7 +39955,7 @@ fn emoji_clusters_3008() {
 }
 
 #[test]
-fn emoji_clusters_3009() {
+fn emoji_clusters_3185() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37855,7 +39967,7 @@ fn emoji_clusters_3009() {
 }
 
 #[test]
-fn emoji_clusters_3010() {
+fn emoji_clusters_3186() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37867,7 +39979,7 @@ fn emoji_clusters_3010() {
 }
 
 #[test]
-fn emoji_clusters_3011() {
+fn emoji_clusters_3187() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37879,7 +39991,7 @@ fn emoji_clusters_3011() {
 }
 
 #[test]
-fn emoji_clusters_3012() {
+fn emoji_clusters_3188() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37891,7 +40003,7 @@ fn emoji_clusters_3012() {
 }
 
 #[test]
-fn emoji_clusters_3013() {
+fn emoji_clusters_3189() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37903,7 +40015,7 @@ fn emoji_clusters_3013() {
 }
 
 #[test]
-fn emoji_clusters_3014() {
+fn emoji_clusters_3190() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37915,7 +40027,7 @@ fn emoji_clusters_3014() {
 }
 
 #[test]
-fn emoji_clusters_3015() {
+fn emoji_clusters_3191() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37927,7 +40039,7 @@ fn emoji_clusters_3015() {
 }
 
 #[test]
-fn emoji_clusters_3016() {
+fn emoji_clusters_3192() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37939,7 +40051,7 @@ fn emoji_clusters_3016() {
 }
 
 #[test]
-fn emoji_clusters_3017() {
+fn emoji_clusters_3193() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37951,7 +40063,7 @@ fn emoji_clusters_3017() {
 }
 
 #[test]
-fn emoji_clusters_3018() {
+fn emoji_clusters_3194() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37963,7 +40075,7 @@ fn emoji_clusters_3018() {
 }
 
 #[test]
-fn emoji_clusters_3019() {
+fn emoji_clusters_3195() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37975,7 +40087,7 @@ fn emoji_clusters_3019() {
 }
 
 #[test]
-fn emoji_clusters_3020() {
+fn emoji_clusters_3196() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37987,7 +40099,7 @@ fn emoji_clusters_3020() {
 }
 
 #[test]
-fn emoji_clusters_3021() {
+fn emoji_clusters_3197() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -37999,7 +40111,7 @@ fn emoji_clusters_3021() {
 }
 
 #[test]
-fn emoji_clusters_3022() {
+fn emoji_clusters_3198() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38011,7 +40123,7 @@ fn emoji_clusters_3022() {
 }
 
 #[test]
-fn emoji_clusters_3023() {
+fn emoji_clusters_3199() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38023,7 +40135,7 @@ fn emoji_clusters_3023() {
 }
 
 #[test]
-fn emoji_clusters_3024() {
+fn emoji_clusters_3200() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38035,7 +40147,7 @@ fn emoji_clusters_3024() {
 }
 
 #[test]
-fn emoji_clusters_3025() {
+fn emoji_clusters_3201() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38047,7 +40159,7 @@ fn emoji_clusters_3025() {
 }
 
 #[test]
-fn emoji_clusters_3026() {
+fn emoji_clusters_3202() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38059,7 +40171,7 @@ fn emoji_clusters_3026() {
 }
 
 #[test]
-fn emoji_clusters_3027() {
+fn emoji_clusters_3203() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38071,7 +40183,7 @@ fn emoji_clusters_3027() {
 }
 
 #[test]
-fn emoji_clusters_3028() {
+fn emoji_clusters_3204() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38083,7 +40195,7 @@ fn emoji_clusters_3028() {
 }
 
 #[test]
-fn emoji_clusters_3029() {
+fn emoji_clusters_3205() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38095,7 +40207,7 @@ fn emoji_clusters_3029() {
 }
 
 #[test]
-fn emoji_clusters_3030() {
+fn emoji_clusters_3206() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38107,7 +40219,7 @@ fn emoji_clusters_3030() {
 }
 
 #[test]
-fn emoji_clusters_3031() {
+fn emoji_clusters_3207() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38119,7 +40231,7 @@ fn emoji_clusters_3031() {
 }
 
 #[test]
-fn emoji_clusters_3032() {
+fn emoji_clusters_3208() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38131,7 +40243,7 @@ fn emoji_clusters_3032() {
 }
 
 #[test]
-fn emoji_clusters_3033() {
+fn emoji_clusters_3209() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38143,7 +40255,7 @@ fn emoji_clusters_3033() {
 }
 
 #[test]
-fn emoji_clusters_3034() {
+fn emoji_clusters_3210() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38155,7 +40267,7 @@ fn emoji_clusters_3034() {
 }
 
 #[test]
-fn emoji_clusters_3035() {
+fn emoji_clusters_3211() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38167,7 +40279,7 @@ fn emoji_clusters_3035() {
 }
 
 #[test]
-fn emoji_clusters_3036() {
+fn emoji_clusters_3212() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38179,7 +40291,7 @@ fn emoji_clusters_3036() {
 }
 
 #[test]
-fn emoji_clusters_3037() {
+fn emoji_clusters_3213() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38191,7 +40303,7 @@ fn emoji_clusters_3037() {
 }
 
 #[test]
-fn emoji_clusters_3038() {
+fn emoji_clusters_3214() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38203,7 +40315,7 @@ fn emoji_clusters_3038() {
 }
 
 #[test]
-fn emoji_clusters_3039() {
+fn emoji_clusters_3215() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38215,7 +40327,7 @@ fn emoji_clusters_3039() {
 }
 
 #[test]
-fn emoji_clusters_3040() {
+fn emoji_clusters_3216() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38227,7 +40339,7 @@ fn emoji_clusters_3040() {
 }
 
 #[test]
-fn emoji_clusters_3041() {
+fn emoji_clusters_3217() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38239,7 +40351,7 @@ fn emoji_clusters_3041() {
 }
 
 #[test]
-fn emoji_clusters_3042() {
+fn emoji_clusters_3218() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38251,7 +40363,7 @@ fn emoji_clusters_3042() {
 }
 
 #[test]
-fn emoji_clusters_3043() {
+fn emoji_clusters_3219() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38263,7 +40375,7 @@ fn emoji_clusters_3043() {
 }
 
 #[test]
-fn emoji_clusters_3044() {
+fn emoji_clusters_3220() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38275,7 +40387,7 @@ fn emoji_clusters_3044() {
 }
 
 #[test]
-fn emoji_clusters_3045() {
+fn emoji_clusters_3221() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38287,7 +40399,7 @@ fn emoji_clusters_3045() {
 }
 
 #[test]
-fn emoji_clusters_3046() {
+fn emoji_clusters_3222() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38299,7 +40411,7 @@ fn emoji_clusters_3046() {
 }
 
 #[test]
-fn emoji_clusters_3047() {
+fn emoji_clusters_3223() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38311,7 +40423,7 @@ fn emoji_clusters_3047() {
 }
 
 #[test]
-fn emoji_clusters_3048() {
+fn emoji_clusters_3224() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38323,7 +40435,7 @@ fn emoji_clusters_3048() {
 }
 
 #[test]
-fn emoji_clusters_3049() {
+fn emoji_clusters_3225() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38335,7 +40447,7 @@ fn emoji_clusters_3049() {
 }
 
 #[test]
-fn emoji_clusters_3050() {
+fn emoji_clusters_3226() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38347,7 +40459,7 @@ fn emoji_clusters_3050() {
 }
 
 #[test]
-fn emoji_clusters_3051() {
+fn emoji_clusters_3227() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38359,7 +40471,7 @@ fn emoji_clusters_3051() {
 }
 
 #[test]
-fn emoji_clusters_3052() {
+fn emoji_clusters_3228() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38371,7 +40483,7 @@ fn emoji_clusters_3052() {
 }
 
 #[test]
-fn emoji_clusters_3053() {
+fn emoji_clusters_3229() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38383,7 +40495,7 @@ fn emoji_clusters_3053() {
 }
 
 #[test]
-fn emoji_clusters_3054() {
+fn emoji_clusters_3230() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38395,7 +40507,7 @@ fn emoji_clusters_3054() {
 }
 
 #[test]
-fn emoji_clusters_3055() {
+fn emoji_clusters_3231() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38407,7 +40519,7 @@ fn emoji_clusters_3055() {
 }
 
 #[test]
-fn emoji_clusters_3056() {
+fn emoji_clusters_3232() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38419,7 +40531,7 @@ fn emoji_clusters_3056() {
 }
 
 #[test]
-fn emoji_clusters_3057() {
+fn emoji_clusters_3233() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38431,7 +40543,7 @@ fn emoji_clusters_3057() {
 }
 
 #[test]
-fn emoji_clusters_3058() {
+fn emoji_clusters_3234() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38443,7 +40555,7 @@ fn emoji_clusters_3058() {
 }
 
 #[test]
-fn emoji_clusters_3059() {
+fn emoji_clusters_3235() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38455,7 +40567,7 @@ fn emoji_clusters_3059() {
 }
 
 #[test]
-fn emoji_clusters_3060() {
+fn emoji_clusters_3236() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38467,7 +40579,7 @@ fn emoji_clusters_3060() {
 }
 
 #[test]
-fn emoji_clusters_3061() {
+fn emoji_clusters_3237() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38479,7 +40591,7 @@ fn emoji_clusters_3061() {
 }
 
 #[test]
-fn emoji_clusters_3062() {
+fn emoji_clusters_3238() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38491,7 +40603,7 @@ fn emoji_clusters_3062() {
 }
 
 #[test]
-fn emoji_clusters_3063() {
+fn emoji_clusters_3239() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38503,7 +40615,7 @@ fn emoji_clusters_3063() {
 }
 
 #[test]
-fn emoji_clusters_3064() {
+fn emoji_clusters_3240() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38515,7 +40627,7 @@ fn emoji_clusters_3064() {
 }
 
 #[test]
-fn emoji_clusters_3065() {
+fn emoji_clusters_3241() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38527,7 +40639,7 @@ fn emoji_clusters_3065() {
 }
 
 #[test]
-fn emoji_clusters_3066() {
+fn emoji_clusters_3242() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38539,7 +40651,7 @@ fn emoji_clusters_3066() {
 }
 
 #[test]
-fn emoji_clusters_3067() {
+fn emoji_clusters_3243() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38551,7 +40663,7 @@ fn emoji_clusters_3067() {
 }
 
 #[test]
-fn emoji_clusters_3068() {
+fn emoji_clusters_3244() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38563,7 +40675,7 @@ fn emoji_clusters_3068() {
 }
 
 #[test]
-fn emoji_clusters_3069() {
+fn emoji_clusters_3245() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38575,7 +40687,7 @@ fn emoji_clusters_3069() {
 }
 
 #[test]
-fn emoji_clusters_3070() {
+fn emoji_clusters_3246() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38587,7 +40699,7 @@ fn emoji_clusters_3070() {
 }
 
 #[test]
-fn emoji_clusters_3071() {
+fn emoji_clusters_3247() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38599,7 +40711,7 @@ fn emoji_clusters_3071() {
 }
 
 #[test]
-fn emoji_clusters_3072() {
+fn emoji_clusters_3248() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38611,7 +40723,7 @@ fn emoji_clusters_3072() {
 }
 
 #[test]
-fn emoji_clusters_3073() {
+fn emoji_clusters_3249() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38623,7 +40735,7 @@ fn emoji_clusters_3073() {
 }
 
 #[test]
-fn emoji_clusters_3074() {
+fn emoji_clusters_3250() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38635,7 +40747,7 @@ fn emoji_clusters_3074() {
 }
 
 #[test]
-fn emoji_clusters_3075() {
+fn emoji_clusters_3251() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38647,7 +40759,7 @@ fn emoji_clusters_3075() {
 }
 
 #[test]
-fn emoji_clusters_3076() {
+fn emoji_clusters_3252() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38659,7 +40771,7 @@ fn emoji_clusters_3076() {
 }
 
 #[test]
-fn emoji_clusters_3077() {
+fn emoji_clusters_3253() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38671,7 +40783,7 @@ fn emoji_clusters_3077() {
 }
 
 #[test]
-fn emoji_clusters_3078() {
+fn emoji_clusters_3254() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38683,7 +40795,7 @@ fn emoji_clusters_3078() {
 }
 
 #[test]
-fn emoji_clusters_3079() {
+fn emoji_clusters_3255() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38695,7 +40807,7 @@ fn emoji_clusters_3079() {
 }
 
 #[test]
-fn emoji_clusters_3080() {
+fn emoji_clusters_3256() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38707,7 +40819,7 @@ fn emoji_clusters_3080() {
 }
 
 #[test]
-fn emoji_clusters_3081() {
+fn emoji_clusters_3257() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38719,7 +40831,7 @@ fn emoji_clusters_3081() {
 }
 
 #[test]
-fn emoji_clusters_3082() {
+fn emoji_clusters_3258() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38731,7 +40843,7 @@ fn emoji_clusters_3082() {
 }
 
 #[test]
-fn emoji_clusters_3083() {
+fn emoji_clusters_3259() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38743,7 +40855,7 @@ fn emoji_clusters_3083() {
 }
 
 #[test]
-fn emoji_clusters_3084() {
+fn emoji_clusters_3260() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38755,7 +40867,7 @@ fn emoji_clusters_3084() {
 }
 
 #[test]
-fn emoji_clusters_3085() {
+fn emoji_clusters_3261() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38767,7 +40879,7 @@ fn emoji_clusters_3085() {
 }
 
 #[test]
-fn emoji_clusters_3086() {
+fn emoji_clusters_3262() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38779,7 +40891,7 @@ fn emoji_clusters_3086() {
 }
 
 #[test]
-fn emoji_clusters_3087() {
+fn emoji_clusters_3263() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38791,7 +40903,7 @@ fn emoji_clusters_3087() {
 }
 
 #[test]
-fn emoji_clusters_3088() {
+fn emoji_clusters_3264() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38803,7 +40915,7 @@ fn emoji_clusters_3088() {
 }
 
 #[test]
-fn emoji_clusters_3089() {
+fn emoji_clusters_3265() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38815,7 +40927,7 @@ fn emoji_clusters_3089() {
 }
 
 #[test]
-fn emoji_clusters_3090() {
+fn emoji_clusters_3266() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38827,7 +40939,7 @@ fn emoji_clusters_3090() {
 }
 
 #[test]
-fn emoji_clusters_3091() {
+fn emoji_clusters_3267() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38839,7 +40951,7 @@ fn emoji_clusters_3091() {
 }
 
 #[test]
-fn emoji_clusters_3092() {
+fn emoji_clusters_3268() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38851,7 +40963,7 @@ fn emoji_clusters_3092() {
 }
 
 #[test]
-fn emoji_clusters_3093() {
+fn emoji_clusters_3269() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38863,7 +40975,7 @@ fn emoji_clusters_3093() {
 }
 
 #[test]
-fn emoji_clusters_3094() {
+fn emoji_clusters_3270() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38875,7 +40987,7 @@ fn emoji_clusters_3094() {
 }
 
 #[test]
-fn emoji_clusters_3095() {
+fn emoji_clusters_3271() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38887,7 +40999,7 @@ fn emoji_clusters_3095() {
 }
 
 #[test]
-fn emoji_clusters_3096() {
+fn emoji_clusters_3272() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38899,7 +41011,7 @@ fn emoji_clusters_3096() {
 }
 
 #[test]
-fn emoji_clusters_3097() {
+fn emoji_clusters_3273() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38911,7 +41023,7 @@ fn emoji_clusters_3097() {
 }
 
 #[test]
-fn emoji_clusters_3098() {
+fn emoji_clusters_3274() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38923,7 +41035,7 @@ fn emoji_clusters_3098() {
 }
 
 #[test]
-fn emoji_clusters_3099() {
+fn emoji_clusters_3275() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38935,7 +41047,7 @@ fn emoji_clusters_3099() {
 }
 
 #[test]
-fn emoji_clusters_3100() {
+fn emoji_clusters_3276() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38947,7 +41059,7 @@ fn emoji_clusters_3100() {
 }
 
 #[test]
-fn emoji_clusters_3101() {
+fn emoji_clusters_3277() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38959,7 +41071,7 @@ fn emoji_clusters_3101() {
 }
 
 #[test]
-fn emoji_clusters_3102() {
+fn emoji_clusters_3278() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38971,7 +41083,7 @@ fn emoji_clusters_3102() {
 }
 
 #[test]
-fn emoji_clusters_3103() {
+fn emoji_clusters_3279() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38983,7 +41095,7 @@ fn emoji_clusters_3103() {
 }
 
 #[test]
-fn emoji_clusters_3104() {
+fn emoji_clusters_3280() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -38995,7 +41107,7 @@ fn emoji_clusters_3104() {
 }
 
 #[test]
-fn emoji_clusters_3105() {
+fn emoji_clusters_3281() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39007,7 +41119,7 @@ fn emoji_clusters_3105() {
 }
 
 #[test]
-fn emoji_clusters_3106() {
+fn emoji_clusters_3282() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39019,7 +41131,7 @@ fn emoji_clusters_3106() {
 }
 
 #[test]
-fn emoji_clusters_3107() {
+fn emoji_clusters_3283() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39031,7 +41143,7 @@ fn emoji_clusters_3107() {
 }
 
 #[test]
-fn emoji_clusters_3108() {
+fn emoji_clusters_3284() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39043,7 +41155,7 @@ fn emoji_clusters_3108() {
 }
 
 #[test]
-fn emoji_clusters_3109() {
+fn emoji_clusters_3285() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39055,7 +41167,7 @@ fn emoji_clusters_3109() {
 }
 
 #[test]
-fn emoji_clusters_3110() {
+fn emoji_clusters_3286() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39067,7 +41179,7 @@ fn emoji_clusters_3110() {
 }
 
 #[test]
-fn emoji_clusters_3111() {
+fn emoji_clusters_3287() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39079,7 +41191,7 @@ fn emoji_clusters_3111() {
 }
 
 #[test]
-fn emoji_clusters_3112() {
+fn emoji_clusters_3288() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39091,7 +41203,7 @@ fn emoji_clusters_3112() {
 }
 
 #[test]
-fn emoji_clusters_3113() {
+fn emoji_clusters_3289() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39103,7 +41215,7 @@ fn emoji_clusters_3113() {
 }
 
 #[test]
-fn emoji_clusters_3114() {
+fn emoji_clusters_3290() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39115,7 +41227,7 @@ fn emoji_clusters_3114() {
 }
 
 #[test]
-fn emoji_clusters_3115() {
+fn emoji_clusters_3291() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39127,7 +41239,7 @@ fn emoji_clusters_3115() {
 }
 
 #[test]
-fn emoji_clusters_3116() {
+fn emoji_clusters_3292() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39139,7 +41251,7 @@ fn emoji_clusters_3116() {
 }
 
 #[test]
-fn emoji_clusters_3117() {
+fn emoji_clusters_3293() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39151,7 +41263,7 @@ fn emoji_clusters_3117() {
 }
 
 #[test]
-fn emoji_clusters_3118() {
+fn emoji_clusters_3294() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39163,7 +41275,7 @@ fn emoji_clusters_3118() {
 }
 
 #[test]
-fn emoji_clusters_3119() {
+fn emoji_clusters_3295() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39175,7 +41287,7 @@ fn emoji_clusters_3119() {
 }
 
 #[test]
-fn emoji_clusters_3120() {
+fn emoji_clusters_3296() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39187,7 +41299,7 @@ fn emoji_clusters_3120() {
 }
 
 #[test]
-fn emoji_clusters_3121() {
+fn emoji_clusters_3297() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39199,7 +41311,7 @@ fn emoji_clusters_3121() {
 }
 
 #[test]
-fn emoji_clusters_3122() {
+fn emoji_clusters_3298() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39211,7 +41323,7 @@ fn emoji_clusters_3122() {
 }
 
 #[test]
-fn emoji_clusters_3123() {
+fn emoji_clusters_3299() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39223,7 +41335,7 @@ fn emoji_clusters_3123() {
 }
 
 #[test]
-fn emoji_clusters_3124() {
+fn emoji_clusters_3300() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39235,7 +41347,7 @@ fn emoji_clusters_3124() {
 }
 
 #[test]
-fn emoji_clusters_3125() {
+fn emoji_clusters_3301() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39247,7 +41359,7 @@ fn emoji_clusters_3125() {
 }
 
 #[test]
-fn emoji_clusters_3126() {
+fn emoji_clusters_3302() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39259,7 +41371,7 @@ fn emoji_clusters_3126() {
 }
 
 #[test]
-fn emoji_clusters_3127() {
+fn emoji_clusters_3303() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39271,7 +41383,7 @@ fn emoji_clusters_3127() {
 }
 
 #[test]
-fn emoji_clusters_3128() {
+fn emoji_clusters_3304() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39283,7 +41395,7 @@ fn emoji_clusters_3128() {
 }
 
 #[test]
-fn emoji_clusters_3129() {
+fn emoji_clusters_3305() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39295,7 +41407,7 @@ fn emoji_clusters_3129() {
 }
 
 #[test]
-fn emoji_clusters_3130() {
+fn emoji_clusters_3306() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39307,7 +41419,7 @@ fn emoji_clusters_3130() {
 }
 
 #[test]
-fn emoji_clusters_3131() {
+fn emoji_clusters_3307() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39319,7 +41431,7 @@ fn emoji_clusters_3131() {
 }
 
 #[test]
-fn emoji_clusters_3132() {
+fn emoji_clusters_3308() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39331,7 +41443,7 @@ fn emoji_clusters_3132() {
 }
 
 #[test]
-fn emoji_clusters_3133() {
+fn emoji_clusters_3309() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39343,7 +41455,7 @@ fn emoji_clusters_3133() {
 }
 
 #[test]
-fn emoji_clusters_3134() {
+fn emoji_clusters_3310() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39355,7 +41467,7 @@ fn emoji_clusters_3134() {
 }
 
 #[test]
-fn emoji_clusters_3135() {
+fn emoji_clusters_3311() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39367,7 +41479,7 @@ fn emoji_clusters_3135() {
 }
 
 #[test]
-fn emoji_clusters_3136() {
+fn emoji_clusters_3312() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39379,7 +41491,7 @@ fn emoji_clusters_3136() {
 }
 
 #[test]
-fn emoji_clusters_3137() {
+fn emoji_clusters_3313() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39391,7 +41503,7 @@ fn emoji_clusters_3137() {
 }
 
 #[test]
-fn emoji_clusters_3138() {
+fn emoji_clusters_3314() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39403,7 +41515,7 @@ fn emoji_clusters_3138() {
 }
 
 #[test]
-fn emoji_clusters_3139() {
+fn emoji_clusters_3315() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39415,7 +41527,7 @@ fn emoji_clusters_3139() {
 }
 
 #[test]
-fn emoji_clusters_3140() {
+fn emoji_clusters_3316() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39427,7 +41539,7 @@ fn emoji_clusters_3140() {
 }
 
 #[test]
-fn emoji_clusters_3141() {
+fn emoji_clusters_3317() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39439,7 +41551,7 @@ fn emoji_clusters_3141() {
 }
 
 #[test]
-fn emoji_clusters_3142() {
+fn emoji_clusters_3318() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39451,7 +41563,7 @@ fn emoji_clusters_3142() {
 }
 
 #[test]
-fn emoji_clusters_3143() {
+fn emoji_clusters_3319() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39463,7 +41575,7 @@ fn emoji_clusters_3143() {
 }
 
 #[test]
-fn emoji_clusters_3144() {
+fn emoji_clusters_3320() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39475,7 +41587,7 @@ fn emoji_clusters_3144() {
 }
 
 #[test]
-fn emoji_clusters_3145() {
+fn emoji_clusters_3321() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39487,7 +41599,7 @@ fn emoji_clusters_3145() {
 }
 
 #[test]
-fn emoji_clusters_3146() {
+fn emoji_clusters_3322() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39499,7 +41611,7 @@ fn emoji_clusters_3146() {
 }
 
 #[test]
-fn emoji_clusters_3147() {
+fn emoji_clusters_3323() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39511,7 +41623,7 @@ fn emoji_clusters_3147() {
 }
 
 #[test]
-fn emoji_clusters_3148() {
+fn emoji_clusters_3324() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39523,7 +41635,7 @@ fn emoji_clusters_3148() {
 }
 
 #[test]
-fn emoji_clusters_3149() {
+fn emoji_clusters_3325() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39535,7 +41647,7 @@ fn emoji_clusters_3149() {
 }
 
 #[test]
-fn emoji_clusters_3150() {
+fn emoji_clusters_3326() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39547,7 +41659,7 @@ fn emoji_clusters_3150() {
 }
 
 #[test]
-fn emoji_clusters_3151() {
+fn emoji_clusters_3327() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39559,7 +41671,7 @@ fn emoji_clusters_3151() {
 }
 
 #[test]
-fn emoji_clusters_3152() {
+fn emoji_clusters_3328() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39571,7 +41683,7 @@ fn emoji_clusters_3152() {
 }
 
 #[test]
-fn emoji_clusters_3153() {
+fn emoji_clusters_3329() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39583,7 +41695,7 @@ fn emoji_clusters_3153() {
 }
 
 #[test]
-fn emoji_clusters_3154() {
+fn emoji_clusters_3330() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39595,7 +41707,7 @@ fn emoji_clusters_3154() {
 }
 
 #[test]
-fn emoji_clusters_3155() {
+fn emoji_clusters_3331() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39607,7 +41719,7 @@ fn emoji_clusters_3155() {
 }
 
 #[test]
-fn emoji_clusters_3156() {
+fn emoji_clusters_3332() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39619,7 +41731,7 @@ fn emoji_clusters_3156() {
 }
 
 #[test]
-fn emoji_clusters_3157() {
+fn emoji_clusters_3333() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39631,7 +41743,7 @@ fn emoji_clusters_3157() {
 }
 
 #[test]
-fn emoji_clusters_3158() {
+fn emoji_clusters_3334() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39643,7 +41755,7 @@ fn emoji_clusters_3158() {
 }
 
 #[test]
-fn emoji_clusters_3159() {
+fn emoji_clusters_3335() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39655,7 +41767,7 @@ fn emoji_clusters_3159() {
 }
 
 #[test]
-fn emoji_clusters_3160() {
+fn emoji_clusters_3336() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39667,7 +41779,7 @@ fn emoji_clusters_3160() {
 }
 
 #[test]
-fn emoji_clusters_3161() {
+fn emoji_clusters_3337() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39679,7 +41791,7 @@ fn emoji_clusters_3161() {
 }
 
 #[test]
-fn emoji_clusters_3162() {
+fn emoji_clusters_3338() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39691,7 +41803,7 @@ fn emoji_clusters_3162() {
 }
 
 #[test]
-fn emoji_clusters_3163() {
+fn emoji_clusters_3339() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39703,7 +41815,7 @@ fn emoji_clusters_3163() {
 }
 
 #[test]
-fn emoji_clusters_3164() {
+fn emoji_clusters_3340() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39715,7 +41827,7 @@ fn emoji_clusters_3164() {
 }
 
 #[test]
-fn emoji_clusters_3165() {
+fn emoji_clusters_3341() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39727,7 +41839,7 @@ fn emoji_clusters_3165() {
 }
 
 #[test]
-fn emoji_clusters_3166() {
+fn emoji_clusters_3342() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39739,7 +41851,7 @@ fn emoji_clusters_3166() {
 }
 
 #[test]
-fn emoji_clusters_3167() {
+fn emoji_clusters_3343() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39751,7 +41863,7 @@ fn emoji_clusters_3167() {
 }
 
 #[test]
-fn emoji_clusters_3168() {
+fn emoji_clusters_3344() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39763,7 +41875,7 @@ fn emoji_clusters_3168() {
 }
 
 #[test]
-fn emoji_clusters_3169() {
+fn emoji_clusters_3345() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39775,7 +41887,7 @@ fn emoji_clusters_3169() {
 }
 
 #[test]
-fn emoji_clusters_3170() {
+fn emoji_clusters_3346() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39787,7 +41899,7 @@ fn emoji_clusters_3170() {
 }
 
 #[test]
-fn emoji_clusters_3171() {
+fn emoji_clusters_3347() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39799,7 +41911,7 @@ fn emoji_clusters_3171() {
 }
 
 #[test]
-fn emoji_clusters_3172() {
+fn emoji_clusters_3348() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39811,7 +41923,7 @@ fn emoji_clusters_3172() {
 }
 
 #[test]
-fn emoji_clusters_3173() {
+fn emoji_clusters_3349() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39823,7 +41935,7 @@ fn emoji_clusters_3173() {
 }
 
 #[test]
-fn emoji_clusters_3174() {
+fn emoji_clusters_3350() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39835,7 +41947,7 @@ fn emoji_clusters_3174() {
 }
 
 #[test]
-fn emoji_clusters_3175() {
+fn emoji_clusters_3351() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39847,7 +41959,7 @@ fn emoji_clusters_3175() {
 }
 
 #[test]
-fn emoji_clusters_3176() {
+fn emoji_clusters_3352() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39859,7 +41971,7 @@ fn emoji_clusters_3176() {
 }
 
 #[test]
-fn emoji_clusters_3177() {
+fn emoji_clusters_3353() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39871,7 +41983,7 @@ fn emoji_clusters_3177() {
 }
 
 #[test]
-fn emoji_clusters_3178() {
+fn emoji_clusters_3354() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39883,7 +41995,7 @@ fn emoji_clusters_3178() {
 }
 
 #[test]
-fn emoji_clusters_3179() {
+fn emoji_clusters_3355() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39895,7 +42007,7 @@ fn emoji_clusters_3179() {
 }
 
 #[test]
-fn emoji_clusters_3180() {
+fn emoji_clusters_3356() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39907,7 +42019,7 @@ fn emoji_clusters_3180() {
 }
 
 #[test]
-fn emoji_clusters_3181() {
+fn emoji_clusters_3357() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39919,7 +42031,7 @@ fn emoji_clusters_3181() {
 }
 
 #[test]
-fn emoji_clusters_3182() {
+fn emoji_clusters_3358() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39931,7 +42043,7 @@ fn emoji_clusters_3182() {
 }
 
 #[test]
-fn emoji_clusters_3183() {
+fn emoji_clusters_3359() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39943,7 +42055,7 @@ fn emoji_clusters_3183() {
 }
 
 #[test]
-fn emoji_clusters_3184() {
+fn emoji_clusters_3360() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39955,7 +42067,7 @@ fn emoji_clusters_3184() {
 }
 
 #[test]
-fn emoji_clusters_3185() {
+fn emoji_clusters_3361() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39967,7 +42079,7 @@ fn emoji_clusters_3185() {
 }
 
 #[test]
-fn emoji_clusters_3186() {
+fn emoji_clusters_3362() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39979,7 +42091,7 @@ fn emoji_clusters_3186() {
 }
 
 #[test]
-fn emoji_clusters_3187() {
+fn emoji_clusters_3363() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -39991,7 +42103,7 @@ fn emoji_clusters_3187() {
 }
 
 #[test]
-fn emoji_clusters_3188() {
+fn emoji_clusters_3364() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40003,7 +42115,7 @@ fn emoji_clusters_3188() {
 }
 
 #[test]
-fn emoji_clusters_3189() {
+fn emoji_clusters_3365() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40015,7 +42127,7 @@ fn emoji_clusters_3189() {
 }
 
 #[test]
-fn emoji_clusters_3190() {
+fn emoji_clusters_3366() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40027,7 +42139,7 @@ fn emoji_clusters_3190() {
 }
 
 #[test]
-fn emoji_clusters_3191() {
+fn emoji_clusters_3367() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40039,7 +42151,7 @@ fn emoji_clusters_3191() {
 }
 
 #[test]
-fn emoji_clusters_3192() {
+fn emoji_clusters_3368() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40051,7 +42163,7 @@ fn emoji_clusters_3192() {
 }
 
 #[test]
-fn emoji_clusters_3193() {
+fn emoji_clusters_3369() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40063,7 +42175,7 @@ fn emoji_clusters_3193() {
 }
 
 #[test]
-fn emoji_clusters_3194() {
+fn emoji_clusters_3370() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40075,7 +42187,7 @@ fn emoji_clusters_3194() {
 }
 
 #[test]
-fn emoji_clusters_3195() {
+fn emoji_clusters_3371() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40087,7 +42199,7 @@ fn emoji_clusters_3195() {
 }
 
 #[test]
-fn emoji_clusters_3196() {
+fn emoji_clusters_3372() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40099,7 +42211,7 @@ fn emoji_clusters_3196() {
 }
 
 #[test]
-fn emoji_clusters_3197() {
+fn emoji_clusters_3373() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40111,7 +42223,7 @@ fn emoji_clusters_3197() {
 }
 
 #[test]
-fn emoji_clusters_3198() {
+fn emoji_clusters_3374() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40123,7 +42235,7 @@ fn emoji_clusters_3198() {
 }
 
 #[test]
-fn emoji_clusters_3199() {
+fn emoji_clusters_3375() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40135,7 +42247,7 @@ fn emoji_clusters_3199() {
 }
 
 #[test]
-fn emoji_clusters_3200() {
+fn emoji_clusters_3376() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40147,7 +42259,7 @@ fn emoji_clusters_3200() {
 }
 
 #[test]
-fn emoji_clusters_3201() {
+fn emoji_clusters_3377() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40159,7 +42271,7 @@ fn emoji_clusters_3201() {
 }
 
 #[test]
-fn emoji_clusters_3202() {
+fn emoji_clusters_3378() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40171,7 +42283,7 @@ fn emoji_clusters_3202() {
 }
 
 #[test]
-fn emoji_clusters_3203() {
+fn emoji_clusters_3379() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40183,7 +42295,7 @@ fn emoji_clusters_3203() {
 }
 
 #[test]
-fn emoji_clusters_3204() {
+fn emoji_clusters_3380() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40195,7 +42307,7 @@ fn emoji_clusters_3204() {
 }
 
 #[test]
-fn emoji_clusters_3205() {
+fn emoji_clusters_3381() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40207,7 +42319,7 @@ fn emoji_clusters_3205() {
 }
 
 #[test]
-fn emoji_clusters_3206() {
+fn emoji_clusters_3382() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40219,7 +42331,7 @@ fn emoji_clusters_3206() {
 }
 
 #[test]
-fn emoji_clusters_3207() {
+fn emoji_clusters_3383() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40231,7 +42343,7 @@ fn emoji_clusters_3207() {
 }
 
 #[test]
-fn emoji_clusters_3208() {
+fn emoji_clusters_3384() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40243,7 +42355,7 @@ fn emoji_clusters_3208() {
 }
 
 #[test]
-fn emoji_clusters_3209() {
+fn emoji_clusters_3385() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40255,7 +42367,7 @@ fn emoji_clusters_3209() {
 }
 
 #[test]
-fn emoji_clusters_3210() {
+fn emoji_clusters_3386() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40267,7 +42379,7 @@ fn emoji_clusters_3210() {
 }
 
 #[test]
-fn emoji_clusters_3211() {
+fn emoji_clusters_3387() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40279,7 +42391,7 @@ fn emoji_clusters_3211() {
 }
 
 #[test]
-fn emoji_clusters_3212() {
+fn emoji_clusters_3388() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40291,7 +42403,7 @@ fn emoji_clusters_3212() {
 }
 
 #[test]
-fn emoji_clusters_3213() {
+fn emoji_clusters_3389() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40303,7 +42415,7 @@ fn emoji_clusters_3213() {
 }
 
 #[test]
-fn emoji_clusters_3214() {
+fn emoji_clusters_3390() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40315,7 +42427,7 @@ fn emoji_clusters_3214() {
 }
 
 #[test]
-fn emoji_clusters_3215() {
+fn emoji_clusters_3391() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40327,7 +42439,7 @@ fn emoji_clusters_3215() {
 }
 
 #[test]
-fn emoji_clusters_3216() {
+fn emoji_clusters_3392() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40339,7 +42451,7 @@ fn emoji_clusters_3216() {
 }
 
 #[test]
-fn emoji_clusters_3217() {
+fn emoji_clusters_3393() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40351,7 +42463,7 @@ fn emoji_clusters_3217() {
 }
 
 #[test]
-fn emoji_clusters_3218() {
+fn emoji_clusters_3394() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40363,7 +42475,7 @@ fn emoji_clusters_3218() {
 }
 
 #[test]
-fn emoji_clusters_3219() {
+fn emoji_clusters_3395() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40375,7 +42487,7 @@ fn emoji_clusters_3219() {
 }
 
 #[test]
-fn emoji_clusters_3220() {
+fn emoji_clusters_3396() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40387,7 +42499,7 @@ fn emoji_clusters_3220() {
 }
 
 #[test]
-fn emoji_clusters_3221() {
+fn emoji_clusters_3397() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40399,7 +42511,7 @@ fn emoji_clusters_3221() {
 }
 
 #[test]
-fn emoji_clusters_3222() {
+fn emoji_clusters_3398() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40411,7 +42523,7 @@ fn emoji_clusters_3222() {
 }
 
 #[test]
-fn emoji_clusters_3223() {
+fn emoji_clusters_3399() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40423,7 +42535,7 @@ fn emoji_clusters_3223() {
 }
 
 #[test]
-fn emoji_clusters_3224() {
+fn emoji_clusters_3400() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40435,7 +42547,7 @@ fn emoji_clusters_3224() {
 }
 
 #[test]
-fn emoji_clusters_3225() {
+fn emoji_clusters_3401() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40447,7 +42559,7 @@ fn emoji_clusters_3225() {
 }
 
 #[test]
-fn emoji_clusters_3226() {
+fn emoji_clusters_3402() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40459,7 +42571,7 @@ fn emoji_clusters_3226() {
 }
 
 #[test]
-fn emoji_clusters_3227() {
+fn emoji_clusters_3403() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40471,7 +42583,7 @@ fn emoji_clusters_3227() {
 }
 
 #[test]
-fn emoji_clusters_3228() {
+fn emoji_clusters_3404() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40483,7 +42595,7 @@ fn emoji_clusters_3228() {
 }
 
 #[test]
-fn emoji_clusters_3229() {
+fn emoji_clusters_3405() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40495,7 +42607,7 @@ fn emoji_clusters_3229() {
 }
 
 #[test]
-fn emoji_clusters_3230() {
+fn emoji_clusters_3406() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40507,7 +42619,7 @@ fn emoji_clusters_3230() {
 }
 
 #[test]
-fn emoji_clusters_3231() {
+fn emoji_clusters_3407() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40519,7 +42631,7 @@ fn emoji_clusters_3231() {
 }
 
 #[test]
-fn emoji_clusters_3232() {
+fn emoji_clusters_3408() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40531,7 +42643,7 @@ fn emoji_clusters_3232() {
 }
 
 #[test]
-fn emoji_clusters_3233() {
+fn emoji_clusters_3409() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40543,7 +42655,7 @@ fn emoji_clusters_3233() {
 }
 
 #[test]
-fn emoji_clusters_3234() {
+fn emoji_clusters_3410() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40555,7 +42667,7 @@ fn emoji_clusters_3234() {
 }
 
 #[test]
-fn emoji_clusters_3235() {
+fn emoji_clusters_3411() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40567,7 +42679,7 @@ fn emoji_clusters_3235() {
 }
 
 #[test]
-fn emoji_clusters_3236() {
+fn emoji_clusters_3412() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40579,7 +42691,7 @@ fn emoji_clusters_3236() {
 }
 
 #[test]
-fn emoji_clusters_3237() {
+fn emoji_clusters_3413() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40591,7 +42703,7 @@ fn emoji_clusters_3237() {
 }
 
 #[test]
-fn emoji_clusters_3238() {
+fn emoji_clusters_3414() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40603,7 +42715,7 @@ fn emoji_clusters_3238() {
 }
 
 #[test]
-fn emoji_clusters_3239() {
+fn emoji_clusters_3415() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40615,7 +42727,7 @@ fn emoji_clusters_3239() {
 }
 
 #[test]
-fn emoji_clusters_3240() {
+fn emoji_clusters_3416() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40627,7 +42739,7 @@ fn emoji_clusters_3240() {
 }
 
 #[test]
-fn emoji_clusters_3241() {
+fn emoji_clusters_3417() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40639,7 +42751,7 @@ fn emoji_clusters_3241() {
 }
 
 #[test]
-fn emoji_clusters_3242() {
+fn emoji_clusters_3418() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40651,7 +42763,7 @@ fn emoji_clusters_3242() {
 }
 
 #[test]
-fn emoji_clusters_3243() {
+fn emoji_clusters_3419() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40663,7 +42775,7 @@ fn emoji_clusters_3243() {
 }
 
 #[test]
-fn emoji_clusters_3244() {
+fn emoji_clusters_3420() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40675,7 +42787,7 @@ fn emoji_clusters_3244() {
 }
 
 #[test]
-fn emoji_clusters_3245() {
+fn emoji_clusters_3421() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40687,7 +42799,7 @@ fn emoji_clusters_3245() {
 }
 
 #[test]
-fn emoji_clusters_3246() {
+fn emoji_clusters_3422() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40699,7 +42811,7 @@ fn emoji_clusters_3246() {
 }
 
 #[test]
-fn emoji_clusters_3247() {
+fn emoji_clusters_3423() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40711,7 +42823,7 @@ fn emoji_clusters_3247() {
 }
 
 #[test]
-fn emoji_clusters_3248() {
+fn emoji_clusters_3424() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40723,7 +42835,7 @@ fn emoji_clusters_3248() {
 }
 
 #[test]
-fn emoji_clusters_3249() {
+fn emoji_clusters_3425() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40735,7 +42847,7 @@ fn emoji_clusters_3249() {
 }
 
 #[test]
-fn emoji_clusters_3250() {
+fn emoji_clusters_3426() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40747,7 +42859,7 @@ fn emoji_clusters_3250() {
 }
 
 #[test]
-fn emoji_clusters_3251() {
+fn emoji_clusters_3427() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40759,7 +42871,7 @@ fn emoji_clusters_3251() {
 }
 
 #[test]
-fn emoji_clusters_3252() {
+fn emoji_clusters_3428() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40771,7 +42883,7 @@ fn emoji_clusters_3252() {
 }
 
 #[test]
-fn emoji_clusters_3253() {
+fn emoji_clusters_3429() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40783,7 +42895,7 @@ fn emoji_clusters_3253() {
 }
 
 #[test]
-fn emoji_clusters_3254() {
+fn emoji_clusters_3430() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40795,7 +42907,7 @@ fn emoji_clusters_3254() {
 }
 
 #[test]
-fn emoji_clusters_3255() {
+fn emoji_clusters_3431() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40807,7 +42919,7 @@ fn emoji_clusters_3255() {
 }
 
 #[test]
-fn emoji_clusters_3256() {
+fn emoji_clusters_3432() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40819,7 +42931,7 @@ fn emoji_clusters_3256() {
 }
 
 #[test]
-fn emoji_clusters_3257() {
+fn emoji_clusters_3433() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40831,7 +42943,7 @@ fn emoji_clusters_3257() {
 }
 
 #[test]
-fn emoji_clusters_3258() {
+fn emoji_clusters_3434() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40843,7 +42955,7 @@ fn emoji_clusters_3258() {
 }
 
 #[test]
-fn emoji_clusters_3259() {
+fn emoji_clusters_3435() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40855,7 +42967,7 @@ fn emoji_clusters_3259() {
 }
 
 #[test]
-fn emoji_clusters_3260() {
+fn emoji_clusters_3436() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40867,7 +42979,7 @@ fn emoji_clusters_3260() {
 }
 
 #[test]
-fn emoji_clusters_3261() {
+fn emoji_clusters_3437() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40879,7 +42991,7 @@ fn emoji_clusters_3261() {
 }
 
 #[test]
-fn emoji_clusters_3262() {
+fn emoji_clusters_3438() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40891,7 +43003,7 @@ fn emoji_clusters_3262() {
 }
 
 #[test]
-fn emoji_clusters_3263() {
+fn emoji_clusters_3439() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40903,7 +43015,7 @@ fn emoji_clusters_3263() {
 }
 
 #[test]
-fn emoji_clusters_3264() {
+fn emoji_clusters_3440() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40915,7 +43027,7 @@ fn emoji_clusters_3264() {
 }
 
 #[test]
-fn emoji_clusters_3265() {
+fn emoji_clusters_3441() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40927,7 +43039,7 @@ fn emoji_clusters_3265() {
 }
 
 #[test]
-fn emoji_clusters_3266() {
+fn emoji_clusters_3442() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40939,7 +43051,7 @@ fn emoji_clusters_3266() {
 }
 
 #[test]
-fn emoji_clusters_3267() {
+fn emoji_clusters_3443() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40951,7 +43063,7 @@ fn emoji_clusters_3267() {
 }
 
 #[test]
-fn emoji_clusters_3268() {
+fn emoji_clusters_3444() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40963,7 +43075,7 @@ fn emoji_clusters_3268() {
 }
 
 #[test]
-fn emoji_clusters_3269() {
+fn emoji_clusters_3445() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40975,7 +43087,7 @@ fn emoji_clusters_3269() {
 }
 
 #[test]
-fn emoji_clusters_3270() {
+fn emoji_clusters_3446() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40987,7 +43099,7 @@ fn emoji_clusters_3270() {
 }
 
 #[test]
-fn emoji_clusters_3271() {
+fn emoji_clusters_3447() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -40999,7 +43111,7 @@ fn emoji_clusters_3271() {
 }
 
 #[test]
-fn emoji_clusters_3272() {
+fn emoji_clusters_3448() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41011,7 +43123,7 @@ fn emoji_clusters_3272() {
 }
 
 #[test]
-fn emoji_clusters_3273() {
+fn emoji_clusters_3449() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41023,7 +43135,7 @@ fn emoji_clusters_3273() {
 }
 
 #[test]
-fn emoji_clusters_3274() {
+fn emoji_clusters_3450() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41035,7 +43147,7 @@ fn emoji_clusters_3274() {
 }
 
 #[test]
-fn emoji_clusters_3275() {
+fn emoji_clusters_3451() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41047,7 +43159,7 @@ fn emoji_clusters_3275() {
 }
 
 #[test]
-fn emoji_clusters_3276() {
+fn emoji_clusters_3452() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41059,7 +43171,7 @@ fn emoji_clusters_3276() {
 }
 
 #[test]
-fn emoji_clusters_3277() {
+fn emoji_clusters_3453() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41071,7 +43183,7 @@ fn emoji_clusters_3277() {
 }
 
 #[test]
-fn emoji_clusters_3278() {
+fn emoji_clusters_3454() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41083,7 +43195,7 @@ fn emoji_clusters_3278() {
 }
 
 #[test]
-fn emoji_clusters_3279() {
+fn emoji_clusters_3455() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41095,7 +43207,7 @@ fn emoji_clusters_3279() {
 }
 
 #[test]
-fn emoji_clusters_3280() {
+fn emoji_clusters_3456() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41107,7 +43219,7 @@ fn emoji_clusters_3280() {
 }
 
 #[test]
-fn emoji_clusters_3281() {
+fn emoji_clusters_3457() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41119,7 +43231,7 @@ fn emoji_clusters_3281() {
 }
 
 #[test]
-fn emoji_clusters_3282() {
+fn emoji_clusters_3458() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41131,7 +43243,7 @@ fn emoji_clusters_3282() {
 }
 
 #[test]
-fn emoji_clusters_3283() {
+fn emoji_clusters_3459() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41143,7 +43255,7 @@ fn emoji_clusters_3283() {
 }
 
 #[test]
-fn emoji_clusters_3284() {
+fn emoji_clusters_3460() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41155,7 +43267,7 @@ fn emoji_clusters_3284() {
 }
 
 #[test]
-fn emoji_clusters_3285() {
+fn emoji_clusters_3461() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41167,7 +43279,7 @@ fn emoji_clusters_3285() {
 }
 
 #[test]
-fn emoji_clusters_3286() {
+fn emoji_clusters_3462() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41179,7 +43291,7 @@ fn emoji_clusters_3286() {
 }
 
 #[test]
-fn emoji_clusters_3287() {
+fn emoji_clusters_3463() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41191,7 +43303,7 @@ fn emoji_clusters_3287() {
 }
 
 #[test]
-fn emoji_clusters_3288() {
+fn emoji_clusters_3464() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41203,7 +43315,7 @@ fn emoji_clusters_3288() {
 }
 
 #[test]
-fn emoji_clusters_3289() {
+fn emoji_clusters_3465() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41215,7 +43327,7 @@ fn emoji_clusters_3289() {
 }
 
 #[test]
-fn emoji_clusters_3290() {
+fn emoji_clusters_3466() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41227,7 +43339,7 @@ fn emoji_clusters_3290() {
 }
 
 #[test]
-fn emoji_clusters_3291() {
+fn emoji_clusters_3467() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41239,7 +43351,7 @@ fn emoji_clusters_3291() {
 }
 
 #[test]
-fn emoji_clusters_3292() {
+fn emoji_clusters_3468() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41251,7 +43363,7 @@ fn emoji_clusters_3292() {
 }
 
 #[test]
-fn emoji_clusters_3293() {
+fn emoji_clusters_3469() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41263,7 +43375,7 @@ fn emoji_clusters_3293() {
 }
 
 #[test]
-fn emoji_clusters_3294() {
+fn emoji_clusters_3470() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41275,7 +43387,7 @@ fn emoji_clusters_3294() {
 }
 
 #[test]
-fn emoji_clusters_3295() {
+fn emoji_clusters_3471() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41287,7 +43399,7 @@ fn emoji_clusters_3295() {
 }
 
 #[test]
-fn emoji_clusters_3296() {
+fn emoji_clusters_3472() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41299,7 +43411,7 @@ fn emoji_clusters_3296() {
 }
 
 #[test]
-fn emoji_clusters_3297() {
+fn emoji_clusters_3473() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41311,7 +43423,7 @@ fn emoji_clusters_3297() {
 }
 
 #[test]
-fn emoji_clusters_3298() {
+fn emoji_clusters_3474() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41323,7 +43435,7 @@ fn emoji_clusters_3298() {
 }
 
 #[test]
-fn emoji_clusters_3299() {
+fn emoji_clusters_3475() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41335,7 +43447,7 @@ fn emoji_clusters_3299() {
 }
 
 #[test]
-fn emoji_clusters_3300() {
+fn emoji_clusters_3476() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41347,7 +43459,7 @@ fn emoji_clusters_3300() {
 }
 
 #[test]
-fn emoji_clusters_3301() {
+fn emoji_clusters_3477() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41359,7 +43471,7 @@ fn emoji_clusters_3301() {
 }
 
 #[test]
-fn emoji_clusters_3302() {
+fn emoji_clusters_3478() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41371,7 +43483,7 @@ fn emoji_clusters_3302() {
 }
 
 #[test]
-fn emoji_clusters_3303() {
+fn emoji_clusters_3479() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41383,7 +43495,7 @@ fn emoji_clusters_3303() {
 }
 
 #[test]
-fn emoji_clusters_3304() {
+fn emoji_clusters_3480() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41395,7 +43507,7 @@ fn emoji_clusters_3304() {
 }
 
 #[test]
-fn emoji_clusters_3305() {
+fn emoji_clusters_3481() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41407,7 +43519,7 @@ fn emoji_clusters_3305() {
 }
 
 #[test]
-fn emoji_clusters_3306() {
+fn emoji_clusters_3482() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41419,7 +43531,7 @@ fn emoji_clusters_3306() {
 }
 
 #[test]
-fn emoji_clusters_3307() {
+fn emoji_clusters_3483() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41431,7 +43543,7 @@ fn emoji_clusters_3307() {
 }
 
 #[test]
-fn emoji_clusters_3308() {
+fn emoji_clusters_3484() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41443,7 +43555,7 @@ fn emoji_clusters_3308() {
 }
 
 #[test]
-fn emoji_clusters_3309() {
+fn emoji_clusters_3485() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41455,7 +43567,7 @@ fn emoji_clusters_3309() {
 }
 
 #[test]
-fn emoji_clusters_3310() {
+fn emoji_clusters_3486() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41467,7 +43579,7 @@ fn emoji_clusters_3310() {
 }
 
 #[test]
-fn emoji_clusters_3311() {
+fn emoji_clusters_3487() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41479,7 +43591,7 @@ fn emoji_clusters_3311() {
 }
 
 #[test]
-fn emoji_clusters_3312() {
+fn emoji_clusters_3488() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41491,7 +43603,7 @@ fn emoji_clusters_3312() {
 }
 
 #[test]
-fn emoji_clusters_3313() {
+fn emoji_clusters_3489() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41503,7 +43615,7 @@ fn emoji_clusters_3313() {
 }
 
 #[test]
-fn emoji_clusters_3314() {
+fn emoji_clusters_3490() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41515,7 +43627,7 @@ fn emoji_clusters_3314() {
 }
 
 #[test]
-fn emoji_clusters_3315() {
+fn emoji_clusters_3491() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41527,7 +43639,7 @@ fn emoji_clusters_3315() {
 }
 
 #[test]
-fn emoji_clusters_3316() {
+fn emoji_clusters_3492() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41539,7 +43651,7 @@ fn emoji_clusters_3316() {
 }
 
 #[test]
-fn emoji_clusters_3317() {
+fn emoji_clusters_3493() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41551,7 +43663,7 @@ fn emoji_clusters_3317() {
 }
 
 #[test]
-fn emoji_clusters_3318() {
+fn emoji_clusters_3494() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41563,7 +43675,7 @@ fn emoji_clusters_3318() {
 }
 
 #[test]
-fn emoji_clusters_3319() {
+fn emoji_clusters_3495() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41575,7 +43687,7 @@ fn emoji_clusters_3319() {
 }
 
 #[test]
-fn emoji_clusters_3320() {
+fn emoji_clusters_3496() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41587,7 +43699,7 @@ fn emoji_clusters_3320() {
 }
 
 #[test]
-fn emoji_clusters_3321() {
+fn emoji_clusters_3497() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41599,7 +43711,7 @@ fn emoji_clusters_3321() {
 }
 
 #[test]
-fn emoji_clusters_3322() {
+fn emoji_clusters_3498() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41611,7 +43723,7 @@ fn emoji_clusters_3322() {
 }
 
 #[test]
-fn emoji_clusters_3323() {
+fn emoji_clusters_3499() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41623,7 +43735,7 @@ fn emoji_clusters_3323() {
 }
 
 #[test]
-fn emoji_clusters_3324() {
+fn emoji_clusters_3500() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41635,7 +43747,7 @@ fn emoji_clusters_3324() {
 }
 
 #[test]
-fn emoji_clusters_3325() {
+fn emoji_clusters_3501() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41647,7 +43759,7 @@ fn emoji_clusters_3325() {
 }
 
 #[test]
-fn emoji_clusters_3326() {
+fn emoji_clusters_3502() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41659,7 +43771,7 @@ fn emoji_clusters_3326() {
 }
 
 #[test]
-fn emoji_clusters_3327() {
+fn emoji_clusters_3503() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41671,7 +43783,7 @@ fn emoji_clusters_3327() {
 }
 
 #[test]
-fn emoji_clusters_3328() {
+fn emoji_clusters_3504() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41683,7 +43795,7 @@ fn emoji_clusters_3328() {
 }
 
 #[test]
-fn emoji_clusters_3329() {
+fn emoji_clusters_3505() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41695,7 +43807,7 @@ fn emoji_clusters_3329() {
 }
 
 #[test]
-fn emoji_clusters_3330() {
+fn emoji_clusters_3506() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41707,7 +43819,7 @@ fn emoji_clusters_3330() {
 }
 
 #[test]
-fn emoji_clusters_3331() {
+fn emoji_clusters_3507() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41719,7 +43831,7 @@ fn emoji_clusters_3331() {
 }
 
 #[test]
-fn emoji_clusters_3332() {
+fn emoji_clusters_3508() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41731,7 +43843,7 @@ fn emoji_clusters_3332() {
 }
 
 #[test]
-fn emoji_clusters_3333() {
+fn emoji_clusters_3509() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41743,7 +43855,7 @@ fn emoji_clusters_3333() {
 }
 
 #[test]
-fn emoji_clusters_3334() {
+fn emoji_clusters_3510() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41755,7 +43867,7 @@ fn emoji_clusters_3334() {
 }
 
 #[test]
-fn emoji_clusters_3335() {
+fn emoji_clusters_3511() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41767,7 +43879,7 @@ fn emoji_clusters_3335() {
 }
 
 #[test]
-fn emoji_clusters_3336() {
+fn emoji_clusters_3512() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41779,7 +43891,7 @@ fn emoji_clusters_3336() {
 }
 
 #[test]
-fn emoji_clusters_3337() {
+fn emoji_clusters_3513() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41791,7 +43903,7 @@ fn emoji_clusters_3337() {
 }
 
 #[test]
-fn emoji_clusters_3338() {
+fn emoji_clusters_3514() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41803,7 +43915,7 @@ fn emoji_clusters_3338() {
 }
 
 #[test]
-fn emoji_clusters_3339() {
+fn emoji_clusters_3515() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41815,7 +43927,7 @@ fn emoji_clusters_3339() {
 }
 
 #[test]
-fn emoji_clusters_3340() {
+fn emoji_clusters_3516() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41827,7 +43939,7 @@ fn emoji_clusters_3340() {
 }
 
 #[test]
-fn emoji_clusters_3341() {
+fn emoji_clusters_3517() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41839,7 +43951,7 @@ fn emoji_clusters_3341() {
 }
 
 #[test]
-fn emoji_clusters_3342() {
+fn emoji_clusters_3518() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41851,7 +43963,7 @@ fn emoji_clusters_3342() {
 }
 
 #[test]
-fn emoji_clusters_3343() {
+fn emoji_clusters_3519() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41863,7 +43975,7 @@ fn emoji_clusters_3343() {
 }
 
 #[test]
-fn emoji_clusters_3344() {
+fn emoji_clusters_3520() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41875,7 +43987,7 @@ fn emoji_clusters_3344() {
 }
 
 #[test]
-fn emoji_clusters_3345() {
+fn emoji_clusters_3521() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41887,7 +43999,7 @@ fn emoji_clusters_3345() {
 }
 
 #[test]
-fn emoji_clusters_3346() {
+fn emoji_clusters_3522() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41899,7 +44011,7 @@ fn emoji_clusters_3346() {
 }
 
 #[test]
-fn emoji_clusters_3347() {
+fn emoji_clusters_3523() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41911,7 +44023,7 @@ fn emoji_clusters_3347() {
 }
 
 #[test]
-fn emoji_clusters_3348() {
+fn emoji_clusters_3524() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41923,7 +44035,7 @@ fn emoji_clusters_3348() {
 }
 
 #[test]
-fn emoji_clusters_3349() {
+fn emoji_clusters_3525() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41935,7 +44047,7 @@ fn emoji_clusters_3349() {
 }
 
 #[test]
-fn emoji_clusters_3350() {
+fn emoji_clusters_3526() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41947,7 +44059,7 @@ fn emoji_clusters_3350() {
 }
 
 #[test]
-fn emoji_clusters_3351() {
+fn emoji_clusters_3527() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41959,7 +44071,7 @@ fn emoji_clusters_3351() {
 }
 
 #[test]
-fn emoji_clusters_3352() {
+fn emoji_clusters_3528() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41971,7 +44083,7 @@ fn emoji_clusters_3352() {
 }
 
 #[test]
-fn emoji_clusters_3353() {
+fn emoji_clusters_3529() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41983,7 +44095,7 @@ fn emoji_clusters_3353() {
 }
 
 #[test]
-fn emoji_clusters_3354() {
+fn emoji_clusters_3530() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -41995,7 +44107,7 @@ fn emoji_clusters_3354() {
 }
 
 #[test]
-fn emoji_clusters_3355() {
+fn emoji_clusters_3531() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42007,7 +44119,7 @@ fn emoji_clusters_3355() {
 }
 
 #[test]
-fn emoji_clusters_3356() {
+fn emoji_clusters_3532() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42019,7 +44131,7 @@ fn emoji_clusters_3356() {
 }
 
 #[test]
-fn emoji_clusters_3357() {
+fn emoji_clusters_3533() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42031,7 +44143,7 @@ fn emoji_clusters_3357() {
 }
 
 #[test]
-fn emoji_clusters_3358() {
+fn emoji_clusters_3534() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42043,7 +44155,7 @@ fn emoji_clusters_3358() {
 }
 
 #[test]
-fn emoji_clusters_3359() {
+fn emoji_clusters_3535() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42055,7 +44167,7 @@ fn emoji_clusters_3359() {
 }
 
 #[test]
-fn emoji_clusters_3360() {
+fn emoji_clusters_3536() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42067,7 +44179,7 @@ fn emoji_clusters_3360() {
 }
 
 #[test]
-fn emoji_clusters_3361() {
+fn emoji_clusters_3537() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42079,7 +44191,7 @@ fn emoji_clusters_3361() {
 }
 
 #[test]
-fn emoji_clusters_3362() {
+fn emoji_clusters_3538() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42091,7 +44203,7 @@ fn emoji_clusters_3362() {
 }
 
 #[test]
-fn emoji_clusters_3363() {
+fn emoji_clusters_3539() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42103,7 +44215,7 @@ fn emoji_clusters_3363() {
 }
 
 #[test]
-fn emoji_clusters_3364() {
+fn emoji_clusters_3540() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42115,7 +44227,7 @@ fn emoji_clusters_3364() {
 }
 
 #[test]
-fn emoji_clusters_3365() {
+fn emoji_clusters_3541() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42127,7 +44239,7 @@ fn emoji_clusters_3365() {
 }
 
 #[test]
-fn emoji_clusters_3366() {
+fn emoji_clusters_3542() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42139,7 +44251,7 @@ fn emoji_clusters_3366() {
 }
 
 #[test]
-fn emoji_clusters_3367() {
+fn emoji_clusters_3543() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42151,7 +44263,7 @@ fn emoji_clusters_3367() {
 }
 
 #[test]
-fn emoji_clusters_3368() {
+fn emoji_clusters_3544() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42163,7 +44275,7 @@ fn emoji_clusters_3368() {
 }
 
 #[test]
-fn emoji_clusters_3369() {
+fn emoji_clusters_3545() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42175,7 +44287,7 @@ fn emoji_clusters_3369() {
 }
 
 #[test]
-fn emoji_clusters_3370() {
+fn emoji_clusters_3546() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42187,7 +44299,7 @@ fn emoji_clusters_3370() {
 }
 
 #[test]
-fn emoji_clusters_3371() {
+fn emoji_clusters_3547() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42199,7 +44311,7 @@ fn emoji_clusters_3371() {
 }
 
 #[test]
-fn emoji_clusters_3372() {
+fn emoji_clusters_3548() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42211,7 +44323,7 @@ fn emoji_clusters_3372() {
 }
 
 #[test]
-fn emoji_clusters_3373() {
+fn emoji_clusters_3549() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42223,7 +44335,7 @@ fn emoji_clusters_3373() {
 }
 
 #[test]
-fn emoji_clusters_3374() {
+fn emoji_clusters_3550() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42235,7 +44347,7 @@ fn emoji_clusters_3374() {
 }
 
 #[test]
-fn emoji_clusters_3375() {
+fn emoji_clusters_3551() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42247,7 +44359,7 @@ fn emoji_clusters_3375() {
 }
 
 #[test]
-fn emoji_clusters_3376() {
+fn emoji_clusters_3552() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42259,7 +44371,7 @@ fn emoji_clusters_3376() {
 }
 
 #[test]
-fn emoji_clusters_3377() {
+fn emoji_clusters_3553() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42271,7 +44383,7 @@ fn emoji_clusters_3377() {
 }
 
 #[test]
-fn emoji_clusters_3378() {
+fn emoji_clusters_3554() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42283,7 +44395,7 @@ fn emoji_clusters_3378() {
 }
 
 #[test]
-fn emoji_clusters_3379() {
+fn emoji_clusters_3555() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42295,7 +44407,7 @@ fn emoji_clusters_3379() {
 }
 
 #[test]
-fn emoji_clusters_3380() {
+fn emoji_clusters_3556() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42307,7 +44419,7 @@ fn emoji_clusters_3380() {
 }
 
 #[test]
-fn emoji_clusters_3381() {
+fn emoji_clusters_3557() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42319,7 +44431,7 @@ fn emoji_clusters_3381() {
 }
 
 #[test]
-fn emoji_clusters_3382() {
+fn emoji_clusters_3558() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42331,7 +44443,7 @@ fn emoji_clusters_3382() {
 }
 
 #[test]
-fn emoji_clusters_3383() {
+fn emoji_clusters_3559() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42343,7 +44455,7 @@ fn emoji_clusters_3383() {
 }
 
 #[test]
-fn emoji_clusters_3384() {
+fn emoji_clusters_3560() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42355,7 +44467,7 @@ fn emoji_clusters_3384() {
 }
 
 #[test]
-fn emoji_clusters_3385() {
+fn emoji_clusters_3561() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42367,7 +44479,7 @@ fn emoji_clusters_3385() {
 }
 
 #[test]
-fn emoji_clusters_3386() {
+fn emoji_clusters_3562() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42379,7 +44491,7 @@ fn emoji_clusters_3386() {
 }
 
 #[test]
-fn emoji_clusters_3387() {
+fn emoji_clusters_3563() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42391,7 +44503,7 @@ fn emoji_clusters_3387() {
 }
 
 #[test]
-fn emoji_clusters_3388() {
+fn emoji_clusters_3564() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42403,7 +44515,7 @@ fn emoji_clusters_3388() {
 }
 
 #[test]
-fn emoji_clusters_3389() {
+fn emoji_clusters_3565() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42415,7 +44527,7 @@ fn emoji_clusters_3389() {
 }
 
 #[test]
-fn emoji_clusters_3390() {
+fn emoji_clusters_3566() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42427,7 +44539,7 @@ fn emoji_clusters_3390() {
 }
 
 #[test]
-fn emoji_clusters_3391() {
+fn emoji_clusters_3567() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42439,7 +44551,7 @@ fn emoji_clusters_3391() {
 }
 
 #[test]
-fn emoji_clusters_3392() {
+fn emoji_clusters_3568() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42451,7 +44563,7 @@ fn emoji_clusters_3392() {
 }
 
 #[test]
-fn emoji_clusters_3393() {
+fn emoji_clusters_3569() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42463,7 +44575,7 @@ fn emoji_clusters_3393() {
 }
 
 #[test]
-fn emoji_clusters_3394() {
+fn emoji_clusters_3570() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42475,7 +44587,7 @@ fn emoji_clusters_3394() {
 }
 
 #[test]
-fn emoji_clusters_3395() {
+fn emoji_clusters_3571() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42487,7 +44599,7 @@ fn emoji_clusters_3395() {
 }
 
 #[test]
-fn emoji_clusters_3396() {
+fn emoji_clusters_3572() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42499,7 +44611,7 @@ fn emoji_clusters_3396() {
 }
 
 #[test]
-fn emoji_clusters_3397() {
+fn emoji_clusters_3573() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42511,7 +44623,7 @@ fn emoji_clusters_3397() {
 }
 
 #[test]
-fn emoji_clusters_3398() {
+fn emoji_clusters_3574() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42523,7 +44635,7 @@ fn emoji_clusters_3398() {
 }
 
 #[test]
-fn emoji_clusters_3399() {
+fn emoji_clusters_3575() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42535,7 +44647,7 @@ fn emoji_clusters_3399() {
 }
 
 #[test]
-fn emoji_clusters_3400() {
+fn emoji_clusters_3576() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42547,7 +44659,7 @@ fn emoji_clusters_3400() {
 }
 
 #[test]
-fn emoji_clusters_3401() {
+fn emoji_clusters_3577() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42559,7 +44671,7 @@ fn emoji_clusters_3401() {
 }
 
 #[test]
-fn emoji_clusters_3402() {
+fn emoji_clusters_3578() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42571,7 +44683,7 @@ fn emoji_clusters_3402() {
 }
 
 #[test]
-fn emoji_clusters_3403() {
+fn emoji_clusters_3579() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42583,7 +44695,7 @@ fn emoji_clusters_3403() {
 }
 
 #[test]
-fn emoji_clusters_3404() {
+fn emoji_clusters_3580() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42595,7 +44707,7 @@ fn emoji_clusters_3404() {
 }
 
 #[test]
-fn emoji_clusters_3405() {
+fn emoji_clusters_3581() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42607,7 +44719,7 @@ fn emoji_clusters_3405() {
 }
 
 #[test]
-fn emoji_clusters_3406() {
+fn emoji_clusters_3582() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42619,7 +44731,7 @@ fn emoji_clusters_3406() {
 }
 
 #[test]
-fn emoji_clusters_3407() {
+fn emoji_clusters_3583() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42631,7 +44743,7 @@ fn emoji_clusters_3407() {
 }
 
 #[test]
-fn emoji_clusters_3408() {
+fn emoji_clusters_3584() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42643,7 +44755,7 @@ fn emoji_clusters_3408() {
 }
 
 #[test]
-fn emoji_clusters_3409() {
+fn emoji_clusters_3585() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42655,7 +44767,7 @@ fn emoji_clusters_3409() {
 }
 
 #[test]
-fn emoji_clusters_3410() {
+fn emoji_clusters_3586() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42667,7 +44779,7 @@ fn emoji_clusters_3410() {
 }
 
 #[test]
-fn emoji_clusters_3411() {
+fn emoji_clusters_3587() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42679,7 +44791,7 @@ fn emoji_clusters_3411() {
 }
 
 #[test]
-fn emoji_clusters_3412() {
+fn emoji_clusters_3588() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42691,7 +44803,7 @@ fn emoji_clusters_3412() {
 }
 
 #[test]
-fn emoji_clusters_3413() {
+fn emoji_clusters_3589() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42703,7 +44815,7 @@ fn emoji_clusters_3413() {
 }
 
 #[test]
-fn emoji_clusters_3414() {
+fn emoji_clusters_3590() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42715,7 +44827,7 @@ fn emoji_clusters_3414() {
 }
 
 #[test]
-fn emoji_clusters_3415() {
+fn emoji_clusters_3591() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42727,7 +44839,7 @@ fn emoji_clusters_3415() {
 }
 
 #[test]
-fn emoji_clusters_3416() {
+fn emoji_clusters_3592() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42739,7 +44851,7 @@ fn emoji_clusters_3416() {
 }
 
 #[test]
-fn emoji_clusters_3417() {
+fn emoji_clusters_3593() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42751,7 +44863,7 @@ fn emoji_clusters_3417() {
 }
 
 #[test]
-fn emoji_clusters_3418() {
+fn emoji_clusters_3594() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42763,7 +44875,7 @@ fn emoji_clusters_3418() {
 }
 
 #[test]
-fn emoji_clusters_3419() {
+fn emoji_clusters_3595() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42775,7 +44887,7 @@ fn emoji_clusters_3419() {
 }
 
 #[test]
-fn emoji_clusters_3420() {
+fn emoji_clusters_3596() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42787,7 +44899,7 @@ fn emoji_clusters_3420() {
 }
 
 #[test]
-fn emoji_clusters_3421() {
+fn emoji_clusters_3597() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42799,7 +44911,7 @@ fn emoji_clusters_3421() {
 }
 
 #[test]
-fn emoji_clusters_3422() {
+fn emoji_clusters_3598() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42811,7 +44923,7 @@ fn emoji_clusters_3422() {
 }
 
 #[test]
-fn emoji_clusters_3423() {
+fn emoji_clusters_3599() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42823,7 +44935,7 @@ fn emoji_clusters_3423() {
 }
 
 #[test]
-fn emoji_clusters_3424() {
+fn emoji_clusters_3600() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42835,7 +44947,7 @@ fn emoji_clusters_3424() {
 }
 
 #[test]
-fn emoji_clusters_3425() {
+fn emoji_clusters_3601() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42847,7 +44959,7 @@ fn emoji_clusters_3425() {
 }
 
 #[test]
-fn emoji_clusters_3426() {
+fn emoji_clusters_3602() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42859,7 +44971,7 @@ fn emoji_clusters_3426() {
 }
 
 #[test]
-fn emoji_clusters_3427() {
+fn emoji_clusters_3603() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42871,7 +44983,7 @@ fn emoji_clusters_3427() {
 }
 
 #[test]
-fn emoji_clusters_3428() {
+fn emoji_clusters_3604() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42883,7 +44995,7 @@ fn emoji_clusters_3428() {
 }
 
 #[test]
-fn emoji_clusters_3429() {
+fn emoji_clusters_3605() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42895,7 +45007,7 @@ fn emoji_clusters_3429() {
 }
 
 #[test]
-fn emoji_clusters_3430() {
+fn emoji_clusters_3606() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42907,7 +45019,7 @@ fn emoji_clusters_3430() {
 }
 
 #[test]
-fn emoji_clusters_3431() {
+fn emoji_clusters_3607() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42919,7 +45031,7 @@ fn emoji_clusters_3431() {
 }
 
 #[test]
-fn emoji_clusters_3432() {
+fn emoji_clusters_3608() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42931,7 +45043,7 @@ fn emoji_clusters_3432() {
 }
 
 #[test]
-fn emoji_clusters_3433() {
+fn emoji_clusters_3609() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42943,7 +45055,7 @@ fn emoji_clusters_3433() {
 }
 
 #[test]
-fn emoji_clusters_3434() {
+fn emoji_clusters_3610() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42955,7 +45067,7 @@ fn emoji_clusters_3434() {
 }
 
 #[test]
-fn emoji_clusters_3435() {
+fn emoji_clusters_3611() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42967,7 +45079,7 @@ fn emoji_clusters_3435() {
 }
 
 #[test]
-fn emoji_clusters_3436() {
+fn emoji_clusters_3612() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42979,7 +45091,7 @@ fn emoji_clusters_3436() {
 }
 
 #[test]
-fn emoji_clusters_3437() {
+fn emoji_clusters_3613() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -42991,7 +45103,7 @@ fn emoji_clusters_3437() {
 }
 
 #[test]
-fn emoji_clusters_3438() {
+fn emoji_clusters_3614() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43003,7 +45115,7 @@ fn emoji_clusters_3438() {
 }
 
 #[test]
-fn emoji_clusters_3439() {
+fn emoji_clusters_3615() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43015,7 +45127,7 @@ fn emoji_clusters_3439() {
 }
 
 #[test]
-fn emoji_clusters_3440() {
+fn emoji_clusters_3616() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43027,7 +45139,7 @@ fn emoji_clusters_3440() {
 }
 
 #[test]
-fn emoji_clusters_3441() {
+fn emoji_clusters_3617() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43039,7 +45151,7 @@ fn emoji_clusters_3441() {
 }
 
 #[test]
-fn emoji_clusters_3442() {
+fn emoji_clusters_3618() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43051,7 +45163,7 @@ fn emoji_clusters_3442() {
 }
 
 #[test]
-fn emoji_clusters_3443() {
+fn emoji_clusters_3619() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43063,7 +45175,7 @@ fn emoji_clusters_3443() {
 }
 
 #[test]
-fn emoji_clusters_3444() {
+fn emoji_clusters_3620() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43075,7 +45187,7 @@ fn emoji_clusters_3444() {
 }
 
 #[test]
-fn emoji_clusters_3445() {
+fn emoji_clusters_3621() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43087,7 +45199,7 @@ fn emoji_clusters_3445() {
 }
 
 #[test]
-fn emoji_clusters_3446() {
+fn emoji_clusters_3622() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43099,7 +45211,7 @@ fn emoji_clusters_3446() {
 }
 
 #[test]
-fn emoji_clusters_3447() {
+fn emoji_clusters_3623() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43111,7 +45223,7 @@ fn emoji_clusters_3447() {
 }
 
 #[test]
-fn emoji_clusters_3448() {
+fn emoji_clusters_3624() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43123,7 +45235,7 @@ fn emoji_clusters_3448() {
 }
 
 #[test]
-fn emoji_clusters_3449() {
+fn emoji_clusters_3625() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43135,7 +45247,7 @@ fn emoji_clusters_3449() {
 }
 
 #[test]
-fn emoji_clusters_3450() {
+fn emoji_clusters_3626() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43147,7 +45259,7 @@ fn emoji_clusters_3450() {
 }
 
 #[test]
-fn emoji_clusters_3451() {
+fn emoji_clusters_3627() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43159,7 +45271,7 @@ fn emoji_clusters_3451() {
 }
 
 #[test]
-fn emoji_clusters_3452() {
+fn emoji_clusters_3628() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43171,7 +45283,7 @@ fn emoji_clusters_3452() {
 }
 
 #[test]
-fn emoji_clusters_3453() {
+fn emoji_clusters_3629() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43183,7 +45295,7 @@ fn emoji_clusters_3453() {
 }
 
 #[test]
-fn emoji_clusters_3454() {
+fn emoji_clusters_3630() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43195,7 +45307,7 @@ fn emoji_clusters_3454() {
 }
 
 #[test]
-fn emoji_clusters_3455() {
+fn emoji_clusters_3631() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43207,7 +45319,7 @@ fn emoji_clusters_3455() {
 }
 
 #[test]
-fn emoji_clusters_3456() {
+fn emoji_clusters_3632() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43219,7 +45331,7 @@ fn emoji_clusters_3456() {
 }
 
 #[test]
-fn emoji_clusters_3457() {
+fn emoji_clusters_3633() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43231,7 +45343,7 @@ fn emoji_clusters_3457() {
 }
 
 #[test]
-fn emoji_clusters_3458() {
+fn emoji_clusters_3634() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43243,7 +45355,7 @@ fn emoji_clusters_3458() {
 }
 
 #[test]
-fn emoji_clusters_3459() {
+fn emoji_clusters_3635() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43255,7 +45367,7 @@ fn emoji_clusters_3459() {
 }
 
 #[test]
-fn emoji_clusters_3460() {
+fn emoji_clusters_3636() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43267,7 +45379,7 @@ fn emoji_clusters_3460() {
 }
 
 #[test]
-fn emoji_clusters_3461() {
+fn emoji_clusters_3637() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43279,7 +45391,7 @@ fn emoji_clusters_3461() {
 }
 
 #[test]
-fn emoji_clusters_3462() {
+fn emoji_clusters_3638() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43291,7 +45403,7 @@ fn emoji_clusters_3462() {
 }
 
 #[test]
-fn emoji_clusters_3463() {
+fn emoji_clusters_3639() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43303,7 +45415,7 @@ fn emoji_clusters_3463() {
 }
 
 #[test]
-fn emoji_clusters_3464() {
+fn emoji_clusters_3640() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43315,7 +45427,7 @@ fn emoji_clusters_3464() {
 }
 
 #[test]
-fn emoji_clusters_3465() {
+fn emoji_clusters_3641() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43327,7 +45439,7 @@ fn emoji_clusters_3465() {
 }
 
 #[test]
-fn emoji_clusters_3466() {
+fn emoji_clusters_3642() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43339,7 +45451,7 @@ fn emoji_clusters_3466() {
 }
 
 #[test]
-fn emoji_clusters_3467() {
+fn emoji_clusters_3643() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43351,7 +45463,7 @@ fn emoji_clusters_3467() {
 }
 
 #[test]
-fn emoji_clusters_3468() {
+fn emoji_clusters_3644() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43363,7 +45475,7 @@ fn emoji_clusters_3468() {
 }
 
 #[test]
-fn emoji_clusters_3469() {
+fn emoji_clusters_3645() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43375,7 +45487,7 @@ fn emoji_clusters_3469() {
 }
 
 #[test]
-fn emoji_clusters_3470() {
+fn emoji_clusters_3646() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43387,7 +45499,7 @@ fn emoji_clusters_3470() {
 }
 
 #[test]
-fn emoji_clusters_3471() {
+fn emoji_clusters_3647() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43399,7 +45511,7 @@ fn emoji_clusters_3471() {
 }
 
 #[test]
-fn emoji_clusters_3472() {
+fn emoji_clusters_3648() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43411,7 +45523,7 @@ fn emoji_clusters_3472() {
 }
 
 #[test]
-fn emoji_clusters_3473() {
+fn emoji_clusters_3649() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43423,7 +45535,7 @@ fn emoji_clusters_3473() {
 }
 
 #[test]
-fn emoji_clusters_3474() {
+fn emoji_clusters_3650() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43435,7 +45547,7 @@ fn emoji_clusters_3474() {
 }
 
 #[test]
-fn emoji_clusters_3475() {
+fn emoji_clusters_3651() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43447,7 +45559,7 @@ fn emoji_clusters_3475() {
 }
 
 #[test]
-fn emoji_clusters_3476() {
+fn emoji_clusters_3652() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43459,7 +45571,7 @@ fn emoji_clusters_3476() {
 }
 
 #[test]
-fn emoji_clusters_3477() {
+fn emoji_clusters_3653() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43471,7 +45583,7 @@ fn emoji_clusters_3477() {
 }
 
 #[test]
-fn emoji_clusters_3478() {
+fn emoji_clusters_3654() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43483,7 +45595,7 @@ fn emoji_clusters_3478() {
 }
 
 #[test]
-fn emoji_clusters_3479() {
+fn emoji_clusters_3655() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43495,7 +45607,7 @@ fn emoji_clusters_3479() {
 }
 
 #[test]
-fn emoji_clusters_3480() {
+fn emoji_clusters_3656() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43507,7 +45619,7 @@ fn emoji_clusters_3480() {
 }
 
 #[test]
-fn emoji_clusters_3481() {
+fn emoji_clusters_3657() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43519,7 +45631,7 @@ fn emoji_clusters_3481() {
 }
 
 #[test]
-fn emoji_clusters_3482() {
+fn emoji_clusters_3658() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43531,7 +45643,7 @@ fn emoji_clusters_3482() {
 }
 
 #[test]
-fn emoji_clusters_3483() {
+fn emoji_clusters_3659() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43543,7 +45655,7 @@ fn emoji_clusters_3483() {
 }
 
 #[test]
-fn emoji_clusters_3484() {
+fn emoji_clusters_3660() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43555,7 +45667,7 @@ fn emoji_clusters_3484() {
 }
 
 #[test]
-fn emoji_clusters_3485() {
+fn emoji_clusters_3661() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43567,7 +45679,7 @@ fn emoji_clusters_3485() {
 }
 
 #[test]
-fn emoji_clusters_3486() {
+fn emoji_clusters_3662() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43579,7 +45691,7 @@ fn emoji_clusters_3486() {
 }
 
 #[test]
-fn emoji_clusters_3487() {
+fn emoji_clusters_3663() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43591,7 +45703,7 @@ fn emoji_clusters_3487() {
 }
 
 #[test]
-fn emoji_clusters_3488() {
+fn emoji_clusters_3664() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43603,7 +45715,7 @@ fn emoji_clusters_3488() {
 }
 
 #[test]
-fn emoji_clusters_3489() {
+fn emoji_clusters_3665() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43615,7 +45727,7 @@ fn emoji_clusters_3489() {
 }
 
 #[test]
-fn emoji_clusters_3490() {
+fn emoji_clusters_3666() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43627,7 +45739,7 @@ fn emoji_clusters_3490() {
 }
 
 #[test]
-fn emoji_clusters_3491() {
+fn emoji_clusters_3667() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43639,7 +45751,7 @@ fn emoji_clusters_3491() {
 }
 
 #[test]
-fn emoji_clusters_3492() {
+fn emoji_clusters_3668() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43651,7 +45763,7 @@ fn emoji_clusters_3492() {
 }
 
 #[test]
-fn emoji_clusters_3493() {
+fn emoji_clusters_3669() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43663,7 +45775,7 @@ fn emoji_clusters_3493() {
 }
 
 #[test]
-fn emoji_clusters_3494() {
+fn emoji_clusters_3670() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43675,7 +45787,7 @@ fn emoji_clusters_3494() {
 }
 
 #[test]
-fn emoji_clusters_3495() {
+fn emoji_clusters_3671() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43687,7 +45799,7 @@ fn emoji_clusters_3495() {
 }
 
 #[test]
-fn emoji_clusters_3496() {
+fn emoji_clusters_3672() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43699,7 +45811,7 @@ fn emoji_clusters_3496() {
 }
 
 #[test]
-fn emoji_clusters_3497() {
+fn emoji_clusters_3673() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43711,7 +45823,7 @@ fn emoji_clusters_3497() {
 }
 
 #[test]
-fn emoji_clusters_3498() {
+fn emoji_clusters_3674() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43723,7 +45835,7 @@ fn emoji_clusters_3498() {
 }
 
 #[test]
-fn emoji_clusters_3499() {
+fn emoji_clusters_3675() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43735,7 +45847,7 @@ fn emoji_clusters_3499() {
 }
 
 #[test]
-fn emoji_clusters_3500() {
+fn emoji_clusters_3676() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43747,7 +45859,7 @@ fn emoji_clusters_3500() {
 }
 
 #[test]
-fn emoji_clusters_3501() {
+fn emoji_clusters_3677() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43759,7 +45871,7 @@ fn emoji_clusters_3501() {
 }
 
 #[test]
-fn emoji_clusters_3502() {
+fn emoji_clusters_3678() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43771,7 +45883,7 @@ fn emoji_clusters_3502() {
 }
 
 #[test]
-fn emoji_clusters_3503() {
+fn emoji_clusters_3679() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43783,7 +45895,7 @@ fn emoji_clusters_3503() {
 }
 
 #[test]
-fn emoji_clusters_3504() {
+fn emoji_clusters_3680() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43795,7 +45907,7 @@ fn emoji_clusters_3504() {
 }
 
 #[test]
-fn emoji_clusters_3505() {
+fn emoji_clusters_3681() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43807,7 +45919,7 @@ fn emoji_clusters_3505() {
 }
 
 #[test]
-fn emoji_clusters_3506() {
+fn emoji_clusters_3682() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43819,7 +45931,7 @@ fn emoji_clusters_3506() {
 }
 
 #[test]
-fn emoji_clusters_3507() {
+fn emoji_clusters_3683() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43831,7 +45943,7 @@ fn emoji_clusters_3507() {
 }
 
 #[test]
-fn emoji_clusters_3508() {
+fn emoji_clusters_3684() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43843,7 +45955,7 @@ fn emoji_clusters_3508() {
 }
 
 #[test]
-fn emoji_clusters_3509() {
+fn emoji_clusters_3685() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43855,7 +45967,7 @@ fn emoji_clusters_3509() {
 }
 
 #[test]
-fn emoji_clusters_3510() {
+fn emoji_clusters_3686() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43867,7 +45979,7 @@ fn emoji_clusters_3510() {
 }
 
 #[test]
-fn emoji_clusters_3511() {
+fn emoji_clusters_3687() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43879,7 +45991,7 @@ fn emoji_clusters_3511() {
 }
 
 #[test]
-fn emoji_clusters_3512() {
+fn emoji_clusters_3688() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43891,7 +46003,7 @@ fn emoji_clusters_3512() {
 }
 
 #[test]
-fn emoji_clusters_3513() {
+fn emoji_clusters_3689() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43903,7 +46015,7 @@ fn emoji_clusters_3513() {
 }
 
 #[test]
-fn emoji_clusters_3514() {
+fn emoji_clusters_3690() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43915,7 +46027,7 @@ fn emoji_clusters_3514() {
 }
 
 #[test]
-fn emoji_clusters_3515() {
+fn emoji_clusters_3691() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43927,7 +46039,7 @@ fn emoji_clusters_3515() {
 }
 
 #[test]
-fn emoji_clusters_3516() {
+fn emoji_clusters_3692() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43939,7 +46051,7 @@ fn emoji_clusters_3516() {
 }
 
 #[test]
-fn emoji_clusters_3517() {
+fn emoji_clusters_3693() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43951,7 +46063,7 @@ fn emoji_clusters_3517() {
 }
 
 #[test]
-fn emoji_clusters_3518() {
+fn emoji_clusters_3694() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43963,7 +46075,7 @@ fn emoji_clusters_3518() {
 }
 
 #[test]
-fn emoji_clusters_3519() {
+fn emoji_clusters_3695() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43975,7 +46087,7 @@ fn emoji_clusters_3519() {
 }
 
 #[test]
-fn emoji_clusters_3520() {
+fn emoji_clusters_3696() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43987,7 +46099,7 @@ fn emoji_clusters_3520() {
 }
 
 #[test]
-fn emoji_clusters_3521() {
+fn emoji_clusters_3697() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -43999,7 +46111,7 @@ fn emoji_clusters_3521() {
 }
 
 #[test]
-fn emoji_clusters_3522() {
+fn emoji_clusters_3698() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44011,7 +46123,7 @@ fn emoji_clusters_3522() {
 }
 
 #[test]
-fn emoji_clusters_3523() {
+fn emoji_clusters_3699() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44023,7 +46135,7 @@ fn emoji_clusters_3523() {
 }
 
 #[test]
-fn emoji_clusters_3524() {
+fn emoji_clusters_3700() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44035,7 +46147,7 @@ fn emoji_clusters_3524() {
 }
 
 #[test]
-fn emoji_clusters_3525() {
+fn emoji_clusters_3701() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44047,7 +46159,7 @@ fn emoji_clusters_3525() {
 }
 
 #[test]
-fn emoji_clusters_3526() {
+fn emoji_clusters_3702() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44059,7 +46171,7 @@ fn emoji_clusters_3526() {
 }
 
 #[test]
-fn emoji_clusters_3527() {
+fn emoji_clusters_3703() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44071,7 +46183,7 @@ fn emoji_clusters_3527() {
 }
 
 #[test]
-fn emoji_clusters_3528() {
+fn emoji_clusters_3704() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44083,7 +46195,7 @@ fn emoji_clusters_3528() {
 }
 
 #[test]
-fn emoji_clusters_3529() {
+fn emoji_clusters_3705() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44095,7 +46207,7 @@ fn emoji_clusters_3529() {
 }
 
 #[test]
-fn emoji_clusters_3530() {
+fn emoji_clusters_3706() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44107,7 +46219,7 @@ fn emoji_clusters_3530() {
 }
 
 #[test]
-fn emoji_clusters_3531() {
+fn emoji_clusters_3707() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44119,7 +46231,7 @@ fn emoji_clusters_3531() {
 }
 
 #[test]
-fn emoji_clusters_3532() {
+fn emoji_clusters_3708() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44131,7 +46243,7 @@ fn emoji_clusters_3532() {
 }
 
 #[test]
-fn emoji_clusters_3533() {
+fn emoji_clusters_3709() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44143,7 +46255,7 @@ fn emoji_clusters_3533() {
 }
 
 #[test]
-fn emoji_clusters_3534() {
+fn emoji_clusters_3710() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44155,7 +46267,7 @@ fn emoji_clusters_3534() {
 }
 
 #[test]
-fn emoji_clusters_3535() {
+fn emoji_clusters_3711() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44167,7 +46279,7 @@ fn emoji_clusters_3535() {
 }
 
 #[test]
-fn emoji_clusters_3536() {
+fn emoji_clusters_3712() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44179,7 +46291,7 @@ fn emoji_clusters_3536() {
 }
 
 #[test]
-fn emoji_clusters_3537() {
+fn emoji_clusters_3713() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44191,7 +46303,7 @@ fn emoji_clusters_3537() {
 }
 
 #[test]
-fn emoji_clusters_3538() {
+fn emoji_clusters_3714() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44203,7 +46315,7 @@ fn emoji_clusters_3538() {
 }
 
 #[test]
-fn emoji_clusters_3539() {
+fn emoji_clusters_3715() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44215,7 +46327,7 @@ fn emoji_clusters_3539() {
 }
 
 #[test]
-fn emoji_clusters_3540() {
+fn emoji_clusters_3716() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44227,7 +46339,7 @@ fn emoji_clusters_3540() {
 }
 
 #[test]
-fn emoji_clusters_3541() {
+fn emoji_clusters_3717() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44239,7 +46351,7 @@ fn emoji_clusters_3541() {
 }
 
 #[test]
-fn emoji_clusters_3542() {
+fn emoji_clusters_3718() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44251,7 +46363,7 @@ fn emoji_clusters_3542() {
 }
 
 #[test]
-fn emoji_clusters_3543() {
+fn emoji_clusters_3719() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44263,7 +46375,7 @@ fn emoji_clusters_3543() {
 }
 
 #[test]
-fn emoji_clusters_3544() {
+fn emoji_clusters_3720() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44275,7 +46387,7 @@ fn emoji_clusters_3544() {
 }
 
 #[test]
-fn emoji_clusters_3545() {
+fn emoji_clusters_3721() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44287,7 +46399,7 @@ fn emoji_clusters_3545() {
 }
 
 #[test]
-fn emoji_clusters_3546() {
+fn emoji_clusters_3722() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44299,7 +46411,7 @@ fn emoji_clusters_3546() {
 }
 
 #[test]
-fn emoji_clusters_3547() {
+fn emoji_clusters_3723() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44311,7 +46423,7 @@ fn emoji_clusters_3547() {
 }
 
 #[test]
-fn emoji_clusters_3548() {
+fn emoji_clusters_3724() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44323,7 +46435,7 @@ fn emoji_clusters_3548() {
 }
 
 #[test]
-fn emoji_clusters_3549() {
+fn emoji_clusters_3725() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44335,7 +46447,7 @@ fn emoji_clusters_3549() {
 }
 
 #[test]
-fn emoji_clusters_3550() {
+fn emoji_clusters_3726() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44347,7 +46459,7 @@ fn emoji_clusters_3550() {
 }
 
 #[test]
-fn emoji_clusters_3551() {
+fn emoji_clusters_3727() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44359,7 +46471,7 @@ fn emoji_clusters_3551() {
 }
 
 #[test]
-fn emoji_clusters_3552() {
+fn emoji_clusters_3728() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44371,7 +46483,7 @@ fn emoji_clusters_3552() {
 }
 
 #[test]
-fn emoji_clusters_3553() {
+fn emoji_clusters_3729() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44383,7 +46495,7 @@ fn emoji_clusters_3553() {
 }
 
 #[test]
-fn emoji_clusters_3554() {
+fn emoji_clusters_3730() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44395,7 +46507,7 @@ fn emoji_clusters_3554() {
 }
 
 #[test]
-fn emoji_clusters_3555() {
+fn emoji_clusters_3731() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44407,7 +46519,7 @@ fn emoji_clusters_3555() {
 }
 
 #[test]
-fn emoji_clusters_3556() {
+fn emoji_clusters_3732() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44419,7 +46531,7 @@ fn emoji_clusters_3556() {
 }
 
 #[test]
-fn emoji_clusters_3557() {
+fn emoji_clusters_3733() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44431,7 +46543,7 @@ fn emoji_clusters_3557() {
 }
 
 #[test]
-fn emoji_clusters_3558() {
+fn emoji_clusters_3734() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44443,7 +46555,7 @@ fn emoji_clusters_3558() {
 }
 
 #[test]
-fn emoji_clusters_3559() {
+fn emoji_clusters_3735() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44455,7 +46567,7 @@ fn emoji_clusters_3559() {
 }
 
 #[test]
-fn emoji_clusters_3560() {
+fn emoji_clusters_3736() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44467,7 +46579,7 @@ fn emoji_clusters_3560() {
 }
 
 #[test]
-fn emoji_clusters_3561() {
+fn emoji_clusters_3737() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44479,7 +46591,7 @@ fn emoji_clusters_3561() {
 }
 
 #[test]
-fn emoji_clusters_3562() {
+fn emoji_clusters_3738() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44491,7 +46603,7 @@ fn emoji_clusters_3562() {
 }
 
 #[test]
-fn emoji_clusters_3563() {
+fn emoji_clusters_3739() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44503,7 +46615,7 @@ fn emoji_clusters_3563() {
 }
 
 #[test]
-fn emoji_clusters_3564() {
+fn emoji_clusters_3740() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44515,7 +46627,7 @@ fn emoji_clusters_3564() {
 }
 
 #[test]
-fn emoji_clusters_3565() {
+fn emoji_clusters_3741() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44527,7 +46639,7 @@ fn emoji_clusters_3565() {
 }
 
 #[test]
-fn emoji_clusters_3566() {
+fn emoji_clusters_3742() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44539,7 +46651,7 @@ fn emoji_clusters_3566() {
 }
 
 #[test]
-fn emoji_clusters_3567() {
+fn emoji_clusters_3743() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44551,7 +46663,7 @@ fn emoji_clusters_3567() {
 }
 
 #[test]
-fn emoji_clusters_3568() {
+fn emoji_clusters_3744() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44563,7 +46675,7 @@ fn emoji_clusters_3568() {
 }
 
 #[test]
-fn emoji_clusters_3569() {
+fn emoji_clusters_3745() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44575,7 +46687,7 @@ fn emoji_clusters_3569() {
 }
 
 #[test]
-fn emoji_clusters_3570() {
+fn emoji_clusters_3746() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44587,7 +46699,7 @@ fn emoji_clusters_3570() {
 }
 
 #[test]
-fn emoji_clusters_3571() {
+fn emoji_clusters_3747() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44599,7 +46711,7 @@ fn emoji_clusters_3571() {
 }
 
 #[test]
-fn emoji_clusters_3572() {
+fn emoji_clusters_3748() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44611,7 +46723,7 @@ fn emoji_clusters_3572() {
 }
 
 #[test]
-fn emoji_clusters_3573() {
+fn emoji_clusters_3749() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44623,7 +46735,7 @@ fn emoji_clusters_3573() {
 }
 
 #[test]
-fn emoji_clusters_3574() {
+fn emoji_clusters_3750() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44635,7 +46747,7 @@ fn emoji_clusters_3574() {
 }
 
 #[test]
-fn emoji_clusters_3575() {
+fn emoji_clusters_3751() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44647,7 +46759,7 @@ fn emoji_clusters_3575() {
 }
 
 #[test]
-fn emoji_clusters_3576() {
+fn emoji_clusters_3752() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44659,7 +46771,7 @@ fn emoji_clusters_3576() {
 }
 
 #[test]
-fn emoji_clusters_3577() {
+fn emoji_clusters_3753() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44671,7 +46783,7 @@ fn emoji_clusters_3577() {
 }
 
 #[test]
-fn emoji_clusters_3578() {
+fn emoji_clusters_3754() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44683,7 +46795,7 @@ fn emoji_clusters_3578() {
 }
 
 #[test]
-fn emoji_clusters_3579() {
+fn emoji_clusters_3755() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44695,7 +46807,7 @@ fn emoji_clusters_3579() {
 }
 
 #[test]
-fn emoji_clusters_3580() {
+fn emoji_clusters_3756() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44707,7 +46819,7 @@ fn emoji_clusters_3580() {
 }
 
 #[test]
-fn emoji_clusters_3581() {
+fn emoji_clusters_3757() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44719,7 +46831,7 @@ fn emoji_clusters_3581() {
 }
 
 #[test]
-fn emoji_clusters_3582() {
+fn emoji_clusters_3758() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44731,7 +46843,7 @@ fn emoji_clusters_3582() {
 }
 
 #[test]
-fn emoji_clusters_3583() {
+fn emoji_clusters_3759() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44743,7 +46855,7 @@ fn emoji_clusters_3583() {
 }
 
 #[test]
-fn emoji_clusters_3584() {
+fn emoji_clusters_3760() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44755,7 +46867,7 @@ fn emoji_clusters_3584() {
 }
 
 #[test]
-fn emoji_clusters_3585() {
+fn emoji_clusters_3761() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44767,7 +46879,7 @@ fn emoji_clusters_3585() {
 }
 
 #[test]
-fn emoji_clusters_3586() {
+fn emoji_clusters_3762() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44779,7 +46891,7 @@ fn emoji_clusters_3586() {
 }
 
 #[test]
-fn emoji_clusters_3587() {
+fn emoji_clusters_3763() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44791,7 +46903,7 @@ fn emoji_clusters_3587() {
 }
 
 #[test]
-fn emoji_clusters_3588() {
+fn emoji_clusters_3764() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44803,7 +46915,7 @@ fn emoji_clusters_3588() {
 }
 
 #[test]
-fn emoji_clusters_3589() {
+fn emoji_clusters_3765() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44815,7 +46927,7 @@ fn emoji_clusters_3589() {
 }
 
 #[test]
-fn emoji_clusters_3590() {
+fn emoji_clusters_3766() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44827,7 +46939,7 @@ fn emoji_clusters_3590() {
 }
 
 #[test]
-fn emoji_clusters_3591() {
+fn emoji_clusters_3767() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44839,7 +46951,7 @@ fn emoji_clusters_3591() {
 }
 
 #[test]
-fn emoji_clusters_3592() {
+fn emoji_clusters_3768() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44851,7 +46963,7 @@ fn emoji_clusters_3592() {
 }
 
 #[test]
-fn emoji_clusters_3593() {
+fn emoji_clusters_3769() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44863,7 +46975,7 @@ fn emoji_clusters_3593() {
 }
 
 #[test]
-fn emoji_clusters_3594() {
+fn emoji_clusters_3770() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44875,7 +46987,7 @@ fn emoji_clusters_3594() {
 }
 
 #[test]
-fn emoji_clusters_3595() {
+fn emoji_clusters_3771() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44887,7 +46999,7 @@ fn emoji_clusters_3595() {
 }
 
 #[test]
-fn emoji_clusters_3596() {
+fn emoji_clusters_3772() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44899,7 +47011,7 @@ fn emoji_clusters_3596() {
 }
 
 #[test]
-fn emoji_clusters_3597() {
+fn emoji_clusters_3773() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44911,7 +47023,7 @@ fn emoji_clusters_3597() {
 }
 
 #[test]
-fn emoji_clusters_3598() {
+fn emoji_clusters_3774() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44923,7 +47035,7 @@ fn emoji_clusters_3598() {
 }
 
 #[test]
-fn emoji_clusters_3599() {
+fn emoji_clusters_3775() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44935,7 +47047,7 @@ fn emoji_clusters_3599() {
 }
 
 #[test]
-fn emoji_clusters_3600() {
+fn emoji_clusters_3776() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44947,7 +47059,7 @@ fn emoji_clusters_3600() {
 }
 
 #[test]
-fn emoji_clusters_3601() {
+fn emoji_clusters_3777() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44959,7 +47071,7 @@ fn emoji_clusters_3601() {
 }
 
 #[test]
-fn emoji_clusters_3602() {
+fn emoji_clusters_3778() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44971,7 +47083,7 @@ fn emoji_clusters_3602() {
 }
 
 #[test]
-fn emoji_clusters_3603() {
+fn emoji_clusters_3779() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44983,7 +47095,7 @@ fn emoji_clusters_3603() {
 }
 
 #[test]
-fn emoji_clusters_3604() {
+fn emoji_clusters_3780() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -44995,7 +47107,7 @@ fn emoji_clusters_3604() {
 }
 
 #[test]
-fn emoji_clusters_3605() {
+fn emoji_clusters_3781() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45007,7 +47119,7 @@ fn emoji_clusters_3605() {
 }
 
 #[test]
-fn emoji_clusters_3606() {
+fn emoji_clusters_3782() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45019,7 +47131,7 @@ fn emoji_clusters_3606() {
 }
 
 #[test]
-fn emoji_clusters_3607() {
+fn emoji_clusters_3783() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45031,7 +47143,7 @@ fn emoji_clusters_3607() {
 }
 
 #[test]
-fn emoji_clusters_3608() {
+fn emoji_clusters_3784() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45043,7 +47155,7 @@ fn emoji_clusters_3608() {
 }
 
 #[test]
-fn emoji_clusters_3609() {
+fn emoji_clusters_3785() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45055,7 +47167,7 @@ fn emoji_clusters_3609() {
 }
 
 #[test]
-fn emoji_clusters_3610() {
+fn emoji_clusters_3786() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45067,7 +47179,7 @@ fn emoji_clusters_3610() {
 }
 
 #[test]
-fn emoji_clusters_3611() {
+fn emoji_clusters_3787() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45079,7 +47191,7 @@ fn emoji_clusters_3611() {
 }
 
 #[test]
-fn emoji_clusters_3612() {
+fn emoji_clusters_3788() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45091,7 +47203,7 @@ fn emoji_clusters_3612() {
 }
 
 #[test]
-fn emoji_clusters_3613() {
+fn emoji_clusters_3789() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45103,7 +47215,7 @@ fn emoji_clusters_3613() {
 }
 
 #[test]
-fn emoji_clusters_3614() {
+fn emoji_clusters_3790() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45115,7 +47227,7 @@ fn emoji_clusters_3614() {
 }
 
 #[test]
-fn emoji_clusters_3615() {
+fn emoji_clusters_3791() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45127,7 +47239,7 @@ fn emoji_clusters_3615() {
 }
 
 #[test]
-fn emoji_clusters_3616() {
+fn emoji_clusters_3792() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45139,7 +47251,7 @@ fn emoji_clusters_3616() {
 }
 
 #[test]
-fn emoji_clusters_3617() {
+fn emoji_clusters_3793() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45151,7 +47263,7 @@ fn emoji_clusters_3617() {
 }
 
 #[test]
-fn emoji_clusters_3618() {
+fn emoji_clusters_3794() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45163,7 +47275,7 @@ fn emoji_clusters_3618() {
 }
 
 #[test]
-fn emoji_clusters_3619() {
+fn emoji_clusters_3795() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45175,7 +47287,7 @@ fn emoji_clusters_3619() {
 }
 
 #[test]
-fn emoji_clusters_3620() {
+fn emoji_clusters_3796() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45187,7 +47299,7 @@ fn emoji_clusters_3620() {
 }
 
 #[test]
-fn emoji_clusters_3621() {
+fn emoji_clusters_3797() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45199,7 +47311,7 @@ fn emoji_clusters_3621() {
 }
 
 #[test]
-fn emoji_clusters_3622() {
+fn emoji_clusters_3798() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45211,7 +47323,7 @@ fn emoji_clusters_3622() {
 }
 
 #[test]
-fn emoji_clusters_3623() {
+fn emoji_clusters_3799() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45223,7 +47335,7 @@ fn emoji_clusters_3623() {
 }
 
 #[test]
-fn emoji_clusters_3624() {
+fn emoji_clusters_3800() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45235,7 +47347,7 @@ fn emoji_clusters_3624() {
 }
 
 #[test]
-fn emoji_clusters_3625() {
+fn emoji_clusters_3801() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45247,7 +47359,7 @@ fn emoji_clusters_3625() {
 }
 
 #[test]
-fn emoji_clusters_3626() {
+fn emoji_clusters_3802() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45259,7 +47371,7 @@ fn emoji_clusters_3626() {
 }
 
 #[test]
-fn emoji_clusters_3627() {
+fn emoji_clusters_3803() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45271,7 +47383,7 @@ fn emoji_clusters_3627() {
 }
 
 #[test]
-fn emoji_clusters_3628() {
+fn emoji_clusters_3804() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45283,7 +47395,7 @@ fn emoji_clusters_3628() {
 }
 
 #[test]
-fn emoji_clusters_3629() {
+fn emoji_clusters_3805() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45295,7 +47407,7 @@ fn emoji_clusters_3629() {
 }
 
 #[test]
-fn emoji_clusters_3630() {
+fn emoji_clusters_3806() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45307,7 +47419,7 @@ fn emoji_clusters_3630() {
 }
 
 #[test]
-fn emoji_clusters_3631() {
+fn emoji_clusters_3807() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45319,7 +47431,7 @@ fn emoji_clusters_3631() {
 }
 
 #[test]
-fn emoji_clusters_3632() {
+fn emoji_clusters_3808() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45331,7 +47443,7 @@ fn emoji_clusters_3632() {
 }
 
 #[test]
-fn emoji_clusters_3633() {
+fn emoji_clusters_3809() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45343,7 +47455,7 @@ fn emoji_clusters_3633() {
 }
 
 #[test]
-fn emoji_clusters_3634() {
+fn emoji_clusters_3810() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45355,7 +47467,7 @@ fn emoji_clusters_3634() {
 }
 
 #[test]
-fn emoji_clusters_3635() {
+fn emoji_clusters_3811() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45367,7 +47479,7 @@ fn emoji_clusters_3635() {
 }
 
 #[test]
-fn emoji_clusters_3636() {
+fn emoji_clusters_3812() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45379,7 +47491,7 @@ fn emoji_clusters_3636() {
 }
 
 #[test]
-fn emoji_clusters_3637() {
+fn emoji_clusters_3813() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45391,7 +47503,7 @@ fn emoji_clusters_3637() {
 }
 
 #[test]
-fn emoji_clusters_3638() {
+fn emoji_clusters_3814() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45403,7 +47515,7 @@ fn emoji_clusters_3638() {
 }
 
 #[test]
-fn emoji_clusters_3639() {
+fn emoji_clusters_3815() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45415,7 +47527,7 @@ fn emoji_clusters_3639() {
 }
 
 #[test]
-fn emoji_clusters_3640() {
+fn emoji_clusters_3816() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45427,7 +47539,7 @@ fn emoji_clusters_3640() {
 }
 
 #[test]
-fn emoji_clusters_3641() {
+fn emoji_clusters_3817() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45439,7 +47551,7 @@ fn emoji_clusters_3641() {
 }
 
 #[test]
-fn emoji_clusters_3642() {
+fn emoji_clusters_3818() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45451,7 +47563,7 @@ fn emoji_clusters_3642() {
 }
 
 #[test]
-fn emoji_clusters_3643() {
+fn emoji_clusters_3819() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45463,7 +47575,7 @@ fn emoji_clusters_3643() {
 }
 
 #[test]
-fn emoji_clusters_3644() {
+fn emoji_clusters_3820() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45475,7 +47587,7 @@ fn emoji_clusters_3644() {
 }
 
 #[test]
-fn emoji_clusters_3645() {
+fn emoji_clusters_3821() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45487,7 +47599,7 @@ fn emoji_clusters_3645() {
 }
 
 #[test]
-fn emoji_clusters_3646() {
+fn emoji_clusters_3822() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45499,7 +47611,7 @@ fn emoji_clusters_3646() {
 }
 
 #[test]
-fn emoji_clusters_3647() {
+fn emoji_clusters_3823() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45511,7 +47623,7 @@ fn emoji_clusters_3647() {
 }
 
 #[test]
-fn emoji_clusters_3648() {
+fn emoji_clusters_3824() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
@@ -45523,7 +47635,7 @@ fn emoji_clusters_3648() {
 }
 
 #[test]
-fn emoji_clusters_3649() {
+fn emoji_clusters_3825() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
