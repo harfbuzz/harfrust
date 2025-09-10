@@ -334,6 +334,12 @@ pub fn hb_ot_shape_complex_categorize(
         | script::TODHRI
         | script::TULU_TIGALARI
 
+        // Unicode-17.0 additions
+        | script::BERIA_ERFE
+        | script::SIDETIC
+        | script::TAI_YO
+        | script::TOLONG_SIKI
+
         => {
             // If the designer designed the font for the 'DFLT' script,
             // (or we ended up arbitrarily pick 'latn'), use the default shaper.
