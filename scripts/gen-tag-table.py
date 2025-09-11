@@ -961,7 +961,7 @@ print()
 
 
 print('fn subtag_matches(language: &str, subtag: &str) -> bool {')
-print('    for(i, _) in language.match_indices(subtag) {')
+print('    for (i, _) in language.match_indices(subtag) {')
 print('        if let Some(c) = language.as_bytes().get(i + subtag.len()) {')
 print('            if !c.is_ascii_alphanumeric() {')
 print('                return true;')
@@ -989,17 +989,14 @@ print('    s1[..n1] == s2[..n2]')
 print('}')
 print()
 print('/// Converts a multi-subtag BCP 47 language tag to language tags.')
-print('pub fn tags_from_complex_language(')
-print('    language: &str,')
-print('    tags: &mut smallvec::SmallVec<[Tag; 3]>,')
-print(') -> bool {')
+print('pub fn tags_from_complex_language(language: &str, tags: &mut smallvec::SmallVec<[Tag; 3]>) -> bool {')
 
 
 def print_subtag_matches(subtag, new_line):
     if subtag:
         if new_line:
             print(' && ', end='')
-        print('subtag_matches(language, "-%s") ' % subtag, end='')
+        print('subtag_matches(language, "-%s")' % subtag, end='')
 
 
 complex_tags = collections.defaultdict(list)
@@ -1053,7 +1050,7 @@ for initial, items in sorted(complex_tags.items()):
         script = lt.script
         region = lt.region
         if lt.grandfathered:
-            print('&language[1..] == "%s" ' % lt.language[1:], end='')
+            print('&language[1..] == "%s"' % lt.language[1:], end='')
         else:
             string_literal = lt.language[1:] + '-'
             if script:
@@ -1070,7 +1067,7 @@ for initial, items in sorted(complex_tags.items()):
         print_subtag_matches(script, True)
         print_subtag_matches(region, True)
         print_subtag_matches(lt.variant, True)
-        print('{')
+        print(' {')
         print('                // %s' % bcp_47.get_name(lt))
         if len(tags) == 1:
             print('                tags.push(%s); // %s' % (hb_tag(tags[0]), ot.names[tags[0]]))
