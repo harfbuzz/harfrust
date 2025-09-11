@@ -548,7 +548,7 @@ pub const OPEN_TYPE_LANGUAGES: &[LangTag] = &[
     LangTag { language: "gwi", 	tag: Tag::new(b"ATH ") }, // Gwichʼin -> Athapaskan
     LangTag { language: "gyn", 	tag: Tag::new(b"CPP ") }, // Guyanese Creole English -> Creoles
     LangTag { language: "ha", 	tag: Tag::new(b"HAU ") }, // Hausa
-    LangTag { language: "haa", 	tag: Tag::new(b"ATH ") }, // Han -> Athapaskan
+    LangTag { language: "haa", 	tag: Tag::new(b"ATH ") }, // Hän -> Athapaskan
     LangTag { language: "hae", 	tag: Tag::new(b"ORO ") }, // Eastern Oromo -> Oromo
     LangTag { language: "hai", 	tag: Tag::new(b"HAI0") }, // Haida [macrolanguage]
     LangTag { language: "hak", 	tag: Tag::new(b"ZHS ") }, // Hakka Chinese -> Chinese, Simplified
@@ -810,7 +810,7 @@ pub const OPEN_TYPE_LANGUAGES: &[LangTag] = &[
     LangTag { language: "kvu", 	tag: Tag::new(b"KRN ") }, // Yinbaw Karen -> Karen
     LangTag { language: "kvy", 	tag: Tag::new(b"KRN ") }, // Yintale Karen -> Karen
     LangTag { language: "kw", 	tag: Tag::new(b"COR ") }, // Cornish
-//  LangTag { language: "kwk", 	tag: Tag::new(b"KWK ") }, // Kwakiutl -> Kwakʼwala
+//  LangTag { language: "kwk", 	tag: Tag::new(b"KWK ") }, // Kwak'wala -> Kwakʼwala
     LangTag { language: "kww", 	tag: Tag::new(b"CPP ") }, // Kwinti -> Creoles
     LangTag { language: "kwy", 	tag: Tag::new(b"KON0") }, // San Salvador Kongo -> Kongo
     LangTag { language: "kxc", 	tag: Tag::new(b"KMS ") }, // Konso -> Komso
