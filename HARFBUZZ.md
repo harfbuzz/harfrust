@@ -16,7 +16,17 @@ results.
 
 ## Building HarfBuzz with HarfRust support
 
-First, we need to build HarfBuzz with HarfRust shaper support
+First, HarfBuzz requires the Rust nightly toolchain to build
+with HarfRust support. It also requires bindgen. You can prepare
+those all using:
+
+```sh
+$ rustup default nightly
+$ rustup component add rust-src
+$ cargo install bindgen-cli
+```
+
+Next, we need to build HarfBuzz with HarfRust shaper support
 and the benchmark suite enabled. We also build in `release` mode.
 By default HarfBuzz builds with a `debugoptimized` mode, that
 is slightly slower, but better for development.
