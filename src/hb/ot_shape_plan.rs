@@ -70,6 +70,21 @@ impl hb_ot_shape_plan_t {
     pub(crate) fn data<T: 'static>(&self) -> &T {
         self.data.as_ref().unwrap().downcast_ref().unwrap()
     }
+
+    /// The direction of the text.
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// The script of the text.
+    pub fn script(&self) -> Option<Script> {
+        self.script
+    }
+
+    /// The language of the text.
+    pub fn language(&self) -> Option<&Language> {
+        self.language.as_ref()
+    }
 }
 
 /// A key used for selecting a shape plan.
