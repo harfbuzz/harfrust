@@ -141,7 +141,10 @@ impl Direction {
             script::OLD_UYGHUR |
 
             // Unicode-16.0 additions
-            script::GARAY => {
+            script::GARAY |
+
+            // Unicode-17.0 additions
+            script::SIDETIC => {
                 Some(Direction::RightToLeft)
             }
 
