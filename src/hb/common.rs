@@ -142,7 +142,7 @@ impl Direction {
 
             // Unicode-16.0 additions
             script::GARAY |
-            
+
             // Unicode-17.0 additions
             script::SIDETIC => {
                 Some(Direction::RightToLeft)
