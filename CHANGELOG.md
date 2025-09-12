@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [0.2.1] - 2025-09-12
 
-This release matches HarfBuzz [v11.4.6][harfbuzz-11.4.6], and has an MSRV (minimum supported Rust version) of 1.80.
+This release matches HarfBuzz [v11.5.0][harfbuzz-11.5.0], and has an MSRV (minimum supported Rust version) of 1.80.
 
 - Update to Unicode 17.0.
 - Fix panic when processing chained sequence context format 3.
@@ -55,7 +55,7 @@ See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.
 [harfbuzz-11.2.1]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.2.1
 [harfbuzz-11.3.3]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.3.3
 [harfbuzz-11.4.4]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.4.4
-[harfbuzz-11.4.6]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.4.6
+[harfbuzz-11.5.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.5.0
 
 [@khaledhosny]: https://github.com/khaledhosny
 
