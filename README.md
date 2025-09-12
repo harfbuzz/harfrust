@@ -39,8 +39,8 @@ The following conformance issues need to be fixed:
 ## Performance
 
 HarfRust is less than 25% slower than HarfBuzz on most common fonts. For a comparison see this [spreadsheet][3].
+You can run `cargo bench` to see the performance of HarfRust on your machine.
 
-See [benches/README.md](./benches/README.md) for details.
 
 ## Notes about the port
 
