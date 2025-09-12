@@ -494,7 +494,7 @@ impl IndicShapePlan {
             && plan
                 .ot_map
                 .chosen_script(TableIndex::GSUB)
-                .map_or(true, |tag| tag.to_be_bytes()[3] != b'2');
+                .is_none_or(|tag| tag.to_be_bytes()[3] != b'2');
 
         // Use zero-context would_substitute() matching for new-spec of the main
         // Indic scripts, and scripts with one spec only, but not for old-specs.

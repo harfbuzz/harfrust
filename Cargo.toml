@@ -2,7 +2,7 @@
 name = "harfrust"
 version = "0.3.0"
 edition = "2021"
-rust-version = "1.80"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
+rust-version = "1.82"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
 description = "A complete HarfBuzz shaping algorithm port to Rust."
 repository = "https://github.com/harfbuzz/harfrust"
 license = "MIT"
