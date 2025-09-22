@@ -430,6 +430,9 @@ pub struct hb_buffer_t {
     pub context: [[Codepoint; CONTEXT_LENGTH]; 2],
     pub context_len: [usize; 2],
 
+    pub(crate) digest: hb_set_digest_t,
+    pub(crate) glyph_set: U32Set,
+
     // Managed by enter / leave
     pub allocated_var_bits: u8,
     pub serial: u8,
@@ -438,8 +441,6 @@ pub struct hb_buffer_t {
     pub max_len: usize,
     /// Maximum allowed operations.
     pub max_ops: i32,
-
-    pub(crate) glyph_set: U32Set,
 }
 
 impl hb_buffer_t {
@@ -479,6 +480,7 @@ impl hb_buffer_t {
             serial: 0,
             context: Default::default(),
             context_len: [0, 0],
+            digest: hb_set_digest_t::new(),
             glyph_set: U32Set::default(),
         }
     }
@@ -582,10 +584,9 @@ impl hb_buffer_t {
         &mut self.out_info_mut()[idx]
     }
 
-    pub fn digest(&self) -> hb_set_digest_t {
-        let mut digest = hb_set_digest_t::new();
-        digest.add_array(self.info.iter().map(|i| i.glyph_id));
-        digest
+    pub fn update_digest(&mut self) {
+        self.digest = hb_set_digest_t::new();
+        self.digest.add_array(self.info.iter().map(|i| i.glyph_id));
     }
     pub fn update_glyph_set(&mut self) {
         self.glyph_set.clear();

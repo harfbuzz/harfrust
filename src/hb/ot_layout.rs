@@ -160,7 +160,7 @@ pub fn apply_layout_table<T: LayoutTable>(
                     continue;
                 };
 
-                if lookup.digest().may_intersect(&ctx.digest) {
+                if lookup.digest().may_intersect(&ctx.buffer.digest) {
                     ctx.lookup_index = lookup_map.index;
                     ctx.set_lookup_mask(lookup_map.mask);
                     ctx.auto_zwj = lookup_map.auto_zwj;
@@ -176,7 +176,7 @@ pub fn apply_layout_table<T: LayoutTable>(
 
         if let Some(func) = stage.pause_func {
             if func(plan, face, ctx.buffer) {
-                ctx.digest = ctx.buffer.digest();
+                ctx.buffer.update_digest();
             }
         }
     }
