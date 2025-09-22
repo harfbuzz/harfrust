@@ -773,7 +773,6 @@ pub struct WouldApplyContext<'a> {
 
 pub mod OT {
     use super::*;
-    use crate::hb::set_digest::hb_set_digest_t;
 
     fn match_properties_mark(
         face: &hb_font_t,
@@ -845,7 +844,6 @@ pub mod OT {
         pub new_syllables: Option<u8>,
         pub last_base: i32,
         pub last_base_until: u32,
-        pub digest: hb_set_digest_t,
         pub(crate) matcher: matcher_t,
         pub(crate) context_matcher: matcher_t,
         pub(crate) match_positions_len: usize,
@@ -858,7 +856,6 @@ pub mod OT {
             face: &'a hb_font_t<'a>,
             buffer: &'a mut hb_buffer_t,
         ) -> Self {
-            let buffer_digest = buffer.digest();
             Self {
                 table_index,
                 face,
@@ -876,7 +873,6 @@ pub mod OT {
                 new_syllables: None,
                 last_base: -1,
                 last_base_until: 0,
-                digest: buffer_digest,
                 matcher: matcher_t::default(),
                 context_matcher: matcher_t::default(),
                 match_positions_len: 0,
@@ -951,7 +947,7 @@ pub mod OT {
             ligature: bool,
             component: bool,
         ) {
-            self.digest.add(glyph_id.into());
+            self.buffer.digest.add(glyph_id.into());
 
             if let Some(syllable) = self.new_syllables {
                 self.buffer.cur_mut(0).set_syllable(syllable);

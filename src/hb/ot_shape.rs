@@ -406,7 +406,9 @@ fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
 
     if ctx.plan.apply_morx {
         aat::layout::substitute(ctx.plan, ctx.face, ctx.buffer, ctx.features);
+        ctx.buffer.update_digest();
     } else {
+        ctx.buffer.update_digest();
         ot_layout_gsub_table::substitute(ctx.plan, ctx.face, ctx.buffer);
     }
 }
