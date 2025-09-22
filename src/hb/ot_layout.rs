@@ -235,14 +235,30 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
 
     let use_hot_subtable_cache = lookup.cache_enter(ctx);
 
-    while ctx.buffer.idx < ctx.buffer.len && ctx.buffer.successful {
-        let cur = ctx.buffer.cur(0);
-        if lookup.digest.may_have(cur.glyph_id)
-            && (cur.mask & ctx.lookup_mask()) != 0
-            && check_glyph_property(ctx.face, cur, ctx.lookup_props, ctx.cached_props)
-            && lookup
-                .apply(ctx, table_data, use_hot_subtable_cache)
-                .is_some()
+    while ctx.buffer.successful {
+        let mut j = ctx.buffer.idx;
+        while j < ctx.buffer.len
+            && !(lookup.digest.may_have(ctx.buffer.info[j].glyph_id)
+                && (ctx.buffer.info[j].mask & ctx.lookup_mask()) != 0
+                && check_glyph_property(
+                    ctx.face,
+                    &ctx.buffer.info[j],
+                    ctx.lookup_props,
+                    ctx.cached_props,
+                ))
+        {
+            j += 1;
+        }
+        if j > ctx.buffer.idx {
+            ctx.buffer.next_glyphs(j - ctx.buffer.idx);
+        }
+        if ctx.buffer.idx >= ctx.buffer.len {
+            break;
+        }
+
+        if lookup
+            .apply(ctx, table_data, use_hot_subtable_cache)
+            .is_some()
         {
             ret = true;
         } else {
