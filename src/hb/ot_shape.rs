@@ -957,8 +957,10 @@ fn propagate_flags(buffer: &mut hb_buffer_t) {
     foreach_cluster!(buffer, start, end, {
         let mut mask = 0;
         for info in &buffer.info[start..end] {
-            mask |= info.mask & glyph_flag::DEFINED;
+            mask |= info.mask;
         }
+
+        mask &= glyph_flag::DEFINED;
 
         if flip_tatweel {
             if mask & UNSAFE_TO_BREAK != 0 {
