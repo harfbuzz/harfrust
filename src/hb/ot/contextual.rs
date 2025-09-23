@@ -856,7 +856,7 @@ fn apply_chain_context_rules<
                 .get(index)
                 .is_some_and(|v| match_funcs.2(info, v.to_u16()))
         };
-        let len_p1 = (input.len() + 1).max(1);
+        let len_p1 = input.len() + 1;
         let matched_first = if len_p1 > 1 {
             match_input(&mut ctx.buffer.info[first], 0)
         } else {
