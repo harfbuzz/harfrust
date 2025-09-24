@@ -646,20 +646,20 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
         // Handle Emoji_Modifier and ZWJ-continuation.
         if gen_cat == GeneralCategory::MODIFIER_SYMBOL && matches!(info.glyph_id, 0x1F3FB..=0x1F3FF)
         {
-            info.set_continuation();
+            info.set_continuation(&mut buffer.scratch_flags);
         } else if i != 0 && matches!(info.glyph_id, 0x1F1E6..=0x1F1FF) {
             // Should never fail because we checked for i > 0.
             // TODO: use let chains when they become stable
             let prev = prior.last().unwrap();
             if matches!(prev.glyph_id, 0x1F1E6..=0x1F1FF) && !prev.is_continuation() {
-                info.set_continuation();
+                info.set_continuation(&mut buffer.scratch_flags);
             }
         } else if info.is_zwj() {
-            info.set_continuation();
+            info.set_continuation(&mut buffer.scratch_flags);
             if let Some(next) = buffer.info[..len].get_mut(i + 1) {
                 if next.as_codepoint().is_emoji_extended_pictographic() {
                     next.init_unicode_props(&mut buffer.scratch_flags);
-                    next.set_continuation();
+                    next.set_continuation(&mut buffer.scratch_flags);
                     i += 1;
                 }
             }
@@ -677,7 +677,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
             // https://github.com/harfbuzz/harfbuzz/issues/1556
             // Katakana ones were requested:
             // https://github.com/harfbuzz/harfbuzz/issues/3844
-            info.set_continuation();
+            info.set_continuation(&mut buffer.scratch_flags);
         }
 
         i += 1;
@@ -708,7 +708,7 @@ fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {
 }
 
 fn form_clusters(buffer: &mut hb_buffer_t) {
-    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII != 0 {
+    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_CONTINUATIONS != 0 {
         if BufferClusterLevel::new(buffer.cluster_level).is_graphemes() {
             foreach_grapheme!(buffer, start, end, { buffer.merge_clusters(start, end) });
         } else {

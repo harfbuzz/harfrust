@@ -385,7 +385,8 @@ fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_
         buffer.output_glyph(nikhahit_from_sara_am(u));
         {
             let out_idx = buffer.out_len - 1;
-            buffer.out_info_mut()[out_idx].set_continuation();
+            let mut info = buffer.out_info_mut()[out_idx];
+            info.set_continuation(&mut buffer.scratch_flags);
         }
         buffer.replace_glyph(sara_aa_from_sara_am(u));
 
