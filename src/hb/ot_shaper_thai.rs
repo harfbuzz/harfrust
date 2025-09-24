@@ -88,7 +88,7 @@ impl PuaMapping {
     }
 }
 
-const SD_MAPPINGS: &[PuaMapping] = &[
+static SD_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0E48, 0xF70A, 0xF88B), // MAI EK
     PuaMapping::new(0x0E49, 0xF70B, 0xF88E), // MAI THO
     PuaMapping::new(0x0E4A, 0xF70C, 0xF891), // MAI TRI
