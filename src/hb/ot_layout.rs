@@ -554,7 +554,8 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L365>
     #[doc(alias = "_hb_glyph_info_set_continuation")]
     #[inline]
-    pub(crate) fn set_continuation(&mut self) {
+    pub(crate) fn set_continuation(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
+        *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_CONTINUATIONS;
         let mut n = self.unicode_props();
         n |= UnicodeProps::CONTINUATION.bits();
         self.set_unicode_props(n);
