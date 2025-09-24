@@ -170,7 +170,7 @@ pub mod ot_position_t {
     pub const POS_END: u8 = 14;
 }
 
-static INDIC_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
+const INDIC_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
     // Basic features.
     // These features are applied in order, one at a time, after initial_reordering,
     // constrained to the syllable.

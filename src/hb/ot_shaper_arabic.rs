@@ -70,7 +70,7 @@ fn feature_is_syriac(tag: hb_tag_t) -> bool {
     matches!(tag.to_be_bytes()[3], b'2' | b'3')
 }
 
-static ARABIC_FEATURES: &[hb_tag_t] = &[
+const ARABIC_FEATURES: &[hb_tag_t] = &[
     hb_tag_t::new(b"isol"),
     hb_tag_t::new(b"fina"),
     hb_tag_t::new(b"fin2"),
