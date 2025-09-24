@@ -100,7 +100,7 @@ static SD_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0000, 0x0000, 0x0000),
 ];
 
-const SDL_MAPPINGS: &[PuaMapping] = &[
+static SDL_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0E48, 0xF705, 0xF88C), // MAI EK
     PuaMapping::new(0x0E49, 0xF706, 0xF88F), // MAI THO
     PuaMapping::new(0x0E4A, 0xF707, 0xF892), // MAI TRI
@@ -109,7 +109,7 @@ const SDL_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0000, 0x0000, 0x0000),
 ];
 
-const SL_MAPPINGS: &[PuaMapping] = &[
+static SL_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0E48, 0xF713, 0xF88A), // MAI EK
     PuaMapping::new(0x0E49, 0xF714, 0xF88D), // MAI THO
     PuaMapping::new(0x0E4A, 0xF715, 0xF890), // MAI TRI
@@ -125,7 +125,7 @@ const SL_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0000, 0x0000, 0x0000),
 ];
 
-const RD_MAPPINGS: &[PuaMapping] = &[
+static RD_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0E0D, 0xF70F, 0xF89A), // YO YING
     PuaMapping::new(0x0E10, 0xF700, 0xF89E), // THO THAN
     PuaMapping::new(0x0000, 0x0000, 0x0000),
@@ -166,7 +166,7 @@ enum AboveState {
     T3, //           ⣿
 }
 
-const ABOVE_START_STATE: &[AboveState] = &[
+static ABOVE_START_STATE: &[AboveState] = &[
     AboveState::T0, // NC
     AboveState::T1, // AC
     AboveState::T0, // RC
@@ -188,7 +188,7 @@ impl AboveStateMachineEdge {
 
 type ASME = AboveStateMachineEdge;
 
-const ABOVE_STATE_MACHINE: &[[ASME; 3]] = &[
+static ABOVE_STATE_MACHINE: &[[ASME; 3]] = &[
     //        AV                                      BV                                      T
     /* T0 */
     [
@@ -226,7 +226,7 @@ enum BelowState {
     B2,
 }
 
-const BELOW_START_STATE: &[BelowState] = &[
+static BELOW_START_STATE: &[BelowState] = &[
     BelowState::B0, // NC
     BelowState::B0, // AC
     BelowState::B1, // RC
@@ -248,7 +248,7 @@ impl BelowStateMachineEdge {
 
 type BSME = BelowStateMachineEdge;
 
-const BELOW_STATE_MACHINE: &[[BSME; 3]] = &[
+static BELOW_STATE_MACHINE: &[[BSME; 3]] = &[
     //        AV                                      BV                                      T
     /* B0 */
     [

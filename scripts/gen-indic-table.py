@@ -545,7 +545,7 @@ print('pub type SyllabicCategory = u8;')
 print('pub type MatraCategory = u8;')
 print('')
 print('#[rustfmt::skip]')
-print('const TABLE: &[(SyllabicCategory, MatraCategory)] = &[')
+print('static TABLE: &[(SyllabicCategory, MatraCategory)] = &[')
 offsets = []
 for u in uu:
     if u <= last:

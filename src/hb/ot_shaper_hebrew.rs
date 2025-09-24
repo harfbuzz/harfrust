@@ -49,7 +49,7 @@ fn reorder_marks_hebrew(
     }
 }
 
-const S_DAGESH_FORMS: &[Codepoint] = &[
+static S_DAGESH_FORMS: &[Codepoint] = &[
     0xFB30, // ALEF
     0xFB31, // BET
     0xFB32, // GIMEL

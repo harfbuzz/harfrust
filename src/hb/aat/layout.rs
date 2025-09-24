@@ -412,7 +412,7 @@ impl FeatureMapping {
 /// Table data courtesy of Apple.
 /// Converted from mnemonics to integers when moving to this file.
 #[rustfmt::skip]
-pub const feature_mappings: &[FeatureMapping] = &[
+pub static feature_mappings: &[FeatureMapping] = &[
     FeatureMapping::new(b"afrc", FEATURE_TYPE_FRACTIONS, FEATURE_SELECTOR_VERTICAL_FRACTIONS, FEATURE_SELECTOR_NO_FRACTIONS),
     FeatureMapping::new(b"c2pc", FEATURE_TYPE_UPPER_CASE, FEATURE_SELECTOR_UPPER_CASE_PETITE_CAPS, FEATURE_SELECTOR_DEFAULT_UPPER_CASE),
     FeatureMapping::new(b"c2sc", FEATURE_TYPE_UPPER_CASE, FEATURE_SELECTOR_UPPER_CASE_SMALL_CAPS, FEATURE_SELECTOR_DEFAULT_UPPER_CASE),

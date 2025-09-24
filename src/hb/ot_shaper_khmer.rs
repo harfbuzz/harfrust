@@ -39,7 +39,7 @@ impl GlyphInfo {
     );
 }
 
-const KHMER_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
+static KHMER_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
     // Basic features.
     // These features are applied all at once, before reordering, constrained
     // to the syllable.

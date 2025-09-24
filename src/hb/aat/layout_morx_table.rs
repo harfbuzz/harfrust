@@ -519,7 +519,7 @@ impl DriverContext<NoPayload> for RearrangementCtx {
             // and end-side. Values of 0,1,2 mean move that many
             // to the other side. Value of 3 means move 2 and
             // flip them.
-            const MAP: [u8; 16] = [
+            static MAP: [u8; 16] = [
                 0x00, // 0  no change
                 0x10, // 1  Ax => xA
                 0x01, // 2  xD => Dx

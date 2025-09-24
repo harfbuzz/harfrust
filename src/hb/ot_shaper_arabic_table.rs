@@ -7,7 +7,7 @@ use super::ot_shaper_arabic::hb_arabic_joining_type_t::{
 };
 
 #[rustfmt::skip]
-pub const JOINING_TABLE: &[hb_arabic_joining_type_t] = &[
+pub(crate) static JOINING_TABLE: &[hb_arabic_joining_type_t] = &[
 
   /* Arabic */
 

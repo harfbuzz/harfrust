@@ -59,7 +59,7 @@ pub type SyllabicCategory = u8;
 pub type MatraCategory = u8;
 
 #[rustfmt::skip]
-const TABLE: &[(SyllabicCategory, MatraCategory)] = &[
+static TABLE: &[(SyllabicCategory, MatraCategory)] = &[
 
 
   /* Basic Latin */
