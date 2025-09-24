@@ -936,10 +936,6 @@ fn propagate_flags(buffer: &mut hb_buffer_t) {
     // Propagate cluster-level glyph flags to be the same on all cluster glyphs.
     // Simplifies using them.
 
-    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS == 0 {
-        return;
-    }
-
     let mut and_mask = glyph_flag::DEFINED;
     if !buffer.flags.contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT) {
         and_mask &= !UNSAFE_TO_CONCAT;

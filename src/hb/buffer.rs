@@ -1187,8 +1187,6 @@ impl hb_buffer_t {
         interior: bool,
         from_out_buffer: bool,
     ) {
-        self.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
-
         if !from_out_buffer || !self.have_output {
             if !interior {
                 for info in &mut self.info[start..end] {
@@ -1498,8 +1496,6 @@ impl hb_buffer_t {
         cluster: u32,
         mask: hb_mask_t,
     ) {
-        let mut apply_scratch_flags = false;
-
         if start == end {
             return;
         }
@@ -1520,13 +1516,8 @@ impl hb_buffer_t {
         {
             for info in &mut infos[start..end] {
                 if info.cluster != cluster {
-                    apply_scratch_flags = true;
                     info.mask |= mask;
                 }
-            }
-
-            if apply_scratch_flags {
-                self.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
             }
 
             return;
@@ -1537,7 +1528,6 @@ impl hb_buffer_t {
             let mut i = end;
             while start < i && infos[i - 1].cluster != cluster_first {
                 if cluster != infos[i - 1].cluster {
-                    apply_scratch_flags = true;
                     infos[i - 1].mask |= mask;
                 }
 
@@ -1547,16 +1537,11 @@ impl hb_buffer_t {
             let mut i = start;
             while i < end && infos[i].cluster != cluster_last {
                 if cluster != infos[i].cluster {
-                    apply_scratch_flags = true;
                     infos[i].mask |= mask;
                 }
 
                 i += 1;
             }
-        }
-
-        if apply_scratch_flags {
-            self.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS;
         }
     }
 
@@ -1709,9 +1694,8 @@ pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x0000_0002;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK: u32 = 0x0000_0004;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT: u32 = 0x0000_0008;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_CGJ: u32 = 0x0000_0010;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS: u32 = 0x0000_0020;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE: u32 = 0x0000_0040;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK: u32 = 0x0000_0080;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE: u32 = 0x0000_0020;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK: u32 = 0x0000_0040;
 
 /* Reserved for shapers' internal use. */
 pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
