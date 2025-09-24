@@ -237,16 +237,12 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
 
     while ctx.buffer.successful {
         let mut j = ctx.buffer.idx;
-        while j < ctx.buffer.len
-            && !(lookup.digest.may_have(ctx.buffer.info[j].glyph_id)
-                && (ctx.buffer.info[j].mask & ctx.lookup_mask()) != 0
-                && check_glyph_property(
-                    ctx.face,
-                    &ctx.buffer.info[j],
-                    ctx.lookup_props,
-                    ctx.cached_props,
-                ))
-        {
+        while j < ctx.buffer.len && {
+            let info = &ctx.buffer.info[j];
+            !(lookup.digest.may_have(info.glyph_id)
+                && (info.mask & ctx.lookup_mask()) != 0
+                && check_glyph_property(ctx.face, info, ctx.lookup_props, ctx.cached_props))
+        } {
             j += 1;
         }
         if j > ctx.buffer.idx {
