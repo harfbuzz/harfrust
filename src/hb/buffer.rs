@@ -339,8 +339,6 @@ impl GlyphInfo {
         let mut props = gc.0 as u16;
 
         if u >= 0x80 {
-            *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII;
-
             if u.is_default_ignorable() {
                 props |= UnicodeProps::IGNORABLE.bits();
                 *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES;
@@ -1690,7 +1688,7 @@ bitflags::bitflags! {
 
 pub type hb_buffer_scratch_flags_t = u32;
 pub const HB_BUFFER_SCRATCH_FLAG_DEFAULT: u32 = 0x0000_0000;
-pub const HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII: u32 = 0x0000_0001;
+pub const HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH: u32 = 0x0000_0001;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x0000_0002;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK: u32 = 0x0000_0004;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT: u32 = 0x0000_0008;
