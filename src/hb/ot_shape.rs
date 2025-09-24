@@ -534,7 +534,7 @@ fn setup_masks(ctx: &mut hb_ot_shape_context_t) {
 
 fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
     let buffer = &mut ctx.buffer;
-    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII == 0 || !ctx.plan.has_frac {
+    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH == 0 || !ctx.plan.has_frac {
         return;
     }
 
@@ -678,6 +678,10 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
             // Katakana ones were requested:
             // https://github.com/harfbuzz/harfbuzz/issues/3844
             info.set_continuation(&mut buffer.scratch_flags);
+        } else if info.glyph_id == 0x2044
+        /* FRACTION SLASH */
+        {
+            buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH;
         }
 
         i += 1;

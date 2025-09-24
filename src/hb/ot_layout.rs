@@ -336,8 +336,6 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
 
 //     if (u >= 0x80u)
 //     {
-//       buffer->scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII;
-
 //       if (unlikely (unicode->is_default_ignorable (u)))
 //       {
 //         buffer->scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES;
