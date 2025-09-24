@@ -936,7 +936,31 @@ fn propagate_flags(buffer: &mut hb_buffer_t) {
     // Propagate cluster-level glyph flags to be the same on all cluster glyphs.
     // Simplifies using them.
 
-    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_GLYPH_FLAGS == 0 {
+    let mut and_mask = glyph_flag::DEFINED;
+    if !buffer.flags.contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT) {
+        and_mask &= !UNSAFE_TO_CONCAT;
+    }
+
+    if !buffer
+        .flags
+        .contains(BufferFlags::PRODUCE_SAFE_TO_INSERT_TATWEEL)
+    {
+        foreach_cluster!(buffer, start, end, {
+            if end - start == 1 {
+                buffer.info[start].mask &= and_mask;
+            } else {
+                let mut mask = 0;
+                for info in &buffer.info[start..end] {
+                    mask |= info.mask;
+                }
+
+                mask &= and_mask;
+
+                for info in &mut buffer.info[start..end] {
+                    info.mask = mask;
+                }
+            }
+        });
         return;
     }
 
@@ -948,19 +972,16 @@ fn propagate_flags(buffer: &mut hb_buffer_t) {
      *
      * We couldn't make this interaction earlier. It has to be done here.
      */
-    let flip_tatweel = buffer
-        .flags
-        .contains(BufferFlags::PRODUCE_SAFE_TO_INSERT_TATWEEL);
-
-    let clear_concat = !buffer.flags.contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT);
-
     foreach_cluster!(buffer, start, end, {
-        let mut mask = 0;
-        for info in &buffer.info[start..end] {
-            mask |= info.mask & glyph_flag::DEFINED;
-        }
+        // We cannot use `continue` in our `for_each_cluster!` macro.
+        if end - start != 1 {
+            let mut mask = 0;
+            for info in &buffer.info[start..end] {
+                mask |= info.mask;
+            }
 
-        if flip_tatweel {
+            mask &= glyph_flag::DEFINED;
+
             if mask & UNSAFE_TO_BREAK != 0 {
                 mask &= !SAFE_TO_INSERT_TATWEEL;
             }
@@ -968,18 +989,12 @@ fn propagate_flags(buffer: &mut hb_buffer_t) {
             if mask & SAFE_TO_INSERT_TATWEEL != 0 {
                 mask |= UNSAFE_TO_BREAK | UNSAFE_TO_CONCAT;
             }
-        }
 
-        if clear_concat {
-            mask &= !UNSAFE_TO_CONCAT;
+            mask &= and_mask;
 
             for info in &mut buffer.info[start..end] {
                 info.mask = mask;
             }
-        }
-
-        for info in &mut buffer.info[start..end] {
-            info.mask = mask;
         }
     });
 }
