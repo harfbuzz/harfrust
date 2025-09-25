@@ -126,7 +126,7 @@ pub mod category {
 
 // These features are applied all at once, before reordering,
 // constrained to the syllable.
-const BASIC_FEATURES: &[hb_tag_t] = &[
+static BASIC_FEATURES: &[hb_tag_t] = &[
     hb_tag_t::new(b"rkrf"),
     hb_tag_t::new(b"abvf"),
     hb_tag_t::new(b"blwf"),
@@ -136,7 +136,7 @@ const BASIC_FEATURES: &[hb_tag_t] = &[
     hb_tag_t::new(b"cjct"),
 ];
 
-const TOPOGRAPHICAL_FEATURES: &[hb_tag_t] = &[
+static TOPOGRAPHICAL_FEATURES: &[hb_tag_t] = &[
     hb_tag_t::new(b"isol"),
     hb_tag_t::new(b"init"),
     hb_tag_t::new(b"medi"),
@@ -153,7 +153,7 @@ enum JoiningForm {
 }
 
 // These features are applied all at once, after reordering and clearing syllables.
-const OTHER_FEATURES: &[hb_tag_t] = &[
+static OTHER_FEATURES: &[hb_tag_t] = &[
     hb_tag_t::new(b"abvs"),
     hb_tag_t::new(b"blws"),
     hb_tag_t::new(b"haln"),

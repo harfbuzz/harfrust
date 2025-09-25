@@ -91,7 +91,7 @@ def print_joining_table(f):
         last = u
 
     print("#[rustfmt::skip]")
-    print("pub const JOINING_TABLE: &[hb_arabic_joining_type_t] = &[")
+    print("pub(crate) static JOINING_TABLE: &[hb_arabic_joining_type_t] = &[")
     last_block = None
     offset = 0
 

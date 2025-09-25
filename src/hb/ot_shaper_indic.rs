@@ -335,7 +335,7 @@ impl IndicConfig {
     }
 }
 
-const INDIC_CONFIGS: &[IndicConfig] = &[
+static INDIC_CONFIGS: &[IndicConfig] = &[
     IndicConfig::new(
         None,
         false,

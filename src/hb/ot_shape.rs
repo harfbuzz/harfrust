@@ -82,7 +82,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
     }
 
     pub fn collect_features(&mut self, user_features: &[Feature]) {
-        const COMMON_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
+        static COMMON_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
             (hb_tag_t::new(b"abvm"), F_GLOBAL),
             (hb_tag_t::new(b"blwm"), F_GLOBAL),
             (hb_tag_t::new(b"ccmp"), F_GLOBAL),
@@ -92,7 +92,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             (hb_tag_t::new(b"rlig"), F_GLOBAL),
         ];
 
-        const HORIZONTAL_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
+        static HORIZONTAL_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
             (hb_tag_t::new(b"calt"), F_GLOBAL),
             (hb_tag_t::new(b"clig"), F_GLOBAL),
             (hb_tag_t::new(b"curs"), F_GLOBAL),

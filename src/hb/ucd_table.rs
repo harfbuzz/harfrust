@@ -16,7 +16,7 @@ use crate::hb::algs::{HB_CODEPOINT_ENCODE3, HB_CODEPOINT_ENCODE3_11_7_14};
 use crate::hb::common::script;
 use crate::hb::common::Script as hb_script_t;
 
-pub const _hb_ucd_sc_map: [hb_script_t; 176]=
+pub(crate) static _hb_ucd_sc_map: [hb_script_t; 176]=
 [
                    script::COMMON,              script::INHERITED,
                   script::UNKNOWN,                 script::ARABIC,
@@ -107,7 +107,7 @@ pub const _hb_ucd_sc_map: [hb_script_t; 176]=
                script::BERIA_ERFE,                script::SIDETIC,
                    script::TAI_YO,            script::TOLONG_SIKI,
 ];
-pub const _hb_ucd_dm1_p0_map: [u16; 825]=
+pub(crate) static _hb_ucd_dm1_p0_map: [u16; 825]=
 [
    0x003B, 0x004B, 0x0060, 0x00B4, 0x00B7, 0x00C5, 0x02B9, 0x0300,
    0x0301, 0x0313, 0x0385, 0x0386, 0x0388, 0x0389, 0x038A, 0x038C,
@@ -214,7 +214,7 @@ pub const _hb_ucd_dm1_p0_map: [u16; 825]=
    0x9EFE, 0x9F05, 0x9F0F, 0x9F16, 0x9F3B, 0x9F43, 0x9F8D, 0x9F8E,
    0x9F9C,
 ];
-pub const _hb_ucd_dm1_p2_map: [u16; 110]=
+pub(crate) static _hb_ucd_dm1_p2_map: [u16; 110]=
 [
    0x0122, 0x051C, 0x0525, 0x054B, 0x063A, 0x0804, 0x08DE, 0x0A2C,
    0x0B63, 0x14E4, 0x16A8, 0x16EA, 0x19C8, 0x1B18, 0x1D0B, 0x1DE4,
@@ -231,7 +231,7 @@ pub const _hb_ucd_dm1_p2_map: [u16; 110]=
    0x8D77, 0x9145, 0x91DF, 0x921A, 0x940A, 0x9496, 0x95B6, 0x9B30,
    0xA0CE, 0xA105, 0xA20E, 0xA291, 0xA392, 0xA600,
 ];
-pub const _hb_ucd_dm2_u32_map: [u32; 638]=
+pub(crate) static _hb_ucd_dm2_u32_map: [u32; 638]=
 [
   HB_CODEPOINT_ENCODE3_11_7_14 (0x003C, 0x0338, 0x226E),HB_CODEPOINT_ENCODE3_11_7_14 (0x003D, 0x0338, 0x2260),
   HB_CODEPOINT_ENCODE3_11_7_14 (0x003E, 0x0338, 0x226F),HB_CODEPOINT_ENCODE3_11_7_14 (0x0041, 0x0300, 0x00C0),
@@ -553,7 +553,7 @@ pub const _hb_ucd_dm2_u32_map: [u32; 638]=
   HB_CODEPOINT_ENCODE3_11_7_14 (0x04D8, 0x0308, 0x04DA),HB_CODEPOINT_ENCODE3_11_7_14 (0x04D9, 0x0308, 0x04DB),
   HB_CODEPOINT_ENCODE3_11_7_14 (0x04E8, 0x0308, 0x04EA),HB_CODEPOINT_ENCODE3_11_7_14 (0x04E9, 0x0308, 0x04EB),
 ];
-pub const _hb_ucd_dm2_u64_map: [u64; 408]=
+pub(crate) static _hb_ucd_dm2_u64_map: [u64; 408]=
 [
      HB_CODEPOINT_ENCODE3 (0x05D0, 0x05B7, 0x0000),   HB_CODEPOINT_ENCODE3 (0x05D0, 0x05B8, 0x0000),
      HB_CODEPOINT_ENCODE3 (0x05D0, 0x05BC, 0x0000),   HB_CODEPOINT_ENCODE3 (0x05D1, 0x05BC, 0x0000),
@@ -2703,11 +2703,11 @@ static _hb_ucd_i16: [i16; 196]=
      -1,    0,    1,   -1,
 ];
 
-pub fn _hb_ucd_gc (u: usize) -> u8
+pub(crate) fn _hb_ucd_gc (u: usize) -> u8
 {
   if u<1114110 { _hb_ucd_u8[7920usize+((((_hb_ucd_u8[2176usize+((((_hb_ucd_u16[(((_hb_ucd_u8[((((((u)>>1))>>3))>>5) as usize]) as usize)<<5) as usize+((((((u)>>1))>>3))&31) as usize]) as usize)<<3) as usize+((((u)>>1))&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize] } else { 2 }
 }
-pub fn _hb_ucd_ccc (u: usize) -> u8
+pub(crate) fn _hb_ucd_ccc (u: usize) -> u8
 {
   if u<125259 { _hb_ucd_u8[10388usize+((((_hb_ucd_u8[9284usize+((((_hb_ucd_u8[8548usize+((((_hb_ucd_u8[8302usize+(((((((u)>>2))>>3))>>4) as usize) as usize]) as usize)<<4) as usize+((((((u)>>2))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize) as usize] } else { 0 }
 }
@@ -2715,15 +2715,15 @@ fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
 {
   (a[i>>1]>>((i&1)<<2))&15
 }
-pub fn _hb_ucd_bmg (u: usize) -> i16
+pub(crate) fn _hb_ucd_bmg (u: usize) -> i16
 {
   if u<65380 { _hb_ucd_i16[(((_hb_ucd_u8[11140usize+((((_hb_ucd_u8[11020usize+((((_hb_ucd_b4(&_hb_ucd_u8[10892usize..],((((((u)>>2))>>3))>>3) as usize)) as usize)<<3) as usize+((((((u)>>2))>>3))&7) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize] } else { 0 }
 }
-pub fn _hb_ucd_sc (u: usize) -> u8
+pub(crate) fn _hb_ucd_sc (u: usize) -> u8
 {
   if u<918000 { _hb_ucd_u8[12662usize+((((_hb_ucd_u16[3328usize+((((_hb_ucd_u8[11926usize+((((_hb_ucd_u8[11476usize+(((((((u)>>3))>>4))>>4) as usize) as usize]) as usize)<<4) as usize+((((((u)>>3))>>4))&15) as usize) as usize]) as usize)<<4) as usize+((((u)>>3))&15) as usize) as usize]) as usize)<<3) as usize+((u)&7) as usize) as usize] } else { 2 }
 }
-pub fn _hb_ucd_dm (u: usize) -> u16
+pub(crate) fn _hb_ucd_dm (u: usize) -> u16
 {
   if u<195102 { _hb_ucd_u16[7408usize+((((_hb_ucd_u8[18972usize+((((_hb_ucd_u8[18590usize+(((((u)>>4))>>5) as usize) as usize]) as usize)<<5) as usize+((((u)>>4))&31) as usize) as usize]) as usize)<<4) as usize+((u)&15) as usize) as usize] } else { 0 }
 }

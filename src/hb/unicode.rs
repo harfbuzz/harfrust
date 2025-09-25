@@ -256,7 +256,7 @@ pub mod modified_combining_class {
 }
 
 #[rustfmt::skip]
-const MODIFIED_COMBINING_CLASS: &[u8; 256] = &[
+static MODIFIED_COMBINING_CLASS: &[u8; 256] = &[
     combining_class::NotReordered,
     combining_class::Overlay,
     2, 3, 4, 5, 6,

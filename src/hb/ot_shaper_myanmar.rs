@@ -61,7 +61,7 @@ pub const MYANMAR_ZAWGYI_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     fallback_position: false,
 };
 
-const MYANMAR_FEATURES: &[hb_tag_t] = &[
+static MYANMAR_FEATURES: &[hb_tag_t] = &[
     // Basic features.
     // These features are applied in order, one at a time, after reordering,
     // constrained to the syllable.

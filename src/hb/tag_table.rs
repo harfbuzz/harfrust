@@ -2,13 +2,13 @@
 
 use read_fonts::types::Tag;
 
-pub struct LangTag {
+pub(crate) struct LangTag {
     pub language: &'static str,
     pub tag: Tag,
 }
 
 #[rustfmt::skip]
-pub const OPEN_TYPE_LANGUAGES: &[LangTag] = &[
+pub(crate) static OPEN_TYPE_LANGUAGES: &[LangTag] = &[
     LangTag { language: "aa", 	tag: Tag::new(b"AFR ") }, // Afar
     LangTag { language: "aae", 	tag: Tag::new(b"SQI ") }, // Arbëreshë Albanian -> Albanian
     LangTag { language: "aao", 	tag: Tag::new(b"ARA ") }, // Algerian Saharan Arabic -> Arabic

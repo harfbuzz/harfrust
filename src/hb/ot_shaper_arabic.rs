@@ -100,7 +100,7 @@ mod arabic_action_t {
     }
 }
 
-const STATE_TABLE: &[[(u8, u8, u16); 6]] = &[
+static STATE_TABLE: &[[(u8, u8, u16); 6]] = &[
     // jt_U,          jt_L,          jt_R,
     // jt_D,          jg_ALAPH,      jg_DALATH_RISH
 
@@ -607,7 +607,7 @@ fn postprocess_glyphs_arabic(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &
 }
 
 // http://www.unicode.org/reports/tr53/
-const MODIFIER_COMBINING_MARKS: &[u32] = &[
+static MODIFIER_COMBINING_MARKS: &[u32] = &[
     0x0654, // ARABIC HAMZA ABOVE
     0x0655, // ARABIC HAMZA BELOW
     0x0658, // ARABIC MARK NOON GHUNNA
