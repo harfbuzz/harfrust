@@ -2,11 +2,13 @@ use crate::hb::ot::{coverage_index, coverage_index_cached, ClassDefInfo, Coverag
 use crate::hb::ot::{glyph_class, glyph_class_cached};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
-    PairPosFormat2SmallCache, SubtableExternalCache, SubtableExternalCacheMode,
+    skipping_iterator_t, Apply, MappingCache, PairPosFormat1Cache, PairPosFormat1SmallCache,
+    PairPosFormat2Cache, PairPosFormat2Header, PairPosFormat2SmallCache, SubtableExternalCache,
+    SubtableExternalCacheMode,
 };
 use alloc::boxed::Box;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
+use read_fonts::FontData;
 
 impl Apply for PairPosFormat1<'_> {
     fn apply_with_external_cache(
@@ -250,26 +252,147 @@ impl Apply for PairPosFormat2<'_> {
     }
 
     fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
+        let format1 = self.value_format1();
+        let format2 = self.value_format2();
+        let class2_count = self.class2_count();
+        let header = PairPosFormat2Header {
+            format1,
+            format2,
+            class2_count,
+        };
+        let data = self.offset_data();
+        let coverage =
+            CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16).unwrap_or_default();
+        let first =
+            ClassDefInfo::new(&data, self.class_def1_offset().to_u32() as u16).unwrap_or_default();
+        let second =
+            ClassDefInfo::new(&data, self.class_def2_offset().to_u32() as u16).unwrap_or_default();
         match mode {
             SubtableExternalCacheMode::Full => {
-                SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
+                let cache = Box::new(PairPosFormat2Cache {
+                    coverage: MappingCache::new(),
+                    first: MappingCache::new(),
+                    second: MappingCache::new(),
+                    coverage_info: coverage,
+                    first_info: first,
+                    second_info: second,
+                    header,
+                });
+                SubtableExternalCache::PairPosFormat2Cache(cache)
             }
             SubtableExternalCacheMode::Small => {
-                let data = self.offset_data();
-                let coverage = CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16);
-                let class1 = ClassDefInfo::new(&data, self.class_def1_offset().to_u32() as u16);
-                let class2 = ClassDefInfo::new(&data, self.class_def2_offset().to_u32() as u16);
-                if let Some((coverage, (first, second))) = coverage.zip(class1.zip(class2)) {
-                    SubtableExternalCache::PairPosFormat2SmallCache(PairPosFormat2SmallCache {
-                        coverage,
-                        first,
-                        second,
-                    })
-                } else {
-                    SubtableExternalCache::None
-                }
+                SubtableExternalCache::PairPosFormat2SmallCache(PairPosFormat2SmallCache {
+                    header,
+                    coverage,
+                    first,
+                    second,
+                })
             }
             SubtableExternalCacheMode::None => SubtableExternalCache::None,
         }
     }
+}
+
+pub(crate) fn apply_pair_pos2_direct(
+    ctx: &mut hb_ot_apply_context_t,
+    subtable_data: &[u8],
+    external_cache: &SubtableExternalCache,
+) -> Option<()> {
+    let first_glyph = ctx.buffer.cur(0).as_glyph();
+    let data = FontData::new(subtable_data);
+    match external_cache {
+        SubtableExternalCache::PairPosFormat2Cache(cache) => coverage_index_cached(
+            |gid| cache.coverage_info.index(&data, gid),
+            first_glyph,
+            &cache.coverage,
+        )?,
+        SubtableExternalCache::PairPosFormat2SmallCache(cache) => {
+            cache.coverage.index(&data, first_glyph)?
+        }
+        _ => return None,
+    };
+    let mut iter = skipping_iterator_t::new(ctx, false);
+    iter.reset(iter.buffer.idx);
+
+    let mut unsafe_to = 0;
+    if !iter.next(Some(&mut unsafe_to)) {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+        return None;
+    }
+
+    let second_glyph_index = iter.index();
+    let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
+
+    let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        if has_record2 {
+            *iter_index += 1;
+            // https://github.com/harfbuzz/harfbuzz/issues/3824
+            // https://github.com/harfbuzz/harfbuzz/issues/3888#issuecomment-1326781116
+            ctx.buffer
+                .unsafe_to_break(Some(ctx.buffer.idx), Some(*iter_index + 1));
+        }
+
+        ctx.buffer.idx = *iter_index;
+
+        Some(())
+    };
+
+    let boring = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+        finish(ctx, iter_index, has_record2)
+    };
+
+    let success =
+        |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
+            if flag1 || flag2 {
+                ctx.buffer
+                    .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+                finish(ctx, iter_index, has_record2)
+            } else {
+                boring(ctx, iter_index, has_record2)
+            }
+        };
+    let (class1, class2, header) = match external_cache {
+        SubtableExternalCache::PairPosFormat2Cache(cache) => (
+            glyph_class_cached(
+                |gid| cache.first_info.class(&data, gid),
+                first_glyph,
+                &cache.first,
+            ),
+            glyph_class_cached(
+                |gid| cache.second_info.class(&data, gid),
+                second_glyph,
+                &cache.second,
+            ),
+            &cache.header,
+        ),
+        SubtableExternalCache::PairPosFormat2SmallCache(cache) => (
+            cache.first.class(&data, first_glyph),
+            cache.second.class(&data, second_glyph),
+            &cache.header,
+        ),
+        _ => return None,
+    };
+    let mut buf_idx = iter.buf_idx;
+    let format1_len = header.format1.record_byte_len();
+    let record_size = format1_len + header.format2.record_byte_len();
+    // Compute an offset into the 2D array of positioning records
+    let record_offset = (class1 as usize * record_size * header.class2_count as usize)
+        + (class2 as usize * record_size)
+        + 16;
+    let has_record2 = !header.format2.is_empty();
+    let worked1 = !header.format1.is_empty()
+        && super::apply_value(ctx, ctx.buffer.idx, &data, record_offset, header.format1)
+            == Some(true);
+    let worked2 = has_record2
+        && super::apply_value(
+            ctx,
+            second_glyph_index,
+            &data,
+            record_offset + format1_len,
+            header.format2,
+        ) == Some(true);
+    success(ctx, &mut buf_idx, worked1, worked2, has_record2)
 }
