@@ -413,12 +413,16 @@ impl WouldApply for ChainedSequenceContextFormat3<'_> {
         (!ctx.zero_context
             || (self.backtrack_coverage_offsets().is_empty()
                 && self.lookahead_coverage_offsets().is_empty()))
-            && (ctx.glyphs.len() == input_coverages.len() + 1
-                && input_coverages.iter().enumerate().all(|(i, coverage)| {
-                    coverage
-                        .map(|cov| cov.get(ctx.glyphs[i + 1]).is_some())
-                        .unwrap_or(false)
-                }))
+            && (ctx.glyphs.len() == input_coverages.len()
+                && input_coverages
+                    .iter()
+                    .skip(1)
+                    .enumerate()
+                    .all(|(i, coverage)| {
+                        coverage
+                            .map(|cov| cov.get(ctx.glyphs[i + 1]).is_some())
+                            .unwrap_or(false)
+                    }))
     }
 }
 
