@@ -141,6 +141,10 @@ fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffe
     use super::khmer_machine::SyllableType;
 
     let mut ret = false;
+    if !buffer_message!(buffer, font, "start reordering khmer") {
+        buffer.deallocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
+        return ret;
+    }
 
     if insert_dotted_circles(
         font,

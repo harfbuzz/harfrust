@@ -583,6 +583,7 @@ fn initial_reordering(
     use super::indic_machine::SyllableType;
 
     let mut ret = false;
+    if !buffer_message!(buffer, font, "start reordering indic initial") { return ret; }
 
     let indic_plan = plan.data::<IndicShapePlan>();
 

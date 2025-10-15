@@ -159,7 +159,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     buffer: &mut Buffer,
     table: Option<&T>,
 ) {
-    let mut ctx = ApplyContext::new(T::KIND, font.layout(), font.scale, buffer);
+    let mut ctx = ApplyContext::new(T::KIND, font.layout(), font.scale, buffer, #[cfg(feature = "tracing")] font);
 
     for (stage_index, stage) in plan.ot_map.stages(T::KIND).iter().enumerate() {
         if let Some(table) = table {
@@ -167,6 +167,8 @@ pub fn apply_layout_table<T: LayoutTable>(
                 let Some(lookup) = table.get_lookup(lookup_map.index) else {
                     continue;
                 };
+
+                message_continue!(ctx, "start lookup {}", lookup_map.index);
 
                 if lookup.digest().may_intersect(&ctx.buffer.digest)
                     && (ctx
@@ -183,8 +185,13 @@ pub fn apply_layout_table<T: LayoutTable>(
                     ctx.random = lookup_map.random;
                     ctx.per_syllable = lookup_map.per_syllable;
 
-                    apply_string::<T>(&mut ctx, lookup);
+                    if !apply_string::<T>(&mut ctx, lookup) {
+                        message!(ctx, "skipped lookup {} because no glyph matches", lookup_map.index);
+                    }
+                } else {
+                    message!(ctx, "skipped lookup {} because no glyph matches", lookup_map.index);
                 }
+                message!(ctx, "end lookup {}", lookup_map.index);
             }
         }
 
@@ -203,9 +210,10 @@ pub fn apply_layout_table<T: LayoutTable>(
 
 fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
-        return;
+        return false;
     }
 
+    let ret;
     ctx.lookup_props = lookup.props();
     ctx.update_matchers();
 
@@ -215,7 +223,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) {
             ctx.buffer.clear_output();
         }
         ctx.buffer.idx = 0;
-        apply_forward(ctx, lookup);
+        ret = apply_forward(ctx, lookup);
 
         if !T::IN_PLACE {
             ctx.buffer.sync();
@@ -225,8 +233,9 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) {
         debug_assert!(!ctx.buffer.have_output);
 
         ctx.buffer.idx = ctx.buffer.len - 1;
-        apply_backward(ctx, lookup);
+        ret = apply_backward(ctx, lookup);
     }
+    ret
 }
 
 fn apply_forward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
