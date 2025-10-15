@@ -62,7 +62,9 @@ impl Apply for Ligature<'_> {
                 return None;
             }
             let count = components.len() + 1;
+            #[cfg(feature = "std")]
             let mut pos = 0;
+            #[cfg(feature = "std")]
             if ctx.buffer.messaging() {
                 let delta = ctx.buffer.sync_so_far();
                 pos = ctx.buffer.idx;

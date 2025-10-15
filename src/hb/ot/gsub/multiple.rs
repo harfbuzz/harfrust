@@ -72,6 +72,7 @@ impl Apply for MultipleSubstFormat1<'_> {
 
                 ctx.buffer.skip_glyph();
 
+                #[cfg(feature = "std")]
                 if ctx.buffer.messaging() {
                     ctx.buffer.sync_so_far();
                     let count = substs.len();

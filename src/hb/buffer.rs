@@ -799,6 +799,7 @@ impl hb_buffer_t {
         true
     }
 
+    #[cfg(feature = "std")]
     pub(crate) fn sync_so_far(&mut self) -> usize {
         let had_output = self.have_output;
         let out_i = self.out_len;
@@ -1657,6 +1658,7 @@ impl hb_buffer_t {
         }
     }
 
+    #[cfg(feature = "std")]
     #[inline]
     pub(crate) fn messaging(&self) -> bool {
         self.message_function.is_some()
@@ -1665,6 +1667,7 @@ impl hb_buffer_t {
 
 macro_rules! message {
     ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
         if $ctx.buffer.messaging() {
             let msg = format!($($arg)*);
             $ctx.buffer.message($ctx.face, &msg);
@@ -1674,6 +1677,7 @@ macro_rules! message {
 
 macro_rules! message_sync {
     ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
         if $ctx.buffer.messaging() {
             $ctx.buffer.sync_so_far();
             let msg = format!($($arg)*);
@@ -1684,6 +1688,7 @@ macro_rules! message_sync {
 
 macro_rules! message_return {
     ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
         if $ctx.buffer.messaging() {
             let msg = format!($($arg)*);
             if !$ctx.buffer.message($ctx.face, &msg) {
@@ -1695,6 +1700,7 @@ macro_rules! message_return {
 
 macro_rules! message_continue {
     ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
         if $ctx.buffer.messaging() {
             let msg = format!($($arg)*);
             if !$ctx.buffer.message($ctx.face, &msg) {
@@ -1952,6 +1958,7 @@ impl UnicodeBuffer {
     }
 
     /// Sets a function to be called when HarfBuzz wants to emit a message.
+    #[cfg(feature = "std")]
     #[inline]
     pub fn set_message_function(&mut self, func: MessageFunction) {
         self.0.set_message_function(func);

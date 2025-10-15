@@ -37,6 +37,7 @@ pub fn hb_ot_layout_kern(
 ) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, buffer);
 
+    #[cfg(feature = "std")]
     if !c.buffer.message(face, "start table kern") {
         return None;
     }
@@ -119,6 +120,7 @@ pub fn hb_ot_layout_kern(
     if c.buffer_is_reversed {
         c.reverse_buffer();
     }
+    #[cfg(feature = "std")]
     c.buffer.message(face, "end table kern");
     Some(())
 }

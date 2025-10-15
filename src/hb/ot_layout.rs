@@ -160,6 +160,7 @@ pub fn apply_layout_table<T: LayoutTable>(
                     continue;
                 };
                 // XXX no feature tag in lookup map yet
+                #[cfg(feature = "std")]
                 if !ctx
                     .buffer
                     .message(ctx.face, &format!("start lookup {}", lookup_map.index))
@@ -177,6 +178,7 @@ pub fn apply_layout_table<T: LayoutTable>(
                     ctx.per_syllable = lookup_map.per_syllable;
 
                     if !apply_string::<T>(&mut ctx, lookup) {
+                        #[cfg(feature = "std")]
                         ctx.buffer.message(
                             ctx.face,
                             &format!(
@@ -187,6 +189,7 @@ pub fn apply_layout_table<T: LayoutTable>(
                     }
                 }
 
+                #[cfg(feature = "std")]
                 ctx.buffer
                     .message(ctx.face, &format!("end lookup {}", lookup_map.index));
             }
