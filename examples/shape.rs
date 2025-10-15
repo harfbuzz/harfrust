@@ -35,6 +35,7 @@ OPTIONS:
         --show-flags                            Output glyph flags
         --single-par                            Treat the input string as a single paragraph
         --ned                                   No Extra Data; Do not output clusters or advances
+    -V, --trace                                 Output interim shaping results
 
 ARGS:
     <FONT-FILE>                         A font file
@@ -67,6 +68,7 @@ struct Args {
     single_par: bool,
     ned: bool,
     free: Vec<String>,
+    trace: bool,
 }
 
 fn parse_args() -> Result<Args, pico_args::Error> {
@@ -105,6 +107,7 @@ fn parse_args() -> Result<Args, pico_args::Error> {
         show_flags: args.contains("--show-flags"),
         single_par: args.contains("--single-par"),
         ned: args.contains("--ned"),
+        trace: args.contains(["-V", "--trace"]),
         free: args
             .finish()
             .iter()
@@ -184,6 +187,13 @@ fn main() {
     for text in lines {
         let mut buffer = harfrust::UnicodeBuffer::new();
         buffer.push_str(text);
+
+        if args.trace {
+            buffer.set_message_function(|_buf, _font, msg| {
+                println!("trace: {msg}");
+                true
+            });
+        }
 
         if let Some(d) = args.direction {
             buffer.set_direction(d);
