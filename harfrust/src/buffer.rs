@@ -471,6 +471,8 @@ pub enum ContentType {
 /// This is the unified buffer type, matching HarfBuzz's `hb_buffer_t`. It
 /// carries a [`ContentType`] describing which of the two states it is
 /// currently in.
+pub type MessageFunction = fn(buffer: &Buffer, font: &crate::ShaperFont<'_, '_>, message: &str) -> bool;
+
 pub struct Buffer {
     // Information about how the text in the buffer should be treated.
     pub(crate) flags: BufferFlags,
@@ -516,6 +518,8 @@ pub struct Buffer {
     pub(crate) max_len: usize,
     /// Maximum allowed operations.
     pub(crate) max_ops: i32,
+    pub(crate) message_depth: usize,
+    pub(crate) message_function: Option<MessageFunction>,
 }
 
 impl Buffer {
@@ -548,6 +552,8 @@ impl Buffer {
             context_len: [0, 0],
             digest: SetDigest::new(),
             glyph_set: U32Set::default(),
+            message_depth: 0,
+            message_function: None,
         }
     }
 
@@ -1273,6 +1279,24 @@ impl Buffer {
         self.out_len = 0;
         self.idx = 0;
         true
+    }
+
+    pub(crate) fn sync_so_far(&mut self) -> usize {
+        let had_output = self.have_output;
+        let out_i = self.out_len;
+        let i = self.idx;
+        let old_idx = self.idx;
+        if self.sync() {
+            self.idx = out_i;
+        } else {
+            self.idx = i;
+        }
+        if had_output {
+            self.have_output = true;
+            self.out_len = self.idx;
+        }
+        debug_assert!(self.idx <= self.len);
+        self.idx - old_idx
     }
 
     pub(crate) fn clear_output(&mut self) {
@@ -2120,6 +2144,31 @@ impl Buffer {
         lig_id
     }
 
+    #[inline]
+    pub fn set_message_function(&mut self, func: MessageFunction) {
+        #[cfg(feature = "std")]
+        {
+            self.message_function = Some(func);
+        }
+    }
+
+    #[inline]
+    pub(crate) fn message(&mut self, font: &crate::ShaperFont<'_, '_>, msg: &str) -> bool {
+        if let Some(func) = self.message_function {
+            self.message_depth += 1;
+            let ret = func(self, font, msg);
+            self.message_depth -= 1;
+            ret
+        } else {
+            true
+        }
+    }
+
+    #[inline]
+    pub(crate) fn messaging(&self) -> bool {
+        self.message_function.is_some()
+    }
+
     pub(crate) fn serialize_impl(
         &self,
         font: Option<&crate::ShaperFont<'_, '_>>,
@@ -2212,6 +2261,47 @@ impl core::fmt::Debug for Buffer {
             .field("len", &self.len())
             .finish()
     }
+}
+
+macro_rules! message {
+    ($ctx:expr, $($arg:tt)*) => {
+        if $ctx.buffer.messaging() {
+            let msg = format!($($arg)*);
+            $ctx.buffer.message($ctx.font, &msg);
+        }
+    };
+}
+
+macro_rules! message_sync {
+    ($ctx:expr, $($arg:tt)*) => {
+        if $ctx.buffer.messaging() {
+            $ctx.buffer.sync_so_far();
+            let msg = format!($($arg)*);
+            $ctx.buffer.message($ctx.font, &msg);
+        }
+    };
+}
+
+macro_rules! message_return {
+    ($ctx:expr, $($arg:tt)*) => {
+        if $ctx.buffer.messaging() {
+            let msg = format!($($arg)*);
+            if !$ctx.buffer.message($ctx.font, &msg) {
+                return;
+            }
+        }
+    };
+}
+
+macro_rules! message_continue {
+    ($ctx:expr, $($arg:tt)*) => {
+        if $ctx.buffer.messaging() {
+            let msg = format!($($arg)*);
+            if !$ctx.buffer.message($ctx.font, &msg) {
+                continue;
+            }
+        }
+    };
 }
 
 pub(crate) fn _cluster_group_func(a: &GlyphInfo, b: &GlyphInfo) -> bool {
