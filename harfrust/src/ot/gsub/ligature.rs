@@ -1,3 +1,5 @@
+#[cfg(feature = "tracing")]
+use alloc::string::String;
 use crate::buffer::GlyphInfo;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
@@ -34,7 +36,17 @@ impl Apply for Ligature<'_> {
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
         if components.is_empty() {
+            message_sync!(
+                ctx,
+                "replacing glyph at {} (ligature substitution)",
+                ctx.buffer.idx
+            );
             ctx.replace_glyph(self.ligature_glyph().into());
+            message_sync!(
+                ctx,
+                "replaced glyph at {} (ligature substitution)",
+                ctx.buffer.idx - 1,
+            );
             Some(())
         } else {
             let f = |info: &mut GlyphInfo, index| {
@@ -57,6 +69,25 @@ impl Apply for Ligature<'_> {
                 return None;
             }
             let count = components.len() + 1;
+            #[cfg(feature = "tracing")]
+            let mut pos = 0;
+            #[cfg(feature = "tracing")]
+            if ctx.buffer.messaging() {
+                let delta = ctx.buffer.sync_so_far();
+                pos = ctx.buffer.idx;
+                let count = components.len();
+                match_end = match_end.checked_add_signed(delta)?;
+                let mut msg = String::from("ligating glyphs at ");
+                for i in 0..=count {
+                    ctx.match_positions[i] = (ctx.match_positions[i] as usize).checked_add_signed(delta)? as u32;
+                    if i > 0 {
+                        msg.push(',');
+                    }
+                    use core::fmt::Write;
+                    let _ = write!(msg, "{}", ctx.match_positions[i]);
+                }
+                ctx.buffer.message(ctx.font, &msg);
+            }
             ligate_input(
                 ctx,
                 count,
@@ -64,6 +95,7 @@ impl Apply for Ligature<'_> {
                 total_component_count,
                 self.ligature_glyph().into(),
             );
+            message_sync!(ctx, "ligated glyph at {}", pos);
             Some(())
         }
     }

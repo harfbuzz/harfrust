@@ -133,6 +133,7 @@ fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer
     use super::myanmar_machine::SyllableType;
 
     let mut ret = false;
+    if !buffer_message!(buffer, font, "start reordering myanmar") { return ret; }
 
     if insert_dotted_circles(
         font,
@@ -156,6 +157,7 @@ fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer
     buffer.deallocate_var(GlyphInfo::MYANMAR_CATEGORY_VAR);
     buffer.deallocate_var(GlyphInfo::MYANMAR_POSITION_VAR);
 
+    buffer_message!(buffer, font, "end reordering myanmar");
     ret
 }
 

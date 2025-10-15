@@ -59,10 +59,17 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         if !c.buffer_intersects_machine() {
+            message!(
+                c,
+                "skipping kerning subtable {} because no glyph matches",
+                subtable_idx
+            );
             continue;
         }
 
         let reverse = c.buffer.direction.is_backward();
+
+        message_continue!(c, "start subtable {}", subtable_idx);
 
         if !seen_cross_stream && subtable.is_cross_stream() {
             seen_cross_stream = true;
@@ -136,7 +143,9 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 apply_simple_kerning(c, &subtable, format6);
             }
         }
+        message!(c, "end subtable {}", subtable_idx);
     }
+
     if c.buffer_is_reversed {
         c.reverse_buffer();
     }
@@ -214,7 +223,7 @@ impl SimpleKerning for Subtable6<'_> {
 
 fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
     let scale = c.scale;
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, c.layout, c.scale, c.buffer);
+    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, c.layout, c.scale, c.buffer, #[cfg(feature = "tracing")] c.font);
     ctx.set_lookup_mask(c.plan.kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();

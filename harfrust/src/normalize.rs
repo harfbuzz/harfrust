@@ -376,7 +376,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
     }
 
     // Second round, reorder (inplace)
-    if !all_simple {
+    if !all_simple && buffer_message!(ctx.buffer, ctx.font, "start reorder") {
         let count = ctx.buffer.len;
         let mut i = 0;
         while i < count {
@@ -401,6 +401,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
 
             i = end + 1;
         }
+        message!(ctx, "end reorder");
     }
     if ctx.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_CGJ != 0 {
         // For all CGJ, check if it prevented any reordering at all.

@@ -39,8 +39,11 @@ pub fn apply(
     layout: LayoutData<'_>,
     scale: Scale,
     buffer: &mut Buffer,
+    #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
 ) -> Option<()> {
-    let mut c = AatApplyContext::new(plan, layout, scale, buffer);
+    let mut c = AatApplyContext::new(plan, layout, scale, buffer, #[cfg(feature = "tracing")] font);
+
+    if !buffer_message!(c.buffer, font, "start table kern") { return None; }
 
     c.setup_buffer_glyph_set();
 
@@ -124,6 +127,7 @@ pub fn apply(
     if c.buffer_is_reversed {
         c.reverse_buffer();
     }
+    buffer_message!(c.buffer, font, "end table kern");
     Some(())
 }
 
@@ -131,6 +135,7 @@ fn machine_kern<F>(
     layout: LayoutData<'_>,
     scale: Scale,
     buffer: &mut Buffer,
+    #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
     kern_mask: Mask,
     cross_stream: bool,
     get_kerning: F,
@@ -138,7 +143,7 @@ fn machine_kern<F>(
     F: Fn(u32, u32) -> i32,
 {
     buffer.unsafe_to_concat(None, None);
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, layout, scale, buffer);
+    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, layout, scale, buffer, #[cfg(feature = "tracing")] font);
     ctx.set_lookup_mask(kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
@@ -215,6 +220,8 @@ fn apply_simple_kerning<T: SimpleKerning>(
         c.layout,
         c.scale,
         c.buffer,
+        #[cfg(feature = "tracing")]
+        c.font,
         c.plan.kern_mask,
         is_cross_stream,
         |left, right| {

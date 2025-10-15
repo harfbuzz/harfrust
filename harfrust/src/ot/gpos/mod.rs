@@ -13,8 +13,12 @@ use crate::Direction;
 use crate::ShaperFont;
 
 pub fn position(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+    #[cfg(feature = "tracing")]
+    let tag = plan.ot_map.chosen_script(LayoutTableKind::Gpos).unwrap_or(crate::Tag::new(b"DFLT"));
+    if !buffer_message!(buffer, font, "start table GPOS script tag '{tag}'") { return; }
     let table = font.layout().ot.gpos.clone();
     apply_layout_table(plan, font, buffer, table.as_ref());
+    buffer_message!(buffer, font, "end table GPOS script tag '{tag}'");
 }
 
 pub mod attach_type {

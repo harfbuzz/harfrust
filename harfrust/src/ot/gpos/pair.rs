@@ -94,6 +94,7 @@ impl Apply for PairPosFormat1<'_> {
         let success =
             |ctx: &mut ApplyContext, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
+                    message!(ctx, "kerned glyphs at {} and {second_glyph_index}", ctx.buffer.idx);
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                 } else {
@@ -102,6 +103,7 @@ impl Apply for PairPosFormat1<'_> {
                     ctx.buffer
                         .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                 }
+                message!(ctx, "tried kerning glyphs at {} and {second_glyph_index}", ctx.buffer.idx);
                 finish(ctx, iter_index, has_record2)
             };
 
@@ -135,8 +137,10 @@ impl Apply for PairPosFormat1<'_> {
             } else if glyph_id > second_glyph {
                 hi = mid;
             } else {
+                message!(ctx, "try kerning glyphs at {} and {second_glyph_index}", ctx.buffer.idx);
                 let has_record2 = !format2.is_empty();
-                let worked1 = !format1.is_empty()
+                message!(ctx, "try kerning glyphs at {} and {second_glyph_index}", ctx.buffer.idx);
+        let worked1 = !format1.is_empty()
                     && super::value::apply(
                         ctx,
                         ctx.buffer.idx,
@@ -237,6 +241,7 @@ impl Apply for PairPosFormat2<'_> {
         let success =
             |ctx: &mut ApplyContext, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
+                    message!(ctx, "kerned glyphs at {} and {second_glyph_index}", ctx.buffer.idx);
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                     finish(ctx, iter_index, has_record2)
@@ -277,6 +282,7 @@ impl Apply for PairPosFormat2<'_> {
             + (class2 as usize * record_size)
             + self.class1_records_byte_range().start;
         let has_record2 = !format2.is_empty();
+        message!(ctx, "try kerning glyphs at {} and {second_glyph_index}", ctx.buffer.idx);
         let worked1 = !format1.is_empty()
             && super::value::apply(ctx, ctx.buffer.idx, &data, record_offset, format1)
                 == Some(true);

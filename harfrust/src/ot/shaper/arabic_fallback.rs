@@ -211,7 +211,7 @@ impl FallbackPlan {
     }
 
     pub(crate) fn apply(&self, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
-        let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout(), font.scale, buffer);
+        let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout(), font.scale, buffer, #[cfg(feature = "tracing")] font);
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
             apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);

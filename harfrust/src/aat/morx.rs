@@ -167,7 +167,7 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
 }
 
 // Chain::apply in harfbuzz
-pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
+pub fn apply<'a>(c: &mut AatApplyContext<'a, '_, '_>, map: &'a AatMap) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 
     c.setup_buffer_glyph_set();
@@ -198,7 +198,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 }
 
 fn apply_table<'a>(
-    c: &mut AatApplyContext<'a>,
+    c: &mut AatApplyContext<'a, '_, '_>,
     map: &'a AatMap,
     safe_to_break: &'a SafeToBreakAccel,
     table_bytes: &'a [u8],
@@ -241,8 +241,10 @@ fn apply_table<'a>(
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         if !c.buffer_intersects_machine() {
+            message!(c, "skipped chainsubtable {} because no glyph matches", subtable_idx);
             continue;
         }
+        message_continue!(c, "start chainsubtable {}", subtable_idx);
 
         // Buffer contents is always in logical direction.  Determine if
         // we need to reverse before applying this subtable.  We reverse
@@ -277,6 +279,7 @@ fn apply_table<'a>(
                 }
             }
         }
+        message!(c, "end chainsubtable {}", subtable_idx);
     }
     if c.buffer_is_reversed {
         c.reverse_buffer();
@@ -649,7 +652,7 @@ where
     }
 }
 
-fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
+fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContext<'a, '_, '_>) {
     match kind {
         morx::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
@@ -682,7 +685,7 @@ fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContex
     }
 }
 
-fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
+fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContext<'a, '_, '_>) {
     match kind {
         mort::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };

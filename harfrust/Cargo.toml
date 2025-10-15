@@ -26,6 +26,8 @@ default = ["std"]
 std = ["read-fonts/std"]
 libm = ["dep:core_maths", "dep:spin", "read-fonts/libm"]
 icu = ["dep:icu_properties", "dep:icu_normalizer"]
+# Compile shaping messages and buffer callbacks; disabled by default.
+tracing = []
 
 [dev-dependencies]
 harfrust = { path = "../harfrust" }

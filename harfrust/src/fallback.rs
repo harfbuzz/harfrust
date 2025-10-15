@@ -95,14 +95,18 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
     }
 }
 
-pub fn recategorize_marks(buffer: &mut Buffer) {
-    let len = buffer.len;
-    for info in &mut buffer.info[..len] {
-        if info.general_category() == GeneralCategory::NON_SPACING_MARK {
-            let mut class = info.modified_combining_class();
-            class = recategorize_combining_class(info.glyph_id, class);
-            info.set_modified_combining_class(class);
+pub fn recategorize_marks(buffer: &mut Buffer, #[cfg(feature = "tracing")] font: &ShaperFont<'_, '_>) {
+    if buffer_message!(buffer, font, "start fallback mark") {
+        let len = buffer.len;
+        for info in &mut buffer.info[..len] {
+            if info.general_category() == GeneralCategory::NON_SPACING_MARK {
+                let mut class = info.modified_combining_class();
+                class = recategorize_combining_class(info.glyph_id, class);
+                info.set_modified_combining_class(class);
+            }
         }
+
+        buffer_message!(buffer, font, "end fallback mark");
     }
 }
 

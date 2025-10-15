@@ -580,6 +580,7 @@ fn initial_reordering(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut 
     use super::indic_machine::SyllableType;
 
     let mut ret = false;
+    if !buffer_message!(buffer, font, "start reordering indic initial") { return ret; }
 
     let indic_plan = plan.data::<IndicShapePlan>();
 
@@ -603,6 +604,7 @@ fn initial_reordering(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut 
         end = buffer.next_syllable(start);
     }
 
+    buffer_message!(buffer, font, "end reordering indic initial");
     ret
 }
 
@@ -1265,9 +1267,12 @@ fn final_reordering(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Bu
         return false;
     }
 
-    foreach_syllable!(buffer, start, end, {
-        final_reordering_impl(plan, font, start, end, buffer);
-    });
+    if buffer_message!(buffer, font, "start reordering indic final") {
+        foreach_syllable!(buffer, start, end, {
+            final_reordering_impl(plan, font, start, end, buffer);
+        });
+        buffer_message!(buffer, font, "end reordering indic final");
+    }
 
     buffer.deallocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
     buffer.deallocate_var(GlyphInfo::INDIC_POSITION_VAR);

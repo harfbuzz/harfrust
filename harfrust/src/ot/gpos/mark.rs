@@ -80,6 +80,7 @@ impl MarkArrayExt for MarkArray<'_> {
             ctx.buffer.idx += 1;
             return Some(());
         };
+        message!(ctx, "attaching mark glyph at {} to glyph at {}", idx, glyph_pos);
         let pos = ctx.buffer.cur_pos_mut();
         pos.x_offset = x_offset;
         pos.y_offset = y_offset;
@@ -90,6 +91,7 @@ impl MarkArrayExt for MarkArray<'_> {
         }
         pos.set_attach_type(attach_type::MARK);
         pos.set_attach_chain(chain);
+        message!(ctx, "attached mark glyph at {} to glyph at {}", idx, glyph_pos);
 
         ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         ctx.buffer.idx += 1;

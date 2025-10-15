@@ -5,6 +5,8 @@ use crate::unicode::{CharExt, Codepoint};
 use crate::U32Set;
 use crate::{BufferFlags, ClusterLevel, Direction, Language, Script, SerializeFlags};
 use alloc::{string::String, vec::Vec};
+#[cfg(feature = "tracing")]
+use alloc::boxed::Box;
 use core::cmp::min;
 use read_fonts::types::{GlyphId, GlyphId16};
 
@@ -466,13 +468,14 @@ pub enum ContentType {
     Glyphs,
 }
 
+#[cfg(feature = "tracing")]
+type MessageFunction = dyn FnMut(&Buffer, &crate::ShaperFont<'_, '_>, &str) -> bool + Send + Sync;
+
 /// A buffer of text to be shaped, and of the glyphs that shaping produces.
 ///
 /// This is the unified buffer type, matching HarfBuzz's `hb_buffer_t`. It
 /// carries a [`ContentType`] describing which of the two states it is
 /// currently in.
-pub type MessageFunction = fn(buffer: &Buffer, font: &crate::ShaperFont<'_, '_>, message: &str) -> bool;
-
 pub struct Buffer {
     // Information about how the text in the buffer should be treated.
     pub(crate) flags: BufferFlags,
@@ -518,8 +521,8 @@ pub struct Buffer {
     pub(crate) max_len: usize,
     /// Maximum allowed operations.
     pub(crate) max_ops: i32,
-    pub(crate) message_depth: usize,
-    pub(crate) message_function: Option<MessageFunction>,
+    #[cfg(feature = "tracing")]
+    message_function: Option<Box<MessageFunction>>,
 }
 
 impl Buffer {
@@ -552,7 +555,7 @@ impl Buffer {
             context_len: [0, 0],
             digest: SetDigest::new(),
             glyph_set: U32Set::default(),
-            message_depth: 0,
+            #[cfg(feature = "tracing")]
             message_function: None,
         }
     }
@@ -1281,22 +1284,23 @@ impl Buffer {
         true
     }
 
-    pub(crate) fn sync_so_far(&mut self) -> usize {
-        let had_output = self.have_output;
-        let out_i = self.out_len;
-        let i = self.idx;
+    // Make the output produced so far visible to callbacks without ending the
+    // current substitution pass. The input cursor can move in either direction.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn sync_so_far(&mut self) -> isize {
+        if !self.have_output || !self.successful {
+            return 0;
+        }
         let old_idx = self.idx;
-        if self.sync() {
-            self.idx = out_i;
-        } else {
-            self.idx = i;
+        let out_idx = self.out_len;
+        if !self.sync() {
+            return 0;
         }
-        if had_output {
-            self.have_output = true;
-            self.out_len = self.idx;
-        }
+        self.idx = out_idx;
+        self.have_output = true;
+        self.out_len = out_idx;
         debug_assert!(self.idx <= self.len);
-        self.idx - old_idx
+        self.idx as isize - old_idx as isize
     }
 
     pub(crate) fn clear_output(&mut self) {
@@ -2144,26 +2148,46 @@ impl Buffer {
         lig_id
     }
 
-    #[inline]
-    pub fn set_message_function(&mut self, func: MessageFunction) {
-        #[cfg(feature = "std")]
-        {
-            self.message_function = Some(func);
-        }
+    /// Sets the callback used to trace shaping operations.
+    ///
+    /// The callback receives the current buffer, shaping font, and a HarfBuzz
+    /// tracing message. Return `false` from a `start` message to skip that
+    /// operation; return values from other messages are ignored. Message text
+    /// may change as shaping algorithms evolve.
+    ///
+    /// The callback can inspect [`Self::content_type`], [`Self::glyph_infos`],
+    /// [`Self::glyph_positions`], or [`Self::serialize`]. Positions are empty
+    /// until positioning begins. The callback is retained by [`Self::clear`]
+    /// and [`Self::reset`]. To collect results, capture owned shared state such
+    /// as an `Arc<Mutex<Vec<String>>>`.
+    ///
+    /// Requires the `tracing` feature, which also works without `std`.
+    #[cfg(feature = "tracing")]
+    pub fn set_message_function<F>(&mut self, function: F)
+    where
+        F: FnMut(&Self, &crate::ShaperFont<'_, '_>, &str) -> bool + Send + Sync + 'static,
+    {
+        self.message_function = Some(Box::new(function));
     }
 
-    #[inline]
+    /// Removes the shaping message callback.
+    #[cfg(feature = "tracing")]
+    pub fn clear_message_function(&mut self) {
+        self.message_function = None;
+    }
+
+    #[cfg(feature = "tracing")]
     pub(crate) fn message(&mut self, font: &crate::ShaperFont<'_, '_>, msg: &str) -> bool {
-        if let Some(func) = self.message_function {
-            self.message_depth += 1;
-            let ret = func(self, font, msg);
-            self.message_depth -= 1;
+        if let Some(mut function) = self.message_function.take() {
+            let ret = function(self, font, msg);
+            self.message_function = Some(function);
             ret
         } else {
             true
         }
     }
 
+    #[cfg(feature = "tracing")]
     #[inline]
     pub(crate) fn messaging(&self) -> bool {
         self.message_function.is_some()
@@ -2179,10 +2203,23 @@ impl Buffer {
         let mut s = String::with_capacity(64);
 
         let info = self.glyph_infos();
+        if self.content_type == Some(ContentType::Unicode) {
+            for info in info {
+                s.push(if s.is_empty() { '[' } else { '|' });
+                write!(&mut s, "U+{:04X}", info.glyph_id)?;
+                if !flags.contains(SerializeFlags::NO_CLUSTERS) {
+                    write!(&mut s, "={}", info.cluster)?;
+                }
+            }
+            if !s.is_empty() { s.push(']'); }
+            return Ok(s);
+        }
         let pos = self.glyph_positions();
+        let default_pos = GlyphPosition::default();
         let mut x: i32 = 0;
         let mut y: i32 = 0;
-        for (info, pos) in info.iter().zip(pos) {
+        for (index, info) in info.iter().enumerate() {
+            let position = pos.get(index).unwrap_or(&default_pos);
             s.push(if s.is_empty() { '[' } else { '|' });
 
             if !flags.contains(SerializeFlags::NO_GLYPH_NAMES) {
@@ -2198,17 +2235,17 @@ impl Buffer {
                 write!(&mut s, "={}", info.cluster)?;
             }
 
-            if !flags.contains(SerializeFlags::NO_POSITIONS) {
-                let dx = x.saturating_add(pos.x_offset);
-                let dy = y.saturating_add(pos.y_offset);
+            if !pos.is_empty() && !flags.contains(SerializeFlags::NO_POSITIONS) {
+                let dx = x.saturating_add(position.x_offset);
+                let dy = y.saturating_add(position.y_offset);
                 if dx != 0 || dy != 0 {
                     write!(&mut s, "@{dx},{dy}")?;
                 }
 
                 if !flags.contains(SerializeFlags::NO_ADVANCES) {
-                    write!(&mut s, "+{}", pos.x_advance)?;
-                    if pos.y_advance != 0 {
-                        write!(&mut s, ",{}", pos.y_advance)?;
+                    write!(&mut s, "+{}", position.x_advance)?;
+                    if position.y_advance != 0 {
+                        write!(&mut s, ",{}", position.y_advance)?;
                     }
                 }
             }
@@ -2231,8 +2268,8 @@ impl Buffer {
             }
 
             if flags.contains(SerializeFlags::NO_ADVANCES) {
-                x = x.saturating_add(pos.x_advance);
-                y = y.saturating_add(pos.y_advance);
+                x = x.saturating_add(position.x_advance);
+                y = y.saturating_add(position.y_advance);
             }
         }
 
@@ -2263,44 +2300,49 @@ impl core::fmt::Debug for Buffer {
     }
 }
 
+// All arguments (including formatting and font references) disappear when
+// tracing is disabled. Allocate message text only when a callback is installed.
+macro_rules! buffer_message {
+    ($buffer:expr, $font:expr, $($arg:tt)*) => {{
+        #[cfg(feature = "tracing")]
+        {
+            if $buffer.messaging() {
+                let msg = alloc::format!($($arg)*);
+                $buffer.message($font, &msg)
+            } else {
+                true
+            }
+        }
+        #[cfg(not(feature = "tracing"))]
+        { true }
+    }};
+}
+
 macro_rules! message {
     ($ctx:expr, $($arg:tt)*) => {
-        if $ctx.buffer.messaging() {
-            let msg = format!($($arg)*);
-            $ctx.buffer.message($ctx.font, &msg);
-        }
+        buffer_message!($ctx.buffer, $ctx.font, $($arg)*)
     };
 }
 
 macro_rules! message_sync {
-    ($ctx:expr, $($arg:tt)*) => {
+    ($ctx:expr, $($arg:tt)*) => {{
+        #[cfg(feature = "tracing")]
         if $ctx.buffer.messaging() {
             $ctx.buffer.sync_so_far();
-            let msg = format!($($arg)*);
-            $ctx.buffer.message($ctx.font, &msg);
+            message!($ctx, $($arg)*);
         }
-    };
+    }};
 }
 
 macro_rules! message_return {
     ($ctx:expr, $($arg:tt)*) => {
-        if $ctx.buffer.messaging() {
-            let msg = format!($($arg)*);
-            if !$ctx.buffer.message($ctx.font, &msg) {
-                return;
-            }
-        }
+        if !message!($ctx, $($arg)*) { return; }
     };
 }
 
 macro_rules! message_continue {
     ($ctx:expr, $($arg:tt)*) => {
-        if $ctx.buffer.messaging() {
-            let msg = format!($($arg)*);
-            if !$ctx.buffer.message($ctx.font, &msg) {
-                continue;
-            }
-        }
+        if !message!($ctx, $($arg)*) { continue; }
     };
 }
 
