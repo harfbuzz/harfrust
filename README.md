@@ -12,7 +12,7 @@ HarfRust started as a fork of [RustyBuzz](https://docs.rs/rustybuzz) to explore 
 multiple implementations of core font parsing for [`skrifa`](https://docs.rs/skrifa) consumers.
 Further context in https://github.com/googlefonts/fontations/issues/956.
 
-Matches HarfBuzz [v11.4.5](https://github.com/harfbuzz/harfbuzz/releases/tag/11.4.5).
+Matches HarfBuzz [v12.1.0](https://github.com/harfbuzz/harfbuzz/releases/tag/12.1.0).
 
 ## Why?
 
