@@ -48548,6 +48548,18 @@ fn indic_malayalam_dot_reph_015() {
 }
 
 #[test]
+fn indic_misc_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/755160ddba002332349fda3eb999e629d63dccf6.ttf",
+            "\u{0A2D}\u{0A4D}\u{0A30}\u{0A42}",
+            "",
+        ),
+        "[gid1=0+594|gid5=0+0|gid3=0+0]"
+    );
+}
+
+#[test]
 fn indic_old_spec_001() {
     assert_eq!(
         shape(

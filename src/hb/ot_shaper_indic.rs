@@ -69,10 +69,6 @@ impl GlyphInfo {
         self.is_one_of(CONSONANT_FLAGS_INDIC)
     }
 
-    pub(crate) fn is_consonant_myanmar(&self) -> bool {
-        self.is_one_of(CONSONANT_FLAGS_MYANMAR)
-    }
-
     fn is_halant(&self) -> bool {
         self.is_one_of(rb_flag(ot_category_t::OT_H as u32))
     }
@@ -265,14 +261,6 @@ const CONSONANT_FLAGS_INDIC: u32 = category_flag(ot_category_t::OT_C)
     | category_flag(ot_category_t::OT_CM)
     | category_flag(ot_category_t::OT_V)
     | category_flag(ot_category_t::OT_PLACEHOLDER)
-    | category_flag(ot_category_t::OT_DOTTEDCIRCLE);
-
-const CONSONANT_FLAGS_MYANMAR: u32 = category_flag(ot_category_t::OT_C)
-    | category_flag(ot_category_t::OT_CS)
-    | category_flag(ot_category_t::OT_Ra)
-    // | category_flag(ot_category_t::OT_CM)
-    | category_flag(ot_category_t::IV)
-    | category_flag(ot_category_t::OT_GB)
     | category_flag(ot_category_t::OT_DOTTEDCIRCLE);
 
 const JOINER_FLAGS: u32 =
@@ -890,7 +878,7 @@ fn initial_reordering_consonant_syllable(
             loop {
                 i -= 1;
                 // -> until a consonant is found
-                if buffer.info[i].is_consonant_myanmar() {
+                if buffer.info[i].is_consonant() {
                     // -> that does not have a below-base or post-base form
                     // (post-base forms have to follow below-base forms),
                     if buffer.info[i].indic_position() != ot_position_t::POS_BELOW_C
