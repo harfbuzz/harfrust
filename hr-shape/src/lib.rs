@@ -112,6 +112,10 @@ pub struct Args {
     #[arg(long)]
     single_par: bool,
 
+    /// Output interim shaping results
+    #[arg(short = 'V', long)]
+    trace: bool,
+
     /// Set text direction (ltr/rtl/ttb/btt)
     #[arg(long)]
     direction: Option<Direction>,
@@ -405,6 +409,21 @@ pub fn render(mut args: Args) -> Result<String, String> {
     let features = &args.features;
     let mut shape_plan_cache = ShapePlanCache::default();
     let mut reusable_buffer = Buffer::new();
+    let trace_output = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    if args.trace {
+        let trace_output = trace_output.clone();
+        reusable_buffer.set_message_function(move |buffer, font, message| {
+            let snapshot = buffer.serialize(
+                Some(font),
+                SerializeFlags::from_bits_truncate(format_flags),
+            );
+            trace_output
+                .lock()
+                .unwrap()
+                .push(format!("trace: {message}\t{snapshot}\n"));
+            true
+        });
+    }
 
     let text = if let Some(ref path) = args.text_file {
         if path == &PathBuf::from("-") {
@@ -503,6 +522,11 @@ pub fn render(mut args: Args) -> Result<String, String> {
                         .features(features),
                 )
                 .map_err(|e| format!("Error: {e}"))?;
+                if args.trace {
+                    for trace in trace_output.lock().unwrap().drain(..) {
+                        output.extend_from_slice(trace.as_bytes());
+                    }
+                }
             }
             &reusable_buffer
         };
