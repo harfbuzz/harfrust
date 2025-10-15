@@ -37,6 +37,10 @@ pub fn hb_ot_layout_kern(
 ) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, buffer);
 
+    if !c.buffer.message(face, "start table kern") {
+        return None;
+    }
+
     let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
 
     let mut subtable_idx = 0;
@@ -115,6 +119,7 @@ pub fn hb_ot_layout_kern(
     if c.buffer_is_reversed {
         c.reverse_buffer();
     }
+    c.buffer.message(face, "end table kern");
     Some(())
 }
 

@@ -35,6 +35,14 @@ impl MarkArrayExt for MarkArray<'_> {
             .unsafe_to_break(Some(glyph_pos), Some(ctx.buffer.idx + 1));
 
         let idx = ctx.buffer.idx;
+
+        message!(
+            ctx,
+            "attaching mark glyph at {} to glyph at {}",
+            idx,
+            glyph_pos
+        );
+
         let pos = ctx.buffer.cur_pos_mut();
         pos.x_offset = base_x - mark_x;
         pos.y_offset = base_y - mark_y;
@@ -42,6 +50,14 @@ impl MarkArrayExt for MarkArray<'_> {
         pos.set_attach_chain((glyph_pos as isize - idx as isize) as i16);
 
         ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+
+        message!(
+            ctx,
+            "attached mark glyph at {} to glyph at {}",
+            idx,
+            glyph_pos
+        );
+
         ctx.buffer.idx += 1;
 
         Some(())

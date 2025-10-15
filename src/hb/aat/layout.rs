@@ -515,6 +515,7 @@ pub fn substitute(
     }
 
     let mut c = AatApplyContext::new(plan, face, buffer);
+    message_return!(c, "start table morx");
     layout_morx_table::apply(
         &mut c,
         if features.is_empty() {
@@ -523,6 +524,7 @@ pub fn substitute(
             &aat_map
         },
     );
+    message!(c, "end table morx");
 }
 
 fn is_deleted_glyph(info: &GlyphInfo) -> bool {
@@ -545,7 +547,9 @@ pub fn remove_deleted_glyphs(buffer: &mut hb_buffer_t) {
 #[doc(alias = "hb_aat_layout_position")]
 pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
     let mut c = AatApplyContext::new(plan, face, buffer);
+    message_return!(c, "start table kerx");
     layout_kerx_table::apply(&mut c);
+    message!(c, "end table kerx");
 }
 
 /// HB: hb_aat_layout_track

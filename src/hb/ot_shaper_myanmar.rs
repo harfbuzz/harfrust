@@ -136,23 +136,26 @@ fn reorder_myanmar(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buf
 
     let mut ret = false;
 
-    if insert_dotted_circles(
-        face,
-        buffer,
-        SyllableType::BrokenCluster as u8,
-        ot_category_t::OT_DOTTEDCIRCLE,
-        None,
-        None,
-    ) {
-        ret = true;
-    }
+    if buffer.message(face, "start reordering myanmar") {
+        if insert_dotted_circles(
+            face,
+            buffer,
+            SyllableType::BrokenCluster as u8,
+            ot_category_t::OT_DOTTEDCIRCLE,
+            None,
+            None,
+        ) {
+            ret = true;
+        }
 
-    let mut start = 0;
-    let mut end = buffer.next_syllable(0);
-    while start < buffer.len {
-        reorder_syllable_myanmar(start, end, buffer);
-        start = end;
-        end = buffer.next_syllable(start);
+        let mut start = 0;
+        let mut end = buffer.next_syllable(0);
+        while start < buffer.len {
+            reorder_syllable_myanmar(start, end, buffer);
+            start = end;
+            end = buffer.next_syllable(start);
+        }
+        buffer.message(face, "end reordering myanmar");
     }
 
     buffer.deallocate_var(GlyphInfo::MYANMAR_CATEGORY_VAR);

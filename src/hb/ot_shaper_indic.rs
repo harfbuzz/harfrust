@@ -656,6 +656,9 @@ fn initial_reordering(
     use super::ot_shaper_indic_machine::SyllableType;
 
     let mut ret = false;
+    if !buffer.message(face, "start reordering indic initial") {
+        return ret;
+    }
 
     let indic_plan = plan.data::<IndicShapePlan>();
 
@@ -678,6 +681,8 @@ fn initial_reordering(
         start = end;
         end = buffer.next_syllable(start);
     }
+
+    buffer.message(face, "end reordering indic initial");
 
     ret
 }
@@ -1339,9 +1344,12 @@ fn final_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb
         return false;
     }
 
-    foreach_syllable!(buffer, start, end, {
-        final_reordering_impl(plan, face, start, end, buffer);
-    });
+    if buffer.message(face, "start reordering indic final") {
+        foreach_syllable!(buffer, start, end, {
+            final_reordering_impl(plan, face, start, end, buffer);
+        });
+        buffer.message(face, "end reordering indic final");
+    }
 
     buffer.deallocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
     buffer.deallocate_var(GlyphInfo::INDIC_POSITION_VAR);

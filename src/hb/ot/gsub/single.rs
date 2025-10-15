@@ -14,7 +14,17 @@ impl Apply for SingleSubstFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         self.coverage().ok()?.get(glyph)?;
         let subst = (glyph.to_u32() as i32 + self.delta_glyph_id() as i32) as u16;
+        message_sync!(
+            ctx,
+            "replacing glyph at {} (single substitution)",
+            ctx.buffer.idx
+        );
         ctx.replace_glyph(subst.into());
+        message!(
+            ctx,
+            "replaced glyph at {} (single substitution)",
+            ctx.buffer.idx - 1
+        );
         Some(())
     }
 }
@@ -33,7 +43,17 @@ impl Apply for SingleSubstFormat2<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let subst = self.substitute_glyph_ids().get(index)?.get().to_u16();
+        message_sync!(
+            ctx,
+            "replacing glyph at {} (single substitution)",
+            ctx.buffer.idx
+        );
         ctx.replace_glyph(subst.into());
+        message!(
+            ctx,
+            "replaced glyph at {} (single substitution)",
+            ctx.buffer.idx - 1
+        );
         Some(())
     }
 }

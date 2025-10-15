@@ -147,27 +147,29 @@ fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_bu
 
     let mut ret = false;
 
-    if insert_dotted_circles(
-        face,
-        buffer,
-        SyllableType::BrokenCluster as u8,
-        ot_category_t::OT_DOTTEDCIRCLE,
-        Some(ot_category_t::OT_Repha),
-        None,
-    ) {
-        ret = true;
+    if buffer.message(face, "start reordering khmer") {
+        if insert_dotted_circles(
+            face,
+            buffer,
+            SyllableType::BrokenCluster as u8,
+            ot_category_t::OT_DOTTEDCIRCLE,
+            Some(ot_category_t::OT_Repha),
+            None,
+        ) {
+            ret = true;
+        }
+
+        let khmer_plan = plan.data::<KhmerShapePlan>();
+
+        let mut start = 0;
+        let mut end = buffer.next_syllable(0);
+        while start < buffer.len {
+            reorder_syllable_khmer(khmer_plan, start, end, buffer);
+            start = end;
+            end = buffer.next_syllable(start);
+        }
+        buffer.message(face, "end reordering khmer");
     }
-
-    let khmer_plan = plan.data::<KhmerShapePlan>();
-
-    let mut start = 0;
-    let mut end = buffer.next_syllable(0);
-    while start < buffer.len {
-        reorder_syllable_khmer(khmer_plan, start, end, buffer);
-        start = end;
-        end = buffer.next_syllable(start);
-    }
-
     buffer.deallocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
 
     ret

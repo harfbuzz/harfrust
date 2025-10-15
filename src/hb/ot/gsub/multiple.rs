@@ -20,13 +20,38 @@ impl Apply for MultipleSubstFormat1<'_> {
         match substs.len() {
             // Spec disallows this, but Uniscribe allows it.
             // https://github.com/harfbuzz/harfbuzz/issues/253
-            0 => ctx.buffer.delete_glyph(),
+            0 => {
+                message_sync!(
+                    ctx,
+                    "deleting glyph at {} (multiple substitution)",
+                    ctx.buffer.idx
+                );
+                ctx.buffer.delete_glyph();
+                message!(
+                    ctx,
+                    "deleted glyph at {} (multiple substitution)",
+                    ctx.buffer.idx,
+                );
+            }
 
             // Special-case to make it in-place and not consider this
             // as a "multiplied" substitution.
-            1 => ctx.replace_glyph(substs.first()?.get().into()),
+            1 => {
+                message_sync!(
+                    ctx,
+                    "replacing glyph at {} (multiple substitution)",
+                    ctx.buffer.idx
+                );
+                ctx.replace_glyph(substs.first()?.get().into());
+                message!(
+                    ctx,
+                    "replaced glyph at {} (multiple substitution)",
+                    ctx.buffer.idx - 1,
+                );
+            }
 
             _ => {
+                message_sync!(ctx, "multiplying glyph at {}", ctx.buffer.idx);
                 let class = if ctx.buffer.cur(0).is_ligature() {
                     GlyphPropsFlags::BASE_GLYPH
                 } else {
@@ -46,6 +71,19 @@ impl Apply for MultipleSubstFormat1<'_> {
                 }
 
                 ctx.buffer.skip_glyph();
+
+                if ctx.buffer.messaging() {
+                    ctx.buffer.sync_so_far();
+                    let count = substs.len();
+                    let mut msg = "Multiplied glyphs at ".to_string();
+                    for i in (ctx.buffer.idx - count)..=ctx.buffer.idx {
+                        if i > (ctx.buffer.idx - count) {
+                            msg.push(',');
+                        }
+                        msg.push_str(i.to_string().as_str());
+                    }
+                    ctx.buffer.message(ctx.face, &msg);
+                }
             }
         }
         Some(())
