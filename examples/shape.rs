@@ -189,10 +189,10 @@ fn main() {
         buffer.push_str(text);
 
         if args.trace {
-            buffer.set_message_function(|_buf, _font, msg| {
+            buffer.set_message_function(Box::new(|_buf, _font, msg| {
                 println!("trace: {msg}");
                 true
-            });
+            }));
         }
 
         if let Some(d) = args.direction {

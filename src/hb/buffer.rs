@@ -396,7 +396,7 @@ pub const HB_BUFFER_CLUSTER_LEVEL_CHARACTERS: u32 = 2;
 pub const HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES: u32 = 3;
 pub const HB_BUFFER_CLUSTER_LEVEL_DEFAULT: u32 = HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES;
 
-pub type MessageFunction = fn(buffer: &hb_buffer_t, font: &hb_font_t, message: &str) -> bool;
+pub type MessageFunction<'a> = Box<dyn FnMut(&hb_buffer_t, &hb_font_t, &str) -> bool + 'a>;
 pub struct hb_buffer_t {
     // Information about how the text in the buffer should be treated.
     pub flags: BufferFlags,
@@ -451,7 +451,7 @@ pub struct hb_buffer_t {
     /// process will be performed.
     /// The function should return `true` to perform the shaping step, or `false`
     /// to skip it and move to the next one.
-    pub message_function: Option<MessageFunction>,
+    pub message_function: Option<MessageFunction<'static>>,
 }
 
 impl hb_buffer_t {
@@ -1639,7 +1639,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn set_message_function(&mut self, func: MessageFunction) {
+    pub fn set_message_function(&mut self, func: MessageFunction<'static>) {
         #[cfg(feature = "std")]
         {
             self.message_function = Some(func);
@@ -1648,10 +1648,11 @@ impl hb_buffer_t {
 
     #[inline]
     pub(crate) fn message(&mut self, font: &hb_font_t, msg: &str) -> bool {
-        if let Some(func) = self.message_function {
+        if let Some(mut func) = self.message_function.take() {
             self.message_depth += 1;
             let ret = func(self, font, msg);
             self.message_depth -= 1;
+            self.message_function = Some(func);
             ret
         } else {
             true
@@ -1960,7 +1961,7 @@ impl UnicodeBuffer {
     /// Sets a function to be called when HarfBuzz wants to emit a message.
     #[cfg(feature = "std")]
     #[inline]
-    pub fn set_message_function(&mut self, func: MessageFunction) {
+    pub fn set_message_function(&mut self, func: MessageFunction<'static>) {
         self.0.set_message_function(func);
     }
 }
