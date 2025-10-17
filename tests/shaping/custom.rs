@@ -244,6 +244,18 @@ fn glyph_flags_001() {
 }
 
 #[test]
+fn glyph_flags_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/text-rendering-tests/TestMORXTwenty.ttf",
+            "\u{0045}\u{0045}",
+            "--remove-default-ignorables --show-flags",
+        ),
+        "[E=0+556|E=1+556]"
+    );
+}
+
+#[test]
 fn glyph_flags_003() {
     assert_eq!(
         shape(

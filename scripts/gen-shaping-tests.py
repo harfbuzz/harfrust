@@ -33,10 +33,6 @@ IGNORE_TEST_CASES = [
     # method, while in rustybuzz it uses `state_machine_kerning` which seems to apply some different rules for the flags.
     "macos_122",
 
-    # This custom test fails because harfbuzz uses a set digest in AAT to abort early
-    # which we don't do yet. Is basically the same as morx_20_005, but with `--show-flags`
-    "glyph_flags_002",
-
     # The glyph extents are shifted 100 units to the right in HarfBuzz due to "undocumented rasterizer behavior"
     # (see https://github.com/harfbuzz/harfbuzz/blob/462a54895b97cf5a3fd023f4ea5528a9b0e14e0e/src/OT/glyf/Glyph.hh#L520-L528
     # and https://github.com/harfbuzz/harfbuzz/pull/1999).
