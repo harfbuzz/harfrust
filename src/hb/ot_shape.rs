@@ -335,7 +335,10 @@ pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
     ensure_native_direction(ctx.buffer);
 
     if let Some(func) = ctx.plan.shaper.preprocess_text {
-        func(ctx.plan, ctx.face, ctx.buffer);
+        if ctx.buffer.message(ctx.face, "start preprocess text") {
+            func(ctx.plan, ctx.face, ctx.buffer);
+            message!(ctx, "end preprocess text");
+        }
     }
 
     substitute_pre(ctx);
@@ -370,7 +373,10 @@ fn substitute_post(ctx: &mut hb_ot_shape_context_t) {
     hide_default_ignorables(ctx.buffer, ctx.face);
 
     if let Some(func) = ctx.plan.shaper.postprocess_glyphs {
-        func(ctx.plan, ctx.face, ctx.buffer);
+        if ctx.buffer.message(ctx.face, "start postprocess glyphs") {
+            func(ctx.plan, ctx.face, ctx.buffer);
+            message!(ctx, "end postprocess glyphs");
+        }
     }
 }
 

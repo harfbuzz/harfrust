@@ -88,9 +88,12 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
 
 pub fn _hb_ot_shape_fallback_mark_position_recategorize_marks(
     _: &hb_ot_shape_plan_t,
-    _: &hb_font_t,
+    font: &hb_font_t,
     buffer: &mut hb_buffer_t,
 ) {
+    if !buffer.message(font, "start fallback mark") {
+        return;
+    }
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
@@ -99,6 +102,7 @@ pub fn _hb_ot_shape_fallback_mark_position_recategorize_marks(
             info.set_modified_combining_class(class);
         }
     }
+    buffer.message(font, "end fallback mark");
 }
 
 fn zero_mark_advances(
