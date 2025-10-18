@@ -28,35 +28,6 @@ IGNORE_TEST_CASES = [
     # Requires support for the ltag table.
     "macos_002",
 
-    # The glyph extents are shifted 100 units to the right in HarfBuzz due to "undocumented rasterizer behavior"
-    # (see https://github.com/harfbuzz/harfbuzz/blob/462a54895b97cf5a3fd023f4ea5528a9b0e14e0e/src/OT/glyf/Glyph.hh#L520-L528
-    # and https://github.com/harfbuzz/harfbuzz/pull/1999).
-    # ttf-parser currently does not implement this.
-    "colr_011",
-
-    # Requires support in ttf-parser (https://github.com/harfbuzz/ttf-parser/pull/185)
-    "colr_014",
-
-    # These tests do not currently pass and need to be investigated.
-    "colr_002",
-    "colr_003",
-    "colr_006",
-    "colr_007",
-    "colr_008",
-    "colr_009",
-    "colr_010",
-    "colr_016",
-    "colr_017",
-    "colr_018",
-    "colr_019",
-    "colr_020",
-
-    # We ignore extents for COLRv1 in a "forward looking shaper"
-    # (see https://github.com/harfbuzz/harfrust/pull/4#issuecomment-2252964385)
-    "color_fonts_001",
-    "color_fonts_002",
-    "color_fonts_003",
-
     # https://github.com/harfbuzz/harfrust/pull/52
     "vertical_015",
     "vertical_016",
@@ -100,8 +71,10 @@ def prune_test_options(options):
     options = options.replace("--shaper=ot", "")
     options = options.replace(" --font-funcs=ft", "").replace("--font-funcs=ft", "")
     options = options.replace(" --font-funcs=ot", "").replace("--font-funcs=ot", "")
-    # we don't support font scaling
+    # We don't support font scaling
     options = options.replace("--font-size=1000", "")
+    # We don't care about extents
+    options = options.replace("--show-extents", "")
     # We don't support glyphs > u16
     options = options.replace("--not-found-variation-selector-glyph=1000000", "--not-found-variation-selector-glyph=64000")
     options = options.strip()
