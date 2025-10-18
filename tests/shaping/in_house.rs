@@ -59539,6 +59539,18 @@ fn vertical_014() {
 }
 
 #[test]
+fn vertical_016() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/NotoSans-VF.abc.ttf",
+            "\u{0061}\u{0062}",
+            "--direction=t",
+        ),
+        "[gid1=0@-280,-948+0,-1362|gid2=1@-307,-1056+0,-1362]"
+    );
+}
+
+#[test]
 fn zero_width_marks_001() {
     assert_eq!(
         shape(

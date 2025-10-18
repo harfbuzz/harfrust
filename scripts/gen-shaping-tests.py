@@ -30,7 +30,6 @@ IGNORE_TEST_CASES = [
 
     # https://github.com/harfbuzz/harfrust/pull/52
     "vertical_015",
-    "vertical_016",
     "vertical_017",
 ]
 
