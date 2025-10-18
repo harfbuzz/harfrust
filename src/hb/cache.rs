@@ -106,7 +106,7 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
         let tag = stored >> VALUE_BITS;
         let expected_tag = key >> (CACHE_SIZE as u32).ilog2();
 
-        if stored == u32::MAX || tag != expected_tag {
+        if stored == T::default().get() || tag != expected_tag {
             return None;
         }
 
