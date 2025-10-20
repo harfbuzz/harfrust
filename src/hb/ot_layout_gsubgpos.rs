@@ -153,7 +153,7 @@ pub fn match_backtrack(
     match_start: &mut usize,
 ) -> bool {
     let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
-    iter.reset_back(iter.buffer.backtrack_len());
+    iter.reset(iter.buffer.backtrack_len());
     iter.set_glyph_data(0);
 
     for _ in 0..backtrack_len {
@@ -436,7 +436,6 @@ where
     }
 
     pub fn reset(&mut self, start_index: usize) {
-        // For GSUB forward iterator
         self.buf_idx = start_index;
         self.buf_len = self.buffer.len;
         self.syllable = if self.buf_idx == self.buffer.idx {
@@ -444,12 +443,6 @@ where
         } else {
             0
         };
-    }
-
-    pub fn reset_back(&mut self, start_index: usize) {
-        // For GSUB backward iterator
-        self.buf_idx = start_index;
-        self.syllable = 0;
     }
 
     pub fn reset_fast(&mut self, start_index: usize) {
