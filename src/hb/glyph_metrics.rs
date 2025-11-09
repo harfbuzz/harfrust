@@ -1,5 +1,5 @@
 use crate::hb::buffer::hb_buffer_t;
-use crate::{hb::tables::TableOffsets, Tag};
+use crate::{hb::tables::TableRanges, Tag};
 use read_fonts::{
     tables::{
         glyf::Glyf,
@@ -40,38 +40,38 @@ struct GlyfTables<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    pub fn new(font: &FontRef<'a>, table_offsets: &TableOffsets) -> Self {
-        let num_glyphs = table_offsets.num_glyphs;
-        let upem = table_offsets.units_per_em;
-        let hmtx = table_offsets
+    pub fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
+        let num_glyphs = table_ranges.num_glyphs;
+        let upem = table_ranges.units_per_em;
+        let hmtx = table_ranges
             .hmtx
             .resolve_data(font)
-            .and_then(|data| Hmtx::read(data, table_offsets.num_h_metrics).ok());
+            .and_then(|data| Hmtx::read(data, table_ranges.num_h_metrics).ok());
         let h_metrics = hmtx
             .as_ref()
             .map(|hmtx| hmtx.h_metrics())
             .unwrap_or_default();
-        let hvar = table_offsets.hvar.resolve_table(font);
-        let vmtx = table_offsets
+        let hvar = table_ranges.hvar.resolve_table(font);
+        let vmtx = table_ranges
             .vmtx
             .resolve_data(font)
-            .and_then(|data| Vmtx::read(data, table_offsets.num_v_metrics).ok());
-        let vvar = table_offsets.vvar.resolve_table(font);
-        let vorg = table_offsets.vorg.resolve_table(font);
-        let loca = table_offsets
+            .and_then(|data| Vmtx::read(data, table_ranges.num_v_metrics).ok());
+        let vvar = table_ranges.vvar.resolve_table(font);
+        let vorg = table_ranges.vorg.resolve_table(font);
+        let loca = table_ranges
             .loca
             .resolve_data(font)
-            .and_then(|data| Loca::read(data, table_offsets.loca_long).ok());
-        let glyf = table_offsets.glyf.resolve_table(font);
+            .and_then(|data| Loca::read(data, table_ranges.loca_long).ok());
+        let glyf = table_ranges.glyf.resolve_table(font);
         let glyf = if let Some((loca, glyf)) = loca.zip(glyf) {
-            let gvar = table_offsets.gvar.resolve_table(font);
+            let gvar = table_ranges.gvar.resolve_table(font);
             Some(GlyfTables { loca, glyf, gvar })
         } else {
             None
         };
-        let mvar = table_offsets.mvar.resolve_table(font);
-        let ascent = table_offsets.ascent;
-        let descent = table_offsets.descent;
+        let mvar = table_ranges.mvar.resolve_table(font);
+        let ascent = table_ranges.ascent;
+        let descent = table_ranges.descent;
         Self {
             _hmtx: hmtx,
             h_metrics,

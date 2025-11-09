@@ -8,7 +8,7 @@ pub mod map;
 use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
 use crate::hb::aat::layout_morx_table::MorxSubtableCache;
 use crate::hb::kerning::KernSubtableCache;
-use crate::hb::tables::TableOffsets;
+use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
@@ -81,22 +81,22 @@ pub struct AatTables<'a> {
 }
 
 impl<'a> AatTables<'a> {
-    pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_offsets: &TableOffsets) -> Self {
-        let morx = table_offsets
+    pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
+        let morx = table_ranges
             .morx
             .resolve_table(font)
             .map(|table| (table, cache.morx.as_slice()));
-        let ankr = table_offsets.ankr.resolve_table(font);
-        let kern = table_offsets
+        let ankr = table_ranges.ankr.resolve_table(font);
+        let kern = table_ranges
             .kern
             .resolve_table(font)
             .map(|table| (table, cache.kern.as_slice()));
-        let kerx = table_offsets
+        let kerx = table_ranges
             .kerx
             .resolve_table(font)
             .map(|table| (table, cache.kerx.as_slice()));
-        let trak = table_offsets.trak.resolve_table(font);
-        let feat = table_offsets.feat.resolve_table(font);
+        let trak = table_ranges.trak.resolve_table(font);
+        let feat = table_ranges.feat.resolve_table(font);
         Self {
             morx,
             ankr,

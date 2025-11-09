@@ -11,12 +11,12 @@ use super::ot_layout::TableIndex;
 use super::ot_shape::{hb_ot_shape_context_t, shape_internal};
 use crate::hb::aat::AatCache;
 use crate::hb::buffer::hb_buffer_t;
-use crate::hb::tables::TableOffsets;
+use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
 /// Data required for shaping with a single font.
 pub struct ShaperData {
-    table_offsets: TableOffsets,
+    table_ranges: TableRanges,
     ot_cache: OtCache,
     aat_cache: AatCache,
     cmap_cache: cmap_cache_t,
@@ -27,10 +27,10 @@ impl ShaperData {
     pub fn new(font: &FontRef) -> Self {
         let ot_cache = OtCache::new(font);
         let aat_cache = AatCache::new(font);
-        let table_offsets = TableOffsets::new(font);
+        let table_ranges = TableRanges::new(font);
         let cmap_cache = cmap_cache_t::new();
         Self {
-            table_offsets,
+            table_ranges,
             ot_cache,
             aat_cache,
             cmap_cache,
@@ -205,9 +205,9 @@ impl<'a> ShaperBuilder<'a> {
     /// Builds the shaper with the current configuration.
     pub fn build(self) -> crate::Shaper<'a> {
         let font = self.font;
-        let units_per_em = self.data.table_offsets.units_per_em;
-        let charmap = Charmap::new(&font, &self.data.table_offsets, &self.data.cmap_cache);
-        let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_offsets);
+        let units_per_em = self.data.table_ranges.units_per_em;
+        let charmap = Charmap::new(&font, &self.data.table_ranges, &self.data.cmap_cache);
+        let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_ranges);
         let (coords, feature_variations) = self
             .instance
             .map(|instance| (instance.coords(), instance.feature_variations))
@@ -215,11 +215,11 @@ impl<'a> ShaperBuilder<'a> {
         let ot_tables = OtTables::new(
             &font,
             &self.data.ot_cache,
-            &self.data.table_offsets,
+            &self.data.table_ranges,
             coords,
             feature_variations,
         );
-        let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_offsets);
+        let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_ranges);
         hb_font_t {
             font,
             units_per_em,
