@@ -3,7 +3,7 @@ use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
-use crate::hb::tables::TableOffsets;
+use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
 use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
@@ -101,8 +101,8 @@ pub struct GdefTable<'a> {
 }
 
 impl<'a> GdefTable<'a> {
-    fn new(font: &FontRef<'a>, table_offsets: &TableOffsets) -> Self {
-        if let Some(gdef) = table_offsets.gdef.resolve_table::<Gdef>(font) {
+    fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
+        if let Some(gdef) = table_ranges.gdef.resolve_table::<Gdef>(font) {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
             let mark_sets = gdef
@@ -139,7 +139,7 @@ impl<'a> OtTables<'a> {
     pub fn new(
         font: &FontRef<'a>,
         cache: &'a OtCache,
-        table_offsets: &TableOffsets,
+        table_offsets: &TableRanges,
         coords: &'a [F2Dot14],
         feature_variations: [Option<u32>; 2],
     ) -> Self {

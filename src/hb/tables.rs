@@ -1,3 +1,5 @@
+use core::ops::Range;
+
 use read_fonts::{
     tables::{
         ankr::Ankr,
@@ -40,7 +42,7 @@ const UNICODE_2_0_FULL_ENCODING: u16 = 4;
 const UNICODE_FULL_ENCODING: u16 = 6;
 
 #[derive(Clone)]
-pub struct TableOffsets {
+pub struct TableRanges {
     pub num_glyphs: u32,
     pub units_per_em: u16,
     pub loca_long: bool,
@@ -48,27 +50,27 @@ pub struct TableOffsets {
     pub num_h_metrics: u16,
     pub ascent: i16,
     pub descent: i16,
-    pub loca: TableOffset,
-    pub glyf: TableOffset,
-    pub gvar: TableOffset,
-    pub hmtx: TableOffset,
-    pub hvar: TableOffset,
-    pub vmtx: TableOffset,
-    pub vvar: TableOffset,
-    pub vorg: TableOffset,
-    pub mvar: TableOffset,
-    pub cmap: TableOffset,
+    pub loca: TableRange,
+    pub glyf: TableRange,
+    pub gvar: TableRange,
+    pub hmtx: TableRange,
+    pub hvar: TableRange,
+    pub vmtx: TableRange,
+    pub vvar: TableRange,
+    pub vorg: TableRange,
+    pub mvar: TableRange,
+    pub cmap: TableRange,
     pub cmap_subtable: Option<SelectedCmapSubtable>,
     pub cmap_vs_subtable: Option<u16>,
-    pub gdef: TableOffset,
-    pub gsub: TableOffset,
-    pub gpos: TableOffset,
-    pub morx: TableOffset,
-    pub kerx: TableOffset,
-    pub ankr: TableOffset,
-    pub kern: TableOffset,
-    pub feat: TableOffset,
-    pub trak: TableOffset,
+    pub gdef: TableRange,
+    pub gsub: TableRange,
+    pub gpos: TableRange,
+    pub morx: TableRange,
+    pub kerx: TableRange,
+    pub ankr: TableRange,
+    pub kern: TableRange,
+    pub feat: TableRange,
+    pub trak: TableRange,
 }
 
 #[derive(Copy, Clone)]
@@ -78,7 +80,7 @@ pub struct SelectedCmapSubtable {
     pub is_symbol: bool,
 }
 
-impl TableOffsets {
+impl TableRanges {
     pub fn new(font: &FontRef) -> Self {
         let num_glyphs = font
             .maxp()
@@ -104,7 +106,7 @@ impl TableOffsets {
             .vhea()
             .map(|vhea| vhea.number_of_long_ver_metrics())
             .unwrap_or_default();
-        let offset = |tag| TableOffset::new(font, tag).unwrap_or_default();
+        let offset = |tag| TableRange::new(font, tag).unwrap_or_default();
         let loca = offset(Loca::TAG);
         let glyf = offset(Glyf::TAG);
         let gvar = offset(Gvar::TAG);
@@ -178,24 +180,25 @@ impl TableOffsets {
 }
 
 #[derive(Copy, Clone, Default, Debug)]
-pub struct TableOffset(u32);
+pub struct TableRange(u32, u32);
 
-impl TableOffset {
+impl TableRange {
     fn new(font: &FontRef, tag: Tag) -> Option<Self> {
         let records = font.table_directory().table_records();
         records
             .binary_search_by_key(&tag, |rec| rec.tag())
             .ok()
             .and_then(|ix| records.get(ix))
-            .map(|rec| Self(rec.offset()))
+            .map(|rec| Self(rec.offset(), rec.length()))
     }
 
-    pub fn resolve(self) -> Option<usize> {
-        (self.0 != 0).then_some(self.0 as usize)
+    pub fn resolve(self) -> Option<Range<usize>> {
+        let start = self.0 as usize;
+        (start != 0).then_some(start..start.wrapping_add(self.1 as usize))
     }
 
     pub fn resolve_data<'a>(self, font: &FontRef<'a>) -> Option<FontData<'a>> {
-        font.data().slice(self.resolve()?..)
+        font.data().slice(self.resolve()?)
     }
 
     pub fn resolve_table<'a, T: FontRead<'a>>(self, font: &FontRef<'a>) -> Option<T> {
