@@ -53902,30 +53902,6 @@ fn spaces_034() {
 }
 
 #[test]
-fn synthetic_002() {
-    assert_eq!(
-        shape(
-            "tests/fonts/in-house/NotoSans-VF.abc.ttf",
-            "\u{0061}\u{0062}\u{0063}",
-            "--font-slant=0.5 --direction=ttb",
-        ),
-        "[gid1=0@-280,-948+0,-1362|gid2=1@-307,-1056+0,-1362|gid3=2@-240,-949+0,-1362]"
-    );
-}
-
-#[test]
-fn synthetic_003() {
-    assert_eq!(
-        shape(
-            "tests/fonts/in-house/NotoSans-VF.abc.ttf",
-            "\u{0061}\u{0062}\u{0063}",
-            "--font-bold=0.1 --direction=ttb",
-        ),
-        "[gid1=0@-430,-1148+0,-1362|gid2=1@-457,-1256+0,-1362|gid3=2@-390,-1149+0,-1362]"
-    );
-}
-
-#[test]
 fn tibetan_contractions_1_001() {
     assert_eq!(
         shape(

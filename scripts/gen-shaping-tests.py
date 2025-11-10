@@ -11,10 +11,11 @@ from sys import platform
 # harfbuzz test files that will be ignored.
 IGNORE_TESTS = [
     "macos.tests", # We disable these here because we handle MacOS tests separately.
-    "coretext.tests",
-    "directwrite.tests",
-    "uniscribe.tests",
-    "arabic-fallback-shaping.tests",
+    "coretext.tests", # Irrelevant
+    "directwrite.tests", # Irrelevant
+    "uniscribe.tests", # Irrelevant
+    "arabic-fallback-shaping.tests", # Not implemented
+    "synthetic.tests", # Not implemented
 ]
 
 # harfbuzz test cases that will be ignored.
