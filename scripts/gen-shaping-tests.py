@@ -16,6 +16,7 @@ IGNORE_TESTS = [
     "uniscribe.tests", # Irrelevant
     "arabic-fallback-shaping.tests", # Not implemented
     "synthetic.tests", # Not implemented
+    "harfbust.tests", # We behave differently
 ]
 
 # harfbuzz test cases that will be ignored.
