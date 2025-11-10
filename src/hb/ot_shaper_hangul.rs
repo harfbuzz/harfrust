@@ -374,5 +374,5 @@ pub const HANGUL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     gpos_tag: None,
     reorder_marks: None,
     zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
-    fallback_position: false,
+    fallback_position: true,
 };
