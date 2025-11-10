@@ -1375,6 +1375,18 @@ fn cluster_005() {
 }
 
 #[test]
+fn cluster_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/c2d320136762887c43d245ecd2ffc2c0d57cfcb3.ttf",
+            "\u{0DAF}\u{0DCF}\u{0DAF}",
+            "",
+        ),
+        "[dasinh=0+547|aavowelsignsinh=0+379|dasinh=2+532]"
+    );
+}
+
+#[test]
 fn collections_002() {
     assert_eq!(
         shape(
@@ -1491,6 +1503,18 @@ fn context_matching_006() {
             "",
         ),
         "[a=0+600|SPC=1+600|SPC=2+600|period_period_period.liga=3+600]"
+    );
+}
+
+#[test]
+fn context_matching_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/49bd922bd447fb15bb05abab5c7ceac8d547a3a2.ttf",
+            "\u{0995}\u{09BE}\u{09B9}\u{09BF}\u{09A8}\u{09C0}",
+            "",
+        ),
+        "[uni0995=0+807|uni09BE=0+266|uni09BF.short01=2+266|uni09B9=2+534|uni09A8=4+602|uni09C0=4+266]"
     );
 }
 
@@ -52515,6 +52539,150 @@ fn none_directional_003() {
             "--direction=rtl",
         ),
         "[u10301_r=1+1284|u10300_r=0+1470]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/36b3cea27560cf68b1f3a5d5b6f29d29a96393aa.ttf",
+            "\u{002E}\u{002E}",
+            "",
+        ),
+        "[period=0+100|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/36b3cea27560cf68b1f3a5d5b6f29d29a96393aa.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Deva",
+        ),
+        "[period=0+100|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/36b3cea27560cf68b1f3a5d5b6f29d29a96393aa.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Latn",
+        ),
+        "[period=0+100|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/96fcf8dc57095c3d89f69b0f74f0d802c213f4da.ttf",
+            "\u{002E}\u{002E}",
+            "",
+        ),
+        "[period=0+600|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/96fcf8dc57095c3d89f69b0f74f0d802c213f4da.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Deva",
+        ),
+        "[period=0+600|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/96fcf8dc57095c3d89f69b0f74f0d802c213f4da.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Latn",
+        ),
+        "[period=0+600|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/a04cc6365876308945033b2a49f54afe899e7bf8.ttf",
+            "\u{002E}\u{002E}",
+            "",
+        ),
+        "[period=0+350|period=1@250,0+350]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/a04cc6365876308945033b2a49f54afe899e7bf8.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Deva",
+        ),
+        "[period=0+100|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/a04cc6365876308945033b2a49f54afe899e7bf8.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Latn",
+        ),
+        "[period=0+350|period=1@250,0+350]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8a312e38b9b90183ef154a0c2ab92a9def6cb82f.ttf",
+            "\u{002E}\u{002E}",
+            "",
+        ),
+        "[period=0+600|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8a312e38b9b90183ef154a0c2ab92a9def6cb82f.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Deva",
+        ),
+        "[period=0+600|period=1+100]"
+    );
+}
+
+#[test]
+fn per_script_kern_fallback_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8a312e38b9b90183ef154a0c2ab92a9def6cb82f.ttf",
+            "\u{002E}\u{002E}",
+            "--script=Latn",
+        ),
+        "[period=0+600|period=1+100]"
     );
 }
 
