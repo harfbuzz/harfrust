@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-11-10
+
+This release matches HarfBuzz [v12.2.0][harfbuzz-12.2.0], and has an MSRV (minimum supported Rust version) of 1.82.
+
+- Enable more HarfBuzz tests.
+- Fix bug from [HarfBust puzzle](https://github.com/harfbuzz/harfbuzz/issues/5535).
+- Update to read-fonts 0.36.0.
+
 ## [0.3.2] - 2025-10-15
 
 This release matches HarfBuzz [v12.1.0][harfbuzz-12.1.0], and has an MSRV (minimum supported Rust version) of 1.82.
@@ -65,7 +73,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.3.2...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/harfbuzz/harfrust/compare/0.3.2...0.4.0
 [0.3.2]: https://github.com/harfbuzz/harfrust/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/harfbuzz/harfrust/compare/0.3.0...0.3.1
 [0.3.0]: https://github.com/harfbuzz/harfrust/compare/0.2.1...0.3.0
@@ -81,6 +90,7 @@ See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.
 [harfbuzz-11.4.4]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.4.4
 [harfbuzz-11.5.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/11.5.0
 [harfbuzz-12.1.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/12.1.0
+[harfbuzz-12.2.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/12.2.0
 
 [@khaledhosny]: https://github.com/khaledhosny
 
