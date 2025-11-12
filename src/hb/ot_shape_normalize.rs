@@ -401,7 +401,7 @@ pub fn _hb_ot_shape_normalize(
     }
 
     // Second round, reorder (inplace)
-    if !all_simple {
+    if !all_simple && buffer.message(face, "start reorder") {
         let count = buffer.len;
         let mut i = 0;
         while i < count {
@@ -426,6 +426,7 @@ pub fn _hb_ot_shape_normalize(
 
             i = end + 1;
         }
+        buffer.message(face, "end reorder");
     }
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_CGJ != 0 {
         // For all CGJ, check if it prevented any reordering at all.

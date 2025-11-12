@@ -9,7 +9,18 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use crate::Direction;
 
 pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+    #[cfg(feature = "std")]
+    let tag = plan
+        .ot_map
+        .chosen_script(TableIndex::GPOS)
+        .map_or("none".to_string(), |x| x.to_string());
+    #[cfg(feature = "std")]
+    if !buffer.message(face, &format!("start table GPOS script tag '{tag}'")) {
+        return;
+    }
     apply_layout_table(plan, face, buffer, face.ot_tables.gpos.as_ref());
+    #[cfg(feature = "std")]
+    buffer.message(face, &format!("end table GPOS script tag '{tag}'"));
 }
 
 pub mod attach_type {
