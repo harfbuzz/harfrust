@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use super::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use super::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 
 static _myanmar_syllable_machine_trans_keys: [u8; 108] = [
     0, 22, 1, 22, 3, 22, 3, 22, 1, 22, 3, 22, 1, 22, 1, 22, 1, 22, 1, 22, 1, 22, 3, 22, 0, 8, 1,
@@ -118,7 +118,7 @@ pub enum SyllableType {
     NonMyanmarCluster,
 }
 
-pub fn find_syllables_myanmar(buffer: &mut hb_buffer_t) {
+pub fn find_syllables_myanmar(buffer: &mut Buffer) {
     let mut cs = 0;
     let mut ts = 0;
     let mut te;
@@ -339,7 +339,7 @@ fn found_syllable(
     end: usize,
     syllable_serial: &mut u8,
     kind: SyllableType,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     for i in start..end {
         buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);

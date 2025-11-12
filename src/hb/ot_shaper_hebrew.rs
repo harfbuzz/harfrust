@@ -1,7 +1,7 @@
 use super::ot_shape_normalize::*;
 use super::ot_shaper::*;
 use super::{hb_tag_t, unicode};
-use crate::hb::buffer::hb_buffer_t;
+use crate::hb::buffer::Buffer;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
 use crate::hb::unicode::Codepoint;
 use crate::hb::unicode::{combining_class, modified_combining_class};
@@ -22,12 +22,7 @@ pub const HEBREW_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     fallback_position: true,
 };
 
-fn reorder_marks_hebrew(
-    _: &hb_ot_shape_plan_t,
-    buffer: &mut hb_buffer_t,
-    start: usize,
-    end: usize,
-) {
+fn reorder_marks_hebrew(_: &hb_ot_shape_plan_t, buffer: &mut Buffer, start: usize, end: usize) {
     for i in start + 2..end {
         let c0 = buffer.info[i - 2];
         let c1 = buffer.info[i - 1];
