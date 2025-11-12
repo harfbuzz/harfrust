@@ -577,7 +577,7 @@ fn override_features(planner: &mut hb_ot_shape_planner_t) {
     planner.ot_map.add_gsub_pause(Some(syllabic_clear_var)); // Don't need syllables anymore.
 }
 
-fn preprocess_text(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn preprocess_text(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) {
     super::ot_shaper_vowel_constraints::preprocess_text_vowel_constraints(buffer);
 }
 
@@ -609,7 +609,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
     crate::hb::unicode::compose(a, b)
 }
 
-fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
     buffer.allocate_var(GlyphInfo::INDIC_POSITION_VAR);
 
@@ -620,7 +620,7 @@ fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) 
     }
 }
 
-fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     super::ot_shaper_indic_machine::find_syllables_indic(buffer);
@@ -636,11 +636,7 @@ fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer
     false
 }
 
-fn initial_reordering(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
-) -> bool {
+fn initial_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) -> bool {
     use super::ot_shaper_indic_machine::SyllableType;
 
     let mut ret = false;
@@ -674,7 +670,7 @@ fn update_consonant_positions(
     plan: &hb_ot_shape_plan_t,
     indic_plan: &IndicShapePlan,
     face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     let mut virama_glyph = None;
     if indic_plan.config.virama != 0 {
@@ -759,7 +755,7 @@ fn initial_reordering_syllable(
     face: &hb_font_t,
     start: usize,
     end: usize,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     use super::ot_shaper_indic_machine::SyllableType;
 
@@ -794,7 +790,7 @@ fn initial_reordering_consonant_syllable(
     face: &hb_font_t,
     start: usize,
     end: usize,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     // https://github.com/harfbuzz/harfbuzz/issues/435#issuecomment-335560167
     // For compatibility with legacy usage in Kannada,
@@ -1315,14 +1311,14 @@ fn initial_reordering_standalone_cluster(
     face: &hb_font_t,
     start: usize,
     end: usize,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     // We treat placeholder/dotted-circle as if they are consonants, so we
     // should just chain.  Only if not in compatibility mode that is...
     initial_reordering_consonant_syllable(plan, indic_plan, face, start, end, buffer);
 }
 
-fn final_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn final_reordering(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) -> bool {
     if buffer.is_empty() {
         return false;
     }
@@ -1342,7 +1338,7 @@ fn final_reordering_impl(
     face: &hb_font_t,
     start: usize,
     end: usize,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     let indic_plan = plan.data::<IndicShapePlan>();
 

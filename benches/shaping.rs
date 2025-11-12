@@ -41,7 +41,7 @@ impl ShapePlanCache {
     fn get(
         &mut self,
         shaper: &harfrust::Shaper,
-        buffer: &harfrust::UnicodeBuffer,
+        buffer: &harfrust::Buffer,
     ) -> &harfrust::ShapePlan {
         let key = harfrust::ShapePlanKey::new(Some(buffer.script()), buffer.direction());
         if let Some(plan_idx) = self.plans.iter().position(|plan| key.matches(plan)) {
@@ -80,14 +80,14 @@ fn bench(c: &mut Criterion) {
             let state = HrTestState::new(&font);
             let shaper = state.shaper();
             let mut plan_cache = ShapePlanCache::default();
-            let mut shared_buffer = Some(harfrust::UnicodeBuffer::new());
+            let mut buffer = harfrust::Buffer::new();
             b.iter(|| {
                 for line in &lines {
-                    let mut buffer = shared_buffer.take().unwrap();
+                    buffer.clear();
                     buffer.push_str(line);
                     buffer.guess_segment_properties();
                     let plan = plan_cache.get(&shaper, &buffer);
-                    shared_buffer = Some(shaper.shape_with_plan(plan, buffer, &[]).clear());
+                    shaper.shape_with_plan(plan, &mut buffer, &[]);
                 }
             });
         });

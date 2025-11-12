@@ -270,7 +270,7 @@ static BELOW_STATE_MACHINE: &[[BSME; 3]] = &[
     ],
 ];
 
-fn do_pua_shaping(face: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn do_pua_shaping(face: &hb_font_t, buffer: &mut Buffer) {
     let mut above_state = ABOVE_START_STATE[Consonant::NotConsonant as usize];
     let mut below_state = BELOW_START_STATE[Consonant::NotConsonant as usize];
     let mut base = 0;
@@ -308,7 +308,7 @@ fn do_pua_shaping(face: &hb_font_t, buffer: &mut hb_buffer_t) {
 }
 
 // TODO: more tests
-fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) {
     // This function implements the shaping logic documented here:
     //
     //   https://linux.thai.net/~thep/th-otf/shaping.html

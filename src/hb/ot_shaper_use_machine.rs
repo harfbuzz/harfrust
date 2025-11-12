@@ -15,7 +15,7 @@
 
 use core::cell::Cell;
 
-use super::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use super::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 use super::machine_cursor::MachineCursor;
 use super::ot_shaper_use::category;
 use super::GlyphInfo;
@@ -265,7 +265,7 @@ pub enum SyllableType {
     NonCluster,
 }
 
-pub fn find_syllables(buffer: &mut hb_buffer_t) {
+pub fn find_syllables(buffer: &mut Buffer) {
     let mut cs = 0;
     let infos = Cell::as_slice_of_cells(Cell::from_mut(&mut buffer.info));
     let p0 = MachineCursor::new(infos, included);

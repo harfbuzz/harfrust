@@ -1,4 +1,4 @@
-use crate::hb::buffer::hb_buffer_t;
+use crate::hb::buffer::Buffer;
 use crate::{hb::tables::TableRanges, Tag};
 use read_fonts::{
     tables::{
@@ -111,7 +111,7 @@ impl<'a> GlyphMetrics<'a> {
         Some(advance)
     }
 
-    pub fn populate_advance_widths(&self, buf: &mut hb_buffer_t, coords: &[F2Dot14]) {
+    pub fn populate_advance_widths(&self, buf: &mut Buffer, coords: &[F2Dot14]) {
         for (info, pos) in buf.info.iter().zip(buf.pos.iter_mut()) {
             pos.x_advance = self
                 .h_metrics
