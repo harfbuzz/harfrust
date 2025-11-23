@@ -1,8 +1,13 @@
+# HarfRust
+
+<div align="center">
+<p><img src="HarfRust.jpg" alt="HarfRust Logo" width="256" align="center"/></p>
+
 [![Build Status](https://github.com/harfbuzz/harfrust/actions/workflows/main.yml/badge.svg)](https://github.com/harfbuzz/harfrust/actions/workflows/main.yml)
 [![Crates.io](https://img.shields.io/crates/v/harfrust.svg)](https://crates.io/crates/harfrust)
 [![Documentation](https://docs.rs/harfrust/badge.svg)](https://docs.rs/harfrust)
 
-# HarfRust
+</div>
 
 HarfRust is a Rust port of [HarfBuzz](https://github.com/harfbuzz/harfbuzz) text shaping engine.
 See [Major changes](#major-changes) below for major differences between HarfRust and HarfBuzz.
