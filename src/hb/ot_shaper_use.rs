@@ -384,26 +384,27 @@ fn reorder_use(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_
     use super::ot_shaper_use_machine::SyllableType;
 
     let mut ret = false;
+    if buffer.message(face, "start reordering USE") {
+        if insert_dotted_circles(
+            face,
+            buffer,
+            SyllableType::BrokenCluster as u8,
+            category::B,
+            Some(category::R),
+            None,
+        ) {
+            ret = true;
+        }
 
-    if insert_dotted_circles(
-        face,
-        buffer,
-        SyllableType::BrokenCluster as u8,
-        category::B,
-        Some(category::R),
-        None,
-    ) {
-        ret = true;
+        let mut start = 0;
+        let mut end = buffer.next_syllable(0);
+        while start < buffer.len {
+            reorder_syllable_use(start, end, buffer);
+            start = end;
+            end = buffer.next_syllable(start);
+        }
+        buffer.message(face, "end reordering USE");
     }
-
-    let mut start = 0;
-    let mut end = buffer.next_syllable(0);
-    while start < buffer.len {
-        reorder_syllable_use(start, end, buffer);
-        start = end;
-        end = buffer.next_syllable(start);
-    }
-
     buffer.deallocate_var(GlyphInfo::USE_CATEGORY_VAR);
 
     ret

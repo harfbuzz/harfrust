@@ -45,6 +45,8 @@ impl Apply for CursivePosFormat1<'_> {
         let j = ctx.buffer.idx;
         ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
 
+        message!(ctx, "cursive attaching glyph at {} to glyph at {}", i, j);
+
         let pos = &mut ctx.buffer.pos;
         match direction {
             Direction::LeftToRight => {
@@ -121,6 +123,8 @@ impl Apply for CursivePosFormat1<'_> {
                 pos[parent].x_offset = 0;
             }
         }
+
+        message!(ctx, "cursive attached glyph at {} to glyph at {}", i, j);
 
         ctx.buffer.idx += 1;
         Some(())
