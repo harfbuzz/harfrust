@@ -1,7 +1,7 @@
 # HarfRust
 
 <div align="center">
-<p><img src="HarfRust.jpg" alt="HarfRust Logo" width="256" align="center"/></p>
+<p><img src="HarfRust.png" alt="HarfRust Logo" width="256" align="center"/></p>
 
 [![Build Status](https://github.com/harfbuzz/harfrust/actions/workflows/main.yml/badge.svg)](https://github.com/harfbuzz/harfrust/actions/workflows/main.yml)
 [![Crates.io](https://img.shields.io/crates/v/harfrust.svg)](https://crates.io/crates/harfrust)
