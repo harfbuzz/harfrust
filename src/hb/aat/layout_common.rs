@@ -1,6 +1,6 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
-use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
+use crate::hb::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::hb::face::hb_font_t;
 use crate::hb::hb_mask_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
@@ -37,7 +37,7 @@ pub(crate) fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
 pub struct AatApplyContext<'a> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub face: &'a hb_font_t<'a>,
-    pub buffer: &'a mut hb_buffer_t,
+    pub buffer: &'a mut Buffer,
     pub has_glyph_classes: bool,
     pub range_flags: Option<&'a [RangeFlags]>,
     pub subtable_flags: hb_mask_t,
@@ -54,7 +54,7 @@ impl<'a> AatApplyContext<'a> {
     pub fn new(
         plan: &'a hb_ot_shape_plan_t,
         face: &'a hb_font_t<'a>,
-        buffer: &'a mut hb_buffer_t,
+        buffer: &'a mut Buffer,
     ) -> Self {
         Self {
             plan,
