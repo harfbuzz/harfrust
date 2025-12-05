@@ -42,6 +42,13 @@ impl Apply for PairPosFormat1<'_> {
         let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+            message!(
+                ctx,
+                "kerned glyphs at {} and {}",
+                ctx.buffer.idx,
+                second_glyph_index
+            );
+
             if has_record2 {
                 *iter_index += 1;
                 // https://github.com/harfbuzz/harfbuzz/issues/3824
@@ -63,13 +70,20 @@ impl Apply for PairPosFormat1<'_> {
 
         let success =
             |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
-                if flag1 || flag2 {
+                let ret = if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                     finish(ctx, iter_index, has_record2)
                 } else {
                     boring(ctx, iter_index, has_record2)
-                }
+                };
+                message!(
+                    ctx,
+                    "tried kerning glyphs at {} and {}",
+                    ctx.buffer.idx,
+                    second_glyph_index
+                );
+                ret
             };
 
         let mut buf_idx = iter.buf_idx;
@@ -115,6 +129,12 @@ impl Apply for PairPosFormat1<'_> {
                         record_offset + format1_len + 2,
                         format2,
                     ) == Some(true);
+
+                message!(
+                    ctx,
+                    "try kerning glyphs at {} and {second_glyph_index}",
+                    ctx.buffer.idx
+                );
                 return success(ctx, &mut buf_idx, worked1, worked2, has_record2);
             }
         }
@@ -174,6 +194,11 @@ impl Apply for PairPosFormat2<'_> {
         let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+            message!(
+                ctx,
+                "kerned glyphs at {} and {second_glyph_index}",
+                ctx.buffer.idx
+            );
             if has_record2 {
                 *iter_index += 1;
                 // https://github.com/harfbuzz/harfbuzz/issues/3824
@@ -195,13 +220,20 @@ impl Apply for PairPosFormat2<'_> {
 
         let success =
             |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
-                if flag1 || flag2 {
+                let ret = if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                     finish(ctx, iter_index, has_record2)
                 } else {
                     boring(ctx, iter_index, has_record2)
-                }
+                };
+                message!(
+                    ctx,
+                    "tried kerning glyphs at {} and {}",
+                    ctx.buffer.idx - 1,
+                    second_glyph_index
+                );
+                ret
             };
         let data = self.offset_data();
         let (class1, class2) = match external_cache {
@@ -246,6 +278,12 @@ impl Apply for PairPosFormat2<'_> {
                 record_offset + format1_len,
                 format2,
             ) == Some(true);
+        message!(
+            ctx,
+            "try kerning glyphs at {} and {}",
+            ctx.buffer.idx,
+            second_glyph_index
+        );
         success(ctx, &mut buf_idx, worked1, worked2, has_record2)
     }
 

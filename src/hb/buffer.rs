@@ -396,6 +396,7 @@ pub const HB_BUFFER_CLUSTER_LEVEL_CHARACTERS: u32 = 2;
 pub const HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES: u32 = 3;
 pub const HB_BUFFER_CLUSTER_LEVEL_DEFAULT: u32 = HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES;
 
+pub type MessageFunction<'a> = Box<dyn FnMut(&hb_buffer_t, &hb_font_t, &str) -> bool + 'a>;
 pub struct hb_buffer_t {
     // Information about how the text in the buffer should be treated.
     pub flags: BufferFlags,
@@ -440,6 +441,17 @@ pub struct hb_buffer_t {
     pub max_len: usize,
     /// Maximum allowed operations.
     pub max_ops: i32,
+
+    pub(crate) message_depth: usize,
+
+    /// Callback used to receive a message
+    ///
+    /// The function gets called with the `Buffer`, the `Font` the
+    /// buffer is shaped with, and a message describing what step of the shaping
+    /// process will be performed.
+    /// The function should return `true` to perform the shaping step, or `false`
+    /// to skip it and move to the next one.
+    pub message_function: Option<MessageFunction<'static>>,
 }
 
 impl hb_buffer_t {
@@ -481,6 +493,8 @@ impl hb_buffer_t {
             context_len: [0, 0],
             digest: hb_set_digest_t::new(),
             glyph_set: U32Set::default(),
+            message_depth: 0,
+            message_function: None,
         }
     }
 
@@ -783,6 +797,25 @@ impl hb_buffer_t {
         self.out_len = 0;
         self.idx = 0;
         true
+    }
+
+    #[cfg(feature = "std")]
+    pub(crate) fn sync_so_far(&mut self) -> usize {
+        let had_output = self.have_output;
+        let out_i = self.out_len;
+        let i = self.idx;
+        let old_idx = self.idx;
+        if self.sync() {
+            self.idx = out_i;
+        } else {
+            self.idx = i;
+        }
+        if had_output {
+            self.have_output = true;
+            self.out_len = self.idx;
+        }
+        debug_assert!(self.idx <= self.len);
+        self.idx - old_idx
     }
 
     pub fn clear_output(&mut self) {
@@ -1604,6 +1637,78 @@ impl hb_buffer_t {
 
         lig_id
     }
+
+    #[inline]
+    pub fn set_message_function(&mut self, func: MessageFunction<'static>) {
+        #[cfg(feature = "std")]
+        {
+            self.message_function = Some(func);
+        }
+    }
+
+    #[inline]
+    pub(crate) fn message(&mut self, font: &hb_font_t, msg: &str) -> bool {
+        if let Some(mut func) = self.message_function.take() {
+            self.message_depth += 1;
+            let ret = func(self, font, msg);
+            self.message_depth -= 1;
+            self.message_function = Some(func);
+            ret
+        } else {
+            true
+        }
+    }
+
+    #[cfg(feature = "std")]
+    #[inline]
+    pub(crate) fn messaging(&self) -> bool {
+        self.message_function.is_some()
+    }
+}
+
+macro_rules! message {
+    ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
+        if $ctx.buffer.messaging() {
+            let msg = format!($($arg)*);
+            $ctx.buffer.message($ctx.face, &msg);
+        }
+    };
+}
+
+macro_rules! message_sync {
+    ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
+        if $ctx.buffer.messaging() {
+            $ctx.buffer.sync_so_far();
+            let msg = format!($($arg)*);
+            $ctx.buffer.message($ctx.face, &msg);
+        }
+    };
+}
+
+macro_rules! message_return {
+    ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
+        if $ctx.buffer.messaging() {
+            let msg = format!($($arg)*);
+            if !$ctx.buffer.message($ctx.face, &msg) {
+                return;
+            }
+        }
+    };
+}
+
+macro_rules! message_continue {
+    ($ctx:expr, $($arg:tt)*) => {
+        #[cfg(feature = "std")]
+        if $ctx.buffer.messaging() {
+            let msg = format!($($arg)*);
+            if !$ctx.buffer.message($ctx.face, &msg) {
+                continue;
+            }
+        }
+    };
 }
 
 pub(crate) fn _cluster_group_func(a: &GlyphInfo, b: &GlyphInfo) -> bool {
@@ -1852,6 +1957,13 @@ impl UnicodeBuffer {
     pub fn clear(&mut self) {
         self.0.clear();
     }
+
+    /// Sets a function to be called when HarfBuzz wants to emit a message.
+    #[cfg(feature = "std")]
+    #[inline]
+    pub fn set_message_function(&mut self, func: MessageFunction<'static>) {
+        self.0.set_message_function(func);
+    }
 }
 
 impl core::fmt::Debug for UnicodeBuffer {
@@ -1900,6 +2012,9 @@ impl GlyphBuffer {
     /// Get the glyph positions.
     #[inline]
     pub fn glyph_positions(&self) -> &[GlyphPosition] {
+        if self.0.message_depth > 0 {
+            return &[];
+        }
         &self.0.pos[0..self.0.len]
     }
 
