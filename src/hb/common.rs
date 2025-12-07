@@ -247,38 +247,37 @@ impl Script {
     }
 
     /// Converts an ISO 15924 script tag to a corresponding `Script`.
-    pub fn from_iso15924_tag(tag: Tag) -> Option<Script> {
-        if tag.is_null() {
+    pub const fn from_iso15924_tag(tag: Tag) -> Option<Script> {
+        let tag = u32::from_be_bytes(tag.to_be_bytes());
+
+        if tag == 0 {
             return None;
         }
 
         // Be lenient, adjust case (one capital letter followed by three small letters).
-        let tag = Tag::from_u32((tag.as_u32() & 0xDFDF_DFDF) | 0x0020_2020);
+        let tag = (tag & 0xDFDF_DFDF) | 0x0020_2020;
 
-        match &tag.to_be_bytes() {
+        if tag & 0xE0E0_E0E0 != 0x4060_6060 {
+            return Some(script::UNKNOWN);
+        }
+
+        Some(match &tag.to_be_bytes() {
             // These graduated from the 'Q' private-area codes, but
             // the old code is still aliased by Unicode, and the Qaai
             // one in use by ICU.
-            b"Qaai" => return Some(script::INHERITED),
-            b"Qaac" => return Some(script::COPTIC),
+            b"Qaai" => script::INHERITED,
+            b"Qaac" => script::COPTIC,
 
             // Script variants from https://unicode.org/iso15924/
-            b"Aran" => return Some(script::ARABIC),
-            b"Cyrs" => return Some(script::CYRILLIC),
-            b"Geok" => return Some(script::GEORGIAN),
-            b"Hans" | b"Hant" => return Some(script::HAN),
-            b"Jamo" => return Some(script::HANGUL),
-            b"Latf" | b"Latg" => return Some(script::LATIN),
-            b"Syre" | b"Syrj" | b"Syrn" => return Some(script::SYRIAC),
-
-            _ => {}
-        }
-
-        if tag.as_u32() & 0xE0E0_E0E0 == 0x4060_6060 {
-            Some(Script(tag))
-        } else {
-            Some(script::UNKNOWN)
-        }
+            b"Aran" => script::ARABIC,
+            b"Cyrs" => script::CYRILLIC,
+            b"Geok" => script::GEORGIAN,
+            b"Hans" | b"Hant" => script::HAN,
+            b"Jamo" => script::HANGUL,
+            b"Latf" | b"Latg" => script::LATIN,
+            b"Syre" | b"Syrj" | b"Syrn" => script::SYRIAC,
+            &t => Script(Tag::from_be_bytes(t)),
+        })
     }
 
     /// Returns script's tag.
