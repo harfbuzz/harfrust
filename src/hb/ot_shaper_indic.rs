@@ -1,6 +1,5 @@
 use alloc::boxed::Box;
 use core::cmp;
-use core::convert::TryFrom;
 use core::ops::Range;
 
 use read_fonts::types::GlyphId;
@@ -1103,7 +1102,9 @@ fn initial_reordering_consonant_syllable(
         // Use syllable() for sort accounting temporarily.
         let syllable = buffer.info[start].syllable();
         for i in start..end {
-            buffer.info[i].set_syllable(u8::try_from(i - start).unwrap());
+            // We don't care about overflow here as we won't actually use these
+            // values if `end - start > 127`.
+            buffer.info[i].set_syllable((i - start) as u8);
         }
 
         buffer.info[start..end].sort_by_key(|a| a.indic_position());
