@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2025-12-08
+
+This release matches HarfBuzz [v12.2.0][harfbuzz-12.2.0], and has an MSRV (minimum supported Rust version) of 1.82.
+
+- Make Script::from_iso15924_tag const.
+- Avoid panic when saving syllable indices.
+
 ## [0.4.0] - 2025-11-10
 
 This release matches HarfBuzz [v12.2.0][harfbuzz-12.2.0], and has an MSRV (minimum supported Rust version) of 1.82.
@@ -73,7 +80,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.4.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.4.1...HEAD
+[0.4.1]: https://github.com/harfbuzz/harfrust/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/harfbuzz/harfrust/compare/0.3.2...0.4.0
 [0.3.2]: https://github.com/harfbuzz/harfrust/compare/0.3.1...0.3.2
 [0.3.1]: https://github.com/harfbuzz/harfrust/compare/0.3.0...0.3.1
