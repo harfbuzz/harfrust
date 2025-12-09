@@ -1,4 +1,4 @@
-use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
+use crate::hb::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
@@ -126,7 +126,7 @@ impl Apply for MarkBasePosFormat1<'_> {
     }
 }
 
-fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
+fn accept(buffer: &Buffer, idx: usize) -> bool {
     /* We only want to attach to the first of a MultipleSubst sequence.
      * https://github.com/harfbuzz/harfbuzz/issues/740
      * Reject others...
