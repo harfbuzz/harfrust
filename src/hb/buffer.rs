@@ -1936,7 +1936,7 @@ impl GlyphBuffer {
         let pos = self.glyph_positions();
         let mut x = 0;
         let mut y = 0;
-        let names = face.glyph_names(font);
+        let names = hb_font_t::glyph_names(font);
         for (info, pos) in info.iter().zip(pos) {
             s.push(if s.is_empty() { '[' } else { '|' });
 

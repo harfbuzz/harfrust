@@ -388,7 +388,7 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    pub(crate) fn glyph_names(&self, font: &impl TableProvider<'a>) -> GlyphNames<'a> {
+    pub(crate) fn glyph_names(font: &impl TableProvider<'a>) -> GlyphNames<'a> {
         GlyphNames::new(font)
     }
 
