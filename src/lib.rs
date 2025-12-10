@@ -19,7 +19,7 @@ mod digest_u32_set;
 #[cfg(not(feature = "std"))]
 pub(crate) type U32Set = digest_u32_set::DigestU32Set;
 
-pub use read_fonts::{types::Tag, FontRef};
+pub use read_fonts::{types::Tag, FontRef, TableProvider};
 
 pub use hb::buffer::{GlyphBuffer, GlyphInfo, GlyphPosition, UnicodeBuffer};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
