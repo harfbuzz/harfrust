@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
-use read_fonts::TableProvider;
 use core::any::Any;
+use read_fonts::TableProvider;
 use smallvec::SmallVec;
 
 use crate::hb::common::HB_FEATURE_GLOBAL_END;

@@ -189,7 +189,7 @@ impl<'a> TableRange<'a> {
         self.0
     }
 
-    pub fn resolve_table< T: FontRead<'a>>(self) -> Option<T> {
+    pub fn resolve_table<T: FontRead<'a>>(self) -> Option<T> {
         T::read(self.0?).ok()
     }
 }

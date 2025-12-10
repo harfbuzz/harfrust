@@ -182,7 +182,11 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         }
     }
 
-    pub fn compile(mut self, features: &[Feature], font: &impl TableProvider<'a>) -> hb_ot_shape_plan_t {
+    pub fn compile(
+        mut self,
+        features: &[Feature],
+        font: &impl TableProvider<'a>,
+    ) -> hb_ot_shape_plan_t {
         let ot_map = self.ot_map.compile();
         let mut aat_map = AatMap::default();
         if self.apply_morx {

@@ -54,7 +54,9 @@ impl<'a> GlyphMetrics<'a> {
         let vmtx = table_ranges
             .vmtx
             .data()
-            .and_then(|data: read_fonts::FontData<'_>| Vmtx::read(data, table_ranges.num_v_metrics).ok());
+            .and_then(|data: read_fonts::FontData<'_>| {
+                Vmtx::read(data, table_ranges.num_v_metrics).ok()
+            });
         let vvar = table_ranges.vvar.resolve_table();
         let vorg = table_ranges.vorg.resolve_table();
         let loca = table_ranges

@@ -1,9 +1,9 @@
 use crate::U32Set;
 use alloc::{string::String, vec::Vec};
-use read_fonts::TableProvider;
 use core::cmp::min;
 use core::convert::TryFrom;
 use read_fonts::types::{GlyphId, GlyphId16};
+use read_fonts::TableProvider;
 
 use super::buffer::glyph_flag::{SAFE_TO_INSERT_TATWEEL, UNSAFE_TO_BREAK, UNSAFE_TO_CONCAT};
 use super::face::hb_glyph_extents_t;
@@ -1913,7 +1913,12 @@ impl GlyphBuffer {
     }
 
     /// Converts the glyph buffer content into a string.
-    pub fn serialize<'t>(&self, face: &crate::Shaper<'t>, font: &impl TableProvider<'t>, flags: SerializeFlags) -> String {
+    pub fn serialize<'t>(
+        &self,
+        face: &crate::Shaper<'t>,
+        font: &impl TableProvider<'t>,
+        flags: SerializeFlags,
+    ) -> String {
         self.serialize_impl(face, font, flags).unwrap_or_default()
     }
 

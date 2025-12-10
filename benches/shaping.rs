@@ -138,9 +138,6 @@ impl<'a> HrTestState<'a> {
     }
 
     fn shaper(&self) -> harfrust::Shaper<'_> {
-        self.data
-            .shaper()
-            .instance(self._instance.as_ref())
-            .build()
+        self.data.shaper().instance(self._instance.as_ref()).build()
     }
 }

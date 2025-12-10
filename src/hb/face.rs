@@ -1,5 +1,5 @@
 use read_fonts::types::{F2Dot14, Fixed, GlyphId};
-use read_fonts::{TableProvider};
+use read_fonts::TableProvider;
 use smallvec::SmallVec;
 
 use super::aat::AatTables;
@@ -81,7 +81,10 @@ impl ShaperInstance {
     /// set of normalized coordinates.
     ///
     /// The sequence of coordinates is expected to be in axis order.
-    pub fn from_coords<'a>(font: &impl TableProvider<'a>, coords: impl IntoIterator<Item = NormalizedCoord>) -> Self {
+    pub fn from_coords<'a>(
+        font: &impl TableProvider<'a>,
+        coords: impl IntoIterator<Item = NormalizedCoord>,
+    ) -> Self {
         let mut this = Self::default();
         this.set_coords(font, coords);
         this
@@ -124,7 +127,11 @@ impl ShaperInstance {
     }
 
     /// Resets the instance for the given font and normalized coordinates.
-    pub fn set_coords<'a>(&mut self, font: &impl TableProvider<'a>, coords: impl IntoIterator<Item = F2Dot14>) {
+    pub fn set_coords<'a>(
+        &mut self,
+        font: &impl TableProvider<'a>,
+        coords: impl IntoIterator<Item = F2Dot14>,
+    ) {
         self.coords.clear();
         if let Ok(fvar) = font.fvar() {
             let count = fvar.axis_count() as usize;
@@ -258,7 +265,12 @@ impl<'a> crate::Shaper<'a> {
     /// If you plan to shape multiple strings, prefer [`shape_with_plan`](Self::shape_with_plan).
     /// This is because [`ShapePlan`](crate::ShapePlan) initialization is pretty slow and should preferably
     /// be called once for each shaping configuration.
-    pub fn shape<'s>(&'s self, font: &impl TableProvider<'s>, buffer: UnicodeBuffer, features: &[Feature]) -> GlyphBuffer {
+    pub fn shape<'s>(
+        &'s self,
+        font: &impl TableProvider<'s>,
+        buffer: UnicodeBuffer,
+        features: &[Feature],
+    ) -> GlyphBuffer {
         let plan = ShapePlan::new(
             self,
             font,

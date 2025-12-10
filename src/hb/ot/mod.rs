@@ -142,20 +142,14 @@ impl<'a> OtTables<'a> {
         coords: &'a [F2Dot14],
         feature_variations: [Option<u32>; 2],
     ) -> Self {
-        let gsub = table_offsets
-            .gsub
-            .resolve_table()
-            .map(|table| GsubTable {
-                table,
-                lookups: &cache.gsub,
-            });
-        let gpos = table_offsets
-            .gpos
-            .resolve_table()
-            .map(|table| GposTable {
-                table,
-                lookups: &cache.gpos,
-            });
+        let gsub = table_offsets.gsub.resolve_table().map(|table| GsubTable {
+            table,
+            lookups: &cache.gsub,
+        });
+        let gpos = table_offsets.gpos.resolve_table().map(|table| GposTable {
+            table,
+            lookups: &cache.gpos,
+        });
         let coords = if coords.iter().any(|coord| *coord != F2Dot14::ZERO) {
             coords
         } else {
