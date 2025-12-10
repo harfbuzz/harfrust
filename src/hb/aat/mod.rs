@@ -12,7 +12,7 @@ use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use read_fonts::{
     tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, morx::Morx, trak::Trak},
-    FontRef, TableProvider,
+    TableProvider,
 };
 
 #[derive(Default)]
@@ -24,7 +24,7 @@ pub struct AatCache {
 
 impl AatCache {
     #[allow(unused)]
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         let mut cache = Self::default();
         let num_glyphs = font
             .maxp()
@@ -81,22 +81,22 @@ pub struct AatTables<'a> {
 }
 
 impl<'a> AatTables<'a> {
-    pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
+    pub fn new(cache: &'a AatCache, table_ranges: &TableRanges<'a>) -> Self {
         let morx = table_ranges
             .morx
-            .resolve_table(font)
+            .resolve_table()
             .map(|table| (table, cache.morx.as_slice()));
-        let ankr = table_ranges.ankr.resolve_table(font);
+        let ankr = table_ranges.ankr.resolve_table();
         let kern = table_ranges
             .kern
-            .resolve_table(font)
+            .resolve_table()
             .map(|table| (table, cache.kern.as_slice()));
         let kerx = table_ranges
             .kerx
-            .resolve_table(font)
+            .resolve_table()
             .map(|table| (table, cache.kerx.as_slice()));
-        let trak = table_ranges.trak.resolve_table(font);
-        let feat = table_ranges.feat.resolve_table(font);
+        let trak = table_ranges.trak.resolve_table();
+        let feat = table_ranges.feat.resolve_table();
         Self {
             morx,
             ankr,

@@ -13,7 +13,6 @@ use read_fonts::{
         vvar::Vvar,
     },
     types::{BoundingBox, F2Dot14, Fixed, GlyphId, Point},
-    FontRef,
 };
 
 #[derive(Clone)]
@@ -40,36 +39,36 @@ struct GlyfTables<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    pub fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
+    pub fn new(table_ranges: &TableRanges<'a>) -> Self {
         let num_glyphs = table_ranges.num_glyphs;
         let upem = table_ranges.units_per_em;
         let hmtx = table_ranges
             .hmtx
-            .resolve_data(font)
+            .data()
             .and_then(|data| Hmtx::read(data, table_ranges.num_h_metrics).ok());
         let h_metrics = hmtx
             .as_ref()
             .map(|hmtx| hmtx.h_metrics())
             .unwrap_or_default();
-        let hvar = table_ranges.hvar.resolve_table(font);
+        let hvar = table_ranges.hvar.resolve_table();
         let vmtx = table_ranges
             .vmtx
-            .resolve_data(font)
-            .and_then(|data| Vmtx::read(data, table_ranges.num_v_metrics).ok());
-        let vvar = table_ranges.vvar.resolve_table(font);
-        let vorg = table_ranges.vorg.resolve_table(font);
+            .data()
+            .and_then(|data: read_fonts::FontData<'_>| Vmtx::read(data, table_ranges.num_v_metrics).ok());
+        let vvar = table_ranges.vvar.resolve_table();
+        let vorg = table_ranges.vorg.resolve_table();
         let loca = table_ranges
             .loca
-            .resolve_data(font)
+            .data()
             .and_then(|data| Loca::read(data, table_ranges.loca_long).ok());
-        let glyf = table_ranges.glyf.resolve_table(font);
+        let glyf = table_ranges.glyf.resolve_table();
         let glyf = if let Some((loca, glyf)) = loca.zip(glyf) {
-            let gvar = table_ranges.gvar.resolve_table(font);
+            let gvar = table_ranges.gvar.resolve_table();
             Some(GlyfTables { loca, glyf, gvar })
         } else {
             None
         };
-        let mvar = table_ranges.mvar.resolve_table(font);
+        let mvar = table_ranges.mvar.resolve_table();
         let ascent = table_ranges.ascent;
         let descent = table_ranges.descent;
         Self {

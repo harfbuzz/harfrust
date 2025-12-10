@@ -182,7 +182,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         }
     }
 
-    pub fn compile(mut self, features: &[Feature]) -> hb_ot_shape_plan_t {
+    pub fn compile(mut self, features: &[Feature], font: &impl TableProvider<'a>) -> hb_ot_shape_plan_t {
         let ot_map = self.ot_map.compile();
         let mut aat_map = AatMap::default();
         if self.apply_morx {
@@ -266,14 +266,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
 
         // According to Ned, trak is applied by default for "modern fonts", as detected by presence of STAT table.
         // https://github.com/googlefonts/fontations/issues/1492
-        let apply_trak = self.face.font.trak().is_ok()
-            && self
-                .face
-                .font
-                .table_directory
-                .table_records()
-                .iter()
-                .any(|table| table.tag() == "STAT");
+        let apply_trak = font.trak().is_ok() && font.stat().is_ok();
 
         let mut plan = hb_ot_shape_plan_t {
             direction: self.direction,

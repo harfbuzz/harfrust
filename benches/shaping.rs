@@ -1,4 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use harfrust::TableProvider;
 use std::path::Path;
 
 const BENCHES: &[(&str, &str)] = &[
@@ -38,9 +39,10 @@ struct ShapePlanCache {
 }
 
 impl ShapePlanCache {
-    fn get(
+    fn get<'a>(
         &mut self,
-        shaper: &harfrust::Shaper,
+        shaper: &'a harfrust::Shaper,
+        font: &impl TableProvider<'a>,
         buffer: &harfrust::UnicodeBuffer,
     ) -> &harfrust::ShapePlan {
         let key = harfrust::ShapePlanKey::new(Some(buffer.script()), buffer.direction());
@@ -49,6 +51,7 @@ impl ShapePlanCache {
         } else {
             self.plans.push(harfrust::ShapePlan::new(
                 shaper,
+                font,
                 buffer.direction(),
                 Some(buffer.script()),
                 None,
@@ -86,7 +89,7 @@ fn bench(c: &mut Criterion) {
                     let mut buffer = shared_buffer.take().unwrap();
                     buffer.push_str(line);
                     buffer.guess_segment_properties();
-                    let plan = plan_cache.get(&shaper, &buffer);
+                    let plan = plan_cache.get(&shaper, &font, &buffer);
                     shared_buffer = Some(shaper.shape_with_plan(plan, buffer, &[]).clear());
                 }
             });
@@ -121,8 +124,7 @@ criterion_group! {
 criterion_main!(benches);
 
 struct HrTestState<'a> {
-    font: &'a harfrust::FontRef<'a>,
-    data: harfrust::ShaperData,
+    data: harfrust::ShaperData<'a>,
     _instance: Option<harfrust::ShaperInstance>,
 }
 
@@ -130,7 +132,6 @@ impl<'a> HrTestState<'a> {
     fn new(font: &'a harfrust::FontRef<'a>) -> Self {
         let data = harfrust::ShaperData::new(font);
         Self {
-            font,
             data,
             _instance: None,
         }
@@ -138,7 +139,7 @@ impl<'a> HrTestState<'a> {
 
     fn shaper(&self) -> harfrust::Shaper<'_> {
         self.data
-            .shaper(self.font)
+            .shaper()
             .instance(self._instance.as_ref())
             .build()
     }

@@ -1,5 +1,6 @@
 use crate::U32Set;
 use alloc::{string::String, vec::Vec};
+use read_fonts::TableProvider;
 use core::cmp::min;
 use core::convert::TryFrom;
 use read_fonts::types::{GlyphId, GlyphId16};
@@ -1912,13 +1913,14 @@ impl GlyphBuffer {
     }
 
     /// Converts the glyph buffer content into a string.
-    pub fn serialize(&self, face: &crate::Shaper, flags: SerializeFlags) -> String {
-        self.serialize_impl(face, flags).unwrap_or_default()
+    pub fn serialize<'t>(&self, face: &crate::Shaper<'t>, font: &impl TableProvider<'t>, flags: SerializeFlags) -> String {
+        self.serialize_impl(face, font, flags).unwrap_or_default()
     }
 
-    fn serialize_impl(
+    fn serialize_impl<'t>(
         &self,
-        face: &hb_font_t,
+        face: &hb_font_t<'t>,
+        font: &impl TableProvider<'t>,
         flags: SerializeFlags,
     ) -> Result<String, core::fmt::Error> {
         use core::fmt::Write;
@@ -1929,7 +1931,7 @@ impl GlyphBuffer {
         let pos = self.glyph_positions();
         let mut x = 0;
         let mut y = 0;
-        let names = face.glyph_names();
+        let names = face.glyph_names(font);
         for (info, pos) in info.iter().zip(pos) {
             s.push(if s.is_empty() { '[' } else { '|' });
 
