@@ -539,9 +539,18 @@ pub(crate) fn apply_lookup(
             break;
         }
 
+        message_sync!(
+            ctx,
+            "recursing to lookup {} at {}",
+            record.lookup_list_index.get(),
+            ctx.buffer.idx
+        );
+
         if ctx.recurse(record.lookup_list_index.get()).is_none() {
             continue;
         }
+
+        message_sync!(ctx, "recursed to lookup {}", record.lookup_list_index.get(),);
 
         let new_len = ctx.buffer.backtrack_len() + ctx.buffer.lookahead_len();
         let mut delta = new_len as isize - orig_len as isize;

@@ -123,6 +123,12 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
 
             if !c.buffer_intersects_machine() {
+                message!(
+                    c,
+                    "skipped chainsubtable {} because no glyph matches",
+                    subtable_idx
+                );
+
                 continue;
             }
 
@@ -159,6 +165,8 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
                 subtable.is_backwards() != c.buffer.direction.is_backward()
             };
 
+            message_continue!(c, "start chainsubtable {}", subtable_idx);
+
             if reverse != c.buffer_is_reversed {
                 c.reverse_buffer();
             }
@@ -166,6 +174,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             if let Ok(kind) = subtable.kind() {
                 apply_subtable(kind, c);
             }
+            message!(c, "end chainsubtable {}", subtable_idx);
         }
         if c.buffer_is_reversed {
             c.reverse_buffer();

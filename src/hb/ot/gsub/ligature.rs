@@ -29,7 +29,17 @@ impl Apply for Ligature<'_> {
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
         if components.is_empty() {
+            message_sync!(
+                ctx,
+                "replacing glyph at {} (ligature substitution)",
+                ctx.buffer.idx
+            );
             ctx.replace_glyph(self.ligature_glyph().into());
+            message!(
+                ctx,
+                "replaced glyph at {} (ligature substitution)",
+                ctx.buffer.idx - 1,
+            );
             Some(())
         } else {
             let f = |info: &mut GlyphInfo, index| {
@@ -52,6 +62,24 @@ impl Apply for Ligature<'_> {
                 return None;
             }
             let count = components.len() + 1;
+            #[cfg(feature = "std")]
+            let mut pos = 0;
+            #[cfg(feature = "std")]
+            if ctx.buffer.messaging() {
+                let delta = ctx.buffer.sync_so_far();
+                pos = ctx.buffer.idx;
+                let count = components.len();
+                match_end += delta;
+                let mut msg = "Ligating glyphs at ".to_string();
+                for i in 0..=count {
+                    ctx.match_positions[i] += delta as u32;
+                    if i > 0 {
+                        msg.push(',');
+                    }
+                    msg.push_str(ctx.match_positions[i].to_string().as_str());
+                }
+                ctx.buffer.message(ctx.face, &msg);
+            }
             ligate_input(
                 ctx,
                 count,
@@ -59,6 +87,7 @@ impl Apply for Ligature<'_> {
                 total_component_count,
                 self.ligature_glyph().into(),
             );
+            message!(ctx, "ligated glyph at {}", pos);
             Some(())
         }
     }

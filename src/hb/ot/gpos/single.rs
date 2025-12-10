@@ -8,7 +8,9 @@ impl Apply for SinglePosFormat1<'_> {
         self.coverage().ok()?.get(glyph)?;
         let format = self.value_format();
         let offset = self.shape().value_record_byte_range().start;
+        message!(ctx, "positioning glyph at {}", ctx.buffer.idx);
         super::apply_value(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);
+        message!(ctx, "positioned glyph at {}", ctx.buffer.idx);
         ctx.buffer.idx += 1;
         Some(())
     }
@@ -21,7 +23,9 @@ impl Apply for SinglePosFormat2<'_> {
         let format = self.value_format();
         let offset =
             self.shape().value_records_byte_range().start + (format.record_byte_len() * index);
+        message!(ctx, "positioning glyph at {}", ctx.buffer.idx);
         super::apply_value(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);
+        message!(ctx, "positioned glyph at {}", ctx.buffer.idx);
         ctx.buffer.idx += 1;
         Some(())
     }
