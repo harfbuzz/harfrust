@@ -63,6 +63,17 @@ pub fn match_input(
     }
 
     let count = usize::from(input_len) + 1;
+
+    if count == 1 {
+        *end_position = ctx.buffer.idx + 1;
+        ctx.match_positions_len = 1;
+        ctx.match_positions[0] = ctx.buffer.idx as u32;
+        if let Some(p_total_component_count) = p_total_component_count {
+            *p_total_component_count = ctx.buffer.cur(0).lig_num_comps();
+        }
+        return true;
+    }
+
     if count > MAX_CONTEXT_LENGTH {
         return false;
     }
@@ -152,6 +163,11 @@ pub fn match_backtrack(
     match_func: impl Fn(&mut GlyphInfo, u16) -> bool,
     match_start: &mut usize,
 ) -> bool {
+    if backtrack_len == 0 {
+        *match_start = ctx.buffer.backtrack_len();
+        return true;
+    }
+
     let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
     iter.reset_back(iter.buffer.backtrack_len());
     iter.set_glyph_data(0);
@@ -175,6 +191,11 @@ pub fn match_lookahead(
     start_index: usize,
     end_index: &mut usize,
 ) -> bool {
+    if lookahead_len == 0 {
+        *end_index = start_index;
+        return true;
+    }
+
     // Function should always be called with a non-zero starting index
     // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
     debug_assert!(start_index >= 1);
