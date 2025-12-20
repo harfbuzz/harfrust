@@ -597,6 +597,11 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     }
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
+    //
+    // We use the iter_context instead of iter_input, to avoid skipping
+    // default-ignorables and such.
+    //
+    // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
     let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
@@ -633,9 +638,19 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     };
     let matched = skippy_iter.next(None);
     let g2 = skippy_iter.index();
-    if matched && skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) == may_skip_t::SKIP_NO {
+    if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply(ctx, &match_func).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
     }
     for rule in rules.iter().filter_map(|r| r.ok()) {
         let inputs = rule.input();
@@ -793,11 +808,7 @@ fn apply_chain_context_rules<
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
 ) -> Option<()> {
-    // If the input skippy has non-auto joiners behavior (as in Indic shapers),
-    // skip this fast path, as we don't distinguish between input & lookahead
-    // matching in the fast path.
-    // https://github.com/harfbuzz/harfbuzz/issues/4813
-    if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+    if rules.len() <= 4 {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());
@@ -807,6 +818,11 @@ fn apply_chain_context_rules<
     }
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
+    //
+    // We use the iter_context instead of iter_input, to avoid skipping
+    // default-ignorables and such.
+    //
+    // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
     let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
@@ -843,9 +859,19 @@ fn apply_chain_context_rules<
     };
     let matched = skippy_iter.next(None);
     let g2 = skippy_iter.index();
-    if matched && skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) == may_skip_t::SKIP_NO {
+    if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
     }
     for rule in rules.iter().filter_map(|r| r.ok()) {
         let input = rule.input();
