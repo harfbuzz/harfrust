@@ -85,7 +85,7 @@ impl ApplyLigatureSet for LigatureSet<'_> {
         let slow_path = if ligatures.len() <= 1 {
             true
         } else {
-            let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_always));
+            let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
             iter.reset(iter.buffer.idx);
             let matched = iter.next(Some(&mut unsafe_to));
             if !matched {
