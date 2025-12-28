@@ -690,12 +690,11 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             // Skip ahead to next possible first glyph match.
             let first_glyph_value = inputs.first().unwrap().to_u16();
             loop {
-                let next_rule = if let Some(r) = rules_iter.next() {
-                    r
-                } else {
+                let Some(next_rule) = rules_iter.next() else {
                     rule_box = None;
                     break;
                 };
+
                 let next_inputs = next_rule.input();
                 if next_inputs.is_empty()
                     || next_inputs.first().unwrap().to_u16() != first_glyph_value
@@ -960,9 +959,7 @@ fn apply_chain_context_rules<
                 // Skip ahead to next possible first glyph match.
                 let first_glyph_value = input.first().unwrap().to_u16();
                 loop {
-                    let next_rule = if let Some(r) = rules_iter.next() {
-                        r
-                    } else {
+                    let Some(next_rule) = rules_iter.next() else {
                         rule_box = None;
                         break;
                     };
