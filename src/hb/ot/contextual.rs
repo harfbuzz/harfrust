@@ -896,7 +896,12 @@ fn apply_chain_context_rules<
             return None;
         }
     }
-    for rule in rules.iter().filter_map(|r| r.ok()) {
+    let mut rules_iter = rules.iter().filter_map(|r| r.ok()).peekable();
+    loop {
+        let rule = match rules_iter.next() {
+            Some(r) => r,
+            None => break,
+        };
         let input = rule.input();
         let lookahead = rule.lookahead();
         let match_input = |info: &mut GlyphInfo, index: usize| {
@@ -940,6 +945,22 @@ fn apply_chain_context_rules<
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
+            }
+
+            // The following "fast-path" speeds up NotoNastaliqUrdu shaping by 5% in HarfBuzz.
+            // But looks like peekable iterators are slower in Rust, so skipping it for now.
+            if len_p1 > 1 {
+                // Skip ahead to next possible first glyph match.
+                let first_glyph_value = input.get(0).unwrap().to_u16();
+                while let Some(next_rule) = rules_iter.peek() {
+                    let next_inputs = next_rule.input();
+                    if next_inputs.is_empty()
+                        || next_inputs.get(0).unwrap().to_u16() != first_glyph_value
+                    {
+                        break;
+                    }
+                    rules_iter.next();
+                }
             }
         }
     }
