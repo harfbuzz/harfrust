@@ -597,15 +597,20 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     }
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
+    //
+    // We use the iter_context instead of iter_input, to avoid skipping
+    // default-ignorables and such.
+    //
+    // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
     let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
-    let mut unsafe_to;
+    let mut unsafe_to = None;
+    let unsafe_to1;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
         let g1 = skippy_iter.index();
-        unsafe_to = Some(skippy_iter.index() + 1);
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
@@ -616,6 +621,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             }
             return None;
         }
+        unsafe_to1 = skippy_iter.index() + 1;
         g1
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
@@ -633,11 +639,26 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     };
     let matched = skippy_iter.next(None);
     let g2 = skippy_iter.index();
-    if matched && skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) == may_skip_t::SKIP_NO {
+    if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply(ctx, &match_func).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
     }
-    for rule in rules.iter().filter_map(|r| r.ok()) {
+    let mut rules_iter = rules.iter().filter_map(|r| r.ok());
+    let mut rule_box = rules_iter.next();
+    loop {
+        let Some(rule) = rule_box else {
+            break;
+        };
         let inputs = rule.input();
         let match_func2 = |info: &mut GlyphInfo, index| {
             if let Some(value) = inputs.get(index as usize).map(|v| v.to_u16()) {
@@ -659,6 +680,29 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
                 }
             } else {
                 unsafe_to = Some(unsafe_to2);
+            }
+            rule_box = rules_iter.next();
+        } else {
+            if unsafe_to.is_none() {
+                unsafe_to = Some(unsafe_to1);
+            }
+
+            // Skip ahead to next possible first glyph match.
+            let first_glyph_value = inputs.first().unwrap().to_u16();
+            loop {
+                let next_rule_box = rules_iter.next();
+                if next_rule_box.is_none() {
+                    rule_box = None;
+                    break;
+                };
+
+                let next_inputs = next_rule_box.as_ref().unwrap().input();
+                if next_inputs.is_empty()
+                    || next_inputs.first().unwrap().to_u16() != first_glyph_value
+                {
+                    rule_box = next_rule_box;
+                    break;
+                }
             }
         }
     }
@@ -793,11 +837,7 @@ fn apply_chain_context_rules<
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
 ) -> Option<()> {
-    // If the input skippy has non-auto joiners behavior (as in Indic shapers),
-    // skip this fast path, as we don't distinguish between input & lookahead
-    // matching in the fast path.
-    // https://github.com/harfbuzz/harfbuzz/issues/4813
-    if rules.len() <= 4 || !ctx.auto_zwnj || !ctx.auto_zwj {
+    if rules.len() <= 4 {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply_chain(ctx, &match_funcs).is_some() {
                 return Some(());
@@ -807,15 +847,20 @@ fn apply_chain_context_rules<
     }
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
+    //
+    // We use the iter_context instead of iter_input, to avoid skipping
+    // default-ignorables and such.
+    //
+    // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
     let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
-    let mut unsafe_to;
+    let mut unsafe_to = None;
+    let unsafe_to1;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
         let g1 = skippy_iter.index();
-        unsafe_to = Some(skippy_iter.index() + 1);
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
@@ -826,6 +871,7 @@ fn apply_chain_context_rules<
             }
             return None;
         }
+        unsafe_to1 = skippy_iter.index() + 1;
         g1
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
@@ -843,11 +889,26 @@ fn apply_chain_context_rules<
     };
     let matched = skippy_iter.next(None);
     let g2 = skippy_iter.index();
-    if matched && skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) == may_skip_t::SKIP_NO {
+    if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
+            // Can't use the fast path if eg. the next char is a default-ignorable
+            // or other skippable.
+            for rule in rules.iter().filter_map(|r| r.ok()) {
+                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                    return Some(());
+                };
+            }
+            return None;
+        }
     }
-    for rule in rules.iter().filter_map(|r| r.ok()) {
+    let mut rules_iter = rules.iter().filter_map(|r| r.ok());
+    let mut rule_box = rules_iter.next();
+    loop {
+        let Some(rule) = rule_box else {
+            break;
+        };
         let input = rule.input();
         let lookahead = rule.lookahead();
         let match_input = |info: &mut GlyphInfo, index: usize| {
@@ -887,6 +948,33 @@ fn apply_chain_context_rules<
                 }
             } else {
                 unsafe_to = Some(unsafe_to2);
+            }
+
+            rule_box = rules_iter.next();
+        } else {
+            if unsafe_to.is_none() {
+                unsafe_to = Some(unsafe_to1);
+            }
+
+            if len_p1 > 1 {
+                // Skip ahead to next possible first glyph match.
+                let first_glyph_value = input.first().unwrap().to_u16();
+                loop {
+                    let next_rule_box = rules_iter.next();
+                    if next_rule_box.is_none() {
+                        rule_box = None;
+                        break;
+                    }
+                    let next_inputs = next_rule_box.as_ref().unwrap().input();
+                    if next_inputs.is_empty()
+                        || next_inputs.first().unwrap().to_u16() != first_glyph_value
+                    {
+                        rule_box = next_rule_box;
+                        break;
+                    }
+                }
+            } else {
+                rule_box = rules_iter.next();
             }
         }
     }
