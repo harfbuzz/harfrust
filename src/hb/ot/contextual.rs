@@ -653,7 +653,12 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             return None;
         }
     }
-    for rule in rules.iter().filter_map(|r| r.ok()) {
+    let mut rules_iter = rules.iter().filter_map(|r| r.ok()).peekable();
+    loop {
+        let rule = match rules_iter.next() {
+            Some(r) => r,
+            None => break,
+        };
         let inputs = rule.input();
         let match_func2 = |info: &mut GlyphInfo, index| {
             if let Some(value) = inputs.get(index as usize).map(|v| v.to_u16()) {
@@ -679,6 +684,18 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
+            }
+
+            // Skip ahead to next possible first glyph match.
+            let first_glyph_value = inputs.get(0).unwrap().to_u16();
+            while let Some(next_rule) = rules_iter.peek() {
+                let next_inputs = next_rule.input();
+                if next_inputs.is_empty()
+                    || next_inputs.get(0).unwrap().to_u16() != first_glyph_value
+                {
+                    break;
+                }
+                rules_iter.next();
             }
         }
     }
