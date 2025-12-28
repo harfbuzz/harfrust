@@ -653,9 +653,10 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             return None;
         }
     }
-    let mut rules_iter = rules.iter().filter_map(|r| r.ok()).peekable();
+    let mut rules_iter = rules.iter().filter_map(|r| r.ok());
+    let mut rule_box = rules_iter.next();
     loop {
-        let rule = match rules_iter.next() {
+        let rule = match rule_box {
             Some(r) => r,
             None => break,
         };
@@ -681,6 +682,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             } else {
                 unsafe_to = Some(unsafe_to2);
             }
+            rule_box = rules_iter.next();
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
@@ -688,14 +690,22 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
 
             // Skip ahead to next possible first glyph match.
             let first_glyph_value = inputs.get(0).unwrap().to_u16();
-            while let Some(next_rule) = rules_iter.peek() {
+            loop {
+                let next_rule = rules_iter.next();
+                let next_rule = match next_rule {
+                    Some(r) => r,
+                    None => {
+                        rule_box = None;
+                        break;
+                    }
+                };
                 let next_inputs = next_rule.input();
                 if next_inputs.is_empty()
                     || next_inputs.get(0).unwrap().to_u16() != first_glyph_value
                 {
+                    rule_box = Some(next_rule);
                     break;
                 }
-                rules_iter.next();
             }
         }
     }
@@ -896,9 +906,10 @@ fn apply_chain_context_rules<
             return None;
         }
     }
-    let mut rules_iter = rules.iter().filter_map(|r| r.ok()).peekable();
+    let mut rules_iter = rules.iter().filter_map(|r| r.ok());
+    let mut rule_box = rules_iter.next();
     loop {
-        let rule = match rules_iter.next() {
+        let rule = match rule_box {
             Some(r) => r,
             None => break,
         };
@@ -942,25 +953,35 @@ fn apply_chain_context_rules<
             } else {
                 unsafe_to = Some(unsafe_to2);
             }
+
+            rule_box = rules_iter.next();
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
             }
 
-            // The following "fast-path" speeds up NotoNastaliqUrdu shaping by 5% in HarfBuzz.
-            // But looks like peekable iterators are slower in Rust, so skipping it for now.
             if len_p1 > 1 {
                 // Skip ahead to next possible first glyph match.
                 let first_glyph_value = input.get(0).unwrap().to_u16();
-                while let Some(next_rule) = rules_iter.peek() {
+                loop {
+                    let next_rule = rules_iter.next();
+                    let next_rule = match next_rule {
+                        Some(r) => r,
+                        None => {
+                            rule_box = None;
+                            break;
+                        }
+                    };
                     let next_inputs = next_rule.input();
                     if next_inputs.is_empty()
                         || next_inputs.get(0).unwrap().to_u16() != first_glyph_value
                     {
+                        rule_box = Some(next_rule);
                         break;
                     }
-                    rules_iter.next();
                 }
+            } else {
+                rule_box = rules_iter.next();
             }
         }
     }
