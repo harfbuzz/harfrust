@@ -656,8 +656,9 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     let mut rules_iter = rules.iter().filter_map(|r| r.ok()).peekable();
     let mut rule_box = rules_iter.next();
     loop {
-        let Some(rule) = rule_box else {
-            break;
+        let rule = match rule_box {
+            Some(r) => r,
+            None => break,
         };
         let inputs = rule.input();
         let match_func2 = |info: &mut GlyphInfo, index| {
@@ -688,15 +689,19 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             }
 
             // Skip ahead to next possible first glyph match.
-            let first_glyph_value = inputs.first().unwrap().to_u16();
+            let first_glyph_value = inputs.get(0).unwrap().to_u16();
             loop {
-                let Some(next_rule) = rules_iter.next() else {
-                    rule_box = None;
-                    break;
+                let next_rule = rules_iter.next();
+                let next_rule = match next_rule {
+                    Some(r) => r,
+                    None => {
+                        rule_box = None;
+                        break;
+                    }
                 };
                 let next_inputs = next_rule.input();
                 if next_inputs.is_empty()
-                    || next_inputs.first().unwrap().to_u16() != first_glyph_value
+                    || next_inputs.get(0).unwrap().to_u16() != first_glyph_value
                 {
                     rule_box = Some(next_rule);
                     break;
@@ -904,8 +909,9 @@ fn apply_chain_context_rules<
     let mut rules_iter = rules.iter().filter_map(|r| r.ok());
     let mut rule_box = rules_iter.next();
     loop {
-        let Some(rule) = rule_box else {
-            break;
+        let rule = match rule_box {
+            Some(r) => r,
+            None => break,
         };
         let input = rule.input();
         let lookahead = rule.lookahead();
@@ -958,15 +964,19 @@ fn apply_chain_context_rules<
             // But looks like peekable iterators are slower in Rust, so skipping it for now.
             if len_p1 > 1 {
                 // Skip ahead to next possible first glyph match.
-                let first_glyph_value = input.first().unwrap().to_u16();
+                let first_glyph_value = input.get(0).unwrap().to_u16();
                 loop {
-                    let Some(next_rule) = rules_iter.next() else {
-                        rule_box = None;
-                        break;
+                    let next_rule = rules_iter.next();
+                    let next_rule = match next_rule {
+                        Some(r) => r,
+                        None => {
+                            rule_box = None;
+                            break;
+                        }
                     };
                     let next_inputs = next_rule.input();
                     if next_inputs.is_empty()
-                        || next_inputs.first().unwrap().to_u16() != first_glyph_value
+                        || next_inputs.get(0).unwrap().to_u16() != first_glyph_value
                     {
                         rule_box = Some(next_rule);
                         break;
