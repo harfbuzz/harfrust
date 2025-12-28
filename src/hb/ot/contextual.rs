@@ -690,16 +690,17 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             // Skip ahead to next possible first glyph match.
             let first_glyph_value = inputs.first().unwrap().to_u16();
             loop {
-                let Some(next_rule) = rules_iter.next() else {
+                let next_rule_box = rules_iter.next();
+                if next_rule_box.is_none() {
                     rule_box = None;
                     break;
                 };
 
-                let next_inputs = next_rule.input();
+                let next_inputs = next_rule_box.as_ref().unwrap().input();
                 if next_inputs.is_empty()
                     || next_inputs.first().unwrap().to_u16() != first_glyph_value
                 {
-                    rule_box = Some(next_rule);
+                    rule_box = next_rule_box;
                     break;
                 }
             }
@@ -959,15 +960,16 @@ fn apply_chain_context_rules<
                 // Skip ahead to next possible first glyph match.
                 let first_glyph_value = input.first().unwrap().to_u16();
                 loop {
-                    let Some(next_rule) = rules_iter.next() else {
+                    let next_rule_box = rules_iter.next();
+                    if next_rule_box.is_none() {
                         rule_box = None;
                         break;
-                    };
-                    let next_inputs = next_rule.input();
+                    }
+                    let next_inputs = next_rule_box.as_ref().unwrap().input();
                     if next_inputs.is_empty()
                         || next_inputs.first().unwrap().to_u16() != first_glyph_value
                     {
-                        rule_box = Some(next_rule);
+                        rule_box = next_rule_box;
                         break;
                     }
                 }
