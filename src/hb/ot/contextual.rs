@@ -605,12 +605,12 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
-    let mut unsafe_to;
+    let mut unsafe_to = None;
+    let unsafe_to1;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
         let g1 = skippy_iter.index();
-        unsafe_to = Some(skippy_iter.index() + 1);
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
@@ -621,6 +621,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             }
             return None;
         }
+        unsafe_to1 = skippy_iter.index() + 1;
         g1
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
@@ -674,6 +675,10 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
                 }
             } else {
                 unsafe_to = Some(unsafe_to2);
+            }
+        } else {
+            if unsafe_to.is_none() {
+                unsafe_to = Some(unsafe_to1);
             }
         }
     }
@@ -826,12 +831,12 @@ fn apply_chain_context_rules<
     let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
-    let mut unsafe_to;
+    let mut unsafe_to = None;
+    let unsafe_to1;
     let mut unsafe_to2 = 0;
     let mut second = None;
     let first = if skippy_iter.next(None) {
         let g1 = skippy_iter.index();
-        unsafe_to = Some(skippy_iter.index() + 1);
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
@@ -842,6 +847,7 @@ fn apply_chain_context_rules<
             }
             return None;
         }
+        unsafe_to1 = skippy_iter.index() + 1;
         g1
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
@@ -913,6 +919,10 @@ fn apply_chain_context_rules<
                 }
             } else {
                 unsafe_to = Some(unsafe_to2);
+            }
+        } else {
+            if unsafe_to.is_none() {
+                unsafe_to = Some(unsafe_to1);
             }
         }
     }
