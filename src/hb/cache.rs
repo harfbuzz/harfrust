@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicU16, AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU8, AtomicU16, AtomicU32, Ordering};
 
 /// Trait for atomics used in cache storage
 pub trait AtomicStorage: Sized {
@@ -8,7 +8,22 @@ pub trait AtomicStorage: Sized {
     fn default() -> Self;
 }
 
-/// Implement AtomicStorage directly for AtomicU16
+impl AtomicStorage for AtomicU8 {
+    const BITS: usize = 8;
+
+    fn get(&self) -> u32 {
+        self.load(Ordering::Relaxed) as u32
+    }
+
+    fn set(&self, val: u32) {
+        self.store(val as u8, Ordering::Relaxed);
+    }
+
+    fn default() -> Self {
+        Self::new(u8::MAX)
+    }
+}
+
 impl AtomicStorage for AtomicU16 {
     const BITS: usize = 16;
 
@@ -25,7 +40,6 @@ impl AtomicStorage for AtomicU16 {
     }
 }
 
-/// Implement AtomicStorage directly for AtomicU32
 impl AtomicStorage for AtomicU32 {
     const BITS: usize = 32;
 
@@ -45,6 +59,9 @@ impl AtomicStorage for AtomicU32 {
 /// Selects correct type from STORAGE_BITS
 pub trait SelectAtomic<const BITS: usize> {
     type Type: AtomicStorage;
+}
+impl SelectAtomic<8> for () {
+    type Type = AtomicU8;
 }
 impl SelectAtomic<16> for () {
     type Type = AtomicU16;
