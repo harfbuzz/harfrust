@@ -659,6 +659,13 @@ pub(crate) type MappingCache = hb_cache_t<
     16,  // STORAGE_BITS
 >;
 
+pub(crate) type BinaryCache = hb_cache_t<
+    14,  // KEY_BITS
+    1,   // VALUE_BITS
+    128, // CACHE_SIZE
+    8,  // STORAGE_BITS
+>;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum SubtableExternalCacheMode {
     #[allow(unused)]
