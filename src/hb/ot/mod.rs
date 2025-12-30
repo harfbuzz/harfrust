@@ -523,11 +523,11 @@ fn coverage_index_cached(
         let index = coverage(gid);
         if let Some(index) = index {
             if (index as u32) < MappingCache::MAX_VALUE {
-                cache.set_unchecked(gid.into(), index as u32);
+                cache.set(gid.into(), index as u32);
             }
             Some(index)
         } else {
-            cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
+            cache.set(gid.into(), MappingCache::MAX_VALUE);
             None
         }
     }
@@ -547,10 +547,10 @@ fn coverage_binary_cached(
     } else {
         let index = coverage(gid);
         if index.is_some() {
-            cache.set_unchecked(gid.into(), 0);
+            cache.set(gid.into(), 0);
             Some(true)
         } else {
-            cache.set_unchecked(gid.into(), BinaryCache::MAX_VALUE);
+            cache.set(gid.into(), BinaryCache::MAX_VALUE);
             None
         }
     }
