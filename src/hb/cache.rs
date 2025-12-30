@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicU8, AtomicU16, AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU16, AtomicU32, AtomicU8, Ordering};
 
 /// Trait for atomics used in cache storage
 pub trait AtomicStorage: Sized {

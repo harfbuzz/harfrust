@@ -663,7 +663,7 @@ pub(crate) type BinaryCache = hb_cache_t<
     14,  // KEY_BITS
     1,   // VALUE_BITS
     128, // CACHE_SIZE
-    8,  // STORAGE_BITS
+    8,   // STORAGE_BITS
 >;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -732,12 +732,12 @@ pub(crate) struct PairPosFormat2SmallCache {
 }
 
 pub(crate) struct ContextFormat2Cache {
-    pub coverage: CoverageInfo,
+    pub coverage: BinaryCache,
     pub input: ClassDefInfo,
 }
 
 pub(crate) struct ChainContextFormat2Cache {
-    pub coverage: CoverageInfo,
+    pub coverage: BinaryCache,
     pub backtrack: ClassDefInfo,
     pub input: ClassDefInfo,
     pub lookahead: ClassDefInfo,

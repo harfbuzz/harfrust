@@ -2,7 +2,7 @@ use super::buffer::GlyphPropsFlags;
 use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
-use crate::hb::ot_layout_gsubgpos::MappingCache;
+use crate::hb::ot_layout_gsubgpos::{BinaryCache, MappingCache};
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
@@ -536,21 +536,21 @@ fn coverage_index_cached(
 fn coverage_binary_cached(
     coverage: impl Fn(GlyphId) -> Option<u16>,
     gid: GlyphId,
-    cache: &MappingCache,
+    cache: &BinaryCache,
 ) -> Option<u16> {
     if let Some(index) = cache.get(gid.into()) {
-        if index == MappingCache::MAX_VALUE {
+        if index == BinaryCache::MAX_VALUE {
             None
         } else {
             Some(index as u16)
         }
     } else {
         let index = coverage(gid);
-        if let Some(_) = index {
+        if index.is_some() {
             cache.set_unchecked(gid.into(), 0);
             Some(0)
         } else {
-            cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
+            cache.set_unchecked(gid.into(), BinaryCache::MAX_VALUE);
             None
         }
     }
