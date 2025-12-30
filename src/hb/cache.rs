@@ -93,6 +93,7 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
     hb_cache_core_t<KEY_BITS, VALUE_BITS, CACHE_SIZE, T>
 {
     pub const MAX_VALUE: u32 = (1 << VALUE_BITS) - 1;
+    const CACHE_BITS: usize = CACHE_SIZE.ilog2() as usize;
 
     pub fn new() -> Self {
         debug_assert!(
@@ -100,14 +101,12 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
             "CACHE_SIZE must be a power of two"
         );
 
-        let cache_bits = CACHE_SIZE.ilog2() as usize;
-
         debug_assert!(
-            KEY_BITS >= cache_bits,
+            KEY_BITS >= Self::CACHE_BITS,
             "KEY_BITS must be >= log2(CACHE_SIZE)"
         );
         debug_assert!(
-            KEY_BITS + VALUE_BITS <= cache_bits + T::BITS,
+            KEY_BITS + VALUE_BITS <= Self::CACHE_BITS + T::BITS,
             "KEY_BITS + VALUE_BITS must fit in CACHE_BITS + T::BITS"
         );
 
@@ -121,7 +120,7 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
         let index = (key as usize) & (CACHE_SIZE - 1);
         let stored = self.values[index].get();
         let tag = stored >> VALUE_BITS;
-        let expected_tag = key >> (CACHE_SIZE as u32).ilog2();
+        let expected_tag = key >> Self::CACHE_BITS;
 
         if stored == T::default().get() || tag != expected_tag {
             return None;
@@ -141,7 +140,7 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
     #[inline]
     pub fn set_unchecked(&self, key: u32, value: u32) {
         let index = (key as usize) & (CACHE_SIZE - 1);
-        let packed = ((key >> (CACHE_SIZE as u32).ilog2()) << VALUE_BITS) | value;
+        let packed = ((key >> Self::CACHE_BITS) << VALUE_BITS) | value;
         self.values[index].set(packed);
     }
 }
