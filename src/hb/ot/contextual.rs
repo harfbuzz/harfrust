@@ -1,11 +1,12 @@
-use super::{coverage_index, covered, glyph_class};
+use super::{coverage_binary_cached, coverage_index, covered, glyph_class};
 use crate::hb::buffer::GlyphInfo;
 use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    may_skip_t, skipping_iterator_t, Apply, ChainContextFormat2Cache, ContextFormat2Cache,
-    SubtableExternalCache, SubtableExternalCacheMode, WouldApply, WouldApplyContext,
+    may_skip_t, skipping_iterator_t, Apply, BinaryCache, ChainContextFormat2Cache,
+    ContextFormat2Cache, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
+    WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -94,7 +95,11 @@ impl Apply for SequenceContextFormat2<'_> {
             return None;
         };
         let offset_data = self.offset_data();
-        cache.coverage.index(&offset_data, glyph)?;
+        coverage_binary_cached(
+            |gid| cache.coverage.index(&offset_data, gid),
+            glyph,
+            &cache.coverage_cache,
+        )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let index = input_class(glyph) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
@@ -113,7 +118,11 @@ impl Apply for SequenceContextFormat2<'_> {
             return None;
         };
         let offset_data = self.offset_data();
-        cache.coverage.index(&offset_data, glyph)?;
+        coverage_binary_cached(
+            |gid| cache.coverage.index(&offset_data, gid),
+            glyph,
+            &cache.coverage_cache,
+        )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let index = get_class_cached(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
@@ -133,6 +142,7 @@ impl Apply for SequenceContextFormat2<'_> {
     fn external_cache_create(&self, _mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         let data = self.offset_data();
         SubtableExternalCache::ContextFormat2Cache(ContextFormat2Cache {
+            coverage_cache: BinaryCache::new(),
             coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
                 .unwrap_or_default(),
             input: ClassDefInfo::new(&data, self.class_def_offset().to_u32() as u16)
@@ -344,7 +354,11 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
             return None;
         };
         let offset_data = self.offset_data();
-        cache.coverage.index(&offset_data, glyph)?;
+        coverage_binary_cached(
+            |gid| cache.coverage.index(&offset_data, gid),
+            glyph,
+            &cache.coverage_cache,
+        )?;
         let index = cache.input.class(&offset_data, glyph) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
@@ -367,7 +381,11 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
             return None;
         };
         let offset_data = self.offset_data();
-        cache.coverage.index(&offset_data, glyph)?;
+        coverage_binary_cached(
+            |gid| cache.coverage.index(&offset_data, gid),
+            glyph,
+            &cache.coverage_cache,
+        )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
         let index = get_class_cached2(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
@@ -395,6 +413,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
     fn external_cache_create(&self, _mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         let data = self.offset_data();
         SubtableExternalCache::ChainContextFormat2Cache(ChainContextFormat2Cache {
+            coverage_cache: BinaryCache::new(),
             coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
                 .unwrap_or_default(),
             backtrack: ClassDefInfo::new(&data, self.backtrack_class_def_offset().to_u32() as u16)

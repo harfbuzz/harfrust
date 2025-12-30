@@ -659,6 +659,13 @@ pub(crate) type MappingCache = hb_cache_t<
     16,  // STORAGE_BITS
 >;
 
+pub(crate) type BinaryCache = hb_cache_t<
+    15,  // KEY_BITS
+    1,   // VALUE_BITS
+    256, // CACHE_SIZE
+    8,   // STORAGE_BITS
+>;
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum SubtableExternalCacheMode {
     #[allow(unused)]
@@ -727,6 +734,7 @@ pub(crate) struct PairPosFormat2SmallCache {
 pub(crate) struct ContextFormat2Cache {
     pub coverage: CoverageInfo,
     pub input: ClassDefInfo,
+    pub coverage_cache: BinaryCache,
 }
 
 pub(crate) struct ChainContextFormat2Cache {
@@ -734,6 +742,7 @@ pub(crate) struct ChainContextFormat2Cache {
     pub backtrack: ClassDefInfo,
     pub input: ClassDefInfo,
     pub lookahead: ClassDefInfo,
+    pub coverage_cache: BinaryCache,
 }
 
 pub(crate) enum SubtableExternalCache {
