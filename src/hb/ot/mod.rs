@@ -533,6 +533,29 @@ fn coverage_index_cached(
     }
 }
 
+fn coverage_binary_cached(
+    coverage: impl Fn(GlyphId) -> Option<u16>,
+    gid: GlyphId,
+    cache: &MappingCache,
+) -> Option<u16> {
+    if let Some(index) = cache.get(gid.into()) {
+        if index == MappingCache::MAX_VALUE {
+            None
+        } else {
+            Some(index as u16)
+        }
+    } else {
+        let index = coverage(gid);
+        if let Some(_) = index {
+            cache.set_unchecked(gid.into(), 0);
+            Some(0)
+        } else {
+            cache.set_unchecked(gid.into(), MappingCache::MAX_VALUE);
+            None
+        }
+    }
+}
+
 fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
     coverage_index(coverage, gid).is_some()
 }
