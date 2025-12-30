@@ -732,15 +732,17 @@ pub(crate) struct PairPosFormat2SmallCache {
 }
 
 pub(crate) struct ContextFormat2Cache {
-    pub coverage: BinaryCache,
+    pub coverage: CoverageInfo,
     pub input: ClassDefInfo,
+    pub coverage_cache: BinaryCache,
 }
 
 pub(crate) struct ChainContextFormat2Cache {
-    pub coverage: BinaryCache,
+    pub coverage: CoverageInfo,
     pub backtrack: ClassDefInfo,
     pub input: ClassDefInfo,
     pub lookahead: ClassDefInfo,
+    pub coverage_cache: BinaryCache,
 }
 
 pub(crate) enum SubtableExternalCache {
