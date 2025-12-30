@@ -537,18 +537,18 @@ fn coverage_binary_cached(
     coverage: impl Fn(GlyphId) -> Option<u16>,
     gid: GlyphId,
     cache: &BinaryCache,
-) -> Option<u16> {
+) -> Option<bool> {
     if let Some(index) = cache.get(gid.into()) {
         if index == BinaryCache::MAX_VALUE {
             None
         } else {
-            Some(0)
+            Some(true)
         }
     } else {
         let index = coverage(gid);
         if index.is_some() {
             cache.set_unchecked(gid.into(), 0);
-            Some(0)
+            Some(true)
         } else {
             cache.set_unchecked(gid.into(), BinaryCache::MAX_VALUE);
             None
