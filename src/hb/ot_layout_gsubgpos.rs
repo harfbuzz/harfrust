@@ -660,9 +660,9 @@ pub(crate) type MappingCache = hb_cache_t<
 >;
 
 pub(crate) type BinaryCache = hb_cache_t<
-    14,  // KEY_BITS
+    15,  // KEY_BITS
     1,   // VALUE_BITS
-    128, // CACHE_SIZE
+    256, // CACHE_SIZE
     8,   // STORAGE_BITS
 >;
 
