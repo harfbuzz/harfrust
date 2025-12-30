@@ -542,7 +542,7 @@ fn coverage_binary_cached(
         if index == BinaryCache::MAX_VALUE {
             None
         } else {
-            Some(index as u16)
+            Some(0)
         }
     } else {
         let index = coverage(gid);
