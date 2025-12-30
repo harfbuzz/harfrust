@@ -138,7 +138,7 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
     }
 
     #[inline]
-    pub fn set_unchecked(&self, key: u32, value: u32) {
+    fn set_unchecked(&self, key: u32, value: u32) {
         let index = (key as usize) & (CACHE_SIZE - 1);
         let packed = ((key >> Self::CACHE_BITS) << VALUE_BITS) | value;
         self.values[index].set(packed);
