@@ -735,71 +735,6 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
 trait ChainContextRule<'a>: ContextRule<'a> {
     fn backtrack(&self) -> &'a [Self::Input];
     fn lookahead(&self) -> &'a [Self::Input];
-
-    #[inline(always)]
-    fn apply_chain<
-        F1: Fn(&mut GlyphInfo, u16) -> bool,
-        F2: Fn(&mut GlyphInfo, u16) -> bool,
-        F3: Fn(&mut GlyphInfo, u16) -> bool,
-    >(
-        &self,
-        ctx: &mut hb_ot_apply_context_t,
-        match_funcs: &(F1, F2, F3),
-    ) -> Option<()> {
-        // NOTE: Whenever something in this method changes, we also need to
-        // change it in the `apply` implementation for ChainedContextLookup.
-
-        let input = self.input();
-        let f3 = |info: &mut GlyphInfo, index| {
-            let value = (*input.get(index as usize).unwrap()).to_u16();
-            match_funcs.1(info, value)
-        };
-
-        let mut end_index = ctx.buffer.idx;
-        let mut match_end = 0;
-
-        let input_matches = match_input(ctx, input.len() as u16, f3, &mut match_end, None);
-
-        if input_matches {
-            end_index = match_end;
-        } else {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
-            return None;
-        }
-
-        let lookahead = self.lookahead();
-        let f2 = |info: &mut GlyphInfo, index| {
-            let value = (*lookahead.get(index as usize).unwrap()).to_u16();
-            match_funcs.2(info, value)
-        };
-
-        if !match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index) {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
-            return None;
-        }
-
-        let mut start_index = ctx.buffer.out_len;
-
-        let backtrack = self.backtrack();
-        let f1 = |info: &mut GlyphInfo, index| {
-            let value = (*backtrack.get(index as usize).unwrap()).to_u16();
-            match_funcs.0(info, value)
-        };
-
-        if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
-            return None;
-        }
-
-        ctx.buffer
-            .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
-        apply_lookup(ctx, input.len(), match_end, self.lookup_records());
-
-        Some(())
-    }
 }
 
 impl<'a> ContextRule<'a> for ChainedSequenceRule<'a> {
@@ -846,6 +781,69 @@ impl<'a> ChainContextRule<'a> for ChainedClassSequenceRule<'a> {
     }
 }
 
+fn apply_chain_with_sequences<
+    'a,
+    T: ToU16 + 'a,
+    F1: Fn(&mut GlyphInfo, u16) -> bool,
+    F2: Fn(&mut GlyphInfo, u16) -> bool,
+    F3: Fn(&mut GlyphInfo, u16) -> bool,
+>(
+    ctx: &mut hb_ot_apply_context_t,
+    backtrack: &'a [T],
+    input: &'a [T],
+    lookahead: &'a [T],
+    lookup_records: &'a [SequenceLookupRecord],
+    match_funcs: &(F1, F2, F3),
+) -> Option<()> {
+    let f3 = |info: &mut GlyphInfo, index| {
+        let value = (*input.get(index as usize).unwrap()).to_u16();
+        match_funcs.1(info, value)
+    };
+
+    let mut end_index = ctx.buffer.idx;
+    let mut match_end = 0;
+
+    let input_matches = match_input(ctx, input.len() as u16, f3, &mut match_end, None);
+
+    if input_matches {
+        end_index = match_end;
+    } else {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
+        return None;
+    }
+
+    let f2 = |info: &mut GlyphInfo, index| {
+        let value = (*lookahead.get(index as usize).unwrap()).to_u16();
+        match_funcs.2(info, value)
+    };
+
+    if !match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index) {
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
+        return None;
+    }
+
+    let mut start_index = ctx.buffer.out_len;
+
+    let f1 = |info: &mut GlyphInfo, index| {
+        let value = (*backtrack.get(index as usize).unwrap()).to_u16();
+        match_funcs.0(info, value)
+    };
+
+    if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
+        ctx.buffer
+            .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
+        return None;
+    }
+
+    ctx.buffer
+        .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
+    apply_lookup(ctx, input.len(), match_end, lookup_records);
+
+    Some(())
+}
+
 fn apply_chain_context_rules<
     'a,
     'b,
@@ -860,7 +858,16 @@ fn apply_chain_context_rules<
 ) -> Option<()> {
     if rules.len() <= 4 {
         for rule in rules.iter().filter_map(|r| r.ok()) {
-            if rule.apply_chain(ctx, &match_funcs).is_some() {
+            if apply_chain_with_sequences(
+                ctx,
+                rule.backtrack(),
+                rule.input(),
+                rule.lookahead(),
+                rule.lookup_records(),
+                &match_funcs,
+            )
+            .is_some()
+            {
                 return Some(());
             };
         }
@@ -886,7 +893,16 @@ fn apply_chain_context_rules<
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for rule in rules.iter().filter_map(|r| r.ok()) {
-                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                if apply_chain_with_sequences(
+                    ctx,
+                    rule.backtrack(),
+                    rule.input(),
+                    rule.lookahead(),
+                    rule.lookup_records(),
+                    &match_funcs,
+                )
+                .is_some()
+                {
                     return Some(());
                 };
             }
@@ -902,7 +918,16 @@ fn apply_chain_context_rules<
             .filter_map(|r| r.ok())
             .filter(|r| r.input().len() <= 1 && r.lookahead().is_empty())
         {
-            if rule.apply_chain(ctx, &match_funcs).is_some() {
+            if apply_chain_with_sequences(
+                ctx,
+                rule.backtrack(),
+                rule.input(),
+                rule.lookahead(),
+                rule.lookup_records(),
+                &match_funcs,
+            )
+            .is_some()
+            {
                 return Some(());
             };
         }
@@ -917,7 +942,16 @@ fn apply_chain_context_rules<
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for rule in rules.iter().filter_map(|r| r.ok()) {
-                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                if apply_chain_with_sequences(
+                    ctx,
+                    rule.backtrack(),
+                    rule.input(),
+                    rule.lookahead(),
+                    rule.lookup_records(),
+                    &match_funcs,
+                )
+                .is_some()
+                {
                     return Some(());
                 };
             }
@@ -960,7 +994,16 @@ fn apply_chain_context_rules<
                 true
             };
             if matched_second {
-                if rule.apply_chain(ctx, &match_funcs).is_some() {
+                if apply_chain_with_sequences(
+                    ctx,
+                    rule.backtrack(),
+                    rule.input(),
+                    rule.lookahead(),
+                    rule.lookup_records(),
+                    &match_funcs,
+                )
+                .is_some()
+                {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
