@@ -120,7 +120,7 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     let instance =
         (!variations.is_empty()).then(|| ShaperInstance::from_variations(&font, &variations));
     let shaper = data
-        .shaper(&font)
+        .shaper()
         .instance(instance.as_ref())
         .point_size(args.font_ptem)
         .build();
@@ -170,7 +170,7 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     }
 
     buffer.guess_segment_properties();
-    let glyph_buffer = shaper.shape(buffer, &features);
+    let glyph_buffer = shaper.shape(&font, buffer, &features);
 
     let mut format_flags = harfrust::SerializeFlags::default();
     if args.no_glyph_names {
@@ -197,5 +197,5 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
         format_flags |= harfrust::SerializeFlags::GLYPH_FLAGS;
     }
 
-    glyph_buffer.serialize(&shaper, format_flags)
+    glyph_buffer.serialize(&shaper, &font, format_flags)
 }

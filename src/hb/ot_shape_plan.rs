@@ -1,5 +1,6 @@
 use alloc::boxed::Box;
 use core::any::Any;
+use read_fonts::TableProvider;
 use smallvec::SmallVec;
 
 use crate::hb::common::HB_FEATURE_GLOBAL_END;
@@ -50,8 +51,9 @@ pub struct hb_ot_shape_plan_t {
 impl hb_ot_shape_plan_t {
     /// Returns a plan that can be used for shaping any buffer with the
     /// provided properties.
-    pub fn new(
-        face: &hb_font_t,
+    pub fn new<'a>(
+        face: &'a hb_font_t,
+        font: &impl TableProvider<'a>,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
@@ -64,7 +66,7 @@ impl hb_ot_shape_plan_t {
         );
         let mut planner = hb_ot_shape_planner_t::new(face, direction, script, language);
         planner.collect_features(user_features);
-        planner.compile(user_features)
+        planner.compile(user_features, font)
     }
 
     pub(crate) fn data<T: 'static>(&self) -> &T {

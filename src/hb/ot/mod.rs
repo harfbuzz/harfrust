@@ -18,7 +18,7 @@ use read_fonts::{
         variations::{DeltaSetIndex, ItemVariationStore},
     },
     types::{BigEndian, F2Dot14, GlyphId, Offset32},
-    FontData, FontRef, ReadError, ResolveOffset, TableProvider,
+    FontData, ReadError, ResolveOffset, TableProvider,
 };
 
 pub mod contextual;
@@ -34,7 +34,7 @@ pub struct OtCache {
 }
 
 impl OtCache {
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         let gsub = font
             .gsub()
             .map(|t| LookupCache::new(&t))
@@ -101,8 +101,8 @@ pub struct GdefTable<'a> {
 }
 
 impl<'a> GdefTable<'a> {
-    fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
-        if let Some(gdef) = table_ranges.gdef.resolve_table::<Gdef>(font) {
+    fn new(table_ranges: &TableRanges<'a>) -> Self {
+        if let Some(gdef) = table_ranges.gdef.resolve_table::<Gdef>() {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
             let mark_sets = gdef
@@ -137,32 +137,25 @@ pub struct OtTables<'a> {
 
 impl<'a> OtTables<'a> {
     pub fn new(
-        font: &FontRef<'a>,
         cache: &'a OtCache,
-        table_offsets: &TableRanges,
+        table_offsets: &TableRanges<'a>,
         coords: &'a [F2Dot14],
         feature_variations: [Option<u32>; 2],
     ) -> Self {
-        let gsub = table_offsets
-            .gsub
-            .resolve_table(font)
-            .map(|table| GsubTable {
-                table,
-                lookups: &cache.gsub,
-            });
-        let gpos = table_offsets
-            .gpos
-            .resolve_table(font)
-            .map(|table| GposTable {
-                table,
-                lookups: &cache.gpos,
-            });
+        let gsub = table_offsets.gsub.resolve_table().map(|table| GsubTable {
+            table,
+            lookups: &cache.gsub,
+        });
+        let gpos = table_offsets.gpos.resolve_table().map(|table| GposTable {
+            table,
+            lookups: &cache.gpos,
+        });
         let coords = if coords.iter().any(|coord| *coord != F2Dot14::ZERO) {
             coords
         } else {
             &[]
         };
-        let gdef = GdefTable::new(font, table_offsets);
+        let gdef = GdefTable::new(table_offsets);
         let var_store = if !coords.is_empty() {
             gdef.table
                 .as_ref()
