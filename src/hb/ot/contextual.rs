@@ -746,22 +746,10 @@ trait ChainContextRule<'a>: ContextRule<'a> {
         ctx: &mut hb_ot_apply_context_t,
         match_funcs: &(F1, F2, F3),
     ) -> Option<()> {
-        let input = self.input();
-        let backtrack = self.backtrack();
-        let lookahead = self.lookahead();
-
         // NOTE: Whenever something in this method changes, we also need to
         // change it in the `apply` implementation for ChainedContextLookup.
-        let f1 = |info: &mut GlyphInfo, index| {
-            let value = (*backtrack.get(index as usize).unwrap()).to_u16();
-            match_funcs.0(info, value)
-        };
 
-        let f2 = |info: &mut GlyphInfo, index| {
-            let value = (*lookahead.get(index as usize).unwrap()).to_u16();
-            match_funcs.2(info, value)
-        };
-
+        let input = self.input();
         let f3 = |info: &mut GlyphInfo, index| {
             let value = (*input.get(index as usize).unwrap()).to_u16();
             match_funcs.1(info, value)
@@ -774,17 +762,31 @@ trait ChainContextRule<'a>: ContextRule<'a> {
 
         if input_matches {
             end_index = match_end;
+        } else {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
+            return None;
         }
 
-        if !(input_matches
-            && match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index))
-        {
+        let lookahead = self.lookahead();
+        let f2 = |info: &mut GlyphInfo, index| {
+            let value = (*lookahead.get(index as usize).unwrap()).to_u16();
+            match_funcs.2(info, value)
+        };
+
+        if !match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index) {
             ctx.buffer
                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(end_index));
             return None;
         }
 
         let mut start_index = ctx.buffer.out_len;
+
+        let backtrack = self.backtrack();
+        let f1 = |info: &mut GlyphInfo, index| {
+            let value = (*backtrack.get(index as usize).unwrap()).to_u16();
+            match_funcs.0(info, value)
+        };
 
         if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
             ctx.buffer
