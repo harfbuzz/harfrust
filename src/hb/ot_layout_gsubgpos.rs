@@ -652,10 +652,12 @@ pub trait WouldApply {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool;
 }
 
+// HB uses a cache size of 128 here; we double it to reduce collisions
+// since our lookup is slower.
 pub(crate) type MappingCache = hb_cache_t<
-    15,  // KEY_BITS
+    16,  // KEY_BITS
     8,   // VALUE_BITS
-    128, // CACHE_SIZE
+    256, // CACHE_SIZE
     16,  // STORAGE_BITS
 >;
 
