@@ -8,7 +8,6 @@ use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::unicode::hb_unicode_funcs_t;
 use super::{hb_font_t, GlyphInfo};
-use crate::hb::ot_layout_common::*;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::unicode::GeneralCategory;
 
@@ -187,24 +186,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
         return;
     }
 
-    let subtable_count = lookup.subtables.len();
-
-    let lookup_props = lookup.props();
-    if lookup_props != ctx.cached_props {
-        let cache_it =
-            subtable_count > 1 && (lookup_props as u16 & lookup_flags::USE_MARK_FILTERING_SET != 0);
-        if cache_it {
-            ctx.buffer.info.iter_mut().for_each(|info: &mut GlyphInfo| {
-                let matches = check_glyph_property(ctx.face, info, lookup_props, u32::MAX);
-                info.set_matches(matches);
-            });
-            ctx.cached_props = lookup_props;
-        } else {
-            ctx.cached_props = u32::MAX;
-        }
-    }
-    ctx.lookup_props = lookup_props;
-
+    ctx.lookup_props = lookup.props();
     ctx.update_matchers();
 
     if !lookup.is_reverse() {
@@ -241,7 +223,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
             let info = &ctx.buffer.info[j];
             !(lookup.digest.may_have(info.glyph_id)
                 && (info.mask & ctx.lookup_mask()) != 0
-                && check_glyph_property(ctx.face, info, ctx.lookup_props, ctx.cached_props))
+                && check_glyph_property(ctx.face, info, ctx.lookup_props))
         } {
             j += 1;
         }
@@ -278,7 +260,7 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
         let cur = ctx.buffer.cur(0);
         ret |= lookup.digest.may_have(cur.glyph_id)
             && (cur.mask & ctx.lookup_mask()) != 0
-            && check_glyph_property(ctx.face, cur, ctx.lookup_props, ctx.cached_props)
+            && check_glyph_property(ctx.face, cur, ctx.lookup_props)
             && lookup.apply(ctx, table_data, false).is_some();
 
         if ctx.buffer.idx == 0 {
@@ -840,29 +822,6 @@ impl GlyphInfo {
         let mut n = self.glyph_props();
         n &= !GlyphPropsFlags::SUBSTITUTED.bits();
         self.set_glyph_props(n);
-    }
-
-    /// HB: _hb_glyph_info_matches
-    ///
-    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L615>
-    #[doc(alias = "_hb_glyph_info_matches")]
-    #[inline]
-    pub(crate) fn matches(&self) -> bool {
-        self.glyph_props() & GlyphPropsFlags::MATCHES.bits() != 0
-    }
-
-    /// HB: _hb_glyph_info_set_matches
-    ///
-    /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L620>
-    #[doc(alias = "_hb_glyph_info_set_matches")]
-    #[inline]
-    pub(crate) fn set_matches(&mut self, matches: bool) {
-        let n = self.glyph_props();
-        if matches {
-            self.set_glyph_props(n | GlyphPropsFlags::MATCHES.bits());
-        } else {
-            self.set_glyph_props(n & !GlyphPropsFlags::MATCHES.bits());
-        }
     }
 }
 
