@@ -71,6 +71,7 @@ mod text_parser;
 #[rustfmt::skip]
 mod ucd_table;
 mod unicode;
+mod unsafe_vec;
 
 use read_fonts::types::Tag as hb_tag_t;
 
