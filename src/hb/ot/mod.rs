@@ -222,6 +222,16 @@ impl<'a> OtTables<'a> {
         props
     }
 
+    #[inline(never)]
+    pub fn is_mark_glyph_gdef(&self, glyph_id: u32, set_index: u16) -> bool {
+        self.gdef
+            .mark_sets
+            .as_ref()
+            .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
+            .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
+            .is_some_and(|coverage| coverage.get(glyph_id).is_some())
+    }
+
     #[inline(always)]
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
         if self
@@ -229,12 +239,7 @@ impl<'a> OtTables<'a> {
             .get(set_index as usize)
             .is_some_and(|digest| digest.may_have(glyph_id))
         {
-            self.gdef
-                .mark_sets
-                .as_ref()
-                .and_then(|(data, offsets)| Some((data, offsets.get(set_index as usize)?.get())))
-                .and_then(|(data, offset)| offset.resolve::<CoverageTable>(*data).ok())
-                .is_some_and(|coverage| coverage.get(glyph_id).is_some())
+            self.is_mark_glyph_gdef(glyph_id, set_index)
         } else {
             false
         }
