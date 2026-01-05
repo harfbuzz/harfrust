@@ -2,7 +2,7 @@ use crate::hb::buffer::GlyphInfo;
 use crate::hb::ot_layout::MAX_NESTING_LEVEL;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
-    match_backtrack, match_lookahead, Apply, WouldApply, WouldApplyContext,
+    match_backtrack, match_lookahead, Apply, ApplyState, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ReverseChainSingleSubstFormat1;
 
@@ -18,15 +18,12 @@ impl WouldApply for ReverseChainSingleSubstFormat1<'_> {
 }
 
 impl Apply for ReverseChainSingleSubstFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         // No chaining to this type.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
             return None;
         }
-
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let coverage = self.coverage().ok()?;
-        let index = coverage.get(glyph)? as usize;
+        let index = state.first_coverage_index as usize;
         let substitutes = self.substitute_glyph_ids();
         if index >= substitutes.len() {
             return None;

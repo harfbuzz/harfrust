@@ -2,7 +2,7 @@ use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT}
 use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
-use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, MatchSource};
+use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, ApplyState, MatchSource};
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
@@ -49,9 +49,8 @@ impl MarkArrayExt for MarkArray<'_> {
 }
 
 impl Apply for MarkBasePosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let mark_index = state.first_coverage_index;
 
         let base_coverage = self.base_coverage().ok()?;
         let last_base_until = ctx.last_base_until;
@@ -142,9 +141,8 @@ fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
 }
 
 impl Apply for MarkMarkPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let mark1_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let mark1_index = state.first_coverage_index;
         let lookup_props = ctx.lookup_props;
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -205,9 +203,8 @@ impl Apply for MarkMarkPosFormat1<'_> {
 }
 
 impl Apply for MarkLigPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
+        let mark_index = state.first_coverage_index as usize;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.

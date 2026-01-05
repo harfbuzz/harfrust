@@ -14,6 +14,7 @@ use crate::hb::unicode::GeneralCategory;
 use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
+use read_fonts::FontData;
 
 pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
 
@@ -674,43 +675,90 @@ pub(crate) enum SubtableExternalCacheMode {
     Full,
 }
 
+#[derive(Default)]
+pub enum SubtableCoverageCache {
+    #[default]
+    None,
+    Mapping(Box<MappingCache>),
+    Binary(Box<BinaryCache>),
+}
+
+#[derive(Default)]
+pub(crate) struct SubtableCoverage {
+    pub coverage: CoverageInfo,
+    pub cache: SubtableCoverageCache,
+}
+
+impl SubtableCoverage {
+    pub fn new(
+        parent_data: &FontData,
+        coverage_offset: u16,
+        mode: SubtableExternalCacheMode,
+        use_binary: bool,
+    ) -> Option<Self> {
+        let coverage = CoverageInfo::new(parent_data, coverage_offset)?;
+        let cache = if mode == SubtableExternalCacheMode::Full {
+            if use_binary {
+                SubtableCoverageCache::Binary(Box::new(BinaryCache::new()))
+            } else {
+                SubtableCoverageCache::Mapping(Box::new(MappingCache::new()))
+            }
+        } else {
+            SubtableCoverageCache::None
+        };
+        Some(Self { coverage, cache })
+    }
+
+    pub fn index(&self, parent_data: &FontData, gid: GlyphId) -> Option<u16> {
+        match &self.cache {
+            SubtableCoverageCache::None => self.coverage.index(parent_data, gid),
+            SubtableCoverageCache::Binary(cache) => {
+                if let Some(index) = cache.get(gid.into()) {
+                    if index == BinaryCache::MAX_VALUE {
+                        None
+                    } else {
+                        Some(1)
+                    }
+                } else if self.coverage.index(parent_data, gid).is_some() {
+                    cache.set(gid.into(), 0);
+                    Some(1)
+                } else {
+                    cache.set(gid.into(), BinaryCache::MAX_VALUE);
+                    None
+                }
+            }
+            SubtableCoverageCache::Mapping(cache) => {
+                if let Some(index) = cache.get(gid.into()) {
+                    if index == MappingCache::MAX_VALUE {
+                        None
+                    } else {
+                        Some(index as u16)
+                    }
+                } else if let Some(index) = self.coverage.index(parent_data, gid) {
+                    if (index as u32) < MappingCache::MAX_VALUE {
+                        cache.set(gid.into(), index as u32);
+                    }
+                    Some(index as u16)
+                } else {
+                    cache.set(gid.into(), MappingCache::MAX_VALUE);
+                    None
+                }
+            }
+        }
+    }
+}
+
 pub(crate) struct LigatureSubstFormat1Cache {
     pub seconds: hb_set_digest_t,
-    pub coverage: MappingCache,
 }
 
 impl LigatureSubstFormat1Cache {
     pub fn new(seconds: hb_set_digest_t) -> Self {
-        LigatureSubstFormat1Cache {
-            coverage: MappingCache::new(),
-            seconds,
-        }
+        LigatureSubstFormat1Cache { seconds }
     }
-}
-
-pub(crate) struct LigatureSubstFormat1SmallCache {
-    pub coverage: CoverageInfo,
-    pub seconds: hb_set_digest_t,
-}
-
-pub(crate) struct PairPosFormat1Cache {
-    pub coverage: MappingCache,
-}
-
-impl PairPosFormat1Cache {
-    pub fn new() -> Self {
-        PairPosFormat1Cache {
-            coverage: MappingCache::new(),
-        }
-    }
-}
-
-pub(crate) struct PairPosFormat1SmallCache {
-    pub coverage: CoverageInfo,
 }
 
 pub(crate) struct PairPosFormat2Cache {
-    pub coverage: MappingCache,
     pub first: MappingCache,
     pub second: MappingCache,
 }
@@ -718,7 +766,6 @@ pub(crate) struct PairPosFormat2Cache {
 impl PairPosFormat2Cache {
     pub fn new() -> Self {
         PairPosFormat2Cache {
-            coverage: MappingCache::new(),
             first: MappingCache::new(),
             second: MappingCache::new(),
         }
@@ -726,63 +773,44 @@ impl PairPosFormat2Cache {
 }
 
 pub(crate) struct PairPosFormat2SmallCache {
-    pub coverage: CoverageInfo,
     pub first: ClassDefInfo,
     pub second: ClassDefInfo,
 }
 
 pub(crate) struct ContextFormat2Cache {
-    pub coverage: CoverageInfo,
     pub input: ClassDefInfo,
-    pub coverage_cache: BinaryCache,
 }
 
 pub(crate) struct ChainContextFormat2Cache {
-    pub coverage: CoverageInfo,
     pub backtrack: ClassDefInfo,
     pub input: ClassDefInfo,
     pub lookahead: ClassDefInfo,
-    pub coverage_cache: BinaryCache,
 }
 
 pub(crate) enum SubtableExternalCache {
     None,
-    LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
-    LigatureSubstFormat1SmallCache(LigatureSubstFormat1SmallCache),
-    PairPosFormat1Cache(Box<PairPosFormat1Cache>),
-    PairPosFormat1SmallCache(PairPosFormat1SmallCache),
+    LigatureSubstFormat1Cache(LigatureSubstFormat1Cache),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
     PairPosFormat2SmallCache(PairPosFormat2SmallCache),
     ContextFormat2Cache(ContextFormat2Cache),
     ChainContextFormat2Cache(ChainContextFormat2Cache),
 }
 
+pub struct ApplyState<'a> {
+    pub first_glyph: GlyphId,
+    pub first_coverage_index: u16,
+    pub coverage: &'a SubtableCoverage,
+    pub external_cache: &'a SubtableExternalCache,
+}
+
 /// Apply a lookup.
 pub trait Apply {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
-        // Default implementation just calls `apply_with_external_cache`.
-        self.apply_with_external_cache(ctx, &SubtableExternalCache::None)
-    }
+    fn apply(&self, ctx: &mut hb_ot_apply_context_t, _state: &ApplyState) -> Option<()>;
 
-    // The rest are relevant to subtables only
-
-    fn apply_with_external_cache(
-        &self,
-        ctx: &mut hb_ot_apply_context_t,
-        _external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        // Default implementation just calls `apply`.
-        self.apply(ctx)
-    }
-
-    fn apply_cached(
-        &self,
-        ctx: &mut hb_ot_apply_context_t,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
+    fn apply_cached(&self, ctx: &mut hb_ot_apply_context_t, state: &ApplyState) -> Option<()> {
         // Default implementation just calls `apply_with_external_cache`.
         // This is used to apply the lookup with glyph-info caching.
-        self.apply_with_external_cache(ctx, external_cache)
+        self.apply(ctx, state)
     }
 
     fn cache_cost(&self) -> u32 {

@@ -2,7 +2,7 @@ use super::buffer::GlyphPropsFlags;
 use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
-use crate::hb::ot_layout_gsubgpos::{BinaryCache, MappingCache};
+use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
@@ -506,54 +506,6 @@ impl<'a> LayoutTable<'a> {
 
 fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> Option<u16> {
     coverage.ok().and_then(|coverage| coverage.get(gid))
-}
-
-fn coverage_index_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
-    gid: GlyphId,
-    cache: &MappingCache,
-) -> Option<u16> {
-    if let Some(index) = cache.get(gid.into()) {
-        if index == MappingCache::MAX_VALUE {
-            None
-        } else {
-            Some(index as u16)
-        }
-    } else {
-        let index = coverage(gid);
-        if let Some(index) = index {
-            if (index as u32) < MappingCache::MAX_VALUE {
-                cache.set(gid.into(), index as u32);
-            }
-            Some(index)
-        } else {
-            cache.set(gid.into(), MappingCache::MAX_VALUE);
-            None
-        }
-    }
-}
-
-fn coverage_binary_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
-    gid: GlyphId,
-    cache: &BinaryCache,
-) -> Option<bool> {
-    if let Some(index) = cache.get(gid.into()) {
-        if index == BinaryCache::MAX_VALUE {
-            None
-        } else {
-            Some(true)
-        }
-    } else {
-        let index = coverage(gid);
-        if index.is_some() {
-            cache.set(gid.into(), 0);
-            Some(true)
-        } else {
-            cache.set(gid.into(), BinaryCache::MAX_VALUE);
-            None
-        }
-    }
 }
 
 fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
