@@ -98,7 +98,7 @@ pub fn match_input(
 
         iter.set_match_position(i, iter.index());
 
-        let this = iter.buffer.info[iter.index()];
+        let this = unsafe { *iter.buffer.info.get_unchecked(iter.index()) };
         let this_lig_id = this.lig_id();
         let this_lig_comp = this.lig_comp();
 
@@ -479,8 +479,8 @@ where
     #[inline]
     pub fn match_at(&mut self, idx: usize, source: MatchSource) -> match_t {
         let info = match source {
-            MatchSource::Info => &mut self.buffer.info[idx],
-            MatchSource::OutInfo => &mut self.buffer.out_info_mut()[idx],
+            MatchSource::Info => unsafe { self.buffer.info.get_unchecked_mut(idx) },
+            MatchSource::OutInfo => unsafe { self.buffer.out_info_mut().get_unchecked_mut(idx) },
         };
         let skip = self.matcher.may_skip(info, self.face, self.lookup_props);
 
