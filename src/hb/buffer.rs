@@ -557,13 +557,12 @@ impl hb_buffer_t {
 
     #[inline]
     pub fn cur(&self, i: usize) -> &GlyphInfo {
-        &self.info[self.idx + i]
+        unsafe { self.info.get_unchecked(self.idx + i) }
     }
 
     #[inline]
     pub fn cur_mut(&mut self, i: usize) -> &mut GlyphInfo {
-        let idx = self.idx + i;
-        &mut self.info[idx]
+        unsafe { self.info.get_unchecked_mut(self.idx + i) }
     }
 
     #[inline]
@@ -716,7 +715,7 @@ impl hb_buffer_t {
     {
         start += 1;
 
-        while start < self.len && group(&self.info[start - 1], &self.info[start]) {
+        while start < self.len && group(unsafe { self.info.get_unchecked(start - 1) }, unsafe { self.info.get_unchecked(start) }) {
             start += 1;
         }
 
@@ -920,7 +919,7 @@ impl hb_buffer_t {
                 }
 
                 for i in 0..n {
-                    self.set_out_info(self.out_len + i, self.info[self.idx + i]);
+                    self.set_out_info(self.out_len + i, unsafe { *self.info.get_unchecked(self.idx + i) });
                 }
             }
 
