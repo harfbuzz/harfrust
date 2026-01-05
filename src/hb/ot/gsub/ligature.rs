@@ -96,7 +96,7 @@ impl ApplyLigatureSet for LigatureSet<'_> {
 
                 // Can't use the fast path if eg. the next char is a default-ignorable
                 // or other skippable.
-                iter.may_skip(&second_info) != may_skip_t::SKIP_NO
+                iter.may_skip(second_info) != may_skip_t::SKIP_NO
             }
         };
 

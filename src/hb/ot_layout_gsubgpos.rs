@@ -738,7 +738,7 @@ impl SubtableCoverage {
                     if (index as u32) < MappingCache::MAX_VALUE {
                         cache.set(gid.into(), index as u32);
                     }
-                    Some(index as u16)
+                    Some(index)
                 } else {
                     cache.set(gid.into(), MappingCache::MAX_VALUE);
                     None
