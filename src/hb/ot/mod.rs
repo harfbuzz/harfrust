@@ -222,6 +222,7 @@ impl<'a> OtTables<'a> {
         props
     }
 
+    #[inline(always)]
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
         if self
             .gdef_mark_set_digests
