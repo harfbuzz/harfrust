@@ -4,6 +4,28 @@ use std::ops::{
     RangeToInclusive,
 };
 
+
+use std::panic::Location;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static UNCHECKED_HITS: AtomicU64 = AtomicU64::new(0);
+
+#[inline(always)]
+fn trace_unchecked(loc: &'static Location<'static>) {
+    // sample every ~1M calls
+    let n = UNCHECKED_HITS.fetch_add(1, Ordering::Relaxed);
+    if (n & 0xFFFF) == 0 {
+        eprintln!(
+            "[unchecked[]] {}:{}:{}  hits={}",
+            loc.file(),
+            loc.line(),
+            loc.column(),
+            n
+        );
+    }
+}
+
+
 #[repr(transparent)]
 pub struct UnsafeVec<T> {
     pub inner: Vec<T>,
@@ -89,14 +111,18 @@ impl<T> DerefMut for UnsafeVec<T> {
 /// Unchecked single-element indexing (UB if out of bounds)
 impl<T> Index<usize> for UnsafeVec<T> {
     type Output = T;
+    #[track_caller]
     #[inline]
     fn index(&self, i: usize) -> &T {
+        trace_unchecked(Location::caller());
         unsafe { self.inner.get_unchecked(i) }
     }
 }
 impl<T> IndexMut<usize> for UnsafeVec<T> {
+    #[track_caller]
     #[inline]
     fn index_mut(&mut self, i: usize) -> &mut T {
+        trace_unchecked(Location::caller());
         unsafe { self.inner.get_unchecked_mut(i) }
     }
 }
