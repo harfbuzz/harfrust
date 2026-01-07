@@ -88,6 +88,10 @@ impl Apply for PairPosFormat1<'_> {
         let mut hi = pair_count;
         let mut lo = 0;
         while lo < hi {
+            // This recommends using usize::midpoint which expands to u128.
+            // We definitely do not want to do that here since the input values
+            // are 16-bit.
+            #[allow(clippy::manual_midpoint)]
             let mid = (lo + hi) / 2;
             let record_offset = 2 + mid * record_size;
             let glyph_id = set_data
