@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This release matches HarfBuzz [v12.3.0][harfbuzz-12.3.0], and has an MSRV (minimum supported Rust version) of 1.85.
 
-- Update to read-fonts 0.37.0 (and bump MSRV to 1.86).
+- Update to read-fonts 0.37.0 (and bump MSRV to 1.85).
 - Various performance improvements.
 
 ## [0.4.1] - 2025-12-08
