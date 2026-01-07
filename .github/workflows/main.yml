@@ -26,8 +26,8 @@ jobs:
     - name: Build with std
       run: cargo build
 
-    - name: MSRV Build (Rust 1.82)
-      run: cargo +1.82 build
+    - name: MSRV Build (Rust 1.85)
+      run: cargo +1.85 build
 
     - name: Run tests
       run: cargo test --verbose
