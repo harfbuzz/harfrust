@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
 
-use super::buffer::{glyph_flag, hb_buffer_t};
+use super::buffer::{glyph_flag, Buffer};
 use super::common::TagExt;
 use super::ot_layout::TableIndex;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
@@ -69,7 +69,7 @@ pub struct StageMap {
 
 // Pause functions return true if new glyph indices might have been added to the buffer.
 // This is used to update buffer digest.
-pub type pause_func_t = fn(&hb_ot_shape_plan_t, &hb_font_t, &mut hb_buffer_t) -> bool;
+pub type pause_func_t = fn(&hb_ot_shape_plan_t, &hb_font_t, &mut Buffer) -> bool;
 
 impl hb_ot_map_t {
     pub const MAX_BITS: u32 = 8;
