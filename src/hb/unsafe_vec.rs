@@ -101,20 +101,18 @@ impl<T> IndexMut<usize> for UnsafeVec<T> {
     }
 }
 
-/// Unchecked range indexing (UB if invalid range)
+/// Safe range indexing
 impl<T> Index<Range<usize>> for UnsafeVec<T> {
     type Output = [T];
     #[inline]
     fn index(&self, r: Range<usize>) -> &[T] {
-        unsafe { std::slice::from_raw_parts(self.inner.as_ptr().add(r.start), r.end - r.start) }
+        &self.inner[r]
     }
 }
 impl<T> IndexMut<Range<usize>> for UnsafeVec<T> {
     #[inline]
     fn index_mut(&mut self, r: Range<usize>) -> &mut [T] {
-        unsafe {
-            std::slice::from_raw_parts_mut(self.inner.as_mut_ptr().add(r.start), r.end - r.start)
-        }
+        &mut self.inner[r]
     }
 }
 
@@ -122,17 +120,13 @@ impl<T> Index<RangeFrom<usize>> for UnsafeVec<T> {
     type Output = [T];
     #[inline]
     fn index(&self, r: RangeFrom<usize>) -> &[T] {
-        let len = self.inner.len();
-        unsafe { std::slice::from_raw_parts(self.inner.as_ptr().add(r.start), len - r.start) }
+        &self.inner[r]
     }
 }
 impl<T> IndexMut<RangeFrom<usize>> for UnsafeVec<T> {
     #[inline]
     fn index_mut(&mut self, r: RangeFrom<usize>) -> &mut [T] {
-        let len = self.inner.len();
-        unsafe {
-            std::slice::from_raw_parts_mut(self.inner.as_mut_ptr().add(r.start), len - r.start)
-        }
+        &mut self.inner[r]
     }
 }
 
@@ -140,13 +134,13 @@ impl<T> Index<RangeTo<usize>> for UnsafeVec<T> {
     type Output = [T];
     #[inline]
     fn index(&self, r: RangeTo<usize>) -> &[T] {
-        unsafe { std::slice::from_raw_parts(self.inner.as_ptr(), r.end) }
+        &self.inner[r]
     }
 }
 impl<T> IndexMut<RangeTo<usize>> for UnsafeVec<T> {
     #[inline]
     fn index_mut(&mut self, r: RangeTo<usize>) -> &mut [T] {
-        unsafe { std::slice::from_raw_parts_mut(self.inner.as_mut_ptr(), r.end) }
+        &mut self.inner[r]
     }
 }
 
@@ -168,19 +162,13 @@ impl<T> Index<RangeInclusive<usize>> for UnsafeVec<T> {
     type Output = [T];
     #[inline]
     fn index(&self, r: RangeInclusive<usize>) -> &[T] {
-        let start = *r.start();
-        let end_incl = *r.end();
-        unsafe { std::slice::from_raw_parts(self.inner.as_ptr().add(start), end_incl - start + 1) }
+        &self.inner[r]
     }
 }
 impl<T> IndexMut<RangeInclusive<usize>> for UnsafeVec<T> {
     #[inline]
     fn index_mut(&mut self, r: RangeInclusive<usize>) -> &mut [T] {
-        let start = *r.start();
-        let end_incl = *r.end();
-        unsafe {
-            std::slice::from_raw_parts_mut(self.inner.as_mut_ptr().add(start), end_incl - start + 1)
-        }
+        &mut self.inner[r]
     }
 }
 
@@ -188,13 +176,13 @@ impl<T> Index<RangeToInclusive<usize>> for UnsafeVec<T> {
     type Output = [T];
     #[inline]
     fn index(&self, r: RangeToInclusive<usize>) -> &[T] {
-        unsafe { std::slice::from_raw_parts(self.inner.as_ptr(), r.end + 1) }
+        &self.inner[r]
     }
 }
 impl<T> IndexMut<RangeToInclusive<usize>> for UnsafeVec<T> {
     #[inline]
     fn index_mut(&mut self, r: RangeToInclusive<usize>) -> &mut [T] {
-        unsafe { std::slice::from_raw_parts_mut(self.inner.as_mut_ptr(), r.end + 1) }
+        &mut self.inner[r]
     }
 }
 
