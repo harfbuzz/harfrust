@@ -46,16 +46,6 @@ impl<T> UnsafeVec<T> {
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.inner.as_mut_ptr()
     }
-
-    #[inline]
-    pub fn into_vec(self) -> Vec<T> {
-        self.inner
-    }
-
-    #[inline]
-    pub fn from_vec(v: Vec<T>) -> Self {
-        Self { inner: v }
-    }
 }
 
 impl<T> Default for UnsafeVec<T> {
