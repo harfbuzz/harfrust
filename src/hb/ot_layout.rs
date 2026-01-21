@@ -220,7 +220,7 @@ fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bo
     while ctx.buffer.successful {
         let mut j = ctx.buffer.idx;
         while j < ctx.buffer.len && {
-            let info = &ctx.buffer.info[j];
+            let info = unsafe { ctx.buffer.info.get_unchecked(j) };
             !(lookup.digest.may_have(info.glyph_id)
                 && (info.mask & ctx.lookup_mask()) != 0
                 && check_glyph_property(ctx.face, info, ctx.lookup_props))
