@@ -26,7 +26,7 @@ use read_fonts::{
             SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
         },
     },
-    FontData, FontRead, Offset, ReadError,
+    FontData, FontRead, Offset, ReadError, Sanitized,
 };
 
 pub struct LookupData<'a> {
@@ -43,7 +43,7 @@ pub trait LookupHost<'a> {
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError>;
 }
 
-impl<'a> LookupHost<'a> for Gsub<'a> {
+impl<'a> LookupHost<'a> for Sanitized<Gsub<'a>> {
     fn lookup_count(&self) -> u16 {
         self.lookup_list()
             .map(|list| list.lookup_count())
@@ -67,7 +67,7 @@ impl<'a> LookupHost<'a> for Gsub<'a> {
     }
 }
 
-impl<'a> LookupHost<'a> for Gpos<'a> {
+impl<'a> LookupHost<'a> for Sanitized<Gpos<'a>> {
     fn lookup_count(&self) -> u16 {
         self.lookup_list()
             .map(|list| list.lookup_count())

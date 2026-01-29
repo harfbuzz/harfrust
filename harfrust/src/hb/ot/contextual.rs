@@ -15,7 +15,7 @@ use read_fonts::tables::layout::{
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
-use read_fonts::{ArrayOfOffsets, FontRead};
+use read_fonts::{ArrayOfOffsets, FontRead, FontReadWithArgs};
 
 impl WouldApply for SequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -544,7 +544,7 @@ impl ToU16 for BigEndian<u16> {
     }
 }
 
-trait ContextRule<'a>: FontRead<'a> {
+trait ContextRule<'a>: FontReadWithArgs<'a, Args = ()> {
     type Input: ToU16 + 'a;
 
     fn input(&self) -> &'a [Self::Input];
