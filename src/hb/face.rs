@@ -1,4 +1,5 @@
 use read_fonts::types::{F2Dot14, Fixed, GlyphId};
+use read_fonts::Sanitize;
 use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
 
@@ -162,10 +163,12 @@ impl ShaperInstance {
         }
         self.feature_variations[0] = font
             .gsub()
+            .and_then(Sanitize::sanitize)
             .ok()
             .and_then(|t| LayoutTable::Gsub(t).feature_variation_index(&self.coords));
         self.feature_variations[1] = font
             .gpos()
+            .and_then(Sanitize::sanitize)
             .ok()
             .and_then(|t| LayoutTable::Gpos(t).feature_variation_index(&self.coords));
     }

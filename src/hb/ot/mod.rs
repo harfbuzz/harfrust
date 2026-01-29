@@ -6,7 +6,7 @@ use crate::hb::ot_layout_gsubgpos::{BinaryCache, MappingCache};
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
-use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
+use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord, SanitizedCondition};
 use read_fonts::types::GlyphId16;
 use read_fonts::{
     tables::{
@@ -14,11 +14,11 @@ use read_fonts::{
         gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
         gsub::{ClassDef, FeatureList, FeatureVariations, Gsub, ScriptList},
         layout::{Feature, LangSys, Script},
-        varc::{Condition, CoverageTable},
+        varc::CoverageTable,
         variations::{DeltaSetIndex, ItemVariationStore},
     },
     types::{BigEndian, F2Dot14, GlyphId, Offset32},
-    FontData, FontRef, ReadError, ResolveOffset, TableProvider,
+    FontData, FontRef, ReadError, ResolveOffset, Sanitize, Sanitized, TableProvider,
 };
 
 pub mod contextual;
@@ -37,10 +37,12 @@ impl OtCache {
     pub fn new(font: &FontRef) -> Self {
         let gsub = font
             .gsub()
+            .and_then(|g| g.sanitize())
             .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
         let gpos = font
             .gpos()
+            .and_then(|g| g.sanitize())
             .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
         let mut gdef_mark_set_digests = Vec::new();
@@ -64,7 +66,7 @@ impl OtCache {
 
 #[derive(Clone)]
 pub struct GsubTable<'a> {
-    pub table: Gsub<'a>,
+    pub table: Sanitized<Gsub<'a>>,
     pub lookups: &'a LookupCache,
 }
 
@@ -79,7 +81,7 @@ impl crate::hb::ot_layout::LayoutTable for GsubTable<'_> {
 
 #[derive(Clone)]
 pub struct GposTable<'a> {
-    pub table: Gpos<'a>,
+    pub table: Sanitized<Gpos<'a>>,
     pub lookups: &'a LookupCache,
 }
 
@@ -143,16 +145,24 @@ impl<'a> OtTables<'a> {
         coords: &'a [F2Dot14],
         feature_variations: [Option<u32>; 2],
     ) -> Self {
-        let gsub = table_offsets
-            .gsub
-            .resolve_table(font)
+        let gsub = font
+            .gsub()
+            .and_then(Sanitize::sanitize)
+            .ok()
+            //let gsub = table_offsets
+            //.gsub
+            //.resolve_table(font)
             .map(|table| GsubTable {
                 table,
                 lookups: &cache.gsub,
             });
-        let gpos = table_offsets
-            .gpos
-            .resolve_table(font)
+        let gpos = font
+            .gpos()
+            .and_then(Sanitize::sanitize)
+            .ok()
+            //let gpos = table_offsets
+            //.gpos
+            //.resolve_table(font)
             .map(|table| GposTable {
                 table,
                 lookups: &cache.gpos,
@@ -297,26 +307,27 @@ impl<'a> OtTables<'a> {
 }
 
 pub enum LayoutTable<'a> {
-    Gsub(Gsub<'a>),
-    Gpos(Gpos<'a>),
+    Gsub(Sanitized<Gsub<'a>>),
+    Gpos(Sanitized<Gpos<'a>>),
 }
 
 impl<'a> LayoutTable<'a> {
-    fn script_list(&self) -> Option<ScriptList<'a>> {
+    //fn script_list(&self) -> Option<ScriptList<'a>> {
+    fn script_list(&self) -> Option<Sanitized<ScriptList<'a>>> {
         match self {
             Self::Gsub(gsub) => gsub.script_list().ok(),
             Self::Gpos(gpos) => gpos.script_list().ok(),
         }
     }
 
-    fn feature_list(&self) -> Option<FeatureList<'a>> {
+    fn feature_list(&self) -> Option<Sanitized<FeatureList<'a>>> {
         match self {
             Self::Gsub(gsub) => gsub.feature_list().ok(),
             Self::Gpos(gpos) => gpos.feature_list().ok(),
         }
     }
 
-    fn feature_variations(&self) -> Option<FeatureVariations<'a>> {
+    fn feature_variations(&self) -> Option<Sanitized<FeatureVariations<'a>>> {
         match self {
             Self::Gsub(gsub) => gsub.feature_variations(),
             Self::Gpos(gpos) => gpos.feature_variations(),
@@ -326,7 +337,7 @@ impl<'a> LayoutTable<'a> {
         .flatten()
     }
 
-    fn script(&self, index: u16) -> Option<Script<'a>> {
+    fn script(&self, index: u16) -> Option<Sanitized<Script<'a>>> {
         self.script_list()?
             .get(index)
             .ok()
@@ -338,7 +349,11 @@ impl<'a> LayoutTable<'a> {
         script.lang_sys_index_for_tag(tag)
     }
 
-    fn langsys(&self, script_index: u16, langsys_index: Option<u16>) -> Option<LangSys<'a>> {
+    fn langsys(
+        &self,
+        script_index: u16,
+        langsys_index: Option<u16>,
+    ) -> Option<Sanitized<LangSys<'a>>> {
         let script = self.script(script_index)?;
         if let Some(index) = langsys_index {
             let record = script.lang_sys_records().get(index as usize)?;
@@ -348,7 +363,7 @@ impl<'a> LayoutTable<'a> {
         }
     }
 
-    pub(crate) fn feature(&self, index: u16) -> Option<Feature<'a>> {
+    pub(crate) fn feature(&self, index: u16) -> Option<Sanitized<Feature<'a>>> {
         self.feature_list()?
             .get(index)
             .ok()
@@ -385,7 +400,7 @@ impl<'a> LayoutTable<'a> {
                 // .. except we ignore errors
                 .filter_map(Result::ok)
                 .all(|cond| match cond {
-                    Condition::Format1AxisRange(format1) => {
+                    SanitizedCondition::Format1AxisRange(format1) => {
                         let coord = coords
                             .get(format1.axis_index() as usize)
                             .copied()
@@ -406,7 +421,7 @@ impl<'a> LayoutTable<'a> {
         &self,
         variation_index: u32,
         feature_index: u16,
-    ) -> Option<Feature<'a>> {
+    ) -> Option<Sanitized<Feature<'a>>> {
         let feature_variations = self.feature_variations()?;
         let record = feature_variations
             .feature_variation_records()
