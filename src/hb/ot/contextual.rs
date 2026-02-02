@@ -8,16 +8,16 @@ use crate::hb::ot_layout_gsubgpos::{
     ContextFormat2Cache, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
     WouldApplyContext,
 };
-use read_fonts::tables::gsub::ClassDef;
+use read_fonts::tables::layout::SanitizedClassDef;
 use read_fonts::tables::layout::{
     ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
     ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
-use read_fonts::{ArrayOfOffsets, FontRead, FontReadWithArgs};
+use read_fonts::{ArrayOfOffsets, FontReadWithArgs, Sanitized};
 
-impl WouldApply for SequenceContextFormat1<'_> {
+impl WouldApply for Sanitized<SequenceContextFormat1<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         coverage_index(self.coverage(), ctx.glyphs[0])
             .and_then(|index| {
@@ -46,7 +46,7 @@ impl WouldApply for SequenceContextFormat1<'_> {
     }
 }
 
-impl Apply for SequenceContextFormat1<'_> {
+impl Apply for Sanitized<SequenceContextFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
@@ -55,7 +55,7 @@ impl Apply for SequenceContextFormat1<'_> {
     }
 }
 
-impl WouldApply for SequenceContextFormat2<'_> {
+impl WouldApply for Sanitized<SequenceContextFormat2<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let class_def = self.class_def().ok();
         let match_fn = &match_class(&class_def);
@@ -84,7 +84,7 @@ impl WouldApply for SequenceContextFormat2<'_> {
     }
 }
 
-impl Apply for SequenceContextFormat2<'_> {
+impl Apply for Sanitized<SequenceContextFormat2<'_>> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -151,7 +151,7 @@ impl Apply for SequenceContextFormat2<'_> {
     }
 }
 
-impl WouldApply for SequenceContextFormat3<'_> {
+impl WouldApply for Sanitized<SequenceContextFormat3<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let coverages = self.coverages();
         ctx.glyphs.len() == coverages.len() + 1
@@ -162,7 +162,7 @@ impl WouldApply for SequenceContextFormat3<'_> {
     }
 }
 
-impl Apply for SequenceContextFormat3<'_> {
+impl Apply for Sanitized<SequenceContextFormat3<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let input_coverages = self.coverages();
@@ -197,7 +197,7 @@ impl Apply for SequenceContextFormat3<'_> {
     }
 }
 
-impl WouldApply for ChainedSequenceContextFormat1<'_> {
+impl WouldApply for Sanitized<ChainedSequenceContextFormat1<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         coverage_index(self.coverage(), ctx.glyphs[0])
             .and_then(|index| {
@@ -229,7 +229,7 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
     }
 }
 
-impl Apply for ChainedSequenceContextFormat1<'_> {
+impl Apply for Sanitized<ChainedSequenceContextFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
@@ -242,7 +242,7 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
     }
 }
 
-impl WouldApply for ChainedSequenceContextFormat2<'_> {
+impl WouldApply for Sanitized<ChainedSequenceContextFormat2<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let class_def = self.input_class_def().ok();
         let match_fn = &match_class(&class_def);
@@ -276,7 +276,7 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
 
 /// Value represents glyph class.
 fn match_class<'a>(
-    class_def: &'a Option<ClassDef<'a>>,
+    class_def: &'a Option<SanitizedClassDef<'a>>,
 ) -> impl Fn(&mut GlyphInfo, u16) -> bool + 'a {
     |&mut info, value| {
         class_def
@@ -343,7 +343,7 @@ fn match_class_cached2<'a>(
     move |info: &mut GlyphInfo, value| get_class_cached2(&class_def, info) == value
 }
 
-impl Apply for ChainedSequenceContextFormat2<'_> {
+impl Apply for Sanitized<ChainedSequenceContextFormat2<'_>> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -426,7 +426,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
     }
 }
 
-impl WouldApply for ChainedSequenceContextFormat3<'_> {
+impl WouldApply for Sanitized<ChainedSequenceContextFormat3<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let input_coverages = self.input_coverages();
         (!ctx.zero_context
@@ -445,7 +445,7 @@ impl WouldApply for ChainedSequenceContextFormat3<'_> {
     }
 }
 
-impl Apply for ChainedSequenceContextFormat3<'_> {
+impl Apply for Sanitized<ChainedSequenceContextFormat3<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
 
@@ -548,7 +548,7 @@ trait ContextRule<'a>: FontReadWithArgs<'a, Args = ()> {
     type Input: ToU16 + 'a;
 
     fn input(&self) -> &'a [Self::Input];
-    fn lookup_records(&self) -> &'a [SequenceLookupRecord];
+    fn lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>];
 
     fn apply(
         &self,
@@ -573,26 +573,26 @@ trait ContextRule<'a>: FontReadWithArgs<'a, Args = ()> {
     }
 }
 
-impl<'a> ContextRule<'a> for SequenceRule<'a> {
+impl<'a> ContextRule<'a> for Sanitized<SequenceRule<'a>> {
     type Input = BigEndian<GlyphId16>;
 
     fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
-    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+    fn lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
         self.seq_lookup_records()
     }
 }
 
-impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
+impl<'a> ContextRule<'a> for Sanitized<ClassSequenceRule<'a>> {
     type Input = BigEndian<u16>;
 
     fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
-    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+    fn lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
         self.seq_lookup_records()
     }
 }
@@ -737,19 +737,19 @@ trait ChainContextRule<'a>: ContextRule<'a> {
     fn lookahead(&self) -> &'a [Self::Input];
 }
 
-impl<'a> ContextRule<'a> for ChainedSequenceRule<'a> {
+impl<'a> ContextRule<'a> for Sanitized<ChainedSequenceRule<'a>> {
     type Input = BigEndian<GlyphId16>;
 
     fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
-    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+    fn lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
         self.seq_lookup_records()
     }
 }
 
-impl<'a> ChainContextRule<'a> for ChainedSequenceRule<'a> {
+impl<'a> ChainContextRule<'a> for Sanitized<ChainedSequenceRule<'a>> {
     fn backtrack(&self) -> &'a [Self::Input] {
         self.backtrack_sequence()
     }
@@ -759,19 +759,19 @@ impl<'a> ChainContextRule<'a> for ChainedSequenceRule<'a> {
     }
 }
 
-impl<'a> ContextRule<'a> for ChainedClassSequenceRule<'a> {
+impl<'a> ContextRule<'a> for Sanitized<ChainedClassSequenceRule<'a>> {
     type Input = BigEndian<u16>;
 
     fn input(&self) -> &'a [Self::Input] {
         self.input_sequence()
     }
 
-    fn lookup_records(&self) -> &'a [SequenceLookupRecord] {
+    fn lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
         self.seq_lookup_records()
     }
 }
 
-impl<'a> ChainContextRule<'a> for ChainedClassSequenceRule<'a> {
+impl<'a> ChainContextRule<'a> for Sanitized<ChainedClassSequenceRule<'a>> {
     fn backtrack(&self) -> &'a [Self::Input] {
         self.backtrack_sequence()
     }
@@ -792,7 +792,7 @@ fn apply_chain_with_sequences<
     backtrack: &'a [T],
     input: &'a [T],
     lookahead: &'a [T],
-    lookup_records: &'a [SequenceLookupRecord],
+    lookup_records: &'a [Sanitized<SequenceLookupRecord>],
     match_funcs: &(F1, F2, F3),
 ) -> Option<()> {
     let f3 = |info: &mut GlyphInfo, index| {

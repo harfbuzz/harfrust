@@ -5,24 +5,27 @@ use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, MatchSource};
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
+    SanitizedAnchorTable,
 };
+use read_fonts::ResolveNullableOffset;
+use read_fonts::Sanitized;
 
 trait MarkArrayExt {
     fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        base_anchor: &AnchorTable,
-        mark_anchor: &AnchorTable,
+        base_anchor: &SanitizedAnchorTable,
+        mark_anchor: &SanitizedAnchorTable,
         glyph_pos: usize,
     ) -> Option<()>;
 }
 
-impl MarkArrayExt for MarkArray<'_> {
+impl MarkArrayExt for Sanitized<MarkArray<'_>> {
     fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        base_anchor: &AnchorTable,
-        mark_anchor: &AnchorTable,
+        base_anchor: &SanitizedAnchorTable,
+        mark_anchor: &SanitizedAnchorTable,
         glyph_pos: usize,
     ) -> Option<()> {
         // If this subtable doesn't have an anchor for this base and this class
@@ -48,7 +51,7 @@ impl MarkArrayExt for MarkArray<'_> {
     }
 }
 
-impl Apply for MarkBasePosFormat1<'_> {
+impl Apply for Sanitized<MarkBasePosFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
@@ -117,10 +120,16 @@ impl Apply for MarkBasePosFormat1<'_> {
 
         let base_array = self.base_array().ok()?;
         let base_record = base_array.base_records().get(base_index as usize).ok()?;
-        let base_anchor = base_record
-            .base_anchors(base_array.offset_data())
+        let base_anchor: SanitizedAnchorTable = base_record
+            .base_anchor_offsets
             .get(mark_record.mark_class() as usize)?
+            .get()
+            .resolve_with_args(base_array.offset_data(), &())?
             .ok()?;
+        //let base_anchor = base_record
+        //.base_anchors(base_array.offset_data())
+        //.get(mark_record.mark_class() as usize)?
+        //.ok()?;
 
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx as usize)
     }
@@ -141,7 +150,7 @@ fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
             || buffer.info[idx].lig_comp() != buffer.info[idx - 1].lig_comp() + 1)
 }
 
-impl Apply for MarkMarkPosFormat1<'_> {
+impl Apply for Sanitized<MarkMarkPosFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark1_glyph = ctx.buffer.cur(0).as_glyph();
         let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
@@ -195,16 +204,19 @@ impl Apply for MarkMarkPosFormat1<'_> {
 
         let base_array = self.mark2_array().ok()?;
         let base_record = base_array.mark2_records().get(mark2_index as usize).ok()?;
-        let base_anchor = base_record
-            .mark2_anchors(base_array.offset_data())
+
+        let base_anchor: SanitizedAnchorTable = base_record
+            .mark2_anchor_offsets
             .get(mark1_record.mark_class() as usize)?
+            .get()
+            .resolve_with_args(base_array.offset_data(), &())?
             .ok()?;
 
         mark1_array.apply(ctx, &base_anchor, &mark1_anchor, iter_idx)
     }
 }
 
-impl Apply for MarkLigPosFormat1<'_> {
+impl Apply for Sanitized<MarkLigPosFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
@@ -289,9 +301,11 @@ impl Apply for MarkLigPosFormat1<'_> {
             .component_records()
             .get(comp_index as usize)
             .ok()?;
-        let base_anchor = base_record
-            .ligature_anchors(lig_attach.offset_data())
+        let base_anchor: SanitizedAnchorTable = base_record
+            .ligature_anchor_offsets
             .get(mark_record.mark_class() as usize)?
+            .get()
+            .resolve_with_args(lig_attach.offset_data(), &())?
             .ok()?;
 
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx)

@@ -5,8 +5,9 @@ use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
 use crate::{Direction, GlyphPosition};
 use read_fonts::tables::gpos::CursivePosFormat1;
+use read_fonts::Sanitized;
 
-impl Apply for CursivePosFormat1<'_> {
+impl Apply for Sanitized<CursivePosFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let this = ctx.buffer.cur(0).as_glyph();
 
