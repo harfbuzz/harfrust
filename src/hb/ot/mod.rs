@@ -6,6 +6,9 @@ use crate::hb::ot_layout_gsubgpos::{BinaryCache, MappingCache};
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
+use read_fonts::tables::gpos::SanitizedAnchorTable;
+use read_fonts::tables::layout::SanitizedClassDef;
+use read_fonts::tables::layout::SanitizedCoverageTable;
 use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord, SanitizedCondition};
 use read_fonts::types::GlyphId16;
 use read_fonts::{
@@ -48,7 +51,10 @@ impl OtCache {
         let mut gdef_mark_set_digests = Vec::new();
         if let Ok(gdef) = font.gdef() {
             if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
-                gdef_mark_set_digests.extend(mark_sets.coverages().iter().map(|set| {
+                gdef_mark_set_digests.extend(mark_sets.coverage_offsets().iter().map(|off| {
+                    let set: Result<SanitizedCoverageTable, _> =
+                        off.get().resolve_with_args(mark_sets.offset_data(), &());
+
                     set.ok()
                         .map(|coverage| hb_set_digest_t::from_coverage(&coverage))
                         .unwrap_or_default()
@@ -283,22 +289,38 @@ impl<'a> OtTables<'a> {
         }
     }
 
-    pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (i32, i32) {
+    pub(super) fn resolve_anchor(&self, anchor: &SanitizedAnchorTable) -> (i32, i32) {
         let mut x = anchor.x_coordinate() as i32;
         let mut y = anchor.y_coordinate() as i32;
         if let Some(vs) = self.var_store.as_ref() {
-            let delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {
-                Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => vs
-                    .compute_delta(
-                        DeltaSetIndex {
-                            outer: varix.delta_set_outer_index(),
-                            inner: varix.delta_set_inner_index(),
-                        },
-                        self.coords,
-                    )
-                    .unwrap_or_default(),
-                _ => 0,
+            let delta = |val: Option<Result<Sanitized<DeviceOrVariationIndex<'_>>, ReadError>>| {
+                if let Some(Ok(thing)) = val {
+                    if let DeviceOrVariationIndex::VariationIndex(varix) = thing.0 {
+                        return vs
+                            .compute_delta(
+                                DeltaSetIndex {
+                                    outer: varix.delta_set_outer_index(),
+                                    inner: varix.delta_set_inner_index(),
+                                },
+                                self.coords,
+                            )
+                            .unwrap_or_default();
+                    }
+                }
+                0
             };
+
+            //Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => vs
+            //.compute_delta(
+            //DeltaSetIndex {
+            //outer: varix.delta_set_outer_index(),
+            //inner: varix.delta_set_inner_index(),
+            //},
+            //self.coords,
+            //)
+            //.unwrap_or_default(),
+            //_ => 0,
+            //};
             x += delta(anchor.x_device());
             y += delta(anchor.y_device());
         }
@@ -525,7 +547,10 @@ impl<'a> LayoutTable<'a> {
     }
 }
 
-fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> Option<u16> {
+fn coverage_index(
+    coverage: Result<SanitizedCoverageTable, ReadError>,
+    gid: GlyphId,
+) -> Option<u16> {
     coverage.ok().and_then(|coverage| coverage.get(gid))
 }
 
@@ -577,11 +602,11 @@ fn coverage_binary_cached(
     }
 }
 
-fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
+fn covered(coverage: Result<SanitizedCoverageTable, ReadError>, gid: GlyphId) -> bool {
     coverage_index(coverage, gid).is_some()
 }
 
-fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
+fn glyph_class(class_def: Result<SanitizedClassDef, ReadError>, gid: GlyphId) -> u16 {
     class_def
         .map(|class_def| class_def.get(gid))
         .unwrap_or_default()

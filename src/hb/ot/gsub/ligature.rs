@@ -10,8 +10,9 @@ use crate::hb::set_digest::hb_set_digest_t;
 use alloc::boxed::Box;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
+use read_fonts::Sanitized;
 
-impl WouldApply for Ligature<'_> {
+impl WouldApply for Sanitized<Ligature<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let components = self.component_glyph_ids();
         ctx.glyphs.len() == components.len() + 1
@@ -23,7 +24,7 @@ impl WouldApply for Ligature<'_> {
     }
 }
 
-impl Apply for Ligature<'_> {
+impl Apply for Sanitized<Ligature<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         // Special-case to make it in-place and not consider this
         // as a "ligated" substitution.
@@ -64,7 +65,7 @@ impl Apply for Ligature<'_> {
     }
 }
 
-impl WouldApply for LigatureSet<'_> {
+impl WouldApply for Sanitized<LigatureSet<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         self.ligatures()
             .iter()
@@ -77,7 +78,7 @@ pub trait ApplyLigatureSet {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()>;
 }
 
-impl ApplyLigatureSet for LigatureSet<'_> {
+impl ApplyLigatureSet for Sanitized<LigatureSet<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()> {
         let mut second = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
@@ -136,7 +137,7 @@ impl ApplyLigatureSet for LigatureSet<'_> {
     }
 }
 
-impl WouldApply for LigatureSubstFormat1<'_> {
+impl WouldApply for Sanitized<LigatureSubstFormat1<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         self.coverage()
             .ok()
@@ -146,7 +147,7 @@ impl WouldApply for LigatureSubstFormat1<'_> {
     }
 }
 
-impl Apply for LigatureSubstFormat1<'_> {
+impl Apply for Sanitized<LigatureSubstFormat1<'_>> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -202,7 +203,7 @@ impl Apply for LigatureSubstFormat1<'_> {
     }
 }
 
-fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
+fn collect_seconds(lig_subst: &Sanitized<LigatureSubstFormat1>) -> hb_set_digest_t {
     let mut seconds = hb_set_digest_t::new();
     lig_subst
         .ligature_sets()
