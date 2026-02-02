@@ -7,8 +7,9 @@ use crate::hb::ot_layout_gsubgpos::{
 };
 use alloc::boxed::Box;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
+use read_fonts::Sanitized;
 
-impl Apply for PairPosFormat1<'_> {
+impl Apply for Sanitized<PairPosFormat1<'_>> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -146,7 +147,7 @@ impl Apply for PairPosFormat1<'_> {
     }
 }
 
-impl Apply for PairPosFormat2<'_> {
+impl Apply for Sanitized<PairPosFormat2<'_>> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,

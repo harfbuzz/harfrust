@@ -14,6 +14,7 @@ use crate::hb::unicode::GeneralCategory;
 use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
+use read_fonts::Sanitized;
 
 pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
 
@@ -513,7 +514,7 @@ pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
     match_end: usize,
-    lookups: &[SequenceLookupRecord],
+    lookups: &[Sanitized<SequenceLookupRecord>],
 ) {
     let mut count = input_len + 1;
 
@@ -538,7 +539,7 @@ pub(crate) fn apply_lookup(
             break;
         }
 
-        let idx = usize::from(record.sequence_index.get());
+        let idx = usize::from(record.sequence_index());
         if idx >= count {
             continue;
         }
@@ -558,7 +559,7 @@ pub(crate) fn apply_lookup(
             break;
         }
 
-        if ctx.recurse(record.lookup_list_index.get()).is_none() {
+        if ctx.recurse(record.lookup_list_index()).is_none() {
             continue;
         }
 
@@ -648,6 +649,12 @@ pub(crate) fn apply_lookup(
 pub trait WouldApply {
     /// Whether the lookup would be applied.
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool;
+}
+
+impl<T: WouldApply> WouldApply for Sanitized<T> {
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        self.0.would_apply(ctx)
+    }
 }
 
 // HB uses a cache size of 128 here; we double it to reduce collisions

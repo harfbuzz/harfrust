@@ -5,8 +5,9 @@ use crate::hb::ot_layout_gsubgpos::{
     match_backtrack, match_lookahead, Apply, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ReverseChainSingleSubstFormat1;
+use read_fonts::Sanitized;
 
-impl WouldApply for ReverseChainSingleSubstFormat1<'_> {
+impl WouldApply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         ctx.glyphs.len() == 1
             && self
@@ -17,7 +18,7 @@ impl WouldApply for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
-impl Apply for ReverseChainSingleSubstFormat1<'_> {
+impl Apply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         // No chaining to this type.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {

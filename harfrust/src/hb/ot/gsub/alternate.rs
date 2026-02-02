@@ -1,8 +1,9 @@
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::{AlternateSet, AlternateSubstFormat1};
+use read_fonts::Sanitized;
 
-impl Apply for AlternateSet<'_> {
+impl Apply for Sanitized<AlternateSet<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let alternates = self.alternate_glyph_ids();
         let len = alternates.len() as u16;
@@ -31,7 +32,7 @@ impl Apply for AlternateSet<'_> {
     }
 }
 
-impl WouldApply for AlternateSubstFormat1<'_> {
+impl WouldApply for Sanitized<AlternateSubstFormat1<'_>> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         ctx.glyphs.len() == 1
             && self
@@ -40,7 +41,7 @@ impl WouldApply for AlternateSubstFormat1<'_> {
     }
 }
 
-impl Apply for AlternateSubstFormat1<'_> {
+impl Apply for Sanitized<AlternateSubstFormat1<'_>> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)?;
