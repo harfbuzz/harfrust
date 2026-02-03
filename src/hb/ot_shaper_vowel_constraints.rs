@@ -2,11 +2,11 @@
 
 #![allow(clippy::single_match)]
 
-use super::buffer::hb_buffer_t;
+use super::buffer::Buffer;
 use super::script;
 use crate::BufferFlags;
 
-fn output_dotted_circle(buffer: &mut hb_buffer_t) {
+fn output_dotted_circle(buffer: &mut Buffer) {
     buffer.output_glyph(0x25CC);
     {
         let out_idx = buffer.out_len - 1;
@@ -14,12 +14,12 @@ fn output_dotted_circle(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn output_with_dotted_circle(buffer: &mut hb_buffer_t) {
+fn output_with_dotted_circle(buffer: &mut Buffer) {
     output_dotted_circle(buffer);
     buffer.next_glyph();
 }
 
-pub fn preprocess_text_vowel_constraints(buffer: &mut hb_buffer_t) {
+pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
     if buffer
         .flags
         .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)

@@ -316,7 +316,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
 pub struct hb_ot_shape_context_t<'a> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub face: &'a hb_font_t<'a>,
-    pub buffer: &'a mut hb_buffer_t,
+    pub buffer: &'a mut Buffer,
     // Transient stuff
     pub target_direction: Direction,
     pub features: &'a [Feature],
@@ -494,7 +494,7 @@ fn position_complex(ctx: &mut hb_ot_shape_context_t) {
     }
 }
 
-fn position_by_plan(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn position_by_plan(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) {
     if plan.apply_gpos {
         ot_layout_gpos_table::position(plan, face, buffer);
     } else if plan.apply_kerx {
@@ -601,7 +601,7 @@ fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
     }
 }
 
-fn set_unicode_props(buffer: &mut hb_buffer_t) {
+fn set_unicode_props(buffer: &mut Buffer) {
     // Implement enough of Unicode Graphemes here that shaping
     // in reverse-direction wouldn't break graphemes.  Namely,
     // we mark all marks and ZWJ and ZWJ,Extended_Pictographic
@@ -688,7 +688,7 @@ fn set_unicode_props(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {
+fn insert_dotted_circle(buffer: &mut Buffer, face: &hb_font_t) {
     if !buffer
         .flags
         .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)
@@ -711,7 +711,7 @@ fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {
     }
 }
 
-fn form_clusters(buffer: &mut hb_buffer_t) {
+fn form_clusters(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_CONTINUATIONS != 0 {
         if BufferClusterLevel::new(buffer.cluster_level).is_graphemes() {
             foreach_grapheme!(buffer, start, end, { buffer.merge_clusters(start, end) });
@@ -723,7 +723,7 @@ fn form_clusters(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn ensure_native_direction(buffer: &mut hb_buffer_t) {
+fn ensure_native_direction(buffer: &mut Buffer) {
     let dir = buffer.direction;
     let mut hor = buffer
         .script
@@ -807,7 +807,7 @@ fn rotate_chars(ctx: &mut hb_ot_shape_context_t) {
     }
 }
 
-fn map_glyphs_fast(buffer: &mut hb_buffer_t) {
+fn map_glyphs_fast(buffer: &mut Buffer) {
     // Normalization process sets up normalizer_glyph_index(), we just copy it.
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
@@ -819,7 +819,7 @@ fn map_glyphs_fast(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn hb_synthesize_glyph_classes(buffer: &mut hb_buffer_t) {
+fn hb_synthesize_glyph_classes(buffer: &mut Buffer) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         // Never mark default-ignorables as marks.
@@ -842,7 +842,7 @@ fn hb_synthesize_glyph_classes(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn zero_width_default_ignorables(buffer: &mut hb_buffer_t) {
+fn zero_width_default_ignorables(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES != 0
         && !buffer
             .flags
@@ -866,7 +866,7 @@ fn zero_width_default_ignorables(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn deal_with_variation_selectors(buffer: &mut hb_buffer_t) {
+fn deal_with_variation_selectors(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK == 0 {
         return;
     }
@@ -893,7 +893,7 @@ fn deal_with_variation_selectors(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn zero_mark_widths_by_gdef(buffer: &mut hb_buffer_t, adjust_offsets: bool) {
+fn zero_mark_widths_by_gdef(buffer: &mut Buffer, adjust_offsets: bool) {
     let len = buffer.len;
     for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
         if info.is_mark() {
@@ -908,7 +908,7 @@ fn zero_mark_widths_by_gdef(buffer: &mut hb_buffer_t, adjust_offsets: bool) {
     }
 }
 
-fn hide_default_ignorables(buffer: &mut hb_buffer_t, face: &hb_font_t) {
+fn hide_default_ignorables(buffer: &mut Buffer, face: &hb_font_t) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES != 0
         && !buffer
             .flags
@@ -936,7 +936,7 @@ fn hide_default_ignorables(buffer: &mut hb_buffer_t, face: &hb_font_t) {
     }
 }
 
-fn propagate_flags(buffer: &mut hb_buffer_t) {
+fn propagate_flags(buffer: &mut Buffer) {
     // Propagate cluster-level glyph flags to be the same on all cluster glyphs.
     // Simplifies using them.
 

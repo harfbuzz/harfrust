@@ -10,9 +10,9 @@ use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::{hb_ot_shape_context_t, shape_internal};
 use crate::hb::aat::AatCache;
-use crate::hb::buffer::hb_buffer_t;
+use crate::hb::buffer::Buffer;
 use crate::hb::tables::TableRanges;
-use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
+use crate::{script, BufferContentType, Feature, NormalizedCoord, ShapePlan, Variation};
 
 /// Data required for shaping with a single font.
 pub struct ShaperData {
@@ -258,27 +258,21 @@ impl<'a> crate::Shaper<'a> {
 
     /// Shapes the buffer content using provided font and features.
     ///
-    /// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
-    /// without allocating a new one.
-    ///
     /// If you plan to shape multiple strings, prefer [`shape_with_plan`](Self::shape_with_plan).
     /// This is because [`ShapePlan`](crate::ShapePlan) initialization is pretty slow and should preferably
     /// be called once for each shaping configuration.
-    pub fn shape(&self, buffer: UnicodeBuffer, features: &[Feature]) -> GlyphBuffer {
+    pub fn shape(&self, buffer: &mut Buffer, features: &[Feature]) {
         let plan = ShapePlan::new(
             self,
-            buffer.0.direction,
-            buffer.0.script,
-            buffer.0.language.as_ref(),
+            buffer.direction,
+            buffer.script,
+            buffer.language.as_ref(),
             features,
         );
-        self.shape_with_plan(&plan, buffer, features)
+        self.shape_with_plan(&plan, buffer, features);
     }
 
     /// Shapes the buffer content using the provided font and plan.
-    ///
-    /// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
-    /// without allocating a new one.
     ///
     /// It is up to the caller to ensure that the shape plan matches the properties of the provided
     /// buffer, otherwise the shaping result will likely be incorrect.
@@ -287,15 +281,13 @@ impl<'a> crate::Shaper<'a> {
     ///
     /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
     /// properties.
-    pub fn shape_with_plan(
-        &self,
-        plan: &ShapePlan,
-        buffer: UnicodeBuffer,
-        features: &[Feature],
-    ) -> GlyphBuffer {
-        let mut buffer = buffer.0;
+    pub fn shape_with_plan(&self, plan: &ShapePlan, buffer: &mut Buffer, features: &[Feature]) {
+        if buffer.content_type == Some(BufferContentType::Glyphs) {
+            // TODO: return an error
+            return;
+        }
         buffer.enter();
-
+        // TODO: return an error instead of asserting
         assert_eq!(
             buffer.direction, plan.direction,
             "Buffer direction does not match plan direction: {:?} != {:?}",
@@ -315,15 +307,13 @@ impl<'a> crate::Shaper<'a> {
             shape_internal(&mut hb_ot_shape_context_t {
                 plan,
                 face: self,
-                buffer: &mut buffer,
+                buffer,
                 target_direction,
                 features,
             });
         }
-
         buffer.leave();
-
-        GlyphBuffer(buffer)
+        buffer.content_type = Some(BufferContentType::Glyphs);
     }
 
     pub(crate) fn has_glyph(&self, c: u32) -> bool {
@@ -343,7 +333,7 @@ impl<'a> crate::Shaper<'a> {
             .advance_width(glyph, self.ot_tables.coords)
             .unwrap_or_default()
     }
-    pub(crate) fn glyph_h_advances(&self, buffer: &mut hb_buffer_t) {
+    pub(crate) fn glyph_h_advances(&self, buffer: &mut Buffer) {
         self.glyph_metrics
             .populate_advance_widths(buffer, self.ot_tables.coords);
     }
