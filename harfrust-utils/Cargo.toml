@@ -6,6 +6,7 @@ rust-version = "1.85"
 description = "Command-line utilities for HarfRust text shaping library."
 repository = "https://github.com/harfbuzz/harfrust"
 license = "MIT"
+readme = "README.md"
 keywords = ["text", "shaping", "opentype", "truetype"]
 categories = ["text-processing"]
 
