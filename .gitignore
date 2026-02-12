@@ -6,3 +6,4 @@
 .vscode
 /Cargo.lock
 benches/Cargo.lock
+/.cargo
