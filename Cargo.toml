@@ -17,10 +17,13 @@ core_maths = "0.1" # only for no_std builds
 read-fonts = { version = "0.37.0", default-features = false, features = ["libm"] }
 # read-fonts = { git = "https://github.com/googlefonts/fontations", default-features = false, features = ["libm"] }
 smallvec = "1.14"
+libc = { version = "0.2", optional = true }
+pico-args = { version = "0.5", features = ["eq-separator"], optional = true }
 
 [features]
 default = ["std"]
 std = ["read-fonts/std"]
+bin = ["pico-args", "libc", "std"]
 
 [dev-dependencies]
 criterion = "0.8.0"
@@ -30,6 +33,10 @@ pico-args = { version = "0.5", features = ["eq-separator"] }
 
 [lib]
 bench = false
+
+[[bin]]
+name = "hr-shape"
+required-features = ["bin"]
 
 [[bench]]
 name = "shaping"
