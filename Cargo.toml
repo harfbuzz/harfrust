@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "harfrust-utils"]
+resolver = "2"
+
 [package]
 name = "harfrust"
 version = "0.5.0"
