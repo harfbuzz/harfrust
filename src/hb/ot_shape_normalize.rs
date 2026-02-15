@@ -145,19 +145,28 @@ fn decompose(ctx: &mut hb_ot_shape_normalize_context_t, shortest: bool, ab: Code
         None
     };
 
-    if !shortest || a_glyph.is_none() {
-        let ret = decompose(ctx, shortest, a);
-        if ret != 0 {
+    if let Some(a_glyph) = a_glyph {
+        if shortest {
+            // Output a and b
+            output_char(ctx.buffer, a, u32::from(a_glyph));
             if let Some(b_glyph) = b_glyph {
                 output_char(ctx.buffer, b, u32::from(b_glyph));
-                return ret + 1;
+                return 2;
             }
-            return ret;
+            return 1;
         }
     }
 
+    let ret = decompose(ctx, shortest, a);
+    if ret != 0 {
+        if let Some(b_glyph) = b_glyph {
+            output_char(ctx.buffer, b, u32::from(b_glyph));
+            return ret + 1;
+        }
+        return ret;
+    }
+
     if let Some(a_glyph) = a_glyph {
-        // Output a and b.
         output_char(ctx.buffer, a, u32::from(a_glyph));
         if let Some(b_glyph) = b_glyph {
             output_char(ctx.buffer, b, u32::from(b_glyph));
@@ -173,15 +182,18 @@ fn decompose_current_character(ctx: &mut hb_ot_shape_normalize_context_t, shorte
     let u = ctx.buffer.cur(0).as_codepoint();
     let glyph = ctx.face.get_nominal_glyph(u);
 
-    // TODO: different to harfbuzz, sync
-    if !shortest || glyph.is_none() {
-        if decompose(ctx, shortest, u) > 0 {
-            skip_char(ctx.buffer);
+    if let Some(glyph) = glyph {
+        if shortest {
+            next_char(ctx.buffer, u32::from(glyph));
             return;
         }
     }
 
-    // TODO: different to harfbuzz, sync
+    if decompose(ctx, shortest, u) > 0 {
+        skip_char(ctx.buffer);
+        return;
+    }
+
     if let Some(glyph) = glyph {
         next_char(ctx.buffer, u32::from(glyph));
         return;
