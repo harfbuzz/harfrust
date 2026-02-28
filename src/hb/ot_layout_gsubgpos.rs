@@ -12,6 +12,7 @@ use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::unicode::GeneralCategory;
 use alloc::boxed::Box;
+use read_fonts::tables::gpos::ValueFormat;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
@@ -709,23 +710,25 @@ pub(crate) struct PairPosFormat1SmallCache {
     pub coverage: CoverageInfo,
 }
 
+#[derive(Default)]
+pub(crate) struct PairPosFormat2Header {
+    pub format1: ValueFormat,
+    pub format2: ValueFormat,
+    pub class2_count: u16,
+}
+
 pub(crate) struct PairPosFormat2Cache {
+    pub header: PairPosFormat2Header,
     pub coverage: MappingCache,
     pub first: MappingCache,
     pub second: MappingCache,
-}
-
-impl PairPosFormat2Cache {
-    pub fn new() -> Self {
-        PairPosFormat2Cache {
-            coverage: MappingCache::new(),
-            first: MappingCache::new(),
-            second: MappingCache::new(),
-        }
-    }
+    pub coverage_info: CoverageInfo,
+    pub first_info: ClassDefInfo,
+    pub second_info: ClassDefInfo,
 }
 
 pub(crate) struct PairPosFormat2SmallCache {
+    pub header: PairPosFormat2Header,
     pub coverage: CoverageInfo,
     pub first: ClassDefInfo,
     pub second: ClassDefInfo,

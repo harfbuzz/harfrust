@@ -13,7 +13,7 @@ use read_fonts::{
     tables::{
         gpos::{
             CursivePosFormat1, Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
-            PairPos, PairPosFormat1, PairPosFormat2, SinglePos, SinglePosFormat1, SinglePosFormat2,
+            PairPos, PairPosFormat1, SinglePos, SinglePosFormat1, SinglePosFormat2,
         },
         gsub::{
             AlternateSubstFormat1, ExtensionSubstFormat1, Gsub, LigatureSubstFormat1,
@@ -430,7 +430,24 @@ apply_fns!(
 apply_fns!(single_pos1, single_pos1_cached, SinglePosFormat1);
 apply_fns!(single_pos2, single_pos2_cached, SinglePosFormat2);
 apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
-apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
+// apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
+
+fn pair_pos2(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    super::gpos::apply_pair_pos2_direct(ctx, table_data, external_cache)
+}
+
+fn pair_pos2_cached(
+    ctx: &mut hb_ot_apply_context_t,
+    external_cache: &SubtableExternalCache,
+    table_data: &[u8],
+) -> Option<()> {
+    pair_pos2(ctx, external_cache, table_data)
+}
+
 apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
 apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
 apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
