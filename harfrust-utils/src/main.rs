@@ -1,7 +1,7 @@
 //! Rust implementation of hb-shape.
 //! <https://github.com/harfbuzz/harfbuzz/blob/main/util/hb-shape.cc>
 
-use std::io::{self, BufRead, Write};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -446,19 +446,10 @@ fn main() {
 }
 
 fn read_stdin() -> String {
-    let mut text = String::new();
-    let stdin = io::stdin();
-    for line in stdin.lock().lines() {
-        let line = line.unwrap_or_else(|e| {
-            eprintln!("Error: reading stdin: {e}");
-            std::process::exit(1);
-        });
-        if !text.is_empty() {
-            text.push('\n');
-        }
-        text.push_str(&line);
-    }
-    text
+    io::read_to_string(io::stdin()).unwrap_or_else(|e| {
+        eprintln!("Error: reading stdin: {e}");
+        std::process::exit(1);
+    })
 }
 
 fn parse_unicodes(s: &str) -> Result<String, String> {
