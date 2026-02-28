@@ -517,11 +517,9 @@ fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
 }
 
 fn system_language() -> Language {
-    unsafe {
-        libc::setlocale(libc::LC_ALL, c"".as_ptr());
-        let s = libc::setlocale(libc::LC_CTYPE, std::ptr::null());
-        let s = std::ffi::CStr::from_ptr(s);
-        let s = s.to_str().expect("locale must be ASCII");
-        Language::from_str(s).unwrap()
-    }
+    let locale = std::env::var("LC_CTYPE")
+        .or_else(|_| std::env::var("LC_ALL"))
+        .or_else(|_| std::env::var("LANG"))
+        .unwrap_or_default();
+    Language::from_str(&locale).unwrap()
 }

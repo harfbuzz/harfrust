@@ -13,7 +13,6 @@ categories = ["text-processing"]
 [dependencies]
 harfrust = { path = "..", default-features = false, features = ["std"] }
 pico-args = { version = "0.5", features = ["eq-separator"] }
-libc = "0.2"
 
 [[bin]]
 name = "hr-shape"
