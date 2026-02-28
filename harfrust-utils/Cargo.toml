@@ -1,14 +1,14 @@
 [package]
 name = "harfrust-utils"
-version = "0.5.0"
-edition = "2021"
-rust-version = "1.85"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Command-line utilities for HarfRust text shaping library."
-repository = "https://github.com/harfbuzz/harfrust"
-license = "MIT"
+repository.workspace = true
+license.workspace = true
 readme = "README.md"
-keywords = ["text", "shaping", "opentype", "truetype"]
-categories = ["text-processing"]
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 harfrust = { path = "..", default-features = false, features = ["std"] }
