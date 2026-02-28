@@ -1,3 +1,6 @@
+//! Rust implementation of hb-shape.
+//! <https://github.com/harfbuzz/harfbuzz/blob/main/util/hb-shape.cc>
+
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
