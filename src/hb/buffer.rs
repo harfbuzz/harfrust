@@ -1005,7 +1005,7 @@ impl hb_buffer_t {
 
         // Extend start
         if cluster != self.info[start].cluster {
-            while end < start && self.info[start - 1].cluster == self.info[start].cluster {
+            while self.idx < start && self.info[start - 1].cluster == self.info[start].cluster {
                 start -= 1;
             }
         }
