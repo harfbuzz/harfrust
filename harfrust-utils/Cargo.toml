@@ -11,8 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 harfrust = { path = "..", default-features = false, features = ["std"] }
-pico-args = { version = "0.5", features = ["eq-separator"] }
 
 [[bin]]
 name = "hr-shape"

@@ -5,238 +5,214 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use clap::Parser;
 use harfrust::{
     BufferClusterLevel, BufferFlags, Direction, Feature, FontRef, Language, SerializeFlags,
     ShaperData, ShaperInstance, UnicodeBuffer, Variation,
 };
 
-const HELP: &str = "\
-Usage: hr-shape [OPTIONS] <FONT-FILE> [TEXT]
-
-Font options:
-    --font-file PATH                        Set font file-name
-    -y, --face-index INDEX                  Set face index [default: 0]
-    --font-ptem NUMBER                      Set font point-size
-    --variations LIST                       Comma-separated list of font variations
-    --named-instance INDEX                  Set named-instance index [default: none]
-
-Input options:
-    --text TEXT                             Set input text
-    --text-file PATH                        Set input text file-name (\"-\" for stdin)
-    -u, --unicodes LIST                     Set input Unicode codepoints
-                                            Examples: 'U+0056,U+0057'
-    --text-before TEXT                      Set text context before each line
-    --text-after TEXT                       Set text context after each line
-    --unicodes-before LIST                  Set Unicode codepoints context before each line
-    --unicodes-after LIST                   Set Unicode codepoints context after each line
-    --single-par                            Treat text as single paragraph
-
-Shaping options:
-    --direction DIRECTION                   Set text direction (ltr/rtl/ttb/btt)
-    --language LANG                         Set text language [default: $LANG]
-    --script TAG                            Set text script as ISO-15924 tag
-    --features LIST                         Comma-separated list of font features
-    --utf8-clusters                         Use UTF-8 byte indices, not char indices
-    --cluster-level N                       Cluster merging level [default: 0]
-                                            [possible values: 0, 1, 2, 3]
-    --bot                                   Treat text as beginning of paragraph
-    --eot                                   Treat text as end of paragraph
-    --preserve-default-ignorables           Preserve Default-Ignorable characters
-    --remove-default-ignorables             Remove Default-Ignorable characters
-    --not-found-variation-selector-glyph N  Glyph value to replace not-found
-                                            variation-selector characters with
-    --unsafe-to-concat                      Produce unsafe-to-concat glyph flag
-    --safe-to-insert-tatweel                Produce safe-to-insert-tatweel glyph flag
-    --verify                                Perform sanity checks on shaping results
-
-Output syntax options:
-    --show-text                             Prefix each line of output with its input text
-    --show-unicode                          Prefix each line of output with its input codepoints
-    --show-line-num                         Prefix each line of output with its line number
-    -v, --verbose                           Prefix each line of output with all of the above
-    --no-glyph-names                        Output glyph indices instead of names
-    --no-positions                          Do not output glyph positions
-    --no-advances                           Do not output glyph advances
-    --no-clusters                           Do not output cluster indices
-    --show-extents                          Output glyph extents
-    --show-flags                            Output glyph flags
-    --ned                                   No Extra Data; Do not output clusters or advances
-
-Output options:
-    -o, --output-file PATH                  Set output file-name [default: stdout]
-    -n, --num-iterations N                  Run shaper N times [default: 1]
-
-Other options:
-    -h, --help                              Show help options
-    --version                               Show version number
-";
-
+#[derive(Parser)]
+#[command(name = "hr-shape", version, about = "Shape text using HarfRust")]
 struct Args {
-    help: bool,
-    version: bool,
+    /// Font file path
+    #[arg(value_name = "FONT-FILE")]
+    font_file_pos: Option<PathBuf>,
+
+    /// Text to shape
+    #[arg(value_name = "TEXT")]
+    text_pos: Option<String>,
+
     // Font options
+    /// Set font file-name
+    #[arg(long)]
     font_file: Option<PathBuf>,
+
+    /// Set face index
+    #[arg(short = 'y', long, default_value_t = 0)]
     face_index: u32,
+
+    /// Set font point-size
+    #[arg(long)]
     font_ptem: Option<f32>,
-    variations: Vec<Variation>,
+
+    /// Comma-separated list of font variations
+    #[arg(long, value_parser = parse_variations)]
+    variations: Option<Vec<Variation>>,
+
+    /// Set named-instance index
+    #[arg(long)]
     named_instance: Option<usize>,
+
     // Input options
+    /// Set input text
+    #[arg(long)]
     text: Option<String>,
+
+    /// Set input text file-name ("-" for stdin)
+    #[arg(long)]
     text_file: Option<PathBuf>,
+
+    /// Set input Unicode codepoints (e.g. 'U+0056,U+0057')
+    #[arg(short = 'u', long, value_parser = parse_unicodes)]
     unicodes: Option<String>,
+
+    /// Set text context before each line
+    #[arg(long)]
     text_before: Option<String>,
+
+    /// Set text context after each line
+    #[arg(long)]
     text_after: Option<String>,
+
+    /// Set Unicode codepoints context before each line
+    #[arg(long, value_parser = parse_unicodes)]
     unicodes_before: Option<String>,
+
+    /// Set Unicode codepoints context after each line
+    #[arg(long, value_parser = parse_unicodes)]
     unicodes_after: Option<String>,
+
+    /// Treat text as single paragraph
+    #[arg(long)]
     single_par: bool,
+
     // Shaping options
+    /// Set text direction (ltr/rtl/ttb/btt)
+    #[arg(long)]
     direction: Option<Direction>,
-    language: Language,
+
+    /// Set text language [default: $LANG]
+    #[arg(long)]
+    language: Option<Language>,
+
+    /// Set text script as ISO-15924 tag
+    #[arg(long)]
     script: Option<harfrust::Script>,
-    features: Vec<Feature>,
+
+    /// Comma-separated list of font features
+    #[arg(long, value_parser = parse_features)]
+    features: Option<Vec<Feature>>,
+
+    /// Use UTF-8 byte indices, not char indices
+    #[arg(long)]
     utf8_clusters: bool,
+
+    /// Cluster merging level (0-3)
+    #[arg(long, value_parser = parse_cluster, default_value = "0")]
     cluster_level: BufferClusterLevel,
+
+    /// Treat text as beginning of paragraph
+    #[arg(long)]
     bot: bool,
+
+    /// Treat text as end of paragraph
+    #[arg(long)]
     eot: bool,
+
+    /// Preserve Default-Ignorable characters
+    #[arg(long)]
     preserve_default_ignorables: bool,
+
+    /// Remove Default-Ignorable characters
+    #[arg(long)]
     remove_default_ignorables: bool,
+
+    /// Glyph value to replace not-found variation-selector characters with
+    #[arg(long)]
     not_found_variation_selector_glyph: Option<u32>,
+
+    /// Produce unsafe-to-concat glyph flag
+    #[arg(long)]
     unsafe_to_concat: bool,
+
+    /// Produce safe-to-insert-tatweel glyph flag
+    #[arg(long)]
     safe_to_insert_tatweel: bool,
+
+    /// Perform sanity checks on shaping results
+    #[arg(long)]
     verify: bool,
+
     // Output syntax options
+    /// Prefix each line of output with its input text
+    #[arg(long)]
     show_text: bool,
+
+    /// Prefix each line of output with its input codepoints
+    #[arg(long)]
     show_unicode: bool,
+
+    /// Prefix each line of output with its line number
+    #[arg(long)]
     show_line_num: bool,
+
+    /// Prefix each line of output with text, unicode, and line number
+    #[arg(long)]
+    verbose: bool,
+
+    /// Shorthand for --verbose --ned (matching hb-shape behavior)
+    #[arg(short = 'v', hide = true)]
+    short_v: bool,
+
+    /// Output glyph indices instead of names
+    #[arg(long)]
     no_glyph_names: bool,
+
+    /// Do not output glyph positions
+    #[arg(long)]
     no_positions: bool,
+
+    /// Do not output glyph advances
+    #[arg(long)]
     no_advances: bool,
+
+    /// Do not output cluster indices
+    #[arg(long)]
     no_clusters: bool,
+
+    /// Output glyph extents
+    #[arg(long)]
     show_extents: bool,
+
+    /// Output glyph flags
+    #[arg(long)]
     show_flags: bool,
+
+    /// No Extra Data; Do not output clusters or advances
+    #[arg(long)]
     ned: bool,
+
     // Output options
+    /// Set output file-name [default: stdout]
+    #[arg(short = 'o', long)]
     output_file: Option<PathBuf>,
+
+    /// Run shaper N times
+    #[arg(short = 'n', long, default_value_t = 1)]
     num_iterations: u32,
-    // Positional
-    free: Vec<String>,
-}
-
-fn parse_args() -> Result<Args, pico_args::Error> {
-    let mut args = pico_args::Arguments::from_env();
-
-    // -v maps to both --verbose and --ned (matching hb-shape behavior)
-    let short_v = args.contains("-v");
-    let long_verbose = args.contains("--verbose");
-    let verbose = short_v || long_verbose;
-
-    let mut parsed = Args {
-        help: args.contains(["-h", "--help"]),
-        version: args.contains("--version"),
-        // Font options
-        font_file: args.opt_value_from_str("--font-file")?,
-        face_index: args
-            .opt_value_from_str(["-y", "--face-index"])?
-            .unwrap_or(0),
-        font_ptem: args.opt_value_from_str("--font-ptem")?,
-        variations: args
-            .opt_value_from_fn("--variations", parse_variations)?
-            .unwrap_or_default(),
-        named_instance: args.opt_value_from_str("--named-instance")?,
-        // Input options
-        text: args.opt_value_from_str("--text")?,
-        text_file: args.opt_value_from_str("--text-file")?,
-        unicodes: args.opt_value_from_fn(["-u", "--unicodes"], parse_unicodes)?,
-        text_before: args.opt_value_from_str("--text-before")?,
-        text_after: args.opt_value_from_str("--text-after")?,
-        unicodes_before: args.opt_value_from_fn("--unicodes-before", parse_unicodes)?,
-        unicodes_after: args.opt_value_from_fn("--unicodes-after", parse_unicodes)?,
-        single_par: args.contains("--single-par"),
-        // Shaping options
-        direction: args.opt_value_from_str("--direction")?,
-        language: args
-            .opt_value_from_str("--language")?
-            .unwrap_or(system_language()),
-        script: args.opt_value_from_str("--script")?,
-        features: args
-            .opt_value_from_fn("--features", parse_features)?
-            .unwrap_or_default(),
-        utf8_clusters: args.contains("--utf8-clusters"),
-        cluster_level: args
-            .opt_value_from_fn("--cluster-level", parse_cluster)?
-            .unwrap_or_default(),
-        bot: args.contains("--bot"),
-        eot: args.contains("--eot"),
-        preserve_default_ignorables: args.contains("--preserve-default-ignorables"),
-        remove_default_ignorables: args.contains("--remove-default-ignorables"),
-        not_found_variation_selector_glyph: args
-            .opt_value_from_str("--not-found-variation-selector-glyph")?,
-        unsafe_to_concat: args.contains("--unsafe-to-concat"),
-        safe_to_insert_tatweel: args.contains("--safe-to-insert-tatweel"),
-        verify: args.contains("--verify"),
-        // Output syntax options
-        show_text: args.contains("--show-text"),
-        show_unicode: args.contains("--show-unicode"),
-        show_line_num: args.contains("--show-line-num"),
-        no_glyph_names: args.contains("--no-glyph-names"),
-        no_positions: args.contains("--no-positions"),
-        no_advances: args.contains("--no-advances"),
-        no_clusters: args.contains("--no-clusters"),
-        show_extents: args.contains("--show-extents"),
-        show_flags: args.contains("--show-flags"),
-        ned: args.contains("--ned"),
-        // Output options
-        output_file: args.opt_value_from_str(["-o", "--output-file"])?,
-        num_iterations: args
-            .opt_value_from_str(["-n", "--num-iterations"])?
-            .unwrap_or(1),
-        // Positional
-        free: args
-            .finish()
-            .iter()
-            .map(|s| s.to_string_lossy().to_string())
-            .collect(),
-    };
-
-    if verbose {
-        parsed.show_text = true;
-        parsed.show_unicode = true;
-        parsed.show_line_num = true;
-    }
-    // -v implies --ned (matching hb-shape where -v is shared by --verbose and --ned)
-    if short_v {
-        parsed.ned = true;
-    }
-
-    Ok(parsed)
 }
 
 fn main() {
-    let args = match parse_args() {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("Error: {e}.");
-            std::process::exit(1);
-        }
-    };
+    let mut args = Args::parse();
 
-    if args.version {
-        println!("{}", env!("CARGO_PKG_VERSION"));
-        return;
+    // -v implies --verbose --ned (matching hb-shape behavior)
+    if args.short_v {
+        args.verbose = true;
+        args.ned = true;
     }
-
-    if args.help {
-        print!("{HELP}");
-        return;
+    if args.verbose {
+        args.show_text = true;
+        args.show_unicode = true;
+        args.show_line_num = true;
     }
 
     // Resolve font path from --font-file or first positional arg
     let mut font_set_as_free_arg = false;
-    let font_path = if let Some(path) = args.font_file.clone() {
-        path
-    } else if !args.free.is_empty() {
+    let font_path = if let Some(ref path) = args.font_file {
+        path.clone()
+    } else if let Some(ref path) = args.font_file_pos {
         font_set_as_free_arg = true;
-        PathBuf::from(&args.free[0])
+        path.clone()
     } else {
         eprintln!("Error: font is not set.");
         std::process::exit(1);
@@ -258,15 +234,16 @@ fn main() {
 
     // Build shaper
     let data = ShaperData::new(&font);
+    let variations = args.variations.as_deref().unwrap_or_default();
     let instance = match args.named_instance {
         Some(idx) => {
             let mut inst = ShaperInstance::from_named_instance(&font, idx);
-            if !args.variations.is_empty() {
-                inst.set_variations(&font, &args.variations);
+            if !variations.is_empty() {
+                inst.set_variations(&font, variations);
             }
             inst
         }
-        None => ShaperInstance::from_variations(&font, &args.variations),
+        None => ShaperInstance::from_variations(&font, variations),
     };
     let shaper = data
         .shaper(&font)
@@ -333,6 +310,9 @@ fn main() {
         f.bits()
     };
 
+    let language = args.language.unwrap_or_else(system_language);
+    let features = args.features.as_deref().unwrap_or_default();
+
     // Resolve text input
     let text = if let Some(ref path) = args.text_file {
         if path == &PathBuf::from("-") {
@@ -343,10 +323,19 @@ fn main() {
                 std::process::exit(1);
             })
         }
-    } else if args.free.len() == 2 && font_set_as_free_arg {
-        args.free[1].clone()
-    } else if args.free.len() == 1 && !font_set_as_free_arg {
-        args.free[0].clone()
+    } else if font_set_as_free_arg {
+        if let Some(ref text) = args.text_pos {
+            text.clone()
+        } else if let Some(ref text) = args.unicodes {
+            text.clone()
+        } else if let Some(ref text) = args.text {
+            text.clone()
+        } else {
+            read_stdin()
+        }
+    } else if let Some(ref text) = args.font_file_pos {
+        // font was set via --font-file, so first positional is text
+        text.to_string_lossy().to_string()
     } else if let Some(ref text) = args.unicodes {
         text.clone()
     } else if let Some(ref text) = args.text {
@@ -403,7 +392,7 @@ fn main() {
                 if let Some(d) = args.direction {
                     buffer.set_direction(d);
                 }
-                buffer.set_language(args.language.clone());
+                buffer.set_language(language.clone());
                 if let Some(script) = args.script {
                     buffer.set_script(script);
                 }
@@ -427,7 +416,7 @@ fn main() {
 
                 buffer.guess_segment_properties();
 
-                result = Some(shaper.shape(buffer, &args.features));
+                result = Some(shaper.shape(buffer, features));
             }
             result.unwrap()
         };
