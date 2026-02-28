@@ -1,5 +1,5 @@
 use read_fonts::types::{F2Dot14, Fixed, GlyphId};
-use read_fonts::{FontRef, TableProvider};
+use read_fonts::TableProvider;
 use smallvec::SmallVec;
 
 use super::aat::AatTables;
@@ -15,16 +15,16 @@ use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
 /// Data required for shaping with a single font.
-pub struct ShaperData {
-    table_ranges: TableRanges,
+pub struct ShaperData<'a> {
+    table_ranges: TableRanges<'a>,
     ot_cache: OtCache,
     aat_cache: AatCache,
     cmap_cache: cmap_cache_t,
 }
 
-impl ShaperData {
+impl<'a> ShaperData<'a> {
     /// Creates new cached shaper data for the given font.
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<Font: TableProvider<'a>>(font: &Font) -> Self {
         let ot_cache = OtCache::new(font);
         let aat_cache = AatCache::new(font);
         let table_ranges = TableRanges::new(font);
@@ -39,10 +39,9 @@ impl ShaperData {
 
     /// Returns a builder for constructing a new shaper with the given
     /// font.
-    pub fn shaper<'a>(&'a self, font: &FontRef<'a>) -> ShaperBuilder<'a> {
+    pub fn shaper(&'a self) -> ShaperBuilder<'a> {
         ShaperBuilder {
             data: self,
-            font: font.clone(),
             instance: None,
             point_size: None,
         }
@@ -68,7 +67,7 @@ impl ShaperInstance {
     /// list of variation settings.
     ///
     /// The setting values are in user space and the order is insignificant.
-    pub fn from_variations<V>(font: &FontRef, variations: V) -> Self
+    pub fn from_variations<'a, V>(font: &impl TableProvider<'a>, variations: V) -> Self
     where
         V: IntoIterator,
         V::Item: Into<Variation>,
@@ -82,7 +81,10 @@ impl ShaperInstance {
     /// set of normalized coordinates.
     ///
     /// The sequence of coordinates is expected to be in axis order.
-    pub fn from_coords(font: &FontRef, coords: impl IntoIterator<Item = NormalizedCoord>) -> Self {
+    pub fn from_coords<'a>(
+        font: &impl TableProvider<'a>,
+        coords: impl IntoIterator<Item = NormalizedCoord>,
+    ) -> Self {
         let mut this = Self::default();
         this.set_coords(font, coords);
         this
@@ -90,7 +92,7 @@ impl ShaperInstance {
 
     /// Creates a new shaper instance for the given font using the variation
     /// position from the named instance at the specified index.
-    pub fn from_named_instance(font: &FontRef, index: usize) -> Self {
+    pub fn from_named_instance<'a>(font: &impl TableProvider<'a>, index: usize) -> Self {
         let mut this = Self::default();
         this.set_named_instance(font, index);
         this
@@ -102,7 +104,7 @@ impl ShaperInstance {
     }
 
     /// Resets the instance for the given font and variation settings.
-    pub fn set_variations<V>(&mut self, font: &FontRef, variations: V)
+    pub fn set_variations<'a, V>(&mut self, font: &impl TableProvider<'a>, variations: V)
     where
         V: IntoIterator,
         V::Item: Into<Variation>,
@@ -125,7 +127,11 @@ impl ShaperInstance {
     }
 
     /// Resets the instance for the given font and normalized coordinates.
-    pub fn set_coords(&mut self, font: &FontRef, coords: impl IntoIterator<Item = F2Dot14>) {
+    pub fn set_coords<'a>(
+        &mut self,
+        font: &impl TableProvider<'a>,
+        coords: impl IntoIterator<Item = F2Dot14>,
+    ) {
         self.coords.clear();
         if let Ok(fvar) = font.fvar() {
             let count = fvar.axis_count() as usize;
@@ -138,7 +144,7 @@ impl ShaperInstance {
 
     /// Resets the instance for the given font using the variation
     /// position from the named instance at the specified index.
-    pub fn set_named_instance(&mut self, font: &FontRef, index: usize) {
+    pub fn set_named_instance<'a>(&mut self, font: &impl TableProvider<'a>, index: usize) {
         self.coords.clear();
         if let Ok(fvar) = font.fvar() {
             if let Ok((axes, instance)) = fvar
@@ -155,7 +161,7 @@ impl ShaperInstance {
         }
     }
 
-    fn set_feature_variations(&mut self, font: &FontRef) {
+    fn set_feature_variations<'a>(&mut self, font: &impl TableProvider<'a>) {
         self.feature_variations = [None; 2];
         if self.coords.is_empty() {
             return;
@@ -179,8 +185,7 @@ impl ShaperInstance {
 
 /// Builder type for constructing a [`Shaper`](crate::Shaper).
 pub struct ShaperBuilder<'a> {
-    data: &'a ShaperData,
-    font: FontRef<'a>,
+    data: &'a ShaperData<'a>,
     instance: Option<&'a ShaperInstance>,
     point_size: Option<f32>,
 }
@@ -204,24 +209,21 @@ impl<'a> ShaperBuilder<'a> {
 
     /// Builds the shaper with the current configuration.
     pub fn build(self) -> crate::Shaper<'a> {
-        let font = self.font;
         let units_per_em = self.data.table_ranges.units_per_em;
-        let charmap = Charmap::new(&font, &self.data.table_ranges, &self.data.cmap_cache);
-        let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_ranges);
+        let charmap = Charmap::new(&self.data.table_ranges, &self.data.cmap_cache);
+        let glyph_metrics = GlyphMetrics::new(&self.data.table_ranges);
         let (coords, feature_variations) = self
             .instance
             .map(|instance| (instance.coords(), instance.feature_variations))
             .unwrap_or_default();
         let ot_tables = OtTables::new(
-            &font,
             &self.data.ot_cache,
             &self.data.table_ranges,
             coords,
             feature_variations,
         );
-        let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_ranges);
+        let aat_tables = AatTables::new(&self.data.aat_cache, &self.data.table_ranges);
         hb_font_t {
-            font,
             units_per_em,
             points_per_em: self.point_size,
             charmap,
@@ -235,7 +237,6 @@ impl<'a> ShaperBuilder<'a> {
 /// A configured shaper.
 #[derive(Clone)]
 pub struct hb_font_t<'a> {
-    pub(crate) font: FontRef<'a>,
     pub(crate) units_per_em: u16,
     pub(crate) points_per_em: Option<f32>,
     charmap: Charmap<'a>,
@@ -264,9 +265,15 @@ impl<'a> crate::Shaper<'a> {
     /// If you plan to shape multiple strings, prefer [`shape_with_plan`](Self::shape_with_plan).
     /// This is because [`ShapePlan`](crate::ShapePlan) initialization is pretty slow and should preferably
     /// be called once for each shaping configuration.
-    pub fn shape(&self, buffer: UnicodeBuffer, features: &[Feature]) -> GlyphBuffer {
+    pub fn shape<'s>(
+        &'s self,
+        font: &impl TableProvider<'s>,
+        buffer: UnicodeBuffer,
+        features: &[Feature],
+    ) -> GlyphBuffer {
         let plan = ShapePlan::new(
             self,
+            font,
             buffer.0.direction,
             buffer.0.script,
             buffer.0.language.as_ref(),
@@ -381,8 +388,8 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
-        GlyphNames::new(&self.font)
+    pub(crate) fn glyph_names(font: &impl TableProvider<'a>) -> GlyphNames<'a> {
+        GlyphNames::new(font)
     }
 
     pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {

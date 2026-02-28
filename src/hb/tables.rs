@@ -1,5 +1,3 @@
-use core::ops::Range;
-
 use read_fonts::{
     tables::{
         ankr::Ankr,
@@ -23,7 +21,7 @@ use read_fonts::{
         vvar::Vvar,
     },
     types::Tag,
-    FontData, FontRead, FontRef, TableProvider, TopLevelTable,
+    FontData, FontRead, TableProvider, TopLevelTable,
 };
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
@@ -42,7 +40,7 @@ const UNICODE_2_0_FULL_ENCODING: u16 = 4;
 const UNICODE_FULL_ENCODING: u16 = 6;
 
 #[derive(Clone)]
-pub struct TableRanges {
+pub struct TableRanges<'a> {
     pub num_glyphs: u32,
     pub units_per_em: u16,
     pub loca_long: bool,
@@ -50,27 +48,27 @@ pub struct TableRanges {
     pub num_h_metrics: u16,
     pub ascent: i16,
     pub descent: i16,
-    pub loca: TableRange,
-    pub glyf: TableRange,
-    pub gvar: TableRange,
-    pub hmtx: TableRange,
-    pub hvar: TableRange,
-    pub vmtx: TableRange,
-    pub vvar: TableRange,
-    pub vorg: TableRange,
-    pub mvar: TableRange,
-    pub cmap: TableRange,
+    pub loca: TableRange<'a>,
+    pub glyf: TableRange<'a>,
+    pub gvar: TableRange<'a>,
+    pub hmtx: TableRange<'a>,
+    pub hvar: TableRange<'a>,
+    pub vmtx: TableRange<'a>,
+    pub vvar: TableRange<'a>,
+    pub vorg: TableRange<'a>,
+    pub mvar: TableRange<'a>,
+    pub cmap: TableRange<'a>,
     pub cmap_subtable: Option<SelectedCmapSubtable>,
     pub cmap_vs_subtable: Option<u16>,
-    pub gdef: TableRange,
-    pub gsub: TableRange,
-    pub gpos: TableRange,
-    pub morx: TableRange,
-    pub kerx: TableRange,
-    pub ankr: TableRange,
-    pub kern: TableRange,
-    pub feat: TableRange,
-    pub trak: TableRange,
+    pub gdef: TableRange<'a>,
+    pub gsub: TableRange<'a>,
+    pub gpos: TableRange<'a>,
+    pub morx: TableRange<'a>,
+    pub kerx: TableRange<'a>,
+    pub ankr: TableRange<'a>,
+    pub kern: TableRange<'a>,
+    pub feat: TableRange<'a>,
+    pub trak: TableRange<'a>,
 }
 
 #[derive(Copy, Clone)]
@@ -80,8 +78,8 @@ pub struct SelectedCmapSubtable {
     pub is_symbol: bool,
 }
 
-impl TableRanges {
-    pub fn new(font: &FontRef) -> Self {
+impl<'a> TableRanges<'a> {
+    pub fn new(font: &impl TableProvider<'a>) -> Self {
         let num_glyphs = font
             .maxp()
             .map(|maxp| maxp.num_glyphs() as u32)
@@ -106,7 +104,7 @@ impl TableRanges {
             .vhea()
             .map(|vhea| vhea.number_of_long_ver_metrics())
             .unwrap_or_default();
-        let offset = |tag| TableRange::new(font, tag).unwrap_or_default();
+        let offset = |tag| TableRange::new(font, tag);
         let loca = offset(Loca::TAG);
         let glyf = offset(Glyf::TAG);
         let gvar = offset(Gvar::TAG);
@@ -117,7 +115,7 @@ impl TableRanges {
         let vorg = offset(Vorg::TAG);
         let mvar = offset(Mvar::TAG);
         let cmap = offset(Cmap::TAG);
-        let cmap_table: Option<Cmap> = cmap.resolve_table(font);
+        let cmap_table: Option<Cmap> = cmap.resolve_table();
         let cmap_subtable = cmap_table
             .as_ref()
             .and_then(|cmap| find_best_cmap_subtable(cmap))
@@ -180,29 +178,19 @@ impl TableRanges {
 }
 
 #[derive(Copy, Clone, Default, Debug)]
-pub struct TableRange(u32, u32);
+pub struct TableRange<'a>(Option<FontData<'a>>);
 
-impl TableRange {
-    fn new(font: &FontRef, tag: Tag) -> Option<Self> {
-        let records = font.table_directory().table_records();
-        records
-            .binary_search_by_key(&tag, |rec| rec.tag())
-            .ok()
-            .and_then(|ix| records.get(ix))
-            .map(|rec| Self(rec.offset(), rec.length()))
+impl<'a> TableRange<'a> {
+    fn new(font: &impl TableProvider<'a>, tag: Tag) -> Self {
+        Self(font.data_for_tag(tag))
     }
 
-    pub fn resolve(self) -> Option<Range<usize>> {
-        let start = self.0 as usize;
-        (start != 0).then_some(start..start.wrapping_add(self.1 as usize))
+    pub fn data(self) -> Option<FontData<'a>> {
+        self.0
     }
 
-    pub fn resolve_data<'a>(self, font: &FontRef<'a>) -> Option<FontData<'a>> {
-        font.data().slice(self.resolve()?)
-    }
-
-    pub fn resolve_table<'a, T: FontRead<'a>>(self, font: &FontRef<'a>) -> Option<T> {
-        T::read(self.resolve_data(font)?).ok()
+    pub fn resolve_table<T: FontRead<'a>>(self) -> Option<T> {
+        T::read(self.0?).ok()
     }
 }
 
