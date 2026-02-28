@@ -1,9 +1,8 @@
 [workspace]
-members = [".", "harfrust-utils"]
+members = ["harfrust", "harfrust-utils"]
 resolver = "2"
 
-[package]
-name = "harfrust"
+[workspace.package]
 version = "0.5.0"
 edition = "2021"
 rust-version = "1.85"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
@@ -12,32 +11,6 @@ repository = "https://github.com/harfbuzz/harfrust"
 license = "MIT"
 keywords = ["text", "shaping", "opentype", "truetype"]
 categories = ["text-processing"]
-exclude = ["benches/", "tests/"]
-
-[dependencies]
-bitflags = "2.9"
-bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
-core_maths = "0.1" # only for no_std builds
-read-fonts = { version = "0.37.0", default-features = false, features = ["libm"] }
-# read-fonts = { git = "https://github.com/googlefonts/fontations", default-features = false, features = ["libm"] }
-smallvec = "1.14"
-
-[features]
-default = ["std"]
-std = ["read-fonts/std"]
-
-[dev-dependencies]
-criterion = "0.8.0"
-harfbuzz_rs = { git = "https://github.com/harfbuzz/harfbuzz_rs/", rev = "66dae27" }
-libc = "0.2"
-pico-args = { version = "0.5", features = ["eq-separator"] }
-
-[lib]
-bench = false
-
-[[bench]]
-name = "shaping"
-harness = false
 
 [profile.release]
 strip = true
@@ -48,10 +21,10 @@ codegen-units = 1
 [profile.bench]
 inherits = "release"
 
-[lints.rust]
+[workspace.lints.rust]
 unused_qualifications = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
 cargo = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 # Reviewed Lints
