@@ -182,7 +182,7 @@ fn main() {
     };
 
     for text in lines {
-        let mut buffer = harfrust::UnicodeBuffer::new();
+        let mut buffer = harfrust::Buffer::new();
         buffer.push_str(text);
 
         if let Some(d) = args.direction {
@@ -207,7 +207,7 @@ fn main() {
 
         buffer.guess_segment_properties();
 
-        let glyph_buffer = shaper.shape(buffer, &args.features);
+        shaper.shape(&mut buffer, &args.features);
 
         let mut format_flags = harfrust::SerializeFlags::default();
         if args.no_glyph_names {
@@ -234,7 +234,7 @@ fn main() {
             format_flags |= harfrust::SerializeFlags::GLYPH_FLAGS;
         }
 
-        println!("{}", glyph_buffer.serialize(&shaper, format_flags));
+        println!("{}", buffer.serialize(&shaper, format_flags));
     }
 }
 

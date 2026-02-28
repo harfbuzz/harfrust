@@ -126,7 +126,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     }
 }
 
-fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     super::ot_shaper_khmer_machine::find_syllables_khmer(buffer);
@@ -142,7 +142,7 @@ fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer
     false
 }
 
-fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn reorder_khmer(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) -> bool {
     use super::ot_shaper_khmer_machine::SyllableType;
 
     let mut ret = false;
@@ -177,7 +177,7 @@ fn reorder_syllable_khmer(
     khmer_plan: &KhmerShapePlan,
     start: usize,
     end: usize,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     use super::ot_shaper_khmer_machine::SyllableType;
 
@@ -202,7 +202,7 @@ fn reorder_consonant_syllable(
     plan: &KhmerShapePlan,
     start: usize,
     end: usize,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     // Setup masks.
     {
@@ -301,7 +301,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
     crate::hb::unicode::compose(a, b)
 }
 
-fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
 
     // We cannot setup masks here.  We save information about characters

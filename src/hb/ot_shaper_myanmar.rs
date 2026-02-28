@@ -115,7 +115,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     }
 }
 
-fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     super::ot_shaper_myanmar_machine::find_syllables_myanmar(buffer);
@@ -131,7 +131,7 @@ fn setup_syllables(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer
     false
 }
 
-fn reorder_myanmar(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn reorder_myanmar(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) -> bool {
     use super::ot_shaper_myanmar_machine::SyllableType;
 
     let mut ret = false;
@@ -161,7 +161,7 @@ fn reorder_myanmar(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buf
     ret
 }
 
-fn reorder_syllable_myanmar(start: usize, end: usize, buffer: &mut hb_buffer_t) {
+fn reorder_syllable_myanmar(start: usize, end: usize, buffer: &mut Buffer) {
     use super::ot_shaper_myanmar_machine::SyllableType;
 
     let syllable_type = match buffer.info[start].syllable() & 0x0F {
@@ -183,7 +183,7 @@ fn reorder_syllable_myanmar(start: usize, end: usize, buffer: &mut hb_buffer_t) 
 
 // Rules from:
 // https://docs.microsoft.com/en-us/typography/script-development/myanmar
-fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut hb_buffer_t) {
+fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut Buffer) {
     let mut base = end;
     let mut has_reph = false;
 
@@ -321,7 +321,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     }
 }
 
-fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn setup_masks(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::MYANMAR_CATEGORY_VAR);
     buffer.allocate_var(GlyphInfo::MYANMAR_POSITION_VAR);
 

@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use super::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use super::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 
 static _khmer_syllable_machine_actions: [i8; 29] = [
     0, 1, 0, 1, 1, 1, 2, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9, 1, 10, 1, 11, 2, 2, 3, 2, 2, 4, 0, 0,
@@ -97,7 +97,7 @@ pub enum SyllableType {
     NonKhmerCluster,
 }
 
-pub fn find_syllables_khmer(buffer: &mut hb_buffer_t) {
+pub fn find_syllables_khmer(buffer: &mut Buffer) {
     let mut cs = 0;
     let mut ts = 0;
     let mut te = 0;
@@ -348,7 +348,7 @@ fn found_syllable(
     end: usize,
     syllable_serial: &mut u8,
     kind: SyllableType,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     for i in start..end {
         buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);

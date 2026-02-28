@@ -4,7 +4,7 @@ use super::map;
 use super::{layout_kerx_table, layout_morx_table, layout_trak_table};
 use crate::hb::aat::layout_common::{AatApplyContext, HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED};
 use crate::hb::{
-    buffer::hb_buffer_t, hb_font_t, hb_tag_t, ot_shape_plan::hb_ot_shape_plan_t, GlyphInfo,
+    buffer::Buffer, hb_font_t, hb_tag_t, ot_shape_plan::hb_ot_shape_plan_t, GlyphInfo,
 };
 use crate::Feature;
 
@@ -502,7 +502,7 @@ pub const DELETED_GLYPH: u32 = 0xFFFF;
 pub fn substitute(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
     features: &[Feature],
 ) {
     let mut aat_map = map::AatMap::default();
@@ -533,7 +533,7 @@ fn is_deleted_glyph(info: &GlyphInfo) -> bool {
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L337>
 #[doc(alias = "hb_aat_layout_remove_deleted_glyphs")]
-pub fn remove_deleted_glyphs(buffer: &mut hb_buffer_t) {
+pub fn remove_deleted_glyphs(buffer: &mut Buffer) {
     if (buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED) != 0 {
         buffer.delete_glyphs_inplace(is_deleted_glyph);
     }
@@ -543,7 +543,7 @@ pub fn remove_deleted_glyphs(buffer: &mut hb_buffer_t) {
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L363>
 #[doc(alias = "hb_aat_layout_position")]
-pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) {
     let mut c = AatApplyContext::new(plan, face, buffer);
     layout_kerx_table::apply(&mut c);
 }
@@ -552,6 +552,6 @@ pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buf
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L398>
 #[doc(alias = "hb_aat_layout_track")]
-pub fn track(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+pub fn track(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) {
     layout_trak_table::apply(plan, face, buffer);
 }

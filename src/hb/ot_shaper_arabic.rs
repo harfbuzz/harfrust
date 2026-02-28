@@ -179,7 +179,7 @@ impl GlyphInfo {
     );
 }
 
-fn deallocate_buffer_var(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn deallocate_buffer_var(_: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) -> bool {
     buffer.deallocate_var(GlyphInfo::ARABIC_SHAPING_ACTION_VAR);
 
     false
@@ -298,7 +298,7 @@ pub fn data_create_arabic(plan: &hb_ot_shape_plan_t) -> arabic_shape_plan_t {
     }
 }
 
-fn arabic_joining(buffer: &mut hb_buffer_t) {
+fn arabic_joining(buffer: &mut Buffer) {
     let mut prev: Option<usize> = None;
     let mut state = 0;
 
@@ -375,7 +375,7 @@ fn arabic_joining(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn mongolian_variation_selectors(buffer: &mut hb_buffer_t) {
+fn mongolian_variation_selectors(buffer: &mut Buffer) {
     // Copy arabic_shaping_action() from base to Mongolian variation selectors.
     let len = buffer.len;
     let info = &mut buffer.info;
@@ -387,7 +387,7 @@ fn mongolian_variation_selectors(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn setup_masks_arabic_plan(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn setup_masks_arabic_plan(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::ARABIC_SHAPING_ACTION_VAR);
 
     let arabic_plan = plan.data::<arabic_shape_plan_t>();
@@ -397,7 +397,7 @@ fn setup_masks_arabic_plan(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mu
 pub fn setup_masks_inner(
     arabic_plan: &arabic_shape_plan_t,
     script: Option<Script>,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     arabic_joining(buffer);
     if script == Some(script::MONGOLIAN) {
@@ -409,7 +409,7 @@ pub fn setup_masks_inner(
     }
 }
 
-fn arabic_fallback_shape(_: &hb_ot_shape_plan_t, _: &hb_font_t, _: &mut hb_buffer_t) -> bool {
+fn arabic_fallback_shape(_: &hb_ot_shape_plan_t, _: &hb_font_t, _: &mut Buffer) -> bool {
     false
 }
 
@@ -418,7 +418,7 @@ fn arabic_fallback_shape(_: &hb_ot_shape_plan_t, _: &hb_font_t, _: &mut hb_buffe
 // https://docs.microsoft.com/en-us/typography/script-development/syriac
 // We implement this in a generic way, such that the Arabic subtending
 // marks can use it as well.
-fn record_stch(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_t) -> bool {
+fn record_stch(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut Buffer) -> bool {
     let arabic_plan = plan.data::<arabic_shape_plan_t>();
     if !arabic_plan.has_stch {
         return false;
@@ -452,7 +452,7 @@ fn record_stch(plan: &hb_ot_shape_plan_t, _: &hb_font_t, buffer: &mut hb_buffer_
     false
 }
 
-fn apply_stch(face: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn apply_stch(face: &hb_font_t, buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_ARABIC_HAS_STCH == 0 {
         return;
     }
@@ -588,7 +588,7 @@ fn apply_stch(face: &hb_font_t, buffer: &mut hb_buffer_t) {
         }
 
         if step == MEASURE {
-            if !buffer.ensure(buffer.len + extra_glyphs_needed) {
+            if !buffer.reserve(buffer.len + extra_glyphs_needed) {
                 break;
             }
         } else {
@@ -602,7 +602,7 @@ fn apply_stch(face: &hb_font_t, buffer: &mut hb_buffer_t) {
     }
 }
 
-fn postprocess_glyphs_arabic(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+fn postprocess_glyphs_arabic(_: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) {
     apply_stch(face, buffer);
 }
 
@@ -624,12 +624,7 @@ static MODIFIER_COMBINING_MARKS: &[u32] = &[
     0x08F3, // ARABIC SMALL HIGH WAW
 ];
 
-fn reorder_marks_arabic(
-    _: &hb_ot_shape_plan_t,
-    buffer: &mut hb_buffer_t,
-    mut start: usize,
-    end: usize,
-) {
+fn reorder_marks_arabic(_: &hb_ot_shape_plan_t, buffer: &mut Buffer, mut start: usize, end: usize) {
     let mut i = start;
     for cc in [220u8, 230] {
         while i < end && buffer.info[i].modified_combining_class() < cc {

@@ -1,7 +1,7 @@
 //! Matching of glyph patterns.
 
 use super::buffer::GlyphInfo;
-use super::buffer::{hb_buffer_t, GlyphPropsFlags};
+use super::buffer::{Buffer, GlyphPropsFlags};
 use super::cache::hb_cache_t;
 use super::hb_font_t;
 use super::hb_mask_t;
@@ -315,7 +315,7 @@ impl matcher_t {
 // when needed, and we do not have `init` method that exist in harfbuzz. This has a performance
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
 pub struct skipping_iterator_t<'f, 'c, F> {
-    pub(crate) buffer: &'c mut hb_buffer_t,
+    pub(crate) buffer: &'c mut Buffer,
     face: &'c hb_font_t<'f>,
     matcher: &'c matcher_t,
     match_positions: &'c mut MatchPositions,
@@ -853,7 +853,7 @@ pub mod OT {
     pub struct hb_ot_apply_context_t<'a> {
         pub table_index: TableIndex,
         pub face: &'a hb_font_t<'a>,
-        pub buffer: &'a mut hb_buffer_t,
+        pub buffer: &'a mut Buffer,
         lookup_mask: hb_mask_t,
         pub per_syllable: bool,
         pub lookup_index: u16,
@@ -876,7 +876,7 @@ pub mod OT {
         pub fn new(
             table_index: TableIndex,
             face: &'a hb_font_t<'a>,
-            buffer: &'a mut hb_buffer_t,
+            buffer: &'a mut Buffer,
         ) -> Self {
             Self {
                 table_index,

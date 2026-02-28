@@ -8,7 +8,7 @@ use super::ot_layout::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use crate::Direction;
 
-pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
+pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut Buffer) {
     apply_layout_table(plan, face, buffer, face.ot_tables.gpos.as_ref());
 }
 
@@ -95,7 +95,7 @@ fn propagate_attachment_offsets(
 pub mod GPOS {
     use super::*;
 
-    pub fn position_start(_: &hb_font_t, buffer: &mut hb_buffer_t) {
+    pub fn position_start(_: &hb_font_t, buffer: &mut Buffer) {
         let len = buffer.len;
         for pos in &mut buffer.pos[..len] {
             pos.set_attach_chain(0);
@@ -103,11 +103,11 @@ pub mod GPOS {
         }
     }
 
-    pub fn position_finish_advances(_: &hb_font_t, _: &mut hb_buffer_t) {
+    pub fn position_finish_advances(_: &hb_font_t, _: &mut Buffer) {
         //buffer.assert_gsubgpos_vars();
     }
 
-    pub fn position_finish_offsets(_: &hb_font_t, buffer: &mut hb_buffer_t) {
+    pub fn position_finish_offsets(_: &hb_font_t, buffer: &mut Buffer) {
         buffer.assert_gsubgpos_vars();
 
         let len = buffer.len;

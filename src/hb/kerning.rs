@@ -33,7 +33,7 @@ pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &Cl
 pub fn hb_ot_layout_kern(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, buffer);
 
@@ -120,7 +120,7 @@ pub fn hb_ot_layout_kern(
 
 fn machine_kern<F>(
     face: &hb_font_t,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
     kern_mask: hb_mask_t,
     cross_stream: bool,
     get_kerning: F,
