@@ -1,145 +1,119 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use clap::Parser;
 use harfrust::{FontRef, ShaperData, ShaperInstance};
 
-const HELP: &str = "\
-USAGE:
-    shape [OPTIONS] <FONT-FILE> [TEXT]
-
-OPTIONS:
-    -h, --help                                  Show help options
-        --version                               Show version number
-        --font-file PATH                        Set font file-name
-        --face-index INDEX                      Set face index [default: 0]
-        --font-ptem NUMBER                      Set font point-size
-        --variations LIST                       Set comma-separated list of font variations
-        --text TEXT                             Set input text
-        --text-file PATH                        Set input text file
-    -u, --unicodes LIST                         Set comma-separated list of input Unicode codepoints
-                                                Examples: 'U+0056,U+0057'
-        --direction DIRECTION                   Set text direction
-                                                [possible values: ltr, rtl, ttb, btt]
-        --language LANG                         Set text language [default: LC_CTYPE]
-        --script TAG                            Set text script as ISO-15924 tag
-        --not-found-variation-selector-glyph N  Glyph value to replace not-found variation-selector characters with
-        --utf8-clusters                         Use UTF-8 byte indices, not char indices
-        --cluster-level N                       Cluster merging level [default: 0]
-                                                [possible values: 0, 1, 2]
-        --features LIST                         Set comma-separated list of font features
-        --no-glyph-names                        Output glyph indices instead of names
-        --no-positions                          Do not output glyph positions
-        --no-advances                           Do not output glyph advances
-        --no-clusters                           Do not output cluster indices
-        --show-extents                          Output glyph extents
-        --show-flags                            Output glyph flags
-        --single-par                            Treat the input string as a single paragraph
-        --ned                                   No Extra Data; Do not output clusters or advances
-
-ARGS:
-    <FONT-FILE>                         A font file
-    [TEXT]                              An optional text
-";
-
+#[derive(Parser)]
+#[command(name = "shape", version, about = "Shape text using HarfRust")]
 struct Args {
-    help: bool,
-    version: bool,
+    /// Font file path
+    #[arg(value_name = "FONT-FILE")]
+    font_file_pos: Option<PathBuf>,
+
+    /// Text to shape
+    #[arg(value_name = "TEXT")]
+    text_pos: Option<String>,
+
+    /// Set font file-name
+    #[arg(long)]
     font_file: Option<PathBuf>,
+
+    /// Set face index
+    #[arg(long, default_value_t = 0)]
     face_index: u32,
+
+    /// Set font point-size
+    #[arg(long)]
     font_ptem: Option<f32>,
-    variations: Vec<harfrust::Variation>,
+
+    /// Comma-separated list of font variations
+    #[arg(long, value_parser = parse_variations)]
+    variations: Option<Vec<harfrust::Variation>>,
+
+    /// Set input text
+    #[arg(long)]
     text: Option<String>,
+
+    /// Set input text file
+    #[arg(long)]
     text_file: Option<PathBuf>,
+
+    /// Set comma-separated list of input Unicode codepoints (e.g. 'U+0056,U+0057')
+    #[arg(short = 'u', long, value_parser = parse_unicodes)]
     unicodes: Option<String>,
+
+    /// Set text direction (ltr/rtl/ttb/btt)
+    #[arg(long)]
     direction: Option<harfrust::Direction>,
-    language: harfrust::Language,
+
+    /// Set text language [default: $LANG]
+    #[arg(long)]
+    language: Option<harfrust::Language>,
+
+    /// Set text script as ISO-15924 tag
+    #[arg(long)]
     script: Option<harfrust::Script>,
+
+    /// Glyph value to replace not-found variation-selector characters with
+    #[arg(long)]
     not_found_variation_selector_glyph: Option<u32>,
+
+    /// Use UTF-8 byte indices, not char indices
+    #[arg(long)]
     utf8_clusters: bool,
+
+    /// Cluster merging level (0-2)
+    #[arg(long, value_parser = parse_cluster, default_value = "0")]
     cluster_level: harfrust::BufferClusterLevel,
-    features: Vec<harfrust::Feature>,
+
+    /// Comma-separated list of font features
+    #[arg(long, value_parser = parse_features)]
+    features: Option<Vec<harfrust::Feature>>,
+
+    /// Output glyph indices instead of names
+    #[arg(long)]
     no_glyph_names: bool,
+
+    /// Do not output glyph positions
+    #[arg(long)]
     no_positions: bool,
+
+    /// Do not output glyph advances
+    #[arg(long)]
     no_advances: bool,
+
+    /// Do not output cluster indices
+    #[arg(long)]
     no_clusters: bool,
+
+    /// Output glyph extents
+    #[arg(long)]
     show_extents: bool,
+
+    /// Output glyph flags
+    #[arg(long)]
     show_flags: bool,
+
+    /// Treat the input string as a single paragraph
+    #[arg(long)]
     single_par: bool,
+
+    /// No Extra Data; Do not output clusters or advances
+    #[arg(long)]
     ned: bool,
-    free: Vec<String>,
-}
-
-fn parse_args() -> Result<Args, pico_args::Error> {
-    let mut args = pico_args::Arguments::from_env();
-    let args = Args {
-        help: args.contains(["-h", "--help"]),
-        version: args.contains("--version"),
-        font_file: args.opt_value_from_str("--font-file")?,
-        face_index: args.opt_value_from_str("--face-index")?.unwrap_or(0),
-        font_ptem: args.opt_value_from_str("--font-ptem")?,
-        variations: args
-            .opt_value_from_fn("--variations", parse_variations)?
-            .unwrap_or_default(),
-        text: args.opt_value_from_str("--text")?,
-        text_file: args.opt_value_from_str("--text-file")?,
-        unicodes: args.opt_value_from_fn(["-u", "--unicodes"], parse_unicodes)?,
-        direction: args.opt_value_from_str("--direction")?,
-        language: args
-            .opt_value_from_str("--language")?
-            .unwrap_or(system_language()),
-        script: args.opt_value_from_str("--script")?,
-        utf8_clusters: args.contains("--utf8-clusters"),
-        not_found_variation_selector_glyph: args
-            .opt_value_from_str("--not-found-variation-selector-glyph")?,
-        cluster_level: args
-            .opt_value_from_fn("--cluster-level", parse_cluster)?
-            .unwrap_or_default(),
-        features: args
-            .opt_value_from_fn("--features", parse_features)?
-            .unwrap_or_default(),
-        no_glyph_names: args.contains("--no-glyph-names"),
-        no_positions: args.contains("--no-positions"),
-        no_advances: args.contains("--no-advances"),
-        no_clusters: args.contains("--no-clusters"),
-        show_extents: args.contains("--show-extents"),
-        show_flags: args.contains("--show-flags"),
-        single_par: args.contains("--single-par"),
-        ned: args.contains("--ned"),
-        free: args
-            .finish()
-            .iter()
-            .map(|s| s.to_string_lossy().to_string())
-            .collect(),
-    };
-
-    Ok(args)
 }
 
 fn main() {
-    let args = match parse_args() {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!("Error: {e}.");
-            std::process::exit(1);
-        }
-    };
+    let args = Args::parse();
 
-    if args.version {
-        println!("{}", env!("CARGO_PKG_VERSION"));
-        return;
-    }
-
-    if args.help {
-        print!("{HELP}");
-        return;
-    }
-
+    // Resolve font path from --font-file or first positional arg
     let mut font_set_as_free_arg = false;
-    let font_path = if let Some(path) = args.font_file {
+    let font_path = if let Some(ref path) = args.font_file {
         path.clone()
-    } else if !args.free.is_empty() {
+    } else if let Some(ref path) = args.font_file_pos {
         font_set_as_free_arg = true;
-        PathBuf::from(&args.free[0])
+        path.clone()
     } else {
         eprintln!("Error: font is not set.");
         std::process::exit(1);
@@ -153,19 +127,33 @@ fn main() {
     let font_data = std::fs::read(font_path).unwrap();
     let font = FontRef::from_index(&font_data, args.face_index).unwrap();
     let data = ShaperData::new(&font);
-    let instance = ShaperInstance::from_variations(&font, &args.variations);
+    let variations = args.variations.as_deref().unwrap_or_default();
+    let instance = ShaperInstance::from_variations(&font, variations);
     let shaper = data
         .shaper(&font)
         .instance(Some(&instance))
         .point_size(args.font_ptem)
         .build();
 
-    let text = if let Some(path) = args.text_file {
+    let language = args.language.unwrap_or_else(system_language);
+    let features = args.features.as_deref().unwrap_or_default();
+
+    let text = if let Some(ref path) = args.text_file {
         std::fs::read_to_string(path).unwrap()
-    } else if args.free.len() == 2 && font_set_as_free_arg {
-        args.free[1].clone()
-    } else if args.free.len() == 1 && !font_set_as_free_arg {
-        args.free[0].clone()
+    } else if font_set_as_free_arg {
+        if let Some(ref text) = args.text_pos {
+            text.clone()
+        } else if let Some(ref text) = args.unicodes {
+            text.clone()
+        } else if let Some(ref text) = args.text {
+            text.clone()
+        } else {
+            eprintln!("Error: text is not set.");
+            std::process::exit(1);
+        }
+    } else if let Some(ref text) = args.font_file_pos {
+        // font was set via --font-file, so first positional is text
+        text.to_string_lossy().to_string()
     } else if let Some(ref text) = args.unicodes {
         text.clone()
     } else if let Some(ref text) = args.text {
@@ -189,7 +177,7 @@ fn main() {
             buffer.set_direction(d);
         }
 
-        buffer.set_language(args.language.clone());
+        buffer.set_language(language.clone());
 
         if let Some(script) = args.script {
             buffer.set_script(script);
@@ -207,7 +195,7 @@ fn main() {
 
         buffer.guess_segment_properties();
 
-        let glyph_buffer = shaper.shape(buffer, &args.features);
+        let glyph_buffer = shaper.shape(buffer, features);
 
         let mut format_flags = harfrust::SerializeFlags::default();
         if args.no_glyph_names {
@@ -243,12 +231,9 @@ fn parse_unicodes(s: &str) -> Result<String, String> {
     for u in s.split(',') {
         let u = u32::from_str_radix(&u[2..], 16)
             .map_err(|_| format!("'{u}' is not a valid codepoint"))?;
-
         let c = char::try_from(u).map_err(|_| format!("{u} is not a valid codepoint"))?;
-
         text.push(c);
     }
-
     Ok(text)
 }
 
@@ -257,7 +242,6 @@ fn parse_features(s: &str) -> Result<Vec<harfrust::Feature>, String> {
     for f in s.split(',') {
         features.push(harfrust::Feature::from_str(f)?);
     }
-
     Ok(features)
 }
 
@@ -266,7 +250,6 @@ fn parse_variations(s: &str) -> Result<Vec<harfrust::Variation>, String> {
     for v in s.split(',') {
         variations.push(harfrust::Variation::from_str(v)?);
     }
-
     Ok(variations)
 }
 
@@ -280,11 +263,9 @@ fn parse_cluster(s: &str) -> Result<harfrust::BufferClusterLevel, String> {
 }
 
 fn system_language() -> harfrust::Language {
-    unsafe {
-        libc::setlocale(libc::LC_ALL, c"".as_ptr());
-        let s = libc::setlocale(libc::LC_CTYPE, std::ptr::null());
-        let s = std::ffi::CStr::from_ptr(s);
-        let s = s.to_str().expect("locale must be ASCII");
-        harfrust::Language::from_str(s).unwrap()
-    }
+    let locale = std::env::var("LC_CTYPE")
+        .or_else(|_| std::env::var("LC_ALL"))
+        .or_else(|_| std::env::var("LANG"))
+        .unwrap_or_default();
+    harfrust::Language::from_str(&locale).unwrap()
 }

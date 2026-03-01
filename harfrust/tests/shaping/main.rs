@@ -4,78 +4,83 @@ mod in_house;
 mod macos;
 mod text_rendering_tests;
 
+use clap::Parser;
 use harfrust::{BufferFlags, FontRef, ShaperData, ShaperInstance};
 use std::str::FromStr;
 
+#[derive(Parser)]
+#[command(no_binary_name = true)]
 struct Args {
+    #[arg(long, default_value_t = 0)]
     face_index: u32,
+
+    #[arg(long)]
     font_ptem: Option<f32>,
+
+    #[arg(long, value_delimiter = ',')]
     variations: Vec<String>,
+
+    #[arg(long)]
     direction: Option<harfrust::Direction>,
+
+    #[arg(long)]
     language: Option<harfrust::Language>,
+
+    #[arg(long)]
     script: Option<harfrust::Script>,
+
     #[allow(dead_code)]
+    #[arg(long)]
     remove_default_ignorables: bool,
+
+    #[arg(long)]
     unsafe_to_concat: bool,
+
+    #[arg(long)]
     not_found_variation_selector_glyph: Option<u32>,
+
+    #[arg(long, value_parser = parse_cluster, default_value = "0")]
     cluster_level: harfrust::BufferClusterLevel,
+
+    #[arg(long, value_delimiter = ',')]
     features: Vec<String>,
-    pre_context: Option<String>,
-    post_context: Option<String>,
+
+    #[arg(long, value_parser = parse_unicodes)]
+    unicodes_before: Option<String>,
+
+    #[arg(long, value_parser = parse_unicodes)]
+    unicodes_after: Option<String>,
+
+    #[arg(long)]
     no_glyph_names: bool,
+
+    #[arg(long)]
     no_positions: bool,
+
+    #[arg(long)]
     no_advances: bool,
+
+    #[arg(long)]
     no_clusters: bool,
+
+    #[arg(long)]
     show_extents: bool,
+
+    #[arg(long)]
     show_flags: bool,
+
+    #[arg(long)]
     ned: bool,
+
+    #[arg(long)]
     bot: bool,
+
+    #[arg(long)]
     eot: bool,
-}
 
-fn parse_args(args: Vec<std::ffi::OsString>) -> Result<Args, pico_args::Error> {
-    let mut parser = pico_args::Arguments::from_vec(args);
-    let args = Args {
-        face_index: parser.opt_value_from_str("--face-index")?.unwrap_or(0),
-        font_ptem: parser.opt_value_from_str("--font-ptem")?,
-        variations: parser
-            .opt_value_from_fn("--variations", parse_string_list)?
-            .unwrap_or_default(),
-        direction: parser.opt_value_from_str("--direction")?,
-        language: parser.opt_value_from_str("--language")?,
-        script: parser.opt_value_from_str("--script")?,
-        remove_default_ignorables: parser.contains("--remove-default-ignorables"),
-        unsafe_to_concat: parser.contains("--unsafe-to-concat"),
-        not_found_variation_selector_glyph: parser
-            .opt_value_from_str("--not-found-variation-selector-glyph")?,
-        cluster_level: parser
-            .opt_value_from_fn("--cluster-level", parse_cluster)?
-            .unwrap_or_default(),
-        features: parser
-            .opt_value_from_fn("--features", parse_string_list)?
-            .unwrap_or_default(),
-        pre_context: parser
-            .opt_value_from_fn("--unicodes-before", parse_unicodes)
-            .unwrap_or_default(),
-        post_context: parser
-            .opt_value_from_fn("--unicodes-after", parse_unicodes)
-            .unwrap_or_default(),
-        no_glyph_names: parser.contains("--no-glyph-names"),
-        no_positions: parser.contains("--no-positions"),
-        no_advances: parser.contains("--no-advances"),
-        no_clusters: parser.contains("--no-clusters"),
-        show_extents: parser.contains("--show-extents"),
-        show_flags: parser.contains("--show-flags"),
-        ned: parser.contains("--ned"),
-        bot: parser.contains("--bot"),
-        eot: parser.contains("--eot"),
-    };
-
-    Ok(args)
-}
-
-fn parse_string_list(s: &str) -> Result<Vec<String>, String> {
-    Ok(s.split(',').map(|s| s.to_string()).collect())
+    /// Ignored (hb-shape compat)
+    #[arg(long, hide = true)]
+    font_funcs: Option<String>,
 }
 
 fn parse_cluster(s: &str) -> Result<harfrust::BufferClusterLevel, String> {
@@ -99,12 +104,13 @@ fn parse_unicodes(s: &str) -> Result<String, String> {
 }
 
 pub fn shape(font_path: &str, text: &str, options: &str) -> String {
-    let args = options
+    // Strip shell-style quotes that test strings use around values
+    let option_args: Vec<String> = options
         .split(' ')
         .filter(|s| !s.is_empty())
-        .map(std::ffi::OsString::from)
+        .map(|s| s.replace('"', ""))
         .collect();
-    let args = parse_args(args).unwrap();
+    let args = Args::try_parse_from(&option_args).unwrap();
 
     let font_data =
         std::fs::read(font_path).unwrap_or_else(|e| panic!("Could not read {font_path}: {e}"));
@@ -126,12 +132,12 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
         .build();
 
     let mut buffer = harfrust::UnicodeBuffer::new();
-    if let Some(pre_context) = args.pre_context {
-        buffer.set_pre_context(&pre_context);
+    if let Some(ref pre_context) = args.unicodes_before {
+        buffer.set_pre_context(pre_context);
     }
     buffer.push_str(text);
-    if let Some(post_context) = args.post_context {
-        buffer.set_post_context(&post_context);
+    if let Some(ref post_context) = args.unicodes_after {
+        buffer.set_post_context(post_context);
     }
 
     if let Some(d) = args.direction {
@@ -163,11 +169,11 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     buffer.set_cluster_level(args.cluster_level);
     buffer.reset_clusters();
 
-    let mut features = Vec::new();
-    for feature_str in args.features {
-        let feature = harfrust::Feature::from_str(&feature_str).unwrap();
-        features.push(feature);
-    }
+    let features: Vec<_> = args
+        .features
+        .iter()
+        .map(|s| harfrust::Feature::from_str(s).unwrap())
+        .collect();
 
     buffer.guess_segment_properties();
     let glyph_buffer = shaper.shape(buffer, &features);

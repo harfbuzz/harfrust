@@ -23,10 +23,9 @@ default = ["std"]
 std = ["read-fonts/std"]
 
 [dev-dependencies]
+clap = { version = "4", features = ["derive"] }
 criterion = "0.8.0"
 harfbuzz_rs = { git = "https://github.com/harfbuzz/harfbuzz_rs/", rev = "66dae27" }
-libc = "0.2"
-pico-args = { version = "0.5", features = ["eq-separator"] }
 
 [lib]
 bench = false
