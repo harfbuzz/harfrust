@@ -190,6 +190,10 @@ struct Args {
     /// Run shaper N times
     #[arg(short = 'n', long, default_value_t = 1)]
     num_iterations: u32,
+
+    /// Ignored; accepted for hb-shape compatibility
+    #[arg(long, hide = true)]
+    font_funcs: Option<String>,
 }
 
 fn main() {

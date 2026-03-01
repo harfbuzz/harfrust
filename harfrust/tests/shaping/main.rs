@@ -43,15 +43,9 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     cmd.arg("-u").arg(unicodes.join(","));
     cmd.arg("--single-par");
 
-    // Parse options, stripping quotes and filtering --font-funcs (hb-shape only)
-    let mut iter = options.split(' ').filter(|s| !s.is_empty());
-    while let Some(arg) = iter.next() {
-        let arg = arg.replace('"', "");
-        if arg == "--font-funcs" {
-            iter.next(); // skip its value
-            continue;
-        }
-        cmd.arg(arg);
+    // Parse options, stripping shell-style quotes
+    for arg in options.split(' ').filter(|s| !s.is_empty()) {
+        cmd.arg(arg.replace('"', ""));
     }
 
     let output = cmd.output().expect("failed to run hr-shape");
