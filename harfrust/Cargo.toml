@@ -1,0 +1,37 @@
+[package]
+name = "harfrust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+exclude = ["benches/", "tests/"]
+
+[dependencies]
+bitflags = "2.9"
+bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
+core_maths = "0.1" # only for no_std builds
+read-fonts = { version = "0.37.0", default-features = false, features = ["libm"] }
+# read-fonts = { git = "https://github.com/googlefonts/fontations", default-features = false, features = ["libm"] }
+smallvec = "1.14"
+
+[features]
+default = ["std"]
+std = ["read-fonts/std"]
+
+[dev-dependencies]
+criterion = "0.8.0"
+harfbuzz_rs = { git = "https://github.com/harfbuzz/harfbuzz_rs/", rev = "66dae27" }
+
+[lib]
+bench = false
+
+[[bench]]
+name = "shaping"
+harness = false
+
+[lints]
+workspace = true
