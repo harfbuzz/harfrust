@@ -3,7 +3,6 @@
 
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use clap::Parser;
 use harfrust::{
@@ -314,7 +313,7 @@ fn main() {
         f.bits()
     };
 
-    let language = args.language.unwrap_or_else(system_language);
+    let language = args.language;
     let features = &args.features;
 
     // Resolve text input
@@ -396,7 +395,9 @@ fn main() {
                 if let Some(d) = args.direction {
                     buffer.set_direction(d);
                 }
-                buffer.set_language(language.clone());
+                if let Some(ref lang) = language {
+                    buffer.set_language(lang.clone());
+                }
                 if let Some(script) = args.script {
                     buffer.set_script(script);
                 }
@@ -494,10 +495,3 @@ fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
     s
 }
 
-fn system_language() -> Language {
-    let locale = std::env::var("LC_CTYPE")
-        .or_else(|_| std::env::var("LC_ALL"))
-        .or_else(|_| std::env::var("LANG"))
-        .unwrap_or_default();
-    Language::from_str(&locale).unwrap()
-}
