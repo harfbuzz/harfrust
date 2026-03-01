@@ -36,8 +36,8 @@ struct Args {
     font_ptem: Option<f32>,
 
     /// Comma-separated list of font variations
-    #[arg(long, value_parser = parse_variations)]
-    variations: Option<Vec<Variation>>,
+    #[arg(long, value_delimiter = ',')]
+    variations: Vec<Variation>,
 
     /// Set named-instance index
     #[arg(long)]
@@ -90,8 +90,8 @@ struct Args {
     script: Option<harfrust::Script>,
 
     /// Comma-separated list of font features
-    #[arg(long, value_parser = parse_features)]
-    features: Option<Vec<Feature>>,
+    #[arg(long, value_delimiter = ',')]
+    features: Vec<Feature>,
 
     /// Use UTF-8 byte indices, not char indices
     #[arg(long)]
@@ -234,7 +234,7 @@ fn main() {
 
     // Build shaper
     let data = ShaperData::new(&font);
-    let variations = args.variations.as_deref().unwrap_or_default();
+    let variations = &args.variations;
     let instance = match args.named_instance {
         Some(idx) => {
             let mut inst = ShaperInstance::from_named_instance(&font, idx);
@@ -311,7 +311,7 @@ fn main() {
     };
 
     let language = args.language.unwrap_or_else(system_language);
-    let features = args.features.as_deref().unwrap_or_default();
+    let features = &args.features;
 
     // Resolve text input
     let text = if let Some(ref path) = args.text_file {
@@ -463,21 +463,6 @@ fn parse_unicodes(s: &str) -> Result<String, String> {
     Ok(text)
 }
 
-fn parse_features(s: &str) -> Result<Vec<Feature>, String> {
-    let mut features = Vec::new();
-    for f in s.split(',') {
-        features.push(Feature::from_str(f)?);
-    }
-    Ok(features)
-}
-
-fn parse_variations(s: &str) -> Result<Vec<Variation>, String> {
-    let mut variations = Vec::new();
-    for v in s.split(',') {
-        variations.push(Variation::from_str(v)?);
-    }
-    Ok(variations)
-}
 
 fn parse_cluster(s: &str) -> Result<BufferClusterLevel, String> {
     match s {
