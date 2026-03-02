@@ -1,5 +1,5 @@
 [workspace]
-members = ["harfrust", "harfrust-utils"]
+members = ["harfrust", "hr-shape"]
 resolver = "2"
 
 [workspace.package]

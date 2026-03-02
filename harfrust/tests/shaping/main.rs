@@ -13,7 +13,7 @@ fn hr_shape_binary() -> &'static PathBuf {
     HR_SHAPE.get_or_init(|| {
         // Build the binary
         let status = Command::new(env!("CARGO"))
-            .args(["build", "-p", "harfrust-utils", "--bin", "hr-shape"])
+            .args(["build", "-p", "hr-shape", "--bin", "hr-shape"])
             .status()
             .expect("failed to build hr-shape");
         assert!(status.success(), "failed to build hr-shape");

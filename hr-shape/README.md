@@ -1,19 +1,13 @@
-# HarfRust Utilities
+# hr-shape
 
-Command-line utilities for the HarfRust text shaping library.
-
-## Tools
-
-### hr-shape
-
-A command-line tool for text shaping, equivalent to HarfBuzz's `hb-shape`.
+Command-line text shaping utility for the HarfRust library, equivalent to HarfBuzz's `hb-shape`.
 
 Use `hr-shape` to shape text using fonts and inspect the shaping results.
 
 ## Installation
 
 ```bash
-cargo install harfrust-utils
+cargo install hr-shape
 ```
 
 ## Usage
