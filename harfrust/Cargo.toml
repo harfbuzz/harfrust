@@ -6,6 +6,7 @@ rust-version.workspace = true
 description.workspace = true
 repository.workspace = true
 license.workspace = true
+readme = "../README.md"
 keywords.workspace = true
 categories.workspace = true
 exclude = ["benches/", "tests/"]
