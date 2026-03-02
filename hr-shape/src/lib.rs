@@ -191,11 +191,21 @@ pub struct Args {
     font_funcs: Option<String>,
 }
 
+/// Parses command-line arguments and runs the `hr-shape` command.
+///
+/// # Errors
+///
+/// Returns an error string if argument parsing, shaping, or output writing fails.
 pub fn try_main() -> Result<(), String> {
     let args = Args::parse();
     run_and_write(args)
 }
 
+/// Runs `hr-shape` from a parsed argument struct and writes output to the configured destination.
+///
+/// # Errors
+///
+/// Returns an error string if shaping or output writing fails.
 pub fn run_and_write(args: Args) -> Result<(), String> {
     let output_file = args.output_file.clone();
     let output = render(args)?;
@@ -203,6 +213,13 @@ pub fn run_and_write(args: Args) -> Result<(), String> {
     Ok(())
 }
 
+/// Parses `hr-shape` arguments from an iterator and returns the rendered output.
+///
+/// If `-o/--output-file` is present, this also writes the rendered output to that file.
+///
+/// # Errors
+///
+/// Returns an error string if argument parsing, shaping, or requested file output fails.
 pub fn run_from_args<I, T>(args: I) -> Result<String, String>
 where
     I: IntoIterator<Item = T>,
@@ -216,6 +233,14 @@ where
     Ok(output)
 }
 
+/// Shapes a single input string using the same option parsing path as the CLI.
+///
+/// The input text is passed as Unicode codepoints so tests can include NUL bytes and other
+/// special characters without shell escaping concerns.
+///
+/// # Errors
+///
+/// Returns an error string if option parsing or shaping fails.
 pub fn shape(font_path: &str, text: &str, options: &str) -> Result<String, String> {
     let unicodes: Vec<String> = text
         .chars()
@@ -238,6 +263,11 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> Result<String, Strin
     run_from_args(args)
 }
 
+/// Renders `hr-shape` output for a parsed argument struct without writing to stdout.
+///
+/// # Errors
+///
+/// Returns an error string if font loading, input loading, or shaping fails.
 pub fn render(mut args: Args) -> Result<String, String> {
     normalize_args(&mut args);
 
