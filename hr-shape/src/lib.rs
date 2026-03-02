@@ -199,19 +199,7 @@ pub fn try_main() -> Result<(), String> {
 pub fn run_and_write(args: Args) -> Result<(), String> {
     let output_file = args.output_file.clone();
     let output = render(args)?;
-
-    if let Some(path) = output_file {
-        let mut file = std::fs::File::create(&path)
-            .map_err(|e| format!("Error: cannot create '{}': {e}", path.display()))?;
-        file.write_all(output.as_bytes())
-            .map_err(|e| format!("Error: cannot write '{}': {e}", path.display()))?;
-    } else {
-        io::stdout()
-            .lock()
-            .write_all(output.as_bytes())
-            .map_err(|e| format!("Error: writing stdout: {e}"))?;
-    }
-
+    write_output(&output, output_file.as_ref())?;
     Ok(())
 }
 
@@ -221,7 +209,11 @@ where
     T: Into<OsString> + Clone,
 {
     let args = Args::try_parse_from(args).map_err(|e| e.to_string())?;
-    render(args)
+    let output = render(args.clone())?;
+    if let Some(path) = args.output_file.as_ref() {
+        write_output(&output, Some(path))?;
+    }
+    Ok(output)
 }
 
 pub fn shape(font_path: &str, text: &str, options: &str) -> Result<String, String> {
@@ -460,6 +452,22 @@ fn normalize_args(args: &mut Args) {
         args.show_unicode = true;
         args.show_line_num = true;
     }
+}
+
+fn write_output(output: &str, output_file: Option<&PathBuf>) -> Result<(), String> {
+    if let Some(path) = output_file {
+        let mut file = std::fs::File::create(path)
+            .map_err(|e| format!("Error: cannot create '{}': {e}", path.display()))?;
+        file.write_all(output.as_bytes())
+            .map_err(|e| format!("Error: cannot write '{}': {e}", path.display()))?;
+    } else {
+        io::stdout()
+            .lock()
+            .write_all(output.as_bytes())
+            .map_err(|e| format!("Error: writing stdout: {e}"))?;
+    }
+
+    Ok(())
 }
 
 fn read_stdin() -> Result<String, String> {

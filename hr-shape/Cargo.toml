@@ -12,7 +12,7 @@ categories.workspace = true
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-harfrust = { path = "../harfrust", default-features = false, features = ["std"] }
+harfrust = { version = "=0.5.0", path = "../harfrust", default-features = false, features = ["std"] }
 
 [[bin]]
 name = "hr-shape"
