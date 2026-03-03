@@ -12,7 +12,15 @@ Local generators in this repo:
 
 ```sh
 bash bump-version.sh 0.6.0
+
+python3 ./gen-shaping-tests.py
+
+python3 ./gen-shaping-tests.py /path/to/harfbuzz
 ```
+
+`gen-shaping-tests.py` assumes HarfBuzz is in `~/harfbuzz` by default. If
+`~/harfbuzz/builddir/util/hb-shape` is missing but `~/harfbuzz/builddir`
+exists, it will run `ninja -C ~/harfbuzz/builddir` first.
 
 HarfBuzz-owned generators used by `harfrust`:
 

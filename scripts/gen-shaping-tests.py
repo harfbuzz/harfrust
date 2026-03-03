@@ -36,12 +36,21 @@ IGNORE_TEST_CASES = [
 ]
 
 
-def check_hb_build(hb_shape_exe):
-    if not hb_shape_exe.exists():
-        print("Build harfbuzz first using:")
-        print("    meson builddir")
-        print("    ninja -Cbuilddir")
-        exit(1)
+def check_hb_build(hb_dir, hb_shape_exe):
+    if hb_shape_exe.exists():
+        return
+
+    build_dir = hb_dir / "builddir"
+    if build_dir.exists():
+        subprocess.run(["ninja", "-C", str(build_dir)], check=True)
+        if hb_shape_exe.exists():
+            return
+
+    print("Build harfbuzz first using:")
+    print(f"    cd {hb_dir}")
+    print("    meson setup builddir")
+    print("    ninja -C builddir")
+    exit(1)
 
 
 def update_font_path(tests_name, fontfile):
@@ -233,18 +242,18 @@ def convert_test_files(root_dir, hb_shape_exe, tests_dir, tests_name, files, cus
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: gen-shaping-tests.py /path/to/harfbuzz-src")
+    if len(sys.argv) > 2:
+        print("Usage: gen-shaping-tests.py [/path/to/harfbuzz-src]")
         exit(1)
 
-    hb_dir = Path(sys.argv[1])
+    hb_dir = Path(sys.argv[1]).expanduser() if len(sys.argv) == 2 else Path("~/harfbuzz").expanduser()
     assert hb_dir.exists()
 
     rb_root = pathlib.Path(__file__).parent.parent
 
     # Check that harfbuzz was built.
     hb_shape_exe = hb_dir.joinpath("builddir/util/hb-shape")
-    check_hb_build(hb_shape_exe)
+    check_hb_build(hb_dir, hb_shape_exe)
 
     def to_hb_absolute(name):
         return hb_dir / f"test/shape/data/{name}/tests"
