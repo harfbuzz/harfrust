@@ -11,9 +11,6 @@ bash bump-version.sh 0.6.0
 
 python3 ./gen-vowel-constraints.py > ../harfrust/src/hb/ot_shaper_vowel_constraints.rs
 rustfmt ../harfrust/src/hb/ot_shaper_vowel_constraints.rs
-
-python3 ./gen-tag-table.py > ../harfrust/src/hb/tag_table.rs
-rustfmt ../harfrust/src/hb/tag_table.rs
 ```
 
 HarfBuzz-owned generators used by `harfrust`:
@@ -57,4 +54,9 @@ python3 ~/harfbuzz/src/gen-emoji-table.py --rust \
   ~/harfbuzz/src/emoji-data.txt \
   ~/harfbuzz/src/emoji-test.txt \
   > ../harfrust/src/hb/unicode_emoji_table.rs
+
+python3 ~/harfbuzz/src/gen-tag-table.py --rust \
+  ~/harfbuzz/src/languagetags \
+  ~/harfbuzz/src/language-subtag-registry \
+  > ../harfrust/src/hb/tag_table.rs
 ```
