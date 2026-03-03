@@ -51,4 +51,10 @@ python3 ~/harfbuzz/src/gen-indic-table.py --rust \
   ~/harfbuzz/src/IndicPositionalCategory.txt \
   ~/harfbuzz/src/Blocks.txt \
   > ../harfrust/src/hb/ot_shaper_indic_table.rs
+
+PYTHONPATH=/Users/behdad/packtab \
+python3 ~/harfbuzz/src/gen-emoji-table.py --rust \
+  ~/harfbuzz/src/emoji-data.txt \
+  ~/harfbuzz/src/emoji-test.txt \
+  > ../harfrust/src/hb/unicode_emoji_table.rs
 ```
