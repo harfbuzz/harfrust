@@ -712,7 +712,9 @@ fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {
 
 fn form_clusters(buffer: &mut hb_buffer_t) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_CONTINUATIONS != 0 {
-        foreach_grapheme!(buffer, start, end, { buffer.merge_grapheme_clusters(start, end) });
+        foreach_grapheme!(buffer, start, end, {
+            buffer.merge_grapheme_clusters(start, end)
+        });
     }
 }
 
