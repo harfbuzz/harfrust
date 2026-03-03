@@ -1322,7 +1322,7 @@ fn cluster_001() {
             "\u{0078}\u{030A}\u{0058}\u{030A}",
             "--cluster-level=3",
         ),
-        "[gid2=0+1083|gid3=1@-1132,-8+0|gid1=2+1200|gid3=3@-1190,349+0]"
+        "[gid2=0+1083|gid3=0@-1132,-8+0|gid1=2+1200|gid3=2@-1190,349+0]"
     );
 }
 
@@ -1383,6 +1383,102 @@ fn cluster_006() {
             "",
         ),
         "[dasinh=0+547|aavowelsignsinh=0+379|dasinh=2+532]"
+    );
+}
+
+#[test]
+fn cluster_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E33}",
+            "--cluster-level=0 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=0|0=0]"
+    );
+}
+
+#[test]
+fn cluster_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E33}",
+            "--cluster-level=1 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=1|0=1]"
+    );
+}
+
+#[test]
+fn cluster_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E33}",
+            "--cluster-level=2 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=1|0=1]"
+    );
+}
+
+#[test]
+fn cluster_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E33}",
+            "--cluster-level=3 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=0|0=0]"
+    );
+}
+
+#[test]
+fn cluster_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E34}\u{0E33}",
+            "--cluster-level=0 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=0|0=0|0=0]"
+    );
+}
+
+#[test]
+fn cluster_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E34}\u{0E33}",
+            "--cluster-level=1 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=1|0=1|0=1]"
+    );
+}
+
+#[test]
+fn cluster_013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E34}\u{0E33}",
+            "--cluster-level=2 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=2|0=1|0=2]"
+    );
+}
+
+#[test]
+fn cluster_014() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fac3929fc3332834e93673780ec0fe94342d193.ttf",
+            "\u{0020}\u{0E34}\u{0E33}",
+            "--cluster-level=3 --no-positions --no-glyph-names",
+        ),
+        "[0=0|0=0|0=0|0=0]"
     );
 }
 
