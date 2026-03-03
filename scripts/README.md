@@ -8,9 +8,6 @@ Local generators in this repo:
 
 ```sh
 bash bump-version.sh 0.6.0
-
-python3 ./gen-vowel-constraints.py > ../harfrust/src/hb/ot_shaper_vowel_constraints.rs
-rustfmt ../harfrust/src/hb/ot_shaper_vowel_constraints.rs
 ```
 
 HarfBuzz-owned generators used by `harfrust`:
@@ -59,4 +56,9 @@ python3 ~/harfbuzz/src/gen-tag-table.py --rust \
   ~/harfbuzz/src/languagetags \
   ~/harfbuzz/src/language-subtag-registry \
   > ../harfrust/src/hb/tag_table.rs
+
+python3 ~/harfbuzz/src/gen-vowel-constraints.py --rust \
+  ~/harfbuzz/src/ms-use/IndicShapingInvalidCluster.txt \
+  ~/harfbuzz/src/Scripts.txt \
+  > ../harfrust/src/hb/ot_shaper_vowel_constraints.rs
 ```
