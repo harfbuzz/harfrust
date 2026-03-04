@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-03-04
+
+This release matches HarfBuzz [v13.0.0][harfbuzz-13.0.0], and has an MSRV (minimum supported Rust version) of 1.85.
+
+- New command-line tool `hr-shape` that is a limited counterpart to HarfBuzz `hb-shape`, in its own `hr-shape` crate.
+- As a result of the above, source directory turned into a workspace, with new `harfrust` and `hr-shape` directories.
+- Fix bug regarding cluster-level=3.
+- Various small performance improvements.
+- We stand by the people of Iran.
+
 ## [0.5.0] - 2026-01-07
 
 This release matches HarfBuzz [v12.3.0][harfbuzz-12.3.0], and has an MSRV (minimum supported Rust version) of 1.85.
@@ -87,7 +97,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.5.1...HEAD
+[0.5.1]: https://github.com/harfbuzz/harfrust/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/harfbuzz/harfrust/compare/0.4.1...0.5.0
 [0.4.1]: https://github.com/harfbuzz/harfrust/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/harfbuzz/harfrust/compare/0.3.2...0.4.0
