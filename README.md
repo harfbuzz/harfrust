@@ -54,7 +54,7 @@ HarfRust is not a full port of HarfBuzz. HarfBuzz (C++ edition) can roughly be s
 1. shaping, ported to HarfRust
 2. Unicode routines, ported to HarfRust
 3. font parsing, handled by [`read-fonts`](https://docs.rs/read-fonts)
-4. subsetting, handled by [`klippa`](https://github.com/googlefonts/fontations/tree/main/klippa)
+4. subsetting, handled by [`skera`](https://github.com/googlefonts/fontations/tree/main/skera)
 5. custom containers and utilities (HarfBuzz doesn't use C++ standard library), reimplemented in [`fontations`](https://github.com/googlefonts/fontations) where appropriate (e.g. int set)
 6. glue for system/3rd party libraries, not ported
 
