@@ -394,9 +394,9 @@ where
 
     #[inline]
     pub fn next(&mut self, unsafe_to: Option<&mut usize>) -> bool {
-        let stop = self.buf_len as i32 - 1;
+        let stop = self.buf_len.saturating_sub(1);
 
-        while (self.buf_idx as i32) < stop {
+        while self.buf_idx < stop {
             self.buf_idx += 1;
 
             match self.match_at(self.buf_idx, MatchSource::Info) {
