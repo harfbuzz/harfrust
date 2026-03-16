@@ -218,7 +218,7 @@ fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
                         seconds.add(gid.get().into());
                     } else {
                         seconds = hb_set_digest_t::full();
-                    };
+                    }
                 });
         });
     seconds

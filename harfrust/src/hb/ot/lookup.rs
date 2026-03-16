@@ -253,7 +253,7 @@ impl LookupInfo {
                 continue;
             }
             let is_cached =
-                use_hot_subtable_cache & (self.subtable_cache_user_idx == Some(subtable_idx));
+                use_hot_subtable_cache && (self.subtable_cache_user_idx == Some(subtable_idx));
             if subtable_info.apply(ctx, table_data, is_cached).is_some() {
                 return Some(());
             }

@@ -532,7 +532,7 @@ fn setup_masks(ctx: &mut hb_ot_shape_context_t) {
 }
 
 fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
-    let buffer = &mut ctx.buffer;
+    let buffer = &mut *ctx.buffer;
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH == 0 || !ctx.plan.has_frac {
         return;
     }

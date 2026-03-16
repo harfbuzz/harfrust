@@ -220,7 +220,7 @@ fn handle_variation_selector_cluster(
     let face = ctx.face;
 
     // Currently if there's a variation-selector we give-up on normalization, it's just too hard.
-    let buffer = &mut ctx.buffer;
+    let buffer = &mut *ctx.buffer;
     while buffer.idx < end - 1 && buffer.successful {
         if buffer.cur(1).as_codepoint().is_variation_selector() {
             if let Some(glyph_id) = face.get_nominal_variant_glyph(

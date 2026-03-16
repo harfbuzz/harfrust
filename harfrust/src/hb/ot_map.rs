@@ -595,11 +595,11 @@ impl<'a> hb_ot_map_builder_t<'a> {
             let index = index.get();
             if index < lookup_count {
                 lookups.push(lookup_map_t {
-                    mask,
                     index,
                     auto_zwnj,
                     auto_zwj,
                     random,
+                    mask,
                     per_syllable,
                 });
             }

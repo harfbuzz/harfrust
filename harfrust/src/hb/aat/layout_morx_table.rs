@@ -503,7 +503,7 @@ impl DriverContext<NoPayload> for RearrangementCtx {
 
     #[inline(always)]
     fn transition(&mut self, entry: &StateEntry, ac: &mut AatApplyContext) -> Option<()> {
-        let buffer = &mut ac.buffer;
+        let buffer = &mut *ac.buffer;
         let flags = entry.flags;
 
         if flags & Self::MARK_FIRST != 0 {
@@ -1020,7 +1020,7 @@ impl MorxSubtableCache {
                     );
                 }
             }
-        };
+        }
         MorxSubtableCache {
             start_end_safe_to_break,
             glyph_set,

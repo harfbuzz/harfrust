@@ -95,7 +95,7 @@ impl<'a> TextParser<'a> {
     pub fn consume_i32(&mut self) -> Option<i32> {
         let start = self.pos;
 
-        if matches!(self.curr_byte(), Some(b'-') | Some(b'+')) {
+        if matches!(self.curr_byte(), Some(b'-' | b'+')) {
             self.advance(1);
         }
 
@@ -108,7 +108,7 @@ impl<'a> TextParser<'a> {
 
         // TODO: does number like 1-e2 required?
 
-        if matches!(self.curr_byte(), Some(b'-') | Some(b'+')) {
+        if matches!(self.curr_byte(), Some(b'-' | b'+')) {
             self.advance(1);
         }
 

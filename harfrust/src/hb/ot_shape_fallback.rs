@@ -134,7 +134,7 @@ fn position_mark(
     let mut mark_extents = hb_glyph_extents_t::default();
     if !face.glyph_extents(glyph, &mut mark_extents) {
         return;
-    };
+    }
 
     let y_gap = face.units_per_em as i32 / 16;
     pos.x_offset = 0;
@@ -265,7 +265,7 @@ fn position_around_base(
     if !face.glyph_extents(base_glyph, &mut base_extents) {
         zero_mark_advances(buffer, base + 1, end, adjust_offsets_when_zeroing);
         return;
-    };
+    }
 
     base_extents.y_bearing += base_pos.y_offset;
     base_extents.x_bearing = 0;

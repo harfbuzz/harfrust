@@ -1079,13 +1079,12 @@ pub fn ligate_input(
     //   https://bugzilla.gnome.org/show_bug.cgi?id=437633
     //
 
-    let mut buffer = &mut ctx.buffer;
-    buffer.merge_clusters(buffer.idx, match_end);
+    ctx.buffer.merge_clusters(ctx.buffer.idx, match_end);
 
-    let mut is_base_ligature = buffer.info[ctx.match_positions[0] as usize].is_base_glyph();
-    let mut is_mark_ligature = buffer.info[ctx.match_positions[0] as usize].is_mark();
+    let mut is_base_ligature = ctx.buffer.info[ctx.match_positions[0] as usize].is_base_glyph();
+    let mut is_mark_ligature = ctx.buffer.info[ctx.match_positions[0] as usize].is_mark();
     for i in 1..count {
-        if !buffer.info[ctx.match_positions[i] as usize].is_mark() {
+        if !ctx.buffer.info[ctx.match_positions[i] as usize].is_mark() {
             is_base_ligature = false;
             is_mark_ligature = false;
         }
@@ -1098,11 +1097,11 @@ pub fn ligate_input(
         GlyphPropsFlags::empty()
     };
     let lig_id = if is_ligature {
-        buffer.allocate_lig_id()
+        ctx.buffer.allocate_lig_id()
     } else {
         0
     };
-    let first = buffer.cur_mut(0);
+    let first = ctx.buffer.cur_mut(0);
     let mut last_lig_id = first.lig_id();
     let mut last_num_comps = first.lig_num_comps();
     let mut comps_so_far = last_num_comps;
@@ -1115,12 +1114,11 @@ pub fn ligate_input(
     }
 
     ctx.replace_glyph_with_ligature(lig_glyph, class);
-    buffer = &mut ctx.buffer;
 
     for i in 1..count {
-        while buffer.idx < ctx.match_positions[i] as usize && buffer.successful {
+        while ctx.buffer.idx < ctx.match_positions[i] as usize && ctx.buffer.successful {
             if is_ligature {
-                let cur = buffer.cur_mut(0);
+                let cur = ctx.buffer.cur_mut(0);
                 let mut this_comp = cur.lig_comp();
                 if this_comp == 0 {
                     this_comp = last_num_comps;
@@ -1131,22 +1129,22 @@ pub fn ligate_input(
                 let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
                 cur.set_lig_props_for_mark(lig_id, new_lig_comp);
             }
-            buffer.next_glyph();
+            ctx.buffer.next_glyph();
         }
 
-        let cur = buffer.cur(0);
+        let cur = ctx.buffer.cur(0);
         last_lig_id = cur.lig_id();
         last_num_comps = cur.lig_num_comps();
         comps_so_far += last_num_comps;
 
         // Skip the base glyph.
-        buffer.idx += 1;
+        ctx.buffer.idx += 1;
     }
 
     if !is_mark_ligature && last_lig_id != 0 {
         // Re-adjust components for any marks following.
-        for i in buffer.idx..buffer.len {
-            let info = &mut buffer.info[i];
+        for i in ctx.buffer.idx..ctx.buffer.len {
+            let info = &mut ctx.buffer.info[i];
             if last_lig_id != info.lig_id() {
                 break;
             }
