@@ -417,7 +417,7 @@ fn state_machine_transition(
     is_cross_stream: bool,
     driver: &mut StateMachineDriver,
 ) {
-    let buffer = &mut c.buffer;
+    let buffer = &mut *c.buffer;
     let kern_mask = c.plan.kern_mask;
 
     if entry.has_push() {
@@ -608,7 +608,7 @@ impl KernSubtableCache {
                     format3.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
             }
-        };
+        }
         KernSubtableCache {
             start_end_safe_to_break,
             first_set,

@@ -702,7 +702,7 @@ impl KerxSubtableCache {
                     format6.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
             }
-        };
+        }
         KerxSubtableCache {
             start_end_safe_to_break,
             first_set,

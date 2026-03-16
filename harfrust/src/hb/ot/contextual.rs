@@ -610,7 +610,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
-            };
+            }
         }
         return None;
     }
@@ -636,7 +636,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             for rule in rules.iter().filter_map(|r| r.ok()) {
                 if rule.apply(ctx, &match_func).is_some() {
                     return Some(());
-                };
+                }
             }
             return None;
         }
@@ -652,7 +652,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
         {
             if rule.apply(ctx, &match_func).is_some() {
                 return Some(());
-            };
+            }
         }
         return None;
     };
@@ -667,7 +667,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
             for rule in rules.iter().filter_map(|r| r.ok()) {
                 if rule.apply(ctx, &match_func).is_some() {
                     return Some(());
-                };
+                }
             }
             return None;
         }
@@ -713,7 +713,7 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
                 if next_rule_box.is_none() {
                     rule_box = None;
                     break;
-                };
+                }
 
                 let next_inputs = next_rule_box.as_ref().unwrap().input();
                 if next_inputs.is_empty()
@@ -869,7 +869,7 @@ fn apply_chain_context_rules<
             .is_some()
             {
                 return Some(());
-            };
+            }
         }
         return None;
     }
@@ -904,7 +904,7 @@ fn apply_chain_context_rules<
                 .is_some()
                 {
                     return Some(());
-                };
+                }
             }
             return None;
         }
@@ -929,7 +929,7 @@ fn apply_chain_context_rules<
             .is_some()
             {
                 return Some(());
-            };
+            }
         }
         return None;
     };
@@ -953,7 +953,7 @@ fn apply_chain_context_rules<
                 .is_some()
                 {
                     return Some(());
-                };
+                }
             }
             return None;
         }

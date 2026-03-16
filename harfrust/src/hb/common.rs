@@ -607,7 +607,7 @@ impl FromStr for Feature {
                 let start_opt = p.consume_i32();
                 let start = start_opt.unwrap_or(0) as u32; // negative value overflow is ok
 
-                let end = if matches!(p.curr_byte(), Some(b':') | Some(b';')) {
+                let end = if matches!(p.curr_byte(), Some(b':' | b';')) {
                     p.advance(1);
                     p.consume_i32().unwrap_or(-1) as u32 // negative value overflow is ok
                 } else {
@@ -633,7 +633,7 @@ impl FromStr for Feature {
 
             if had_equal && value1.is_none() {
                 return None;
-            };
+            }
 
             if let Some(value1) = value1 {
                 value = value1 as u32; // negative value overflow is ok
