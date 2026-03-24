@@ -238,7 +238,7 @@ impl Apply for PairPosFormat2<'_> {
         // Compute an offset into the 2D array of positioning records
         let record_offset = (class1 as usize * record_size * self.class2_count() as usize)
             + (class2 as usize * record_size)
-            + self.shape().class1_records_byte_range().start;
+            + self.class1_records_byte_range().start;
         let has_record2 = !format2.is_empty();
         let worked1 = !format1.is_empty()
             && super::apply_value(ctx, ctx.buffer.idx, &data, record_offset, format1) == Some(true);
