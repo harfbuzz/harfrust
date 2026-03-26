@@ -6,22 +6,24 @@ use crate::hb::ot_layout_gsubgpos::{BinaryCache, MappingCache};
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
-use read_fonts::tables::gpos::SanitizedAnchorTable;
-use read_fonts::tables::layout::SanitizedClassDef;
-use read_fonts::tables::layout::SanitizedCoverageTable;
-use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord, SanitizedCondition};
-use read_fonts::types::GlyphId16;
+use read_fonts::tables::gsub::DeviceOrVariationIndexSanitized;
 use read_fonts::{
     tables::{
         gdef::Gdef,
-        gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
-        gsub::{ClassDef, FeatureList, FeatureVariations, Gsub, ScriptList},
-        layout::{Feature, LangSys, Script},
+        gpos::{AnchorTableSanitized, GposSanitized},
+        gsub::{
+            ClassDef, ClassDefSanitized, CoverageTableSanitized, FeatureListSanitized,
+            FeatureVariationsSanitized, GsubSanitized, ScriptListSanitized,
+        },
+        layout::{
+            ClassRangeRecord, ConditionSanitized, FeatureSanitized, LangSysSanitized, RangeRecord,
+            ScriptSanitized,
+        },
         varc::CoverageTable,
         variations::{DeltaSetIndex, ItemVariationStore},
     },
-    types::{BigEndian, F2Dot14, GlyphId, Offset32},
-    FontData, FontRef, ReadError, ResolveOffset, Sanitize, Sanitized, TableProvider,
+    types::{BigEndian, F2Dot14, GlyphId, GlyphId16, Offset32},
+    FontData, FontRef, ResolveOffset, TableProvider,
 };
 
 pub mod contextual;
@@ -40,25 +42,38 @@ impl OtCache {
     pub fn new(font: &FontRef) -> Self {
         let gsub = font
             .gsub()
-            .and_then(|g| g.sanitize())
+            .and_then(|g| g.try_sanitize())
             .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
         let gpos = font
             .gpos()
-            .and_then(|g| g.sanitize())
+            .and_then(|g| g.try_sanitize())
             .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
         let mut gdef_mark_set_digests = Vec::new();
         if let Ok(gdef) = font.gdef() {
-            if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
-                gdef_mark_set_digests.extend(mark_sets.coverage_offsets().iter().map(|off| {
-                    let set: Result<SanitizedCoverageTable, _> =
-                        off.get().resolve_with_args(mark_sets.offset_data(), &());
+            if let Some(mark_sets) = gdef
+                .mark_glyph_sets_def()
+                .transpose()
+                .ok()
+                .flatten()
+                .and_then(|t| t.try_sanitize().ok())
+            {
+                gdef_mark_set_digests.extend(
+                    mark_sets
+                        .coverages()
+                        .iter()
+                        .map(|cov| hb_set_digest_t::from_coverage(&cov)),
+                );
+                //mark_sets.try
+                //gdef_mark_set_digests.extend(mark_sets.coverage_offsets().iter().map(|off| {
+                //let set: Result<CoverageTableSanitized, _> =
+                //off.get().resolve_with_args(mark_sets.offset_data(), &());
 
-                    set.ok()
-                        .map(|coverage| hb_set_digest_t::from_coverage(&coverage))
-                        .unwrap_or_default()
-                }));
+                //set.ok()
+                //.map(|coverage| hb_set_digest_t::from_coverage(&coverage))
+                //.unwrap_or_default()
+                //}));
             }
         }
         Self {
@@ -72,7 +87,7 @@ impl OtCache {
 
 #[derive(Clone)]
 pub struct GsubTable<'a> {
-    pub table: Sanitized<Gsub<'a>>,
+    pub table: GsubSanitized<'a>,
     pub lookups: &'a LookupCache,
 }
 
@@ -87,7 +102,7 @@ impl crate::hb::ot_layout::LayoutTable for GsubTable<'_> {
 
 #[derive(Clone)]
 pub struct GposTable<'a> {
-    pub table: Sanitized<Gpos<'a>>,
+    pub table: GposSanitized<'a>,
     pub lookups: &'a LookupCache,
 }
 
@@ -153,22 +168,16 @@ impl<'a> OtTables<'a> {
     ) -> Self {
         let gsub = font
             .gsub()
-            .and_then(Sanitize::sanitize)
+            .and_then(|t| t.try_sanitize())
             .ok()
-            //let gsub = table_offsets
-            //.gsub
-            //.resolve_table(font)
             .map(|table| GsubTable {
                 table,
                 lookups: &cache.gsub,
             });
         let gpos = font
             .gpos()
-            .and_then(Sanitize::sanitize)
+            .and_then(|t| t.try_sanitize())
             .ok()
-            //let gpos = table_offsets
-            //.gpos
-            //.resolve_table(font)
             .map(|table| GposTable {
                 table,
                 lookups: &cache.gpos,
@@ -263,9 +272,9 @@ impl<'a> OtTables<'a> {
 
     pub fn table_data(&self, table_index: TableIndex) -> Option<&'a [u8]> {
         if table_index == TableIndex::GSUB {
-            self.gsub.as_ref().map(|t| t.table.offset_data().as_bytes())
+            self.gsub.as_ref().map(|t| t.table.offset_ptr().as_bytes())
         } else {
-            self.gpos.as_ref().map(|t| t.table.offset_data().as_bytes())
+            self.gpos.as_ref().map(|t| t.table.offset_ptr().as_bytes())
         }
     }
 
@@ -277,35 +286,33 @@ impl<'a> OtTables<'a> {
         if table_index == TableIndex::GSUB {
             let table = self.gsub.as_ref()?;
             Some((
-                table.table.offset_data().as_bytes(),
+                table.table.offset_ptr().as_bytes(),
                 table.lookups.get(&table.table, lookup_index)?,
             ))
         } else {
             let table = self.gpos.as_ref()?;
             Some((
-                table.table.offset_data().as_bytes(),
+                table.table.offset_ptr().as_bytes(),
                 table.lookups.get(&table.table, lookup_index)?,
             ))
         }
     }
 
-    pub(super) fn resolve_anchor(&self, anchor: &SanitizedAnchorTable) -> (i32, i32) {
+    pub(super) fn resolve_anchor(&self, anchor: &AnchorTableSanitized) -> (i32, i32) {
         let mut x = anchor.x_coordinate() as i32;
         let mut y = anchor.y_coordinate() as i32;
         if let Some(vs) = self.var_store.as_ref() {
-            let delta = |val: Option<Result<Sanitized<DeviceOrVariationIndex<'_>>, ReadError>>| {
-                if let Some(Ok(thing)) = val {
-                    if let DeviceOrVariationIndex::VariationIndex(varix) = thing.0 {
-                        return vs
-                            .compute_delta(
-                                DeltaSetIndex {
-                                    outer: varix.delta_set_outer_index(),
-                                    inner: varix.delta_set_inner_index(),
-                                },
-                                self.coords,
-                            )
-                            .unwrap_or_default();
-                    }
+            let delta = |val: Option<DeviceOrVariationIndexSanitized<'_>>| {
+                if let Some(DeviceOrVariationIndexSanitized::VariationIndex(varix)) = val {
+                    return vs
+                        .compute_delta(
+                            DeltaSetIndex {
+                                outer: varix.delta_set_outer_index(),
+                                inner: varix.delta_set_inner_index(),
+                            },
+                            self.coords,
+                        )
+                        .unwrap_or_default();
                 }
                 0
             };
@@ -329,74 +336,76 @@ impl<'a> OtTables<'a> {
 }
 
 pub enum LayoutTable<'a> {
-    Gsub(Sanitized<Gsub<'a>>),
-    Gpos(Sanitized<Gpos<'a>>),
+    Gsub(GsubSanitized<'a>),
+    Gpos(GposSanitized<'a>),
 }
 
 impl<'a> LayoutTable<'a> {
-    //fn script_list(&self) -> Option<ScriptList<'a>> {
-    fn script_list(&self) -> Option<Sanitized<ScriptList<'a>>> {
+    fn script_list(&self) -> ScriptListSanitized<'a> {
         match self {
-            Self::Gsub(gsub) => gsub.script_list().ok(),
-            Self::Gpos(gpos) => gpos.script_list().ok(),
+            Self::Gsub(gsub) => gsub.script_list(),
+            Self::Gpos(gpos) => gpos.script_list(),
         }
     }
 
-    fn feature_list(&self) -> Option<Sanitized<FeatureList<'a>>> {
+    fn feature_list(&self) -> FeatureListSanitized<'a> {
         match self {
-            Self::Gsub(gsub) => gsub.feature_list().ok(),
-            Self::Gpos(gpos) => gpos.feature_list().ok(),
+            Self::Gsub(gsub) => gsub.feature_list(),
+            Self::Gpos(gpos) => gpos.feature_list(),
         }
     }
 
-    fn feature_variations(&self) -> Option<Sanitized<FeatureVariations<'a>>> {
+    fn feature_variations(&self) -> Option<FeatureVariationsSanitized<'a>> {
         match self {
             Self::Gsub(gsub) => gsub.feature_variations(),
             Self::Gpos(gpos) => gpos.feature_variations(),
         }
-        .transpose()
-        .ok()
-        .flatten()
     }
 
-    fn script(&self, index: u16) -> Option<Sanitized<Script<'a>>> {
-        self.script_list()?
-            .get(index)
-            .ok()
-            .map(|script| script.element)
+    fn script(&self, index: u16) -> Option<ScriptSanitized<'a>> {
+        let script_list = self.script_list();
+        script_list
+            .script_records()
+            .get(index as usize)
+            .map(|rec| rec.script(script_list.offset_ptr()))
     }
 
     fn langsys_index(&self, script_index: u16, tag: hb_tag_t) -> Option<u16> {
         let script = self.script(script_index)?;
-        script.lang_sys_index_for_tag(tag)
+        script
+            .lang_sys_records()
+            .binary_search_by_key(&tag, |rec| rec.lang_sys_tag())
+            .map(|index| index as u16)
+            .ok()
     }
 
     fn langsys(
         &self,
         script_index: u16,
         langsys_index: Option<u16>,
-    ) -> Option<Sanitized<LangSys<'a>>> {
+    ) -> Option<LangSysSanitized<'a>> {
         let script = self.script(script_index)?;
         if let Some(index) = langsys_index {
             let record = script.lang_sys_records().get(index as usize)?;
-            record.lang_sys(script.offset_data()).ok()
+            Some(record.lang_sys(script.offset_ptr()))
         } else {
-            script.default_lang_sys().transpose().ok().flatten()
+            script.default_lang_sys()
         }
     }
 
-    pub(crate) fn feature(&self, index: u16) -> Option<Sanitized<Feature<'a>>> {
-        self.feature_list()?
-            .get(index)
-            .ok()
-            .map(|feature| feature.element)
+    pub(crate) fn feature(&self, index: u16) -> Option<FeatureSanitized<'a>> {
+        let feature_list = self.feature_list();
+        feature_list
+            .feature_records()
+            .get(index as usize)
+            .map(|rec| rec.feature(feature_list.offset_ptr()))
     }
 
     fn feature_tag(&self, index: u16) -> Option<hb_tag_t> {
-        self.feature_list()?
-            .get(index)
-            .ok()
-            .map(|feature| feature.tag)
+        self.feature_list()
+            .feature_records()
+            .get(index as usize)
+            .map(|rec| rec.feature_tag())
     }
 
     pub(crate) fn feature_variation_index(&self, coords: &[F2Dot14]) -> Option<u32> {
@@ -411,28 +420,21 @@ impl<'a> LayoutTable<'a> {
             if rec.condition_set_offset().is_null() {
                 return Some(index as u32);
             }
-            let Some(Ok(condition_set)) = rec.condition_set(feature_variations.offset_data())
-            else {
+            let Some(condition_set) = rec.condition_set(feature_variations.offset_ptr()) else {
                 continue;
             };
             // Otherwise, all conditions must be satisfied.
-            if condition_set
-                .conditions()
-                .iter()
-                // .. except we ignore errors
-                .filter_map(Result::ok)
-                .all(|cond| match cond {
-                    SanitizedCondition::Format1AxisRange(format1) => {
-                        let coord = coords
-                            .get(format1.axis_index() as usize)
-                            .copied()
-                            .unwrap_or_default();
-                        coord >= format1.filter_range_min_value()
-                            && coord <= format1.filter_range_max_value()
-                    }
-                    _ => false,
-                })
-            {
+            if condition_set.conditions().iter().all(|cond| match cond {
+                ConditionSanitized::Format1AxisRange(format1) => {
+                    let coord = coords
+                        .get(format1.axis_index() as usize)
+                        .copied()
+                        .unwrap_or_default();
+                    coord >= format1.filter_range_min_value()
+                        && coord <= format1.filter_range_max_value()
+                }
+                _ => false,
+            }) {
                 return Some(index as u32);
             }
         }
@@ -443,28 +445,21 @@ impl<'a> LayoutTable<'a> {
         &self,
         variation_index: u32,
         feature_index: u16,
-    ) -> Option<Sanitized<Feature<'a>>> {
+    ) -> Option<FeatureSanitized<'a>> {
         let feature_variations = self.feature_variations()?;
         let record = feature_variations
             .feature_variation_records()
             .get(variation_index as usize)?;
-        let subst_table = record
-            .feature_table_substitution(feature_variations.offset_data())?
-            .ok()?;
+        let subst_table = record.feature_table_substitution(feature_variations.offset_ptr())?;
         let subst_records = subst_table.substitutions();
         match subst_records.binary_search_by_key(&feature_index, |subst| subst.feature_index()) {
-            Ok(ix) => Some(
-                subst_records
-                    .get(ix)?
-                    .alternate_feature(subst_table.offset_data())
-                    .ok()?,
-            ),
+            Ok(ix) => Some(subst_records.get(ix)?.alternate_feature(&subst_table)),
             _ => None,
         }
     }
 
     pub(crate) fn feature_index(&self, tag: hb_tag_t) -> Option<u16> {
-        let list = self.feature_list()?;
+        let list = self.feature_list();
         for (index, feature) in list.feature_records().iter().enumerate() {
             if feature.feature_tag() == tag {
                 return Some(index as u16);
@@ -475,14 +470,8 @@ impl<'a> LayoutTable<'a> {
 
     pub(crate) fn lookup_count(&self) -> u16 {
         match self {
-            Self::Gsub(gsub) => gsub
-                .lookup_list()
-                .map(|list| list.lookup_count())
-                .unwrap_or_default(),
-            Self::Gpos(gpos) => gpos
-                .lookup_list()
-                .map(|list| list.lookup_count())
-                .unwrap_or_default(),
+            Self::Gsub(gsub) => gsub.lookup_list().lookup_count(),
+            Self::Gpos(gpos) => gpos.lookup_list().lookup_count(),
         }
     }
 
@@ -490,8 +479,34 @@ impl<'a> LayoutTable<'a> {
     /// Returns true + index and tag of the first found script tag in the given GSUB or GPOS table
     /// or false + index and tag if falling back to a default script.
     pub(crate) fn select_script(&self, script_tags: &[hb_tag_t]) -> Option<(bool, u16, hb_tag_t)> {
-        let selected = self.script_list()?.select(script_tags)?;
-        Some((!selected.is_fallback, selected.index, selected.tag))
+        let script_list = self.script_list();
+        let index_for_tag = |tag: hb_tag_t| {
+            script_list
+                .script_records()
+                .binary_search_by_key(&tag, |rec| rec.script_tag())
+                .map(|idx| idx as u16)
+                .ok()
+        };
+
+        for &tag in script_tags {
+            if let Some(index) = index_for_tag(tag) {
+                return Some((true, index, tag));
+            }
+        }
+        for tag in [
+            // Try finding 'DFLT'
+            hb_tag_t::new(b"DFLT"),
+            // Try with 'dflt'; MS site has had typos and many fonts use it now :(
+            hb_tag_t::new(b"dflt"),
+            // try with 'latn'; some old fonts put their features there even though
+            // they're really trying to support Thai, for example :(
+            hb_tag_t::new(b"latn"),
+        ] {
+            if let Some(index) = index_for_tag(tag) {
+                return Some((false, index, tag));
+            }
+        }
+        None
     }
 
     // hb_ot_layout_script_select_language
@@ -542,16 +557,24 @@ impl<'a> LayoutTable<'a> {
         lang_index: Option<u16>,
         feature_tag: hb_tag_t,
     ) -> Option<u16> {
-        self.langsys(script_index, lang_index)?
-            .feature_index_for_tag(&self.feature_list()?, feature_tag)
+        let lang_sys = self.langsys(script_index, lang_index)?;
+        let feature_list = self.feature_list();
+        let records = feature_list.feature_records();
+        lang_sys
+            .feature_indices()
+            .iter()
+            .map(|ix| ix.get())
+            .find(|&feature_ix| {
+                records
+                    .get(feature_ix as usize)
+                    .map(|rec| rec.feature_tag())
+                    == Some(feature_tag)
+            })
     }
 }
 
-fn coverage_index(
-    coverage: Result<SanitizedCoverageTable, ReadError>,
-    gid: GlyphId,
-) -> Option<u16> {
-    coverage.ok().and_then(|coverage| coverage.get(gid))
+fn coverage_index(coverage: CoverageTableSanitized, gid: GlyphId) -> Option<u16> {
+    coverage.get(gid)
 }
 
 fn coverage_index_cached(
@@ -602,14 +625,12 @@ fn coverage_binary_cached(
     }
 }
 
-fn covered(coverage: Result<SanitizedCoverageTable, ReadError>, gid: GlyphId) -> bool {
+fn covered(coverage: CoverageTableSanitized, gid: GlyphId) -> bool {
     coverage_index(coverage, gid).is_some()
 }
 
-fn glyph_class(class_def: Result<SanitizedClassDef, ReadError>, gid: GlyphId) -> u16 {
-    class_def
-        .map(|class_def| class_def.get(gid))
-        .unwrap_or_default()
+fn glyph_class(class_def: ClassDefSanitized, gid: GlyphId) -> u16 {
+    class_def.get(gid)
 }
 
 fn glyph_class_cached(

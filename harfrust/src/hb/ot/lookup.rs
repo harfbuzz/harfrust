@@ -10,29 +10,35 @@ use crate::hb::{
 };
 use alloc::vec::Vec;
 use read_fonts::tables::{
-    gpos::{SanitizedPairPos, SanitizedSinglePos},
-    gsub::SanitizedSingleSubst,
-    layout::{SanitizedChainedSequenceContext, SanitizedCoverageTable, SanitizedSequenceContext},
+    gpos::{
+        CursivePosFormat1Sanitized, MarkBasePosFormat1Sanitized, MarkLigPosFormat1Sanitized,
+        MarkMarkPosFormat1Sanitized, PairPosFormat1Sanitized, PairPosFormat2Sanitized,
+        SinglePosFormat1Sanitized, SinglePosFormat2Sanitized,
+    },
+    gsub::SingleSubstFormat2Sanitized,
 };
-use read_fonts::FontReadWithArgs;
+use read_fonts::tables::{
+    gpos::{GposSanitized, PairPosSanitized, SinglePosSanitized},
+    gsub::{
+        AlternateSubstFormat1Sanitized, ExtensionSubstFormat1Sanitized, GsubSanitized,
+        LigatureSubstFormat1Sanitized, MultipleSubstFormat1Sanitized,
+        ReverseChainSingleSubstFormat1Sanitized, SingleSubstFormat1Sanitized, SingleSubstSanitized,
+    },
+    layout::{
+        ChainedSequenceContextFormat1Sanitized, ChainedSequenceContextFormat2Sanitized,
+        ChainedSequenceContextFormat3Sanitized, ChainedSequenceContextSanitized,
+        CoverageTableSanitized, SequenceContextFormat1Sanitized, SequenceContextFormat2Sanitized,
+        SequenceContextFormat3Sanitized, SequenceContextSanitized,
+    },
+};
+use read_fonts::FontPtr;
+use read_fonts::ReadSanitized;
 use read_fonts::{
     tables::{
-        gpos::{
-            CursivePosFormat1, Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
-            PairPosFormat1, PairPosFormat2, SinglePosFormat1, SinglePosFormat2,
-        },
-        gsub::{
-            AlternateSubstFormat1, ExtensionSubstFormat1, Gsub, LigatureSubstFormat1,
-            MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SingleSubstFormat1,
-            SingleSubstFormat2,
-        },
-        layout::{
-            ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-            ChainedSequenceContextFormat3, Lookup, LookupFlag, SequenceContextFormat1,
-            SequenceContextFormat2, SequenceContextFormat3,
-        },
+        gsub::ExtensionSubstFormat1,
+        layout::{Lookup, LookupFlag},
     },
-    FontData, FontRead, Offset, ReadError, Sanitized,
+    FontData, FontRead, Offset, ReadError,
 };
 
 pub struct LookupData<'a> {
@@ -49,15 +55,13 @@ pub trait LookupHost<'a> {
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError>;
 }
 
-impl<'a> LookupHost<'a> for Sanitized<Gsub<'a>> {
+impl<'a> LookupHost<'a> for GsubSanitized<'a> {
     fn lookup_count(&self) -> u16 {
-        self.lookup_list()
-            .map(|list| list.lookup_count())
-            .unwrap_or_default()
+        self.lookup_list().lookup_count()
     }
 
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError> {
-        let list = self.lookup_list()?;
+        let list = self.lookup_list();
         let offset = list
             .lookup_offsets()
             .get(index as usize)
@@ -68,20 +72,18 @@ impl<'a> LookupHost<'a> for Sanitized<Gsub<'a>> {
         Ok(LookupData {
             offset,
             is_subst: true,
-            table_data: self.offset_data(),
+            table_data: self.offset_ptr().into_font_data(),
         })
     }
 }
 
-impl<'a> LookupHost<'a> for Sanitized<Gpos<'a>> {
+impl<'a> LookupHost<'a> for GposSanitized<'a> {
     fn lookup_count(&self) -> u16 {
-        self.lookup_list()
-            .map(|list| list.lookup_count())
-            .unwrap_or_default()
+        self.lookup_list().lookup_count()
     }
 
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError> {
-        let list = self.lookup_list()?;
+        let list = self.lookup_list();
         let offset = list
             .lookup_offsets()
             .get(index as usize)
@@ -92,7 +94,7 @@ impl<'a> LookupHost<'a> for Sanitized<Gpos<'a>> {
         Ok(LookupData {
             offset,
             is_subst: false,
-            table_data: self.offset_data(),
+            table_data: self.offset_ptr().into_font_data(),
         })
     }
 }
@@ -319,58 +321,51 @@ impl LookupInfo {
                 continue;
             };
             let data = FontData::new(data);
+            let data = FontPtr::new(data);
             let result = match subtable_info.kind {
-                SubtableKind::SingleSubst1 => {
-                    Sanitized::<SingleSubstFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::SingleSubst2 => {
-                    Sanitized::<SingleSubstFormat2>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::MultipleSubst1 => {
-                    Sanitized::<MultipleSubstFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::AlternateSubst1 => {
-                    Sanitized::<AlternateSubstFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::LigatureSubst1 => {
-                    Sanitized::<LigatureSubstFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ReverseChainContext => {
-                    Sanitized::<ReverseChainSingleSubstFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ContextFormat1 => {
-                    Sanitized::<SequenceContextFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ContextFormat2 => {
-                    Sanitized::<SequenceContextFormat2>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ContextFormat3 => {
-                    Sanitized::<SequenceContextFormat3>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ChainedContextFormat1 => {
-                    Sanitized::<ChainedSequenceContextFormat1>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ChainedContextFormat2 => {
-                    Sanitized::<ChainedSequenceContextFormat2>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
-                SubtableKind::ChainedContextFormat3 => {
-                    Sanitized::<ChainedSequenceContextFormat3>::read_with_args(data, &())
-                        .map(|t| t.would_apply(ctx))
-                }
+                SubtableKind::SingleSubst1 => unsafe {
+                    SingleSubstFormat1Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::SingleSubst2 => unsafe {
+                    SingleSubstFormat2Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::MultipleSubst1 => unsafe {
+                    MultipleSubstFormat1Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::AlternateSubst1 => unsafe {
+                    AlternateSubstFormat1Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::LigatureSubst1 => unsafe {
+                    LigatureSubstFormat1Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::ReverseChainContext => unsafe {
+                    ReverseChainSingleSubstFormat1Sanitized::read_sanitized(data, &())
+                        .would_apply(ctx)
+                },
+                SubtableKind::ContextFormat1 => unsafe {
+                    SequenceContextFormat1Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::ContextFormat2 => unsafe {
+                    SequenceContextFormat2Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::ContextFormat3 => unsafe {
+                    SequenceContextFormat3Sanitized::read_sanitized(data, &()).would_apply(ctx)
+                },
+                SubtableKind::ChainedContextFormat1 => unsafe {
+                    ChainedSequenceContextFormat1Sanitized::read_sanitized(data, &())
+                        .would_apply(ctx)
+                },
+                SubtableKind::ChainedContextFormat2 => unsafe {
+                    ChainedSequenceContextFormat2Sanitized::read_sanitized(data, &())
+                        .would_apply(ctx)
+                },
+                SubtableKind::ChainedContextFormat3 => unsafe {
+                    ChainedSequenceContextFormat3Sanitized::read_sanitized(data, &())
+                        .would_apply(ctx)
+                },
                 _ => continue,
             };
-            if result == Ok(true) {
+            if result {
                 return Some(true);
             }
         }
@@ -413,7 +408,7 @@ macro_rules! apply_fns {
             external_cache: &SubtableExternalCache,
             table_data: &[u8],
         ) -> Option<()> {
-            let t = <$ty>::read_with_args(FontData::new(table_data), &()).ok()?;
+            let t = unsafe { <$ty>::read_sanitized(FontPtr::new(FontData::new(table_data)), &()) };
             t.apply_with_external_cache(ctx, external_cache)
         }
 
@@ -422,7 +417,7 @@ macro_rules! apply_fns {
             external_cache: &SubtableExternalCache,
             table_data: &[u8],
         ) -> Option<()> {
-            let t = <$ty>::read_with_args(FontData::new(table_data), &()).ok()?;
+            let t = unsafe { <$ty>::read_sanitized(FontPtr::new(FontData::new(table_data)), &()) };
             t.apply_cached(ctx, external_cache)
         }
     };
@@ -431,94 +426,74 @@ macro_rules! apply_fns {
 apply_fns!(
     single_subst1,
     single_subst1_cached,
-    Sanitized::<SingleSubstFormat1>
+    SingleSubstFormat1Sanitized
 );
 apply_fns!(
     single_subst2,
     single_subst2_cached,
-    Sanitized::<SingleSubstFormat2>
+    SingleSubstFormat2Sanitized
 );
 apply_fns!(
     multiple_subst1,
     multiple_subst1_cached,
-    Sanitized::<MultipleSubstFormat1>
+    MultipleSubstFormat1Sanitized
 );
 apply_fns!(
     alternate_subst1,
     alternate_subst1_cached,
-    Sanitized::<AlternateSubstFormat1>
+    AlternateSubstFormat1Sanitized
 );
 apply_fns!(
     ligature_subst1,
     ligature_subst1_cached,
-    Sanitized::<LigatureSubstFormat1>
+    LigatureSubstFormat1Sanitized
 );
-apply_fns!(
-    single_pos1,
-    single_pos1_cached,
-    Sanitized::<SinglePosFormat1>
-);
-apply_fns!(
-    single_pos2,
-    single_pos2_cached,
-    Sanitized::<SinglePosFormat2>
-);
-apply_fns!(pair_pos1, pair_pos1_cached, Sanitized::<PairPosFormat1>);
-apply_fns!(pair_pos2, pair_pos2_cached, Sanitized::<PairPosFormat2>);
+apply_fns!(single_pos1, single_pos1_cached, SinglePosFormat1Sanitized);
+apply_fns!(single_pos2, single_pos2_cached, SinglePosFormat2Sanitized);
+apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1Sanitized);
+apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2Sanitized);
 apply_fns!(
     cursive_pos1,
     cursive_pos1_cached,
-    Sanitized::<CursivePosFormat1>
+    CursivePosFormat1Sanitized
 );
 apply_fns!(
     mark_base_pos1,
     mark_base_pos1_cached,
-    Sanitized::<MarkBasePosFormat1>
+    MarkBasePosFormat1Sanitized
 );
 apply_fns!(
     mark_mark_pos1,
     mark_mark_pos1_cached,
-    Sanitized::<MarkMarkPosFormat1>
+    MarkMarkPosFormat1Sanitized
 );
 apply_fns!(
     mark_lig_pos1,
     mark_lig_pos1_cached,
-    Sanitized::<MarkLigPosFormat1>
+    MarkLigPosFormat1Sanitized
 );
-apply_fns!(
-    context1,
-    context1_cached,
-    Sanitized::<SequenceContextFormat1>
-);
-apply_fns!(
-    context2,
-    context2_cached,
-    Sanitized::<SequenceContextFormat2>
-);
-apply_fns!(
-    context3,
-    context3_cached,
-    Sanitized::<SequenceContextFormat3>
-);
+apply_fns!(context1, context1_cached, SequenceContextFormat1Sanitized);
+apply_fns!(context2, context2_cached, SequenceContextFormat2Sanitized);
+apply_fns!(context3, context3_cached, SequenceContextFormat3Sanitized);
 apply_fns!(
     chained_context1,
     chained_context1_cached,
-    Sanitized::<ChainedSequenceContextFormat1>
+    ChainedSequenceContextFormat1Sanitized
 );
 apply_fns!(
     chained_context2,
     chained_context2_cached,
-    Sanitized::<ChainedSequenceContextFormat2>
+    ChainedSequenceContextFormat2Sanitized
 );
 apply_fns!(
     chained_context3,
     chained_context3_cached,
-    Sanitized::<ChainedSequenceContextFormat3>
+    ChainedSequenceContextFormat3Sanitized
 );
 apply_fns!(
     rev_chain_single_subst1,
     rev_chain_single_subst1_cached,
-    Sanitized::<ReverseChainSingleSubstFormat1>
+    ReverseChainSingleSubstFormat1Sanitized
 );
 
 /// All possible subtables in a lookup.
@@ -555,157 +530,148 @@ impl SubtableInfo {
         cache_mode: SubtableExternalCacheMode,
     ) -> Option<(Self, u32)> {
         let data = table_data.split_off(subtable_offset as usize)?;
+        let data = FontPtr::new(data);
         let maybe_external_cache = |s: &dyn Apply| s.external_cache_create(cache_mode);
         let (kind, (external_cache, cache_cost, coverage), apply_fns): (
             SubtableKind,
-            (SubtableExternalCache, u32, SanitizedCoverageTable),
+            (SubtableExternalCache, u32, CoverageTableSanitized),
             [SubtableApplyFn; 2],
         ) = match (is_subst, lookup_type) {
-            (true, 1) => match SanitizedSingleSubst::read(data).ok()? {
-                SanitizedSingleSubst::Format1(s) => (
+            (true, 1) => match unsafe { SingleSubstSanitized::read_sanitized(data, &()) } {
+                SingleSubstSanitized::Format1(s) => (
                     SubtableKind::SingleSubst1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
                     [single_subst1, single_subst1_cached as _],
                 ),
-                SanitizedSingleSubst::Format2(s) => (
+                SingleSubstSanitized::Format2(s) => (
                     SubtableKind::SingleSubst2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
                     [single_subst2, single_subst2_cached as _],
                 ),
             },
-            (false, 1) => match SanitizedSinglePos::read(data).ok()? {
-                SanitizedSinglePos::Format1(s) => (
+            (false, 1) => match unsafe { SinglePosSanitized::read_sanitized(data, &()) } {
+                SinglePosSanitized::Format1(s) => (
                     SubtableKind::SinglePos1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
                     [single_pos1, single_pos1_cached as _],
                 ),
-                SanitizedSinglePos::Format2(s) => (
+                SinglePosSanitized::Format2(s) => (
                     SubtableKind::SinglePos2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
                     [single_pos2, single_pos2_cached as _],
                 ),
             },
             (true, 2) => (
                 SubtableKind::MultipleSubst1,
-                Sanitized::<MultipleSubstFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
+                {
+                    let t = unsafe { MultipleSubstFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage())
+                },
                 [multiple_subst1, multiple_subst1_cached as _],
             ),
-            (false, 2) => match SanitizedPairPos::read(data).ok()? {
-                SanitizedPairPos::Format1(s) => (
+            (false, 2) => match unsafe { PairPosSanitized::read_sanitized(data, &()) } {
+                PairPosSanitized::Format1(s) => (
                     SubtableKind::PairPos1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
                     [pair_pos1, pair_pos1_cached as _],
                 ),
-                SanitizedPairPos::Format2(s) => (
+                PairPosSanitized::Format2(s) => (
                     SubtableKind::PairPos2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
                     [pair_pos2, pair_pos2_cached as _],
                 ),
             },
             (true, 3) => (
                 SubtableKind::AlternateSubst1,
-                Sanitized::<AlternateSubstFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
+                {
+                    let t = unsafe { AlternateSubstFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage())
+                },
                 [alternate_subst1, alternate_subst1_cached as _],
             ),
             (false, 3) => (
                 SubtableKind::CursivePos1,
-                Sanitized::<CursivePosFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
+                {
+                    let t = unsafe { CursivePosFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage())
+                },
                 [cursive_pos1, cursive_pos1_cached as _],
             ),
             (true, 4) => (
                 SubtableKind::LigatureSubst1,
-                Sanitized::<LigatureSubstFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
+                {
+                    let t = unsafe { LigatureSubstFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage())
+                },
                 [ligature_subst1, ligature_subst1_cached as _],
             ),
             (false, 4) => (
                 SubtableKind::MarkBasePos1,
-                Sanitized::<MarkBasePosFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((
-                            maybe_external_cache(&t),
-                            t.cache_cost(),
-                            t.mark_coverage().ok()?,
-                        ))
-                    })?,
+                {
+                    let t = unsafe { MarkBasePosFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.mark_coverage())
+                },
                 [mark_base_pos1, mark_base_pos1_cached as _],
             ),
-            (true, 5) | (false, 7) => match SanitizedSequenceContext::read(data).ok()? {
-                SanitizedSequenceContext::Format1(s) => (
-                    SubtableKind::ContextFormat1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
-                    [context1, context1_cached as _],
-                ),
-                SanitizedSequenceContext::Format2(s) => (
-                    SubtableKind::ContextFormat2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
-                    [context2, context2_cached as _],
-                ),
-                SanitizedSequenceContext::Format3(s) => (
-                    SubtableKind::ContextFormat3,
-                    (
-                        maybe_external_cache(&s),
-                        s.cache_cost(),
-                        s.coverages().get(0).ok()?,
+            (true, 5) | (false, 7) => {
+                match unsafe { SequenceContextSanitized::read_sanitized(data, &()) } {
+                    SequenceContextSanitized::Format1(s) => (
+                        SubtableKind::ContextFormat1,
+                        (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
+                        [context1, context1_cached as _],
                     ),
-                    [context3, context3_cached as _],
-                ),
-            },
+                    SequenceContextSanitized::Format2(s) => (
+                        SubtableKind::ContextFormat2,
+                        (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
+                        [context2, context2_cached as _],
+                    ),
+                    SequenceContextSanitized::Format3(s) => (
+                        SubtableKind::ContextFormat3,
+                        (
+                            maybe_external_cache(&s),
+                            s.cache_cost(),
+                            s.coverages().get(0)?,
+                        ),
+                        [context3, context3_cached as _],
+                    ),
+                }
+            }
             (false, 5) => (
                 SubtableKind::MarkLigPos1,
-                Sanitized::<MarkLigPosFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((
-                            maybe_external_cache(&t),
-                            t.cache_cost(),
-                            t.mark_coverage().ok()?,
-                        ))
-                    })?,
+                {
+                    let t = unsafe { MarkLigPosFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.mark_coverage())
+                },
                 [mark_lig_pos1, mark_lig_pos1_cached as _],
             ),
-            (true, 6) | (false, 8) => match SanitizedChainedSequenceContext::read(data).ok()? {
-                SanitizedChainedSequenceContext::Format1(s) => (
-                    SubtableKind::ChainedContextFormat1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
-                    [chained_context1, chained_context1_cached as _],
-                ),
-                SanitizedChainedSequenceContext::Format2(s) => (
-                    SubtableKind::ChainedContextFormat2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
-                    [chained_context2, chained_context2_cached as _],
-                ),
-                SanitizedChainedSequenceContext::Format3(s) => (
-                    SubtableKind::ChainedContextFormat3,
-                    (
-                        maybe_external_cache(&s),
-                        s.cache_cost(),
-                        s.input_coverages().get(0).ok()?,
+            (true, 6) | (false, 8) => {
+                match unsafe { ChainedSequenceContextSanitized::read_sanitized(data, &()) } {
+                    ChainedSequenceContextSanitized::Format1(s) => (
+                        SubtableKind::ChainedContextFormat1,
+                        (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
+                        [chained_context1, chained_context1_cached as _],
                     ),
-                    [chained_context3, chained_context3_cached as _],
-                ),
-            },
+                    ChainedSequenceContextSanitized::Format2(s) => (
+                        SubtableKind::ChainedContextFormat2,
+                        (maybe_external_cache(&s), s.cache_cost(), s.coverage()),
+                        [chained_context2, chained_context2_cached as _],
+                    ),
+                    ChainedSequenceContextSanitized::Format3(s) => (
+                        SubtableKind::ChainedContextFormat3,
+                        (
+                            maybe_external_cache(&s),
+                            s.cache_cost(),
+                            s.input_coverages().get(0)?,
+                        ),
+                        [chained_context3, chained_context3_cached as _],
+                    ),
+                }
+            }
             (true, 7) | (false, 9) => {
                 let ext =
-                    Sanitized::<ExtensionSubstFormat1<'_, ()>>::read_with_args(data, &()).ok()?;
-                let ext_type = ext.0.extension_lookup_type() as u8;
-                let ext_offset = ext.0.extension_offset().to_u32();
+                    unsafe { ExtensionSubstFormat1Sanitized::<'_, ()>::read_sanitized(data, &()) };
+                let ext_type = ext.extension_lookup_type() as u8;
+                let ext_offset = ext.extension_offset().to_u32();
                 return Self::new(
                     table_data,
                     subtable_offset.checked_add(ext_offset)?,
@@ -716,24 +682,20 @@ impl SubtableInfo {
             }
             (false, 6) => (
                 SubtableKind::MarkMarkPos1,
-                Sanitized::<MarkMarkPosFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((
-                            maybe_external_cache(&t),
-                            t.cache_cost(),
-                            t.mark1_coverage().ok()?,
-                        ))
-                    })?,
+                {
+                    let t = unsafe { MarkMarkPosFormat1Sanitized::read_sanitized(data, &()) };
+                    (maybe_external_cache(&t), t.cache_cost(), t.mark1_coverage())
+                },
                 [mark_mark_pos1, mark_mark_pos1_cached as _],
             ),
             (true, 8) => (
                 SubtableKind::ReverseChainContext,
-                Sanitized::<ReverseChainSingleSubstFormat1>::read_with_args(data, &())
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
+                {
+                    let t = unsafe {
+                        ReverseChainSingleSubstFormat1Sanitized::read_sanitized(data, &())
+                    };
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage())
+                },
                 [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
             ),
             _ => return None,

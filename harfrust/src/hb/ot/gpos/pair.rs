@@ -6,10 +6,9 @@ use crate::hb::ot_layout_gsubgpos::{
     PairPosFormat2SmallCache, SubtableExternalCache, SubtableExternalCacheMode,
 };
 use alloc::boxed::Box;
-use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
-use read_fonts::Sanitized;
+use read_fonts::tables::gpos::{PairPosFormat1Sanitized, PairPosFormat2Sanitized};
 
-impl Apply for Sanitized<PairPosFormat1<'_>> {
+impl Apply for PairPosFormat1Sanitized<'_> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -18,14 +17,12 @@ impl Apply for Sanitized<PairPosFormat1<'_>> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
         let first_glyph_coverage_index = match external_cache {
-            SubtableExternalCache::PairPosFormat1Cache(cache) => coverage_index_cached(
-                |gid| self.coverage().ok()?.get(gid),
-                first_glyph,
-                &cache.coverage,
-            )?,
-            SubtableExternalCache::PairPosFormat1SmallCache(cache) => {
-                cache.coverage.index(&self.offset_data(), first_glyph)?
+            SubtableExternalCache::PairPosFormat1Cache(cache) => {
+                coverage_index_cached(|gid| self.coverage().get(gid), first_glyph, &cache.coverage)?
             }
+            SubtableExternalCache::PairPosFormat1SmallCache(cache) => cache
+                .coverage
+                .index(&self.offset_ptr().into_font_data(), first_glyph)?,
             _ => coverage_index(self.coverage(), first_glyph)?,
         };
 
@@ -83,7 +80,7 @@ impl Apply for Sanitized<PairPosFormat1<'_>> {
         let format1_len = format1.record_byte_len();
         let format2 = self.value_format2();
         let record_size = format1_len + format2.record_byte_len() + 2;
-        let data = self.offset_data();
+        let data = self.offset_ptr().into_font_data();
         let set_data = data.split_off(set_offset)?;
         let pair_count = set_data.read_at::<u16>(0).ok()? as usize;
         let mut hi = pair_count;
@@ -132,9 +129,10 @@ impl Apply for Sanitized<PairPosFormat1<'_>> {
                 SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
             }
             SubtableExternalCacheMode::Small => {
-                if let Some(coverage) =
-                    CoverageInfo::new(&self.offset_data(), self.coverage_offset().to_u32() as u16)
-                {
+                if let Some(coverage) = CoverageInfo::new(
+                    &self.offset_ptr().into_font_data(),
+                    self.coverage_offset().to_u32() as u16,
+                ) {
                     SubtableExternalCache::PairPosFormat1SmallCache(PairPosFormat1SmallCache {
                         coverage,
                     })
@@ -147,7 +145,7 @@ impl Apply for Sanitized<PairPosFormat1<'_>> {
     }
 }
 
-impl Apply for Sanitized<PairPosFormat2<'_>> {
+impl Apply for PairPosFormat2Sanitized<'_> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -155,14 +153,12 @@ impl Apply for Sanitized<PairPosFormat2<'_>> {
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
         match external_cache {
-            SubtableExternalCache::PairPosFormat2Cache(cache) => coverage_index_cached(
-                |gid| self.coverage().ok()?.get(gid),
-                first_glyph,
-                &cache.coverage,
-            )?,
-            SubtableExternalCache::PairPosFormat2SmallCache(cache) => {
-                cache.coverage.index(&self.offset_data(), first_glyph)?
+            SubtableExternalCache::PairPosFormat2Cache(cache) => {
+                coverage_index_cached(|gid| self.coverage().get(gid), first_glyph, &cache.coverage)?
             }
+            SubtableExternalCache::PairPosFormat2SmallCache(cache) => cache
+                .coverage
+                .index(&self.offset_ptr().into_font_data(), first_glyph)?,
             _ => coverage_index(self.coverage(), first_glyph)?,
         };
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -208,7 +204,7 @@ impl Apply for Sanitized<PairPosFormat2<'_>> {
                     boring(ctx, iter_index, has_record2)
                 }
             };
-        let data = self.offset_data();
+        let data = self.offset_ptr().into_font_data();
         let (class1, class2) = match external_cache {
             SubtableExternalCache::PairPosFormat2Cache(cache) => (
                 glyph_class_cached(
@@ -233,22 +229,26 @@ impl Apply for Sanitized<PairPosFormat2<'_>> {
         };
         let mut buf_idx = iter.buf_idx;
         let format1 = self.value_format1();
-        let format1_len = format1.record_byte_len();
         let format2 = self.value_format2();
-        let record_size = format1_len + format2.record_byte_len();
+        let class1rec = self.class1_records().get(class1 as usize);
+        let class2rec = class1rec.class2_records().get(class2 as usize);
+
         // Compute an offset into the 2D array of positioning records
-        let record_offset = (class1 as usize * record_size * self.class2_count() as usize)
-            + (class2 as usize * record_size)
-            + self.class1_records_byte_range().start;
         let has_record2 = !format2.is_empty();
         let worked1 = !format1.is_empty()
-            && super::apply_value(ctx, ctx.buffer.idx, &data, record_offset, format1) == Some(true);
+            && super::apply_value(
+                ctx,
+                ctx.buffer.idx,
+                &class2rec.value_record1().offset_ptr().into_font_data(),
+                0,
+                format1,
+            ) == Some(true);
         let worked2 = has_record2
             && super::apply_value(
                 ctx,
                 second_glyph_index,
-                &data,
-                record_offset + format1_len,
+                &class2rec.value_record2().offset_ptr().into_font_data(),
+                0,
                 format2,
             ) == Some(true);
         success(ctx, &mut buf_idx, worked1, worked2, has_record2)
@@ -260,7 +260,7 @@ impl Apply for Sanitized<PairPosFormat2<'_>> {
                 SubtableExternalCache::PairPosFormat2Cache(Box::new(PairPosFormat2Cache::new()))
             }
             SubtableExternalCacheMode::Small => {
-                let data = self.offset_data();
+                let data = self.offset_ptr().into_font_data();
                 let coverage = CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16);
                 let class1 = ClassDefInfo::new(&data, self.class_def1_offset().to_u32() as u16);
                 let class2 = ClassDefInfo::new(&data, self.class_def2_offset().to_u32() as u16);

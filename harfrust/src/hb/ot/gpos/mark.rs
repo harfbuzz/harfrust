@@ -4,28 +4,26 @@ use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, MatchSource};
 use read_fonts::tables::gpos::{
-    AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
-    SanitizedAnchorTable,
+    AnchorTableSanitized, MarkArraySanitized, MarkBasePosFormat1Sanitized,
+    MarkLigPosFormat1Sanitized, MarkMarkPosFormat1Sanitized,
 };
-use read_fonts::ResolveNullableOffset;
-use read_fonts::Sanitized;
 
 trait MarkArrayExt {
     fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        base_anchor: &SanitizedAnchorTable,
-        mark_anchor: &SanitizedAnchorTable,
+        base_anchor: &AnchorTableSanitized,
+        mark_anchor: &AnchorTableSanitized,
         glyph_pos: usize,
     ) -> Option<()>;
 }
 
-impl MarkArrayExt for Sanitized<MarkArray<'_>> {
+impl MarkArrayExt for MarkArraySanitized<'_> {
     fn apply(
         &self,
         ctx: &mut hb_ot_apply_context_t,
-        base_anchor: &SanitizedAnchorTable,
-        mark_anchor: &SanitizedAnchorTable,
+        base_anchor: &AnchorTableSanitized,
+        mark_anchor: &AnchorTableSanitized,
         glyph_pos: usize,
     ) -> Option<()> {
         // If this subtable doesn't have an anchor for this base and this class
@@ -51,12 +49,12 @@ impl MarkArrayExt for Sanitized<MarkArray<'_>> {
     }
 }
 
-impl Apply for Sanitized<MarkBasePosFormat1<'_>> {
+impl Apply for MarkBasePosFormat1Sanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
+        let mark_index = self.mark_coverage().get(mark_glyph)?;
 
-        let base_coverage = self.base_coverage().ok()?;
+        let base_coverage = self.base_coverage();
         let last_base_until = ctx.last_base_until;
         let mut last_base = ctx.last_base;
 
@@ -108,28 +106,22 @@ impl Apply for Sanitized<MarkBasePosFormat1<'_>> {
 
         // Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled
         let base_glyph = info[idx as usize].as_glyph();
-        let Some(base_index) = self.base_coverage().ok()?.get(base_glyph) else {
+        let Some(base_index) = self.base_coverage().get(base_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx as usize), Some(ctx.buffer.idx + 1));
             return None;
         };
 
-        let mark_array = self.mark_array().ok()?;
+        let mark_array = self.mark_array();
         let mark_record = mark_array.mark_records().get(mark_index as usize)?;
-        let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
+        let mark_anchor = mark_record.mark_anchor(mark_array.offset_ptr());
 
-        let base_array = self.base_array().ok()?;
-        let base_record = base_array.base_records().get(base_index as usize).ok()?;
-        let base_anchor: SanitizedAnchorTable = base_record
-            .base_anchor_offsets
-            .get(mark_record.mark_class() as usize)?
-            .get()
-            .resolve_with_args(base_array.offset_data(), &())?
-            .ok()?;
-        //let base_anchor = base_record
-        //.base_anchors(base_array.offset_data())
-        //.get(mark_record.mark_class() as usize)?
-        //.ok()?;
+        let base_array = self.base_array();
+        let base_record = base_array.base_records().get(base_index as usize);
+        let base_anchor = base_record
+            .base_anchors()
+            .get(mark_record.mark_class() as usize)
+            .flatten()?;
 
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx as usize)
     }
@@ -150,10 +142,10 @@ fn accept(buffer: &hb_buffer_t, idx: usize) -> bool {
             || buffer.info[idx].lig_comp() != buffer.info[idx - 1].lig_comp() + 1)
 }
 
-impl Apply for Sanitized<MarkMarkPosFormat1<'_>> {
+impl Apply for MarkMarkPosFormat1Sanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark1_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
+        let mark1_index = self.mark1_coverage().get(mark1_glyph)?;
         let lookup_props = ctx.lookup_props;
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -196,30 +188,28 @@ impl Apply for Sanitized<MarkMarkPosFormat1<'_>> {
         }
 
         let mark2_glyph = ctx.buffer.info[iter_idx].as_glyph();
-        let mark2_index = self.mark2_coverage().ok()?.get(mark2_glyph)?;
+        let mark2_index = self.mark2_coverage().get(mark2_glyph)?;
 
-        let mark1_array = self.mark1_array().ok()?;
+        let mark1_array = self.mark1_array();
         let mark1_record = mark1_array.mark_records().get(mark1_index as usize)?;
-        let mark1_anchor = mark1_record.mark_anchor(mark1_array.offset_data()).ok()?;
+        let mark1_anchor = mark1_record.mark_anchor(mark1_array.offset_ptr());
 
-        let base_array = self.mark2_array().ok()?;
-        let base_record = base_array.mark2_records().get(mark2_index as usize).ok()?;
+        let base_array = self.mark2_array();
+        let base_record = base_array.mark2_records().get(mark2_index as usize);
 
-        let base_anchor: SanitizedAnchorTable = base_record
-            .mark2_anchor_offsets
-            .get(mark1_record.mark_class() as usize)?
-            .get()
-            .resolve_with_args(base_array.offset_data(), &())?
-            .ok()?;
+        let base_anchor = base_record
+            .mark2_anchors()
+            .get(mark1_record.mark_class() as usize)
+            .flatten()?;
 
         mark1_array.apply(ctx, &base_anchor, &mark1_anchor, iter_idx)
     }
 }
 
-impl Apply for Sanitized<MarkLigPosFormat1<'_>> {
+impl Apply for MarkLigPosFormat1Sanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
+        let mark_index = self.mark_coverage().get(mark_glyph)? as usize;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.
@@ -259,17 +249,15 @@ impl Apply for Sanitized<MarkLigPosFormat1<'_>> {
         // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
 
         let lig_glyph = ctx.buffer.info[idx].as_glyph();
-        let Some(lig_index) = self.ligature_coverage().ok()?.get(lig_glyph) else {
+        let Some(lig_index) = self.ligature_coverage().get(lig_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
             return None;
         };
         let lig_attach = self
             .ligature_array()
-            .ok()?
             .ligature_attaches()
-            .get(lig_index as usize)
-            .ok()?;
+            .get(lig_index as usize)?;
 
         // Find component to attach to
         let comp_count = lig_attach.component_count();
@@ -293,20 +281,15 @@ impl Apply for Sanitized<MarkLigPosFormat1<'_>> {
             comp_count
         } - 1;
 
-        let mark_array = self.mark_array().ok()?;
+        let mark_array = self.mark_array();
         let mark_record = mark_array.mark_records().get(mark_index)?;
-        let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
+        let mark_anchor = mark_record.mark_anchor(mark_array.offset_ptr());
 
-        let base_record = lig_attach
-            .component_records()
-            .get(comp_index as usize)
-            .ok()?;
-        let base_anchor: SanitizedAnchorTable = base_record
-            .ligature_anchor_offsets
-            .get(mark_record.mark_class() as usize)?
-            .get()
-            .resolve_with_args(lig_attach.offset_data(), &())?
-            .ok()?;
+        let base_record = lig_attach.component_records().get(comp_index as usize);
+        let base_anchor = base_record
+            .ligature_anchors()
+            .get(mark_record.mark_class() as usize)
+            .flatten()?;
 
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx)
     }

@@ -1,23 +1,19 @@
 use crate::hb::buffer::GlyphPropsFlags;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{Apply, WouldApply, WouldApplyContext};
-use read_fonts::tables::gsub::MultipleSubstFormat1;
-use read_fonts::Sanitized;
+use read_fonts::tables::gsub::MultipleSubstFormat1Sanitized;
 
-impl WouldApply for Sanitized<MultipleSubstFormat1<'_>> {
+impl WouldApply for MultipleSubstFormat1Sanitized<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        ctx.glyphs.len() == 1
-            && self
-                .coverage()
-                .is_ok_and(|cov| cov.get(ctx.glyphs[0]).is_some())
+        ctx.glyphs.len() == 1 && self.coverage().get(ctx.glyphs[0]).is_some()
     }
 }
 
-impl Apply for Sanitized<MultipleSubstFormat1<'_>> {
+impl Apply for MultipleSubstFormat1Sanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let gid = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(gid)? as usize;
-        let substs = self.sequences().get(index).ok()?.substitute_glyph_ids();
+        let index = self.coverage().get(gid)? as usize;
+        let substs = self.sequences().get(index)?.substitute_glyph_ids();
         match substs.len() {
             // Spec disallows this, but Uniscribe allows it.
             // https://github.com/harfbuzz/harfbuzz/issues/253

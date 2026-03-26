@@ -8,11 +8,12 @@ use crate::hb::ot_layout_gsubgpos::{
 };
 use crate::hb::set_digest::hb_set_digest_t;
 use alloc::boxed::Box;
-use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
+use read_fonts::tables::gsub::{
+    LigatureSanitized, LigatureSetSanitized, LigatureSubstFormat1Sanitized,
+};
 use read_fonts::types::GlyphId;
-use read_fonts::Sanitized;
 
-impl WouldApply for Sanitized<Ligature<'_>> {
+impl WouldApply for LigatureSanitized<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let components = self.component_glyph_ids();
         ctx.glyphs.len() == components.len() + 1
@@ -24,7 +25,7 @@ impl WouldApply for Sanitized<Ligature<'_>> {
     }
 }
 
-impl Apply for Sanitized<Ligature<'_>> {
+impl Apply for LigatureSanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         // Special-case to make it in-place and not consider this
         // as a "ligated" substitution.
@@ -65,12 +66,9 @@ impl Apply for Sanitized<Ligature<'_>> {
     }
 }
 
-impl WouldApply for Sanitized<LigatureSet<'_>> {
+impl WouldApply for LigatureSetSanitized<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        self.ligatures()
-            .iter()
-            .filter_map(Result::ok)
-            .any(|lig| lig.would_apply(ctx))
+        self.ligatures().iter().any(|lig| lig.would_apply(ctx))
     }
 }
 
@@ -78,7 +76,7 @@ pub trait ApplyLigatureSet {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()>;
 }
 
-impl ApplyLigatureSet for Sanitized<LigatureSet<'_>> {
+impl ApplyLigatureSet for LigatureSetSanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()> {
         let mut second = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
@@ -103,7 +101,7 @@ impl ApplyLigatureSet for Sanitized<LigatureSet<'_>> {
 
         if slow_path {
             // Slow path
-            for lig in ligatures.iter().filter_map(Result::ok) {
+            for lig in ligatures.iter() {
                 if lig.apply(ctx).is_some() {
                     return Some(());
                 }
@@ -114,7 +112,7 @@ impl ApplyLigatureSet for Sanitized<LigatureSet<'_>> {
                 return None;
             }
             let mut unsafe_to_concat = false;
-            for lig in ligatures.iter().filter_map(|lig| lig.ok()) {
+            for lig in ligatures.iter() {
                 let components = lig.component_glyph_ids();
                 if components.is_empty() || components[0].get() == second {
                     if lig.apply(ctx).is_some() {
@@ -137,17 +135,16 @@ impl ApplyLigatureSet for Sanitized<LigatureSet<'_>> {
     }
 }
 
-impl WouldApply for Sanitized<LigatureSubstFormat1<'_>> {
+impl WouldApply for LigatureSubstFormat1Sanitized<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         self.coverage()
-            .ok()
-            .and_then(|coverage| coverage.get(ctx.glyphs[0]))
-            .and_then(|index| self.ligature_sets().get(index as usize).ok())
+            .get(ctx.glyphs[0])
+            .and_then(|index| self.ligature_sets().get(index as usize))
             .is_some_and(|set| set.would_apply(ctx))
     }
 }
 
-impl Apply for Sanitized<LigatureSubstFormat1<'_>> {
+impl Apply for LigatureSubstFormat1Sanitized<'_> {
     fn apply_with_external_cache(
         &self,
         ctx: &mut hb_ot_apply_context_t,
@@ -157,15 +154,13 @@ impl Apply for Sanitized<LigatureSubstFormat1<'_>> {
 
         let (index, seconds) = match external_cache {
             SubtableExternalCache::LigatureSubstFormat1Cache(cache) => (
-                coverage_index_cached(
-                    |gid| self.coverage().ok()?.get(gid),
-                    glyph,
-                    &cache.coverage,
-                )?,
+                coverage_index_cached(|gid| self.coverage().get(gid), glyph, &cache.coverage)?,
                 &cache.seconds,
             ),
             SubtableExternalCache::LigatureSubstFormat1SmallCache(cache) => (
-                cache.coverage.index(&self.offset_data(), glyph)?,
+                cache
+                    .coverage
+                    .index(&self.offset_ptr().into_font_data(), glyph)?,
                 &cache.seconds,
             ),
             _ => (
@@ -175,7 +170,6 @@ impl Apply for Sanitized<LigatureSubstFormat1<'_>> {
         };
         self.ligature_sets()
             .get(index as usize)
-            .ok()
             .and_then(|set| set.apply(ctx, seconds))
     }
 
@@ -185,9 +179,10 @@ impl Apply for Sanitized<LigatureSubstFormat1<'_>> {
                 Box::new(LigatureSubstFormat1Cache::new(collect_seconds(self))),
             ),
             SubtableExternalCacheMode::Small => {
-                if let Some(coverage) =
-                    CoverageInfo::new(&self.offset_data(), self.coverage_offset().to_u32() as u16)
-                {
+                if let Some(coverage) = CoverageInfo::new(
+                    &self.offset_ptr().into_font_data(),
+                    self.coverage_offset().to_u32() as u16,
+                ) {
                     SubtableExternalCache::LigatureSubstFormat1SmallCache(
                         LigatureSubstFormat1SmallCache {
                             coverage,
@@ -203,24 +198,16 @@ impl Apply for Sanitized<LigatureSubstFormat1<'_>> {
     }
 }
 
-fn collect_seconds(lig_subst: &Sanitized<LigatureSubstFormat1>) -> hb_set_digest_t {
+fn collect_seconds(lig_subst: &LigatureSubstFormat1Sanitized) -> hb_set_digest_t {
     let mut seconds = hb_set_digest_t::new();
-    lig_subst
-        .ligature_sets()
-        .iter()
-        .filter_map(Result::ok)
-        .for_each(|lig_set| {
-            lig_set
-                .ligatures()
-                .iter()
-                .filter_map(Result::ok)
-                .for_each(|lig| {
-                    if let Some(gid) = lig.component_glyph_ids().first() {
-                        seconds.add(gid.get().into());
-                    } else {
-                        seconds = hb_set_digest_t::full();
-                    }
-                });
+    lig_subst.ligature_sets().iter().for_each(|lig_set| {
+        lig_set.ligatures().iter().for_each(|lig| {
+            if let Some(gid) = lig.component_glyph_ids().first() {
+                seconds.add(gid.get().into());
+            } else {
+                seconds = hb_set_digest_t::full();
+            };
         });
+    });
     seconds
 }

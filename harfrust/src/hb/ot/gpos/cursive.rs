@@ -4,18 +4,17 @@ use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
 use crate::{Direction, GlyphPosition};
-use read_fonts::tables::gpos::CursivePosFormat1;
-use read_fonts::Sanitized;
+use read_fonts::tables::gpos::CursivePosFormat1Sanitized;
 
-impl Apply for Sanitized<CursivePosFormat1<'_>> {
+impl Apply for CursivePosFormat1Sanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let this = ctx.buffer.cur(0).as_glyph();
 
-        let coverage = self.coverage().ok()?;
+        let coverage = self.coverage();
         let index_this = coverage.get(this)? as usize;
         let records = self.entry_exit_record();
-        let offset_data = self.offset_data();
-        let entry_this = records.get(index_this)?.entry_anchor(offset_data)?.ok()?;
+        let offset_data = self.offset_ptr();
+        let entry_this = records.get(index_this)?.entry_anchor(offset_data)?;
 
         let mut iter = skipping_iterator_t::new(ctx, false);
         iter.reset_fast(iter.buffer.idx);
@@ -32,7 +31,7 @@ impl Apply for Sanitized<CursivePosFormat1<'_>> {
         let index_prev = coverage.get(prev)? as usize;
         let Some(exit_prev) = records
             .get(index_prev)
-            .and_then(|rec| rec.exit_anchor(offset_data).transpose().ok().flatten())
+            .and_then(|rec| rec.exit_anchor(offset_data))
         else {
             iter.buffer
                 .unsafe_to_concat_from_outbuffer(Some(iter.index()), Some(iter.buffer.idx + 1));

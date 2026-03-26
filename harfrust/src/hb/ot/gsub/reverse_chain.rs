@@ -4,21 +4,15 @@ use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     match_backtrack, match_lookahead, Apply, WouldApply, WouldApplyContext,
 };
-use read_fonts::tables::gsub::ReverseChainSingleSubstFormat1;
-use read_fonts::Sanitized;
+use read_fonts::tables::gsub::ReverseChainSingleSubstFormat1Sanitized;
 
-impl WouldApply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
+impl WouldApply for ReverseChainSingleSubstFormat1Sanitized<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        ctx.glyphs.len() == 1
-            && self
-                .coverage()
-                .ok()
-                .and_then(|coverage| coverage.get(ctx.glyphs[0]))
-                .is_some()
+        ctx.glyphs.len() == 1 && self.coverage().get(ctx.glyphs[0]).is_some()
     }
 }
 
-impl Apply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
+impl Apply for ReverseChainSingleSubstFormat1Sanitized<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         // No chaining to this type.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
@@ -26,7 +20,7 @@ impl Apply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
         }
 
         let glyph = ctx.buffer.cur(0).as_glyph();
-        let coverage = self.coverage().ok()?;
+        let coverage = self.coverage();
         let index = coverage.get(glyph)? as usize;
         let substitutes = self.substitute_glyph_ids();
         if index >= substitutes.len() {
@@ -41,7 +35,6 @@ impl Apply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
         let f1 = |info: &mut GlyphInfo, index| {
             backtrack_coverages
                 .get(index as usize)
-                .ok()
                 .and_then(|coverage| coverage.get(info.glyph_id))
                 .is_some()
         };
@@ -49,7 +42,6 @@ impl Apply for Sanitized<ReverseChainSingleSubstFormat1<'_>> {
         let f2 = |info: &mut GlyphInfo, index| {
             lookahead_coverages
                 .get(index as usize)
-                .ok()
                 .and_then(|coverage| coverage.get(info.glyph_id))
                 .is_some()
         };
