@@ -1,5 +1,5 @@
 [workspace]
-members = ["harfrust", "hr-shape"]
+members = ["harfrust", "hr-shape", "fuzz"]
 resolver = "2"
 
 [workspace.package]
@@ -20,6 +20,9 @@ codegen-units = 1
 
 [profile.bench]
 inherits = "release"
+
+[workspace.dependencies]
+read-fonts = { version = "0.38.0", default-features = false, features = ["libm"] }
 
 [workspace.lints.rust]
 unused_qualifications = "warn"

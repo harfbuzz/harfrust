@@ -1,0 +1,27 @@
+[package]
+name = "fuzz"
+version = "0.0.0"
+publish = false
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[package.metadata]
+cargo-fuzz = true
+
+# cargo-release settings
+[package.metadata.release]
+release = false
+
+[dependencies]
+libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
+harfrust = { path = "../harfrust", features = ["std"] }
+read-fonts.workspace = true
+
+[[bin]]
+name = "fuzz_shape"
+path = "fuzz_targets/fuzz_shape.rs"
+test = false
+doc = false
