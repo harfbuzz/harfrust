@@ -22,7 +22,7 @@ codegen-units = 1
 inherits = "release"
 
 [workspace.dependencies]
-read-fonts = { version = "0.38.0", default-features = false, features = ["libm"] }
+read-fonts = { version = "0.39.0", default-features = false, features = ["libm"] }
 
 [workspace.lints.rust]
 unused_qualifications = "warn"
