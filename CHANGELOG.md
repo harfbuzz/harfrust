@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-09
+
+This release matches HarfBuzz [v14.1.0][harfbuzz-14.1.0], and has an MSRV (minimum supported Rust version) of 1.85.
+
+Roll to `read-fonts` 0.39.0.
+
 ## [0.5.2] - 2026-03-04
 
 This release matches HarfBuzz [v13.0.0][harfbuzz-13.0.0], and has an MSRV (minimum supported Rust version) of 1.85.
