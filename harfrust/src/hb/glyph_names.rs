@@ -1,5 +1,6 @@
 use read_fonts::{
-    tables::{cff::Cff, post::Post, postscript::Charset},
+    ps::cff::charset::Charset,
+    tables::{cff::Cff, post::Post},
     FontRef, TableProvider,
 };
 
@@ -29,7 +30,7 @@ impl<'a> GlyphNames<'a> {
         let name = match self {
             Self::Cff(cff, charset) => {
                 let sid = charset.string_id(glyph_id.into()).ok()?;
-                core::str::from_utf8(cff.string(sid)?.bytes()).ok()
+                core::str::from_utf8(cff.string(sid)?).ok()
             }
             Self::Post(post) => {
                 let gid: u16 = glyph_id.try_into().ok()?;
