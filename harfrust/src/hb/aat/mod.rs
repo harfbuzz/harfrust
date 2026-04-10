@@ -80,12 +80,33 @@ pub struct AatTables<'a> {
     pub feat: Option<Feat<'a>>,
 }
 
+use crate::hb::algs::HB_CODEPOINT_ENCODE3 as encode3;
+
+/// Blocklist specific broken morx tables identified by the combination of
+/// morx, GSUB, and GDEF table lengths.
+fn is_morx_blocklisted(table_ranges: &TableRanges) -> bool {
+    const BLOCKLIST: &[u64] = &[
+        // AALMAGHRIBI.ttf — https://github.com/harfbuzz/harfbuzz/issues/4108
+        encode3(19892, 2794, 340),
+    ];
+    let key = encode3(
+        table_ranges.morx.len(),
+        table_ranges.gsub.len(),
+        table_ranges.gdef.len(),
+    );
+    BLOCKLIST.contains(&key)
+}
+
 impl<'a> AatTables<'a> {
     pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
-        let morx = table_ranges
-            .morx
-            .resolve_table(font)
-            .map(|table| (table, cache.morx.as_slice()));
+        let morx = if is_morx_blocklisted(table_ranges) {
+            None
+        } else {
+            table_ranges
+                .morx
+                .resolve_table(font)
+                .map(|table| (table, cache.morx.as_slice()))
+        };
         let ankr = table_ranges.ankr.resolve_table(font);
         let kern = table_ranges
             .kern

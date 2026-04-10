@@ -81,8 +81,6 @@ pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
 
 // hb_ot_layout_kern
 
-// OT::GDEF::is_blocklisted unsupported
-
 pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut hb_buffer_t) {
     buffer.assert_gsubgpos_vars();
 

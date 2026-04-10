@@ -162,7 +162,11 @@ impl<'a> OtTables<'a> {
         } else {
             &[]
         };
-        let gdef = GdefTable::new(font, table_offsets);
+        let gdef = if is_gdef_blocklisted(table_offsets) {
+            GdefTable::default()
+        } else {
+            GdefTable::new(font, table_offsets)
+        };
         let var_store = if !coords.is_empty() {
             gdef.table
                 .as_ref()
@@ -724,4 +728,114 @@ impl ClassDefInfo {
                 .map_or(0, |idx| records[idx].class())
         }
     }
+}
+
+use super::algs::HB_CODEPOINT_ENCODE3 as encode3;
+
+/// Blocklist specific broken GDEF tables identified by the combination of
+/// GDEF, GSUB, and GPOS table lengths. Nuke the GDEF tables to avoid
+/// unwanted width-zeroing.
+///
+/// In certain versions of Times New Roman Italic and Bold Italic,
+/// ASCII double quotation mark U+0022 has wrong glyph class 3 (mark)
+/// in GDEF. Many versions of Tahoma have bad GDEF tables that
+/// incorrectly classify some spacing marks such as certain IPA
+/// symbols as glyph class 3. So do older versions of Microsoft
+/// Himalaya, and the version of Cantarell shipped by Ubuntu 16.04.
+///
+/// See https://lists.freedesktop.org/archives/harfbuzz/2016-February/005489.html
+///     https://bugzilla.mozilla.org/show_bug.cgi?id=1279925
+///     https://bugzilla.mozilla.org/show_bug.cgi?id=1279693
+///     https://bugzilla.mozilla.org/show_bug.cgi?id=1279875
+///
+/// Upstream: hb-ot-layout.cc OT::GDEF::is_blocklisted
+fn is_gdef_blocklisted(table_ranges: &TableRanges) -> bool {
+    const BLOCKLIST: &[u64] = &[
+        // Windows 7? timesi.ttf
+        encode3(442, 2874, 42038),
+        // Windows 7? timesbi.ttf
+        encode3(430, 2874, 40662),
+        // Windows 7 timesi.ttf
+        encode3(442, 2874, 39116),
+        // Windows 7 timesbi.ttf
+        encode3(430, 2874, 39374),
+        // OS X 10.11.3 Times New Roman Italic.ttf
+        encode3(490, 3046, 41638),
+        // OS X 10.11.3 Times New Roman Bold Italic.ttf
+        encode3(478, 3046, 41902),
+        // tahoma.ttf from Windows 8
+        encode3(898, 12554, 46470),
+        // tahomabd.ttf from Windows 8
+        encode3(910, 12566, 47732),
+        // tahoma.ttf from Windows 8.1
+        encode3(928, 23298, 59332),
+        // tahomabd.ttf from Windows 8.1
+        encode3(940, 23310, 60732),
+        // tahoma.ttf v6.04 from Windows 8.1 x64
+        encode3(964, 23836, 60072),
+        // tahomabd.ttf v6.04 from Windows 8.1 x64
+        encode3(976, 23832, 61456),
+        // tahoma.ttf from Windows 10
+        encode3(994, 24474, 60336),
+        // tahomabd.ttf from Windows 10
+        encode3(1006, 24470, 61740),
+        // tahoma.ttf v6.91 from Windows 10 x64
+        encode3(1006, 24576, 61346),
+        // tahomabd.ttf v6.91 from Windows 10 x64
+        encode3(1018, 24572, 62828),
+        // tahoma.ttf from Windows 10 AU
+        encode3(1006, 24576, 61352),
+        // tahomabd.ttf from Windows 10 AU
+        encode3(1018, 24572, 62834),
+        // Tahoma.ttf from Mac OS X 10.9
+        encode3(832, 7324, 47162),
+        // Tahoma Bold.ttf from Mac OS X 10.9
+        encode3(844, 7302, 45474),
+        // himalaya.ttf from Windows 7
+        encode3(180, 13054, 7254),
+        // himalaya.ttf from Windows 8
+        encode3(192, 12638, 7254),
+        // himalaya.ttf from Windows 8.1
+        encode3(192, 12690, 7254),
+        // cantarell-fonts-0.0.21 Cantarell-Regular.otf / Cantarell-Oblique.otf
+        encode3(188, 248, 3852),
+        // cantarell-fonts-0.0.21 Cantarell-Bold.otf / Cantarell-Bold-Oblique.otf
+        encode3(188, 264, 3426),
+        // padauk-2.80/Padauk.ttf RHEL 7.2
+        encode3(1058, 47032, 11818),
+        // padauk-2.80/Padauk-Bold.ttf RHEL 7.2
+        encode3(1046, 47030, 12600),
+        // padauk-2.80/Padauk.ttf Ubuntu 16.04
+        encode3(1058, 71796, 16770),
+        // padauk-2.80/Padauk-Bold.ttf Ubuntu 16.04
+        encode3(1046, 71790, 17862),
+        // padauk-2.80/Padauk-book.ttf
+        encode3(1046, 71788, 17112),
+        // padauk-2.80/Padauk-bookbold.ttf
+        encode3(1058, 71794, 17514),
+        // padauk-3.0/Padauk-book.ttf
+        encode3(1330, 109_904, 57938),
+        // padauk-3.0/Padauk-bookbold.ttf
+        encode3(1330, 109_904, 58972),
+        // Padauk.ttf "Version 2.5", https://crbug.com/681813
+        encode3(1004, 59092, 14836),
+        // Courier New.ttf from macOS 15
+        encode3(588, 5078, 14418),
+        // Courier New Bold.ttf from macOS 15
+        encode3(588, 5078, 14238),
+        // cour.ttf from Windows 10
+        encode3(894, 17162, 33960),
+        // courbd.ttf from Windows 10
+        encode3(894, 17154, 34472),
+        // cour.ttf from Windows 8.1
+        encode3(816, 7868, 17052),
+        // courbd.ttf from Windows 8.1
+        encode3(816, 7868, 17138),
+    ];
+    let key = encode3(
+        table_ranges.gdef.len(),
+        table_ranges.gsub.len(),
+        table_ranges.gpos.len(),
+    );
+    BLOCKLIST.contains(&key)
 }
