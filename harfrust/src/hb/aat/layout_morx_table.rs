@@ -15,9 +15,6 @@ use read_fonts::tables::morx::{
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
 
-// TODO: [morx] Blocklist dysfunctional morx table of AALMAGHRIBI.ttf font
-// HarfBuzz commit 1e629c35113e2460fd4a77b4fa9ae3ff6ec876ba
-
 // Chain::compile_flags in harfbuzz
 pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
     let has_feature = |kind: u16, setting: u16| {
