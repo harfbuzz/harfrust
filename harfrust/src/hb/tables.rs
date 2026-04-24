@@ -86,10 +86,9 @@ impl TableRanges {
             .maxp()
             .map(|maxp| maxp.num_glyphs() as u32)
             .unwrap_or_default();
-        let (units_per_em, loca_long) = font
-            .head()
-            .map(|head| (head.units_per_em(), head.index_to_loc_format() == 1))
-            .unwrap_or((1000, false));
+        let (units_per_em, loca_long) = font.head().map_or((1000, false), |head| {
+            (head.units_per_em(), head.index_to_loc_format() == 1)
+        });
         let os2 = font.os2().ok();
         let hhea = font.hhea().ok();
         let (ascent, descent) = if let Some(os2) = &os2 {
