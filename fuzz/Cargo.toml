@@ -20,6 +20,11 @@ libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 harfrust = { path = "../harfrust", features = ["std"] }
 read-fonts.workspace = true
 
+# Override workspace release profile: strip and LTO break sanitizer builds
+[profile.release]
+strip = false
+lto = false
+
 [[bin]]
 name = "fuzz_shape"
 path = "fuzz_targets/fuzz_shape.rs"
