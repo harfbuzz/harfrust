@@ -1722,12 +1722,10 @@ pub fn tags_from_complex_language(language: &str, tags: &mut smallvec::SmallVec<
         return true;
     }
     match language.as_bytes()[0] {
-        b'a' => {
-            if &language[1..] == "rt-lojban" {
-                // Lojban (retired code)
-                tags.push(Tag::new(b"JBO ")); // Lojban
-                return true;
-            }
+        b'a' if &language[1..] == "rt-lojban" => {
+            // Lojban (retired code)
+            tags.push(Tag::new(b"JBO ")); // Lojban
+            return true;
         }
         b'c' => {
             if lang_matches(&language[1..], "do-hant-hk") {
@@ -2432,16 +2430,14 @@ pub fn tags_from_complex_language(language: &str, tags: &mut smallvec::SmallVec<
                 return true;
             }
         }
-        b'r' => {
-            if strncmp(&language[1..], "o-", 2) && subtag_matches(language, "-md") {
-                // Romanian; Moldova
-                let possible_tags = &[
-                    Tag::new(b"MOL "), // Moldavian
-                    Tag::new(b"ROM "), // Romanian
-                ];
-                tags.extend_from_slice(possible_tags);
-                return true;
-            }
+        b'r' if strncmp(&language[1..], "o-", 2) && subtag_matches(language, "-md") => {
+            // Romanian; Moldova
+            let possible_tags = &[
+                Tag::new(b"MOL "), // Moldavian
+                Tag::new(b"ROM "), // Romanian
+            ];
+            tags.extend_from_slice(possible_tags);
+            return true;
         }
         b's' => {
             if lang_matches(&language[1..], "jc-hant-hk") {
@@ -2533,12 +2529,10 @@ pub fn tags_from_complex_language(language: &str, tags: &mut smallvec::SmallVec<
                 return true;
             }
         }
-        b'y' => {
-            if lang_matches(&language[1..], "ue-hans") {
-                // Yue Chinese; Han (Simplified variant)
-                tags.push(Tag::new(b"ZHS ")); // Chinese, Simplified
-                return true;
-            }
+        b'y' if lang_matches(&language[1..], "ue-hans") => {
+            // Yue Chinese; Han (Simplified variant)
+            tags.push(Tag::new(b"ZHS ")); // Chinese, Simplified
+            return true;
         }
         b'z' => {
             if lang_matches(&language[1..], "h-hant-hk") {

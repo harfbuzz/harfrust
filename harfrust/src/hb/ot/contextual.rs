@@ -29,7 +29,7 @@ impl WouldApply for SequenceContextFormat1<'_> {
             })
             .is_some_and(|set| {
                 set.seq_rules().iter().any(|rule| {
-                    rule.map(|rule| {
+                    rule.is_ok_and(|rule| {
                         let input = rule.input_sequence();
                         ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
@@ -40,7 +40,6 @@ impl WouldApply for SequenceContextFormat1<'_> {
                                 match_glyph(&mut info, value.get().to_u16())
                             })
                     })
-                    .unwrap_or(false)
                 })
             })
     }
@@ -67,7 +66,7 @@ impl WouldApply for SequenceContextFormat2<'_> {
             .flatten()
             .is_some_and(|set| {
                 set.class_seq_rules().iter().any(|rule| {
-                    rule.map(|rule| {
+                    rule.is_ok_and(|rule| {
                         let input = rule.input_sequence();
                         ctx.glyphs.len() == input.len() + 1
                             && input.iter().enumerate().all(|(i, value)| {
@@ -78,7 +77,6 @@ impl WouldApply for SequenceContextFormat2<'_> {
                                 match_fn(&mut info, value.get())
                             })
                     })
-                    .unwrap_or(false)
                 })
             })
     }
@@ -209,7 +207,7 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
             })
             .is_some_and(|set| {
                 set.chained_seq_rules().iter().any(|rule| {
-                    rule.map(|rule| {
+                    rule.is_ok_and(|rule| {
                         let input = rule.input_sequence();
                         (!ctx.zero_context
                             || (rule.backtrack_glyph_count() == 0
@@ -223,7 +221,6 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
                                 match_glyph(&mut info, value.get().to_u16())
                             })
                     })
-                    .unwrap_or(false)
                 })
             })
     }
@@ -254,7 +251,7 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
             .flatten()
             .is_some_and(|set| {
                 set.chained_class_seq_rules().iter().any(|rule| {
-                    rule.map(|rule| {
+                    rule.is_ok_and(|rule| {
                         let input = rule.input_sequence();
                         (!ctx.zero_context
                             || (rule.backtrack_glyph_count() == 0
@@ -268,7 +265,6 @@ impl WouldApply for ChainedSequenceContextFormat2<'_> {
                                 match_fn(&mut info, value.get())
                             })
                     })
-                    .unwrap_or(false)
                 })
             })
     }
@@ -438,9 +434,7 @@ impl WouldApply for ChainedSequenceContextFormat3<'_> {
                     .skip(1)
                     .enumerate()
                     .all(|(i, coverage)| {
-                        coverage
-                            .map(|cov| cov.get(ctx.glyphs[i + 1]).is_some())
-                            .unwrap_or(false)
+                        coverage.is_ok_and(|cov| cov.get(ctx.glyphs[i + 1]).is_some())
                     }))
     }
 }
