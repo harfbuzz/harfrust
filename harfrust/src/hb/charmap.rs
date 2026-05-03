@@ -2,9 +2,7 @@ use crate::hb::tables::{SelectedCmapSubtable, TableRanges};
 
 use super::cache::hb_cache_t;
 use read_fonts::{
-    tables::cmap::{Cmap, Cmap14, CmapSubtable, MapVariant},
-    types::GlyphId,
-    FontRef,
+    FontRef, TableProvider, tables::cmap::{Cmap, Cmap14, CmapSubtable, MapVariant}, types::GlyphId
 };
 
 pub type cache_t = hb_cache_t<21, 19, 256, 32>;
@@ -17,8 +15,8 @@ pub struct Charmap<'a> {
 }
 
 impl<'a> Charmap<'a> {
-    pub fn new(font: &FontRef<'a>, table_ranges: &TableRanges, cache: &'a cache_t) -> Self {
-        if let Some(cmap) = table_ranges.cmap.resolve_table::<Cmap>(font) {
+    pub fn new(font: &impl TableProvider<'a>, table_ranges: &TableRanges, cache: &'a cache_t) -> Self {
+        if let Some(cmap) = font.cmap().ok() {
             let data = cmap.offset_data();
             let records = cmap.encoding_records();
             let subtable = table_ranges

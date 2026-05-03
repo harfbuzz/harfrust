@@ -50,27 +50,8 @@ pub struct TableRanges {
     pub num_h_metrics: u16,
     pub ascent: i16,
     pub descent: i16,
-    pub loca: TableRange,
-    pub glyf: TableRange,
-    pub gvar: TableRange,
-    pub hmtx: TableRange,
-    pub hvar: TableRange,
-    pub vmtx: TableRange,
-    pub vvar: TableRange,
-    pub vorg: TableRange,
-    pub mvar: TableRange,
-    pub cmap: TableRange,
     pub cmap_subtable: Option<SelectedCmapSubtable>,
     pub cmap_vs_subtable: Option<u16>,
-    pub gdef: TableRange,
-    pub gsub: TableRange,
-    pub gpos: TableRange,
-    pub morx: TableRange,
-    pub kerx: TableRange,
-    pub ankr: TableRange,
-    pub kern: TableRange,
-    pub feat: TableRange,
-    pub trak: TableRange,
 }
 
 #[derive(Copy, Clone)]
@@ -81,7 +62,7 @@ pub struct SelectedCmapSubtable {
 }
 
 impl TableRanges {
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         let num_glyphs = font
             .maxp()
             .map(|maxp| maxp.num_glyphs() as u32)
@@ -105,18 +86,7 @@ impl TableRanges {
             .vhea()
             .map(|vhea| vhea.number_of_long_ver_metrics())
             .unwrap_or_default();
-        let offset = |tag| TableRange::new(font, tag).unwrap_or_default();
-        let loca = offset(Loca::TAG);
-        let glyf = offset(Glyf::TAG);
-        let gvar = offset(Gvar::TAG);
-        let hmtx = offset(Hmtx::TAG);
-        let hvar = offset(Hvar::TAG);
-        let vmtx = offset(Vmtx::TAG);
-        let vvar = offset(Vvar::TAG);
-        let vorg = offset(Vorg::TAG);
-        let mvar = offset(Mvar::TAG);
-        let cmap = offset(Cmap::TAG);
-        let cmap_table: Option<Cmap> = cmap.resolve_table(font);
+        let cmap_table = font.cmap().ok();
         let cmap_subtable = cmap_table
             .as_ref()
             .and_then(|cmap| find_best_cmap_subtable(cmap))
@@ -136,15 +106,6 @@ impl TableRanges {
                     _ => None,
                 })
         });
-        let gdef = offset(Gdef::TAG);
-        let gsub = offset(Gsub::TAG);
-        let gpos = offset(Gpos::TAG);
-        let morx = offset(Morx::TAG);
-        let kerx = offset(Kerx::TAG);
-        let ankr = offset(Ankr::TAG);
-        let kern = offset(Kern::TAG);
-        let feat = offset(Feat::TAG);
-        let trak = offset(Trak::TAG);
         Self {
             num_glyphs,
             units_per_em,
@@ -153,27 +114,8 @@ impl TableRanges {
             num_h_metrics,
             ascent,
             descent,
-            loca,
-            glyf,
-            gvar,
-            hmtx,
-            hvar,
-            vmtx,
-            vvar,
-            vorg,
-            mvar,
-            cmap,
             cmap_subtable,
             cmap_vs_subtable,
-            gdef,
-            gsub,
-            gpos,
-            morx,
-            kerx,
-            ankr,
-            kern,
-            feat,
-            trak,
         }
     }
 }

@@ -3,7 +3,6 @@ use super::ot_layout::TableIndex;
 use super::{common::TagExt, set_digest::hb_set_digest_t};
 use crate::hb::hb_tag_t;
 use crate::hb::ot_layout_gsubgpos::{BinaryCache, MappingCache};
-use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
 use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
@@ -34,7 +33,7 @@ pub struct OtCache {
 }
 
 impl OtCache {
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         let gsub = font
             .gsub()
             .map(|t| LookupCache::new(&t))
@@ -101,8 +100,8 @@ pub struct GdefTable<'a> {
 }
 
 impl<'a> GdefTable<'a> {
-    fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
-        if let Some(gdef) = table_ranges.gdef.resolve_table::<Gdef>(font) {
+    fn new(font: &impl TableProvider<'a>) -> Self {
+        if let Some(gdef) = font.gdef().ok() {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
             let mark_sets = gdef
@@ -137,35 +136,42 @@ pub struct OtTables<'a> {
 
 impl<'a> OtTables<'a> {
     pub fn new(
-        font: &FontRef<'a>,
+        font: &impl TableProvider<'a>,
         cache: &'a OtCache,
-        table_offsets: &TableRanges,
         coords: &'a [F2Dot14],
         feature_variations: [Option<u32>; 2],
     ) -> Self {
-        let gsub = table_offsets
-            .gsub
-            .resolve_table(font)
-            .map(|table| GsubTable {
-                table,
-                lookups: &cache.gsub,
-            });
-        let gpos = table_offsets
-            .gpos
-            .resolve_table(font)
-            .map(|table| GposTable {
-                table,
-                lookups: &cache.gpos,
-            });
+        let gsub = font.gsub().ok();
+        let gsub_len = gsub
+            .as_ref()
+            .map(|t| t.offset_data().len() as u32)
+            .unwrap_or(0);
+        let gsub = gsub.map(|table| GsubTable {
+            table,
+            lookups: &cache.gsub,
+        });
+        let gpos = font.gpos().ok();
+        let gpos_len = gpos
+            .as_ref()
+            .map(|t| t.offset_data().len() as u32)
+            .unwrap_or(0);
+        let gpos = gpos.map(|table| GposTable {
+            table,
+            lookups: &cache.gpos,
+        });
         let coords = if coords.iter().any(|coord| *coord != F2Dot14::ZERO) {
             coords
         } else {
             &[]
         };
-        let gdef = if is_gdef_blocklisted(table_offsets) {
+        let gdef_len = font
+            .gdef()
+            .map(|t| t.offset_data().len() as u32)
+            .unwrap_or(0);
+        let gdef = if is_gdef_blocklisted(gdef_len, gsub_len, gpos_len) {
             GdefTable::default()
         } else {
-            GdefTable::new(font, table_offsets)
+            GdefTable::new(font)
         };
         let var_store = if !coords.is_empty() {
             gdef.table
@@ -749,7 +755,7 @@ use super::algs::HB_CODEPOINT_ENCODE3 as encode3;
 ///     https://bugzilla.mozilla.org/show_bug.cgi?id=1279875
 ///
 /// Upstream: hb-ot-layout.cc OT::GDEF::is_blocklisted
-fn is_gdef_blocklisted(table_ranges: &TableRanges) -> bool {
+fn is_gdef_blocklisted(gdef_len: u32, gsub_len: u32, gpos_len: u32) -> bool {
     const BLOCKLIST: &[u64] = &[
         // Windows 7? timesi.ttf
         encode3(442, 2874, 42038),
@@ -832,10 +838,6 @@ fn is_gdef_blocklisted(table_ranges: &TableRanges) -> bool {
         // courbd.ttf from Windows 8.1
         encode3(816, 7868, 17138),
     ];
-    let key = encode3(
-        table_ranges.gdef.len(),
-        table_ranges.gsub.len(),
-        table_ranges.gpos.len(),
-    );
+    let key = encode3(gdef_len, gsub_len, gpos_len);
     BLOCKLIST.contains(&key)
 }

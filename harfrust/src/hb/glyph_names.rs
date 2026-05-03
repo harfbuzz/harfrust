@@ -1,7 +1,7 @@
 use read_fonts::{
     ps::cff::charset::Charset,
     tables::{cff::Cff, post::Post},
-    FontRef, TableProvider,
+    TableProvider,
 };
 
 #[derive(Clone)]
@@ -12,7 +12,7 @@ pub(crate) enum GlyphNames<'a> {
 }
 
 impl<'a> GlyphNames<'a> {
-    pub fn new(font: &FontRef<'a>) -> Self {
+    pub fn new(font: &impl TableProvider<'a>) -> Self {
         if let Some((cff, charset)) = font
             .cff()
             .ok()

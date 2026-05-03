@@ -24,7 +24,7 @@ pub struct ShaperData {
 
 impl ShaperData {
     /// Creates new cached shaper data for the given font.
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         let ot_cache = OtCache::new(font);
         let aat_cache = AatCache::new(font);
         let table_ranges = TableRanges::new(font);
@@ -212,39 +212,91 @@ impl<'a> ShaperBuilder<'a> {
             .instance
             .map(|instance| (instance.coords(), instance.feature_variations))
             .unwrap_or_default();
-        let ot_tables = OtTables::new(
-            &font,
-            &self.data.ot_cache,
-            &self.data.table_ranges,
-            coords,
-            feature_variations,
-        );
-        let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_ranges);
+        let ot_tables = OtTables::new(&font, &self.data.ot_cache, coords, feature_variations);
+        let aat_tables = AatTables::new(&font, &self.data.aat_cache);
+        let glyph_names = GlyphNames::new(&font);
         hb_font_t {
-            font,
             units_per_em,
             points_per_em: self.point_size,
             charmap,
             glyph_metrics,
             ot_tables,
             aat_tables,
+            glyph_names,
         }
+    }
+}
+
+pub trait HarfRustFont {
+    fn shape(&self, buffer: UnicodeBuffer, features: &[Feature]) -> GlyphBuffer;
+    fn shape_with_plan(
+        &self,
+        plan: &ShapePlan,
+        buffer: UnicodeBuffer,
+        features: &[Feature],
+    ) -> GlyphBuffer;
+}
+
+impl HarfRustFont for read_fonts::model::font::Font {
+    fn shape(&self, buffer: UnicodeBuffer, features: &[Feature]) -> GlyphBuffer {
+        let shaper = hb_font_t::from_font(self);
+        let plan = ShapePlan::new(
+            &shaper,
+            buffer.0.direction,
+            buffer.0.script,
+            buffer.0.language.as_ref(),
+            features,
+        );
+        shaper.shape_with_plan(&plan, buffer, features)
+    }
+
+    fn shape_with_plan(
+        &self,
+        plan: &ShapePlan,
+        buffer: UnicodeBuffer,
+        features: &[Feature],
+    ) -> GlyphBuffer {
+        hb_font_t::from_font(self).shape_with_plan(plan, buffer, features)
     }
 }
 
 /// A configured shaper.
 #[derive(Clone)]
 pub struct hb_font_t<'a> {
-    pub(crate) font: FontRef<'a>,
     pub(crate) units_per_em: u16,
     pub(crate) points_per_em: Option<f32>,
     charmap: Charmap<'a>,
     glyph_metrics: GlyphMetrics<'a>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
+    glyph_names: GlyphNames<'a>,
 }
 
 impl<'a> crate::Shaper<'a> {
+    fn from_font(font: &'a read_fonts::model::font::Font) -> Self {
+        let tables = font.tables().unwrap();
+        let data = read_fonts::model::font::interop::_get_or_init_shaping_data(font, || {
+            Box::new(ShaperData::new(&tables))
+        });
+        let data: &ShaperData = data.downcast_ref().unwrap();
+        let ranges = TableRanges::new(&tables);
+        let charmap = Charmap::new(&tables, &ranges, &data.cmap_cache);
+        let glyph_metrics = GlyphMetrics::new(&tables, &ranges);
+        let ot_tables = OtTables::new(&tables, &data.ot_cache, &[], [None; 2]);
+        let aat_tables = AatTables::new(&tables, &data.aat_cache);
+        let glyph_names = GlyphNames::new(&tables);
+        let units_per_em = tables.head().map(|t| t.units_per_em()).unwrap_or(1000);
+        Self {
+            units_per_em,
+            points_per_em: None,
+            charmap,
+            glyph_metrics,
+            ot_tables,
+            aat_tables,
+            glyph_names,
+        }
+    }
+
     /// Returns font's units per EM.
     #[inline]
     pub fn units_per_em(&self) -> i32 {
@@ -381,8 +433,8 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
-        GlyphNames::new(&self.font)
+    pub(crate) fn glyph_names(&self) -> &GlyphNames<'a> {
+        &self.glyph_names
     }
 
     pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {

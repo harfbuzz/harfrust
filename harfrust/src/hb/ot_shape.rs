@@ -265,15 +265,8 @@ impl<'a> hb_ot_shape_planner_t<'a> {
 
         // According to Ned, trak is applied by default for "modern fonts", as detected by presence of STAT table.
         // https://github.com/googlefonts/fontations/issues/1492
-        let apply_trak = self.face.font.trak().is_ok()
-            && self
-                .face
-                .font
-                .table_directory
-                .table_records()
-                .iter()
-                .any(|table| table.tag() == "STAT");
-
+        let apply_trak = self.face.aat_tables.apply_trak;
+        
         let mut plan = hb_ot_shape_plan_t {
             direction: self.direction,
             script: self.script,
