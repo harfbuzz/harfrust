@@ -177,6 +177,16 @@ impl ShaperInstance {
     }
 }
 
+pub trait FontOverrides {
+    fn advance_widths<'a>(&mut self, widths: impl Iterator<Item = (u32, &'a mut i32)>);
+}
+
+struct NoOverrides;
+
+impl FontOverrides for NoOverrides {
+    fn advance_widths<'a>(&mut self, _widths: impl Iterator<Item = (u32, &'a mut i32)>) {}
+}
+
 /// Builder type for constructing a [`Shaper`](crate::Shaper).
 pub struct ShaperBuilder<'a> {
     data: &'a ShaperData,
@@ -293,6 +303,17 @@ impl<'a> crate::Shaper<'a> {
         buffer: UnicodeBuffer,
         features: &[Feature],
     ) -> GlyphBuffer {
+        self.shape_with_plan_and_overrides(plan, buffer, features, None::<&mut NoOverrides>)
+    }
+
+    /// Same as shape_with_plan, but override font functions.
+    pub fn shape_with_plan_and_overrides(
+        &self,
+        plan: &ShapePlan,
+        buffer: UnicodeBuffer,
+        features: &[Feature],
+        font_overrides: Option<&mut impl FontOverrides>,
+    ) -> GlyphBuffer {
         let mut buffer = buffer.0;
         buffer.enter();
 
@@ -312,13 +333,16 @@ impl<'a> crate::Shaper<'a> {
         if buffer.len > 0 {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
-            shape_internal(&mut hb_ot_shape_context_t {
-                plan,
-                face: self,
-                buffer: &mut buffer,
-                target_direction,
-                features,
-            });
+            shape_internal(
+                &mut hb_ot_shape_context_t {
+                    plan,
+                    face: self,
+                    buffer: &mut buffer,
+                    target_direction,
+                    features,
+                },
+                font_overrides,
+            );
         }
 
         buffer.leave();

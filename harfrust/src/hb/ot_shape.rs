@@ -11,6 +11,7 @@ use super::{hb_font_t, hb_tag_t};
 use crate::hb::aat;
 use crate::hb::algs::{rb_flag, rb_flag_unsafe};
 use crate::hb::buffer::glyph_flag::{SAFE_TO_INSERT_TATWEEL, UNSAFE_TO_BREAK, UNSAFE_TO_CONCAT};
+use crate::hb::face::FontOverrides;
 use crate::hb::unicode::hb_gc::{
     HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER, HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER,
     HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR, HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER,
@@ -322,7 +323,7 @@ pub struct hb_ot_shape_context_t<'a> {
 }
 
 // Pull it all together!
-pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
+pub fn shape_internal(ctx: &mut hb_ot_shape_context_t, overrides: Option<&mut impl FontOverrides>) {
     ctx.buffer.allocate_unicode_vars();
 
     initialize_masks(ctx);
@@ -338,7 +339,7 @@ pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
     }
 
     substitute_pre(ctx);
-    position(ctx);
+    position(ctx, overrides);
     substitute_post(ctx);
 
     propagate_flags(ctx.buffer);
@@ -412,10 +413,10 @@ fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
     }
 }
 
-fn position(ctx: &mut hb_ot_shape_context_t) {
+fn position(ctx: &mut hb_ot_shape_context_t, overrides: Option<&mut impl FontOverrides>) {
     ctx.buffer.clear_positions();
 
-    position_default(ctx);
+    position_default(ctx, overrides);
 
     position_complex(ctx);
 
@@ -426,11 +427,24 @@ fn position(ctx: &mut hb_ot_shape_context_t) {
     ctx.buffer.deallocate_gsubgpos_vars();
 }
 
-fn position_default(ctx: &mut hb_ot_shape_context_t) {
+fn position_default(
+    ctx: &mut hb_ot_shape_context_t,
+    mut overrides: Option<&mut impl FontOverrides>,
+) {
     let len = ctx.buffer.len;
 
     if ctx.buffer.direction.is_horizontal() {
-        ctx.face.glyph_h_advances(ctx.buffer);
+        if let Some(overrides) = overrides.as_deref_mut() {
+            overrides.advance_widths(
+                ctx.buffer
+                    .info
+                    .iter()
+                    .map(|info| info.glyph_id)
+                    .zip(ctx.buffer.pos.iter_mut().map(|pos| &mut pos.x_advance)),
+            );
+        } else {
+            ctx.face.glyph_h_advances(ctx.buffer);
+        }
     } else {
         for (info, pos) in ctx.buffer.info[..len]
             .iter()

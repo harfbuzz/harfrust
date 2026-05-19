@@ -23,7 +23,7 @@ pub use read_fonts::{types::Tag, FontRef};
 
 pub use hb::buffer::{GlyphBuffer, GlyphInfo, GlyphPosition, UnicodeBuffer};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
-pub use hb::face::{hb_font_t as Shaper, ShaperBuilder, ShaperData, ShaperInstance};
+pub use hb::face::{hb_font_t as Shaper, ShaperBuilder, ShaperData, ShaperInstance, FontOverrides};
 pub use hb::ot_shape_plan::{hb_ot_shape_plan_t as ShapePlan, ShapePlanKey};
 
 /// Type alias for a normalized variation coordinate.
@@ -115,5 +115,43 @@ bitflags::bitflags! {
         const NO_ADVANCES       = 0b0010_0000;
         /// All currently defined flags.
         const DEFINED = 0b0011_1111;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::c_uint;
+
+    fn bind_hb_style_font_funcs() {
+        // matches hb_font_get_glyph_advances_func_t
+        // (hb_font_t* font, 
+        //  void* font_data,
+        //  unsigned int count, 
+        //  const hb_codepoint_t* first_glyph,
+        //  unsigned int glyph_stride,
+        //  hb_position_t* first_advance,
+        //  unsigned in advance_stride,
+        //  void* user_data)
+        fn hb_font_get_glyph_h_advances(
+            font: *mut (),
+            font_data: *mut (),
+            count: c_uint,
+            first_glyph: *const u32,
+            glyph_stride: c_uint,
+            first_advance: *mut i32,
+            advance_stride: c_uint,
+            user_data: *mut (),
+        ) {
+            //
+        }
+
+        struct Dummy;
+
+        impl FontOverrides for Dummy {
+            fn advance_widths<'a>(&mut self, widths: impl Iterator<Item = (u32, &'a mut i32)>) {
+                // We need to call hb_font_get_glyph_advances, but how?
+            }
+        }
     }
 }
