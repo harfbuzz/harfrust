@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use harfrust::{
     BufferClusterLevel, BufferFlags, Direction, Feature, FontRef, Language, SerializeFlags,
-    ShaperData, ShaperInstance, UnicodeBuffer, Variation,
+    ShapeOptions, ShaperData, ShaperInstance, UnicodeBuffer, Variation,
 };
 
 #[derive(Clone, Parser)]
@@ -302,11 +302,7 @@ pub fn render(mut args: Args) -> Result<String, String> {
         }
         None => ShaperInstance::from_variations(&font, variations),
     };
-    let shaper = data
-        .shaper(&font)
-        .instance(Some(&instance))
-        .point_size(args.font_ptem)
-        .build();
+    let shaper = data.shaper(&font).instance(Some(&instance)).build();
 
     let pre_context = args
         .unicodes_before
@@ -453,7 +449,14 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 buffer.guess_segment_properties();
 
-                result = Some(shaper.shape(buffer, features));
+                result = Some(
+                    shaper.shape(
+                        buffer,
+                        ShapeOptions::new()
+                            .point_size(args.font_ptem)
+                            .features(features),
+                    ),
+                );
             }
             result.unwrap()
         };
