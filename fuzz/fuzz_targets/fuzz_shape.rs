@@ -4,7 +4,7 @@ mod helpers;
 
 use libfuzzer_sys::fuzz_target;
 
-use harfrust::{NormalizedCoord, ShaperData, ShaperInstance, UnicodeBuffer};
+use harfrust::{NormalizedCoord, ShapeOptions, ShaperData, ShaperInstance, UnicodeBuffer};
 use read_fonts::TableProvider;
 
 /// Fixed text used for the first shaping pass, matching hb-shape-fuzzer.cc.
@@ -59,7 +59,7 @@ fuzz_target!(|data: &[u8]| {
         let mut buffer = UnicodeBuffer::new();
         buffer.push_str(FIXED_TEXT);
         buffer.guess_segment_properties();
-        let _ = shaper.shape(buffer, &[]);
+        let _ = shaper.shape(buffer, ShapeOptions::new());
     }
 
     // Pass 2: last 64 bytes of input reinterpreted as 16 UTF-32 codepoints,
@@ -77,7 +77,7 @@ fuzz_target!(|data: &[u8]| {
         }
         if !buffer.is_empty() {
             buffer.guess_segment_properties();
-            let _ = shaper.shape(buffer, &[]);
+            let _ = shaper.shape(buffer, ShapeOptions::new());
         }
     }
 });
