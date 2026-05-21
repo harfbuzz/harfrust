@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-21
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Make core_maths dependency optional and add new libm feature to control it. One of libm or std
+  features is now required to build harfrust, matching the behavior of the fontations crates.
+  This is a breaking change.
+
 ## [0.6.2] - 2026-05-21
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -126,7 +135,11 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.5.2...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.7.0...HEAD
+[0.7.0]: https://github.com/harfbuzz/harfrust/compare/0.6.2...0.7.0
+[0.6.2]: https://github.com/harfbuzz/harfrust/compare/0.6.1...0.6.2
+[0.6.1]: https://github.com/harfbuzz/harfrust/compare/0.6.0...0.6.1
+[0.6.0]: https://github.com/harfbuzz/harfrust/compare/0.5.2...0.6.0
 [0.5.2]: https://github.com/harfbuzz/harfrust/compare/0.5.1...0.5.2
 [0.5.1]: https://github.com/harfbuzz/harfrust/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/harfbuzz/harfrust/compare/0.4.1...0.5.0
