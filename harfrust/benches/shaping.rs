@@ -87,7 +87,11 @@ fn bench(c: &mut Criterion) {
                     buffer.push_str(line);
                     buffer.guess_segment_properties();
                     let plan = plan_cache.get(&shaper, &buffer);
-                    shared_buffer = Some(shaper.shape_with_plan(plan, buffer, &[]).clear());
+                    shared_buffer = Some(
+                        shaper
+                            .shape(buffer, harfrust::ShapeOptions::new().plan(Some(plan)))
+                            .clear(),
+                    );
                 }
             });
         });

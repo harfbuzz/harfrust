@@ -44,7 +44,6 @@ impl ShaperData {
             data: self,
             font: font.clone(),
             instance: None,
-            point_size: None,
         }
     }
 }
@@ -182,7 +181,6 @@ pub struct ShaperBuilder<'a> {
     data: &'a ShaperData,
     font: FontRef<'a>,
     instance: Option<&'a ShaperInstance>,
-    point_size: Option<f32>,
 }
 
 impl<'a> ShaperBuilder<'a> {
@@ -191,14 +189,6 @@ impl<'a> ShaperBuilder<'a> {
     /// This defines the variable font configuration.
     pub fn instance(mut self, instance: Option<&'a ShaperInstance>) -> Self {
         self.instance = instance;
-        self
-    }
-
-    /// Sets the point size for the shaper.
-    ///
-    /// This controls adjustments provided by the tracking table.
-    pub fn point_size(mut self, size: Option<f32>) -> Self {
-        self.point_size = size;
         self
     }
 
@@ -223,7 +213,6 @@ impl<'a> ShaperBuilder<'a> {
         hb_font_t {
             font,
             units_per_em,
-            points_per_em: self.point_size,
             charmap,
             glyph_metrics,
             ot_tables,
@@ -232,12 +221,47 @@ impl<'a> ShaperBuilder<'a> {
     }
 }
 
+/// Options which can be used to configure shaping.
+#[derive(Default)]
+pub struct ShapeOptions<'a> {
+    plan: Option<&'a ShapePlan>,
+    point_size: Option<f32>,
+    features: &'a [Feature],
+}
+
+impl<'a> ShapeOptions<'a> {
+    /// Creates a default set of shape options ready for configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the plan to use for shaping.
+    ///
+    /// The shape plan must be compatible with the properties of the buffer
+    /// passed to shaping.
+    pub fn plan(mut self, plan: Option<&'a ShapePlan>) -> Self {
+        self.plan = plan;
+        self
+    }
+
+    /// Sets the size used for application of the tracking table.
+    pub fn point_size(mut self, point_size: Option<f32>) -> Self {
+        self.point_size = point_size;
+        self
+    }
+
+    /// Sets the features to apply during shaping.
+    pub fn features(mut self, features: &'a [Feature]) -> Self {
+        self.features = features;
+        self
+    }
+}
+
 /// A configured shaper.
 #[derive(Clone)]
 pub struct hb_font_t<'a> {
     pub(crate) font: FontRef<'a>,
     pub(crate) units_per_em: u16,
-    pub(crate) points_per_em: Option<f32>,
     charmap: Charmap<'a>,
     glyph_metrics: GlyphMetrics<'a>,
     pub(crate) ot_tables: OtTables<'a>,
@@ -256,23 +280,23 @@ impl<'a> crate::Shaper<'a> {
         self.ot_tables.coords
     }
 
-    /// Shapes the buffer content using provided font and features.
+    /// Shapes the buffer content using provided options.
     ///
     /// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
     /// without allocating a new one.
-    ///
-    /// If you plan to shape multiple strings, prefer [`shape_with_plan`](Self::shape_with_plan).
-    /// This is because [`ShapePlan`](crate::ShapePlan) initialization is pretty slow and should preferably
-    /// be called once for each shaping configuration.
-    pub fn shape(&self, buffer: UnicodeBuffer, features: &[Feature]) -> GlyphBuffer {
-        let plan = ShapePlan::new(
-            self,
-            buffer.0.direction,
-            buffer.0.script,
-            buffer.0.language.as_ref(),
-            features,
-        );
-        self.shape_with_plan(&plan, buffer, features)
+    pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions) -> GlyphBuffer {
+        if let Some(plan) = options.plan {
+            self.shape_with_plan(plan, buffer, options)
+        } else {
+            let plan = ShapePlan::new(
+                self,
+                buffer.0.direction,
+                buffer.0.script,
+                buffer.0.language.as_ref(),
+                options.features,
+            );
+            self.shape_with_plan(&plan, buffer, options)
+        }
     }
 
     /// Shapes the buffer content using the provided font and plan.
@@ -287,11 +311,11 @@ impl<'a> crate::Shaper<'a> {
     ///
     /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
     /// properties.
-    pub fn shape_with_plan(
+    fn shape_with_plan(
         &self,
         plan: &ShapePlan,
         buffer: UnicodeBuffer,
-        features: &[Feature],
+        options: ShapeOptions,
     ) -> GlyphBuffer {
         let mut buffer = buffer.0;
         buffer.enter();
@@ -317,7 +341,8 @@ impl<'a> crate::Shaper<'a> {
                 face: self,
                 buffer: &mut buffer,
                 target_direction,
-                features,
+                features: options.features,
+                point_size: options.point_size,
             }
             .shape_internal();
         }

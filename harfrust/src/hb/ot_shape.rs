@@ -320,6 +320,7 @@ pub(crate) struct OtShapeContext<'a> {
     pub features: &'a [Feature],
     // Transient stuff
     pub target_direction: Direction,
+    pub point_size: Option<f32>,
 }
 
 impl OtShapeContext<'_> {
@@ -520,7 +521,7 @@ impl OtShapeContext<'_> {
         }
 
         if plan.apply_trak {
-            aat::layout::track(plan, face, buffer);
+            aat::layout::track(plan, face, self.point_size, buffer);
         }
     }
 

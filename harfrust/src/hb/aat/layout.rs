@@ -552,6 +552,11 @@ pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buf
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L398>
 #[doc(alias = "hb_aat_layout_track")]
-pub fn track(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
-    layout_trak_table::apply(plan, face, buffer);
+pub fn track(
+    plan: &hb_ot_shape_plan_t,
+    face: &hb_font_t,
+    point_size: Option<f32>,
+    buffer: &mut hb_buffer_t,
+) {
+    layout_trak_table::apply(plan, face, point_size, buffer);
 }
