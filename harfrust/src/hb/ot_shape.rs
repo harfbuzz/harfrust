@@ -312,401 +312,455 @@ impl<'a> hb_ot_shape_planner_t<'a> {
     }
 }
 
-pub struct hb_ot_shape_context_t<'a> {
+// hb_ot_shape_context_t: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L450>
+pub(crate) struct OtShapeContext<'a> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub face: &'a hb_font_t<'a>,
     pub buffer: &'a mut hb_buffer_t,
+    pub features: &'a [Feature],
     // Transient stuff
     pub target_direction: Direction,
-    pub features: &'a [Feature],
 }
 
-// Pull it all together!
-pub fn shape_internal(ctx: &mut hb_ot_shape_context_t) {
-    ctx.buffer.allocate_unicode_vars();
+impl<'a> OtShapeContext<'a> {
+    // hb_ot_shape_internal: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1171>
+    pub(crate) fn shape_internal(&mut self) {
+        self.buffer.allocate_unicode_vars();
 
-    initialize_masks(ctx);
-    set_unicode_props(ctx.buffer);
-    insert_dotted_circle(ctx.buffer, ctx.face);
+        self.initialize_masks();
+        self.set_unicode_props();
+        self.insert_dotted_circle();
 
-    form_clusters(ctx.buffer);
+        form_clusters(self.buffer);
 
-    ensure_native_direction(ctx.buffer);
+        ensure_native_direction(self.buffer);
 
-    if let Some(func) = ctx.plan.shaper.preprocess_text {
-        func(ctx.plan, ctx.face, ctx.buffer);
+        if let Some(func) = self.plan.shaper.preprocess_text {
+            func(self.plan, self.face, self.buffer);
+        }
+
+        self.substitute_pre();
+        self.position();
+        self.substitute_post();
+
+        propagate_flags(self.buffer);
+
+        self.buffer.deallocate_unicode_vars();
+
+        self.buffer.direction = self.target_direction;
     }
 
-    substitute_pre(ctx);
-    position(ctx);
-    substitute_post(ctx);
+    // hb_ot_substitute_pre: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L936>
+    fn substitute_pre(&mut self) {
+        self.substitute_default();
 
-    propagate_flags(ctx.buffer);
+        self.buffer.allocate_gsubgpos_vars();
 
-    ctx.buffer.deallocate_unicode_vars();
+        self.substitute_plan();
 
-    ctx.buffer.direction = ctx.target_direction;
-}
-
-fn substitute_pre(ctx: &mut hb_ot_shape_context_t) {
-    hb_ot_substitute_default(ctx);
-
-    ctx.buffer.allocate_gsubgpos_vars();
-
-    hb_ot_substitute_plan(ctx);
-
-    if ctx.plan.apply_morx && ctx.plan.apply_gpos {
-        aat::layout::remove_deleted_glyphs(ctx.buffer);
-    }
-}
-
-fn substitute_post(ctx: &mut hb_ot_shape_context_t) {
-    if ctx.plan.apply_morx && !ctx.plan.apply_gpos {
-        aat::layout::remove_deleted_glyphs(ctx.buffer);
+        if self.plan.apply_morx && self.plan.apply_gpos {
+            aat::layout::remove_deleted_glyphs(self.buffer);
+        }
     }
 
-    deal_with_variation_selectors(ctx.buffer);
-    hide_default_ignorables(ctx.buffer, ctx.face);
+    // hb_ot_substitute_post: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L951>
+    fn substitute_post(&mut self) {
+        if self.plan.apply_morx && !self.plan.apply_gpos {
+            aat::layout::remove_deleted_glyphs(self.buffer);
+        }
 
-    if let Some(func) = ctx.plan.shaper.postprocess_glyphs {
-        func(ctx.plan, ctx.face, ctx.buffer);
-    }
-}
+        deal_with_variation_selectors(self.buffer);
+        hide_default_ignorables(self.buffer, self.face);
 
-fn hb_ot_substitute_default(ctx: &mut hb_ot_shape_context_t) {
-    rotate_chars(ctx);
-
-    ctx.buffer
-        .allocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
-
-    ot_shape_normalize::_hb_ot_shape_normalize(ctx.plan, ctx.buffer, ctx.face);
-
-    setup_masks(ctx);
-
-    // This is unfortunate to go here, but necessary...
-    if ctx.plan.fallback_mark_positioning {
-        ot_shape_fallback::_hb_ot_shape_fallback_mark_position_recategorize_marks(
-            ctx.plan, ctx.face, ctx.buffer,
-        );
+        if let Some(func) = self.plan.shaper.postprocess_glyphs {
+            func(self.plan, self.face, self.buffer);
+        }
     }
 
-    map_glyphs_fast(ctx.buffer);
+    // hb_ot_substitute_default: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L889>
+    fn substitute_default(&mut self) {
+        self.rotate_chars();
 
-    ctx.buffer
-        .deallocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
-}
+        self.buffer
+            .allocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
 
-fn hb_ot_substitute_plan(ctx: &mut hb_ot_shape_context_t) {
-    hb_ot_layout_substitute_start(ctx.face, ctx.buffer);
+        ot_shape_normalize::_hb_ot_shape_normalize(self.plan, self.buffer, self.face);
 
-    if ctx.plan.fallback_glyph_classes {
-        hb_synthesize_glyph_classes(ctx.buffer);
+        self.setup_masks();
+
+        // This is unfortunate to go here, but necessary...
+        if self.plan.fallback_mark_positioning {
+            ot_shape_fallback::_hb_ot_shape_fallback_mark_position_recategorize_marks(
+                self.plan,
+                self.face,
+                self.buffer,
+            );
+        }
+
+        map_glyphs_fast(self.buffer);
+
+        self.buffer
+            .deallocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
     }
 
-    if ctx.plan.apply_morx {
-        aat::layout::substitute(ctx.plan, ctx.face, ctx.buffer, ctx.features);
-        ctx.buffer.update_digest();
-    } else {
-        ctx.buffer.update_digest();
-        ot_layout_gsub_table::substitute(ctx.plan, ctx.face, ctx.buffer);
-    }
-}
+    // hb_ot_substitute_plan: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L911>
+    fn substitute_plan(&mut self) {
+        hb_ot_layout_substitute_start(self.face, self.buffer);
 
-fn position(ctx: &mut hb_ot_shape_context_t) {
-    ctx.buffer.clear_positions();
+        if self.plan.fallback_glyph_classes {
+            hb_synthesize_glyph_classes(self.buffer);
+        }
 
-    position_default(ctx);
-
-    position_complex(ctx);
-
-    if ctx.buffer.direction.is_backward() {
-        ctx.buffer.reverse();
+        if self.plan.apply_morx {
+            aat::layout::substitute(self.plan, self.face, self.buffer, self.features);
+            self.buffer.update_digest();
+        } else {
+            self.buffer.update_digest();
+            ot_layout_gsub_table::substitute(self.plan, self.face, self.buffer);
+        }
     }
 
-    ctx.buffer.deallocate_gsubgpos_vars();
-}
+    // hb_ot_position: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1094>
+    fn position(&mut self) {
+        self.buffer.clear_positions();
 
-fn position_default(ctx: &mut hb_ot_shape_context_t) {
-    let len = ctx.buffer.len;
+        self.position_default();
+        self.position_plan();
 
-    if ctx.buffer.direction.is_horizontal() {
-        ctx.face.glyph_h_advances(ctx.buffer);
-    } else {
-        for (info, pos) in ctx.buffer.info[..len]
-            .iter()
-            .zip(&mut ctx.buffer.pos[..len])
+        if self.buffer.direction.is_backward() {
+            self.buffer.reverse();
+        }
+
+        self.buffer.deallocate_gsubgpos_vars();
+    }
+
+    // hb_ot_position_default: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1002>
+    fn position_default(&mut self) {
+        let len = self.buffer.len;
+
+        if self.buffer.direction.is_horizontal() {
+            self.face.glyph_h_advances(self.buffer);
+        } else {
+            for (info, pos) in self.buffer.info[..len]
+                .iter()
+                .zip(&mut self.buffer.pos[..len])
+            {
+                let glyph = info.as_glyph();
+                pos.y_advance = self.face.glyph_v_advance(glyph);
+                pos.x_offset -= self.face.glyph_h_origin(glyph);
+                pos.y_offset -= self.face.glyph_v_origin(glyph);
+            }
+        }
+
+        if self.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK != 0 {
+            ot_shape_fallback::_hb_ot_shape_fallback_spaces(self.plan, self.face, self.buffer);
+        }
+    }
+
+    // hb_ot_position_plan: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1029>
+    fn position_plan(&mut self) {
+        // If the font has no GPOS and direction is forward, then when
+        // zeroing mark widths, we shift the mark with it, such that the
+        // mark is positioned hanging over the previous glyph.  When
+        // direction is backward we don't shift and it will end up
+        // hanging over the next glyph after the final reordering.
+        //
+        // Note: If fallback positioning happens, we don't care about
+        // this as it will be overridden.
+        let adjust_offsets_when_zeroing =
+            self.plan.adjust_mark_positioning_when_zeroing && self.buffer.direction.is_forward();
+
+        // We change glyph origin to what GPOS expects (horizontal), apply GPOS, change it back.
+
+        GPOS::position_start(self.face, self.buffer);
+
+        if self.plan.zero_marks
+            && self.plan.shaper.zero_width_marks == HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY
         {
-            let glyph = info.as_glyph();
-            pos.y_advance = ctx.face.glyph_v_advance(glyph);
-            pos.x_offset -= ctx.face.glyph_h_origin(glyph);
-            pos.y_offset -= ctx.face.glyph_v_origin(glyph);
+            zero_mark_widths_by_gdef(self.buffer, adjust_offsets_when_zeroing);
+        }
+
+        self.position_by_plan();
+
+        if self.plan.zero_marks
+            && self.plan.shaper.zero_width_marks == HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE
+        {
+            zero_mark_widths_by_gdef(self.buffer, adjust_offsets_when_zeroing);
+        }
+
+        // Finish off.  Has to follow a certain order.
+        GPOS::position_finish_advances(self.face, self.buffer);
+        zero_width_default_ignorables(self.buffer);
+        GPOS::position_finish_offsets(self.face, self.buffer);
+
+        if self.plan.fallback_mark_positioning {
+            ot_shape_fallback::position_marks(
+                self.plan,
+                self.face,
+                self.buffer,
+                adjust_offsets_when_zeroing,
+            );
         }
     }
 
-    if ctx.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK != 0 {
-        ot_shape_fallback::_hb_ot_shape_fallback_spaces(ctx.plan, ctx.face, ctx.buffer);
-    }
-}
+    // hb_ot_shape_plan_t::position <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L271>
+    fn position_by_plan(&mut self) {
+        let plan = self.plan;
+        let face = self.face;
+        let buffer = &mut *self.buffer;
+        if plan.apply_gpos {
+            ot_layout_gpos_table::position(plan, face, buffer);
+        } else if plan.apply_kerx {
+            aat::layout::position(plan, face, buffer);
+        }
+        if plan.apply_kern {
+            kerning::hb_ot_layout_kern(plan, face, buffer);
+        } else if plan.apply_fallback_kern {
+            ot_shape_fallback::_hb_ot_shape_fallback_kern(plan, face, buffer);
+        }
 
-fn position_complex(ctx: &mut hb_ot_shape_context_t) {
-    // If the font has no GPOS and direction is forward, then when
-    // zeroing mark widths, we shift the mark with it, such that the
-    // mark is positioned hanging over the previous glyph.  When
-    // direction is backward we don't shift and it will end up
-    // hanging over the next glyph after the final reordering.
-    //
-    // Note: If fallback positioning happens, we don't care about
-    // this as it will be overridden.
-    let adjust_offsets_when_zeroing =
-        ctx.plan.adjust_mark_positioning_when_zeroing && ctx.buffer.direction.is_forward();
-
-    // We change glyph origin to what GPOS expects (horizontal), apply GPOS, change it back.
-
-    GPOS::position_start(ctx.face, ctx.buffer);
-
-    if ctx.plan.zero_marks
-        && ctx.plan.shaper.zero_width_marks == HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY
-    {
-        zero_mark_widths_by_gdef(ctx.buffer, adjust_offsets_when_zeroing);
-    }
-
-    position_by_plan(ctx.plan, ctx.face, ctx.buffer);
-
-    if ctx.plan.zero_marks
-        && ctx.plan.shaper.zero_width_marks == HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE
-    {
-        zero_mark_widths_by_gdef(ctx.buffer, adjust_offsets_when_zeroing);
-    }
-
-    // Finish off.  Has to follow a certain order.
-    GPOS::position_finish_advances(ctx.face, ctx.buffer);
-    zero_width_default_ignorables(ctx.buffer);
-    GPOS::position_finish_offsets(ctx.face, ctx.buffer);
-
-    if ctx.plan.fallback_mark_positioning {
-        ot_shape_fallback::position_marks(
-            ctx.plan,
-            ctx.face,
-            ctx.buffer,
-            adjust_offsets_when_zeroing,
-        );
-    }
-}
-
-fn position_by_plan(plan: &hb_ot_shape_plan_t, face: &hb_font_t, buffer: &mut hb_buffer_t) {
-    if plan.apply_gpos {
-        ot_layout_gpos_table::position(plan, face, buffer);
-    } else if plan.apply_kerx {
-        aat::layout::position(plan, face, buffer);
-    }
-    if plan.apply_kern {
-        kerning::hb_ot_layout_kern(plan, face, buffer);
-    } else if plan.apply_fallback_kern {
-        ot_shape_fallback::_hb_ot_shape_fallback_kern(plan, face, buffer);
-    }
-
-    if plan.apply_trak {
-        aat::layout::track(plan, face, buffer);
-    }
-}
-
-fn initialize_masks(ctx: &mut hb_ot_shape_context_t) {
-    let global_mask = ctx.plan.ot_map.get_global_mask();
-    ctx.buffer.reset_masks(global_mask);
-}
-
-fn setup_masks(ctx: &mut hb_ot_shape_context_t) {
-    setup_masks_fraction(ctx);
-
-    if let Some(func) = ctx.plan.shaper.setup_masks {
-        func(ctx.plan, ctx.face, ctx.buffer);
-    }
-
-    for feature in ctx.features {
-        if !feature.is_global() {
-            let (mask, shift) = ctx.plan.ot_map.get_mask(feature.tag);
-            ctx.buffer
-                .set_masks(feature.value << shift, mask, feature.start, feature.end);
+        if plan.apply_trak {
+            aat::layout::track(plan, face, buffer);
         }
     }
-}
 
-fn setup_masks_fraction(ctx: &mut hb_ot_shape_context_t) {
-    let buffer = &mut *ctx.buffer;
-    if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH == 0 || !ctx.plan.has_frac {
-        return;
+    // hb_ot_shape_initialize_masks: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L747>
+    fn initialize_masks(&mut self) {
+        let global_mask = self.plan.ot_map.get_global_mask();
+        self.buffer.reset_masks(global_mask);
     }
 
-    let (pre_mask, post_mask) = if buffer.direction.is_forward() {
-        (
-            ctx.plan.numr_mask | ctx.plan.frac_mask,
-            ctx.plan.frac_mask | ctx.plan.dnom_mask,
-        )
-    } else {
-        (
-            ctx.plan.frac_mask | ctx.plan.dnom_mask,
-            ctx.plan.numr_mask | ctx.plan.frac_mask,
-        )
-    };
+    // hb_ot_shape_setup_masks: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L757>
+    fn setup_masks(&mut self) {
+        self.setup_masks_fraction();
 
-    let len = buffer.len;
-    let mut i = 0;
-    while i < len {
-        // FRACTION SLASH
-        if buffer.info[i].glyph_id == 0x2044 {
-            let mut start = i;
-            while start > 0
-                && buffer.info[start - 1].general_category() == GeneralCategory::DECIMAL_NUMBER
-            {
-                start -= 1;
+        if let Some(func) = self.plan.shaper.setup_masks {
+            func(self.plan, self.face, self.buffer);
+        }
+
+        for feature in self.features {
+            if !feature.is_global() {
+                let (mask, shift) = self.plan.ot_map.get_mask(feature.tag);
+                self.buffer
+                    .set_masks(feature.value << shift, mask, feature.start, feature.end);
             }
+        }
+    }
 
-            let mut end = i + 1;
-            while end < len
-                && buffer.info[end].general_category() == GeneralCategory::DECIMAL_NUMBER
-            {
-                end += 1;
-            }
+    // hb_ot_shape_setup_masks_fraction: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L685>
+    fn setup_masks_fraction(&mut self) {
+        let buffer = &mut *self.buffer;
+        if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH == 0
+            || !self.plan.has_frac
+        {
+            return;
+        }
 
-            if start == i || end == i + 1 {
-                if start == i {
-                    buffer.unsafe_to_concat(Some(start), Some(start + 1));
+        let (pre_mask, post_mask) = if buffer.direction.is_forward() {
+            (
+                self.plan.numr_mask | self.plan.frac_mask,
+                self.plan.frac_mask | self.plan.dnom_mask,
+            )
+        } else {
+            (
+                self.plan.frac_mask | self.plan.dnom_mask,
+                self.plan.numr_mask | self.plan.frac_mask,
+            )
+        };
+
+        let len = buffer.len;
+        let mut i = 0;
+        while i < len {
+            // FRACTION SLASH
+            if buffer.info[i].glyph_id == 0x2044 {
+                let mut start = i;
+                while start > 0
+                    && buffer.info[start - 1].general_category() == GeneralCategory::DECIMAL_NUMBER
+                {
+                    start -= 1;
                 }
 
-                if end == i + 1 {
-                    buffer.unsafe_to_concat(Some(end - 1), Some(end));
+                let mut end = i + 1;
+                while end < len
+                    && buffer.info[end].general_category() == GeneralCategory::DECIMAL_NUMBER
+                {
+                    end += 1;
                 }
 
+                if start == i || end == i + 1 {
+                    if start == i {
+                        buffer.unsafe_to_concat(Some(start), Some(start + 1));
+                    }
+
+                    if end == i + 1 {
+                        buffer.unsafe_to_concat(Some(end - 1), Some(end));
+                    }
+
+                    i += 1;
+                    continue;
+                }
+
+                buffer.unsafe_to_break(Some(start), Some(end));
+
+                for info in &mut buffer.info[start..i] {
+                    info.mask |= pre_mask;
+                }
+
+                buffer.info[i].mask |= self.plan.frac_mask;
+
+                for info in &mut buffer.info[i + 1..end] {
+                    info.mask |= post_mask;
+                }
+
+                i = end;
+            } else {
+                i += 1;
+            }
+        }
+    }
+
+    // hb_set_unicode_props: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L471>
+    fn set_unicode_props(&mut self) {
+        let buffer = &mut *self.buffer;
+        // Implement enough of Unicode Graphemes here that shaping
+        // in reverse-direction wouldn't break graphemes.  Namely,
+        // we mark all marks and ZWJ and ZWJ,Extended_Pictographic
+        // sequences as continuations.  The foreach_grapheme()
+        // macro uses this bit.
+        //
+        // https://www.unicode.org/reports/tr29/#Regex_Definitions
+
+        let len = buffer.len;
+
+        let mut i = 0;
+        while i < len {
+            let info = &mut buffer.info[i];
+            info.init_unicode_props(&mut buffer.scratch_flags);
+
+            if info.glyph_id < 0x80 {
                 i += 1;
                 continue;
             }
 
-            buffer.unsafe_to_break(Some(start), Some(end));
+            let gen_cat = info.general_category();
 
-            for info in &mut buffer.info[start..i] {
-                info.mask |= pre_mask;
+            if (rb_flag_unsafe(gen_cat.to_u8() as u32)
+                & (rb_flag(HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER)
+                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER)
+                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER)
+                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER)
+                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR)))
+                != 0
+            {
+                i += 1;
+                continue;
             }
 
-            buffer.info[i].mask |= ctx.plan.frac_mask;
+            // Mutably borrow buffer.info[i] and immutably borrow
+            // buffer.info[i - 1] (if present) in a way that the borrow
+            // checker can understand.
+            let (prior, later) = buffer.info.split_at_mut(i);
+            let info = &mut later[0];
 
-            for info in &mut buffer.info[i + 1..end] {
-                info.mask |= post_mask;
+            // Marks are already set as continuation by the above line.
+            // Handle Emoji_Modifier and ZWJ-continuation.
+            if gen_cat == GeneralCategory::MODIFIER_SYMBOL
+                && matches!(info.glyph_id, 0x1F3FB..=0x1F3FF)
+            {
+                info.set_continuation(&mut buffer.scratch_flags);
+            } else if i != 0 && matches!(info.glyph_id, 0x1F1E6..=0x1F1FF) {
+                // Should never fail because we checked for i > 0.
+                // TODO: use let chains when they become stable
+                let prev = prior.last().unwrap();
+                if matches!(prev.glyph_id, 0x1F1E6..=0x1F1FF) && !prev.is_continuation() {
+                    info.set_continuation(&mut buffer.scratch_flags);
+                }
+            } else if info.is_zwj() {
+                info.set_continuation(&mut buffer.scratch_flags);
+                if let Some(next) = buffer.info[..len].get_mut(i + 1) {
+                    if next.as_codepoint().is_emoji_extended_pictographic() {
+                        next.init_unicode_props(&mut buffer.scratch_flags);
+                        next.set_continuation(&mut buffer.scratch_flags);
+                        i += 1;
+                    }
+                }
+            } else if matches!(info.glyph_id, 0xFF9E..=0xFF9F | 0xE0020..=0xE007F) {
+                // Or part of the Other_Grapheme_Extend that is not marks.
+                // As of Unicode 15 that is just:
+                //
+                // 200C          ; Other_Grapheme_Extend # Cf       ZERO WIDTH NON-JOINER
+                // FF9E..FF9F    ; Other_Grapheme_Extend # Lm   [2] HALFWIDTH KATAKANA VOICED SOUND MARK..HALFWIDTH KATAKANA
+                // SEMI-VOICED SOUND MARK E0020..E007F  ; Other_Grapheme_Extend # Cf  [96] TAG SPACE..CANCEL TAG
+                //
+                // ZWNJ is special, we don't want to merge it as there's no need, and keeping
+                // it separate results in more granular clusters.
+                // Tags are used for Emoji sub-region flag sequences:
+                // https://github.com/harfbuzz/harfbuzz/issues/1556
+                // Katakana ones were requested:
+                // https://github.com/harfbuzz/harfbuzz/issues/3844
+                info.set_continuation(&mut buffer.scratch_flags);
+            } else if info.glyph_id == 0x2044
+            /* FRACTION SLASH */
+            {
+                buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH;
             }
 
-            i = end;
-        } else {
             i += 1;
         }
     }
-}
 
-fn set_unicode_props(buffer: &mut hb_buffer_t) {
-    // Implement enough of Unicode Graphemes here that shaping
-    // in reverse-direction wouldn't break graphemes.  Namely,
-    // we mark all marks and ZWJ and ZWJ,Extended_Pictographic
-    // sequences as continuations.  The foreach_grapheme()
-    // macro uses this bit.
-    //
-    // https://www.unicode.org/reports/tr29/#Regex_Definitions
-
-    let len = buffer.len;
-
-    let mut i = 0;
-    while i < len {
-        let info = &mut buffer.info[i];
-        info.init_unicode_props(&mut buffer.scratch_flags);
-
-        if info.glyph_id < 0x80 {
-            i += 1;
-            continue;
-        }
-
-        let gen_cat = info.general_category();
-
-        if (rb_flag_unsafe(gen_cat.to_u8() as u32)
-            & (rb_flag(HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER)
-                | rb_flag(HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER)
-                | rb_flag(HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER)
-                | rb_flag(HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER)
-                | rb_flag(HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR)))
-            != 0
+    // hb_insert_dotted_circle: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L549>
+    fn insert_dotted_circle(&mut self) {
+        let buffer = &mut *self.buffer;
+        if !buffer
+            .flags
+            .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)
+            && buffer.flags.contains(BufferFlags::BEGINNING_OF_TEXT)
+            && buffer.context_len[0] == 0
+            && buffer.info[0].is_unicode_mark()
+            && self.face.has_glyph(0x25CC)
         {
-            i += 1;
-            continue;
+            let mut info = GlyphInfo {
+                glyph_id: 0x25CC,
+                mask: buffer.cur(0).mask,
+                cluster: buffer.cur(0).cluster,
+                ..GlyphInfo::default()
+            };
+
+            info.init_unicode_props(&mut buffer.scratch_flags);
+            buffer.clear_output();
+            buffer.output_info(info);
+            buffer.sync();
         }
+    }
 
-        // Mutably borrow buffer.info[i] and immutably borrow
-        // buffer.info[i - 1] (if present) in a way that the borrow
-        // checker can understand.
-        let (prior, later) = buffer.info.split_at_mut(i);
-        let info = &mut later[0];
+    // hb_ot_rotate_chars: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L652>
+    fn rotate_chars(&mut self) {
+        let len = self.buffer.len;
 
-        // Marks are already set as continuation by the above line.
-        // Handle Emoji_Modifier and ZWJ-continuation.
-        if gen_cat == GeneralCategory::MODIFIER_SYMBOL && matches!(info.glyph_id, 0x1F3FB..=0x1F3FF)
-        {
-            info.set_continuation(&mut buffer.scratch_flags);
-        } else if i != 0 && matches!(info.glyph_id, 0x1F1E6..=0x1F1FF) {
-            // Should never fail because we checked for i > 0.
-            // TODO: use let chains when they become stable
-            let prev = prior.last().unwrap();
-            if matches!(prev.glyph_id, 0x1F1E6..=0x1F1FF) && !prev.is_continuation() {
-                info.set_continuation(&mut buffer.scratch_flags);
+        if self.target_direction.is_backward() {
+            let rtlm_mask = self.plan.rtlm_mask;
+
+            for info in &mut self.buffer.info[..len] {
+                if let Some(c) = info.as_codepoint().mirrored() {
+                    if self.face.has_glyph(c) {
+                        info.glyph_id = c;
+                        continue;
+                    }
+                }
+                info.mask |= rtlm_mask;
             }
-        } else if info.is_zwj() {
-            info.set_continuation(&mut buffer.scratch_flags);
-            if let Some(next) = buffer.info[..len].get_mut(i + 1) {
-                if next.as_codepoint().is_emoji_extended_pictographic() {
-                    next.init_unicode_props(&mut buffer.scratch_flags);
-                    next.set_continuation(&mut buffer.scratch_flags);
-                    i += 1;
+        }
+
+        if self.target_direction.is_vertical() && !self.plan.has_vert {
+            for info in &mut self.buffer.info[..len] {
+                if let Some(c) = info.as_codepoint().vertical() {
+                    if self.face.has_glyph(c) {
+                        info.glyph_id = c;
+                    }
                 }
             }
-        } else if matches!(info.glyph_id, 0xFF9E..=0xFF9F | 0xE0020..=0xE007F) {
-            // Or part of the Other_Grapheme_Extend that is not marks.
-            // As of Unicode 15 that is just:
-            //
-            // 200C          ; Other_Grapheme_Extend # Cf       ZERO WIDTH NON-JOINER
-            // FF9E..FF9F    ; Other_Grapheme_Extend # Lm   [2] HALFWIDTH KATAKANA VOICED SOUND MARK..HALFWIDTH KATAKANA
-            // SEMI-VOICED SOUND MARK E0020..E007F  ; Other_Grapheme_Extend # Cf  [96] TAG SPACE..CANCEL TAG
-            //
-            // ZWNJ is special, we don't want to merge it as there's no need, and keeping
-            // it separate results in more granular clusters.
-            // Tags are used for Emoji sub-region flag sequences:
-            // https://github.com/harfbuzz/harfbuzz/issues/1556
-            // Katakana ones were requested:
-            // https://github.com/harfbuzz/harfbuzz/issues/3844
-            info.set_continuation(&mut buffer.scratch_flags);
-        } else if info.glyph_id == 0x2044
-        /* FRACTION SLASH */
-        {
-            buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH;
         }
-
-        i += 1;
-    }
-}
-
-fn insert_dotted_circle(buffer: &mut hb_buffer_t, face: &hb_font_t) {
-    if !buffer
-        .flags
-        .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)
-        && buffer.flags.contains(BufferFlags::BEGINNING_OF_TEXT)
-        && buffer.context_len[0] == 0
-        && buffer.info[0].is_unicode_mark()
-        && face.has_glyph(0x25CC)
-    {
-        let mut info = GlyphInfo {
-            glyph_id: 0x25CC,
-            mask: buffer.cur(0).mask,
-            cluster: buffer.cur(0).cluster,
-            ..GlyphInfo::default()
-        };
-
-        info.init_unicode_props(&mut buffer.scratch_flags);
-        buffer.clear_output();
-        buffer.output_info(info);
-        buffer.sync();
     }
 }
 
@@ -771,34 +825,6 @@ fn ensure_native_direction(buffer: &mut hb_buffer_t) {
     {
         _hb_ot_layout_reverse_graphemes(buffer);
         buffer.direction = buffer.direction.reverse();
-    }
-}
-
-fn rotate_chars(ctx: &mut hb_ot_shape_context_t) {
-    let len = ctx.buffer.len;
-
-    if ctx.target_direction.is_backward() {
-        let rtlm_mask = ctx.plan.rtlm_mask;
-
-        for info in &mut ctx.buffer.info[..len] {
-            if let Some(c) = info.as_codepoint().mirrored() {
-                if ctx.face.has_glyph(c) {
-                    info.glyph_id = c;
-                    continue;
-                }
-            }
-            info.mask |= rtlm_mask;
-        }
-    }
-
-    if ctx.target_direction.is_vertical() && !ctx.plan.has_vert {
-        for info in &mut ctx.buffer.info[..len] {
-            if let Some(c) = info.as_codepoint().vertical() {
-                if ctx.face.has_glyph(c) {
-                    info.glyph_id = c;
-                }
-            }
-        }
     }
 }
 

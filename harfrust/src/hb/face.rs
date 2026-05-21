@@ -8,7 +8,7 @@ use super::glyph_metrics::GlyphMetrics;
 use super::glyph_names::GlyphNames;
 use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
-use super::ot_shape::{hb_ot_shape_context_t, shape_internal};
+use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
 use crate::hb::buffer::hb_buffer_t;
 use crate::hb::tables::TableRanges;
@@ -312,13 +312,14 @@ impl<'a> crate::Shaper<'a> {
         if buffer.len > 0 {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
-            shape_internal(&mut hb_ot_shape_context_t {
+            OtShapeContext {
                 plan,
                 face: self,
                 buffer: &mut buffer,
                 target_direction,
                 features,
-            });
+            }
+            .shape_internal();
         }
 
         buffer.leave();
