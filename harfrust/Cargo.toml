@@ -15,12 +15,13 @@ exclude = ["benches/", "tests/"]
 read-fonts.workspace  = true
 bitflags = "2.9"
 bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
-core_maths = "0.1" # only for no_std builds
+core_maths = { version = "0.1", optional = true }
 smallvec = "1.14"
 
 [features]
 default = ["std"]
 std = ["read-fonts/std"]
+libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dev-dependencies]
 criterion = "0.8.0"
