@@ -322,7 +322,7 @@ pub(crate) struct OtShapeContext<'a> {
     pub target_direction: Direction,
 }
 
-impl<'a> OtShapeContext<'a> {
+impl OtShapeContext<'_> {
     // hb_ot_shape_internal: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1171>
     pub(crate) fn shape_internal(&mut self) {
         self.buffer.allocate_unicode_vars();
