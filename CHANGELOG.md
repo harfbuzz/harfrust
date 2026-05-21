@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-05-21
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Blocklist broken fonts in GDEF. This ports feature from HarfBuzz that was missing before.
+- Add LICENSE file symlink to each crate.
+
+
 ## [0.6.0] - 2026-04-09
 
 This release matches HarfBuzz [v14.1.0][harfbuzz-14.1.0], and has an MSRV (minimum supported Rust version) of 1.85.
@@ -132,6 +141,8 @@ See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.
 [harfbuzz-12.1.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/12.1.0
 [harfbuzz-12.2.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/12.2.0
 [harfbuzz-12.3.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/12.3.0
+[harfbuzz-13.0.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/13.0.0
+[harfbuzz-14.1.0]: https://github.com/harfbuzz/harfbuzz/releases/tag/14.1.0
 
 [@khaledhosny]: https://github.com/khaledhosny
 
