@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-05-21
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Do not hardcode requirement on libm for read-fonts dependency. Libm is required for read-fonts
+  only in nostd environments.
+
 ## [0.6.1] - 2026-05-21
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
