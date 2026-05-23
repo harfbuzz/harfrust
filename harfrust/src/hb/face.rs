@@ -4,6 +4,7 @@ use smallvec::SmallVec;
 
 use super::aat::AatTables;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
+use super::font_funcs::{DummyFontFuncs, FontFuncsDispatch};
 use super::glyph_metrics::GlyphMetrics;
 use super::glyph_names::GlyphNames;
 use super::ot::{LayoutTable, OtCache, OtTables};
@@ -13,6 +14,8 @@ use crate::hb::aat::AatCache;
 use crate::hb::buffer::hb_buffer_t;
 use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
+
+pub use super::font_funcs::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, RawAdvanceWidthBatch};
 
 /// Data required for shaping with a single font.
 pub struct ShaperData {
@@ -196,7 +199,7 @@ impl<'a> ShaperBuilder<'a> {
     pub fn build(self) -> crate::Shaper<'a> {
         let font = self.font;
         let units_per_em = self.data.table_ranges.units_per_em;
-        let charmap = Charmap::new(&font, &self.data.table_ranges, &self.data.cmap_cache);
+        let charmap = Charmap::new(&font, &self.data.table_ranges);
         let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_ranges);
         let (coords, feature_variations) = self
             .instance
@@ -214,6 +217,7 @@ impl<'a> ShaperBuilder<'a> {
             font,
             units_per_em,
             charmap,
+            cmap_cache: &self.data.cmap_cache,
             glyph_metrics,
             ot_tables,
             aat_tables,
@@ -227,6 +231,7 @@ pub struct ShapeOptions<'a> {
     plan: Option<&'a ShapePlan>,
     point_size: Option<f32>,
     features: &'a [Feature],
+    font_funcs: Option<&'a mut (dyn FontFuncs + 'a)>,
 }
 
 impl<'a> ShapeOptions<'a> {
@@ -255,6 +260,12 @@ impl<'a> ShapeOptions<'a> {
         self.features = features;
         self
     }
+
+    /// Sets optional font functions used for shaping.
+    pub fn font_funcs(mut self, funcs: Option<&'a mut (dyn FontFuncs + 'a)>) -> Self {
+        self.font_funcs = funcs;
+        self
+    }
 }
 
 /// A configured shaper.
@@ -263,6 +274,7 @@ pub struct hb_font_t<'a> {
     pub(crate) font: FontRef<'a>,
     pub(crate) units_per_em: u16,
     charmap: Charmap<'a>,
+    pub(crate) cmap_cache: &'a cmap_cache_t,
     glyph_metrics: GlyphMetrics<'a>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
@@ -284,7 +296,15 @@ impl<'a> crate::Shaper<'a> {
     ///
     /// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
     /// without allocating a new one.
-    pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions) -> GlyphBuffer {
+    ///
+    /// If a plan is provided, it is up to the caller to ensure that the shape plan matches the
+    /// properties of the provided buffer, otherwise the shaping result will likely be incorrect.
+    ///
+    /// # Panics
+    ///
+    /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
+    /// properties.    
+    pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions<'_>) -> GlyphBuffer {
         if let Some(plan) = options.plan {
             self.shape_with_plan(plan, buffer, options)
         } else {
@@ -299,23 +319,11 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    /// Shapes the buffer content using the provided font and plan.
-    ///
-    /// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
-    /// without allocating a new one.
-    ///
-    /// It is up to the caller to ensure that the shape plan matches the properties of the provided
-    /// buffer, otherwise the shaping result will likely be incorrect.
-    ///
-    /// # Panics
-    ///
-    /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
-    /// properties.
     fn shape_with_plan(
         &self,
         plan: &ShapePlan,
         buffer: UnicodeBuffer,
-        options: ShapeOptions,
+        options: ShapeOptions<'_>,
     ) -> GlyphBuffer {
         let mut buffer = buffer.0;
         buffer.enter();
@@ -336,6 +344,12 @@ impl<'a> crate::Shaper<'a> {
         if buffer.len > 0 {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
+            let (font_funcs, has_custom_funcs): (&mut (dyn FontFuncs + '_), bool) =
+                match options.font_funcs {
+                    Some(user_font_funcs) => (user_font_funcs, true),
+                    None => (&mut DummyFontFuncs, false),
+                };
+            let mut font_funcs = FontFuncsDispatch::new(self, font_funcs, has_custom_funcs);
             OtShapeContext {
                 plan,
                 face: self,
@@ -343,6 +357,7 @@ impl<'a> crate::Shaper<'a> {
                 target_direction,
                 features: options.features,
                 point_size: options.point_size,
+                font_funcs: &mut font_funcs,
             }
             .shape_internal();
         }
@@ -350,10 +365,6 @@ impl<'a> crate::Shaper<'a> {
         buffer.leave();
 
         GlyphBuffer(buffer)
-    }
-
-    pub(crate) fn has_glyph(&self, c: u32) -> bool {
-        self.get_nominal_glyph(c).is_some()
     }
 
     pub(crate) fn get_nominal_glyph(&self, c: u32) -> Option<GlyphId> {
@@ -369,6 +380,7 @@ impl<'a> crate::Shaper<'a> {
             .advance_width(glyph, self.ot_tables.coords)
             .unwrap_or_default()
     }
+
     pub(crate) fn glyph_h_advances(&self, buffer: &mut hb_buffer_t) {
         self.glyph_metrics
             .populate_advance_widths(buffer, self.ot_tables.coords);
@@ -381,21 +393,13 @@ impl<'a> crate::Shaper<'a> {
             .unwrap_or(self.units_per_em as i32)
     }
 
-    pub(crate) fn glyph_h_origin(&self, glyph: GlyphId) -> i32 {
-        self.glyph_h_advance(glyph) / 2
-    }
-
     pub(crate) fn glyph_v_origin(&self, glyph: GlyphId) -> i32 {
         self.glyph_metrics
             .v_origin(glyph, self.ot_tables.coords)
             .unwrap_or_default()
     }
 
-    pub(crate) fn glyph_extents(
-        &self,
-        glyph: GlyphId,
-        glyph_extents: &mut hb_glyph_extents_t,
-    ) -> bool {
+    pub(crate) fn glyph_extents(&self, glyph: GlyphId, glyph_extents: &mut GlyphExtents) -> bool {
         if let Some(extents) = self.glyph_metrics.extents(glyph, self.ot_tables.coords) {
             glyph_extents.x_bearing = extents.x_min;
             glyph_extents.y_bearing = extents.y_max;
@@ -431,11 +435,18 @@ impl<'a> crate::Shaper<'a> {
     }
 }
 
+/// Glyph ink extents in font units.
+///
+/// This matches HarfBuzz's glyph extents layout and semantics.
 #[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
-pub struct hb_glyph_extents_t {
+pub struct GlyphExtents {
+    /// Horizontal bearing from glyph origin to the left side of the ink box.
     pub x_bearing: i32,
+    /// Vertical bearing from glyph origin to the top of the ink box.
     pub y_bearing: i32,
+    /// Width of the glyph ink box.
     pub width: i32,
+    /// Height of the glyph ink box.
     pub height: i32,
 }
