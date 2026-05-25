@@ -114,8 +114,7 @@ fn font_funcs_batch_advance_override_is_used() {
         fn populate_advance_widths(&mut self, _: &BuiltinFontFuncs, batch: AdvanceWidthBatch) {
             self.batch_calls += 1;
             assert!(!batch.is_empty());
-
-            for (_, advance) in batch.into_iter() {
+            for (_, advance) in batch {
                 *advance = 777;
             }
         }
