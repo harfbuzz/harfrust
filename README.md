@@ -64,6 +64,26 @@ The library is completely safe.
 
 There are no `unsafe` in this library and in most of its dependencies (excluding `bytemuck`).
 
+## Releasing
+
+* Edit CHANGELOG.md following the conventions in that file, at least
+  * Add information about which HarfBuzz release is tracked
+  * Update diff links at the bottom
+  * Summarize changes
+* Update Cargo.toml release version following SemVer
+* Commit to a branch and file a PR
+* Get PR reviewed and land
+* Pull/Rebase local main checkout, then
+  * `git tag` release version, e.g. `git tag 0.7.1`
+  * `git push origin <tag>`
+* Then cargo publish:
+  * **IMPORTANT**: Prefer to publish from an OS that supports symlinks.
+    When publishing from an OS that does not understand symlinks produced by git,
+    version files in crates.io might turn into text files showing the symlink's target.
+  * `cargo publish -p harfrust`
+  * `cargo publish -p hr-shape`
+* Go to GitHub releases page, copy commit message and release tagged version.
+
 ## Developer documents
 
 For notes on the backporting process of HarfBuzz code, see [docs/backporting.md](docs/backporting.md).
