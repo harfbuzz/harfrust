@@ -3,6 +3,7 @@
 use core::ops::{Index, IndexMut};
 
 use super::buffer::*;
+use super::font_funcs::FontFuncsDispatch;
 use super::ot::lookup::LookupInfo;
 use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
@@ -145,6 +146,7 @@ pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut hb_buffer_t)
 pub fn apply_layout_table<T: LayoutTable>(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
+    font_funcs: &mut FontFuncsDispatch,
     buffer: &mut hb_buffer_t,
     table: Option<&T>,
 ) {
@@ -172,7 +174,7 @@ pub fn apply_layout_table<T: LayoutTable>(
         }
 
         if let Some(func) = stage.pause_func {
-            if func(plan, face, ctx.buffer) {
+            if func(plan, font_funcs, ctx.buffer) {
                 ctx.buffer.update_digest();
             }
         }
@@ -825,7 +827,7 @@ impl GlyphInfo {
 
 pub fn _hb_clear_substitution_flags(
     _: &hb_ot_shape_plan_t,
-    _: &hb_font_t,
+    _: &mut FontFuncsDispatch,
     buffer: &mut hb_buffer_t,
 ) -> bool {
     let len = buffer.len;
