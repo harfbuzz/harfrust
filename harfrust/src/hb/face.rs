@@ -229,6 +229,7 @@ impl<'a> ShaperBuilder<'a> {
 #[derive(Default)]
 pub struct ShapeOptions<'a> {
     plan: Option<&'a ShapePlan>,
+    scale: Option<(i32, i32)>,
     point_size: Option<f32>,
     features: &'a [Feature],
     font_funcs: Option<&'a mut (dyn FontFuncs + 'a)>,
@@ -249,6 +250,18 @@ impl<'a> ShapeOptions<'a> {
         self
     }
 
+    /// Sets the scale factor to use during shaping.
+    pub fn scale(mut self, scale: Option<i32>) -> Self {
+        self.scale = scale.map(|s| (s, s));
+        self
+    }
+
+    /// Sets separate x- and y-scale factors to use during shaping.
+    pub fn scale_separate(mut self, scale: Option<(i32, i32)>) -> Self {
+        self.scale = scale;
+        self
+    }
+
     /// Sets the size used for application of the tracking table.
     pub fn point_size(mut self, point_size: Option<f32>) -> Self {
         self.point_size = point_size;
@@ -265,6 +278,40 @@ impl<'a> ShapeOptions<'a> {
     pub fn font_funcs(mut self, funcs: Option<&'a mut (dyn FontFuncs + 'a)>) -> Self {
         self.font_funcs = funcs;
         self
+    }
+}
+
+#[derive(Copy, Clone, Default)]
+pub(crate) struct Scale {
+    x_mult: i64,
+    y_mult: i64,
+}
+
+impl Scale {
+    fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
+        let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
+            // If we don't have a scale or upem is 0, we follow HarfBuzz's
+            // convention and disable scaling by setting the multipliers
+            // to 0.
+            return Self::default();
+        };
+        let [x_mult, y_mult] = [x_scale, y_scale].map(|s| ((s as i64) << 16) / upem as i64);
+        Self { x_mult, y_mult }
+    }
+
+    #[inline(always)]
+    fn em_scale(value: i32, mult: i64) -> i32 {
+        (((value as i64) * mult + 32768) >> 16) as i32
+    }
+
+    #[inline(always)]
+    pub(crate) fn em_scale_x(&self, x: i32) -> i32 {
+        Self::em_scale(x, self.x_mult)
+    }
+
+    #[inline(always)]
+    pub(crate) fn em_scale_y(&self, y: i32) -> i32 {
+        Self::em_scale(y, self.y_mult)
     }
 }
 
@@ -344,7 +391,8 @@ impl<'a> crate::Shaper<'a> {
         if buffer.len > 0 {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
-            let mut font_funcs = FontFuncsDispatch::new(self, options.font_funcs);
+            let scale = Scale::new(options.scale, self.units_per_em as i32);
+            let mut font_funcs = FontFuncsDispatch::new(self, scale, options.font_funcs);
             OtShapeContext {
                 plan,
                 face: self,

@@ -4,6 +4,8 @@ use core::slice;
 
 use read_fonts::types::GlyphId;
 
+use crate::hb::face::Scale;
+
 use super::buffer::{hb_buffer_t, GlyphInfo, GlyphPosition};
 use super::face::{hb_font_t, GlyphExtents};
 
@@ -224,22 +226,31 @@ pub trait FontFuncs {
 
 pub(crate) struct FontFuncsDispatch<'a, 'u> {
     builtin: BuiltinFontFuncs<'a>,
+    scale: Scale,
     funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
 }
 
 impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
     pub(crate) fn new(
         face: &'a hb_font_t<'a>,
+        scale: Scale,
         funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
     ) -> Self {
         Self {
             builtin: BuiltinFontFuncs::new(face),
+            scale,
             funcs,
         }
     }
 
+    #[inline(always)]
     pub(crate) fn font(&self) -> &'a hb_font_t<'a> {
         self.builtin.face
+    }
+
+    #[inline(always)]
+    pub(crate) fn scale(&self) -> &Scale {
+        &self.scale
     }
 
     #[inline(always)]
