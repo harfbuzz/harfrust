@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 
 use super::aat::AatTables;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
-use super::font_funcs::{DummyFontFuncs, FontFuncsDispatch};
+use super::font_funcs::FontFuncsDispatch;
 use super::glyph_metrics::GlyphMetrics;
 use super::glyph_names::GlyphNames;
 use super::ot::{LayoutTable, OtCache, OtTables};
@@ -344,12 +344,7 @@ impl<'a> crate::Shaper<'a> {
         if buffer.len > 0 {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
-            let (font_funcs, has_custom_funcs): (&mut (dyn FontFuncs + '_), bool) =
-                match options.font_funcs {
-                    Some(user_font_funcs) => (user_font_funcs, true),
-                    None => (&mut DummyFontFuncs, false),
-                };
-            let mut font_funcs = FontFuncsDispatch::new(self, font_funcs, has_custom_funcs);
+            let mut font_funcs = FontFuncsDispatch::new(self, options.font_funcs);
             OtShapeContext {
                 plan,
                 face: self,

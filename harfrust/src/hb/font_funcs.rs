@@ -15,6 +15,9 @@ pub struct RawAdvanceWidthBatch {
     /// Pointer to glyph ids (read-only).
     pub gids: *const u32,
     /// Pointer to horizontal advances (writable).
+    ///
+    /// See "Metrics scaling" in the [FontFuncs] for details
+    /// on what value this method should return.
     pub advances: *mut i32,
     /// Byte stride between successive glyph ids.
     pub gid_stride: isize,
@@ -127,14 +130,12 @@ impl<'a> BuiltinFontFuncs<'a> {
         self.face.glyph_v_advance(glyph)
     }
 
-    /// Returns the horizontal origin for a glyph.
-    pub fn horizontal_origin(&self, glyph: GlyphId) -> i32 {
-        self.advance_width(glyph) / 2
-    }
-
     /// Returns the vertical origin for a glyph.
-    pub fn vertical_origin(&self, glyph: GlyphId) -> i32 {
-        self.face.glyph_v_origin(glyph)
+    pub fn vertical_origin(&self, glyph: GlyphId) -> (i32, i32) {
+        (
+            self.advance_width(glyph) / 2,
+            self.face.glyph_v_origin(glyph),
+        )
     }
 
     /// Returns extents for a glyph if available.
@@ -156,6 +157,11 @@ impl<'a> BuiltinFontFuncs<'a> {
 }
 
 /// Customizable font callback surface.
+///
+/// # Metrics scaling
+///
+/// All font metrics passed to and from these callbacks are in unscaled font
+/// units.
 pub trait FontFuncs {
     /// Nominal character-to-glyph mapping callback.
     fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
@@ -168,11 +174,17 @@ pub trait FontFuncs {
     }
 
     /// Horizontal advance callback.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what value this method should return.
     fn advance_width(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
         builtin.advance_width(glyph)
     }
 
     /// Batch horizontal-advance callback.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what value this method should return.
     fn populate_advance_widths(
         &mut self,
         builtin: &BuiltinFontFuncs,
@@ -184,41 +196,45 @@ pub trait FontFuncs {
     }
 
     /// Vertical advance callback.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what value this method should return.
     fn advance_height(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
         builtin.advance_height(glyph)
     }
 
     /// Vertical origin callback.
-    fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
+    ///
+    /// Returns the (x, y) coordinates of the vertical origin for the given glyph.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what values this method should return.
+    fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
         builtin.vertical_origin(glyph)
     }
 
     /// Glyph extents callback.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what values this method should return.
     fn extents(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {
         builtin.extents(glyph)
     }
 }
 
-pub struct DummyFontFuncs;
-
-impl FontFuncs for DummyFontFuncs {}
-
 pub(crate) struct FontFuncsDispatch<'a, 'u> {
     builtin: BuiltinFontFuncs<'a>,
-    funcs: &'u mut (dyn FontFuncs + 'u),
-    has_custom_funcs: bool,
+    funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
 }
 
 impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
     pub(crate) fn new(
         face: &'a hb_font_t<'a>,
-        funcs: &'u mut (dyn FontFuncs + 'u),
-        has_custom_funcs: bool,
+        funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
     ) -> Self {
         Self {
             builtin: BuiltinFontFuncs::new(face),
             funcs,
-            has_custom_funcs,
         }
     }
 
@@ -231,7 +247,14 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         let cache = self.builtin.face.cmap_cache;
         if let Some(gid) = cache.get(c) {
             Some(gid.into())
-        } else if let Some(gid) = self.funcs.nominal_glyph(&self.builtin, c) {
+        } else if let Some(funcs) = &mut self.funcs {
+            if let Some(gid) = funcs.nominal_glyph(&self.builtin, c) {
+                cache.set(c, gid.to_u32());
+                Some(gid)
+            } else {
+                None
+            }
+        } else if let Some(gid) = self.builtin.nominal_glyph(c) {
             cache.set(c, gid.to_u32());
             Some(gid)
         } else {
@@ -246,39 +269,58 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
 
     #[inline(always)]
     pub(crate) fn variant_glyph(&mut self, c: u32, vs: u32) -> Option<GlyphId> {
-        self.funcs.variant_glyph(&self.builtin, c, vs)
+        if let Some(funcs) = &mut self.funcs {
+            funcs.variant_glyph(&self.builtin, c, vs)
+        } else {
+            self.builtin.variant_glyph(c, vs)
+        }
     }
 
     #[inline(always)]
     pub(crate) fn advance_width(&mut self, glyph: GlyphId) -> i32 {
-        self.funcs.advance_width(&self.builtin, glyph)
+        if let Some(funcs) = &mut self.funcs {
+            funcs.advance_width(&self.builtin, glyph)
+        } else {
+            self.builtin.advance_width(glyph)
+        }
     }
 
     #[inline(always)]
     pub(crate) fn advance_height(&mut self, glyph: GlyphId) -> i32 {
-        self.funcs.advance_height(&self.builtin, glyph)
+        if let Some(funcs) = &mut self.funcs {
+            funcs.advance_height(&self.builtin, glyph)
+        } else {
+            self.builtin.advance_height(glyph)
+        }
     }
 
     #[inline(always)]
-    pub(crate) fn horizontal_origin(&mut self, glyph: GlyphId) -> i32 {
-        self.advance_width(glyph) / 2
-    }
-
-    #[inline(always)]
-    pub(crate) fn vertical_origin(&mut self, glyph: GlyphId) -> i32 {
-        self.funcs.vertical_origin(&self.builtin, glyph)
+    pub(crate) fn vertical_origin(&mut self, glyph: GlyphId) -> (i32, i32) {
+        if let Some(funcs) = &mut self.funcs {
+            funcs.vertical_origin(&self.builtin, glyph)
+        } else {
+            self.builtin.vertical_origin(glyph)
+        }
     }
 
     #[inline(always)]
     pub(crate) fn extents(&mut self, glyph: GlyphId) -> Option<GlyphExtents> {
-        self.funcs.extents(&self.builtin, glyph)
+        if let Some(funcs) = &mut self.funcs {
+            funcs.extents(&self.builtin, glyph)
+        } else {
+            self.builtin.extents(glyph)
+        }
     }
 
     pub(crate) fn populate_advance_widths(&mut self, batch: AdvanceWidthBatch<'_>) {
-        self.funcs.populate_advance_widths(&self.builtin, batch);
+        if let Some(funcs) = &mut self.funcs {
+            funcs.populate_advance_widths(&self.builtin, batch);
+        } else {
+            self.builtin.populate_advance_widths(batch);
+        }
     }
 
     pub(crate) fn has_custom_funcs(&self) -> bool {
-        self.has_custom_funcs
+        self.funcs.is_some()
     }
 }

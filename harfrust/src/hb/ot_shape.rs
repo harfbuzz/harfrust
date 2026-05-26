@@ -335,8 +335,8 @@ impl OtShapeContext<'_, '_> {
             return;
         }
 
-        let batch = AdvanceWidthBatch::new(self.buffer);
-        self.font_funcs.populate_advance_widths(batch);
+        let batched_advances = AdvanceWidthBatch::new(self.buffer);
+        self.font_funcs.populate_advance_widths(batched_advances);
     }
 
     // hb_ot_shape_internal: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1171>
@@ -468,8 +468,9 @@ impl OtShapeContext<'_, '_> {
             {
                 let glyph = info.as_glyph();
                 pos.y_advance = self.font_funcs.advance_height(glyph);
-                pos.x_offset -= self.font_funcs.horizontal_origin(glyph);
-                pos.y_offset -= self.font_funcs.vertical_origin(glyph);
+                let (x, y) = self.font_funcs.vertical_origin(glyph);
+                pos.x_offset -= x;
+                pos.y_offset -= y;
             }
         }
 

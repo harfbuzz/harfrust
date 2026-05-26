@@ -138,7 +138,7 @@ fn font_funcs_batch_advance_override_is_used() {
 }
 
 #[test]
-fn font_funcs_batch_advance_uses_individual_override_by_default() {
+fn font_funcs_batch_advance_uses_single_glyph_override_by_default() {
     struct AdvanceOnlyFuncs {
         advance_width_calls: usize,
     }
@@ -161,7 +161,7 @@ fn font_funcs_batch_advance_uses_individual_override_by_default() {
         )
     });
 
-    assert!(funcs.advance_width_calls > 0);
+    assert!(funcs.advance_width_calls >= 2);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -206,7 +206,7 @@ fn font_funcs_vertical_origin_override_is_used() {
     }
 
     impl FontFuncs for VOriginFuncs {
-        fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
+        fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
             self.v_origin_calls += 1;
             builtin.vertical_origin(glyph)
         }
@@ -224,7 +224,7 @@ fn font_funcs_vertical_origin_override_is_used() {
         shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&mut funcs)))
     });
 
-    assert!(funcs.v_origin_calls > 0);
+    assert!(funcs.v_origin_calls >= 2);
 }
 
 #[test]
@@ -310,7 +310,7 @@ fn font_funcs_advance_width_override_is_used() {
         },
     );
 
-    assert!(funcs.advance_width_calls > 0);
+    assert!(funcs.advance_width_calls >= 2);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -344,7 +344,7 @@ fn font_funcs_advance_height_override_is_used() {
         shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&mut funcs)))
     });
 
-    assert!(funcs.advance_height_calls > 0);
+    assert!(funcs.advance_height_calls >= 2);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -388,7 +388,7 @@ fn font_funcs_extents_override_is_used() {
         },
     );
 
-    assert!(funcs.extents_calls > 0);
+    assert!(funcs.extents_calls >= 2);
     assert_eq!(glyphs.glyph_positions().len(), 4);
     assert!(glyphs
         .glyph_positions()
