@@ -254,6 +254,26 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
     }
 
     #[inline(always)]
+    fn scale_x(&self, value: i32) -> i32 {
+        self.scale.scale_x(value)
+    }
+
+    #[inline(always)]
+    fn scale_y(&self, value: i32) -> i32 {
+        self.scale.scale_y(value)
+    }
+
+    #[inline(always)]
+    fn scale_point(&self, point: (i32, i32)) -> (i32, i32) {
+        (self.scale_x(point.0), self.scale_y(point.1))
+    }
+
+    #[inline(always)]
+    fn scale_extents(&self, extents: GlyphExtents) -> GlyphExtents {
+        self.scale.scale_extents(extents)
+    }
+
+    #[inline(always)]
     pub(crate) fn nominal_glyph(&mut self, c: u32) -> Option<GlyphId> {
         let cache = self.builtin.face.cmap_cache;
         if let Some(gid) = cache.get(c) {
@@ -292,7 +312,7 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         if let Some(funcs) = &mut self.funcs {
             funcs.advance_width(&self.builtin, glyph)
         } else {
-            self.builtin.advance_width(glyph)
+            self.scale_x(self.builtin.advance_width(glyph))
         }
     }
 
@@ -301,7 +321,7 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         if let Some(funcs) = &mut self.funcs {
             funcs.advance_height(&self.builtin, glyph)
         } else {
-            self.builtin.advance_height(glyph)
+            self.scale_y(self.builtin.advance_height(glyph))
         }
     }
 
@@ -310,7 +330,7 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         if let Some(funcs) = &mut self.funcs {
             funcs.vertical_origin(&self.builtin, glyph)
         } else {
-            self.builtin.vertical_origin(glyph)
+            self.scale_point(self.builtin.vertical_origin(glyph))
         }
     }
 
@@ -319,7 +339,7 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         if let Some(funcs) = &mut self.funcs {
             funcs.extents(&self.builtin, glyph)
         } else {
-            self.builtin.extents(glyph)
+            Some(self.scale_extents(self.builtin.extents(glyph)?))
         }
     }
 
@@ -327,11 +347,13 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         if let Some(funcs) = &mut self.funcs {
             funcs.populate_advance_widths(&self.builtin, batch);
         } else {
-            self.builtin.populate_advance_widths(batch);
+            let font = self.font();
+            font.glyph_metrics.populate_advance_widths(
+                batch.infos,
+                batch.positions,
+                font.coords(),
+                self.scale,
+            );
         }
-    }
-
-    pub(crate) fn has_custom_funcs(&self) -> bool {
-        self.funcs.is_some()
     }
 }

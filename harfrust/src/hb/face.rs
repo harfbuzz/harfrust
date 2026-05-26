@@ -11,7 +11,6 @@ use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
-use crate::hb::buffer::hb_buffer_t;
 use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
@@ -281,37 +280,69 @@ impl<'a> ShapeOptions<'a> {
     }
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone)]
 pub(crate) struct Scale {
     x_mult: i64,
     y_mult: i64,
 }
 
+impl Default for Scale {
+    fn default() -> Self {
+        Self {
+            x_mult: 1 << 16,
+            y_mult: 1 << 16,
+        }
+    }
+}
+
 impl Scale {
-    fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
+    pub(crate) fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
         let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
-            // If we don't have a scale or upem is 0, we follow HarfBuzz's
-            // convention and disable scaling by setting the multipliers
-            // to 0.
+            // When scale is not configured, or upem is zero, return results
+            // in font units.
             return Self::default();
         };
-        let [x_mult, y_mult] = [x_scale, y_scale].map(|s| ((s as i64) << 16) / upem as i64);
+        let [x_mult, y_mult] = [x_scale, y_scale].map(|s| Self::mult_from_scale(s, upem));
         Self { x_mult, y_mult }
     }
 
     #[inline(always)]
-    fn em_scale(value: i32, mult: i64) -> i32 {
+    pub(crate) fn scale_x(&self, x: i32) -> i32 {
+        Self::scale_by_mult(x, self.x_mult)
+    }
+
+    #[inline(always)]
+    pub(crate) fn scale_y(&self, y: i32) -> i32 {
+        Self::scale_by_mult(y, self.y_mult)
+    }
+
+    /// Scales glyph extents using corner-based arithmetic matching HarfBuzz's
+    /// `scale_glyph_extents` in `hb-font.hh`. The float path there is a no-op
+    /// since `em_scale_x`/`em_scale_y` already return integers.
+    pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
+        let x1 = self.scale_x(extents.x_bearing);
+        let y1 = self.scale_y(extents.y_bearing);
+        let x2 = self.scale_x(extents.x_bearing + extents.width);
+        let y2 = self.scale_y(extents.y_bearing + extents.height);
+        extents.x_bearing = x1;
+        extents.y_bearing = y1;
+        extents.width = x2 - x1;
+        extents.height = y2 - y1;
+        extents
+    }
+
+    #[inline(always)]
+    fn mult_from_scale(scale: i32, upem: i32) -> i64 {
+        if scale < 0 {
+            -((-(scale as i64)) << 16) / upem as i64
+        } else {
+            ((scale as i64) << 16) / upem as i64
+        }
+    }
+
+    #[inline(always)]
+    fn scale_by_mult(value: i32, mult: i64) -> i32 {
         (((value as i64) * mult + 32768) >> 16) as i32
-    }
-
-    #[inline(always)]
-    pub(crate) fn em_scale_x(&self, x: i32) -> i32 {
-        Self::em_scale(x, self.x_mult)
-    }
-
-    #[inline(always)]
-    pub(crate) fn em_scale_y(&self, y: i32) -> i32 {
-        Self::em_scale(y, self.y_mult)
     }
 }
 
@@ -322,7 +353,7 @@ pub struct hb_font_t<'a> {
     pub(crate) units_per_em: u16,
     charmap: Charmap<'a>,
     pub(crate) cmap_cache: &'a cmap_cache_t,
-    glyph_metrics: GlyphMetrics<'a>,
+    pub(crate) glyph_metrics: GlyphMetrics<'a>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
 }
@@ -424,11 +455,6 @@ impl<'a> crate::Shaper<'a> {
             .unwrap_or_default()
     }
 
-    pub(crate) fn glyph_h_advances(&self, buffer: &mut hb_buffer_t) {
-        self.glyph_metrics
-            .populate_advance_widths(buffer, self.ot_tables.coords);
-    }
-
     pub(crate) fn glyph_v_advance(&self, glyph: GlyphId) -> i32 {
         -self
             .glyph_metrics
@@ -492,4 +518,29 @@ pub struct GlyphExtents {
     pub width: i32,
     /// Height of the glyph ink box.
     pub height: i32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extents_scale_from_corners_like_harfbuzz() {
+        // HarfBuzz scale_glyph_extents scales corners then derives width/height:
+        //   x1 = scale_x(x_bearing), x2 = scale_x(x_bearing + width), width = x2 - x1
+        // With independent scaling, scale_x(width=3) at 1500/1000 = round(4.5) = 5.
+        // With corner scaling, x2 = scale_x(4) = 6, x1 = scale_x(1) = 2 → width = 4.
+        let scale = Scale::new(Some((1500, 1500)), 1000);
+        let extents = GlyphExtents {
+            x_bearing: 1,
+            y_bearing: 4,
+            width: 3,
+            height: -2,
+        };
+        let scaled = scale.scale_extents(extents);
+        assert_eq!(scaled.x_bearing, 2);
+        assert_eq!(scaled.y_bearing, 6);
+        assert_eq!(scaled.width, 4); // corner: round(6)-round(2)=4, independent: round(4.5)=5
+        assert_eq!(scaled.height, -3);
+    }
 }

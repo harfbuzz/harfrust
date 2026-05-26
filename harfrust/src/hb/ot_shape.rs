@@ -329,12 +329,6 @@ impl OtShapeContext<'_, '_> {
         if self.buffer.len == 0 {
             return;
         }
-
-        if !self.font_funcs.has_custom_funcs() {
-            self.face.glyph_h_advances(self.buffer);
-            return;
-        }
-
         let batched_advances = AdvanceWidthBatch::new(self.buffer);
         self.font_funcs.populate_advance_widths(batched_advances);
     }
@@ -539,16 +533,22 @@ impl OtShapeContext<'_, '_> {
         if plan.apply_gpos {
             ot_layout_gpos_table::position(plan, face, self.font_funcs, buffer);
         } else if plan.apply_kerx {
-            aat::layout::position(plan, face, buffer);
+            aat::layout::position(plan, face, *self.font_funcs.scale(), buffer);
         }
         if plan.apply_kern {
-            kerning::hb_ot_layout_kern(plan, face, buffer);
+            kerning::hb_ot_layout_kern(plan, face, *self.font_funcs.scale(), buffer);
         } else if plan.apply_fallback_kern {
             ot_shape_fallback::_hb_ot_shape_fallback_kern(plan, face, buffer);
         }
 
         if plan.apply_trak {
-            aat::layout::track(plan, face, self.point_size, buffer);
+            aat::layout::track(
+                plan,
+                face,
+                *self.font_funcs.scale(),
+                self.point_size,
+                buffer,
+            );
         }
     }
 
