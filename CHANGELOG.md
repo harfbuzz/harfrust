@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-05-26
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Refactor ot shape context functions into methods.
+- Added `ShapeOptions` type as argument to shape calls, preparation for being
+  able to pass font functions. `ShapeOptions` accepts shape plan, point size, features.
+  `shape_with_plan()` function removed in favor of new builder-style API.
+- Document release process to avoid missing LICENSE files.
+
+Release 0.7.1 was released prematurely and yanked from crates.io.
+
 ## [0.7.1] - 2026-05-26
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -142,8 +155,9 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.7.1...HEAD
-[0.7.0]: https://github.com/harfbuzz/harfrust/compare/0.7.0...0.7.1
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.8.0...HEAD
+[0.8.0]: https://github.com/harfbuzz/harfrust/compare/0.7.1...0.8.0
+[0.7.1]: https://github.com/harfbuzz/harfrust/compare/0.7.0...0.7.1
 [0.7.0]: https://github.com/harfbuzz/harfrust/compare/0.6.2...0.7.0
 [0.6.2]: https://github.com/harfbuzz/harfrust/compare/0.6.1...0.6.2
 [0.6.1]: https://github.com/harfbuzz/harfrust/compare/0.6.0...0.6.1

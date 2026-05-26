@@ -69,7 +69,9 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
 * Edit CHANGELOG.md following the conventions in that file, at least
   * Add information about which HarfBuzz release is tracked
   * Update diff links at the bottom
+  * Determine diff from previous release and
   * Summarize changes
+  * Determine new version number according to SemVer
 * Update Cargo.toml release version following SemVer
 * Commit to a branch and file a PR
 * Get PR reviewed and land
