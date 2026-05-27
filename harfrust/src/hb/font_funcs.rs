@@ -162,8 +162,14 @@ impl<'a> BuiltinFontFuncs<'a> {
 ///
 /// # Metrics scaling
 ///
-/// All font metrics passed to and from these callbacks are in unscaled font
-/// units.
+/// All font metrics returned by these callbacks must be consistent with the
+/// scale factor configured via
+/// [`ShapeOptions::scale`](crate::ShapeOptions::scale).
+///
+/// If no scale is set, values must be in unscaled font units (i.e. the same
+/// coordinate space as the font's `units_per_em`). If a scale is set —
+/// for example `font_size * 64` for FreeType-style 26.6 — then all returned
+/// values must already be in that scaled coordinate space.
 pub trait FontFuncs {
     /// Nominal character-to-glyph mapping callback.
     fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
