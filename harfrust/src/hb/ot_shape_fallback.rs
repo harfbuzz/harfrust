@@ -144,7 +144,7 @@ fn position_mark(
         return;
     };
 
-    let y_gap = face.units_per_em as i32 / 16;
+    let y_gap = font_funcs.scale().scale_y(face.units_per_em as i32 / 16);
     pos.x_offset = 0;
     pos.y_offset = 0;
 
@@ -445,6 +445,7 @@ pub fn _hb_ot_shape_fallback_spaces<'a, 'x>(
     let _ = plan;
     let len = buffer.len;
     let horizontal = buffer.direction.is_horizontal();
+    let scale = *font_funcs.scale();
     for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
         if info.is_unicode_space() && !info.ligated() {
             let space_type = info.unicode_space_fallback_type();
@@ -459,18 +460,18 @@ pub fn _hb_ot_shape_fallback_spaces<'a, 'x>(
                     let length =
                         (face.units_per_em as i32 + (space_type as i32) / 2) / space_type as i32;
                     if horizontal {
-                        pos.x_advance = length;
+                        pos.x_advance = scale.scale_x(length);
                     } else {
-                        pos.y_advance = -length;
+                        pos.y_advance = -scale.scale_y(length);
                     }
                 }
 
                 t::SPACE_4_EM_18 => {
                     let length = ((face.units_per_em as i64) * 4 / 18) as i32;
                     if horizontal {
-                        pos.x_advance = length;
+                        pos.x_advance = scale.scale_x(length);
                     } else {
-                        pos.y_advance = -length;
+                        pos.y_advance = -scale.scale_y(length);
                     }
                 }
 

@@ -150,7 +150,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     buffer: &mut hb_buffer_t,
     table: Option<&T>,
 ) {
-    let mut ctx = OT::hb_ot_apply_context_t::new(T::INDEX, face, buffer);
+    let mut ctx = OT::hb_ot_apply_context_t::new(T::INDEX, face, *font_funcs.scale(), buffer);
 
     for (stage_index, stage) in plan.ot_map.stages(T::INDEX).iter().enumerate() {
         if let Some(table) = table {

@@ -2,6 +2,11 @@ use read_fonts::types::{F2Dot14, Fixed, GlyphId};
 use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
 
+// libm used for f32::floor() and f32::ceil()
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use core_maths::CoreFloat as _;
+
 use super::aat::AatTables;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::font_funcs::FontFuncsDispatch;
@@ -11,7 +16,6 @@ use super::ot::{LayoutTable, OtCache, OtTables};
 use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
-use crate::hb::buffer::hb_buffer_t;
 use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
@@ -229,6 +233,7 @@ impl<'a> ShaperBuilder<'a> {
 #[derive(Default)]
 pub struct ShapeOptions<'a> {
     plan: Option<&'a ShapePlan>,
+    scale: Option<(i32, i32)>,
     point_size: Option<f32>,
     features: &'a [Feature],
     font_funcs: Option<&'a mut (dyn FontFuncs + 'a)>,
@@ -246,6 +251,41 @@ impl<'a> ShapeOptions<'a> {
     /// passed to shaping.
     pub fn plan(mut self, plan: Option<&'a ShapePlan>) -> Self {
         self.plan = plan;
+        self
+    }
+
+    /// Sets the scale factor to use during shaping.
+    ///
+    /// The font scale is a number related to, but not the same as, font size.
+    /// Typically the client establishes a scale factor to be used between the
+    /// two. For example, 64, or 256, which would be the fractional-precision
+    /// part of the font scale. This is necessary because position and metric
+    /// values are integer types and you need to leave room for fractional
+    /// values in there.
+    ///
+    /// For example, to set the font size to 20, with 64 levels of fractional
+    /// precision you would call provide a scale of `20 * 64`.
+    ///
+    /// In the example above, even what font size 20 means is up to you. It
+    /// might be 20 pixels, or 20 points, or 20 millimeters. HarfRust does
+    /// not care about that.
+    ///
+    /// The choice of scale is yours but needs to be consistent between what
+    /// you set here, and what you expect as output as well as the values
+    /// returned by [font functions](FontFuncs).
+    ///
+    /// This defaults to `None` which means that no scale is applied-- positions
+    /// and metrics will be returned in font units.
+    pub fn scale(mut self, scale: Option<i32>) -> Self {
+        self.scale = scale.map(|s| (s, s));
+        self
+    }
+
+    /// Sets separate x- and y-scale factors to use during shaping.
+    ///
+    /// Each axis uses the same semantics as [`scale`](Self::scale).
+    pub fn scale_separate(mut self, scale: Option<(i32, i32)>) -> Self {
+        self.scale = scale;
         self
     }
 
@@ -268,6 +308,85 @@ impl<'a> ShapeOptions<'a> {
     }
 }
 
+#[derive(Copy, Clone)]
+pub(crate) struct Scale {
+    x_mult: i64,
+    y_mult: i64,
+    x_multf: f32,
+    y_multf: f32,
+}
+
+impl Default for Scale {
+    fn default() -> Self {
+        Self {
+            x_mult: 1 << 16,
+            y_mult: 1 << 16,
+            x_multf: 1.0,
+            y_multf: 1.0,
+        }
+    }
+}
+
+// Various conversions between f32 and i32
+#[allow(clippy::cast_precision_loss)]
+impl Scale {
+    pub(crate) fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
+        let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
+            // When scale is not configured, or upem is zero, return results
+            // in font units.
+            return Self::default();
+        };
+        let [x_mult, y_mult] = [x_scale, y_scale].map(|s| Self::mult_from_scale(s, upem));
+        let upem = upem as f32;
+        Self {
+            x_mult,
+            y_mult,
+            x_multf: x_scale as f32 / upem,
+            y_multf: y_scale as f32 / upem,
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) fn scale_x(&self, x: i32) -> i32 {
+        Self::scale_by_mult(x, self.x_mult)
+    }
+
+    #[inline(always)]
+    pub(crate) fn scale_y(&self, y: i32) -> i32 {
+        Self::scale_by_mult(y, self.y_mult)
+    }
+
+    /// Scales glyph extents using HarfBuzz's corner-based float arithmetic:
+    /// floor the origin corners and ceil the far corners before deriving the
+    /// final width/height.
+    /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
+    pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
+        let x1 = extents.x_bearing as f32 * self.x_multf;
+        let y1 = extents.y_bearing as f32 * self.y_multf;
+        let x2 = (extents.x_bearing + extents.width) as f32 * self.x_multf;
+        let y2 = (extents.y_bearing + extents.height) as f32 * self.y_multf;
+        extents.x_bearing = x1.floor() as i32;
+        extents.y_bearing = y1.floor() as i32;
+        extents.width = x2.ceil() as i32 - extents.x_bearing;
+        extents.height = y2.ceil() as i32 - extents.y_bearing;
+        extents
+    }
+
+    #[inline(always)]
+    fn mult_from_scale(scale: i32, upem: i32) -> i64 {
+        if scale < 0 {
+            -((-(scale as i64)) << 16) / upem as i64
+        } else {
+            ((scale as i64) << 16) / upem as i64
+        }
+    }
+
+    #[inline(always)]
+    fn scale_by_mult(value: i32, mult: i64) -> i32 {
+        (((value as i64) * mult + 32768) >> 16) as i32
+    }
+}
+
 /// A configured shaper.
 #[derive(Clone)]
 pub struct hb_font_t<'a> {
@@ -275,7 +394,7 @@ pub struct hb_font_t<'a> {
     pub(crate) units_per_em: u16,
     charmap: Charmap<'a>,
     pub(crate) cmap_cache: &'a cmap_cache_t,
-    glyph_metrics: GlyphMetrics<'a>,
+    pub(crate) glyph_metrics: GlyphMetrics<'a>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
 }
@@ -344,7 +463,8 @@ impl<'a> crate::Shaper<'a> {
         if buffer.len > 0 {
             // Save the original direction, we use it later.
             let target_direction = buffer.direction;
-            let mut font_funcs = FontFuncsDispatch::new(self, options.font_funcs);
+            let scale = Scale::new(options.scale, self.units_per_em as i32);
+            let mut font_funcs = FontFuncsDispatch::new(self, scale, options.font_funcs);
             OtShapeContext {
                 plan,
                 face: self,
@@ -374,11 +494,6 @@ impl<'a> crate::Shaper<'a> {
         self.glyph_metrics
             .advance_width(glyph, self.ot_tables.coords)
             .unwrap_or_default()
-    }
-
-    pub(crate) fn glyph_h_advances(&self, buffer: &mut hb_buffer_t) {
-        self.glyph_metrics
-            .populate_advance_widths(buffer, self.ot_tables.coords);
     }
 
     pub(crate) fn glyph_v_advance(&self, glyph: GlyphId) -> i32 {
@@ -444,4 +559,27 @@ pub struct GlyphExtents {
     pub width: i32,
     /// Height of the glyph ink box.
     pub height: i32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extents_scale_from_corners_like_harfbuzz() {
+        // HarfBuzz scales corners in floating point, floors the bearings,
+        // ceils the far corners, and then derives width/height from them.
+        let scale = Scale::new(Some((1500, 1500)), 1000);
+        let extents = GlyphExtents {
+            x_bearing: 1,
+            y_bearing: 4,
+            width: 3,
+            height: -2,
+        };
+        let scaled = scale.scale_extents(extents);
+        assert_eq!(scaled.x_bearing, 1);
+        assert_eq!(scaled.y_bearing, 6);
+        assert_eq!(scaled.width, 5);
+        assert_eq!(scaled.height, -3);
+    }
 }
