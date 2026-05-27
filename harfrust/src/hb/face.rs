@@ -327,6 +327,8 @@ impl Default for Scale {
     }
 }
 
+// Various conversions between f32 and i32
+#[allow(clippy::cast_precision_loss)]
 impl Scale {
     pub(crate) fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
         let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
@@ -358,7 +360,6 @@ impl Scale {
     /// floor the origin corners and ceil the far corners before deriving the
     /// final width/height.
     /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
-    #[allow(clippy::cast_precision_loss)]
     pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
