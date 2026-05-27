@@ -357,7 +357,8 @@ impl Scale {
     /// Scales glyph extents using HarfBuzz's corner-based float arithmetic:
     /// floor the origin corners and ceil the far corners before deriving the
     /// final width/height.
-    /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>
+    /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
+    #[allow(clippy::cast_precision_loss)]
     pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
