@@ -2,6 +2,11 @@ use read_fonts::types::{F2Dot14, Fixed, GlyphId};
 use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
 
+// libm used for f32::floor() and f32::ceil()
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use core_maths::CoreFloat as _;
+
 use super::aat::AatTables;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::font_funcs::FontFuncsDispatch;
@@ -284,6 +289,8 @@ impl<'a> ShapeOptions<'a> {
 pub(crate) struct Scale {
     x_mult: i64,
     y_mult: i64,
+    x_multf: f32,
+    y_multf: f32,
 }
 
 impl Default for Scale {
@@ -291,6 +298,8 @@ impl Default for Scale {
         Self {
             x_mult: 1 << 16,
             y_mult: 1 << 16,
+            x_multf: 1.0,
+            y_multf: 1.0,
         }
     }
 }
@@ -303,7 +312,13 @@ impl Scale {
             return Self::default();
         };
         let [x_mult, y_mult] = [x_scale, y_scale].map(|s| Self::mult_from_scale(s, upem));
-        Self { x_mult, y_mult }
+        let upem = upem as f32;
+        Self {
+            x_mult,
+            y_mult,
+            x_multf: x_scale as f32 / upem,
+            y_multf: y_scale as f32 / upem,
+        }
     }
 
     #[inline(always)]
@@ -316,18 +331,19 @@ impl Scale {
         Self::scale_by_mult(y, self.y_mult)
     }
 
-    /// Scales glyph extents using corner-based arithmetic matching HarfBuzz's
-    /// `scale_glyph_extents` in `hb-font.hh`. The float path there is a no-op
-    /// since `em_scale_x`/`em_scale_y` already return integers.
+    /// Scales glyph extents using HarfBuzz's corner-based float arithmetic:
+    /// floor the origin corners and ceil the far corners before deriving the
+    /// final width/height.
+    /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>
     pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
-        let x1 = self.scale_x(extents.x_bearing);
-        let y1 = self.scale_y(extents.y_bearing);
-        let x2 = self.scale_x(extents.x_bearing + extents.width);
-        let y2 = self.scale_y(extents.y_bearing + extents.height);
-        extents.x_bearing = x1;
-        extents.y_bearing = y1;
-        extents.width = x2 - x1;
-        extents.height = y2 - y1;
+        let x1 = extents.x_bearing as f32 * self.x_multf;
+        let y1 = extents.y_bearing as f32 * self.y_multf;
+        let x2 = (extents.x_bearing + extents.width) as f32 * self.x_multf;
+        let y2 = (extents.y_bearing + extents.height) as f32 * self.y_multf;
+        extents.x_bearing = x1.floor() as i32;
+        extents.y_bearing = y1.floor() as i32;
+        extents.width = x2.ceil() as i32 - extents.x_bearing;
+        extents.height = y2.ceil() as i32 - extents.y_bearing;
         extents
     }
 
@@ -526,10 +542,8 @@ mod tests {
 
     #[test]
     fn extents_scale_from_corners_like_harfbuzz() {
-        // HarfBuzz scale_glyph_extents scales corners then derives width/height:
-        //   x1 = scale_x(x_bearing), x2 = scale_x(x_bearing + width), width = x2 - x1
-        // With independent scaling, scale_x(width=3) at 1500/1000 = round(4.5) = 5.
-        // With corner scaling, x2 = scale_x(4) = 6, x1 = scale_x(1) = 2 → width = 4.
+        // HarfBuzz scales corners in floating point, floors the bearings,
+        // ceils the far corners, and then derives width/height from them.
         let scale = Scale::new(Some((1500, 1500)), 1000);
         let extents = GlyphExtents {
             x_bearing: 1,
@@ -538,9 +552,9 @@ mod tests {
             height: -2,
         };
         let scaled = scale.scale_extents(extents);
-        assert_eq!(scaled.x_bearing, 2);
+        assert_eq!(scaled.x_bearing, 1);
         assert_eq!(scaled.y_bearing, 6);
-        assert_eq!(scaled.width, 4); // corner: round(6)-round(2)=4, independent: round(4.5)=5
+        assert_eq!(scaled.width, 5);
         assert_eq!(scaled.height, -3);
     }
 }
