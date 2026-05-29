@@ -1601,10 +1601,26 @@ impl hb_buffer_t {
         }
     }
 
+    fn set_pre_context_codepoints(&mut self, codepoints: &[u32]) {
+        self.clear_context(0);
+        for (i, &c) in codepoints.iter().take(CONTEXT_LENGTH).enumerate() {
+            self.context[0][i] = c;
+            self.context_len[0] += 1;
+        }
+    }
+
     fn set_post_context(&mut self, text: &str) {
         self.clear_context(1);
         for (i, c) in text.chars().enumerate().take(CONTEXT_LENGTH) {
             self.context[1][i] = c as Codepoint;
+            self.context_len[1] += 1;
+        }
+    }
+
+    fn set_post_context_codepoints(&mut self, codepoints: &[u32]) {
+        self.clear_context(1);
+        for (i, &c) in codepoints.iter().take(CONTEXT_LENGTH).enumerate() {
+            self.context[1][i] = c;
             self.context_len[1] += 1;
         }
     }
@@ -1773,10 +1789,26 @@ impl UnicodeBuffer {
         self.0.set_pre_context(str);
     }
 
+    /// Sets the pre-context for this buffer from codepoints.
+    ///
+    /// The input is expected to be the Unicode codepoints in reverse order.
+    /// This matches HarfBuzz's internal storage of pre-context, and serves
+    /// as a low-overhead method to pass pre-context from HarfBuzz-HarfRust.
+    #[inline]
+    pub fn set_pre_context_codepoints(&mut self, codepoints: &[u32]) {
+        self.0.set_pre_context_codepoints(codepoints);
+    }
+
     /// Sets the post-context for this buffer.
     #[inline]
     pub fn set_post_context(&mut self, str: &str) {
         self.0.set_post_context(str);
+    }
+
+    /// Sets the post-context for this buffer from codepoints.
+    #[inline]
+    pub fn set_post_context_codepoints(&mut self, codepoints: &[u32]) {
+        self.0.set_post_context_codepoints(codepoints);
     }
 
     /// Appends a character to a buffer with the given cluster value.
