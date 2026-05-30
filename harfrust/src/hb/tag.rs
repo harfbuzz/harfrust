@@ -1,5 +1,3 @@
-use core::str::FromStr;
-
 use smallvec::SmallVec;
 
 use super::common::TagExt;
@@ -76,10 +74,8 @@ pub fn tags_from_script_and_language(
             &mut languages,
         );
 
-        if needs_language {
-            if let Ok(prefix) = Language::from_str(prefix) {
-                tags_from_language(&prefix, &mut languages);
-            }
+        if needs_language && !prefix.is_empty() {
+            tags_from_language(&Language::new(prefix), &mut languages);
         }
     }
 
@@ -288,8 +284,11 @@ mod tests {
     #![allow(non_snake_case)]
 
     use super::*;
-    use core::str::FromStr;
     use alloc::vec::Vec;
+
+    fn language(s: &str) -> Option<Language> {
+        (!s.is_empty()).then(|| Language::new(s))
+    }
 
     fn new_tag_to_script(tag: hb_tag_t) -> Option<Script> {
         match &tag.to_be_bytes() {
@@ -420,7 +419,7 @@ mod tests {
             fn $name() {
                 let tag = hb_tag_t::from_bytes_lossy($tag.as_bytes());
                 let (scripts, _) = tags_from_script_and_language(
-                    $script, Language::from_str($lang).ok().as_ref(),
+                    $script, language($lang).as_ref(),
                 );
                 if !scripts.is_empty() {
                     assert_eq!(scripts.as_slice(), &[tag]);
@@ -479,7 +478,7 @@ mod tests {
             fn $name() {
                 let tag = hb_tag_t::from_bytes_lossy($tag.as_bytes());
                 let (_, languages) = tags_from_script_and_language(
-                    None, Language::from_str(&$lang.to_lowercase()).ok().as_ref(),
+                    None, language(&$lang.to_lowercase()).as_ref(),
                 );
                 if !languages.is_empty() {
                     assert_eq!(languages[0], tag);
@@ -658,7 +657,7 @@ mod tests {
             #[test]
             fn $name() {
                 let (scripts, languages) = tags_from_script_and_language(
-                    $script, Language::from_str($lang).ok().as_ref(),
+                    $script, language($lang).as_ref(),
                 );
 
                 let exp_scripts: Vec<hb_tag_t> = $scripts.iter().map(|v| hb_tag_t::from_bytes_lossy(*v)).collect();
