@@ -196,8 +196,15 @@ pub struct Language(SmallVecLanguage);
 impl Language {
     /// Creates a new language from the given bytes.
     #[inline]
-    pub fn new(bytes: impl AsRef<[u8]>) -> Self {
-        Language::from_bytes(bytes.as_ref())
+    pub fn new(bytes: impl AsRef<[u8]>) -> Option<Self> {
+        let bytes = bytes.as_ref();
+        (!bytes.is_empty()).then(|| Language::from_bytes(bytes))
+    }
+
+    /// Returns the language as bytes.
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
     }
 
     /// Returns the language as a string.
@@ -246,71 +253,75 @@ mod tests_language {
 
     #[test]
     fn new_empty() {
-        let lang = Language::new("");
-        assert_eq!(lang.as_str(), "");
+        assert_eq!(Language::new(""), None);
     }
 
     #[test]
     fn new_basic() {
-        let lang = Language::new("en");
+        let lang = Language::new("en").unwrap();
         assert_eq!(lang.as_str(), "en");
+        assert_eq!(lang.as_bytes(), b"en");
     }
 
     #[test]
     fn new_lowercases() {
-        let lang = Language::new("EN-US");
+        let lang = Language::new("EN-US").unwrap();
         assert_eq!(lang.as_str(), "en-us");
+        assert_eq!(lang.as_bytes(), b"en-us");
     }
 
     #[test]
     fn new_replaces_underscore() {
-        let lang = Language::new("en_US");
+        let lang = Language::new("en_US").unwrap();
         assert_eq!(lang.as_str(), "en-us");
+        assert_eq!(lang.as_bytes(), b"en-us");
     }
 
     #[test]
     fn new_accepts_str() {
-        let lang = Language::new("zh-Hant");
+        let lang = Language::new("zh-Hant").unwrap();
         assert_eq!(lang.as_str(), "zh-hant");
     }
 
     #[test]
     fn new_accepts_byte_slice() {
-        let lang = Language::new(b"zh-Hant" as &[u8]);
+        let lang = Language::new(b"zh-Hant" as &[u8]).unwrap();
         assert_eq!(lang.as_str(), "zh-hant");
     }
 
     #[test]
     fn new_accepts_byte_array() {
-        let lang = Language::new(*b"zh-Hant");
+        let lang = Language::new(*b"zh-Hant").unwrap();
         assert_eq!(lang.as_str(), "zh-hant");
     }
 
     #[test]
     fn new_accepts_string() {
-        let lang = Language::new(String::from("zh-Hant"));
+        let lang = Language::new(String::from("zh-Hant")).unwrap();
         assert_eq!(lang.as_str(), "zh-hant");
     }
 
     #[test]
     fn new_accepts_vec() {
-        let lang = Language::new(Vec::from(b"zh-Hant" as &[u8]));
+        let lang = Language::new(Vec::from(b"zh-Hant" as &[u8])).unwrap();
         assert_eq!(lang.as_str(), "zh-hant");
     }
 
     #[test]
     fn new_matches_from_str() {
-        assert_eq!(Language::new("en-US"), Language::from_str("en-US").unwrap());
+        assert_eq!(
+            Language::new("en-US"),
+            Some(Language::from_str("en-US").unwrap())
+        );
         assert_eq!(
             Language::new("zh_Hant_TW"),
-            Language::from_str("zh_Hant_TW").unwrap()
+            Some(Language::from_str("zh_Hant_TW").unwrap())
         );
     }
 
     #[test]
-    fn new_empty_differs_from_from_str() {
-        // `from_str` rejects empty input; `new` accepts it.
-        assert_eq!(Language::new("").as_str(), "");
+    fn new_empty_matches_from_str() {
+        assert_eq!(Language::new(""), None);
         assert!(Language::from_str("").is_err());
     }
 }
