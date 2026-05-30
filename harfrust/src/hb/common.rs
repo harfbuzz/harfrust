@@ -238,6 +238,83 @@ impl FromStr for Language {
     }
 }
 
+#[cfg(test)]
+mod tests_language {
+    use super::*;
+    use alloc::string::String;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn new_empty() {
+        let lang = Language::new("");
+        assert_eq!(lang.as_str(), "");
+    }
+
+    #[test]
+    fn new_basic() {
+        let lang = Language::new("en");
+        assert_eq!(lang.as_str(), "en");
+    }
+
+    #[test]
+    fn new_lowercases() {
+        let lang = Language::new("EN-US");
+        assert_eq!(lang.as_str(), "en-us");
+    }
+
+    #[test]
+    fn new_replaces_underscore() {
+        let lang = Language::new("en_US");
+        assert_eq!(lang.as_str(), "en-us");
+    }
+
+    #[test]
+    fn new_accepts_str() {
+        let lang = Language::new("zh-Hant");
+        assert_eq!(lang.as_str(), "zh-hant");
+    }
+
+    #[test]
+    fn new_accepts_byte_slice() {
+        let lang = Language::new(b"zh-Hant" as &[u8]);
+        assert_eq!(lang.as_str(), "zh-hant");
+    }
+
+    #[test]
+    fn new_accepts_byte_array() {
+        let lang = Language::new(*b"zh-Hant");
+        assert_eq!(lang.as_str(), "zh-hant");
+    }
+
+    #[test]
+    fn new_accepts_string() {
+        let lang = Language::new(String::from("zh-Hant"));
+        assert_eq!(lang.as_str(), "zh-hant");
+    }
+
+    #[test]
+    fn new_accepts_vec() {
+        let lang = Language::new(Vec::from(b"zh-Hant" as &[u8]));
+        assert_eq!(lang.as_str(), "zh-hant");
+    }
+
+    #[test]
+    fn new_matches_from_str() {
+        assert_eq!(Language::new("en-US"), Language::from_str("en-US").unwrap());
+        assert_eq!(
+            Language::new("zh_Hant_TW"),
+            Language::from_str("zh_Hant_TW").unwrap()
+        );
+    }
+
+    #[test]
+    fn new_empty_differs_from_from_str() {
+        // `from_str` rejects empty input; `new` accepts it.
+        assert_eq!(Language::new("").as_str(), "");
+        assert!(Language::from_str("").is_err());
+    }
+}
+
 // In harfbuzz, despite having `hb_script_t`, script can actually have any tag.
 // So we're doing the same.
 // The only difference is that `Script` cannot be set to `HB_SCRIPT_INVALID`.
