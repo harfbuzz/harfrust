@@ -24,7 +24,7 @@ pub use read_fonts::{
     FontRef,
 };
 
-pub use hb::buffer::{GlyphBuffer, GlyphInfo, GlyphPosition, UnicodeBuffer};
+pub use hb::buffer::{GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
 pub use hb::face::{
     hb_font_t as Shaper, GlyphExtents, ShapeOptions, ShaperBuilder, ShaperData, ShaperInstance,
