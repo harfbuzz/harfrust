@@ -194,6 +194,12 @@ type SmallVecLanguage = SmallVec<[u8; 8]>;
 pub struct Language(SmallVecLanguage);
 
 impl Language {
+    /// Creates a new language from the given bytes.
+    #[inline]
+    pub fn new(bytes: impl AsRef<[u8]>) -> Self {
+        Language::from_bytes(bytes.as_ref())
+    }
+
     /// Returns the language as a string.
     #[inline]
     pub fn as_str(&self) -> &str {
