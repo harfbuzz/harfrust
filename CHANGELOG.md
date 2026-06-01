@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-05-31
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Allow setting pre- and post-context from codepoints.
+- Added `Language::new` constructor that accepts strings or bytes.
+- Re-export `GlyphId` so that `FontFuncs` implementors don't need to add extra dependencies
+  to name the type.
+- Reify glyph flags into a `GlyphFlags` type. Existing methods on `GlyphInfo` remain for now
+  to avoid a breaking change but will be removed in a future version.
+- Fix AAT in place glyph deletion.
+
 ## [0.8.1] - 2026-05-28
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -164,7 +177,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.8.1...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.8.2...HEAD
+[0.8.2]: https://github.com/harfbuzz/harfrust/compare/0.8.1...0.8.2
 [0.8.1]: https://github.com/harfbuzz/harfrust/compare/0.8.0...0.8.1
 [0.8.0]: https://github.com/harfbuzz/harfrust/compare/0.7.1...0.8.0
 [0.7.1]: https://github.com/harfbuzz/harfrust/compare/0.7.0...0.7.1

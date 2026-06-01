@@ -3,7 +3,7 @@ members = ["harfrust", "hr-shape", "fuzz"]
 resolver = "2"
 
 [workspace.package]
-version = "0.8.1"
+version = "0.8.2"
 edition = "2021"
 rust-version = "1.85"  # should match https://github.com/googlefonts/fontations/blob/main/Cargo.toml
 description = "A complete HarfBuzz shaping algorithm port to Rust."
@@ -22,7 +22,7 @@ codegen-units = 1
 inherits = "release"
 
 [workspace.dependencies]
-harfrust = { version = "0.8.1", path = "./harfrust", default-features = false }
+harfrust = { version = "0.8.2", path = "./harfrust", default-features = false }
 read-fonts = { version = "0.39.0", default-features = false }
 
 [workspace.lints.rust]
