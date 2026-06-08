@@ -72,7 +72,7 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
   * Determine diff from previous release and
   * Summarize changes
   * Determine new version number according to SemVer
-* Update Cargo.toml release version following SemVer
+* Update Cargo.toml release version following SemVer, in TWO places
 * Commit to a branch and file a PR
 * Get PR reviewed and land
 * Pull/Rebase local main checkout, then
