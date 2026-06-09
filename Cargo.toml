@@ -23,7 +23,11 @@ inherits = "release"
 
 [workspace.dependencies]
 harfrust = { version = "0.10.0", path = "./harfrust", default-features = false }
-read-fonts = { git="https://github.com/googlefonts/fontations.git", branch="unify-fontread-args", default-features = false, features = ["experimental_font_api"] }
+read-fonts = { git="https://github.com/googlefonts/fontations.git", branch="sanitize-v3-real-tables-on-unified", default-features = false, features = ["experimental_font_api"] }
+#=======
+#harfrust = { version = "0.8.3", path = "./harfrust", default-features = false }
+#read-fonts = { git="https://github.com/googlefonts/fontations.git", branch="bench-sanitize-v3-real-tables", default-features = false }
+#>>>>>>> f5392c2f (wip: update for sanitize world)
 
 [workspace.lints.rust]
 unused_qualifications = "warn"

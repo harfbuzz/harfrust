@@ -26,7 +26,7 @@ use read_fonts::{
             SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
         },
     },
-    FontData, FontRead, Offset, ReadError,
+    FontData, FontRead, Offset, ReadError, Sanitize,
 };
 
 pub struct LookupData<'a> {
@@ -322,44 +322,44 @@ impl LookupInfo {
             let data = FontData::new(data);
             let result = match subtable_info.kind {
                 SubtableKind::SingleSubst1 => {
-                    SingleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
+                    SingleSubstFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::SingleSubst2 => {
-                    SingleSubstFormat2::read(data).map(|t| t.would_apply(ctx))
+                    SingleSubstFormat2::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::MultipleSubst1 => {
-                    MultipleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
+                    MultipleSubstFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::AlternateSubst1 => {
-                    AlternateSubstFormat1::read(data).map(|t| t.would_apply(ctx))
+                    AlternateSubstFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::LigatureSubst1 => {
-                    LigatureSubstFormat1::read(data).map(|t| t.would_apply(ctx))
+                    LigatureSubstFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ReverseChainContext => {
-                    ReverseChainSingleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
+                    ReverseChainSingleSubstFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ContextFormat1 => {
-                    SequenceContextFormat1::read(data).map(|t| t.would_apply(ctx))
+                    SequenceContextFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ContextFormat2 => {
-                    SequenceContextFormat2::read(data).map(|t| t.would_apply(ctx))
+                    SequenceContextFormat2::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ContextFormat3 => {
-                    SequenceContextFormat3::read(data).map(|t| t.would_apply(ctx))
+                    SequenceContextFormat3::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ChainedContextFormat1 => {
-                    ChainedSequenceContextFormat1::read(data).map(|t| t.would_apply(ctx))
+                    ChainedSequenceContextFormat1::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ChainedContextFormat2 => {
-                    ChainedSequenceContextFormat2::read(data).map(|t| t.would_apply(ctx))
+                    ChainedSequenceContextFormat2::read_fast(data, ()).would_apply(ctx)
                 }
                 SubtableKind::ChainedContextFormat3 => {
-                    ChainedSequenceContextFormat3::read(data).map(|t| t.would_apply(ctx))
+                    ChainedSequenceContextFormat3::read_fast(data, ()).would_apply(ctx)
                 }
                 _ => continue,
             };
-            if result == Ok(true) {
+            if result {
                 return Some(true);
             }
         }
@@ -402,7 +402,7 @@ macro_rules! apply_fns {
             external_cache: &SubtableExternalCache,
             table_data: &[u8],
         ) -> Option<()> {
-            let t = $ty::read(FontData::new(table_data)).ok()?;
+            let t = $ty::read_fast(FontData::new(table_data), ());
             t.apply_with_external_cache(ctx, external_cache)
         }
 
@@ -411,7 +411,7 @@ macro_rules! apply_fns {
             external_cache: &SubtableExternalCache,
             table_data: &[u8],
         ) -> Option<()> {
-            let t = $ty::read(FontData::new(table_data)).ok()?;
+            let t = $ty::read_fast(FontData::new(table_data), ());
             t.apply_cached(ctx, external_cache)
         }
     };
@@ -506,7 +506,7 @@ impl SubtableInfo {
             (SubtableExternalCache, u32, CoverageTable),
             [SubtableApplyFn; 2],
         ) = match (is_subst, lookup_type) {
-            (true, 1) => match SingleSubst::read(data).ok()? {
+            (true, 1) => match SingleSubst::read_fast(data, ()) {
                 SingleSubst::Format1(s) => (
                     SubtableKind::SingleSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
@@ -518,7 +518,7 @@ impl SubtableInfo {
                     [single_subst2, single_subst2_cached as _],
                 ),
             },
-            (false, 1) => match SinglePos::read(data).ok()? {
+            (false, 1) => match SinglePos::read_fast(data, ()) {
                 SinglePos::Format1(s) => (
                     SubtableKind::SinglePos1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
@@ -530,14 +530,15 @@ impl SubtableInfo {
                     [single_pos2, single_pos2_cached as _],
                 ),
             },
-            (true, 2) => (
-                SubtableKind::MultipleSubst1,
-                MultipleSubstFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [multiple_subst1, multiple_subst1_cached as _],
-            ),
-            (false, 2) => match PairPos::read(data).ok()? {
+            (true, 2) => {
+                let t = MultipleSubstFormat1::read_fast(data, ());
+                (
+                    SubtableKind::MultipleSubst1,
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?),
+                    [multiple_subst1, multiple_subst1_cached as _],
+                )
+            }
+            (false, 2) => match PairPos::read_fast(data, ()) {
                 PairPos::Format1(s) => (
                     SubtableKind::PairPos1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
@@ -549,39 +550,43 @@ impl SubtableInfo {
                     [pair_pos2, pair_pos2_cached as _],
                 ),
             },
-            (true, 3) => (
-                SubtableKind::AlternateSubst1,
-                AlternateSubstFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [alternate_subst1, alternate_subst1_cached as _],
-            ),
-            (false, 3) => (
-                SubtableKind::CursivePos1,
-                CursivePosFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [cursive_pos1, cursive_pos1_cached as _],
-            ),
-            (true, 4) => (
-                SubtableKind::LigatureSubst1,
-                LigatureSubstFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [ligature_subst1, ligature_subst1_cached as _],
-            ),
-            (false, 4) => (
-                SubtableKind::MarkBasePos1,
-                MarkBasePosFormat1::read(data).ok().and_then(|t| {
-                    Some((
+            (true, 3) => {
+                let t = AlternateSubstFormat1::read_fast(data, ());
+                (
+                    SubtableKind::AlternateSubst1,
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?),
+                    [alternate_subst1, alternate_subst1_cached as _],
+                )
+            }
+            (false, 3) => {
+                let t = CursivePosFormat1::read_fast(data, ());
+                (
+                    SubtableKind::CursivePos1,
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?),
+                    [cursive_pos1, cursive_pos1_cached as _],
+                )
+            }
+            (true, 4) => {
+                let t = LigatureSubstFormat1::read_fast(data, ());
+                (
+                    SubtableKind::LigatureSubst1,
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?),
+                    [ligature_subst1, ligature_subst1_cached as _],
+                )
+            }
+            (false, 4) => {
+                let t = MarkBasePosFormat1::read_fast(data, ());
+                (
+                    SubtableKind::MarkBasePos1,
+                    (
                         maybe_external_cache(&t),
                         t.cache_cost(),
                         t.mark_coverage().ok()?,
-                    ))
-                })?,
-                [mark_base_pos1, mark_base_pos1_cached as _],
-            ),
-            (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
+                    ),
+                    [mark_base_pos1, mark_base_pos1_cached as _],
+                )
+            }
+            (true, 5) | (false, 7) => match SequenceContext::read_fast(data, ()) {
                 SequenceContext::Format1(s) => (
                     SubtableKind::ContextFormat1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
@@ -602,18 +607,19 @@ impl SubtableInfo {
                     [context3, context3_cached as _],
                 ),
             },
-            (false, 5) => (
-                SubtableKind::MarkLigPos1,
-                MarkLigPosFormat1::read(data).ok().and_then(|t| {
-                    Some((
+            (false, 5) => {
+                let t = MarkLigPosFormat1::read_fast(data, ());
+                (
+                    SubtableKind::MarkLigPos1,
+                    (
                         maybe_external_cache(&t),
                         t.cache_cost(),
                         t.mark_coverage().ok()?,
-                    ))
-                })?,
-                [mark_lig_pos1, mark_lig_pos1_cached as _],
-            ),
-            (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
+                    ),
+                    [mark_lig_pos1, mark_lig_pos1_cached as _],
+                )
+            }
+            (true, 6) | (false, 8) => match ChainedSequenceContext::read_fast(data, ()) {
                 ChainedSequenceContext::Format1(s) => (
                     SubtableKind::ChainedContextFormat1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
@@ -649,26 +655,26 @@ impl SubtableInfo {
                     cache_mode,
                 );
             }
-            (false, 6) => (
-                SubtableKind::MarkMarkPos1,
-                MarkMarkPosFormat1::read(data).ok().and_then(|t| {
-                    Some((
+            (false, 6) => {
+                let t = MarkMarkPosFormat1::read_fast(data, ());
+                (
+                    SubtableKind::MarkMarkPos1,
+                    (
                         maybe_external_cache(&t),
                         t.cache_cost(),
                         t.mark1_coverage().ok()?,
-                    ))
-                })?,
-                [mark_mark_pos1, mark_mark_pos1_cached as _],
-            ),
-            (true, 8) => (
-                SubtableKind::ReverseChainContext,
-                ReverseChainSingleSubstFormat1::read(data)
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
-                [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
-            ),
+                    ),
+                    [mark_mark_pos1, mark_mark_pos1_cached as _],
+                )
+            }
+            (true, 8) => {
+                let t = ReverseChainSingleSubstFormat1::read_fast(data, ());
+                (
+                    SubtableKind::ReverseChainContext,
+                    (maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?),
+                    [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
+                )
+            }
             _ => return None,
         };
         let mut digest = hb_set_digest_t::new();

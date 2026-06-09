@@ -15,7 +15,7 @@ use read_fonts::tables::layout::{
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
-use read_fonts::{ArrayOfOffsets, FontData, FontRead};
+use read_fonts::{FontData, Sanitize, SanitizedArrayOfOffsets};
 
 impl WouldApply for SequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -569,7 +569,6 @@ impl<'a> ParsedRule<'a> {
             records: data.read_array(lookahead_end + 2..records_end).ok()?,
         })
     }
-
     /// Match this rule's input sequence and apply its lookup records.
     ///
     /// Backtrack/lookahead are not consulted; chain rules go through
@@ -598,7 +597,7 @@ impl<'a> ParsedRule<'a> {
     }
 }
 
-trait ContextRule<'a>: FontRead<'a, Args = ()> {
+trait ContextRule<'a>: Sanitize<'a, Args = ()> + Default {
     /// Parse all of the rule's fields in one pass.
     fn parse(&self) -> ParsedRule<'a>;
 
@@ -679,7 +678,7 @@ impl<'a> ContextRule<'a> for ChainedClassSequenceRule<'a> {
 
 fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     ctx: &mut hb_ot_apply_context_t,
-    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    rules: &'b SanitizedArrayOfOffsets<'a, R, Offset16>,
     match_func: impl Fn(&mut GlyphInfo, u16) -> bool,
 ) -> Option<()> {
     // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
@@ -877,7 +876,7 @@ fn apply_chain_context_rules<
     F3: Fn(&mut GlyphInfo, u16) -> bool,
 >(
     ctx: &mut hb_ot_apply_context_t,
-    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    rules: &'b SanitizedArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
 ) -> Option<()> {
     if rules.len() <= 4 {
