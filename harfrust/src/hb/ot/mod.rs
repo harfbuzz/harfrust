@@ -102,7 +102,7 @@ pub struct GdefTable<'a> {
 
 impl<'a> GdefTable<'a> {
     fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
-        if let Some(gdef) = table_ranges.gdef.resolve_table::<Gdef>(font) {
+        if let Some(gdef) = table_ranges.gdef.resolve_table_fast::<Gdef>(font) {
             let classes = gdef.glyph_class_def().transpose().ok().flatten();
             let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
             let mark_sets = gdef
@@ -145,14 +145,14 @@ impl<'a> OtTables<'a> {
     ) -> Self {
         let gsub = table_offsets
             .gsub
-            .resolve_table(font)
+            .resolve_table_fast(font)
             .map(|table| GsubTable {
                 table,
                 lookups: &cache.gsub,
             });
         let gpos = table_offsets
             .gpos
-            .resolve_table(font)
+            .resolve_table_fast(font)
             .map(|table| GposTable {
                 table,
                 lookups: &cache.gpos,

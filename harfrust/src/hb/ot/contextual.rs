@@ -15,7 +15,7 @@ use read_fonts::tables::layout::{
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
-use read_fonts::{ArrayOfOffsets, FontRead};
+use read_fonts::{FastRead, SanitizedArrayOfOffsets};
 
 impl WouldApply for SequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -538,7 +538,7 @@ impl ToU16 for BigEndian<u16> {
     }
 }
 
-trait ContextRule<'a>: FontRead<'a> {
+trait ContextRule<'a>: FastRead<'a> + Default {
     type Input: ToU16 + 'a;
 
     fn input(&self) -> &'a [Self::Input];
@@ -593,7 +593,7 @@ impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
 
 fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     ctx: &mut hb_ot_apply_context_t,
-    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    rules: &'b SanitizedArrayOfOffsets<'a, R, Offset16>,
     match_func: impl Fn(&mut GlyphInfo, u16) -> bool,
 ) -> Option<()> {
     // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
@@ -847,7 +847,7 @@ fn apply_chain_context_rules<
     F3: Fn(&mut GlyphInfo, u16) -> bool,
 >(
     ctx: &mut hb_ot_apply_context_t,
-    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    rules: &'b SanitizedArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
 ) -> Option<()> {
     if rules.len() <= 4 {

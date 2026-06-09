@@ -23,7 +23,7 @@ use read_fonts::{
         vvar::Vvar,
     },
     types::Tag,
-    FontData, FontRead, FontRef, TableProvider, TopLevelTable,
+    FastRead, FontData, FontRead, FontRef, TableProvider, TopLevelTable,
 };
 
 // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
@@ -202,6 +202,13 @@ impl TableRange {
 
     pub fn resolve_table<'a, T: FontRead<'a>>(self, font: &FontRef<'a>) -> Option<T> {
         T::read(self.resolve_data(font)?).ok()
+    }
+
+    pub fn resolve_table_fast<'a, T: FastRead<'a, Args = ()> + Default>(
+        self,
+        font: &FontRef<'a>,
+    ) -> Option<T> {
+        Some(T::fast_read(self.resolve_data(font)?, ()))
     }
 
     pub fn len(self) -> u32 {
