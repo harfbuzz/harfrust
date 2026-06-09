@@ -23,7 +23,7 @@ inherits = "release"
 
 [workspace.dependencies]
 harfrust = { version = "0.8.3", path = "./harfrust", default-features = false }
-read-fonts = { version = "0.39.0", default-features = false }
+read-fonts = { git="https://github.com/googlefonts/fontations.git", rev="72b73e5e", default-features = false }
 
 [workspace.lints.rust]
 unused_qualifications = "warn"
