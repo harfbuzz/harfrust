@@ -49,8 +49,8 @@ fn propagate_attachment_offsets(
 
     match kind {
         attach_type::MARK => {
-            pos[i].x_offset += pos[j].x_offset;
-            pos[i].y_offset += pos[j].y_offset;
+            pos[i].x_offset = pos[i].x_offset.saturating_add(pos[j].x_offset);
+            pos[i].y_offset = pos[i].y_offset.saturating_add(pos[j].y_offset);
 
             // i is the position of the mark; j is the base.
             if j < i {
@@ -58,13 +58,13 @@ fn propagate_attachment_offsets(
                 // And currently the only way in OpenType.
                 if direction.is_forward() {
                     for k in j..i {
-                        pos[i].x_offset -= pos[k].x_advance;
-                        pos[i].y_offset -= pos[k].y_advance;
+                        pos[i].x_offset = pos[i].x_offset.saturating_sub(pos[k].x_advance);
+                        pos[i].y_offset = pos[i].y_offset.saturating_sub(pos[k].y_advance);
                     }
                 } else {
                     for k in j + 1..i + 1 {
-                        pos[i].x_offset += pos[k].x_advance;
-                        pos[i].y_offset += pos[k].y_advance;
+                        pos[i].x_offset = pos[i].x_offset.saturating_add(pos[k].x_advance);
+                        pos[i].y_offset = pos[i].y_offset.saturating_add(pos[k].y_advance);
                     }
                 }
             } else {
@@ -72,22 +72,22 @@ fn propagate_attachment_offsets(
                 // to a base after it in the logical order.
                 if direction.is_forward() {
                     for k in i..j {
-                        pos[i].x_offset += pos[k].x_advance;
-                        pos[i].y_offset += pos[k].y_advance;
+                        pos[i].x_offset = pos[i].x_offset.saturating_add(pos[k].x_advance);
+                        pos[i].y_offset = pos[i].y_offset.saturating_add(pos[k].y_advance);
                     }
                 } else {
                     for k in i + 1..j + 1 {
-                        pos[i].x_offset -= pos[k].x_advance;
-                        pos[i].y_offset -= pos[k].y_advance;
+                        pos[i].x_offset = pos[i].x_offset.saturating_sub(pos[k].x_advance);
+                        pos[i].y_offset = pos[i].y_offset.saturating_sub(pos[k].y_advance);
                     }
                 }
             }
         }
         attach_type::CURSIVE => {
             if direction.is_horizontal() {
-                pos[i].y_offset += pos[j].y_offset;
+                pos[i].y_offset = pos[i].y_offset.saturating_add(pos[j].y_offset);
             } else {
-                pos[i].x_offset += pos[j].x_offset;
+                pos[i].x_offset = pos[i].x_offset.saturating_add(pos[j].x_offset);
             }
         }
         _ => {}
@@ -144,5 +144,34 @@ pub mod GPOS {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn propagate_attachment_offsets_saturates_deep_mark_chains() {
+        let len = MAX_NESTING_LEVEL + 2;
+        let mut pos = vec![GlyphPosition::default(); len];
+
+        for i in 1..len {
+            pos[i].x_offset = 40_000_000;
+            pos[i].y_offset = 40_000_000;
+            pos[i].set_attach_type(attach_type::MARK);
+            pos[i].set_attach_chain(-1);
+        }
+
+        propagate_attachment_offsets(
+            &mut pos,
+            len,
+            len - 1,
+            Direction::LeftToRight,
+            MAX_NESTING_LEVEL,
+        );
+
+        assert_eq!(pos[len - 1].x_offset, i32::MAX);
+        assert_eq!(pos[len - 1].y_offset, i32::MAX);
     }
 }
