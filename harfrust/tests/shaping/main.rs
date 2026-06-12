@@ -2,6 +2,7 @@ mod aots;
 mod custom;
 mod in_house;
 mod macos;
+mod regressions;
 mod text_rendering_tests;
 
 pub fn shape(font_path: &str, text: &str, options: &str) -> String {
