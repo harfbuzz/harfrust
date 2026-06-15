@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-06-02
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Fix GPOS attachment offset overflow #384
+- Require read-fonts 0.40.
+
 ## [0.8.4] - 2026-06-02
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -192,6 +200,7 @@ HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
 [Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.8.4...HEAD
+[0.8.5]: https://github.com/harfbuzz/harfrust/compare/0.8.4...0.8.5
 [0.8.4]: https://github.com/harfbuzz/harfrust/compare/0.8.3...0.8.4
 [0.8.3]: https://github.com/harfbuzz/harfrust/compare/0.8.2...0.8.3
 [0.8.2]: https://github.com/harfbuzz/harfrust/compare/0.8.1...0.8.2
