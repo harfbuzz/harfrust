@@ -20,6 +20,7 @@ mod digest_u32_set;
 pub(crate) type U32Set = digest_u32_set::DigestU32Set;
 
 pub use read_fonts::{
+    model::font,
     types::{GlyphId, Tag},
     FontRef,
 };
@@ -27,7 +28,8 @@ pub use read_fonts::{
 pub use hb::buffer::{GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
 pub use hb::face::{
-    hb_font_t as Shaper, GlyphExtents, ShapeOptions, ShaperBuilder, ShaperData, ShaperInstance,
+    hb_font_t as Shaper, GlyphExtents, HarfRustFontInstance, ShapeOptions, ShaperBuilder,
+    ShaperData, ShaperInstance,
 };
 
 /// Font callbacks for overriding default metric and glyph operations during shaping.

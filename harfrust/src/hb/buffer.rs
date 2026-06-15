@@ -1,15 +1,17 @@
+use super::hb_mask_t;
+use super::unicode::CharExt;
+use crate::hb::face::BasicFontMetrics;
+use crate::hb::glyph_metrics::GlyphMetrics;
+use crate::hb::glyph_names::GlyphNames;
+use crate::hb::set_digest::hb_set_digest_t;
+use crate::hb::tables::TableRanges;
+use crate::hb::unicode::Codepoint;
 use crate::U32Set;
+use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 use core::convert::TryFrom;
-use read_fonts::types::{GlyphId, GlyphId16};
-
-use super::face::GlyphExtents;
-use super::unicode::CharExt;
-use super::{hb_font_t, hb_mask_t};
-use crate::hb::set_digest::hb_set_digest_t;
-use crate::hb::unicode::Codepoint;
-use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
+use read_fonts::types::{F2Dot14, GlyphId, GlyphId16};
 
 const CONTEXT_LENGTH: usize = 5;
 
@@ -2068,13 +2070,13 @@ impl GlyphBuffer {
     }
 
     /// Converts the glyph buffer content into a string.
-    pub fn serialize(&self, face: &crate::Shaper, flags: SerializeFlags) -> String {
-        self.serialize_impl(face, flags).unwrap_or_default()
+    pub fn serialize(&self, font: &impl SerializerFont, flags: SerializeFlags) -> String {
+        self.serialize_impl(font, flags).unwrap_or_default()
     }
 
-    fn serialize_impl(
+    pub(crate) fn serialize_impl(
         &self,
-        face: &hb_font_t,
+        font: &impl SerializerFont,
         flags: SerializeFlags,
     ) -> Result<String, core::fmt::Error> {
         use core::fmt::Write;
@@ -2085,7 +2087,12 @@ impl GlyphBuffer {
         let pos = self.glyph_positions();
         let mut x = 0;
         let mut y = 0;
-        let names = face.glyph_names();
+        let names = font.glyph_names();
+        let glyph_metrics = if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
+            Some(font.glyph_metrics())
+        } else {
+            None
+        };
         for (info, pos) in info.iter().zip(pos) {
             s.push(if s.is_empty() { '[' } else { '|' });
 
@@ -2122,8 +2129,11 @@ impl GlyphBuffer {
             }
 
             if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
-                let mut extents = GlyphExtents::default();
-                face.glyph_extents(info.as_glyph(), &mut extents);
+                let extents = glyph_metrics
+                    .as_ref()
+                    .unwrap()
+                    .extents(info.as_glyph(), font.coords())
+                    .unwrap_or_default();
                 write!(
                     &mut s,
                     "<{},{},{},{}>",
@@ -2142,6 +2152,47 @@ impl GlyphBuffer {
         }
 
         Ok(s)
+    }
+}
+
+pub trait SerializerFont {
+    fn coords(&self) -> &[F2Dot14];
+    fn glyph_names(&self) -> GlyphNames<'_>;
+    fn glyph_metrics(&self) -> GlyphMetrics<'_>;
+}
+
+impl SerializerFont for crate::Shaper<'_> {
+    fn coords(&self) -> &[F2Dot14] {
+        self.coords()
+    }
+
+    fn glyph_names(&self) -> GlyphNames<'_> {
+        crate::Shaper::glyph_names(self)
+    }
+
+    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        crate::Shaper::glyph_metrics(self)
+    }
+}
+
+impl SerializerFont for read_fonts::model::font::FontInstance {
+    fn coords(&self) -> &[F2Dot14] {
+        self.normalized_coords()
+    }
+
+    fn glyph_names(&self) -> GlyphNames<'_> {
+        GlyphNames::from_tables(&self.tables())
+    }
+
+    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        let table_ranges = TableRanges::from_tables(&self.tables());
+        let metrics = BasicFontMetrics {
+            num_glyphs: table_ranges.num_glyphs,
+            units_per_em: table_ranges.units_per_em,
+            ascent: table_ranges.ascent,
+            descent: table_ranges.descent,
+        };
+        GlyphMetrics::from_tables(&self.tables(), &metrics)
     }
 }
 
