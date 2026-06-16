@@ -97,9 +97,9 @@ fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
 impl<'a> AatTables<'a> {
     pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
         let morx = if is_morx_blocklisted(
-            table_ranges.morx.len() as u32,
-            table_ranges.gsub.len() as u32,
-            table_ranges.gdef.len() as u32,
+            table_ranges.morx.len(),
+            table_ranges.gsub.len(),
+            table_ranges.gdef.len(),
         ) {
             None
         } else {
@@ -138,14 +138,12 @@ impl<'a> AatTables<'a> {
             let gsub_len = ot_tables
                 .gsub
                 .as_ref()
-                .map(|table| table.table.offset_data().len() as u32)
-                .unwrap_or(0);
+                .map_or(0, |table| table.table.offset_data().len() as u32);
             let gdef_len = ot_tables
                 .gdef
                 .table
                 .as_ref()
-                .map(|table| table.offset_data().len() as u32)
-                .unwrap_or(0);
+                .map_or(0, |table| table.offset_data().len() as u32);
             if is_morx_blocklisted(morx.offset_data().len() as u32, gsub_len, gdef_len) {
                 None
             } else {

@@ -355,12 +355,12 @@ impl<'a> GlyphMetrics<'a> {
         if !coords.is_empty() {
             return None; // TODO https://github.com/harfbuzz/harfrust/pull/52#issuecomment-2878117808
         }
-        let mut extents = GlyphExtents::default();
-        extents.x_bearing = glyph.x_min() as i32;
-        extents.y_bearing = glyph.y_max() as i32;
-        extents.width = glyph.x_max() as i32 - glyph.x_min() as i32;
-        extents.height = glyph.y_min() as i32 - glyph.y_max() as i32;
-        Some(extents)
+        Some(GlyphExtents {
+            x_bearing: glyph.x_min() as i32,
+            y_bearing: glyph.y_max() as i32,
+            width: glyph.x_max() as i32 - glyph.x_min() as i32,
+            height: glyph.y_min() as i32 - glyph.y_max() as i32,
+        })
     }
 
     fn phantom_deltas(&self, gid: GlyphId, coords: &[F2Dot14]) -> Option<[Point<Fixed>; 4]> {

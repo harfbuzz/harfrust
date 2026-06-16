@@ -34,7 +34,7 @@ pub struct ShaperData {
 
 impl ShaperData {
     /// Creates new cached shaper data for the given font.
-    pub fn new<'a>(font: &FontRef) -> Self {
+    pub fn new(font: &FontRef) -> Self {
         let ot_cache = OtCache::new(font);
         let aat_cache = AatCache::new(font);
         let table_ranges = TableRanges::new(font);
@@ -443,6 +443,8 @@ pub fn shape(
     hb_font.shape(buffer, options)
 }
 
+// This will go away completely when we drop the old API.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum FontKind<'a> {
     FontRef(FontRefData<'a>),

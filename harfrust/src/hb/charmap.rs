@@ -44,7 +44,7 @@ impl<'a> Charmap<'a> {
     }
 
     pub fn from_tables(font: &impl TableProvider<'a>) -> Self {
-        if let Some(cmap) = font.cmap().ok() {
+        if let Ok(cmap) = font.cmap() {
             let subtable = if let Some((index, record, subtable)) = cmap.best_subtable() {
                 Some((
                     SelectedCmapSubtable {
