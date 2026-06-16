@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use read_fonts::types::{F2Dot14, Fixed};
 use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
