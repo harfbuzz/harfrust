@@ -291,13 +291,13 @@ pub fn render(mut args: Args) -> Result<String, String> {
     let font = Font::new(font_data, args.face_index)
         .map_err(|_| format!("Error: face index {} not found.", args.face_index))?;
 
-    let instance_builder = FontInstance::new(&font);
-    let variations = &args.variations;
+    let variations = args.variations.iter().map(|v| (v.tag, v.value));
+    let instance_builder = FontInstance::builder(&font);
     let instance = match args.named_instance {
-        Some(idx) => instance_builder.named_instance(idx).build(),
-        None => instance_builder
-            .variations(variations.iter().map(|v| (v.tag, v.value)))
+        Some(idx) => instance_builder
+            .named_instance_with_overrides(idx, variations)
             .build(),
+        None => instance_builder.variations(variations).build(),
     };
 
     let pre_context = args
