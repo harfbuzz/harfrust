@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use harfrust::{
-    funcs::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs},
+    font::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs},
     Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer,
 };
 use read_fonts::types::GlyphId;

@@ -20,24 +20,34 @@ mod digest_u32_set;
 pub(crate) type U32Set = digest_u32_set::DigestU32Set;
 
 pub use read_fonts::{
-    model::font,
     types::{GlyphId, Tag},
     FontRef,
 };
 
-pub use hb::buffer::{GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer};
-pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
-pub use hb::face::{
-    hb_font_t as Shaper, GlyphExtents, HarfRustFontInstance, ShapeOptions, ShaperBuilder,
-    ShaperData, ShaperInstance,
-};
+#[cfg(feature = "experimental_font_api")]
+pub use hb::face::shape;
 
-/// Font callbacks for overriding default metric and glyph operations during shaping.
-pub mod funcs {
+/// Font related types.
+pub mod font {
     pub use crate::hb::face::{
         AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, RawAdvanceWidthBatch,
     };
+
+    // Import the whole read-fonts "model" module as our font representation.
+
+    #[cfg(feature = "experimental_font_api")]
+    pub use read_fonts::model::*;
+
+    #[cfg(not(feature = "experimental_font_api"))]
+    pub(crate) use read_fonts::model::*;
 }
+
+pub use hb::buffer::{GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer};
+pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
+pub use hb::face::{
+    hb_font_t as Shaper, GlyphExtents, ShapeOptions, ShaperBuilder, ShaperData, ShaperInstance,
+};
+
 pub use hb::ot_shape_plan::{hb_ot_shape_plan_t as ShapePlan, ShapePlanKey};
 
 /// Type alias for a normalized variation coordinate.

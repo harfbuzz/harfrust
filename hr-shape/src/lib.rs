@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use harfrust::{
     font::{Font, FontInstance},
-    BufferClusterLevel, BufferFlags, Direction, Feature, HarfRustFontInstance, Language,
+    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language,
     SerializeFlags, ShapeOptions, UnicodeBuffer, Variation,
 };
 
@@ -445,14 +445,13 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 buffer.guess_segment_properties();
 
-                result = Some(
-                    instance.shape(
-                        buffer,
-                        ShapeOptions::new()
-                            .point_size(args.font_ptem)
-                            .features(features),
-                    ),
-                );
+                result = Some(shape_impl(
+                    &instance,
+                    buffer,
+                    ShapeOptions::new()
+                        .point_size(args.font_ptem)
+                        .features(features),
+                ));
             }
             result.unwrap()
         };

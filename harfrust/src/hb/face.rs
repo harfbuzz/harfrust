@@ -17,10 +17,7 @@ use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
-use crate::{
-    script, Direction, Feature, GlyphBuffer, Language, NormalizedCoord, Script, ShapePlan,
-    UnicodeBuffer, Variation,
-};
+use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
 pub use super::font_funcs::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, RawAdvanceWidthBatch};
 
@@ -51,7 +48,7 @@ impl ShaperData {
         }
     }
 
-    fn from_font(font: &read_fonts::model::font::Font) -> Self {
+    fn from_font(font: &crate::font::Font) -> Self {
         let tables = font.tables();
         let ot_cache = OtCache::new(&tables);
         let aat_cache = AatCache::new(&tables);
@@ -414,64 +411,41 @@ impl Scale {
     }
 }
 
-/// Extensions to font instance to support shaping.
-pub trait HarfRustFontInstance {
-    /// Shapes the buffer content using provided options.
-    ///
-    /// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
-    /// without allocating a new one.
-    ///
-    /// If a plan is provided, it is up to the caller to ensure that the shape plan matches the
-    /// properties of the provided buffer, otherwise the shaping result will likely be incorrect.
-    ///
-    /// # Panics
-    ///
-    /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
-    /// properties.     
-    fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions<'_>) -> GlyphBuffer;
-
-    /// Creates a shape plan for the given buffer properties and features.
-    fn new_shape_plan(
-        &self,
-        direction: Direction,
-        script: Option<Script>,
-        language: Option<&Language>,
-        features: &[Feature],
-    ) -> Option<ShapePlan>;
-}
-
-impl HarfRustFontInstance for read_fonts::model::font::FontInstance {
-    fn shape(&self, mut buffer: UnicodeBuffer, mut options: ShapeOptions<'_>) -> GlyphBuffer {
-        let Some(font) = hb_font_t::from_font(self) else {
-            buffer.clear();
-            return GlyphBuffer(buffer.0);
-        };
-        // If the user didn't request an explicit scale but the font instance
-        // has a size, set the scale to that size with 16 fractional bits.
-        if options.scale.is_none() {
-            if let Some(ppem) = self.size() {
-                options = options.scale(Some((ppem * 65536.0) as i32));
-            }
+/// Shapes the buffer content using provided options.
+///
+/// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
+/// without allocating a new one.
+///
+/// If a plan is provided, it is up to the caller to ensure that the shape plan matches the
+/// properties of the provided buffer, otherwise the shaping result will likely be incorrect.
+///
+/// # Panics
+///
+/// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
+/// properties.
+pub fn shape(
+    font: &crate::font::FontInstance,
+    mut buffer: UnicodeBuffer,
+    mut options: ShapeOptions<'_>,
+) -> GlyphBuffer {
+    let Some(hb_font) = hb_font_t::from_font(font) else {
+        buffer.clear();
+        return GlyphBuffer(buffer.0);
+    };
+    // If the user didn't request an explicit scale but the font instance
+    // has a size, set the scale to that size with 16 fractional bits.
+    if options.scale.is_none() {
+        if let Some(ppem) = font.size() {
+            options = options.scale(Some((ppem * 65536.0) as i32));
         }
-        font.shape(buffer, options)
     }
-
-    fn new_shape_plan(
-        &self,
-        direction: Direction,
-        script: Option<Script>,
-        language: Option<&Language>,
-        features: &[Feature],
-    ) -> Option<ShapePlan> {
-        let font = hb_font_t::from_font(self)?;
-        Some(ShapePlan::new(&font, direction, script, language, features))
-    }
+    hb_font.shape(buffer, options)
 }
 
 #[derive(Clone)]
 pub enum FontKind<'a> {
     FontRef(FontRefData<'a>),
-    FontInstance(&'a read_fonts::model::font::FontInstance, BasicFontMetrics),
+    FontInstance(&'a crate::font::FontInstance, BasicFontMetrics),
 }
 
 #[derive(Clone)]
@@ -501,8 +475,8 @@ pub struct hb_font_t<'a> {
 }
 
 impl<'a> crate::Shaper<'a> {
-    fn from_font(font: &'a read_fonts::model::font::FontInstance) -> Option<Self> {
-        let data = read_fonts::model::font::interop::_get_or_init_shaping_data(font, || {
+    pub(crate) fn from_font(font: &'a crate::font::FontInstance) -> Option<Self> {
+        let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
             Box::new(ShaperData::from_font(font))
         })
         .downcast_ref::<ShaperData>()?;

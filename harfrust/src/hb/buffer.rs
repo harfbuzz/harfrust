@@ -2175,7 +2175,7 @@ impl SerializerFont for crate::Shaper<'_> {
     }
 }
 
-impl SerializerFont for read_fonts::model::font::FontInstance {
+impl SerializerFont for crate::font::FontInstance {
     fn coords(&self) -> &[F2Dot14] {
         self.normalized_coords()
     }
