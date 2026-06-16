@@ -1,6 +1,8 @@
 mod aots;
 mod custom;
 mod in_house;
+#[cfg(target_os = "macos")]
+mod macos_lazy_tables;
 mod macos;
 mod regressions;
 mod text_rendering_tests;
