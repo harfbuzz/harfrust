@@ -154,6 +154,10 @@ mod cache {
 
 pub(crate) use cache::LookupCache;
 
+fn is_extension_lookup_type(is_subst: bool, lookup_type: u8) -> bool {
+    (is_subst && lookup_type == 7) || (!is_subst && lookup_type == 9)
+}
+
 fn is_reversed(table_data: FontData, lookup: &Lookup<()>, lookup_offset: usize) -> Option<bool> {
     match lookup.lookup_type() {
         // Reverse chain context
@@ -163,6 +167,9 @@ fn is_reversed(table_data: FontData, lookup: &Lookup<()>, lookup_offset: usize) 
             let offset = lookup_offset + lookup.subtable_offsets().first()?.get().to_usize();
             let data = table_data.split_off(offset)?;
             let ext = ExtensionSubstFormat1::<()>::read(data).ok()?;
+            if is_extension_lookup_type(true, ext.extension_lookup_type() as u8) {
+                return None;
+            }
             Some(ext.extension_lookup_type() == 8)
         }
         _ => Some(false),
@@ -630,6 +637,9 @@ impl SubtableInfo {
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<'_, ()>::read(data).ok()?;
                 let ext_type = ext.extension_lookup_type() as u8;
+                if is_extension_lookup_type(is_subst, ext_type) {
+                    return None;
+                }
                 let ext_offset = ext.extension_offset().to_u32();
                 return Self::new(
                     table_data,
@@ -690,4 +700,47 @@ fn cache_enter(ctx: &mut hb_ot_apply_context_t) -> bool {
 fn cache_leave(ctx: &mut hb_ot_apply_context_t) {
     ctx.new_syllables = None;
     ctx.buffer.deallocate_var(GlyphInfo::SYLLABLE_VAR);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lookup_with_recursive_extension(lookup_type: u16) -> [u8; 16] {
+        let mut data = [0; 16];
+        // Lookup table.
+        data[0..2].copy_from_slice(&lookup_type.to_be_bytes());
+        data[4..6].copy_from_slice(&1u16.to_be_bytes());
+        data[6..8].copy_from_slice(&8u16.to_be_bytes());
+        // ExtensionSubstFormat1/ExtensionPosFormat1 subtable.
+        data[8..10].copy_from_slice(&1u16.to_be_bytes());
+        data[10..12].copy_from_slice(&lookup_type.to_be_bytes());
+        data
+    }
+
+    #[test]
+    fn gsub_extension_lookup_cannot_target_extension_lookup() {
+        let data = lookup_with_recursive_extension(7);
+        let lookup = LookupData {
+            offset: 0,
+            is_subst: true,
+            table_data: FontData::new(&data),
+        };
+        let info = LookupInfo::new(&lookup).unwrap();
+
+        assert!(info.subtables.is_empty());
+    }
+
+    #[test]
+    fn gpos_extension_lookup_cannot_target_extension_lookup() {
+        let data = lookup_with_recursive_extension(9);
+        let lookup = LookupData {
+            offset: 0,
+            is_subst: false,
+            table_data: FontData::new(&data),
+        };
+        let info = LookupInfo::new(&lookup).unwrap();
+
+        assert!(info.subtables.is_empty());
+    }
 }
