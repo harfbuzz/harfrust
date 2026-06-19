@@ -11,6 +11,11 @@ use alloc::boxed::Box;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
 
+// HarfBuzz builds this cache from tables that have already passed sanitizer
+// traversal budgets. read-fonts is lazy, so bound this optional raw-table walk
+// locally and fall back to a full digest when the table is pathological.
+const MAX_LIGATURE_CACHE_WORK: usize = 16_384;
+
 impl WouldApply for Ligature<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let components = self.component_glyph_ids();
@@ -204,22 +209,63 @@ impl Apply for LigatureSubstFormat1<'_> {
 
 fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
     let mut seconds = hb_set_digest_t::new();
-    lig_subst
-        .ligature_sets()
-        .iter()
-        .filter_map(Result::ok)
-        .for_each(|lig_set| {
-            lig_set
-                .ligatures()
-                .iter()
-                .filter_map(Result::ok)
-                .for_each(|lig| {
-                    if let Some(gid) = lig.component_glyph_ids().first() {
-                        seconds.add(gid.get().into());
-                    } else {
-                        seconds = hb_set_digest_t::full();
-                    }
-                });
-        });
+    let mut remaining_work = MAX_LIGATURE_CACHE_WORK;
+    let ligature_sets = lig_subst.ligature_sets();
+    if ligature_sets.len() > remaining_work {
+        return hb_set_digest_t::full();
+    }
+    remaining_work -= ligature_sets.len();
+
+    for lig_set in ligature_sets.iter().filter_map(Result::ok) {
+        let ligatures = lig_set.ligatures();
+        if ligatures.len() > remaining_work {
+            return hb_set_digest_t::full();
+        }
+        remaining_work -= ligatures.len();
+
+        for lig in ligatures.iter().filter_map(Result::ok) {
+            if let Some(gid) = lig.component_glyph_ids().first() {
+                seconds.add(gid.get().into());
+            } else {
+                return hb_set_digest_t::full();
+            }
+        }
+    }
     seconds
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{FontData, FontRead};
+
+    fn assert_full_digest(digest: hb_set_digest_t) {
+        assert!(digest.may_have(0));
+        assert!(digest.may_have(12345));
+        assert!(digest.may_have(u16::MAX as u32));
+    }
+
+    #[test]
+    fn collect_seconds_bails_on_too_many_ligature_sets() {
+        let ligature_set_count = MAX_LIGATURE_CACHE_WORK + 1;
+        let mut data = vec![0; 6 + ligature_set_count * 2];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes());
+        data[4..6].copy_from_slice(&(ligature_set_count as u16).to_be_bytes());
+
+        let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
+        assert_full_digest(collect_seconds(&lig_subst));
+    }
+
+    #[test]
+    fn collect_seconds_bails_on_too_many_ligatures() {
+        let ligature_count = MAX_LIGATURE_CACHE_WORK;
+        let mut data = vec![0; 10 + ligature_count * 2];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes());
+        data[4..6].copy_from_slice(&1u16.to_be_bytes());
+        data[6..8].copy_from_slice(&8u16.to_be_bytes());
+        data[8..10].copy_from_slice(&(ligature_count as u16).to_be_bytes());
+
+        let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
+        assert_full_digest(collect_seconds(&lig_subst));
+    }
 }
