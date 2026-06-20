@@ -75,6 +75,9 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
     Note that increasing a dependency version to a new major release
     means a breaking change for this crate.
 * Update Cargo.toml release version following SemVer, in TWO places
+* Run cargo-semver-checks:
+  * `cargo semver-checks check-release -p harfrust`
+  * `cargo semver-checks check-release -p hr-shape`
 * Commit to a branch and file a PR
 * Get PR reviewed and land
 * Pull/Rebase local main checkout, then

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-20
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Add support for the new `read-fonts` Font API behind the `experimental_font_api`
+  feature flag in both `read-fonts` and `harfrust`, and update `read-fonts` to 0.40.2.
+- Reject recursive extension lookups.
+- Bound ligature cache construction.
+
 ## [0.9.0] - 2026-06-15
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -199,7 +209,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.8.4...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.10.0...HEAD
+[0.10.0]: https://github.com/harfbuzz/harfrust/compare/0.9.0...0.10.0
 [0.9.0]: https://github.com/harfbuzz/harfrust/compare/0.8.4...0.9.0
 [0.8.4]: https://github.com/harfbuzz/harfrust/compare/0.8.3...0.8.4
 [0.8.3]: https://github.com/harfbuzz/harfrust/compare/0.8.2...0.8.3
