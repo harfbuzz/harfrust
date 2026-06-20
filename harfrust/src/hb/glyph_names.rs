@@ -1,18 +1,27 @@
 use read_fonts::{
     ps::cff::charset::Charset,
     tables::{cff::Cff, post::Post},
-    FontRef, TableProvider,
+    TableProvider,
 };
 
+use crate::hb::face::FontKind;
+
 #[derive(Clone)]
-pub(crate) enum GlyphNames<'a> {
+pub enum GlyphNames<'a> {
     None,
     Cff(Cff<'a>, Charset<'a>),
     Post(Post<'a>),
 }
 
 impl<'a> GlyphNames<'a> {
-    pub fn new(font: &FontRef<'a>) -> Self {
+    pub fn new(font: &FontKind<'a>) -> Self {
+        match font {
+            FontKind::FontRef(font) => Self::from_tables(&font.font),
+            FontKind::FontInstance(instance, _) => Self::from_tables(&instance.tables()),
+        }
+    }
+
+    pub(crate) fn from_tables(font: &impl TableProvider<'a>) -> Self {
         if let Some((cff, charset)) = font
             .cff()
             .ok()

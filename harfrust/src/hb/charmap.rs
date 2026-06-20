@@ -4,7 +4,7 @@ use super::cache::hb_cache_t;
 use read_fonts::{
     tables::cmap::{Cmap, Cmap14, CmapSubtable, MapVariant},
     types::GlyphId,
-    FontRef,
+    FontRef, TableProvider,
 };
 
 pub type cache_t = hb_cache_t<21, 19, 256, 32>;
@@ -34,6 +34,32 @@ impl<'a> Charmap<'a> {
             Self {
                 subtable,
                 vs_subtable,
+            }
+        } else {
+            Self {
+                subtable: None,
+                vs_subtable: None,
+            }
+        }
+    }
+
+    pub fn from_tables(font: &impl TableProvider<'a>) -> Self {
+        if let Ok(cmap) = font.cmap() {
+            let subtable = if let Some((index, record, subtable)) = cmap.best_subtable() {
+                Some((
+                    SelectedCmapSubtable {
+                        index,
+                        is_mac_roman: record.is_mac_roman(),
+                        is_symbol: record.is_symbol(),
+                    },
+                    subtable,
+                ))
+            } else {
+                None
+            };
+            Self {
+                subtable,
+                vs_subtable: cmap.uvs_subtable().map(|(_, subtable)| subtable),
             }
         } else {
             Self {

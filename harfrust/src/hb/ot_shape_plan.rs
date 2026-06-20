@@ -47,11 +47,36 @@ pub struct hb_ot_shape_plan_t {
     pub(crate) user_features: SmallVec<[Feature; 4]>,
 }
 
+pub trait AnyFont {
+    fn with_font<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(Option<&hb_font_t>) -> R;
+}
+
+impl AnyFont for hb_font_t<'_> {
+    fn with_font<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(Option<&hb_font_t>) -> R,
+    {
+        f(Some(self))
+    }
+}
+
+impl AnyFont for crate::font::FontInstance {
+    fn with_font<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(Option<&hb_font_t>) -> R,
+    {
+        let hb_font = hb_font_t::from_font(self);
+        f(hb_font.as_ref())
+    }
+}
+
 impl hb_ot_shape_plan_t {
     /// Returns a plan that can be used for shaping any buffer with the
     /// provided properties.
     pub fn new(
-        face: &hb_font_t,
+        font: &impl AnyFont,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
@@ -62,9 +87,12 @@ impl hb_ot_shape_plan_t {
             Direction::Invalid,
             "Direction must not be Invalid"
         );
-        let mut planner = hb_ot_shape_planner_t::new(face, direction, script, language);
-        planner.collect_features(user_features);
-        planner.compile(user_features)
+        font.with_font(|font| {
+            let font = font.expect("font should be available for shaping");
+            let mut planner = hb_ot_shape_planner_t::new(font, direction, script, language);
+            planner.collect_features(user_features);
+            planner.compile(user_features)
+        })
     }
 
     pub(crate) fn data<T: 'static>(&self) -> &T {

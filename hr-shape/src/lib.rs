@@ -7,8 +7,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use harfrust::{
-    BufferClusterLevel, BufferFlags, Direction, Feature, FontRef, Language, SerializeFlags,
-    ShapeOptions, ShaperData, ShaperInstance, UnicodeBuffer, Variation,
+    font::{Font, FontInstance},
+    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language,
+    SerializeFlags, ShapeOptions, UnicodeBuffer, Variation,
 };
 
 #[derive(Clone, Parser)]
@@ -287,22 +288,17 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
     let font_data = std::fs::read(&font_path)
         .map_err(|e| format!("Error: cannot read '{}': {e}", font_path.display()))?;
-    let font = FontRef::from_index(&font_data, args.face_index)
+    let font = Font::new(font_data, args.face_index)
         .map_err(|_| format!("Error: face index {} not found.", args.face_index))?;
 
-    let data = ShaperData::new(&font);
-    let variations = &args.variations;
+    let variations = args.variations.iter().map(|v| (v.tag, v.value));
+    let instance_builder = FontInstance::builder(&font);
     let instance = match args.named_instance {
-        Some(idx) => {
-            let mut inst = ShaperInstance::from_named_instance(&font, idx);
-            if !variations.is_empty() {
-                inst.set_variations(&font, variations);
-            }
-            inst
-        }
-        None => ShaperInstance::from_variations(&font, variations),
+        Some(idx) => instance_builder
+            .named_instance_with_overrides(idx, variations)
+            .build(),
+        None => instance_builder.variations(variations).build(),
     };
-    let shaper = data.shaper(&font).instance(Some(&instance)).build();
 
     let pre_context = args
         .unicodes_before
@@ -449,14 +445,13 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 buffer.guess_segment_properties();
 
-                result = Some(
-                    shaper.shape(
-                        buffer,
-                        ShapeOptions::new()
-                            .point_size(args.font_ptem)
-                            .features(features),
-                    ),
-                );
+                result = Some(shape_impl(
+                    &instance,
+                    buffer,
+                    ShapeOptions::new()
+                        .point_size(args.font_ptem)
+                        .features(features),
+                ));
             }
             result.unwrap()
         };
@@ -467,7 +462,7 @@ pub fn render(mut args: Args) -> Result<String, String> {
         writeln!(
             output,
             "{}",
-            glyph_buffer.serialize(&shaper, SerializeFlags::from_bits_truncate(format_flags))
+            glyph_buffer.serialize(&instance, SerializeFlags::from_bits_truncate(format_flags))
         )
         .unwrap();
     }

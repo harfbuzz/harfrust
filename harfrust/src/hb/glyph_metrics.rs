@@ -1,6 +1,9 @@
 use crate::{
-    hb::{face::Scale, tables::TableRanges},
-    GlyphInfo, GlyphPosition, Tag,
+    hb::{
+        face::{BasicFontMetrics, Scale},
+        tables::TableRanges,
+    },
+    GlyphExtents, GlyphInfo, GlyphPosition, Tag,
 };
 use read_fonts::{
     tables::{
@@ -15,11 +18,11 @@ use read_fonts::{
         vvar::Vvar,
     },
     types::{BoundingBox, F2Dot14, Fixed, GlyphId, Point},
-    FontRef,
+    FontRef, TableProvider,
 };
 
 #[derive(Clone)]
-pub(crate) struct GlyphMetrics<'a> {
+pub struct GlyphMetrics<'a> {
     _hmtx: Option<Hmtx<'a>>,
     h_metrics: &'a [LongMetric],
     hvar: Option<Hvar<'a>>,
@@ -42,7 +45,7 @@ struct GlyfTables<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    pub fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
+    pub(crate) fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
         let num_glyphs = table_ranges.num_glyphs;
         let upem = table_ranges.units_per_em;
         let hmtx = table_ranges
@@ -90,7 +93,42 @@ impl<'a> GlyphMetrics<'a> {
         }
     }
 
-    pub fn advance_width(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
+    pub(crate) fn from_tables(font: &impl TableProvider<'a>, metrics: &BasicFontMetrics) -> Self {
+        let hmtx = font.hmtx().ok();
+        let h_metrics = hmtx
+            .as_ref()
+            .map(|hmtx| hmtx.h_metrics())
+            .unwrap_or_default();
+        let hvar = font.hvar().ok();
+        let vmtx = font.vmtx().ok();
+        let vvar = font.vvar().ok();
+        let vorg = font.vorg().ok();
+        let loca = font.loca(None).ok();
+        let glyf = font.glyf().ok();
+        let glyf = if let Some((loca, glyf)) = loca.zip(glyf) {
+            let gvar = font.gvar().ok();
+            Some(GlyfTables { loca, glyf, gvar })
+        } else {
+            None
+        };
+        let mvar = font.mvar().ok();
+        Self {
+            _hmtx: hmtx,
+            h_metrics,
+            hvar,
+            vmtx,
+            vvar,
+            vorg,
+            glyf,
+            mvar,
+            num_glyphs: metrics.num_glyphs,
+            upem: metrics.units_per_em,
+            ascent: metrics.ascent,
+            descent: metrics.descent,
+        }
+    }
+
+    pub(crate) fn advance_width(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
         let gid = gid.into();
         let Some(mut advance) = self
             .h_metrics
@@ -150,11 +188,15 @@ impl<'a> GlyphMetrics<'a> {
         }
     }
 
-    pub fn _left_side_bearing(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
+    pub(crate) fn _left_side_bearing(
+        &self,
+        gid: impl Into<GlyphId>,
+        coords: &[F2Dot14],
+    ) -> Option<i32> {
         let gid = gid.into();
         let mut bearing = if let Some(hmtx) = self._hmtx.as_ref() {
             hmtx.side_bearing(gid).unwrap_or_default() as i32
-        } else if let Some(extents) = self.extents(gid, coords) {
+        } else if let Some(extents) = self.bounds(gid, coords) {
             return Some(extents.x_min);
         } else {
             return None;
@@ -169,7 +211,11 @@ impl<'a> GlyphMetrics<'a> {
         Some(bearing)
     }
 
-    pub fn advance_height(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
+    pub(crate) fn advance_height(
+        &self,
+        gid: impl Into<GlyphId>,
+        coords: &[F2Dot14],
+    ) -> Option<i32> {
         let gid = gid.into();
         let Some(mut advance) = self
             .vmtx
@@ -192,7 +238,11 @@ impl<'a> GlyphMetrics<'a> {
         Some(advance)
     }
 
-    pub fn top_side_bearing(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
+    pub(crate) fn top_side_bearing(
+        &self,
+        gid: impl Into<GlyphId>,
+        coords: &[F2Dot14],
+    ) -> Option<i32> {
         let gid = gid.into();
         let mut bearing = if let Some(vmtx) = self.vmtx.as_ref() {
             vmtx.side_bearing(gid).unwrap_or_default() as i32
@@ -209,7 +259,7 @@ impl<'a> GlyphMetrics<'a> {
         Some(bearing)
     }
 
-    pub fn v_origin(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
+    pub(crate) fn v_origin(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
         let gid = gid.into();
         let origin = if let Some(vorg) = self.vorg.as_ref() {
             let mut origin = vorg.vertical_origin_y(gid) as i32;
@@ -219,7 +269,7 @@ impl<'a> GlyphMetrics<'a> {
                 }
             }
             origin
-        } else if let Some(extents) = self.extents(gid, coords) {
+        } else if let Some(extents) = self.bounds(gid, coords) {
             let origin = if self.vmtx.is_some() {
                 let mut origin = Some(extents.y_max);
                 let tsb = self.top_side_bearing(gid, coords);
@@ -271,7 +321,7 @@ impl<'a> GlyphMetrics<'a> {
         Some(origin)
     }
 
-    pub fn extents(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<BoundingBox<i32>> {
+    fn bounds(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<BoundingBox<i32>> {
         let gid = gid.into();
         let glyf = self.glyf.as_ref()?;
         let glyph = glyf.loca.get_glyf(gid, &glyf.glyf).ok()?;
@@ -284,9 +334,32 @@ impl<'a> GlyphMetrics<'a> {
         }
         Some(BoundingBox {
             x_min: glyph.x_min() as i32,
-            x_max: glyph.x_max() as i32,
             y_min: glyph.y_min() as i32,
+            x_max: glyph.x_max() as i32,
             y_max: glyph.y_max() as i32,
+        })
+    }
+
+    pub(crate) fn extents(
+        &self,
+        gid: impl Into<GlyphId>,
+        coords: &[F2Dot14],
+    ) -> Option<GlyphExtents> {
+        let gid = gid.into();
+        let glyf = self.glyf.as_ref()?;
+        let glyph = glyf.loca.get_glyf(gid, &glyf.glyf).ok()?;
+        let Some(glyph) = glyph else {
+            // Return empty extents for empty glyph
+            return Some(GlyphExtents::default());
+        };
+        if !coords.is_empty() {
+            return None; // TODO https://github.com/harfbuzz/harfrust/pull/52#issuecomment-2878117808
+        }
+        Some(GlyphExtents {
+            x_bearing: glyph.x_min() as i32,
+            y_bearing: glyph.y_max() as i32,
+            width: glyph.x_max() as i32 - glyph.x_min() as i32,
+            height: glyph.y_min() as i32 - glyph.y_max() as i32,
         })
     }
 

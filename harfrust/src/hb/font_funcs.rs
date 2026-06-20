@@ -2,9 +2,13 @@ use core::mem::size_of;
 use core::ptr;
 use core::slice;
 
+use read_fonts::types::F2Dot14;
 use read_fonts::types::GlyphId;
 
+use crate::hb::charmap::Charmap;
+use crate::hb::face::FontKind;
 use crate::hb::face::Scale;
+use crate::hb::glyph_metrics::GlyphMetrics;
 
 use super::buffer::{hb_buffer_t, GlyphInfo, GlyphPosition};
 use super::face::{hb_font_t, GlyphExtents};
@@ -105,55 +109,82 @@ impl<'a> IntoIterator for AdvanceWidthBatch<'a> {
 /// Default implementations backed by font tables.
 pub struct BuiltinFontFuncs<'a> {
     face: &'a hb_font_t<'a>,
+    glyph_metrics: core::cell::OnceCell<GlyphMetrics<'a>>,
+    charmap: core::cell::OnceCell<Charmap<'a>>,
 }
 
 impl<'a> BuiltinFontFuncs<'a> {
     pub(crate) fn new(face: &'a hb_font_t<'a>) -> Self {
-        Self { face }
+        Self {
+            face,
+            glyph_metrics: core::cell::OnceCell::new(),
+            charmap: core::cell::OnceCell::new(),
+        }
+    }
+
+    fn coords(&self) -> &[F2Dot14] {
+        self.face.ot_tables.coords
+    }
+
+    fn charmap(&self) -> &Charmap<'a> {
+        self.charmap.get_or_init(|| match &self.face.font {
+            FontKind::FontRef(font) => font.charmap.clone(),
+            FontKind::FontInstance(instance, _) => Charmap::from_tables(&instance.tables()),
+        })
+    }
+
+    fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
+        self.glyph_metrics.get_or_init(|| match &self.face.font {
+            FontKind::FontRef(font) => font.glyph_metrics.clone(),
+            FontKind::FontInstance(instance, metrics) => {
+                GlyphMetrics::from_tables(&instance.tables(), metrics)
+            }
+        })
     }
 
     /// Maps a Unicode scalar value to a nominal glyph.
     pub fn nominal_glyph(&self, c: u32) -> Option<GlyphId> {
-        self.face.get_nominal_glyph(c)
+        self.charmap().map(c)
     }
 
     /// Maps a Unicode scalar value and variation selector to a glyph.
     pub fn variant_glyph(&self, c: u32, vs: u32) -> Option<GlyphId> {
-        self.face.get_nominal_variant_glyph(c, vs)
+        self.charmap().map_variant(c, vs)
     }
 
     /// Returns the horizontal advance for a glyph.
     pub fn advance_width(&self, glyph: GlyphId) -> i32 {
-        self.face.glyph_h_advance(glyph)
+        self.glyph_metrics()
+            .advance_width(glyph, self.coords())
+            .unwrap_or_default()
     }
 
     /// Returns the vertical advance for a glyph.
     pub fn advance_height(&self, glyph: GlyphId) -> i32 {
-        self.face.glyph_v_advance(glyph)
+        -self
+            .glyph_metrics()
+            .advance_height(glyph, self.coords())
+            .unwrap_or(self.face.units_per_em as i32)
     }
 
     /// Returns the vertical origin for a glyph.
     pub fn vertical_origin(&self, glyph: GlyphId) -> (i32, i32) {
-        (
-            self.advance_width(glyph) / 2,
-            self.face.glyph_v_origin(glyph),
-        )
+        let v_origin_y = self
+            .glyph_metrics()
+            .v_origin(glyph, self.coords())
+            .unwrap_or_default();
+        (self.advance_width(glyph) / 2, v_origin_y)
     }
 
     /// Returns extents for a glyph if available.
     pub fn extents(&self, glyph: GlyphId) -> Option<GlyphExtents> {
-        let mut extents = GlyphExtents::default();
-        if self.face.glyph_extents(glyph, &mut extents) {
-            Some(extents)
-        } else {
-            None
-        }
+        self.glyph_metrics().extents(glyph, self.coords())
     }
 
     /// Populates horizontal advances for all entries in the batch.
     pub fn populate_advance_widths(&self, batch: AdvanceWidthBatch<'_>) {
         for (glyph, advance) in batch {
-            *advance = self.face.glyph_h_advance(glyph);
+            *advance = self.advance_width(glyph);
         }
     }
 }
@@ -353,11 +384,10 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         if let Some(funcs) = &mut self.funcs {
             funcs.populate_advance_widths(&self.builtin, batch);
         } else {
-            let font = self.font();
-            font.glyph_metrics.populate_advance_widths(
+            self.builtin.glyph_metrics().populate_advance_widths(
                 batch.infos,
                 batch.positions,
-                font.coords(),
+                self.builtin.coords(),
                 self.scale,
             );
         }
