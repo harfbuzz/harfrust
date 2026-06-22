@@ -176,6 +176,62 @@ impl TableRanges {
             trak,
         }
     }
+
+    pub(crate) fn from_tables<'a>(font: &impl TableProvider<'a>) -> Self {
+        let num_glyphs = font
+            .maxp()
+            .map(|maxp| maxp.num_glyphs() as u32)
+            .unwrap_or_default();
+        let (units_per_em, loca_long) = font.head().map_or((1000, false), |head| {
+            (head.units_per_em(), head.index_to_loc_format() == 1)
+        });
+        let os2 = font.os2().ok();
+        let hhea = font.hhea().ok();
+        let (ascent, descent) = if let Some(os2) = &os2 {
+            (os2.s_typo_ascender(), os2.s_typo_descender())
+        } else if let Some(hhea) = &hhea {
+            (hhea.ascender().to_i16(), hhea.descender().to_i16())
+        } else {
+            (0, 0) // TODO
+        };
+        let num_h_metrics = hhea
+            .map(|hhea| hhea.number_of_h_metrics())
+            .unwrap_or_default();
+        let num_v_metrics = font
+            .vhea()
+            .map(|vhea| vhea.number_of_long_ver_metrics())
+            .unwrap_or_default();
+        Self {
+            num_glyphs,
+            units_per_em,
+            loca_long,
+            num_v_metrics,
+            num_h_metrics,
+            ascent,
+            descent,
+            loca: TableRange::default(),
+            glyf: TableRange::default(),
+            gvar: TableRange::default(),
+            hmtx: TableRange::default(),
+            hvar: TableRange::default(),
+            vmtx: TableRange::default(),
+            vvar: TableRange::default(),
+            vorg: TableRange::default(),
+            mvar: TableRange::default(),
+            cmap: TableRange::default(),
+            cmap_subtable: None,
+            cmap_vs_subtable: None,
+            gdef: TableRange::default(),
+            gsub: TableRange::default(),
+            gpos: TableRange::default(),
+            morx: TableRange::default(),
+            kerx: TableRange::default(),
+            ankr: TableRange::default(),
+            kern: TableRange::default(),
+            feat: TableRange::default(),
+            trak: TableRange::default(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Default, Debug)]

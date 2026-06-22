@@ -1,4 +1,5 @@
-use read_fonts::types::{F2Dot14, Fixed, GlyphId};
+use alloc::boxed::Box;
+use read_fonts::types::{F2Dot14, Fixed};
 use read_fonts::{FontRef, TableProvider};
 use smallvec::SmallVec;
 
@@ -27,6 +28,8 @@ pub struct ShaperData {
     ot_cache: OtCache,
     aat_cache: AatCache,
     cmap_cache: cmap_cache_t,
+    // True if a font has both trak and STAT tables.
+    apply_trak: bool,
 }
 
 impl ShaperData {
@@ -36,11 +39,29 @@ impl ShaperData {
         let aat_cache = AatCache::new(font);
         let table_ranges = TableRanges::new(font);
         let cmap_cache = cmap_cache_t::new();
+        let apply_trak = font.trak().is_ok() && font.stat().is_ok();
         Self {
             table_ranges,
             ot_cache,
             aat_cache,
             cmap_cache,
+            apply_trak,
+        }
+    }
+
+    fn from_font(font: &crate::font::Font) -> Self {
+        let tables = font.tables();
+        let ot_cache = OtCache::new(&tables);
+        let aat_cache = AatCache::new(&tables);
+        let table_ranges = TableRanges::from_tables(&tables);
+        let cmap_cache = cmap_cache_t::new();
+        let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
+        Self {
+            table_ranges,
+            ot_cache,
+            aat_cache,
+            cmap_cache,
+            apply_trak,
         }
     }
 
@@ -217,14 +238,18 @@ impl<'a> ShaperBuilder<'a> {
             feature_variations,
         );
         let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_ranges);
+        let font = FontKind::FontRef(FontRefData {
+            font,
+            glyph_metrics,
+            charmap,
+        });
         hb_font_t {
             font,
             units_per_em,
-            charmap,
             cmap_cache: &self.data.cmap_cache,
-            glyph_metrics,
             ot_tables,
             aat_tables,
+            apply_trak: self.data.apply_trak,
         }
     }
 }
@@ -387,19 +412,99 @@ impl Scale {
     }
 }
 
+/// Shapes the buffer content using provided options.
+///
+/// Consumes the buffer. You can then run [`GlyphBuffer::clear`] to get the [`UnicodeBuffer`] back
+/// without allocating a new one.
+///
+/// If a plan is provided, it is up to the caller to ensure that the shape plan matches the
+/// properties of the provided buffer, otherwise the shaping result will likely be incorrect.
+///
+/// # Panics
+///
+/// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
+/// properties.
+pub fn shape(
+    font: &crate::font::FontInstance,
+    mut buffer: UnicodeBuffer,
+    mut options: ShapeOptions<'_>,
+) -> GlyphBuffer {
+    let Some(hb_font) = hb_font_t::from_font(font) else {
+        buffer.clear();
+        return GlyphBuffer(buffer.0);
+    };
+    // If the user didn't request an explicit scale but the font instance
+    // has a size, set the scale to that size with 16 fractional bits.
+    if options.scale.is_none() {
+        if let Some(ppem) = font.size() {
+            options = options.scale(Some((ppem * 65536.0) as i32));
+        }
+    }
+    hb_font.shape(buffer, options)
+}
+
+// This will go away completely when we drop the old API.
+#[allow(clippy::large_enum_variant)]
+#[derive(Clone)]
+pub enum FontKind<'a> {
+    FontRef(FontRefData<'a>),
+    FontInstance(&'a crate::font::FontInstance, BasicFontMetrics),
+}
+
+#[derive(Clone)]
+pub struct FontRefData<'a> {
+    pub(crate) font: FontRef<'a>,
+    pub(crate) glyph_metrics: GlyphMetrics<'a>,
+    pub(crate) charmap: Charmap<'a>,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct BasicFontMetrics {
+    pub units_per_em: u16,
+    pub num_glyphs: u32,
+    pub ascent: i16,
+    pub descent: i16,
+}
+
 /// A configured shaper.
 #[derive(Clone)]
 pub struct hb_font_t<'a> {
-    pub(crate) font: FontRef<'a>,
+    pub(crate) font: FontKind<'a>,
     pub(crate) units_per_em: u16,
-    charmap: Charmap<'a>,
     pub(crate) cmap_cache: &'a cmap_cache_t,
-    pub(crate) glyph_metrics: GlyphMetrics<'a>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
+    pub(crate) apply_trak: bool,
 }
 
 impl<'a> crate::Shaper<'a> {
+    pub(crate) fn from_font(font: &'a crate::font::FontInstance) -> Option<Self> {
+        let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
+            Box::new(ShaperData::from_font(font))
+        })
+        .downcast_ref::<ShaperData>()?;
+        let metrics = BasicFontMetrics {
+            units_per_em: data.table_ranges.units_per_em,
+            num_glyphs: data.table_ranges.num_glyphs,
+            ascent: data.table_ranges.ascent,
+            descent: data.table_ranges.descent,
+        };
+        let coords = font.normalized_coords();
+        let feature_variations = font.feature_variations();
+        let feature_variations = [feature_variations.gsub(), feature_variations.gpos()];
+        let tables = font.tables();
+        let ot_tables = OtTables::from_tables(&tables, &data.ot_cache, coords, feature_variations);
+        let aat_tables = AatTables::from_tables(&tables, &ot_tables, &data.aat_cache);
+        Some(Self {
+            font: FontKind::FontInstance(font, metrics),
+            units_per_em: data.table_ranges.units_per_em,
+            cmap_cache: &data.cmap_cache,
+            ot_tables,
+            aat_tables,
+            apply_trak: data.apply_trak,
+        })
+    }
+
     /// Returns font's units per EM.
     #[inline]
     pub fn units_per_em(&self) -> i32 {
@@ -482,47 +587,17 @@ impl<'a> crate::Shaper<'a> {
         GlyphBuffer(buffer)
     }
 
-    pub(crate) fn get_nominal_glyph(&self, c: u32) -> Option<GlyphId> {
-        self.charmap.map(c)
-    }
-
-    pub(crate) fn get_nominal_variant_glyph(&self, c: u32, vs: u32) -> Option<GlyphId> {
-        self.charmap.map_variant(c, vs)
-    }
-
-    pub(crate) fn glyph_h_advance(&self, glyph: GlyphId) -> i32 {
-        self.glyph_metrics
-            .advance_width(glyph, self.ot_tables.coords)
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn glyph_v_advance(&self, glyph: GlyphId) -> i32 {
-        -self
-            .glyph_metrics
-            .advance_height(glyph, self.ot_tables.coords)
-            .unwrap_or(self.units_per_em as i32)
-    }
-
-    pub(crate) fn glyph_v_origin(&self, glyph: GlyphId) -> i32 {
-        self.glyph_metrics
-            .v_origin(glyph, self.ot_tables.coords)
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn glyph_extents(&self, glyph: GlyphId, glyph_extents: &mut GlyphExtents) -> bool {
-        if let Some(extents) = self.glyph_metrics.extents(glyph, self.ot_tables.coords) {
-            glyph_extents.x_bearing = extents.x_min;
-            glyph_extents.y_bearing = extents.y_max;
-            glyph_extents.width = extents.x_max - extents.x_min;
-            glyph_extents.height = extents.y_min - extents.y_max;
-            true
-        } else {
-            false
-        }
-    }
-
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
         GlyphNames::new(&self.font)
+    }
+
+    pub(crate) fn glyph_metrics(&self) -> GlyphMetrics<'a> {
+        match &self.font {
+            FontKind::FontRef(data) => data.glyph_metrics.clone(),
+            FontKind::FontInstance(instance, metrics) => {
+                GlyphMetrics::from_tables(&instance.tables(), metrics)
+            }
+        }
     }
 
     pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {

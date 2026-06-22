@@ -2,6 +2,9 @@ mod aots;
 mod custom;
 mod in_house;
 mod macos;
+#[cfg(target_os = "macos")]
+mod macos_lazy_tables;
+mod regressions;
 mod text_rendering_tests;
 
 pub fn shape(font_path: &str, text: &str, options: &str) -> String {

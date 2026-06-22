@@ -8,6 +8,7 @@ pub mod map;
 use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
 use crate::hb::aat::layout_morx_table::MorxSubtableCache;
 use crate::hb::kerning::KernSubtableCache;
+use crate::hb::ot::OtTables;
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use read_fonts::{
@@ -24,7 +25,7 @@ pub struct AatCache {
 
 impl AatCache {
     #[allow(unused)]
-    pub fn new(font: &FontRef) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         let mut cache = Self::default();
         let num_glyphs = font
             .maxp()
@@ -84,22 +85,22 @@ use crate::hb::algs::HB_CODEPOINT_ENCODE3 as encode3;
 
 /// Blocklist specific broken morx tables identified by the combination of
 /// morx, GSUB, and GDEF table lengths.
-fn is_morx_blocklisted(table_ranges: &TableRanges) -> bool {
+fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
     const BLOCKLIST: &[u64] = &[
         // AALMAGHRIBI.ttf — https://github.com/harfbuzz/harfbuzz/issues/4108
         encode3(19892, 2794, 340),
     ];
-    let key = encode3(
-        table_ranges.morx.len(),
-        table_ranges.gsub.len(),
-        table_ranges.gdef.len(),
-    );
+    let key = encode3(morx_len, gsub_len, gdef_len);
     BLOCKLIST.contains(&key)
 }
 
 impl<'a> AatTables<'a> {
     pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
-        let morx = if is_morx_blocklisted(table_ranges) {
+        let morx = if is_morx_blocklisted(
+            table_ranges.morx.len(),
+            table_ranges.gsub.len(),
+            table_ranges.gdef.len(),
+        ) {
             None
         } else {
             table_ranges
@@ -118,6 +119,44 @@ impl<'a> AatTables<'a> {
             .map(|table| (table, cache.kerx.as_slice()));
         let trak = table_ranges.trak.resolve_table(font);
         let feat = table_ranges.feat.resolve_table(font);
+        Self {
+            morx,
+            ankr,
+            kern,
+            kerx,
+            trak,
+            feat,
+        }
+    }
+
+    pub fn from_tables(
+        font: &impl TableProvider<'a>,
+        ot_tables: &OtTables,
+        cache: &'a AatCache,
+    ) -> Self {
+        let morx = if let Ok(morx) = font.morx() {
+            let gsub_len = ot_tables
+                .gsub
+                .as_ref()
+                .map_or(0, |table| table.table.offset_data().len() as u32);
+            let gdef_len = ot_tables
+                .gdef
+                .table
+                .as_ref()
+                .map_or(0, |table| table.offset_data().len() as u32);
+            if is_morx_blocklisted(morx.offset_data().len() as u32, gsub_len, gdef_len) {
+                None
+            } else {
+                Some((morx, cache.morx.as_slice()))
+            }
+        } else {
+            None
+        };
+        let ankr = font.ankr().ok();
+        let kern = font.kern().ok().map(|table| (table, cache.kern.as_slice()));
+        let kerx = font.kerx().ok().map(|table| (table, cache.kerx.as_slice()));
+        let trak = font.trak().ok();
+        let feat = font.feat().ok();
         Self {
             morx,
             ankr,
