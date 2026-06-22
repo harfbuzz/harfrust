@@ -598,7 +598,7 @@ impl<'a> ParsedRule<'a> {
     }
 }
 
-trait ContextRule<'a>: FontRead<'a> {
+trait ContextRule<'a>: FontRead<'a, Args = ()> {
     /// Parse all of the rule's fields in one pass.
     fn parse(&self) -> ParsedRule<'a>;
 

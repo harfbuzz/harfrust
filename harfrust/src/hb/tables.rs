@@ -256,7 +256,7 @@ impl TableRange {
         font.data().slice(self.resolve()?)
     }
 
-    pub fn resolve_table<'a, T: FontRead<'a>>(self, font: &FontRef<'a>) -> Option<T> {
+    pub fn resolve_table<'a, T: FontRead<'a, Args = ()>>(self, font: &FontRef<'a>) -> Option<T> {
         T::read(self.resolve_data(font)?).ok()
     }
 
