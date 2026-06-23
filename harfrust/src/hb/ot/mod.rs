@@ -31,6 +31,10 @@ pub struct OtCache {
     pub gpos: LookupCache,
     pub gdef_glyph_props_cache: MappingCache,
     pub gdef_mark_set_digests: Vec<hb_set_digest_t>,
+    /// Whether GDEF passed the up-front sanitize pass. Gates the `read_fast`
+    /// path in `OtTables::new`: GDEF is dereferenced eagerly, so we only skip
+    /// re-validation there when we already know the table is well-formed.
+    pub gdef_ok: bool,
 }
 
 impl OtCache {
@@ -43,8 +47,12 @@ impl OtCache {
             .gpos()
             .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
+        // This call runs GDEF's sanitize pass; reuse its result for both the
+        // mark-set digests and the `gdef_ok` gate so we don't sanitize twice.
+        let gdef = font.gdef();
+        let gdef_ok = gdef.is_ok();
         let mut gdef_mark_set_digests = Vec::new();
-        if let Ok(gdef) = font.gdef() {
+        if let Ok(gdef) = &gdef {
             if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
                 gdef_mark_set_digests.extend(mark_sets.coverages().iter().map(|set| {
                     set.ok()
@@ -58,6 +66,7 @@ impl OtCache {
             gpos,
             gdef_glyph_props_cache: MappingCache::new(),
             gdef_mark_set_digests,
+            gdef_ok,
         }
     }
 }
@@ -115,26 +124,6 @@ impl<'a> GdefTable<'a> {
             classes,
             mark_classes,
             mark_sets,
-            //=======
-            //fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
-            //if let Some(gdef) = table_ranges.gdef.resolve_table_fast::<Gdef>(font) {
-            //let classes = gdef.glyph_class_def().transpose().ok().flatten();
-            //let mark_classes = gdef.mark_attach_class_def().transpose().ok().flatten();
-            //let mark_sets = gdef
-            //.mark_glyph_sets_def()
-            //.transpose()
-            //.ok()
-            //.flatten()
-            //.map(|sets| (sets.offset_data(), sets.coverage_offsets()));
-            //Self {
-            //table: Some(gdef),
-            //classes,
-            //mark_classes,
-            //mark_sets,
-            //}
-            //} else {
-            //Self::default()
-            //>>>>>>> f5392c2f (wip: update for sanitize world)
         }
     }
 }
@@ -178,18 +167,21 @@ impl<'a> OtTables<'a> {
         } else {
             &[]
         };
-        let gdef = if is_gdef_blocklisted(
-            table_offsets.gdef.len(),
-            table_offsets.gsub.len(),
-            table_offsets.gpos.len(),
-        ) {
-            GdefTable::default()
-        } else {
+        let gdef = if cache.gdef_ok
+            && !is_gdef_blocklisted(
+                table_offsets.gdef.len(),
+                table_offsets.gsub.len(),
+                table_offsets.gpos.len(),
+            ) {
+            // Safe to skip re-validation: `gdef_ok` means the same GDEF bytes
+            // already passed sanitize in `OtCache::new`.
             table_offsets
                 .gdef
-                .resolve_table(font)
+                .resolve_table_fast::<Gdef>(font)
                 .map(GdefTable::new)
                 .unwrap_or_default()
+        } else {
+            GdefTable::default()
         };
         let var_store = if !coords.is_empty() {
             gdef.table
