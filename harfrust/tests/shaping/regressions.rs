@@ -54,3 +54,23 @@ fn issue_384_overly_long_grapheme_cluster_fallback_does_not_overflow() {
 
     shaper.shape(buffer, ShapeOptions::new().scale(Some(10_000_000)));
 }
+
+#[test]
+fn shaping_long_line_kern_does_not_overflow_glyph_data() {
+    let font_data = fs::read(font_path("TestKERNOne.otf")).expect("failed to read test font");
+    let font = FontRef::new(&font_data).expect("failed to parse test font");
+    let data = ShaperData::new(&font);
+    let shaper = data.shaper(&font).build();
+
+    let mut text = String::with_capacity(70_000);
+    for _ in 0..35_000 {
+        text.push('u');
+        text.push('T');
+    }
+
+    let mut buffer = UnicodeBuffer::new();
+    buffer.push_str(&text);
+    buffer.guess_segment_properties();
+
+    shaper.shape(buffer, ShapeOptions::new());
+}
