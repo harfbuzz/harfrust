@@ -105,6 +105,69 @@ fn font_funcs_default_fallback_is_available() {
 }
 
 #[test]
+fn font_funcs_nominal_override_bypasses_cmap_cache() {
+    struct RangeFuncs {
+        max_char: u32,
+        nominal_calls: usize,
+    }
+
+    impl FontFuncs for RangeFuncs {
+        fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+            self.nominal_calls += 1;
+            if c <= self.max_char {
+                builtin.nominal_glyph(c)
+            } else {
+                None
+            }
+        }
+    }
+
+    let mut maps_abc = RangeFuncs {
+        max_char: u32::from('c'),
+        nominal_calls: 0,
+    };
+    let mut maps_a = RangeFuncs {
+        max_char: u32::from('a'),
+        nominal_calls: 0,
+    };
+
+    let (first, second) = with_test_shaper_from_path(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fonts")
+            .join("rb_custom")
+            .join("PT_Sans-Caption-Web-Regular.ttf"),
+        |shaper| {
+            let first = shaper.shape(
+                buffer_with_text("abc"),
+                ShapeOptions::new().font_funcs(Some(&mut maps_abc)),
+            );
+            let second = shaper.shape(
+                buffer_with_text("abc"),
+                ShapeOptions::new().font_funcs(Some(&mut maps_a)),
+            );
+            (first, second)
+        },
+    );
+
+    assert!(maps_abc.nominal_calls > 0);
+    assert!(maps_a.nominal_calls > 0);
+    assert_ne!(
+        first
+            .glyph_infos()
+            .iter()
+            .map(|g| g.glyph_id)
+            .collect::<Vec<_>>(),
+        second
+            .glyph_infos()
+            .iter()
+            .map(|g| g.glyph_id)
+            .collect::<Vec<_>>()
+    );
+    assert!(second.glyph_infos().iter().any(|info| info.glyph_id == 0));
+}
+
+#[test]
 fn font_funcs_batch_advance_override_is_used() {
     struct BatchAdvanceFuncs {
         batch_calls: usize,
