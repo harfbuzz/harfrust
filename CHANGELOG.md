@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-29
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Parse contextual lookup rules in a single pass in the apply path for improved performance (#383).
+- Fix integer overflow in fallback positioning shaper (#395).
+- Fix overflow panic in skipping_iterator_t when shaping extremely long lines (#397).
+- Fix custom nominal glyph cmap caching (#399).
+
 ## [0.10.0] - 2026-06-20
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -209,7 +219,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.10.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.11.0...HEAD
+[0.11.0]: https://github.com/harfbuzz/harfrust/compare/0.10.0...0.11.0
 [0.10.0]: https://github.com/harfbuzz/harfrust/compare/0.9.0...0.10.0
 [0.9.0]: https://github.com/harfbuzz/harfrust/compare/0.8.4...0.9.0
 [0.8.4]: https://github.com/harfbuzz/harfrust/compare/0.8.3...0.8.4
