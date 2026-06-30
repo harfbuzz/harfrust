@@ -172,9 +172,9 @@ fn machine_kern<F>(
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
-                    pos[i].x_advance += kern1;
-                    pos[j].x_advance += kern2;
-                    pos[j].x_offset += kern2;
+                    pos[i].x_advance = pos[i].x_advance.saturating_add(kern1);
+                    pos[j].x_advance = pos[j].x_advance.saturating_add(kern2);
+                    pos[j].x_offset = pos[j].x_offset.saturating_add(kern2);
                 }
             } else {
                 if cross_stream {
@@ -183,9 +183,9 @@ fn machine_kern<F>(
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
-                    pos[i].y_advance += kern1;
-                    pos[j].y_advance += kern2;
-                    pos[j].y_offset += kern2;
+                    pos[i].y_advance = pos[i].y_advance.saturating_add(kern1);
+                    pos[j].y_advance = pos[j].y_advance.saturating_add(kern2);
+                    pos[j].y_offset = pos[j].y_offset.saturating_add(kern2);
                 }
             }
 
@@ -488,12 +488,12 @@ fn state_machine_transition(
                         pos.set_attach_chain(0);
                         pos.y_offset = 0;
                     } else if pos.attach_type() != 0 {
-                        pos.y_offset += scaled_v;
+                        pos.y_offset = pos.y_offset.saturating_add(scaled_v);
                         has_gpos_attachment = true;
                     }
                 } else if glyph_mask & kern_mask != 0 {
-                    pos.x_advance += scaled_v;
-                    pos.x_offset += scaled_v;
+                    pos.x_advance = pos.x_advance.saturating_add(scaled_v);
+                    pos.x_offset = pos.x_offset.saturating_add(scaled_v);
                 }
             } else {
                 if is_cross_stream {
@@ -503,13 +503,13 @@ fn state_machine_transition(
                         pos.set_attach_chain(0);
                         pos.x_offset = 0;
                     } else if pos.attach_type() != 0 {
-                        pos.x_offset += scaled_v;
+                        pos.x_offset = pos.x_offset.saturating_add(scaled_v);
                         has_gpos_attachment = true;
                     }
                 } else if glyph_mask & kern_mask != 0 {
                     if pos.y_offset == 0 {
-                        pos.y_advance += scaled_v;
-                        pos.y_offset += scaled_v;
+                        pos.y_advance = pos.y_advance.saturating_add(scaled_v);
+                        pos.y_offset = pos.y_offset.saturating_add(scaled_v);
                     }
                 }
             }
