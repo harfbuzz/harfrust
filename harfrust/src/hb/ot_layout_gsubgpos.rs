@@ -906,13 +906,13 @@ pub mod OT {
         }
 
         #[inline(always)]
-        pub fn scale_x(&self, value: i32) -> i32 {
-            self.scale.scale_x(value)
+        pub fn scale_x(&self, value: f32) -> i32 {
+            self.scale.scale_x_f(value)
         }
 
         #[inline(always)]
-        pub fn scale_y(&self, value: i32) -> i32 {
-            self.scale.scale_y(value)
+        pub fn scale_y(&self, value: f32) -> i32 {
+            self.scale.scale_y_f(value)
         }
 
         pub fn random_number(&mut self) -> u32 {

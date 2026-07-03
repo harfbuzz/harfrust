@@ -336,21 +336,25 @@ impl<'a> OtTables<'a> {
         }
     }
 
-    pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (i32, i32) {
-        let mut x = anchor.x_coordinate() as i32;
-        let mut y = anchor.y_coordinate() as i32;
+    pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (f32, f32) {
+        let mut x = anchor.x_coordinate() as f32;
+        let mut y = anchor.y_coordinate() as f32;
         if let Some(vs) = self.var_store.as_ref() {
+            // Keep the delta fractional; the caller rounds once when scaling,
+            // matching HarfBuzz's Anchor::get_anchor.
             let delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {
-                Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => vs
-                    .compute_delta(
+                Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => {
+                    vs.compute_float_delta(
                         DeltaSetIndex {
                             outer: varix.delta_set_outer_index(),
                             inner: varix.delta_set_inner_index(),
                         },
                         self.coords,
                     )
-                    .unwrap_or_default(),
-                _ => 0,
+                    .unwrap_or_default()
+                    .to_f64() as f32
+                }
+                _ => 0.0,
             };
             x += delta(anchor.x_device());
             y += delta(anchor.y_device());

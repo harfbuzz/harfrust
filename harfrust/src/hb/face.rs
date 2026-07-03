@@ -381,6 +381,18 @@ impl Scale {
         Self::scale_by_mult(y, self.y_mult)
     }
 
+    /// Scales a fractional (font-unit) value, matching HarfBuzz's `em_scalef`
+    /// (`roundf(v * scale / upem)`).
+    #[inline(always)]
+    pub(crate) fn scale_x_f(&self, x: f32) -> i32 {
+        (x * self.x_multf).round() as i32
+    }
+
+    #[inline(always)]
+    pub(crate) fn scale_y_f(&self, y: f32) -> i32 {
+        (y * self.y_multf).round() as i32
+    }
+
     /// Scales glyph extents using HarfBuzz's corner-based float arithmetic:
     /// floor the origin corners and ceil the far corners before deriving the
     /// final width/height.
