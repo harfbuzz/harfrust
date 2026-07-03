@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-03
+
+This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Update `read-fonts` to 0.41.0 (#403).
+- Saturate AAT kerning position accumulation to avoid overflow (#400).
+- Regenerate the Unicode data tables with the latest `packtab` (#401).
+- Keep GPOS variation-index deltas fractional to match HarfBuzz, avoiding
+  sub-font-unit advance and placement differences on variable fonts (#403).
+- Keep AAT `trak` tracking fractional to match HarfBuzz (#404).
+
 ## [0.11.0] - 2026-06-29
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
@@ -219,7 +231,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.11.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.12.0...HEAD
+[0.12.0]: https://github.com/harfbuzz/harfrust/compare/0.11.0...0.12.0
 [0.11.0]: https://github.com/harfbuzz/harfrust/compare/0.10.0...0.11.0
 [0.10.0]: https://github.com/harfbuzz/harfrust/compare/0.9.0...0.10.0
 [0.9.0]: https://github.com/harfbuzz/harfrust/compare/0.8.4...0.9.0
