@@ -60,7 +60,10 @@ fn apply_value(
             () => {{
                 let rec_offset = data.read_at::<u16>(offset).ok()? as usize;
                 offset += 2;
-                let mut value = 0;
+                // Keep the delta fractional; scale_x_f rounds once, matching
+                // HarfBuzz's em_scalef (rounding whole font units first would
+                // lose up to half a unit).
+                let mut value = 0.0f32;
                 // Offset is nullable
                 if rec_offset != 0 {
                     let format = data.read_at::<u16>(rec_offset + 4).ok()?;
@@ -71,30 +74,31 @@ fn apply_value(
                         let outer = data.read_at::<u16>(rec_offset).ok()?;
                         let inner = data.read_at::<u16>(rec_offset + 2).ok()?;
                         value = vs
-                            .compute_delta(DeltaSetIndex { outer, inner }, coords)
-                            .unwrap_or_default();
-                        worked |= value != 0;
+                            .compute_float_delta(DeltaSetIndex { outer, inner }, coords)
+                            .unwrap_or_default()
+                            .to_f64() as f32;
+                        worked |= value != 0.0;
                     }
                 }
                 value
             }};
         }
         if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-            pos.x_offset += scale.scale_x(read_delta!());
+            pos.x_offset += scale.scale_x_f(read_delta!());
         }
         if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-            pos.y_offset += scale.scale_y(read_delta!());
+            pos.y_offset += scale.scale_y_f(read_delta!());
         }
         if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
             if is_horizontal {
-                pos.x_advance += scale.scale_x(read_delta!());
+                pos.x_advance += scale.scale_x_f(read_delta!());
             } else {
                 offset += 2;
             }
         }
         if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
             if !is_horizontal {
-                pos.y_advance -= scale.scale_y(read_delta!());
+                pos.y_advance -= scale.scale_y_f(read_delta!());
             } else {
                 offset += 2;
             }
