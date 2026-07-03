@@ -27,9 +27,9 @@ pub fn apply(
     }
 
     let advance_to_add = if buffer.direction.is_horizontal() {
-        scale.scale_x(trak.get_h_tracking(ptem, 0.0))
+        scale.scale_x_f(trak.get_h_tracking(ptem, 0.0))
     } else {
-        scale.scale_y(trak.get_v_tracking(ptem, 0.0))
+        scale.scale_y_f(trak.get_v_tracking(ptem, 0.0))
     };
 
     foreach_grapheme!(buffer, start, end, {
@@ -44,21 +44,27 @@ pub fn apply(
 }
 
 trait TrakExt {
-    fn get_h_tracking(&self, ptem: f32, track: f32) -> i32;
-    fn get_v_tracking(&self, ptem: f32, track: f32) -> i32;
+    fn get_h_tracking(&self, ptem: f32, track: f32) -> f32;
+    fn get_v_tracking(&self, ptem: f32, track: f32) -> f32;
 }
 
 impl TrakExt for read_fonts::tables::trak::Trak<'_> {
-    fn get_h_tracking(&self, ptem: f32, track: f32) -> i32 {
-        self.horiz().transpose().ok().flatten().map_or(0, |t| {
-            t.get_tracking(self.offset_data(), ptem, track).round() as i32
-        })
+    // Keep tracking fractional; scale_x_f rounds once, matching HarfBuzz's
+    // em_scalef (the interpolated value is generally not a whole font unit).
+    fn get_h_tracking(&self, ptem: f32, track: f32) -> f32 {
+        self.horiz()
+            .transpose()
+            .ok()
+            .flatten()
+            .map_or(0.0, |t| t.get_tracking(self.offset_data(), ptem, track))
     }
 
-    fn get_v_tracking(&self, ptem: f32, track: f32) -> i32 {
-        self.vert().transpose().ok().flatten().map_or(0, |t| {
-            t.get_tracking(self.offset_data(), ptem, track).round() as i32
-        })
+    fn get_v_tracking(&self, ptem: f32, track: f32) -> f32 {
+        self.vert()
+            .transpose()
+            .ok()
+            .flatten()
+            .map_or(0.0, |t| t.get_tracking(self.offset_data(), ptem, track))
     }
 }
 
