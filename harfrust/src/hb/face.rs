@@ -436,6 +436,7 @@ impl Scale {
 ///
 /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
 /// properties.
+#[cfg(feature = "experimental_font_api")]
 pub fn shape(
     font: &crate::font::FontInstance,
     mut buffer: UnicodeBuffer,
