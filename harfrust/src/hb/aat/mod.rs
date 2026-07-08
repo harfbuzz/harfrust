@@ -81,7 +81,7 @@ pub struct AatTables<'a> {
     pub feat: Option<Feat<'a>>,
 }
 
-use crate::hb::algs::HB_CODEPOINT_ENCODE3 as encode3;
+use crate::algs::HB_CODEPOINT_ENCODE3 as encode3;
 
 /// Blocklist specific broken morx tables identified by the combination of
 /// morx, GSUB, and GDEF table lengths.

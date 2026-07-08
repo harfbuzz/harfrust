@@ -12,9 +12,7 @@ pub(crate) mod ucd {
 #![allow(unused_parens)]
 #![allow(clippy::unnecessary_cast, clippy::unreadable_literal, clippy::double_parens)]
 
-use crate::hb::algs::{HB_CODEPOINT_ENCODE3, HB_CODEPOINT_ENCODE3_11_7_14};
-use crate::hb::common::script;
-use crate::hb::common::Script as hb_script_t;
+use crate::{algs::{HB_CODEPOINT_ENCODE3, HB_CODEPOINT_ENCODE3_11_7_14}, script, Script as hb_script_t};
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
 pub(crate) static _hb_ucd_sc_map: [hb_script_t; 176]=

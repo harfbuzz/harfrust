@@ -6,18 +6,19 @@ use super::ot_layout_gpos_table::GPOS;
 use super::ot_map::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
-use super::unicode::CharExt;
 use super::*;
 use super::{hb_font_t, hb_tag_t};
+use crate::algs::{rb_flag, rb_flag_unsafe};
 use crate::hb::aat;
-use crate::hb::algs::{rb_flag, rb_flag_unsafe};
 use crate::hb::buffer::GlyphFlags;
-use crate::hb::unicode::hb_gc::{
-    HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER, HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER,
-    HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR, HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER,
-    HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER,
+use crate::unicode::{
+    hb_gc::{
+        HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER, HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER,
+        HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR, HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER,
+        HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER,
+    },
+    CharExt, GeneralCategory,
 };
-use crate::hb::unicode::GeneralCategory;
 use crate::BufferFlags;
 use crate::{Direction, Feature, Language, Script};
 use core::ptr;

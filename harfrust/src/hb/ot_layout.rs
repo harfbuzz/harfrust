@@ -7,10 +7,9 @@ use super::font_funcs::FontFuncsDispatch;
 use super::ot::lookup::LookupInfo;
 use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
-use super::unicode::hb_unicode_funcs_t;
 use super::{hb_font_t, GlyphInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
-use crate::hb::unicode::GeneralCategory;
+use crate::unicode::{hb_unicode_funcs_t, GeneralCategory};
 
 impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);

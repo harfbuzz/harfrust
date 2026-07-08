@@ -4,7 +4,6 @@ use core::ops::Range;
 
 use read_fonts::types::GlyphId;
 
-use super::algs::*;
 use super::buffer::*;
 use super::font_funcs::FontFuncsDispatch;
 use super::ot_layout::*;
@@ -15,9 +14,9 @@ use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_syllabic::*;
-use super::unicode::Codepoint;
-use super::unicode::{hb_gc, CharExt};
 use super::{hb_font_t, hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
+use crate::algs::*;
+use crate::unicode::{hb_gc, CharExt, Codepoint};
 
 pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: Some(collect_features),
@@ -591,7 +590,7 @@ fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Code
         _ => {}
     }
 
-    crate::hb::unicode::decompose(ab)
+    crate::unicode::decompose(ab)
 }
 
 fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
@@ -605,7 +604,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
         return Some(0x09DF);
     }
 
-    crate::hb::unicode::compose(a, b)
+    crate::unicode::compose(a, b)
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut hb_buffer_t) {

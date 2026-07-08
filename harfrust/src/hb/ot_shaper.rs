@@ -4,8 +4,8 @@ use super::font_funcs::FontFuncsDispatch;
 use super::ot_shape::*;
 use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
-use super::unicode::Codepoint;
 use super::{hb_tag_t, script, Direction, Script};
+use crate::unicode::Codepoint;
 use alloc::boxed::Box;
 use core::any::Any;
 

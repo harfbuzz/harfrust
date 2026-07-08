@@ -1,4 +1,3 @@
-use super::algs::*;
 use super::buffer::*;
 use super::font_funcs::FontFuncsDispatch;
 use super::ot_map::*;
@@ -6,8 +5,9 @@ use super::ot_shape::*;
 use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
-use super::unicode::*;
 use super::{hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
+use crate::algs::*;
+use crate::unicode::*;
 use crate::Direction;
 use alloc::boxed::Box;
 

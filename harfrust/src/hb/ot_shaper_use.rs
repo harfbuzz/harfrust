@@ -1,4 +1,3 @@
-use super::algs::*;
 use super::buffer::*;
 use super::font_funcs::FontFuncsDispatch;
 use super::ot_layout::*;
@@ -9,8 +8,9 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_arabic::arabic_shape_plan_t;
 use super::ot_shaper_syllabic::*;
-use super::unicode::{CharExt, Codepoint};
 use super::{hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
+use crate::algs::*;
+use crate::unicode::{CharExt, Codepoint};
 use alloc::boxed::Box;
 
 pub const UNIVERSAL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
@@ -567,7 +567,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
         return None;
     }
 
-    crate::hb::unicode::compose(a, b)
+    crate::unicode::compose(a, b)
 }
 
 fn setup_masks(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut hb_buffer_t) {

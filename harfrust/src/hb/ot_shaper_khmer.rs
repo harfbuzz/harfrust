@@ -7,9 +7,8 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_indic::ot_category_t;
 use super::ot_shaper_syllabic::*;
-use super::unicode::CharExt;
-use super::unicode::Codepoint;
 use super::{hb_mask_t, hb_tag_t, GlyphInfo};
+use crate::unicode::{CharExt, Codepoint};
 use alloc::boxed::Box;
 
 pub const KHMER_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
@@ -295,7 +294,7 @@ fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Code
     // Decompose split matras that don't have Unicode decompositions.
     match ab {
         0x17BE | 0x17BF | 0x17C0 | 0x17C4 | 0x17C5 => Some((0x17C1, ab)),
-        _ => crate::hb::unicode::decompose(ab),
+        _ => crate::unicode::decompose(ab),
     }
 }
 
@@ -305,7 +304,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
         return None;
     }
 
-    crate::hb::unicode::compose(a, b)
+    crate::unicode::compose(a, b)
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut hb_buffer_t) {

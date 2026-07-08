@@ -16,7 +16,7 @@
 #![allow(unused_parens)]
 #![allow(clippy::unnecessary_cast, clippy::unreadable_literal, clippy::double_parens)]
 
-use crate::hb::unicode::Codepoint;
+use crate::unicode::Codepoint;
 
 use super::ot_shaper_arabic::hb_arabic_joining_type_t::{self, D, GroupAlaph, GroupDalathRish, L, R, T, U, X};
 

@@ -20,7 +20,6 @@
 #![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::manual_range_contains)]
 
-mod algs;
 #[macro_use]
 pub mod buffer;
 mod aat;
@@ -72,11 +71,6 @@ mod tag;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
-#[rustfmt::skip]
-mod unicode_emoji_table;
-#[rustfmt::skip]
-mod ucd_table;
-mod unicode;
 
 use read_fonts::types::Tag as hb_tag_t;
 

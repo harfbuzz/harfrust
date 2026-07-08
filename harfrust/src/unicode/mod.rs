@@ -1,6 +1,13 @@
-use super::ucd_table::ucd::*;
-use crate::hb::algs::*;
+#![expect(non_camel_case_types, non_snake_case, non_upper_case_globals)]
+
+#[rustfmt::skip]
+mod emoji_table;
+#[rustfmt::skip]
+mod ucd_table;
+
+use crate::algs::*;
 use crate::Script;
+use ucd_table::ucd::*;
 
 pub type Codepoint = u32;
 
@@ -388,6 +395,19 @@ impl CharExt for Codepoint {
         GeneralCategory(_hb_ucd_gc(self as usize))
     }
 
+    fn combining_class(self) -> u8 {
+        _hb_ucd_ccc(self as usize)
+    }
+
+    fn mirrored(self) -> Option<Codepoint> {
+        let delta = _hb_ucd_bmg(self as usize);
+        if delta == 0 {
+            None
+        } else {
+            Some(((self as i32).wrapping_add(delta as i32)) as u32)
+        }
+    }
+
     fn space_fallback(self) -> hb_unicode_funcs_t::space_t {
         use hb_unicode_funcs_t::*;
 
@@ -413,10 +433,6 @@ impl CharExt for Codepoint {
         }
     }
 
-    fn combining_class(self) -> u8 {
-        _hb_ucd_ccc(self as usize)
-    }
-
     fn modified_combining_class(self) -> u8 {
         let u = self;
 
@@ -440,17 +456,8 @@ impl CharExt for Codepoint {
         MODIFIED_COMBINING_CLASS[k as usize]
     }
 
-    fn mirrored(self) -> Option<Codepoint> {
-        let delta = _hb_ucd_bmg(self as usize);
-        if delta == 0 {
-            None
-        } else {
-            Some(((self as i32).wrapping_add(delta as i32)) as u32)
-        }
-    }
-
     fn is_emoji_extended_pictographic(self) -> bool {
-        super::unicode_emoji_table::is_Extended_Pictographic(self)
+        emoji_table::is_Extended_Pictographic(self)
     }
 
     /// Default_Ignorable codepoints:

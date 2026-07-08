@@ -11,7 +11,7 @@ use super::ot_layout_common::*;
 use super::set_digest::hb_set_digest_t;
 use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
-use crate::hb::unicode::GeneralCategory;
+use crate::unicode::GeneralCategory;
 use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
