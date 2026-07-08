@@ -2,7 +2,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    clippy::manual_range_contains,
     clippy::inline_always,
     clippy::wrong_self_convention
 )]
@@ -690,6 +689,7 @@ mod icu {
 
     impl GeneralCategory {
         fn from_icu(category: IcuGeneralCategory) -> Self {
+            #[expect(clippy::enum_glob_use)]
             use IcuGeneralCategory::*;
             match category {
                 Control => Self::CONTROL,
@@ -943,6 +943,7 @@ mod icu {
 }
 
 #[cfg(not(feature = "icu"))]
+#[expect(clippy::manual_range_contains)]
 mod builtin {
     use super::{super::algs::*, ucd_table::ucd::*, Codepoint, GeneralCategory, Script};
 
