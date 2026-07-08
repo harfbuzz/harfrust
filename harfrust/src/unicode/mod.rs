@@ -1,9 +1,10 @@
-#![expect(
+#![allow(
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     clippy::inline_always,
-    clippy::wrong_self_convention
+    clippy::wrong_self_convention,
+    clippy::enum_glob_use
 )]
 
 #[expect(clippy::identity_op)]
@@ -689,7 +690,6 @@ mod icu {
 
     impl GeneralCategory {
         fn from_icu(category: IcuGeneralCategory) -> Self {
-            #[expect(clippy::enum_glob_use)]
             use IcuGeneralCategory::*;
             match category {
                 Control => Self::CONTROL,
