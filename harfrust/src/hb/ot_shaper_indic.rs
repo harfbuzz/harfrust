@@ -16,7 +16,8 @@ use super::ot_shaper::*;
 use super::ot_shaper_syllabic::*;
 use super::{hb_font_t, hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
 use crate::algs::*;
-use crate::unicode::{hb_gc, CharExt, Codepoint};
+use crate::unicode::GeneralCategory;
+use crate::unicode::{CharExt, Codepoint};
 
 pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: Some(collect_features),
@@ -1832,12 +1833,9 @@ fn final_reordering_impl(
     // Apply 'init' to the Left Matra if it's a word start.
     if buffer.info[start].indic_position() == ot_position_t::POS_PRE_M {
         if start == 0
-            || (rb_flag_unsafe(buffer.info[start - 1].general_category().to_u8() as u32)
-                & rb_flag_range(
-                    hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT,
-                    hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK,
-                ))
-                == 0
+            || !buffer.info[start - 1]
+                .general_category()
+                .in_range_inclusive(GeneralCategory::FORMAT, GeneralCategory::NON_SPACING_MARK)
         {
             buffer.info[start].mask |= indic_plan.mask_array[indic_feature::INIT];
         } else {

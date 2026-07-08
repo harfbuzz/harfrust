@@ -32,6 +32,9 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
+    - name: Run tests with icu4x
+      run: cargo test --verbose --features icu
+
     - name: Rustfmt
       run: cargo fmt --all -- --check
 

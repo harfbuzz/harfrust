@@ -2,12 +2,11 @@
 
 #[rustfmt::skip]
 mod emoji_table;
+#[cfg(not(feature = "icu"))]
 #[rustfmt::skip]
 mod ucd_table;
 
-use crate::algs::*;
 use crate::Script;
-use ucd_table::ucd::*;
 
 pub type Codepoint = u32;
 
@@ -31,60 +30,76 @@ pub mod hb_unicode_funcs_t {
     pub const SPACE_NARROW: u8 = 21;
 }
 
+/// Data type for the "General_Category" (gc) property from the Unicode
+/// Character Database.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct GeneralCategory(pub u8);
 
 #[allow(unused)]
 impl GeneralCategory {
-    pub const CONTROL: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_CONTROL as _);
-    pub const FORMAT: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT as _);
-    pub const UNASSIGNED: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED as _);
-    pub const PRIVATE_USE: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_PRIVATE_USE as _);
-    pub const SURROGATE: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_SURROGATE as _);
-    pub const LOWERCASE_LETTER: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER as _);
-    pub const MODIFIER_LETTER: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MODIFIER_LETTER as _);
-    pub const OTHER_LETTER: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER as _);
-    pub const TITLECASE_LETTER: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER as _);
-    pub const UPPERCASE_LETTER: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER as _);
-    pub const SPACING_MARK: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK as _);
-    pub const ENCLOSING_MARK: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_ENCLOSING_MARK as _);
-    pub const NON_SPACING_MARK: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK as _);
-    pub const DECIMAL_NUMBER: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER as _);
-    pub const LETTER_NUMBER: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_LETTER_NUMBER as _);
-    pub const OTHER_NUMBER: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_NUMBER as _);
-    pub const CONNECT_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_CONNECT_PUNCTUATION as _);
-    pub const DASH_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_DASH_PUNCTUATION as _);
-    pub const CLOSE_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_CLOSE_PUNCTUATION as _);
-    pub const FINAL_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_FINAL_PUNCTUATION as _);
-    pub const INITIAL_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_INITIAL_PUNCTUATION as _);
-    pub const OTHER_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_PUNCTUATION as _);
-    pub const OPEN_PUNCTUATION: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OPEN_PUNCTUATION as _);
-    pub const CURRENCY_SYMBOL: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_CURRENCY_SYMBOL as _);
-    pub const MODIFIER_SYMBOL: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MODIFIER_SYMBOL as _);
-    pub const MATH_SYMBOL: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MATH_SYMBOL as _);
-    pub const OTHER_SYMBOL: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_SYMBOL as _);
-    pub const LINE_SEPARATOR: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_LINE_SEPARATOR as _);
-    pub const PARAGRAPH_SEPARATOR: Self =
-        Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_PARAGRAPH_SEPARATOR as _);
-    pub const SPACE_SEPARATOR: Self = Self(hb_gc::HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR as _);
+    /// Control (`Cc`).
+    pub const CONTROL: Self = Self(0);
+    /// Format (`Cf`).
+    pub const FORMAT: Self = Self(1);
+    /// Unassigned (`Cn`).
+    pub const UNASSIGNED: Self = Self(2);
+    /// Private Use (`Co`).
+    pub const PRIVATE_USE: Self = Self(3);
+    /// Surrogate (`Cs`).
+    pub const SURROGATE: Self = Self(4);
+    /// Lowercase Letter (`Ll`).
+    pub const LOWERCASE_LETTER: Self = Self(5);
+    /// Modifier Letter (`Lm`).
+    pub const MODIFIER_LETTER: Self = Self(6);
+    /// Other Letter (`Lo`).
+    pub const OTHER_LETTER: Self = Self(7);
+    /// Titlecase Letter (`Lt`).
+    pub const TITLECASE_LETTER: Self = Self(8);
+    /// Uppercase Letter (`Lu`).
+    pub const UPPERCASE_LETTER: Self = Self(9);
+    /// Spacing Mark (`Mc`).
+    pub const SPACING_MARK: Self = Self(10);
+    /// Enclosing Mark (`Me`).
+    pub const ENCLOSING_MARK: Self = Self(11);
+    /// Nonspacing Mark (`Mn`).
+    pub const NON_SPACING_MARK: Self = Self(12);
+    /// Decimal Number (`Nd`).
+    pub const DECIMAL_NUMBER: Self = Self(13);
+    /// Letter Number (`Nl`).
+    pub const LETTER_NUMBER: Self = Self(14);
+    /// Other Number (`No`).
+    pub const OTHER_NUMBER: Self = Self(15);
+    /// Connector Punctuation (`Pc`).
+    pub const CONNECT_PUNCTUATION: Self = Self(16);
+    /// Dash Punctuation (`Pd`).
+    pub const DASH_PUNCTUATION: Self = Self(17);
+    /// Close Punctuation (`Pe`).
+    pub const CLOSE_PUNCTUATION: Self = Self(18);
+    /// Final Punctuation (`Pf`).
+    pub const FINAL_PUNCTUATION: Self = Self(19);
+    /// Initial Punctuation (`Pi`).
+    pub const INITIAL_PUNCTUATION: Self = Self(20);
+    /// Other Punctuation (`Po`).
+    pub const OTHER_PUNCTUATION: Self = Self(21);
+    /// Open Punctuation (`Ps`).
+    pub const OPEN_PUNCTUATION: Self = Self(22);
+    /// Currency Symbol (`Sc`).
+    pub const CURRENCY_SYMBOL: Self = Self(23);
+    /// Modifier Symbol (`Sk`).
+    pub const MODIFIER_SYMBOL: Self = Self(24);
+    /// Math Symbol (`Sm`).
+    pub const MATH_SYMBOL: Self = Self(25);
+    /// Other Symbol (`So`).
+    pub const OTHER_SYMBOL: Self = Self(26);
+    /// Line Separator (`Zl`).
+    pub const LINE_SEPARATOR: Self = Self(27);
+    /// Paragraph Separator (`Zp`).
+    pub const PARAGRAPH_SEPARATOR: Self = Self(28);
+    /// Space Separator (`Zs`).
+    pub const SPACE_SEPARATOR: Self = Self(29);
 }
 
 impl GeneralCategory {
-    pub fn to_u8(self) -> u8 {
-        self.0
-    }
-
     pub fn is_mark(&self) -> bool {
         matches!(
             *self,
@@ -101,6 +116,27 @@ impl GeneralCategory {
                 | Self::TITLECASE_LETTER
                 | Self::UPPERCASE_LETTER
         )
+    }
+
+    #[inline(always)]
+    pub(crate) const fn flag(self) -> u32 {
+        1 << self.0
+    }
+
+    #[inline(always)]
+    pub(crate) const fn flag_unsafe(self) -> u32 {
+        if self.0 < 32 {
+            1 << self.0
+        } else {
+            0
+        }
+    }
+
+    #[inline(always)]
+    pub(crate) const fn in_range_inclusive(self, start: Self, end: Self) -> bool {
+        debug_assert!(start.0 < end.0);
+        let range_mask = (1 << (end.0 + 1)) - (1 << start.0);
+        self.flag_unsafe() & range_mask != 0
     }
 }
 
@@ -379,7 +415,7 @@ pub trait CharExt {
     fn space_fallback(self) -> hb_unicode_funcs_t::space_t;
     fn combining_class(self) -> u8;
     fn modified_combining_class(self) -> u8;
-    fn mirrored(self) -> Option<Codepoint>;
+    fn mirroring(self) -> Option<Codepoint>;
     fn is_emoji_extended_pictographic(self) -> bool;
     fn is_default_ignorable(self) -> bool;
     fn is_variation_selector(self) -> bool;
@@ -388,24 +424,19 @@ pub trait CharExt {
 
 impl CharExt for Codepoint {
     fn script(self) -> Script {
-        _hb_ucd_sc_map[_hb_ucd_sc(self as usize) as usize]
+        script_for(self)
     }
 
     fn general_category(self) -> GeneralCategory {
-        GeneralCategory(_hb_ucd_gc(self as usize))
+        general_category_for(self)
     }
 
     fn combining_class(self) -> u8 {
-        _hb_ucd_ccc(self as usize)
+        combining_class_for(self)
     }
 
-    fn mirrored(self) -> Option<Codepoint> {
-        let delta = _hb_ucd_bmg(self as usize);
-        if delta == 0 {
-            None
-        } else {
-            Some(((self as i32).wrapping_add(delta as i32)) as u32)
-        }
+    fn mirroring(self) -> Option<Codepoint> {
+        mirroring_for(self)
     }
 
     fn space_fallback(self) -> hb_unicode_funcs_t::space_t {
@@ -587,172 +618,550 @@ impl CharExt for Codepoint {
     }
 }
 
-const S_BASE: u32 = 0xAC00;
-const L_BASE: u32 = 0x1100;
-const V_BASE: u32 = 0x1161;
-const T_BASE: u32 = 0x11A7;
-const L_COUNT: u32 = 19;
-const V_COUNT: u32 = 21;
-const T_COUNT: u32 = 28;
-const N_COUNT: u32 = V_COUNT * T_COUNT;
-const S_COUNT: u32 = L_COUNT * N_COUNT;
+#[cfg(feature = "icu")]
+pub(crate) use icu::*;
 
-pub fn compose(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
-    // Hangul is handled algorithmically.
-    if let Some(ab) = compose_hangul(a, b) {
-        return Some(ab);
-    }
+#[cfg(not(feature = "icu"))]
+pub(crate) use builtin::*;
 
-    let u: u32;
-
-    if (a & 0xFFFF_F800) == 0x0000 && (b & 0xFFFF_FF80) == 0x0300 {
-        /* If "a" is small enough and "b" is in the U+0300 range,
-         * the composition data is encoded in a 32bit array sorted
-         * by "a,b" pair. */
-        let k = HB_CODEPOINT_ENCODE3_11_7_14(a, b, 0);
-        let v = _hb_ucd_dm2_u32_map
-            .binary_search_by(|probe| {
-                let key = probe & HB_CODEPOINT_ENCODE3_11_7_14(0x001F_FFFF, 0x001F_FFFF, 0);
-                key.cmp(&k)
-            })
-            .ok()
-            .map(|index| _hb_ucd_dm2_u32_map[index]);
-
-        if let Some(value) = v {
-            u = HB_CODEPOINT_DECODE3_11_7_14_3(value);
-        } else {
-            return None;
-        }
-    } else {
-        /* Otherwise it is stored in a 64bit array sorted by
-         * "a,b" pair. */
-        let k = HB_CODEPOINT_ENCODE3(a, b, 0);
-        let v = _hb_ucd_dm2_u64_map
-            .binary_search_by(|probe| {
-                let key = probe & HB_CODEPOINT_ENCODE3(0x001F_FFFF, 0x001F_FFFF, 0);
-                key.cmp(&k)
-            })
-            .ok()
-            .map(|index| _hb_ucd_dm2_u64_map[index]);
-
-        if let Some(value) = v {
-            u = HB_CODEPOINT_DECODE3_3(value);
-        } else {
-            return None;
-        }
-    }
-
-    if u == 0 {
-        None
-    } else {
-        Some(u)
-    }
-}
-
-fn compose_hangul(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
-    let l = a;
-    let v = b;
-    if L_BASE <= l && l < (L_BASE + L_COUNT) && V_BASE <= v && v < (V_BASE + V_COUNT) {
-        let r = S_BASE + (l - L_BASE) * N_COUNT + (v - V_BASE) * T_COUNT;
-        Some(r)
-    } else if S_BASE <= l
-        && l <= (S_BASE + S_COUNT - T_COUNT)
-        && T_BASE <= v
-        && v < (T_BASE + T_COUNT)
-        && (l - S_BASE) % T_COUNT == 0
-    {
-        let r = l + (v - T_BASE);
-        Some(r)
-    } else {
-        None
-    }
-}
-
-pub fn decompose(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
-    if let Some((a, b)) = decompose_hangul(ab) {
-        return Some((a, b));
-    }
-
-    let mut i = _hb_ucd_dm(ab as usize) as usize;
-
-    // If no data, there's no decomposition.
-    if i == 0 {
-        return None;
-    }
-    i -= 1;
-
-    if i < _hb_ucd_dm1_p0_map.len() + _hb_ucd_dm1_p2_map.len() {
-        let a = if i < _hb_ucd_dm1_p0_map.len() {
-            _hb_ucd_dm1_p0_map[i] as u32
-        } else {
-            let j = i - _hb_ucd_dm1_p0_map.len();
-            0x20000 | _hb_ucd_dm1_p2_map[j] as u32
-        };
-        return Some((a, 0));
-    }
-
-    i -= _hb_ucd_dm1_p0_map.len() + _hb_ucd_dm1_p2_map.len();
-
-    if i < _hb_ucd_dm2_u32_map.len() {
-        let v = _hb_ucd_dm2_u32_map[i];
-        let a = HB_CODEPOINT_DECODE3_11_7_14_1(v);
-        let b = HB_CODEPOINT_DECODE3_11_7_14_2(v);
-        return Some((a, b));
-    }
-
-    i -= _hb_ucd_dm2_u32_map.len();
-
-    let v = _hb_ucd_dm2_u64_map[i];
-    let a = HB_CODEPOINT_DECODE3_1(v);
-    let b = HB_CODEPOINT_DECODE3_2(v);
-    Some((a, b))
-}
-
-pub fn decompose_hangul(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
-    let si = ab.wrapping_sub(S_BASE);
-    if si >= S_COUNT {
-        return None;
-    }
-
-    let (a, b) = if si % T_COUNT != 0 {
-        // LV,T
-        (S_BASE + (si / T_COUNT) * T_COUNT, T_BASE + (si % T_COUNT))
-    } else {
-        // L,V
-        (L_BASE + (si / N_COUNT), V_BASE + (si % N_COUNT) / T_COUNT)
+#[cfg(feature = "icu")]
+mod icu {
+    use super::{Codepoint, GeneralCategory, Script};
+    use icu_normalizer::properties::{
+        CanonicalCompositionBorrowed, CanonicalDecompositionBorrowed, Decomposed,
     };
-    Some((a, b))
+    use icu_properties::{
+        props::{
+            BidiMirroringGlyph, CanonicalCombiningClass as IcuCanonicalCombiningClass,
+            GeneralCategory as IcuGeneralCategory, Script as IcuScript,
+        },
+        CodePointMapData,
+    };
+
+    pub(crate) fn script_for(c: u32) -> Script {
+        let icu_script = CodePointMapData::<IcuScript>::new().get32(c);
+        SCRIPT_MAP
+            .get(icu_script.to_icu4c_value() as usize)
+            .copied()
+            .unwrap_or(crate::script::UNKNOWN)
+    }
+
+    pub(crate) fn general_category_for(c: u32) -> GeneralCategory {
+        GeneralCategory::from_icu(CodePointMapData::<IcuGeneralCategory>::new().get32(c))
+    }
+
+    pub(crate) fn combining_class_for(c: u32) -> u8 {
+        CodePointMapData::<IcuCanonicalCombiningClass>::new()
+            .get32(c)
+            .to_icu4c_value()
+    }
+
+    pub(crate) fn mirroring_for(c: u32) -> Option<Codepoint> {
+        CodePointMapData::<BidiMirroringGlyph>::new()
+            .get32(c)
+            .mirroring_glyph
+            .map(Codepoint::from)
+    }
+
+    pub(crate) fn compose(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+        let a = char::from_u32(a)?;
+        let b = char::from_u32(b)?;
+        CanonicalCompositionBorrowed::new()
+            .compose(a, b)
+            .map(Codepoint::from)
+    }
+
+    pub(crate) fn decompose(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
+        let ch = char::from_u32(ab)?;
+        match CanonicalDecompositionBorrowed::new().decompose(ch) {
+            Decomposed::Default => None,
+            Decomposed::Singleton(a) => Some((Codepoint::from(a), 0)),
+            Decomposed::Expansion(a, b) => Some((Codepoint::from(a), Codepoint::from(b))),
+        }
+    }
+
+    impl GeneralCategory {
+        fn from_icu(category: IcuGeneralCategory) -> Self {
+            use IcuGeneralCategory::*;
+            match category {
+                Control => Self::CONTROL,
+                Format => Self::FORMAT,
+                Unassigned => Self::UNASSIGNED,
+                PrivateUse => Self::PRIVATE_USE,
+                Surrogate => Self::SURROGATE,
+                LowercaseLetter => Self::LOWERCASE_LETTER,
+                ModifierLetter => Self::MODIFIER_LETTER,
+                OtherLetter => Self::OTHER_LETTER,
+                TitlecaseLetter => Self::TITLECASE_LETTER,
+                UppercaseLetter => Self::UPPERCASE_LETTER,
+                SpacingMark => Self::SPACING_MARK,
+                EnclosingMark => Self::ENCLOSING_MARK,
+                NonspacingMark => Self::NON_SPACING_MARK,
+                DecimalNumber => Self::DECIMAL_NUMBER,
+                LetterNumber => Self::LETTER_NUMBER,
+                OtherNumber => Self::OTHER_NUMBER,
+                ConnectorPunctuation => Self::CONNECT_PUNCTUATION,
+                DashPunctuation => Self::DASH_PUNCTUATION,
+                ClosePunctuation => Self::CLOSE_PUNCTUATION,
+                FinalPunctuation => Self::FINAL_PUNCTUATION,
+                InitialPunctuation => Self::INITIAL_PUNCTUATION,
+                OtherPunctuation => Self::OTHER_PUNCTUATION,
+                OpenPunctuation => Self::OPEN_PUNCTUATION,
+                CurrencySymbol => Self::CURRENCY_SYMBOL,
+                ModifierSymbol => Self::MODIFIER_SYMBOL,
+                MathSymbol => Self::MATH_SYMBOL,
+                OtherSymbol => Self::OTHER_SYMBOL,
+                LineSeparator => Self::LINE_SEPARATOR,
+                ParagraphSeparator => Self::PARAGRAPH_SEPARATOR,
+                SpaceSeparator => Self::SPACE_SEPARATOR,
+            }
+        }
+    }
+
+    pub(crate) static SCRIPT_MAP: [Script; 212] = [
+        crate::script::COMMON,                 // 0
+        crate::script::INHERITED,              // 1
+        crate::script::ARABIC,                 // 2
+        crate::script::ARMENIAN,               // 3
+        crate::script::BENGALI,                // 4
+        crate::script::BOPOMOFO,               // 5
+        crate::script::CHEROKEE,               // 6
+        crate::script::COPTIC,                 // 7
+        crate::script::CYRILLIC,               // 8
+        crate::script::DESERET,                // 9
+        crate::script::DEVANAGARI,             // 10
+        crate::script::ETHIOPIC,               // 11
+        crate::script::GEORGIAN,               // 12
+        crate::script::GOTHIC,                 // 13
+        crate::script::GREEK,                  // 14
+        crate::script::GUJARATI,               // 15
+        crate::script::GURMUKHI,               // 16
+        crate::script::HAN,                    // 17
+        crate::script::HANGUL,                 // 18
+        crate::script::HEBREW,                 // 19
+        crate::script::HIRAGANA,               // 20
+        crate::script::KANNADA,                // 21
+        crate::script::KATAKANA,               // 22
+        crate::script::KHMER,                  // 23
+        crate::script::LAO,                    // 24
+        crate::script::LATIN,                  // 25
+        crate::script::MALAYALAM,              // 26
+        crate::script::MONGOLIAN,              // 27
+        crate::script::MYANMAR,                // 28
+        crate::script::OGHAM,                  // 29
+        crate::script::OLD_ITALIC,             // 30
+        crate::script::ORIYA,                  // 31
+        crate::script::RUNIC,                  // 32
+        crate::script::SINHALA,                // 33
+        crate::script::SYRIAC,                 // 34
+        crate::script::TAMIL,                  // 35
+        crate::script::TELUGU,                 // 36
+        crate::script::THAANA,                 // 37
+        crate::script::THAI,                   // 38
+        crate::script::TIBETAN,                // 39
+        crate::script::CANADIAN_SYLLABICS,     // 40
+        crate::script::YI,                     // 41
+        crate::script::TAGALOG,                // 42
+        crate::script::HANUNOO,                // 43
+        crate::script::BUHID,                  // 44
+        crate::script::TAGBANWA,               // 45
+        crate::script::BRAILLE,                // 46
+        crate::script::CYPRIOT,                // 47
+        crate::script::LIMBU,                  // 48
+        crate::script::LINEAR_B,               // 49
+        crate::script::OSMANYA,                // 50
+        crate::script::SHAVIAN,                // 51
+        crate::script::TAI_LE,                 // 52
+        crate::script::UGARITIC,               // 53
+        crate::script::UNKNOWN,                // 54
+        crate::script::BUGINESE,               // 55
+        crate::script::GLAGOLITIC,             // 56
+        crate::script::KHAROSHTHI,             // 57
+        crate::script::SYLOTI_NAGRI,           // 58
+        crate::script::NEW_TAI_LUE,            // 59
+        crate::script::TIFINAGH,               // 60
+        crate::script::OLD_PERSIAN,            // 61
+        crate::script::BALINESE,               // 62
+        crate::script::BATAK,                  // 63
+        crate::script::UNKNOWN,                // 64
+        crate::script::BRAHMI,                 // 65
+        crate::script::CHAM,                   // 66
+        crate::script::UNKNOWN,                // 67
+        crate::script::CYRILLIC,               // 68 (Cyrs)
+        crate::script::UNKNOWN,                // 69
+        crate::script::UNKNOWN,                // 70
+        crate::script::EGYPTIAN_HIEROGLYPHS,   // 71
+        crate::script::GEORGIAN,               // 72 (Geok)
+        crate::script::HAN,                    // 73 (Hans)
+        crate::script::HAN,                    // 74 (Hant)
+        crate::script::PAHAWH_HMONG,           // 75
+        crate::script::OLD_HUNGARIAN,          // 76
+        crate::script::UNKNOWN,                // 77
+        crate::script::JAVANESE,               // 78
+        crate::script::KAYAH_LI,               // 79
+        crate::script::LATIN,                  // 80 (Latf)
+        crate::script::LATIN,                  // 81 (Latg)
+        crate::script::LEPCHA,                 // 82
+        crate::script::LINEAR_A,               // 83
+        crate::script::MANDAIC,                // 84
+        crate::script::UNKNOWN,                // 85
+        crate::script::MEROITIC_HIEROGLYPHS,   // 86
+        crate::script::NKO,                    // 87
+        crate::script::OLD_TURKIC,             // 88
+        crate::script::OLD_PERMIC,             // 89
+        crate::script::PHAGS_PA,               // 90
+        crate::script::PHOENICIAN,             // 91
+        crate::script::MIAO,                   // 92
+        crate::script::UNKNOWN,                // 93
+        crate::script::UNKNOWN,                // 94
+        crate::script::SYRIAC,                 // 95 (Syre)
+        crate::script::SYRIAC,                 // 96 (Syrj)
+        crate::script::SYRIAC,                 // 97 (Syrn)
+        crate::script::UNKNOWN,                // 98
+        crate::script::VAI,                    // 99
+        crate::script::UNKNOWN,                // 100
+        crate::script::CUNEIFORM,              // 101
+        crate::script::UNKNOWN,                // 102
+        crate::script::UNKNOWN,                // 103
+        crate::script::CARIAN,                 // 104
+        crate::script::UNKNOWN,                // 105
+        crate::script::TAI_THAM,               // 106
+        crate::script::LYCIAN,                 // 107
+        crate::script::LYDIAN,                 // 108
+        crate::script::OL_CHIKI,               // 109
+        crate::script::REJANG,                 // 110
+        crate::script::SAURASHTRA,             // 111
+        crate::script::SIGNWRITING,            // 112
+        crate::script::SUNDANESE,              // 113
+        crate::script::UNKNOWN,                // 114
+        crate::script::MEETEI_MAYEK,           // 115
+        crate::script::IMPERIAL_ARAMAIC,       // 116
+        crate::script::AVESTAN,                // 117
+        crate::script::CHAKMA,                 // 118
+        crate::script::UNKNOWN,                // 119
+        crate::script::KAITHI,                 // 120
+        crate::script::MANICHAEAN,             // 121
+        crate::script::INSCRIPTIONAL_PAHLAVI,  // 122
+        crate::script::PSALTER_PAHLAVI,        // 123
+        crate::script::UNKNOWN,                // 124
+        crate::script::INSCRIPTIONAL_PARTHIAN, // 125
+        crate::script::SAMARITAN,              // 126
+        crate::script::TAI_VIET,               // 127
+        crate::script::UNKNOWN,                // 128
+        crate::script::UNKNOWN,                // 129
+        crate::script::BAMUM,                  // 130
+        crate::script::LISU,                   // 131
+        crate::script::UNKNOWN,                // 132
+        crate::script::OLD_SOUTH_ARABIAN,      // 133
+        crate::script::BASSA_VAH,              // 134
+        crate::script::DUPLOYAN,               // 135
+        crate::script::ELBASAN,                // 136
+        crate::script::GRANTHA,                // 137
+        crate::script::UNKNOWN,                // 138
+        crate::script::UNKNOWN,                // 139
+        crate::script::MENDE_KIKAKUI,          // 140
+        crate::script::MEROITIC_CURSIVE,       // 141
+        crate::script::OLD_NORTH_ARABIAN,      // 142
+        crate::script::NABATAEAN,              // 143
+        crate::script::PALMYRENE,              // 144
+        crate::script::KHUDAWADI,              // 145
+        crate::script::WARANG_CITI,            // 146
+        crate::script::UNKNOWN,                // 147
+        crate::script::UNKNOWN,                // 148
+        crate::script::MRO,                    // 149
+        crate::script::NUSHU,                  // 150
+        crate::script::SHARADA,                // 151
+        crate::script::SORA_SOMPENG,           // 152
+        crate::script::TAKRI,                  // 153
+        crate::script::TANGUT,                 // 154
+        crate::script::UNKNOWN,                // 155
+        crate::script::ANATOLIAN_HIEROGLYPHS,  // 156
+        crate::script::KHOJKI,                 // 157
+        crate::script::TIRHUTA,                // 158
+        crate::script::CAUCASIAN_ALBANIAN,     // 159
+        crate::script::MAHAJANI,               // 160
+        crate::script::AHOM,                   // 161
+        crate::script::HATRAN,                 // 162
+        crate::script::MODI,                   // 163
+        crate::script::MULTANI,                // 164
+        crate::script::PAU_CIN_HAU,            // 165
+        crate::script::SIDDHAM,                // 166
+        crate::script::ADLAM,                  // 167
+        crate::script::BHAIKSUKI,              // 168
+        crate::script::MARCHEN,                // 169
+        crate::script::NEWA,                   // 170
+        crate::script::OSAGE,                  // 171
+        crate::script::UNKNOWN,                // 172
+        crate::script::HANGUL,                 // 173 (Jamo)
+        crate::script::UNKNOWN,                // 174
+        crate::script::MASARAM_GONDI,          // 175
+        crate::script::SOYOMBO,                // 176
+        crate::script::ZANABAZAR_SQUARE,       // 177
+        crate::script::DOGRA,                  // 178
+        crate::script::GUNJALA_GONDI,          // 179
+        crate::script::MAKASAR,                // 180
+        crate::script::MEDEFAIDRIN,            // 181
+        crate::script::HANIFI_ROHINGYA,        // 182
+        crate::script::SOGDIAN,                // 183
+        crate::script::OLD_SOGDIAN,            // 184
+        crate::script::ELYMAIC,                // 185
+        crate::script::NYIAKENG_PUACHUE_HMONG, // 186
+        crate::script::NANDINAGARI,            // 187
+        crate::script::WANCHO,                 // 188
+        crate::script::CHORASMIAN,             // 189
+        crate::script::DIVES_AKURU,            // 190
+        crate::script::KHITAN_SMALL_SCRIPT,    // 191
+        crate::script::YEZIDI,                 // 192
+        crate::script::CYPRO_MINOAN,           // 193
+        crate::script::OLD_UYGHUR,             // 194
+        crate::script::TANGSA,                 // 195
+        crate::script::TOTO,                   // 196
+        crate::script::VITHKUQI,               // 197
+        crate::script::KAWI,                   // 198
+        crate::script::NAG_MUNDARI,            // 199
+        crate::script::ARABIC,                 // 200
+        crate::script::GARAY,                  // 201
+        crate::script::GURUNG_KHEMA,           // 202
+        crate::script::KIRAT_RAI,              // 203
+        crate::script::OL_ONAL,                // 204
+        crate::script::SUNUWAR,                // 205
+        crate::script::TODHRI,                 // 206
+        crate::script::TULU_TIGALARI,          // 207
+        crate::script::BERIA_ERFE,             // 208
+        crate::script::SIDETIC,                // 209
+        crate::script::TAI_YO,                 // 210
+        crate::script::TOLONG_SIKI,            // 211
+    ];
 }
 
-pub mod hb_gc {
-    pub const HB_UNICODE_GENERAL_CATEGORY_CONTROL: u32 = 0;
-    pub const HB_UNICODE_GENERAL_CATEGORY_FORMAT: u32 = 1;
-    pub const HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED: u32 = 2;
-    pub const HB_UNICODE_GENERAL_CATEGORY_PRIVATE_USE: u32 = 3;
-    pub const HB_UNICODE_GENERAL_CATEGORY_SURROGATE: u32 = 4;
-    pub const HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER: u32 = 5;
-    pub const HB_UNICODE_GENERAL_CATEGORY_MODIFIER_LETTER: u32 = 6;
-    pub const HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER: u32 = 7;
-    pub const HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER: u32 = 8;
-    pub const HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER: u32 = 9;
-    pub const HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK: u32 = 10;
-    pub const HB_UNICODE_GENERAL_CATEGORY_ENCLOSING_MARK: u32 = 11;
-    pub const HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK: u32 = 12;
-    pub const HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER: u32 = 13;
-    pub const HB_UNICODE_GENERAL_CATEGORY_LETTER_NUMBER: u32 = 14;
-    pub const HB_UNICODE_GENERAL_CATEGORY_OTHER_NUMBER: u32 = 15;
-    pub const HB_UNICODE_GENERAL_CATEGORY_CONNECT_PUNCTUATION: u32 = 16;
-    pub const HB_UNICODE_GENERAL_CATEGORY_DASH_PUNCTUATION: u32 = 17;
-    pub const HB_UNICODE_GENERAL_CATEGORY_CLOSE_PUNCTUATION: u32 = 18;
-    pub const HB_UNICODE_GENERAL_CATEGORY_FINAL_PUNCTUATION: u32 = 19;
-    pub const HB_UNICODE_GENERAL_CATEGORY_INITIAL_PUNCTUATION: u32 = 20;
-    pub const HB_UNICODE_GENERAL_CATEGORY_OTHER_PUNCTUATION: u32 = 21;
-    pub const HB_UNICODE_GENERAL_CATEGORY_OPEN_PUNCTUATION: u32 = 22;
-    pub const HB_UNICODE_GENERAL_CATEGORY_CURRENCY_SYMBOL: u32 = 23;
-    pub const HB_UNICODE_GENERAL_CATEGORY_MODIFIER_SYMBOL: u32 = 24;
-    pub const HB_UNICODE_GENERAL_CATEGORY_MATH_SYMBOL: u32 = 25;
-    pub const HB_UNICODE_GENERAL_CATEGORY_OTHER_SYMBOL: u32 = 26;
-    pub const HB_UNICODE_GENERAL_CATEGORY_LINE_SEPARATOR: u32 = 27;
-    pub const HB_UNICODE_GENERAL_CATEGORY_PARAGRAPH_SEPARATOR: u32 = 28;
-    pub const HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR: u32 = 29;
+#[cfg(not(feature = "icu"))]
+mod builtin {
+    use super::{super::algs::*, ucd_table::ucd::*, Codepoint, GeneralCategory, Script};
+
+    pub(crate) fn script_for(c: u32) -> Script {
+        _hb_ucd_sc_map[_hb_ucd_sc(c as usize) as usize]
+    }
+
+    pub(crate) fn general_category_for(c: u32) -> GeneralCategory {
+        GeneralCategory(_hb_ucd_gc(c as usize))
+    }
+
+    pub(crate) fn combining_class_for(c: u32) -> u8 {
+        _hb_ucd_ccc(c as usize)
+    }
+
+    pub(crate) fn mirroring_for(c: u32) -> Option<Codepoint> {
+        let delta = _hb_ucd_bmg(c as usize);
+        if delta == 0 {
+            None
+        } else {
+            Some(((c as i32).wrapping_add(delta as i32)) as u32)
+        }
+    }
+
+    pub(crate) fn compose(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+        // Hangul is handled algorithmically.
+        if let Some(ab) = compose_hangul(a, b) {
+            return Some(ab);
+        }
+
+        let u: u32;
+
+        if (a & 0xFFFF_F800) == 0x0000 && (b & 0xFFFF_FF80) == 0x0300 {
+            /* If "a" is small enough and "b" is in the U+0300 range,
+             * the composition data is encoded in a 32bit array sorted
+             * by "a,b" pair. */
+            let k = HB_CODEPOINT_ENCODE3_11_7_14(a, b, 0);
+            let v = _hb_ucd_dm2_u32_map
+                .binary_search_by(|probe| {
+                    let key = probe & HB_CODEPOINT_ENCODE3_11_7_14(0x001F_FFFF, 0x001F_FFFF, 0);
+                    key.cmp(&k)
+                })
+                .ok()
+                .map(|index| _hb_ucd_dm2_u32_map[index]);
+
+            if let Some(value) = v {
+                u = HB_CODEPOINT_DECODE3_11_7_14_3(value);
+            } else {
+                return None;
+            }
+        } else {
+            /* Otherwise it is stored in a 64bit array sorted by
+             * "a,b" pair. */
+            let k = HB_CODEPOINT_ENCODE3(a, b, 0);
+            let v = _hb_ucd_dm2_u64_map
+                .binary_search_by(|probe| {
+                    let key = probe & HB_CODEPOINT_ENCODE3(0x001F_FFFF, 0x001F_FFFF, 0);
+                    key.cmp(&k)
+                })
+                .ok()
+                .map(|index| _hb_ucd_dm2_u64_map[index]);
+
+            if let Some(value) = v {
+                u = HB_CODEPOINT_DECODE3_3(value);
+            } else {
+                return None;
+            }
+        }
+
+        if u == 0 {
+            None
+        } else {
+            Some(u)
+        }
+    }
+
+    pub(crate) fn decompose(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
+        if let Some((a, b)) = decompose_hangul(ab) {
+            return Some((a, b));
+        }
+
+        let mut i = _hb_ucd_dm(ab as usize) as usize;
+
+        // If no data, there's no decomposition.
+        if i == 0 {
+            return None;
+        }
+        i -= 1;
+
+        if i < _hb_ucd_dm1_p0_map.len() + _hb_ucd_dm1_p2_map.len() {
+            let a = if i < _hb_ucd_dm1_p0_map.len() {
+                _hb_ucd_dm1_p0_map[i] as u32
+            } else {
+                let j = i - _hb_ucd_dm1_p0_map.len();
+                0x20000 | _hb_ucd_dm1_p2_map[j] as u32
+            };
+            return Some((a, 0));
+        }
+
+        i -= _hb_ucd_dm1_p0_map.len() + _hb_ucd_dm1_p2_map.len();
+
+        if i < _hb_ucd_dm2_u32_map.len() {
+            let v = _hb_ucd_dm2_u32_map[i];
+            let a = HB_CODEPOINT_DECODE3_11_7_14_1(v);
+            let b = HB_CODEPOINT_DECODE3_11_7_14_2(v);
+            return Some((a, b));
+        }
+
+        i -= _hb_ucd_dm2_u32_map.len();
+
+        let v = _hb_ucd_dm2_u64_map[i];
+        let a = HB_CODEPOINT_DECODE3_1(v);
+        let b = HB_CODEPOINT_DECODE3_2(v);
+        Some((a, b))
+    }
+
+    const S_BASE: u32 = 0xAC00;
+    const L_BASE: u32 = 0x1100;
+    const V_BASE: u32 = 0x1161;
+    const T_BASE: u32 = 0x11A7;
+    const L_COUNT: u32 = 19;
+    const V_COUNT: u32 = 21;
+    const T_COUNT: u32 = 28;
+    const N_COUNT: u32 = V_COUNT * T_COUNT;
+    const S_COUNT: u32 = L_COUNT * N_COUNT;
+
+    fn compose_hangul(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+        let l = a;
+        let v = b;
+        if L_BASE <= l && l < (L_BASE + L_COUNT) && V_BASE <= v && v < (V_BASE + V_COUNT) {
+            let r = S_BASE + (l - L_BASE) * N_COUNT + (v - V_BASE) * T_COUNT;
+            Some(r)
+        } else if S_BASE <= l
+            && l <= (S_BASE + S_COUNT - T_COUNT)
+            && T_BASE <= v
+            && v < (T_BASE + T_COUNT)
+            && (l - S_BASE) % T_COUNT == 0
+        {
+            let r = l + (v - T_BASE);
+            Some(r)
+        } else {
+            None
+        }
+    }
+
+    fn decompose_hangul(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
+        let si = ab.wrapping_sub(S_BASE);
+        if si >= S_COUNT {
+            return None;
+        }
+        let (a, b) = if si % T_COUNT != 0 {
+            // LV,T
+            (S_BASE + (si / T_COUNT) * T_COUNT, T_BASE + (si % T_COUNT))
+        } else {
+            // L,V
+            (L_BASE + (si / N_COUNT), V_BASE + (si % N_COUNT) / T_COUNT)
+        };
+        Some((a, b))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn general_category_ranges() {
+        use super::GeneralCategory as Gc;
+        assert!(!Gc::CONTROL.in_range_inclusive(Gc::FORMAT, Gc::NON_SPACING_MARK));
+        assert!(Gc::LOWERCASE_LETTER.in_range_inclusive(Gc::LOWERCASE_LETTER, Gc::UPPERCASE_LETTER));
+        assert!(Gc::UPPERCASE_LETTER.in_range_inclusive(Gc::LOWERCASE_LETTER, Gc::UPPERCASE_LETTER));
+        assert!(!Gc::SPACING_MARK.in_range_inclusive(Gc::LOWERCASE_LETTER, Gc::UPPERCASE_LETTER));
+    }
+
+    #[cfg(feature = "icu")]
+    #[test]
+    fn script_mapping() {
+        use icu_properties::props::Script as IcuScript;
+        use icu_properties::PropertyNamesShort;
+        // These ICU script codes are aliases, placeholders, or meta scripts.
+        // No Unicode code points map directly to them via the Script property,
+        // so our direct-script table intentionally keeps them as UNKNOWN.
+        const ALLOWED_UNKNOWN_SCRIPT_VALUES: &[usize] = &[
+            54, 64, 67, 69, 70, 77, 85, 93, 94, 98, 100, 102, 105, 114, 119, 124, 128, 129, 132,
+            138, 139, 147, 148, 155, 172, 174,
+        ];
+        let short_names = PropertyNamesShort::<IcuScript>::new();
+        let mut mismatches = Vec::new();
+        for (icu4c_value, script) in super::icu::SCRIPT_MAP.iter().enumerate() {
+            let icu_script = IcuScript::from_icu4c_value(icu4c_value as u16);
+            match short_names.get(icu_script) {
+                Some(short_name) => {
+                    let expected = if short_name.len() == 4 {
+                        let bytes = short_name.as_bytes();
+                        let tag =
+                            crate::Tag::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                        crate::Script::from_iso15924_tag(tag).unwrap_or(crate::script::UNKNOWN)
+                    } else {
+                        crate::script::UNKNOWN
+                    };
+                    if *script == crate::script::UNKNOWN
+                        && ALLOWED_UNKNOWN_SCRIPT_VALUES.contains(&icu4c_value)
+                    {
+                        continue;
+                    }
+                    if expected != *script {
+                        let expected_tag = expected.tag().to_be_bytes();
+                        let actual_tag = script.tag().to_be_bytes();
+                        mismatches.push(format!(
+                            "value {icu4c_value}: Script::from_iso15924_tag({short_name}) -> {}, mapped tag {}",
+                            core::str::from_utf8(&expected_tag).unwrap_or("????"),
+                            core::str::from_utf8(&actual_tag).unwrap_or("????")
+                        ));
+                    }
+                }
+                None => {
+                    if *script != crate::script::UNKNOWN {
+                        mismatches.push(format!(
+                            "value {icu4c_value}: no ICU short name but mapped tag {}",
+                            core::str::from_utf8(&script.tag().to_be_bytes()).unwrap_or("????")
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(
+            mismatches.is_empty(),
+            "script mapping mismatches:\n{}",
+            mismatches.join("\n")
+        );
+    }
 }

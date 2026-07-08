@@ -8,17 +8,9 @@ use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::*;
 use super::{hb_font_t, hb_tag_t};
-use crate::algs::{rb_flag, rb_flag_unsafe};
 use crate::hb::aat;
 use crate::hb::buffer::GlyphFlags;
-use crate::unicode::{
-    hb_gc::{
-        HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER, HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER,
-        HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR, HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER,
-        HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER,
-    },
-    CharExt, GeneralCategory,
-};
+use crate::unicode::{CharExt, GeneralCategory};
 use crate::BufferFlags;
 use crate::{Direction, Feature, Language, Script};
 use core::ptr;
@@ -665,12 +657,12 @@ impl OtShapeContext<'_, '_> {
 
             let gen_cat = info.general_category();
 
-            if (rb_flag_unsafe(gen_cat.to_u8() as u32)
-                & (rb_flag(HB_UNICODE_GENERAL_CATEGORY_LOWERCASE_LETTER)
-                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_UPPERCASE_LETTER)
-                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_TITLECASE_LETTER)
-                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER)
-                    | rb_flag(HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR)))
+            if gen_cat.flag_unsafe()
+                & (GeneralCategory::LOWERCASE_LETTER.flag()
+                    | GeneralCategory::UPPERCASE_LETTER.flag()
+                    | GeneralCategory::TITLECASE_LETTER.flag()
+                    | GeneralCategory::OTHER_LETTER.flag()
+                    | GeneralCategory::SPACE_SEPARATOR.flag())
                 != 0
             {
                 i += 1;
@@ -768,7 +760,7 @@ impl OtShapeContext<'_, '_> {
             let rtlm_mask = self.plan.rtlm_mask;
 
             for info in &mut self.buffer.info[..len] {
-                if let Some(c) = info.as_codepoint().mirrored() {
+                if let Some(c) = info.as_codepoint().mirroring() {
                     if self.font_funcs.nominal_glyph(c).is_some() {
                         info.glyph_id = c;
                         continue;

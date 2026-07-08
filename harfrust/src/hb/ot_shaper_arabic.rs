@@ -6,7 +6,6 @@ use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::{hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
-use crate::algs::*;
 use crate::unicode::*;
 use crate::Direction;
 use alloc::boxed::Box;
@@ -17,21 +16,21 @@ const HB_BUFFER_SCRATCH_FLAG_ARABIC_HAS_STCH: hb_buffer_scratch_flags_t =
 // See:
 // https://github.com/harfbuzz/harfbuzz/commit/6e6f82b6f3dde0fc6c3c7d991d9ec6cfff57823d#commitcomment-14248516
 fn is_word_category(gc: GeneralCategory) -> bool {
-    (rb_flag_unsafe(gc.to_u8() as u32)
-        & (rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_PRIVATE_USE)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MODIFIER_LETTER)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_ENCLOSING_MARK)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_LETTER_NUMBER)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_NUMBER)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_CURRENCY_SYMBOL)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MODIFIER_SYMBOL)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_MATH_SYMBOL)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_OTHER_SYMBOL)))
+    (gc.flag_unsafe()
+        & (GeneralCategory::UNASSIGNED.flag()
+            | GeneralCategory::PRIVATE_USE.flag()
+            | GeneralCategory::MODIFIER_LETTER.flag()
+            | GeneralCategory::OTHER_LETTER.flag()
+            | GeneralCategory::SPACING_MARK.flag()
+            | GeneralCategory::ENCLOSING_MARK.flag()
+            | GeneralCategory::NON_SPACING_MARK.flag()
+            | GeneralCategory::DECIMAL_NUMBER.flag()
+            | GeneralCategory::LETTER_NUMBER.flag()
+            | GeneralCategory::OTHER_NUMBER.flag()
+            | GeneralCategory::CURRENCY_SYMBOL.flag()
+            | GeneralCategory::MODIFIER_SYMBOL.flag()
+            | GeneralCategory::MATH_SYMBOL.flag()
+            | GeneralCategory::OTHER_SYMBOL.flag()))
         != 0
 }
 
@@ -54,10 +53,10 @@ fn get_joining_type(u: Codepoint, gc: GeneralCategory) -> hb_arabic_joining_type
         return j_type;
     }
 
-    let ok = rb_flag_unsafe(gc.to_u8() as u32)
-        & (rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_ENCLOSING_MARK)
-            | rb_flag(hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT));
+    let ok = gc.flag_unsafe()
+        & (GeneralCategory::NON_SPACING_MARK.flag()
+            | GeneralCategory::ENCLOSING_MARK.flag()
+            | GeneralCategory::FORMAT.flag());
 
     if ok != 0 {
         hb_arabic_joining_type_t::T
