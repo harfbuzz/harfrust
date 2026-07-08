@@ -1,5 +1,13 @@
-#![expect(non_camel_case_types, non_snake_case, non_upper_case_globals)]
+#![expect(
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    clippy::manual_range_contains,
+    clippy::inline_always,
+    clippy::wrong_self_convention
+)]
 
+#[expect(clippy::identity_op)]
 #[rustfmt::skip]
 mod emoji_table;
 #[cfg(not(feature = "icu"))]
