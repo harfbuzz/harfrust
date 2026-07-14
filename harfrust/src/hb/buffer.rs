@@ -1,11 +1,10 @@
 use super::hb_mask_t;
-use super::unicode::CharExt;
 use crate::hb::face::BasicFontMetrics;
 use crate::hb::glyph_metrics::GlyphMetrics;
 use crate::hb::glyph_names::GlyphNames;
 use crate::hb::set_digest::hb_set_digest_t;
 use crate::hb::tables::TableRanges;
-use crate::hb::unicode::Codepoint;
+use crate::unicode::{CharExt, Codepoint};
 use crate::U32Set;
 use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
 use alloc::{string::String, vec::Vec};

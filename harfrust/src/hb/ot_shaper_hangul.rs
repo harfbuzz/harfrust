@@ -8,7 +8,7 @@ use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_NONE;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::*;
-use crate::hb::unicode::Codepoint;
+use crate::unicode::Codepoint;
 use crate::BufferFlags;
 
 const LJMO: u8 = 1;

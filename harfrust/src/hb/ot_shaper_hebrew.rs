@@ -1,10 +1,9 @@
+use super::hb_tag_t;
 use super::ot_shape_normalize::*;
 use super::ot_shaper::*;
-use super::{hb_tag_t, unicode};
 use crate::hb::buffer::hb_buffer_t;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
-use crate::hb::unicode::Codepoint;
-use crate::hb::unicode::{combining_class, modified_combining_class};
+use crate::unicode::{self, combining_class, modified_combining_class, Codepoint};
 
 pub const HEBREW_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: None,

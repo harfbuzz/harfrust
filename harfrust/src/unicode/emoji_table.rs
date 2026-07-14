@@ -21,7 +21,7 @@
 #![allow(unused_parens)]
 #![allow(clippy::unnecessary_cast, clippy::unreadable_literal, clippy::double_parens)]
 
-use crate::hb::unicode::Codepoint;
+use crate::unicode::Codepoint;
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
 pub(crate) static _hb_emoji_u8: [u8; 624]=

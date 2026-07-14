@@ -793,7 +793,7 @@ impl ClassDefInfo {
     }
 }
 
-use super::algs::HB_CODEPOINT_ENCODE3 as encode3;
+use crate::algs::HB_CODEPOINT_ENCODE3 as encode3;
 
 /// Blocklist specific broken GDEF tables identified by the combination of
 /// GDEF, GSUB, and GPOS table lengths. Nuke the GDEF tables to avoid

@@ -4,7 +4,6 @@ use core::ops::Range;
 
 use read_fonts::types::GlyphId;
 
-use super::algs::*;
 use super::buffer::*;
 use super::font_funcs::FontFuncsDispatch;
 use super::ot_layout::*;
@@ -15,9 +14,10 @@ use super::ot_shape_normalize::*;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::ot_shaper_syllabic::*;
-use super::unicode::Codepoint;
-use super::unicode::{hb_gc, CharExt};
 use super::{hb_font_t, hb_mask_t, hb_tag_t, script, GlyphInfo, Script};
+use crate::algs::*;
+use crate::unicode::GeneralCategory;
+use crate::unicode::{CharExt, Codepoint};
 
 pub const INDIC_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: Some(collect_features),
@@ -591,7 +591,7 @@ fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Code
         _ => {}
     }
 
-    crate::hb::unicode::decompose(ab)
+    crate::unicode::decompose(ab)
 }
 
 fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
@@ -605,7 +605,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
         return Some(0x09DF);
     }
 
-    crate::hb::unicode::compose(a, b)
+    crate::unicode::compose(a, b)
 }
 
 fn setup_masks(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut hb_buffer_t) {
@@ -1833,12 +1833,9 @@ fn final_reordering_impl(
     // Apply 'init' to the Left Matra if it's a word start.
     if buffer.info[start].indic_position() == ot_position_t::POS_PRE_M {
         if start == 0
-            || (rb_flag_unsafe(buffer.info[start - 1].general_category().to_u8() as u32)
-                & rb_flag_range(
-                    hb_gc::HB_UNICODE_GENERAL_CATEGORY_FORMAT,
-                    hb_gc::HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK,
-                ))
-                == 0
+            || !buffer.info[start - 1]
+                .general_category()
+                .in_range_inclusive(GeneralCategory::FORMAT, GeneralCategory::NON_SPACING_MARK)
         {
             buffer.info[start].mask |= indic_plan.mask_array[indic_feature::INIT];
         } else {

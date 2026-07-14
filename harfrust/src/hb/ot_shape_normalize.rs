@@ -1,11 +1,9 @@
-use crate::hb::unicode::Codepoint;
-
 use super::buffer::*;
 use super::font_funcs::FontFuncsDispatch;
 use super::hb_font_t;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
-use super::unicode::{hb_unicode_funcs_t, CharExt};
+use crate::unicode::{hb_unicode_funcs_t, CharExt, Codepoint};
 use read_fonts::types::GlyphId;
 
 impl GlyphInfo {
@@ -96,7 +94,7 @@ fn decompose_unicode(
     _: &hb_ot_shape_normalize_context_t,
     ab: Codepoint,
 ) -> Option<(Codepoint, Codepoint)> {
-    super::unicode::decompose(ab)
+    crate::unicode::decompose(ab)
 }
 
 fn compose_unicode(
@@ -104,7 +102,7 @@ fn compose_unicode(
     a: Codepoint,
     b: Codepoint,
 ) -> Option<Codepoint> {
-    super::unicode::compose(a, b)
+    crate::unicode::compose(a, b)
 }
 
 fn output_char(buffer: &mut hb_buffer_t, unichar: u32, glyph: u32) {

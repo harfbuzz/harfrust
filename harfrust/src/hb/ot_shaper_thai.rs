@@ -5,7 +5,7 @@ use super::ot_shape_normalize::HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::ot_shaper::*;
 use super::script;
-use super::unicode::GeneralCategory;
+use crate::unicode::GeneralCategory;
 
 pub const THAI_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
     collect_features: None,

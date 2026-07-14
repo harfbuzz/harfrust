@@ -4,8 +4,8 @@ use super::buffer::{hb_buffer_t, GlyphPosition};
 use super::face::GlyphExtents;
 use super::font_funcs::FontFuncsDispatch;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
-use super::unicode::*;
 use super::{hb_font_t, Direction};
+use crate::unicode::*;
 
 struct FallbackShapeContext<'a, 'x, 'u> {
     plan: &'a hb_ot_shape_plan_t,
@@ -456,7 +456,7 @@ pub fn _hb_ot_shape_fallback_spaces<'a, 'x>(
     buffer: &'x mut hb_buffer_t,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {
-    use super::unicode::hb_unicode_funcs_t as t;
+    use crate::unicode::hb_unicode_funcs_t as t;
 
     let _ = plan;
     let len = buffer.len;

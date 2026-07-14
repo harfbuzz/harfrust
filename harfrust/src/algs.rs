@@ -14,12 +14,6 @@ pub fn rb_flag_unsafe(x: u32) -> u32 {
     }
 }
 
-// FLAG_RANGE macro in harfbuzz.
-#[inline]
-pub fn rb_flag_range(x: u32, y: u32) -> u32 {
-    (x < y) as u32 + rb_flag(y + 1) - rb_flag(x)
-}
-
 // FLAG64 macro in harfbuzz.
 #[inline]
 pub const fn rb_flag64(x: u32) -> u64 {
