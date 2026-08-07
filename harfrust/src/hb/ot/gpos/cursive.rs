@@ -105,7 +105,14 @@ impl Apply for CursivePosFormat1<'_> {
         reverse_cursive_minor_offset(pos, child, direction, parent);
 
         pos[child].set_attach_type(attach_type::CURSIVE);
-        pos[child].set_attach_chain((parent as isize - child as isize) as i16);
+        let chain = parent as isize - child as isize;
+        pos[child].set_attach_chain(chain as i16);
+        // If the distance between the two glyphs does not fit in the i16 chain
+        // field it would be truncated to a bogus value; leave the glyph
+        // unattached instead of storing a poisoned chain. Matches HarfBuzz.
+        if isize::from(pos[child].attach_chain()) != chain {
+            pos[child].set_attach_chain(0);
+        }
 
         ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         if direction.is_horizontal() {
@@ -145,8 +152,16 @@ fn reverse_cursive_minor_offset(
 
     pos[i].set_attach_chain(0);
 
+    let j = (i as isize + isize::from(chain)) as usize;
+
+    // The chain is an i16 distance that can be truncated for very long buffers,
+    // so `i + chain` may fall outside the buffer; stop instead of indexing out
+    // of bounds. Matches HarfBuzz's `if (j >= len) return;`.
+    if j >= pos.len() {
+        return;
+    }
+
     // Stop if we see new parent in the chain.
-    let j = (i as isize + isize::from(chain)) as _;
     if j == new_parent {
         return;
     }
@@ -161,4 +176,24 @@ fn reverse_cursive_minor_offset(
 
     pos[j].set_attach_chain(-chain);
     pos[j].set_attach_type(attach_type);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reverse_cursive_minor_offset_ignores_out_of_range_chain() {
+        // A truncated attach_chain can make `i + chain` point past the end of
+        // the buffer; reverse_cursive_minor_offset must not index out of
+        // bounds. See https://github.com/harfbuzz/harfrust/issues/410.
+        let mut pos = vec![GlyphPosition::default(); 4];
+        pos[0].set_attach_type(attach_type::CURSIVE);
+        pos[0].set_attach_chain(30000); // 0 + 30000 is far past the buffer end
+
+        reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, 3);
+
+        // The out-of-range link is cleared and no other glyph is touched.
+        assert_eq!(pos[0].attach_chain(), 0);
+    }
 }
