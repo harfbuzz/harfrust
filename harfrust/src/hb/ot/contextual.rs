@@ -539,10 +539,10 @@ struct ParsedRule<'a> {
 impl<'a> ParsedRule<'a> {
     /// Parse a SequenceRule or ClassSequenceRule.
     fn from_rule_data(data: FontData<'a>) -> Option<Self> {
-        let glyph_count: u16 = data.read_at(0).ok()?;
-        let record_count: u16 = data.read_at(2).ok()?;
-        let input_end = 4 + (glyph_count as usize).saturating_sub(1) * u16::RAW_BYTE_LEN;
-        let records_end = input_end + record_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let glyph_count = usize::from(data.read_at::<u16>(0).ok()?);
+        let record_count = usize::from(data.read_at::<u16>(2).ok()?);
+        let input_end = 4 + glyph_count.saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let records_end = input_end + record_count * SequenceLookupRecord::RAW_BYTE_LEN;
         Some(ParsedRule {
             input: data.read_array(4..input_end).ok()?,
             records: data.read_array(input_end..records_end).ok()?,
@@ -552,16 +552,14 @@ impl<'a> ParsedRule<'a> {
 
     /// Parse a ChainedSequenceRule or ChainedClassSequenceRule.
     fn from_chain_rule_data(data: FontData<'a>) -> Option<Self> {
-        let backtrack_count: u16 = data.read_at(0).ok()?;
-        let backtrack_end = 2 + backtrack_count as usize * u16::RAW_BYTE_LEN;
-        let input_count: u16 = data.read_at(backtrack_end).ok()?;
-        let input_end =
-            backtrack_end + 2 + (input_count as usize).saturating_sub(1) * u16::RAW_BYTE_LEN;
-        let lookahead_count: u16 = data.read_at(input_end).ok()?;
-        let lookahead_end = input_end + 2 + lookahead_count as usize * u16::RAW_BYTE_LEN;
-        let record_count: u16 = data.read_at(lookahead_end).ok()?;
-        let records_end =
-            lookahead_end + 2 + record_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
+        let backtrack_end = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+        let input_count = usize::from(data.read_at::<u16>(backtrack_end).ok()?);
+        let input_end = backtrack_end + 2 + input_count.saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let lookahead_count = usize::from(data.read_at::<u16>(input_end).ok()?);
+        let lookahead_end = input_end + 2 + lookahead_count * u16::RAW_BYTE_LEN;
+        let record_count = usize::from(data.read_at::<u16>(lookahead_end).ok()?);
+        let records_end = lookahead_end + 2 + record_count * SequenceLookupRecord::RAW_BYTE_LEN;
         Some(ParsedRule {
             backtrack: data.read_array(2..backtrack_end).ok()?,
             input: data.read_array(backtrack_end + 2..input_end).ok()?,
@@ -628,8 +626,8 @@ fn plain_rule_first_input(data: &FontData) -> Option<u16> {
 /// The input glyph count follows the variable-length backtrack sequence, and
 /// the input sequence follows it directly.
 fn chain_rule_first_input(data: &FontData) -> Option<u16> {
-    let backtrack_count: u16 = data.read_at(0).ok()?;
-    let count_pos = 2 + backtrack_count as usize * u16::RAW_BYTE_LEN;
+    let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
+    let count_pos = 2 + backtrack_count * u16::RAW_BYTE_LEN;
     let input_count: u16 = data.read_at(count_pos).ok()?;
     if input_count <= 1 {
         return None;
