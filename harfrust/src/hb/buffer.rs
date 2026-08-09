@@ -1,4 +1,5 @@
 use super::hb_mask_t;
+use super::ot_layout::MAX_SYLLABLE_LENGTH;
 use crate::hb::face::BasicFontMetrics;
 use crate::hb::glyph_metrics::GlyphMetrics;
 use crate::hb::glyph_names::GlyphNames;
@@ -1714,9 +1715,10 @@ impl hb_buffer_t {
             return start;
         }
 
+        let end = start + min(self.len - start, MAX_SYLLABLE_LENGTH);
         let syllable = self.info[start].syllable();
         start += 1;
-        while start < self.len && syllable == self.info[start].syllable() {
+        while start < end && syllable == self.info[start].syllable() {
             start += 1;
         }
 
@@ -2201,5 +2203,25 @@ impl core::fmt::Debug for GlyphBuffer {
             .field("glyph_positions", &self.glyph_positions())
             .field("glyph_infos", &self.glyph_infos())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn next_syllable_is_bounded() {
+        let mut buffer = hb_buffer_t::new();
+        buffer
+            .info
+            .resize(MAX_SYLLABLE_LENGTH + 1, GlyphInfo::default());
+        buffer.len = buffer.info.len();
+        for info in &mut buffer.info {
+            info.set_syllable(1);
+        }
+
+        assert_eq!(buffer.next_syllable(0), MAX_SYLLABLE_LENGTH);
+        assert_eq!(buffer.next_syllable(MAX_SYLLABLE_LENGTH), buffer.len);
     }
 }

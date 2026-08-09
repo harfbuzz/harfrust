@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+This development version matches HarfBuzz [v14.3.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.0).
+
 - Guard GPOS cursive attachment against out-of-bounds `attach_chain` offsets
   that could panic on buffers longer than 32767 glyphs (#411).
+- Apply `calt` to non-Hangul characters in Hangul runs while continuing to
+  suppress it for Jamo.
+- Preserve the correct component assignments when MultipleSubst output is
+  ligated and positioned with mark attachment lookups.
+- Apply cross-direction mark attachment offsets immediately.
+- Bound syllables to 64 glyphs during shaping.
+- Map the collective ISO 15924 `Hrkt` script to the OpenType `kana` script tag.
 
 ## [0.12.0] - 2026-07-03
 

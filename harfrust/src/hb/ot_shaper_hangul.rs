@@ -39,13 +39,24 @@ fn collect_features_hangul(planner: &mut hb_ot_shape_planner_t) {
 
 fn override_features_hangul(planner: &mut hb_ot_shape_planner_t) {
     // Uniscribe does not apply 'calt' for Hangul, and certain fonts
-    // (Noto Sans CJK, Source Sans Han, etc) apply all of jamo lookups
+    // (Noto Sans CJK, Source Han Sans, etc) apply all of jamo lookups
     // in calt, which is not desirable.
-    planner.ot_map.disable_feature(hb_tag_t::new(b"calt"));
+    //
+    // Rather than disabling 'calt' for the entire run, which also turns
+    // it off for any other characters in the run, allocate a mask for it
+    // and clear that mask on jamo only (in setup_masks_hangul). That
+    // keeps jamo out of reach of such lookups while letting the rest of
+    // the run shape with 'calt' as usual.
+    //
+    // https://github.com/harfbuzz/harfbuzz/discussions/4853
+    planner
+        .ot_map
+        .add_feature(hb_tag_t::new(b"calt"), F_NONE, 1);
 }
 
 struct hangul_shape_plan_t {
     mask_array: [hb_mask_t; 4],
+    calt_mask: hb_mask_t,
 }
 
 fn data_create_hangul(map: &hb_ot_map_t) -> hangul_shape_plan_t {
@@ -56,6 +67,7 @@ fn data_create_hangul(map: &hb_ot_map_t) -> hangul_shape_plan_t {
             map.get_1_mask(hb_tag_t::new(b"vjmo")),
             map.get_1_mask(hb_tag_t::new(b"tjmo")),
         ],
+        calt_mask: map.get_1_mask(hb_tag_t::new(b"calt")),
     }
 }
 
@@ -365,6 +377,12 @@ fn setup_masks_hangul(
     let hangul_plan = plan.data::<hangul_shape_plan_t>();
     for info in buffer.info_slice_mut() {
         info.mask |= hangul_plan.mask_array[info.hangul_shaping_feature() as usize];
+
+        // Keep 'calt' away from jamo; see override_features_hangul().
+        let u = info.glyph_id;
+        if is_l(u) || is_v(u) || is_t(u) {
+            info.mask &= !hangul_plan.calt_mask;
+        }
     }
 
     buffer.deallocate_var(GlyphInfo::HANGUL_SHAPING_FEATURE_VAR);

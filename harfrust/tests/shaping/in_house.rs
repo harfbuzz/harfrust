@@ -47887,6 +47887,66 @@ fn glyph_props_no_gdef_001() {
 }
 
 #[test]
+fn hangul_calt_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{AC00}\u{003D}\u{003E}",
+            "",
+        ),
+        "[ga=0+600|eq_gt.calt=1+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{AC00}\u{B098}",
+            "",
+        ),
+        "[ga_na.calt=0+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{1100}\u{1100}",
+            "",
+        ),
+        "[jamoL=0+600|jamoL=1+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{B098}\u{B098}",
+            "",
+        ),
+        "[na_na.liga=0+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{AC00}\u{003D}\u{003E}",
+            "--features=calt=0",
+        ),
+        "[ga=0+600|equal=1+600|greater=2+600]"
+    );
+}
+
+#[test]
 fn hangul_jamo_001() {
     assert_eq!(
         shape(
@@ -50812,7 +50872,7 @@ fn khmer_misc_046() {
             "\u{1789}\u{17D2}\u{1789}\u{17BB}",
             "",
         ),
-        "[uni1789.a=0+952|uni17D21789.a=0@19,-22+0|uni17BB=0@-160,-296+0]"
+        "[uni1789.a=0+952|uni17D21789.a=0@19,-22+0|uni17BB=0@-160,-274+0]"
     );
 }
 
@@ -50824,7 +50884,7 @@ fn khmer_misc_047() {
             "\u{1789}\u{17D2}\u{1789}\u{17BC}",
             "",
         ),
-        "[uni1789.a=0+952|uni17D21789.a=0@19,-22+0|uni17BC=0@-160,-296+0]"
+        "[uni1789.a=0+952|uni17D21789.a=0@19,-22+0|uni17BC=0@-160,-274+0]"
     );
 }
 
@@ -50836,7 +50896,7 @@ fn khmer_misc_048() {
             "\u{1789}\u{17D2}\u{1789}\u{17BD}",
             "",
         ),
-        "[uni1789.a=0+952|uni17D21789.a=0@19,-22+0|uni17BD=0@-160,-296+0]"
+        "[uni1789.a=0+952|uni17D21789.a=0@19,-22+0|uni17BD=0@-160,-274+0]"
     );
 }
 
@@ -52189,6 +52249,91 @@ fn mark_attachment_001() {
             "",
         ),
         "[uni103C102F=0+150|uni100F=0+550|uni1036=0@-150,0+0]"
+    );
+}
+
+#[test]
+fn mark_attachment_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/55db4d5539b0f7f0b5e6cdb3ce6dd1eab6b3392a.ttf",
+            "\u{066E}\u{064E}\u{0644}\u{064E}",
+            "",
+        ),
+        "[fatha-ar=0@359,727+0|_lam.bowl=0+537|fatha-ar=0@20,370+0|behDotless_lam-ar.init=0+246]"
+    );
+}
+
+#[test]
+fn mark_attachment_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/55db4d5539b0f7f0b5e6cdb3ce6dd1eab6b3392a.ttf",
+            "\u{066E}\u{064E}\u{0644}\u{064E}",
+            "--features=-liga",
+        ),
+        "[fatha-ar=2@369,717+0|_lam.bowl=2+537|_lam=2+108|fatha-ar=0@20,370+0|behDotless-ar.init=0+220]"
+    );
+}
+
+#[test]
+fn mark_attachment_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/73c3222a2992bac9067663888d2a1503774976bb.ttf",
+            "\u{0628}\u{064E}\u{0645}\u{064E}\u{0644}\u{064E}",
+            "",
+        ),
+        "[fatha-ar=0@533,333+0|_lam.bowl=0+500|fatha-ar=0@22,222+0|fatha-ar=0@11,111+0|beh_meem_lam-ar=0+700]"
+    );
+}
+
+#[test]
+fn mark_attachment_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/1af868501dfcfd16184116b966f7fb2bd310623c.ttf",
+            "\u{0628}\u{064E}\u{0644}\u{064E}\u{0647}\u{064E}",
+            "",
+        ),
+        "[fatha-ar=0@33,333+0|fatha-ar=0@22,222+0|fatha-ar=0@11,111+0|beh_lam_heh-ar=0+700]"
+    );
+}
+
+#[test]
+fn mark_attachment_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5479969a7d35aabd6a39dcfacb88e36a8f42a7ac.ttf",
+            "\u{0628}\u{064E}\u{062A}\u{062D}",
+            "",
+        ),
+        "[hah.fina=3+600|teh.medi=2@0,200+600|fatha=0@50,500+0|beh.init=0@50,400+600]"
+    );
+}
+
+#[test]
+fn mark_attachment_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/d92da3f226c722c1c67353b2391b3472639f03f5.ttf",
+            "\u{0628}\u{064E}\u{062A}\u{062D}",
+            "",
+        ),
+        "[hah.fina=3+600|teh.medi=2@0,200+600|fatha=0@50,500+0|beh.init=0@50,400+600]"
+    );
+}
+
+#[test]
+fn mark_attachment_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/152825a19abd4a3094a41c9e4b4de5e2577dd1df.ttf",
+            "\u{0633}\u{064E}\u{06CC}\u{064E}\u{0642}\u{064F}\u{0648}\u{0652}\u{0644}\u{064F}\
+             \u{0020}\u{0020}\u{0633}\u{064E}\u{0642}\u{064E}\u{0645}\u{064F}\u{0646}\u{064E}",
+            "",
+        ),
+        "[uni064E=18@271,125+0|uniFEE6=18+1187|uni064F=16@43,178+0|uniFEE4=16@0,295+706|uni064E=14@-25,125+0|uniFED8=14@0,305+616|uni064E=12@222,125+0|uniFEB3=12@0,305+846|space=11+37|space=10+37|uni064F=8@225,128+0|uniFEDD=8+1087|uni0652=6@94,189+0|uniFEEE=6+601|uni064F=4@-141,178+0|uniFED8=4@0,128+616|uni064E=2@-12,125+0|uniFEF4=2@0,128+647|uni064E=0@222,125+0|uniFEB3=0@0,128+846]"
     );
 }
 

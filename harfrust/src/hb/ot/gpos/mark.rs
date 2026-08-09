@@ -1,4 +1,4 @@
-use crate::hb::buffer::{hb_buffer_t, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
+use crate::hb::buffer::{hb_buffer_t, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::hb::ot_layout_common::lookup_flags;
 use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
@@ -6,6 +6,40 @@ use crate::hb::ot_layout_gsubgpos::{match_t, skipping_iterator_t, Apply, MatchSo
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
+
+fn resolve_cross_offset(
+    pos: &[GlyphPosition],
+    mut glyph_pos: usize,
+    direction: crate::Direction,
+) -> i32 {
+    let horizontal = direction.is_horizontal();
+    let mut offset = if horizontal {
+        pos[glyph_pos].y_offset
+    } else {
+        pos[glyph_pos].x_offset
+    };
+
+    while pos[glyph_pos].attach_type() & attach_type::CURSIVE != 0 {
+        let chain = pos[glyph_pos].attach_chain();
+        if chain == 0 {
+            break;
+        }
+
+        let parent = glyph_pos as isize + isize::from(chain);
+        if parent < 0 || parent as usize >= pos.len() {
+            break;
+        }
+
+        glyph_pos = parent as usize;
+        offset = offset.saturating_add(if horizontal {
+            pos[glyph_pos].y_offset
+        } else {
+            pos[glyph_pos].x_offset
+        });
+    }
+
+    offset
+}
 
 trait MarkArrayExt {
     fn apply(
@@ -36,10 +70,17 @@ impl MarkArrayExt for MarkArray<'_> {
         ctx.buffer
             .unsafe_to_break(Some(glyph_pos), Some(ctx.buffer.idx + 1));
 
+        let base_offset = resolve_cross_offset(&ctx.buffer.pos, glyph_pos, ctx.buffer.direction);
+        let horizontal = ctx.buffer.direction.is_horizontal();
         let idx = ctx.buffer.idx;
         let pos = ctx.buffer.cur_pos_mut();
         pos.x_offset = x_offset;
         pos.y_offset = y_offset;
+        if horizontal {
+            pos.y_offset = pos.y_offset.saturating_add(base_offset);
+        } else {
+            pos.x_offset = pos.x_offset.saturating_add(base_offset);
+        }
         pos.set_attach_type(attach_type::MARK);
         pos.set_attach_chain((glyph_pos as isize - idx as isize) as i16);
 
@@ -210,6 +251,7 @@ impl Apply for MarkLigPosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
+        let ligature_coverage = self.ligature_coverage().ok()?;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.
@@ -228,6 +270,14 @@ impl Apply for MarkLigPosFormat1<'_> {
         let mut j = iter.buffer.idx;
         while j > last_base_until as usize {
             let mut _match = iter.match_at(j - 1, MatchSource::Info);
+            if _match == match_t::MATCH
+                && !accept_mark_ligature(iter.buffer, j - 1)
+                && ligature_coverage
+                    .get(iter.buffer.info[j - 1].as_glyph())
+                    .is_none()
+            {
+                _match = match_t::SKIP;
+            }
             if _match == match_t::MATCH {
                 last_base = j as i32 - 1;
                 break;
@@ -249,7 +299,7 @@ impl Apply for MarkLigPosFormat1<'_> {
         // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
 
         let lig_glyph = ctx.buffer.info[idx].as_glyph();
-        let Some(lig_index) = self.ligature_coverage().ok()?.get(lig_glyph) else {
+        let Some(lig_index) = ligature_coverage.get(lig_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
             return None;
@@ -298,4 +348,12 @@ impl Apply for MarkLigPosFormat1<'_> {
 
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx)
     }
+}
+
+fn accept_mark_ligature(buffer: &hb_buffer_t, idx: usize) -> bool {
+    // We only want to attach to the first of a MultipleSubst sequence,
+    // which might have been ligated into a preceding ligature, and in that
+    // case the mark should attach to that ligature.
+    // https://github.com/harfbuzz/harfbuzz/issues/4969
+    !buffer.info[idx].multiplied() || buffer.info[idx].lig_comp() == 0
 }
