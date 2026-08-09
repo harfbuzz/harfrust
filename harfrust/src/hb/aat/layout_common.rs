@@ -119,17 +119,43 @@ impl<'a> AatApplyContext<'a> {
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
-        if glyph == DELETED_GLYPH {
-            self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            self.buffer.cur_mut(0).set_aat_deleted();
-        } else {
-            if self.has_glyph_classes {
-                self.buffer
-                    .cur_mut(0)
-                    .set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
+
+        // Insertion state machines can emit glyphs during the end-of-text
+        // transition, when there is no current input glyph. output_glyph()
+        // supports that by copying the previous output glyph's metadata.
+        // Apply the AAT metadata to that new output glyph instead of indexing
+        // past the end of the input buffer.
+        let at_end = self.buffer.idx == self.buffer.len;
+        if at_end {
+            let out_len = self.buffer.out_len;
+            self.buffer.output_glyph(glyph);
+            if self.buffer.out_len == out_len {
+                return;
             }
         }
-        self.buffer.output_glyph(glyph);
+
+        if glyph == DELETED_GLYPH {
+            self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
+            let info = if at_end {
+                self.buffer.prev_mut()
+            } else {
+                self.buffer.cur_mut(0)
+            };
+            info.set_aat_deleted();
+        } else {
+            if self.has_glyph_classes {
+                let glyph_props = self.face.ot_tables.glyph_props(glyph.into());
+                let info = if at_end {
+                    self.buffer.prev_mut()
+                } else {
+                    self.buffer.cur_mut(0)
+                };
+                info.set_glyph_props(glyph_props);
+            }
+        }
+        if !at_end {
+            self.buffer.output_glyph(glyph);
+        }
     }
 
     pub fn replace_glyph(&mut self, glyph: u32) {
@@ -416,5 +442,33 @@ impl CollectGlyphs for Lookup10<'_> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Direction, FontRef, ShapePlan, ShaperData, UnicodeBuffer};
+
+    #[test]
+    fn output_deleted_glyph_at_end_of_text_marks_output() {
+        let font_data = include_bytes!("../../../tests/fonts/text-rendering-tests/TestMORXOne.ttf");
+        let font = FontRef::new(font_data).unwrap();
+        let shaper_data = ShaperData::new(&font);
+        let shaper = shaper_data.shaper(&font).build();
+        let plan = ShapePlan::new(&shaper, Direction::LeftToRight, None, None, &[]);
+
+        let mut unicode_buffer = UnicodeBuffer::new();
+        unicode_buffer.add('A', 0);
+        let mut buffer = unicode_buffer.0;
+        buffer.clear_output();
+        buffer.next_glyph();
+
+        let mut context = AatApplyContext::new(&plan, &shaper, Scale::default(), &mut buffer);
+        context.output_glyph(DELETED_GLYPH);
+
+        assert_eq!(context.buffer.out_len, 2);
+        assert_eq!(context.buffer.prev().glyph_id, DELETED_GLYPH);
+        assert!(context.buffer.prev().is_aat_deleted());
     }
 }
