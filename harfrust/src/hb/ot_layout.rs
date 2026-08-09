@@ -52,6 +52,7 @@ impl hb_buffer_t {
 
 pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
+pub const MAX_SYLLABLE_LENGTH: usize = 64;
 
 pub fn hb_ot_layout_has_kerning(face: &hb_font_t) -> bool {
     face.aat_tables.kern.is_some()
