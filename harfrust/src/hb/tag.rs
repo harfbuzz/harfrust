@@ -287,8 +287,8 @@ fn old_tag_from_script(script: Script) -> hb_tag_t {
     match script {
         script::MATH => hb_tag_t::new(b"math"),
 
-        // Katakana and Hiragana both map to 'kana'.
-        script::HIRAGANA => hb_tag_t::new(b"kana"),
+        // Hiragana, Katakana, and their collective ISO 15924 script all map to 'kana'.
+        script::HIRAGANA | script::KATAKANA_OR_HIRAGANA => hb_tag_t::new(b"kana"),
 
         // Spaces at the end are preserved, unlike ISO 15924.
         script::LAO => hb_tag_t::new(b"lao "),
@@ -393,10 +393,14 @@ mod tests {
     fn script_degenerate() {
         assert_eq!(hb_tag_t::new(b"DFLT"), hb_tag_t::default_script());
 
-        // Hiragana and Katakana both map to 'kana'.
+        // Hiragana, Katakana, and their collective ISO 15924 script all map to 'kana'.
         test_simple_tags("kana", script::KATAKANA);
 
         let (scripts, _) = tags_from_script_and_language(Some(script::HIRAGANA), None);
+        assert_eq!(scripts.as_slice(), &[hb_tag_t::new(b"kana")]);
+
+        let (scripts, _) =
+            tags_from_script_and_language(Some(script::KATAKANA_OR_HIRAGANA), None);
         assert_eq!(scripts.as_slice(), &[hb_tag_t::new(b"kana")]);
 
         // Spaces are replaced

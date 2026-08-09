@@ -414,6 +414,7 @@ pub mod script {
     pub const HIRAGANA: Script = Script::from_bytes(b"Hira");
     pub const KANNADA: Script = Script::from_bytes(b"Knda");
     pub const KATAKANA: Script = Script::from_bytes(b"Kana");
+    pub const KATAKANA_OR_HIRAGANA: Script = Script::from_bytes(b"Hrkt");
     pub const LAO: Script = Script::from_bytes(b"Laoo");
     pub const LATIN: Script = Script::from_bytes(b"Latn");
     pub const MALAYALAM: Script = Script::from_bytes(b"Mlym");
