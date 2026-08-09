@@ -196,10 +196,9 @@ impl<'a> GlyphMetrics<'a> {
         let gid = gid.into();
         let mut bearing = if let Some(hmtx) = self._hmtx.as_ref() {
             hmtx.side_bearing(gid).unwrap_or_default() as i32
-        } else if let Some(extents) = self.bounds(gid, coords) {
-            return Some(extents.x_min);
         } else {
-            return None;
+            let extents = self.bounds(gid, coords)?;
+            return Some(extents.x_min);
         };
         if !coords.is_empty() {
             if let Some(hvar) = self.hvar.as_ref() {
@@ -244,11 +243,8 @@ impl<'a> GlyphMetrics<'a> {
         coords: &[F2Dot14],
     ) -> Option<i32> {
         let gid = gid.into();
-        let mut bearing = if let Some(vmtx) = self.vmtx.as_ref() {
-            vmtx.side_bearing(gid).unwrap_or_default() as i32
-        } else {
-            return None;
-        };
+        let vmtx = self.vmtx.as_ref()?;
+        let mut bearing = vmtx.side_bearing(gid).unwrap_or_default() as i32;
         if !coords.is_empty() {
             if let Some(vvar) = self.vvar.as_ref() {
                 bearing += vvar.tsb_delta(gid, coords).unwrap_or_default().to_i32();
