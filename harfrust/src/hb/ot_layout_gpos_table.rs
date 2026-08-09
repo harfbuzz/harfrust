@@ -49,8 +49,11 @@ fn propagate_attachment_offsets(
 
     match kind {
         attach_type::MARK => {
-            pos[i].x_offset = pos[i].x_offset.saturating_add(pos[j].x_offset);
-            pos[i].y_offset = pos[i].y_offset.saturating_add(pos[j].y_offset);
+            if direction.is_horizontal() {
+                pos[i].x_offset = pos[i].x_offset.saturating_add(pos[j].x_offset);
+            } else {
+                pos[i].y_offset = pos[i].y_offset.saturating_add(pos[j].y_offset);
+            }
 
             // i is the position of the mark; j is the base.
             if j < i {
@@ -172,6 +175,6 @@ mod tests {
         );
 
         assert_eq!(pos[len - 1].x_offset, i32::MAX);
-        assert_eq!(pos[len - 1].y_offset, i32::MAX);
+        assert_eq!(pos[len - 1].y_offset, 40_000_000);
     }
 }
