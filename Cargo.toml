@@ -1,6 +1,6 @@
 [workspace]
 members = ["harfrust", "hr-shape", "fuzz"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 version = "0.12.0"
