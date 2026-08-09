@@ -47887,6 +47887,66 @@ fn glyph_props_no_gdef_001() {
 }
 
 #[test]
+fn hangul_calt_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{AC00}\u{003D}\u{003E}",
+            "",
+        ),
+        "[ga=0+600|eq_gt.calt=1+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{AC00}\u{B098}",
+            "",
+        ),
+        "[ga_na.calt=0+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{1100}\u{1100}",
+            "",
+        ),
+        "[jamoL=0+600|jamoL=1+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{B098}\u{B098}",
+            "",
+        ),
+        "[na_na.liga=0+600]"
+    );
+}
+
+#[test]
+fn hangul_calt_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/600387433d01cd5799e421dad6510a54c862f56b.ttf",
+            "\u{AC00}\u{003D}\u{003E}",
+            "--features=calt=0",
+        ),
+        "[ga=0+600|equal=1+600|greater=2+600]"
+    );
+}
+
+#[test]
 fn hangul_jamo_001() {
     assert_eq!(
         shape(
