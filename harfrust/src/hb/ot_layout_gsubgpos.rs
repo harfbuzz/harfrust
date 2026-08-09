@@ -143,7 +143,7 @@ pub fn match_input(
             }
         }
 
-        total_component_count += this.lig_num_comps();
+        total_component_count += this.lig_num_comps_in_ligation();
     }
 
     *end_position = iter.index() + 1;
@@ -1148,7 +1148,7 @@ pub fn ligate_input(
 
         let cur = ctx.buffer.cur(0);
         last_lig_id = cur.lig_id();
-        last_num_comps = cur.lig_num_comps();
+        last_num_comps = cur.lig_num_comps_in_ligation();
         comps_so_far += last_num_comps;
 
         // Skip the base glyph.

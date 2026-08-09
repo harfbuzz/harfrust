@@ -792,6 +792,21 @@ impl GlyphInfo {
         self.glyph_props() & GlyphPropsFlags::MULTIPLIED.bits() != 0
     }
 
+    /// Returns the number of components this glyph contributes when forming a ligature.
+    #[inline]
+    pub(crate) fn lig_num_comps_in_ligation(&self) -> u8 {
+        // When a glyph is decomposed by a MultipleSubst and its pieces later become
+        // components of a ligature, the pieces belong to the same ligature component
+        // as the first piece, matching how MarkBasePos attaches marks only to the
+        // first piece. So the non-first pieces contribute no extra component.
+        // https://github.com/harfbuzz/harfbuzz/issues/4969
+        if self.multiplied() && self.lig_comp() != 0 {
+            0
+        } else {
+            self.lig_num_comps()
+        }
+    }
+
     /// HB: _hb_glyph_info_ligated_and_didnt_multiply
     ///
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L584>
