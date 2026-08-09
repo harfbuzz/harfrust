@@ -52253,6 +52253,30 @@ fn mark_attachment_001() {
 }
 
 #[test]
+fn mark_attachment_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/55db4d5539b0f7f0b5e6cdb3ce6dd1eab6b3392a.ttf",
+            "\u{066E}\u{064E}\u{0644}\u{064E}",
+            "",
+        ),
+        "[fatha-ar=0@359,727+0|_lam.bowl=0+537|fatha-ar=0@20,370+0|behDotless_lam-ar.init=0+246]"
+    );
+}
+
+#[test]
+fn mark_attachment_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/55db4d5539b0f7f0b5e6cdb3ce6dd1eab6b3392a.ttf",
+            "\u{066E}\u{064E}\u{0644}\u{064E}",
+            "--features=-liga",
+        ),
+        "[fatha-ar=2@369,717+0|_lam.bowl=2+537|_lam=2+108|fatha-ar=0@20,370+0|behDotless-ar.init=0+220]"
+    );
+}
+
+#[test]
 fn mark_filtering_sets_001() {
     assert_eq!(
         shape(

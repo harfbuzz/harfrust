@@ -210,6 +210,7 @@ impl Apply for MarkLigPosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
+        let ligature_coverage = self.ligature_coverage().ok()?;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.
@@ -228,6 +229,14 @@ impl Apply for MarkLigPosFormat1<'_> {
         let mut j = iter.buffer.idx;
         while j > last_base_until as usize {
             let mut _match = iter.match_at(j - 1, MatchSource::Info);
+            if _match == match_t::MATCH
+                && !accept_mark_ligature(iter.buffer, j - 1)
+                && ligature_coverage
+                    .get(iter.buffer.info[j - 1].as_glyph())
+                    .is_none()
+            {
+                _match = match_t::SKIP;
+            }
             if _match == match_t::MATCH {
                 last_base = j as i32 - 1;
                 break;
@@ -249,7 +258,7 @@ impl Apply for MarkLigPosFormat1<'_> {
         // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
 
         let lig_glyph = ctx.buffer.info[idx].as_glyph();
-        let Some(lig_index) = self.ligature_coverage().ok()?.get(lig_glyph) else {
+        let Some(lig_index) = ligature_coverage.get(lig_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
             return None;
@@ -298,4 +307,12 @@ impl Apply for MarkLigPosFormat1<'_> {
 
         mark_array.apply(ctx, &base_anchor, &mark_anchor, idx)
     }
+}
+
+fn accept_mark_ligature(buffer: &hb_buffer_t, idx: usize) -> bool {
+    // We only want to attach to the first of a MultipleSubst sequence,
+    // which might have been ligated into a preceding ligature, and in that
+    // case the mark should attach to that ligature.
+    // https://github.com/harfbuzz/harfbuzz/issues/4969
+    !buffer.info[idx].multiplied() || buffer.info[idx].lig_comp() == 0
 }
