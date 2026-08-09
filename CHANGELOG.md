@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+- Guard GPOS cursive attachment against out-of-bounds `attach_chain` offsets
+  that could panic on buffers longer than 32767 glyphs (#411).
+
 ## [0.12.0] - 2026-07-03
 
 This release matches HarfBuzz [v14.2.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.2.0),
