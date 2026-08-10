@@ -150,7 +150,7 @@ fn machine_kern<F>(
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
-            i += 1;
+            i = unsafe_to;
             continue;
         }
 
