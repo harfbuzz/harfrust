@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-This development version matches HarfBuzz [v14.3.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.0).
+This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
+
+## [0.13.0] - 2026-08-12
+
+This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),
+and has an MSRV (minimum supported Rust version) of 1.85.
 
 - Guard GPOS cursive attachment against out-of-bounds `attach_chain` offsets
   that could panic on buffers longer than 32767 glyphs (#411).
@@ -18,7 +23,7 @@ This development version matches HarfBuzz [v14.3.0](https://github.com/harfbuzz/
 - Apply cross-direction mark attachment offsets immediately.
 - Bound syllables to 64 glyphs during shaping.
 - Map the collective ISO 15924 `Hrkt` script to the OpenType `kana` script tag.
-- Update `read-fonts` to 0.43.0.
+- Update `read-fonts` to 0.43.0 (#418).
 
 ## [0.12.0] - 2026-07-03
 
@@ -244,7 +249,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.12.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.13.0...HEAD
+[0.13.0]: https://github.com/harfbuzz/harfrust/compare/0.12.0...0.13.0
 [0.12.0]: https://github.com/harfbuzz/harfrust/compare/0.11.0...0.12.0
 [0.11.0]: https://github.com/harfbuzz/harfrust/compare/0.10.0...0.11.0
 [0.10.0]: https://github.com/harfbuzz/harfrust/compare/0.9.0...0.10.0
