@@ -196,4 +196,16 @@ mod tests {
         // The out-of-range link is cleared and no other glyph is touched.
         assert_eq!(pos[0].attach_chain(), 0);
     }
+
+    #[test]
+    fn reverse_cursive_minor_offset_saturates_negation() {
+        let mut pos = vec![GlyphPosition::default(); 2];
+        pos[0].set_attach_type(attach_type::CURSIVE);
+        pos[0].set_attach_chain(1);
+        pos[0].y_offset = i32::MIN;
+
+        reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, usize::MAX);
+
+        assert_eq!(pos[1].y_offset, i32::MAX);
+    }
 }
