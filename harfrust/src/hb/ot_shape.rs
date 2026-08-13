@@ -448,8 +448,8 @@ impl OtShapeContext<'_, '_> {
                 let glyph = info.as_glyph();
                 pos.y_advance = self.font_funcs.advance_height(glyph);
                 let (x, y) = self.font_funcs.vertical_origin(glyph);
-                pos.x_offset -= x;
-                pos.y_offset -= y;
+                pos.x_offset = pos.x_offset.saturating_sub(x);
+                pos.y_offset = pos.y_offset.saturating_sub(y);
             }
         }
 
@@ -937,8 +937,8 @@ fn zero_mark_widths_by_gdef(buffer: &mut hb_buffer_t, adjust_offsets: bool) {
     for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
         if info.is_mark() {
             if adjust_offsets {
-                pos.x_offset -= pos.x_advance;
-                pos.y_offset -= pos.y_advance;
+                pos.x_offset = pos.x_offset.saturating_sub(pos.x_advance);
+                pos.y_offset = pos.y_offset.saturating_sub(pos.y_advance);
             }
 
             pos.x_advance = 0;
