@@ -256,7 +256,7 @@ fn position_mark(
 
             // Don't shift down "above" marks too much.
             if (y_gap > 0) != (pos.y_offset > 0) {
-                let correction = -pos.y_offset / 2;
+                let correction = -(pos.y_offset / 2);
                 base_extents.y_bearing = base_extents.y_bearing.saturating_add(correction);
                 base_extents.height = base_extents.height.saturating_sub(correction);
                 pos.y_offset = pos.y_offset.saturating_add(correction);
