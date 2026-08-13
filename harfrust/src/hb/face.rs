@@ -373,12 +373,20 @@ impl Scale {
 
     #[inline(always)]
     pub(crate) fn scale_x(&self, x: i32) -> i32 {
-        Self::scale_by_mult(x, self.x_mult)
+        if i16::try_from(x).is_ok() {
+            Self::scale_by_mult(x, self.x_mult)
+        } else {
+            self.scale_x_f(x as f32)
+        }
     }
 
     #[inline(always)]
     pub(crate) fn scale_y(&self, y: i32) -> i32 {
-        Self::scale_by_mult(y, self.y_mult)
+        if i16::try_from(y).is_ok() {
+            Self::scale_by_mult(y, self.y_mult)
+        } else {
+            self.scale_y_f(y as f32)
+        }
     }
 
     /// Scales a fractional (font-unit) value, matching HarfBuzz's `em_scalef`
@@ -400,12 +408,16 @@ impl Scale {
     pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
-        let x2 = (extents.x_bearing + extents.width) as f32 * self.x_multf;
-        let y2 = (extents.y_bearing + extents.height) as f32 * self.y_multf;
-        extents.x_bearing = x1.floor() as i32;
-        extents.y_bearing = y1.floor() as i32;
-        extents.width = x2.ceil() as i32 - extents.x_bearing;
-        extents.height = y2.ceil() as i32 - extents.y_bearing;
+        let x2 = (i64::from(extents.x_bearing) + i64::from(extents.width)) as f32 * self.x_multf;
+        let y2 = (i64::from(extents.y_bearing) + i64::from(extents.height)) as f32 * self.y_multf;
+        let rx1 = x1.floor();
+        let ry1 = y1.floor();
+        let rx2 = x2.ceil();
+        let ry2 = y2.ceil();
+        extents.x_bearing = rx1 as i32;
+        extents.y_bearing = ry1 as i32;
+        extents.width = (f64::from(rx2) - f64::from(rx1)) as i32;
+        extents.height = (f64::from(ry2) - f64::from(ry1)) as i32;
         extents
     }
 
@@ -420,7 +432,7 @@ impl Scale {
 
     #[inline(always)]
     fn scale_by_mult(value: i32, mult: i64) -> i32 {
-        (((value as i64) * mult + 32768) >> 16) as i32
+        super::clamp_i64_to_i32((i64::from(value) * mult + 32768) >> 16)
     }
 }
 
@@ -669,5 +681,31 @@ mod tests {
         assert_eq!(scaled.y_bearing, 6);
         assert_eq!(scaled.width, 5);
         assert_eq!(scaled.height, -3);
+    }
+
+    #[test]
+    fn full_range_scaling_saturates() {
+        let scale = Scale::new(Some((i32::MAX, i32::MIN)), 1);
+
+        assert_eq!(scale.scale_x(i32::MAX), i32::MAX);
+        assert_eq!(scale.scale_x(i32::MIN), i32::MIN);
+        assert_eq!(scale.scale_y(i32::MAX), i32::MIN);
+        assert_eq!(scale.scale_y(i32::MIN), i32::MAX);
+    }
+
+    #[test]
+    fn full_range_extents_saturate() {
+        let extents = GlyphExtents {
+            x_bearing: i32::MAX,
+            y_bearing: i32::MIN,
+            width: i32::MAX,
+            height: i32::MIN,
+        };
+
+        let scaled = Scale::default().scale_extents(extents);
+        assert_eq!(scaled.x_bearing, i32::MAX);
+        assert_eq!(scaled.y_bearing, i32::MIN);
+        assert_eq!(scaled.width, i32::MAX);
+        assert_eq!(scaled.height, i32::MIN);
     }
 }
