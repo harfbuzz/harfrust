@@ -161,10 +161,10 @@ impl<'a> BuiltinFontFuncs<'a> {
 
     /// Returns the vertical advance for a glyph.
     pub fn advance_height(&self, glyph: GlyphId) -> i32 {
-        -self
-            .glyph_metrics()
+        self.glyph_metrics()
             .advance_height(glyph, self.coords())
             .unwrap_or(self.face.units_per_em as i32)
+            .saturating_neg()
     }
 
     /// Returns the vertical origin for a glyph.
