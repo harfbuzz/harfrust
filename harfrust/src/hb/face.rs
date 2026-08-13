@@ -373,20 +373,12 @@ impl Scale {
 
     #[inline(always)]
     pub(crate) fn scale_x(&self, x: i32) -> i32 {
-        if i16::try_from(x).is_ok() {
-            Self::scale_by_mult(x, self.x_mult)
-        } else {
-            self.scale_x_f(x as f32)
-        }
+        Self::scale_by_mult(x, self.x_mult)
     }
 
     #[inline(always)]
     pub(crate) fn scale_y(&self, y: i32) -> i32 {
-        if i16::try_from(y).is_ok() {
-            Self::scale_by_mult(y, self.y_mult)
-        } else {
-            self.scale_y_f(y as f32)
-        }
+        Self::scale_by_mult(y, self.y_mult)
     }
 
     /// Scales a fractional (font-unit) value, matching HarfBuzz's `em_scalef`
@@ -432,7 +424,7 @@ impl Scale {
 
     #[inline(always)]
     fn scale_by_mult(value: i32, mult: i64) -> i32 {
-        super::clamp_i64_to_i32((i64::from(value) * mult + 32768) >> 16)
+        ((i64::from(value) * mult + 32768) >> 16) as i32
     }
 }
 
@@ -681,16 +673,6 @@ mod tests {
         assert_eq!(scaled.y_bearing, 6);
         assert_eq!(scaled.width, 5);
         assert_eq!(scaled.height, -3);
-    }
-
-    #[test]
-    fn full_range_scaling_saturates() {
-        let scale = Scale::new(Some((i32::MAX, i32::MIN)), 1);
-
-        assert_eq!(scale.scale_x(i32::MAX), i32::MAX);
-        assert_eq!(scale.scale_x(i32::MIN), i32::MIN);
-        assert_eq!(scale.scale_y(i32::MAX), i32::MIN);
-        assert_eq!(scale.scale_y(i32::MIN), i32::MAX);
     }
 
     #[test]
