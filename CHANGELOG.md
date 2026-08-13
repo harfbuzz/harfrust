@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-This development version matches HarfBuzz [v14.3.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.0).
+This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
 ## [0.13.0] - 2026-08-12
 
-This release matches HarfBuzz [v14.3.0](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.0),
+This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),
 and has an MSRV (minimum supported Rust version) of 1.85.
 
 - Guard GPOS cursive attachment against out-of-bounds `attach_chain` offsets
