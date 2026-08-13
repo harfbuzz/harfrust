@@ -18,6 +18,7 @@ This development version matches HarfBuzz [v14.3.0](https://github.com/harfbuzz/
 - Apply cross-direction mark attachment offsets immediately.
 - Bound syllables to 64 glyphs during shaping.
 - Map the collective ISO 15924 `Hrkt` script to the OpenType `kana` script tag.
+- Update `read-fonts` to 0.43.0.
 
 ## [0.12.0] - 2026-07-03
 
