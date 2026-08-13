@@ -646,10 +646,12 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                         .map(|point| (point.x(), point.y()))
                         .unwrap_or_default();
 
-                    let x_offset =
-                        c.scale_x(i32::from(mark_anchor.0)) - c.scale_x(i32::from(curr_anchor.0));
-                    let y_offset =
-                        c.scale_y(i32::from(mark_anchor.1)) - c.scale_y(i32::from(curr_anchor.1));
+                    let x_offset = c
+                        .scale_x(i32::from(mark_anchor.0))
+                        .saturating_sub(c.scale_x(i32::from(curr_anchor.0)));
+                    let y_offset = c
+                        .scale_y(i32::from(mark_anchor.1))
+                        .saturating_sub(c.scale_y(i32::from(curr_anchor.1)));
                     let pos = c.buffer.cur_pos_mut();
                     pos.x_offset = x_offset;
                     pos.y_offset = y_offset;
@@ -660,8 +662,8 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                     let mark_y = coords.get(action_idx + 1)?.get() as i32;
                     let curr_x = coords.get(action_idx + 2)?.get() as i32;
                     let curr_y = coords.get(action_idx + 3)?.get() as i32;
-                    let x_offset = c.scale_x(mark_x) - c.scale_x(curr_x);
-                    let y_offset = c.scale_y(mark_y) - c.scale_y(curr_y);
+                    let x_offset = c.scale_x(mark_x).saturating_sub(c.scale_x(curr_x));
+                    let y_offset = c.scale_y(mark_y).saturating_sub(c.scale_y(curr_y));
                     let pos = c.buffer.cur_pos_mut();
                     pos.x_offset = x_offset;
                     pos.y_offset = y_offset;
