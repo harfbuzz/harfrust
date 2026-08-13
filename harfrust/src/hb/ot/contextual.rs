@@ -15,7 +15,7 @@ use read_fonts::tables::layout::{
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
-use read_fonts::{ArrayOfOffsets, FontData, FontRead};
+use read_fonts::{ArrayOfOffsets, FontData, FontRead, ReadArgs};
 
 impl WouldApply for SequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -679,7 +679,10 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
-) -> Option<()> {
+) -> Option<()>
+where
+    <R as ReadArgs>::Args: 'static,
+{
     // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
     // faster. But our lookup code is slower, so NOT using this condition
     // makes us faster.  Reconsider when lookup code is faster.
@@ -877,7 +880,10 @@ fn apply_chain_context_rules<
     ctx: &mut hb_ot_apply_context_t,
     rules: &'b ArrayOfOffsets<'a, R, Offset16>,
     match_funcs: (F1, F2, F3),
-) -> Option<()> {
+) -> Option<()>
+where
+    <R as ReadArgs>::Args: 'static,
+{
     if rules.len() <= 4 {
         for rule in rules.iter().filter_map(|r| r.ok()) {
             if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
