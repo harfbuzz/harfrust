@@ -2086,8 +2086,8 @@ impl GlyphBuffer {
 
         let info = self.glyph_infos();
         let pos = self.glyph_positions();
-        let mut x = 0;
-        let mut y = 0;
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
         let names = font.glyph_names();
         let glyph_metrics = if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
             Some(font.glyph_metrics())
@@ -2111,8 +2111,10 @@ impl GlyphBuffer {
             }
 
             if !flags.contains(SerializeFlags::NO_POSITIONS) {
-                if x + pos.x_offset != 0 || y + pos.y_offset != 0 {
-                    write!(&mut s, "@{},{}", x + pos.x_offset, y + pos.y_offset)?;
+                let dx = x.saturating_add(pos.x_offset);
+                let dy = y.saturating_add(pos.y_offset);
+                if dx != 0 || dy != 0 {
+                    write!(&mut s, "@{dx},{dy}")?;
                 }
 
                 if !flags.contains(SerializeFlags::NO_ADVANCES) {
@@ -2143,8 +2145,8 @@ impl GlyphBuffer {
             }
 
             if flags.contains(SerializeFlags::NO_ADVANCES) {
-                x += pos.x_advance;
-                y += pos.y_advance;
+                x = x.saturating_add(pos.x_advance);
+                y = y.saturating_add(pos.y_advance);
             }
         }
 
