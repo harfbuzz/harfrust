@@ -627,26 +627,67 @@ impl hb_buffer_t {
         self.out_info_mut()[i] = info;
     }
 
+    /// Below this many elements, copy inline instead of calling memmove:
+    /// AAT state machines move a couple of glyphs at a time, and the call
+    /// plus memmove's size dispatch costs more cycles than the copy.
+    const SMALL_COPY: usize = 16;
+
     /// Block-copies `info[src..src + count]` to `out_info[dst..dst + count]`.
-    /// The caller must have made room in the out buffer already.
+    /// The caller must have made room in the out buffer already. In the
+    /// shared-array case the destination never starts past the source
+    /// (`dst <= src`), which makes the ascending inline copy overlap-safe.
     #[inline]
     fn copy_infos_to_out(&mut self, src: usize, dst: usize, count: usize) {
         if self.have_separate_output {
             let out: &mut [GlyphInfo] = bytemuck::cast_slice_mut(self.pos.as_mut_slice());
-            out[dst..dst + count].copy_from_slice(&self.info[src..src + count]);
+            if count < Self::SMALL_COPY {
+                // Deliberately not copy_from_slice: avoiding the memmove
+                // call for small counts is this fast path's entire point.
+                #[allow(clippy::manual_memcpy)]
+                for i in 0..count {
+                    out[dst + i] = self.info[src + i];
+                }
+            } else {
+                out[dst..dst + count].copy_from_slice(&self.info[src..src + count]);
+            }
         } else {
-            self.info.copy_within(src..src + count, dst);
+            debug_assert!(dst <= src);
+            if count < Self::SMALL_COPY {
+                for i in 0..count {
+                    self.info[dst + i] = self.info[src + i];
+                }
+            } else {
+                self.info.copy_within(src..src + count, dst);
+            }
         }
     }
 
     /// Block-copies `out_info[src..src + count]` to `info[dst..dst + count]`.
+    /// In the shared-array case the destination never starts before the
+    /// source (`dst >= src`), so the inline copy must run descending to keep
+    /// memmove semantics on overlap.
     #[inline]
     fn copy_out_to_infos(&mut self, src: usize, dst: usize, count: usize) {
         if self.have_separate_output {
             let out: &[GlyphInfo] = bytemuck::cast_slice(self.pos.as_slice());
-            self.info[dst..dst + count].copy_from_slice(&out[src..src + count]);
+            if count < Self::SMALL_COPY {
+                // Deliberately not copy_from_slice; see copy_infos_to_out.
+                #[allow(clippy::manual_memcpy)]
+                for i in 0..count {
+                    self.info[dst + i] = out[src + i];
+                }
+            } else {
+                self.info[dst..dst + count].copy_from_slice(&out[src..src + count]);
+            }
         } else {
-            self.info.copy_within(src..src + count, dst);
+            debug_assert!(dst >= src);
+            if count < Self::SMALL_COPY {
+                for i in (0..count).rev() {
+                    self.info[dst + i] = self.info[src + i];
+                }
+            } else {
+                self.info.copy_within(src..src + count, dst);
+            }
         }
     }
 
@@ -1516,7 +1557,16 @@ impl hb_buffer_t {
             return false;
         }
 
-        self.info.copy_within(self.idx..self.len, self.idx + count);
+        // Destination starts past the source; the inline copy runs
+        // descending to keep memmove semantics on overlap.
+        let moved = self.len - self.idx;
+        if moved < Self::SMALL_COPY {
+            for i in (0..moved).rev() {
+                self.info[self.idx + count + i] = self.info[self.idx + i];
+            }
+        } else {
+            self.info.copy_within(self.idx..self.len, self.idx + count);
+        }
 
         if self.idx + count > self.len {
             for info in &mut self.info[self.len..self.idx + count] {
