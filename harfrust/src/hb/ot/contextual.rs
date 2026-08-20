@@ -661,6 +661,75 @@ fn chain_rule_second_input(data: &FontData) -> Option<u16> {
     data.read_at(count_pos + 4).ok()
 }
 
+/// A chain rule with direct access to its raw data, for cheap positional
+/// probes without a full parse.
+trait ChainContextRule<'a>: ContextRule<'a> {
+    fn data(&self) -> FontData<'a>;
+}
+
+impl<'a> ChainContextRule<'a> for ChainedSequenceRule<'a> {
+    fn data(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
+impl<'a> ChainContextRule<'a> for ChainedClassSequenceRule<'a> {
+    fn data(&self) -> FontData<'a> {
+        self.offset_data()
+    }
+}
+
+/// Positional probes into a chain rule's raw data, reading only the values
+/// the rule pre-match needs instead of parsing the whole rule.
+struct ChainRuleProbe<'a> {
+    data: FontData<'a>,
+    count_pos: usize,
+    input_end: usize,
+    input_count: u16,
+}
+
+impl<'a> ChainRuleProbe<'a> {
+    fn new(data: FontData<'a>) -> Option<Self> {
+        let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
+        let count_pos = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+        let input_count: u16 = data.read_at(count_pos).ok()?;
+        let input_end =
+            count_pos + 2 + usize::from(input_count).saturating_sub(1) * u16::RAW_BYTE_LEN;
+        Some(Self {
+            data,
+            count_pos,
+            input_end,
+            input_count,
+        })
+    }
+
+    /// Matches `ParsedRule`: `input.len() + 1`, where the input array holds
+    /// `input_count - 1` values (saturating).
+    fn len_p1(&self) -> usize {
+        usize::from(self.input_count).max(1)
+    }
+
+    /// The input value at `index`. Callers must keep `index` within the
+    /// input array (`index + 1 < input_count`).
+    fn input(&self, index: usize) -> Option<u16> {
+        self.data
+            .read_at(self.count_pos + 2 + index * u16::RAW_BYTE_LEN)
+            .ok()
+    }
+
+    fn lookahead_len(&self) -> usize {
+        usize::from(self.data.read_at::<u16>(self.input_end).ok().unwrap_or(0))
+    }
+
+    /// The lookahead value at `index`. Callers must keep `index` within
+    /// `lookahead_len()`.
+    fn lookahead(&self, index: usize) -> Option<u16> {
+        self.data
+            .read_at(self.input_end + 2 + index * u16::RAW_BYTE_LEN)
+            .ok()
+    }
+}
+
 impl<'a> ContextRule<'a> for SequenceRule<'a> {
     fn parse(&self) -> ParsedRule<'a> {
         ParsedRule::from_rule_data(self.offset_data()).unwrap_or_default()
@@ -908,7 +977,7 @@ fn apply_chain_with_sequences<
 fn apply_chain_context_rules<
     'a,
     'b,
-    R: ContextRule<'a>,
+    R: ChainContextRule<'a>,
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
@@ -987,39 +1056,52 @@ where
         }
     }
     let mut rules_iter = rules.iter().filter_map(|r| r.ok());
-    let mut rule_box = rules_iter.next().map(|r| r.parse());
+    let mut rule_box = rules_iter.next();
     while let Some(rule) = rule_box {
-        let input = rule.input;
-        let lookahead = rule.lookahead;
-        let match_input = |info: &mut GlyphInfo, index: usize| {
-            input
-                .get(index)
-                .is_some_and(|v| match_funcs.1(info, u32::from(v.get())))
+        // Probe the values the pre-match needs without parsing the whole
+        // rule; most visited rules are rejected on these probes and never
+        // pay for a full parse.
+        let Some(probe) = ChainRuleProbe::new(rule.data()) else {
+            // Unreadable rule header; the full parse treats it as an empty
+            // rule, same as the parse-first code did.
+            if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
+                if let Some(unsafe_to) = unsafe_to {
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+                }
+                return Some(());
+            }
+            rule_box = rules_iter.next();
+            continue;
         };
-        let match_lookahead = |info: &mut GlyphInfo, index: usize| {
-            lookahead
-                .get(index)
-                .is_some_and(|v| match_funcs.2(info, u32::from(v.get())))
-        };
-        let len_p1 = input.len() + 1;
+        let len_p1 = probe.len_p1();
         let matched_first = if len_p1 > 1 {
-            match_input(&mut ctx.buffer.info[first], 0)
+            probe
+                .input(0)
+                .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[first], u32::from(v)))
         } else {
-            lookahead.is_empty() || match_lookahead(&mut ctx.buffer.info[first], 0)
+            probe.lookahead_len() == 0
+                || probe
+                    .lookahead(0)
+                    .is_some_and(|v| match_funcs.2(&mut ctx.buffer.info[first], u32::from(v)))
         };
         if matched_first {
             let matched_second = if let Some(second) = second {
                 if len_p1 > 2 {
-                    match_input(&mut ctx.buffer.info[second], 1)
+                    probe
+                        .input(1)
+                        .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[second], u32::from(v)))
                 } else {
-                    (lookahead.len() <= 2 - len_p1)
-                        || match_lookahead(&mut ctx.buffer.info[second], 2 - len_p1)
+                    (probe.lookahead_len() <= 2 - len_p1)
+                        || probe.lookahead(2 - len_p1).is_some_and(|v| {
+                            match_funcs.2(&mut ctx.buffer.info[second], u32::from(v))
+                        })
                 }
             } else {
                 true
             };
             if matched_second {
-                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+                if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -1030,27 +1112,27 @@ where
                 unsafe_to = Some(unsafe_to2);
             }
 
-            rule_box = rules_iter.next().map(|r| r.parse());
+            rule_box = rules_iter.next();
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
             }
 
-            if len_p1 > 1 {
+            let skip_key = if len_p1 > 1 { probe.input(0) } else { None };
+            if let Some(first_glyph_value) = skip_key {
                 // Skip ahead to next possible first glyph match.
-                let first_glyph_value = input.first().unwrap().get();
                 loop {
                     let Some(next_rule) = rules_iter.next() else {
                         rule_box = None;
                         break;
                     };
                     if next_rule.first_input() != Some(first_glyph_value) {
-                        rule_box = Some(next_rule.parse());
+                        rule_box = Some(next_rule);
                         break;
                     }
                 }
             } else {
-                rule_box = rules_iter.next().map(|r| r.parse());
+                rule_box = rules_iter.next();
             }
         }
     }
