@@ -14,6 +14,7 @@ use read_fonts::tables::morx::{
     SubtableKind,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
+use read_fonts::{FontData, FontRead};
 
 // Chain::compile_flags in harfbuzz
 pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
@@ -78,95 +79,74 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    let (morx, subtable_caches) = c.face.aat_tables.morx.as_ref()?;
+    let (morx, subtable_caches, descriptors) = c.face.aat_tables.morx.as_ref()?;
+    let morx_bytes = morx.offset_data().as_bytes();
 
-    let chains = morx.chains();
+    let mut last_chain_index = u32::MAX;
+    let mut chain_flags = None;
 
-    let mut subtable_idx = 0;
-
-    'outer: for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter()) {
-        let Ok(chain) = chain else {
+    for (subtable_idx, desc) in descriptors.iter().enumerate() {
+        if desc.chain_index != last_chain_index {
+            // Chain boundary: restore buffer order, load this chain's flags.
+            if c.buffer_is_reversed {
+                c.reverse_buffer();
+            }
+            last_chain_index = desc.chain_index;
+            chain_flags = map.chain_flags.get(desc.chain_index as usize);
+        }
+        let Some(chain_flags) = chain_flags else {
             continue;
         };
         c.range_flags = Some(chain_flags.as_slice());
-        for subtable in chain.subtables().iter() {
-            let Ok(subtable) = subtable else {
-                continue;
-            };
 
-            let subtable_cache = subtable_caches.get(subtable_idx);
-            let Some(subtable_cache) = subtable_cache.as_ref() else {
-                break 'outer;
-            };
-            subtable_idx += 1;
-
-            if let Some(range_flags) = c.range_flags.as_ref() {
-                if range_flags.len() == 1
-                    && (subtable.sub_feature_flags() & range_flags[0].flags == 0)
-                {
-                    continue;
-                }
-            }
-
-            if !subtable.is_all_directions()
-                && c.buffer.direction.is_vertical() != subtable.is_vertical()
-            {
-                continue;
-            }
-
-            c.subtable_flags = subtable.sub_feature_flags();
-            c.first_set = Some(&subtable_cache.glyph_set);
-            c.machine_class_cache = Some(&subtable_cache.class_cache);
-            c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-
-            if !c.buffer_intersects_machine() {
-                continue;
-            }
-
-            // Buffer contents is always in logical direction.  Determine if
-            // we need to reverse before applying this subtable.  We reverse
-            // back after if we did reverse indeed.
-            //
-            // Quoting the spec:
-            // """
-            // Bits 28 and 30 of the coverage field control the order in which
-            // glyphs are processed when the subtable is run by the layout engine.
-            // Bit 28 is used to indicate if the glyph processing direction is
-            // the same as logical order or layout order. Bit 30 is used to
-            // indicate whether glyphs are processed forwards or backwards within
-            // that order.
-            //
-            // Bit 30   Bit 28   Interpretation for Horizontal Text
-            //      0        0   The subtable is processed in layout order
-            //                   (the same order as the glyphs, which is
-            //                   always left-to-right).
-            //      1        0   The subtable is processed in reverse layout order
-            //                   (the order opposite that of the glyphs, which is
-            //                   always right-to-left).
-            //      0        1   The subtable is processed in logical order
-            //                   (the same order as the characters, which may be
-            //                   left-to-right or right-to-left).
-            //      1        1   The subtable is processed in reverse logical order
-            //                   (the order opposite that of the characters, which
-            //                   may be right-to-left or left-to-right).
-
-            let reverse = if subtable.is_logical() {
-                subtable.is_backwards()
-            } else {
-                subtable.is_backwards() != c.buffer.direction.is_backward()
-            };
-
-            if reverse != c.buffer_is_reversed {
-                c.reverse_buffer();
-            }
-
-            if let Ok(kind) = subtable.kind() {
-                apply_subtable(kind, c);
-            }
+        if chain_flags.len() == 1 && (desc.sub_feature_flags & chain_flags[0].flags == 0) {
+            continue;
         }
-        if c.buffer_is_reversed {
+
+        let coverage = desc.coverage;
+        let is_all_directions = coverage & 0x2000_0000 != 0;
+        let is_vertical = coverage & 0x8000_0000 != 0;
+        if !is_all_directions && c.buffer.direction.is_vertical() != is_vertical {
+            continue;
+        }
+
+        let subtable_cache = &subtable_caches[subtable_idx];
+        c.subtable_flags = desc.sub_feature_flags;
+        c.first_set = Some(&subtable_cache.glyph_set);
+        c.machine_class_cache = Some(&subtable_cache.class_cache);
+        c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
+
+        if !c.buffer_intersects_machine() {
+            continue;
+        }
+
+        // Buffer contents is always in logical direction.  Determine if
+        // we need to reverse before applying this subtable.  We reverse
+        // back after if we did reverse indeed.
+        //
+        // See the coverage bits table in the `morx` spec for the meaning
+        // of is_logical/is_backwards here.
+        let is_logical = coverage & 0x1000_0000 != 0;
+        let is_backwards = coverage & 0x4000_0000 != 0;
+        let reverse = if is_logical {
+            is_backwards
+        } else {
+            is_backwards != c.buffer.direction.is_backward()
+        };
+
+        if reverse != c.buffer_is_reversed {
             c.reverse_buffer();
         }
+
+        let Some(data) = morx_bytes.get(desc.data_start as usize..desc.data_end as usize) else {
+            continue;
+        };
+        if let Ok(kind) = SubtableKind::read_with_args(FontData::new(data), desc.coverage) {
+            apply_subtable(kind, c);
+        }
+    }
+    if c.buffer_is_reversed {
+        c.reverse_buffer();
     }
 
     Some(())
@@ -965,6 +945,19 @@ impl DriverContext<BigEndian<u16>> for LigatureCtx<'_> {
     }
 }
 
+/// Flat, packed per-subtable filter state: everything the per-buffer walk
+/// needs to decide whether a subtable applies, in one small contiguous
+/// array that stays cache-resident. The heavy state (glyph set, class
+/// cache, parts) lives in [MorxSubtableCache] and is only touched once a
+/// subtable passes these filters.
+pub(crate) struct MorxSubtableDescriptor {
+    pub(crate) chain_index: u32,
+    pub(crate) coverage: u32,
+    pub(crate) sub_feature_flags: u32,
+    pub(crate) data_start: u32,
+    pub(crate) data_end: u32,
+}
+
 pub(crate) struct MorxSubtableCache {
     start_end_safe_to_break: u64,
     glyph_set: U32Set,
@@ -972,6 +965,22 @@ pub(crate) struct MorxSubtableCache {
 }
 
 impl MorxSubtableCache {
+    pub(crate) fn descriptor(
+        chain_index: usize,
+        subtable: &Subtable,
+        morx_base: usize,
+    ) -> MorxSubtableDescriptor {
+        let data = subtable.data();
+        let start = data.as_ptr() as usize - morx_base;
+        MorxSubtableDescriptor {
+            chain_index: chain_index as u32,
+            coverage: subtable.coverage(),
+            sub_feature_flags: subtable.sub_feature_flags(),
+            data_start: start as u32,
+            data_end: (start + data.len()) as u32,
+        }
+    }
+
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
         let mut start_end_safe_to_break = 0u64;
         let mut glyph_set = U32Set::default();
