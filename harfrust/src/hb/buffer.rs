@@ -627,6 +627,29 @@ impl hb_buffer_t {
         self.out_info_mut()[i] = info;
     }
 
+    /// Block-copies `info[src..src + count]` to `out_info[dst..dst + count]`.
+    /// The caller must have made room in the out buffer already.
+    #[inline]
+    fn copy_infos_to_out(&mut self, src: usize, dst: usize, count: usize) {
+        if self.have_separate_output {
+            let out: &mut [GlyphInfo] = bytemuck::cast_slice_mut(self.pos.as_mut_slice());
+            out[dst..dst + count].copy_from_slice(&self.info[src..src + count]);
+        } else {
+            self.info.copy_within(src..src + count, dst);
+        }
+    }
+
+    /// Block-copies `out_info[src..src + count]` to `info[dst..dst + count]`.
+    #[inline]
+    fn copy_out_to_infos(&mut self, src: usize, dst: usize, count: usize) {
+        if self.have_separate_output {
+            let out: &[GlyphInfo] = bytemuck::cast_slice(self.pos.as_slice());
+            self.info[dst..dst + count].copy_from_slice(&out[src..src + count]);
+        } else {
+            self.info.copy_within(src..src + count, dst);
+        }
+    }
+
     #[inline]
     pub fn cur(&self, i: usize) -> &GlyphInfo {
         &self.info[self.idx + i]
@@ -889,10 +912,11 @@ impl hb_buffer_t {
         self.merge_clusters(self.idx, self.idx + num_in);
 
         let orig_info = self.info[self.idx];
-        for i in 0..num_out {
-            let ii = self.out_len + i;
-            self.set_out_info(ii, orig_info);
-            self.out_info_mut()[ii].glyph_id = glyph_data[i];
+        let out_len = self.out_len;
+        let out = &mut self.out_info_mut()[out_len..out_len + num_out];
+        for (out_info, &glyph_id) in out.iter_mut().zip(&glyph_data[..num_out]) {
+            *out_info = orig_info;
+            out_info.glyph_id = glyph_id;
         }
 
         self.idx += num_in;
@@ -987,9 +1011,7 @@ impl hb_buffer_t {
                     return;
                 }
 
-                for i in 0..n {
-                    self.set_out_info(self.out_len + i, self.info[self.idx + i]);
-                }
+                self.copy_infos_to_out(self.idx, self.out_len, n);
             }
 
             self.out_len += n;
@@ -1414,9 +1436,7 @@ impl hb_buffer_t {
                 return false;
             }
 
-            for j in 0..count {
-                self.set_out_info(self.out_len + j, self.info[self.idx + j]);
-            }
+            self.copy_infos_to_out(self.idx, self.out_len, count);
 
             self.idx += count;
             self.out_len += count;
@@ -1440,9 +1460,7 @@ impl hb_buffer_t {
             self.idx -= count;
             self.out_len -= count;
 
-            for j in 0..count {
-                self.info[self.idx + j] = self.out_info()[self.out_len + j];
-            }
+            self.copy_out_to_infos(self.out_len, self.idx, count);
         }
 
         true
@@ -1480,9 +1498,7 @@ impl hb_buffer_t {
             debug_assert!(self.have_output);
 
             self.have_separate_output = true;
-            for i in 0..self.out_len {
-                self.set_out_info(i, self.info[i]);
-            }
+            self.copy_infos_to_out(0, 0, self.out_len);
         }
 
         true
@@ -1500,9 +1516,7 @@ impl hb_buffer_t {
             return false;
         }
 
-        for i in (0..(self.len - self.idx)).rev() {
-            self.info[self.idx + count + i] = self.info[self.idx + i];
-        }
+        self.info.copy_within(self.idx..self.len, self.idx + count);
 
         if self.idx + count > self.len {
             for info in &mut self.info[self.len..self.idx + count] {
