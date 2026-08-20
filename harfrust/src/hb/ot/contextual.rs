@@ -790,18 +790,12 @@ fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
 where
     <R as ReadArgs>::Args: 'static,
 {
-    // TODO: In HarfBuzz, the following condition makes NotoNastaliqUrdu
-    // faster. But our lookup code is slower, so NOT using this condition
-    // makes us faster.  Reconsider when lookup code is faster.
-    //if rules.len() <= 4 {
-    if false {
-        for rule in rules.iter().filter_map(|r| r.ok()) {
-            if rule.parse().apply(ctx, &match_func).is_some() {
-                return Some(());
-            }
-        }
-        return None;
-    }
+    // HarfBuzz bypasses the first/second-component pre-match below for rule
+    // sets of at most 4 rules, because its pre-match setup costs more than
+    // it saves there. For us the pre-match loop rejects rules on one or two
+    // cheap probes without parsing them, and measures faster than direct
+    // application at every rule-set size, so there is no bypass.
+    //
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
     //
@@ -989,14 +983,8 @@ fn apply_chain_context_rules<
 where
     <R as ReadArgs>::Args: 'static,
 {
-    if rules.len() <= 4 {
-        for rule in rules.iter().filter_map(|r| r.ok()) {
-            if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
-                return Some(());
-            }
-        }
-        return None;
-    }
+    // No small-rule-set bypass here either; see apply_context_rules.
+    //
     // This version is optimized for speed by matching the first & second
     // components of the rule here, instead of calling into the matching code.
     //
