@@ -30,7 +30,90 @@ pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
     pub gdef_glyph_props_cache: MappingCache,
-    pub gdef_mark_set_digests: Vec<hb_set_digest_t>,
+    pub gdef_mark_set_bitmaps: Vec<MarkGlyphSetBitmap>,
+}
+
+const MARK_GLYPH_SET_PAGE_BITS: u32 = 512;
+
+#[derive(Clone, Debug)]
+pub enum MarkGlyphSetBitmap {
+    Page { bias: u32, bits: [u64; 8] },
+    Digest(hb_set_digest_t),
+}
+
+impl MarkGlyphSetBitmap {
+    fn page_from_coverage(coverage: &CoverageTable, min_gid: u32) -> Option<[u64; 8]> {
+        let mut bits = [0; 8];
+        let mut add_glyph = |glyph: u32| {
+            let biased = glyph.wrapping_sub(min_gid);
+            *bits.get_mut((biased / 64) as usize)? |= 1 << (biased & 63);
+            Some(())
+        };
+
+        match coverage {
+            CoverageTable::Format1(table) => {
+                for glyph in table.glyph_array() {
+                    add_glyph(u32::from(glyph.get()))?;
+                }
+            }
+            CoverageTable::Format2(table) => {
+                for range in table.range_records() {
+                    for glyph in u32::from(range.start_glyph_id())..=u32::from(range.end_glyph_id())
+                    {
+                        add_glyph(glyph)?;
+                    }
+                }
+            }
+        }
+        Some(bits)
+    }
+
+    fn from_coverage(coverage: &CoverageTable) -> Self {
+        let bounds = match coverage {
+            CoverageTable::Format1(table) => table
+                .glyph_array()
+                .first()
+                .zip(table.glyph_array().last())
+                .map(|(min, max)| (u32::from(min.get()), u32::from(max.get()))),
+            CoverageTable::Format2(table) => table
+                .range_records()
+                .first()
+                .zip(table.range_records().last())
+                .map(|(min, max)| {
+                    (
+                        u32::from(min.start_glyph_id()),
+                        u32::from(max.end_glyph_id()),
+                    )
+                }),
+        };
+
+        if let Some((min_gid, max_gid)) = bounds {
+            if max_gid.wrapping_sub(min_gid) < MARK_GLYPH_SET_PAGE_BITS {
+                if let Some(bits) = Self::page_from_coverage(coverage, min_gid) {
+                    return Self::Page {
+                        bias: min_gid,
+                        bits,
+                    };
+                }
+            }
+        }
+
+        Self::Digest(hb_set_digest_t::from_coverage(coverage))
+    }
+
+    #[inline(always)]
+    fn covers(&self, glyph_id: u32) -> Option<bool> {
+        match self {
+            Self::Page { bias, bits } => {
+                let biased = glyph_id.wrapping_sub(*bias);
+                Some(
+                    biased < MARK_GLYPH_SET_PAGE_BITS
+                        && bits[(biased / 64) as usize] & (1 << (biased & 63)) != 0,
+                )
+            }
+            Self::Digest(digest) => (!digest.may_have(glyph_id)).then_some(false),
+        }
+    }
 }
 
 impl OtCache {
@@ -43,13 +126,14 @@ impl OtCache {
             .gpos()
             .map(|t| LookupCache::new(&t))
             .unwrap_or_default();
-        let mut gdef_mark_set_digests = Vec::new();
+        let mut gdef_mark_set_bitmaps = Vec::new();
         if let Ok(gdef) = font.gdef() {
             if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
-                gdef_mark_set_digests.extend(mark_sets.coverages().iter().map(|set| {
-                    set.ok()
-                        .map(|coverage| hb_set_digest_t::from_coverage(&coverage))
-                        .unwrap_or_default()
+                gdef_mark_set_bitmaps.extend(mark_sets.coverages().iter().map(|set| {
+                    set.ok().map_or_else(
+                        || MarkGlyphSetBitmap::Digest(hb_set_digest_t::default()),
+                        |coverage| MarkGlyphSetBitmap::from_coverage(&coverage),
+                    )
                 }));
             }
         }
@@ -57,7 +141,7 @@ impl OtCache {
             gsub,
             gpos,
             gdef_glyph_props_cache: MappingCache::new(),
-            gdef_mark_set_digests,
+            gdef_mark_set_bitmaps,
         }
     }
 }
@@ -125,7 +209,7 @@ pub struct OtTables<'a> {
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
     pub gdef_glyph_props_cache: &'a MappingCache,
-    pub gdef_mark_set_digests: &'a [hb_set_digest_t],
+    pub gdef_mark_set_bitmaps: &'a [MarkGlyphSetBitmap],
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
     pub feature_variations: [Option<u32>; 2],
@@ -183,7 +267,7 @@ impl<'a> OtTables<'a> {
             gpos,
             gdef,
             gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
-            gdef_mark_set_digests: &cache.gdef_mark_set_digests,
+            gdef_mark_set_bitmaps: &cache.gdef_mark_set_bitmaps,
             var_store,
             coords,
             feature_variations,
@@ -238,7 +322,7 @@ impl<'a> OtTables<'a> {
             gpos,
             gdef,
             gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
-            gdef_mark_set_digests: &cache.gdef_mark_set_digests,
+            gdef_mark_set_bitmaps: &cache.gdef_mark_set_bitmaps,
             var_store,
             coords,
             feature_variations,
@@ -297,15 +381,10 @@ impl<'a> OtTables<'a> {
 
     #[inline(always)]
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
-        if self
-            .gdef_mark_set_digests
+        self.gdef_mark_set_bitmaps
             .get(set_index as usize)
-            .is_some_and(|digest| digest.may_have(glyph_id))
-        {
-            self.is_mark_glyph_gdef(glyph_id, set_index)
-        } else {
-            false
-        }
+            .and_then(|bitmap| bitmap.covers(glyph_id))
+            .unwrap_or_else(|| self.is_mark_glyph_gdef(glyph_id, set_index))
     }
 
     pub fn table_data(&self, table_index: TableIndex) -> Option<&'a [u8]> {
