@@ -42,6 +42,32 @@ pub enum MarkGlyphSetBitmap {
 }
 
 impl MarkGlyphSetBitmap {
+    fn page_from_coverage(coverage: &CoverageTable, min_gid: u32) -> Option<[u64; 8]> {
+        let mut bits = [0; 8];
+        let mut add_glyph = |glyph: u32| {
+            let biased = glyph.wrapping_sub(min_gid);
+            *bits.get_mut((biased / 64) as usize)? |= 1 << (biased & 63);
+            Some(())
+        };
+
+        match coverage {
+            CoverageTable::Format1(table) => {
+                for glyph in table.glyph_array() {
+                    add_glyph(u32::from(glyph.get()))?;
+                }
+            }
+            CoverageTable::Format2(table) => {
+                for range in table.range_records() {
+                    for glyph in u32::from(range.start_glyph_id())..=u32::from(range.end_glyph_id())
+                    {
+                        add_glyph(glyph)?;
+                    }
+                }
+            }
+        }
+        Some(bits)
+    }
+
     fn from_coverage(coverage: &CoverageTable) -> Self {
         let bounds = match coverage {
             CoverageTable::Format1(table) => table
@@ -63,29 +89,12 @@ impl MarkGlyphSetBitmap {
 
         if let Some((min_gid, max_gid)) = bounds {
             if max_gid.wrapping_sub(min_gid) < MARK_GLYPH_SET_PAGE_BITS {
-                let mut bits = [0; 8];
-                match coverage {
-                    CoverageTable::Format1(table) => {
-                        for glyph in table.glyph_array() {
-                            let biased = u32::from(glyph.get()) - min_gid;
-                            bits[(biased / 64) as usize] |= 1 << (biased & 63);
-                        }
-                    }
-                    CoverageTable::Format2(table) => {
-                        for range in table.range_records() {
-                            for glyph in
-                                u32::from(range.start_glyph_id())..=u32::from(range.end_glyph_id())
-                            {
-                                let biased = glyph - min_gid;
-                                bits[(biased / 64) as usize] |= 1 << (biased & 63);
-                            }
-                        }
-                    }
+                if let Some(bits) = Self::page_from_coverage(coverage, min_gid) {
+                    return Self::Page {
+                        bias: min_gid,
+                        bits,
+                    };
                 }
-                return Self::Page {
-                    bias: min_gid,
-                    bits,
-                };
             }
         }
 
