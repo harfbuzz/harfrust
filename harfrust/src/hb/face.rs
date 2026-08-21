@@ -20,7 +20,10 @@ use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
-pub use super::font_funcs::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, RawAdvanceWidthBatch};
+pub use super::font_funcs::{
+    AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, NominalGlyphBatch, RawAdvanceWidthBatch,
+    RawNominalGlyphBatch,
+};
 
 /// Data required for shaping with a single font.
 pub struct ShaperData {
