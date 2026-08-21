@@ -413,7 +413,11 @@ impl OtShapeContext<'_, '_> {
 
         if self.plan.apply_morx {
             aat::layout::substitute(self.plan, self.face, self.buffer, self.features);
-            self.buffer.update_digest();
+            // The digest is only read by the OT lookup-apply loop; without
+            // GPOS ahead, nothing consumes it.
+            if self.plan.apply_gpos {
+                self.buffer.update_digest();
+            }
         } else {
             self.buffer.update_digest();
             ot_layout_gsub_table::substitute(self.plan, self.face, self.font_funcs, self.buffer);
