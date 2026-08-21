@@ -11,10 +11,10 @@ use read_fonts::tables::aat;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
 use read_fonts::tables::morx::{
     ContextualEntryData, ContextualSubtable, InsertionEntryData, LigatureSubtable, Subtable,
-    SubtableKind,
+    SubtableKind, SubtableParts,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId16};
-use read_fonts::{FontData, FontRead};
+use read_fonts::FontData;
 
 // Chain::compile_flags in harfbuzz
 pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
@@ -141,7 +141,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
         let Some(data) = morx_bytes.get(desc.data_start as usize..desc.data_end as usize) else {
             continue;
         };
-        if let Ok(kind) = SubtableKind::read_with_args(FontData::new(data), desc.coverage) {
+        if let Ok(kind) = SubtableKind::from_parts(FontData::new(data), &subtable_cache.parts) {
             apply_subtable(kind, c);
         }
     }
@@ -962,6 +962,11 @@ pub(crate) struct MorxSubtableCache {
     start_end_safe_to_break: u64,
     glyph_set: U32Set,
     class_cache: ClassCache,
+    /// Pre-resolved subtable layout, so per-application dispatch rebuilds
+    /// the kind without re-reading headers. An unreadable subtable stores
+    /// an invalid format, which makes from_parts fail like the full read
+    /// did.
+    parts: SubtableParts,
 }
 
 impl MorxSubtableCache {
@@ -1027,10 +1032,16 @@ impl MorxSubtableCache {
                 }
             }
         }
+        let parts = SubtableKind::parts(FontData::new(subtable.data()), subtable.coverage())
+            .unwrap_or(SubtableParts {
+                format: 0xFF,
+                ..Default::default()
+            });
         MorxSubtableCache {
             start_end_safe_to_break,
             glyph_set,
             class_cache: ClassCache::new(),
+            parts,
         }
     }
 }
