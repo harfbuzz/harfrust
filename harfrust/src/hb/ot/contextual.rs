@@ -15,7 +15,7 @@ use read_fonts::tables::layout::{
     SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
-use read_fonts::{ArrayOfOffsets, FontData, FontRead, ReadArgs};
+use read_fonts::FontData;
 
 impl WouldApply for SequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -50,7 +50,7 @@ impl Apply for SequenceContextFormat1<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules(ctx, &set.seq_rules(), match_glyph)
+        apply_context_rules(ctx, set.offset_data(), set.seq_rule_offsets(), match_glyph)
     }
 }
 
@@ -101,9 +101,12 @@ impl Apply for SequenceContextFormat2<'_> {
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let index = input_class(glyph) as usize;
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules(ctx, &set.class_seq_rules(), |info, value| {
-            u32::from(input_class(info.as_glyph())) == value
-        })
+        apply_context_rules(
+            ctx,
+            set.offset_data(),
+            set.class_seq_rule_offsets(),
+            |info, value| u32::from(input_class(info.as_glyph())) == value,
+        )
     }
 
     fn apply_cached(
@@ -126,7 +129,8 @@ impl Apply for SequenceContextFormat2<'_> {
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(
             ctx,
-            &set.class_seq_rules(),
+            set.offset_data(),
+            set.class_seq_rule_offsets(),
             match_class_cached(&input_class),
         )
     }
@@ -233,7 +237,8 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
             ctx,
-            &set.chained_seq_rules(),
+            set.offset_data(),
+            set.chained_seq_rule_offsets(),
             (match_glyph, match_glyph, match_glyph),
         )
     }
@@ -359,7 +364,8 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
             ctx,
-            &set.chained_class_seq_rules(),
+            set.offset_data(),
+            set.chained_class_seq_rule_offsets(),
             (
                 |info, val| u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val,
                 |info, val| u32::from(cache.input.class(&offset_data, info.as_glyph())) == val,
@@ -388,7 +394,8 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
             ctx,
-            &set.chained_class_seq_rules(),
+            set.offset_data(),
+            set.chained_class_seq_rule_offsets(),
             (
                 |info, val| u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val,
                 match_class_cached2(&input_class),
@@ -596,22 +603,6 @@ impl<'a> ParsedRule<'a> {
     }
 }
 
-trait ContextRule<'a>: FontRead<'a> {
-    /// Parse all of the rule's fields in one pass.
-    fn parse(&self) -> ParsedRule<'a>;
-
-    /// The first glyph/class of the input sequence, or `None` if the input
-    /// sequence is empty.
-    ///
-    /// Much cheaper than a full parse; used by the skip-ahead loops, which
-    /// discard most of the rules they visit.
-    fn first_input(&self) -> Option<u16>;
-
-    /// The second glyph/class of the input sequence, or `None` if the input
-    /// sequence has fewer than two entries. Cheap like `first_input`.
-    fn second_input(&self) -> Option<u16>;
-}
-
 /// `first_input` for SequenceRule/ClassSequenceRule.
 ///
 /// The glyph count is at offset 0 and the input sequence starts at offset 4,
@@ -647,36 +638,6 @@ fn chain_rule_first_input(data: &FontData) -> Option<u16> {
         return None;
     }
     data.read_at(count_pos + 2).ok()
-}
-
-/// `second_input` for ChainedSequenceRule/ChainedClassSequenceRule; see
-/// [`chain_rule_first_input`] for the layout.
-fn chain_rule_second_input(data: &FontData) -> Option<u16> {
-    let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
-    let count_pos = 2 + backtrack_count * u16::RAW_BYTE_LEN;
-    let input_count: u16 = data.read_at(count_pos).ok()?;
-    if input_count <= 2 {
-        return None;
-    }
-    data.read_at(count_pos + 4).ok()
-}
-
-/// A chain rule with direct access to its raw data, for cheap positional
-/// probes without a full parse.
-trait ChainContextRule<'a>: ContextRule<'a> {
-    fn data(&self) -> FontData<'a>;
-}
-
-impl<'a> ChainContextRule<'a> for ChainedSequenceRule<'a> {
-    fn data(&self) -> FontData<'a> {
-        self.offset_data()
-    }
-}
-
-impl<'a> ChainContextRule<'a> for ChainedClassSequenceRule<'a> {
-    fn data(&self) -> FontData<'a> {
-        self.offset_data()
-    }
 }
 
 /// Positional probes into a chain rule's raw data, reading only the values
@@ -730,66 +691,55 @@ impl<'a> ChainRuleProbe<'a> {
     }
 }
 
-impl<'a> ContextRule<'a> for SequenceRule<'a> {
-    fn parse(&self) -> ParsedRule<'a> {
-        ParsedRule::from_rule_data(self.offset_data()).unwrap_or_default()
-    }
+const _: () = assert!(SequenceRule::MIN_SIZE == ClassSequenceRule::MIN_SIZE);
+const _: () = assert!(ChainedSequenceRule::MIN_SIZE == ChainedClassSequenceRule::MIN_SIZE);
 
-    fn first_input(&self) -> Option<u16> {
-        plain_rule_first_input(&self.offset_data())
-    }
-    fn second_input(&self) -> Option<u16> {
-        plain_rule_second_input(&self.offset_data())
-    }
+/// The raw data of the rule at `off` within a rule set, gated the same
+/// way the generated rule table's read would gate it. Working on the raw
+/// data lets the rule walks below probe rules without constructing rule
+/// tables for the ones they discard, which is most of them.
+#[inline]
+fn plain_rule_data_at<'a>(
+    set_data: FontData<'a>,
+    off: &BigEndian<Offset16>,
+) -> Option<FontData<'a>> {
+    let data = set_data.split_off(off.get().to_u32() as usize)?;
+    (data.len() >= SequenceRule::MIN_SIZE).then_some(data)
 }
 
-impl<'a> ContextRule<'a> for ClassSequenceRule<'a> {
-    fn parse(&self) -> ParsedRule<'a> {
-        ParsedRule::from_rule_data(self.offset_data()).unwrap_or_default()
-    }
-
-    fn first_input(&self) -> Option<u16> {
-        plain_rule_first_input(&self.offset_data())
-    }
-    fn second_input(&self) -> Option<u16> {
-        plain_rule_second_input(&self.offset_data())
-    }
+#[inline]
+fn parse_plain_rule_at<'a>(
+    set_data: FontData<'a>,
+    off: &BigEndian<Offset16>,
+) -> Option<ParsedRule<'a>> {
+    plain_rule_data_at(set_data, off).map(|d| ParsedRule::from_rule_data(d).unwrap_or_default())
 }
 
-impl<'a> ContextRule<'a> for ChainedSequenceRule<'a> {
-    fn parse(&self) -> ParsedRule<'a> {
-        ParsedRule::from_chain_rule_data(self.offset_data()).unwrap_or_default()
-    }
-
-    fn first_input(&self) -> Option<u16> {
-        chain_rule_first_input(&self.offset_data())
-    }
-    fn second_input(&self) -> Option<u16> {
-        chain_rule_second_input(&self.offset_data())
-    }
+/// [plain_rule_data_at] for chained rules.
+#[inline]
+fn chain_rule_data_at<'a>(
+    set_data: FontData<'a>,
+    off: &BigEndian<Offset16>,
+) -> Option<FontData<'a>> {
+    let data = set_data.split_off(off.get().to_u32() as usize)?;
+    (data.len() >= ChainedSequenceRule::MIN_SIZE).then_some(data)
 }
 
-impl<'a> ContextRule<'a> for ChainedClassSequenceRule<'a> {
-    fn parse(&self) -> ParsedRule<'a> {
-        ParsedRule::from_chain_rule_data(self.offset_data()).unwrap_or_default()
-    }
-
-    fn first_input(&self) -> Option<u16> {
-        chain_rule_first_input(&self.offset_data())
-    }
-    fn second_input(&self) -> Option<u16> {
-        chain_rule_second_input(&self.offset_data())
-    }
+#[inline]
+fn parse_chain_rule_at<'a>(
+    set_data: FontData<'a>,
+    off: &BigEndian<Offset16>,
+) -> Option<ParsedRule<'a>> {
+    chain_rule_data_at(set_data, off)
+        .map(|d| ParsedRule::from_chain_rule_data(d).unwrap_or_default())
 }
 
-fn apply_context_rules<'a, 'b, R: ContextRule<'a>>(
+fn apply_context_rules(
     ctx: &mut hb_ot_apply_context_t,
-    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    set_data: FontData<'_>,
+    rule_offsets: &[BigEndian<Offset16>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
-) -> Option<()>
-where
-    <R as ReadArgs>::Args: 'static,
-{
+) -> Option<()> {
     // HarfBuzz bypasses the first/second-component pre-match below for rule
     // sets of at most 4 rules, because its pre-match setup costs more than
     // it saves there. For us the pre-match loop rejects rules on one or two
@@ -815,8 +765,11 @@ where
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
-            for rule in rules.iter().filter_map(|r| r.ok()) {
-                if rule.parse().apply(ctx, &match_func).is_some() {
+            for off in rule_offsets {
+                let Some(rule) = parse_plain_rule_at(set_data, off) else {
+                    continue;
+                };
+                if rule.apply(ctx, &match_func).is_some() {
                     return Some(());
                 }
             }
@@ -827,12 +780,11 @@ where
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
         // further impact.
-        for rule in rules
-            .iter()
-            .filter_map(|r| r.ok().map(|r| r.parse()))
-            .filter(|r| r.input.len() <= 1)
-        {
-            if rule.apply(ctx, &match_func).is_some() {
+        for off in rule_offsets {
+            let Some(rule) = parse_plain_rule_at(set_data, off) else {
+                continue;
+            };
+            if rule.input.len() <= 1 && rule.apply(ctx, &match_func).is_some() {
                 return Some(());
             }
         }
@@ -846,28 +798,37 @@ where
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
-            for rule in rules.iter().filter_map(|r| r.ok()) {
-                if rule.parse().apply(ctx, &match_func).is_some() {
+            for off in rule_offsets {
+                let Some(rule) = parse_plain_rule_at(set_data, off) else {
+                    continue;
+                };
+                if rule.apply(ctx, &match_func).is_some() {
                     return Some(());
                 }
             }
             return None;
         }
     }
-    let mut rules_iter = rules.iter().filter_map(|r| r.ok());
-    let mut rule_box = rules_iter.next();
-    while let Some(rule) = rule_box {
+    let mut i = 0;
+    while let Some(off) = rule_offsets.get(i) {
+        let Some(data) = plain_rule_data_at(set_data, off) else {
+            i += 1;
+            continue;
+        };
         // Probe the first two input values without parsing the whole rule;
         // most visited rules are rejected on these probes and never pay for
-        // a full parse.
-        let first_value = rule.first_input();
+        // a full parse — nor for constructing a rule table.
+        let first_value = plain_rule_first_input(&data);
         if first_value.is_none_or(|v| match_func(&mut ctx.buffer.info[first], u32::from(v))) {
             if second.is_none()
-                || rule
-                    .second_input()
+                || plain_rule_second_input(&data)
                     .is_none_or(|v| match_func(&mut ctx.buffer.info[second.unwrap()], u32::from(v)))
             {
-                if rule.parse().apply(ctx, &match_func).is_some() {
+                if ParsedRule::from_rule_data(data)
+                    .unwrap_or_default()
+                    .apply(ctx, &match_func)
+                    .is_some()
+                {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -877,7 +838,7 @@ where
             } else {
                 unsafe_to = Some(unsafe_to2);
             }
-            rule_box = rules_iter.next();
+            i += 1;
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
@@ -886,12 +847,14 @@ where
             // Skip ahead to next possible first glyph match.
             let first_glyph_value = first_value.unwrap();
             loop {
-                let Some(next_rule) = rules_iter.next() else {
-                    rule_box = None;
+                i += 1;
+                let Some(off) = rule_offsets.get(i) else {
                     break;
                 };
-                if next_rule.first_input() != Some(first_glyph_value) {
-                    rule_box = Some(next_rule);
+                let Some(d) = plain_rule_data_at(set_data, off) else {
+                    continue;
+                };
+                if plain_rule_first_input(&d) != Some(first_glyph_value) {
                     break;
                 }
             }
@@ -969,20 +932,15 @@ fn apply_chain_with_sequences<
 }
 
 fn apply_chain_context_rules<
-    'a,
-    'b,
-    R: ChainContextRule<'a>,
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
 >(
     ctx: &mut hb_ot_apply_context_t,
-    rules: &'b ArrayOfOffsets<'a, R, Offset16>,
+    set_data: FontData<'_>,
+    rule_offsets: &[BigEndian<Offset16>],
     match_funcs: (F1, F2, F3),
-) -> Option<()>
-where
-    <R as ReadArgs>::Args: 'static,
-{
+) -> Option<()> {
     // No small-rule-set bypass here either; see apply_context_rules.
     //
     // This version is optimized for speed by matching the first & second
@@ -1004,8 +962,11 @@ where
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
-            for rule in rules.iter().filter_map(|r| r.ok()) {
-                if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
+            for off in rule_offsets {
+                let Some(rule) = parse_chain_rule_at(set_data, off) else {
+                    continue;
+                };
+                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
                     return Some(());
                 }
             }
@@ -1016,12 +977,14 @@ where
     } else {
         // Failed to match a next glyph. Only try applying rules that have no
         // further impact.
-        for rule in rules
-            .iter()
-            .filter_map(|r| r.ok().map(|r| r.parse()))
-            .filter(|r| r.input.len() <= 1 && r.lookahead.is_empty())
-        {
-            if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+        for off in rule_offsets {
+            let Some(rule) = parse_chain_rule_at(set_data, off) else {
+                continue;
+            };
+            if rule.input.len() <= 1
+                && rule.lookahead.is_empty()
+                && apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some()
+            {
                 return Some(());
             }
         }
@@ -1035,31 +998,38 @@ where
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
-            for rule in rules.iter().filter_map(|r| r.ok()) {
-                if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
+            for off in rule_offsets {
+                let Some(rule) = parse_chain_rule_at(set_data, off) else {
+                    continue;
+                };
+                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
                     return Some(());
                 }
             }
             return None;
         }
     }
-    let mut rules_iter = rules.iter().filter_map(|r| r.ok());
-    let mut rule_box = rules_iter.next();
-    while let Some(rule) = rule_box {
+    let mut i = 0;
+    while let Some(off) = rule_offsets.get(i) {
+        let Some(data) = chain_rule_data_at(set_data, off) else {
+            i += 1;
+            continue;
+        };
         // Probe the values the pre-match needs without parsing the whole
         // rule; most visited rules are rejected on these probes and never
-        // pay for a full parse.
-        let Some(probe) = ChainRuleProbe::new(rule.data()) else {
+        // pay for a full parse — nor for constructing a rule table.
+        let Some(probe) = ChainRuleProbe::new(data) else {
             // Unreadable rule header; the full parse treats it as an empty
             // rule, same as the parse-first code did.
-            if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
+            let rule = ParsedRule::from_chain_rule_data(data).unwrap_or_default();
+            if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
                 if let Some(unsafe_to) = unsafe_to {
                     ctx.buffer
                         .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
                 }
                 return Some(());
             }
-            rule_box = rules_iter.next();
+            i += 1;
             continue;
         };
         let len_p1 = probe.len_p1();
@@ -1089,7 +1059,8 @@ where
                 true
             };
             if matched_second {
-                if apply_chain_with_sequences(ctx, &rule.parse(), &match_funcs).is_some() {
+                let rule = ParsedRule::from_chain_rule_data(data).unwrap_or_default();
+                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -1100,7 +1071,7 @@ where
                 unsafe_to = Some(unsafe_to2);
             }
 
-            rule_box = rules_iter.next();
+            i += 1;
         } else {
             if unsafe_to.is_none() {
                 unsafe_to = Some(unsafe_to1);
@@ -1110,17 +1081,19 @@ where
             if let Some(first_glyph_value) = skip_key {
                 // Skip ahead to next possible first glyph match.
                 loop {
-                    let Some(next_rule) = rules_iter.next() else {
-                        rule_box = None;
+                    i += 1;
+                    let Some(off) = rule_offsets.get(i) else {
                         break;
                     };
-                    if next_rule.first_input() != Some(first_glyph_value) {
-                        rule_box = Some(next_rule);
+                    let Some(d) = chain_rule_data_at(set_data, off) else {
+                        continue;
+                    };
+                    if chain_rule_first_input(&d) != Some(first_glyph_value) {
                         break;
                     }
                 }
             } else {
-                rule_box = rules_iter.next();
+                i += 1;
             }
         }
     }
