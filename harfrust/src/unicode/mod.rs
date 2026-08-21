@@ -648,9 +648,10 @@ mod icu {
 
     pub(crate) fn script_for(c: u32) -> Script {
         let Some(icu_script) = PropertyNamesShort::new()
-            .get_locale_script(CodePointMapData::<IcuScript>::new().get32(c)) else {
-                return crate::script::UNKNOWN;
-            };
+            .get_locale_script(CodePointMapData::<IcuScript>::new().get32(c))
+        else {
+            return crate::script::UNKNOWN;
+        };
         // As this is the script of some Unicode code point, correctly cased, we don't need to apply
         // any of the checks and conversion from Script::from_iso15924. Furthermore, both the
         // `from_bytes` and the `into_raw` calls are free, as the representation of both types is [u8; 4].
@@ -664,7 +665,7 @@ mod icu {
     pub(crate) fn combining_class_for(c: u32) -> u8 {
         CodePointMapData::<IcuCanonicalCombiningClass>::new()
             .get32(c)
-            .0
+            .to_icu4c_value()
     }
 
     pub(crate) fn mirroring_for(c: u32) -> Option<Codepoint> {
