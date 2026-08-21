@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
+## [0.13.1] - 2026-08-21
+
+This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Saturate shaping and positioning math across GPOS, kerx, trak, fallback,
+  shaping, metrics, and font scaling paths to avoid overflow and better match
+  HarfBuzz behavior (#420).
+- Cache GDEF mark filtering sets in bitmaps (#421).
+- Lock `icu_properties` to 2.2.0 (#422).
+- Optimize hot loops in contextual and layout matching by probing rules before
+  parsing, hoisting invariants, moving recursion state instead of cloning, and
+  replacing per-element copies with block copies (#423, #424, #425).
+- Optimize buffer internals by copying small counts inline and charging
+  `move_to` operations against `max_ops` (#426, #429).
+- Improve AAT shaping performance by walking `morx` subtables through packed
+  descriptors, resolving subtable kinds from cached parts, and adding a
+  state-machine fast path (#428, #430, #431).
+- Skip the post-`morx` digest update when GPOS is not present (#433).
+- Add a batched nominal-glyph callback to `FontFuncs` (#434).
+- Update `read-fonts` to 0.43.2 (#432, #435).
+
 ## [0.13.0] - 2026-08-12
 
 This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),
@@ -249,7 +271,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.13.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.13.1...HEAD
+[0.13.1]: https://github.com/harfbuzz/harfrust/compare/0.13.0...0.13.1
 [0.13.0]: https://github.com/harfbuzz/harfrust/compare/0.12.0...0.13.0
 [0.12.0]: https://github.com/harfbuzz/harfrust/compare/0.11.0...0.12.0
 [0.11.0]: https://github.com/harfbuzz/harfrust/compare/0.10.0...0.11.0
