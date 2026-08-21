@@ -39,6 +39,8 @@ pub fn hb_ot_layout_kern(
 ) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, scale, buffer);
 
+    c.setup_buffer_glyph_set();
+
     let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
 
     let mut subtable_idx = 0;
