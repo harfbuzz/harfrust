@@ -376,8 +376,11 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
     aat::StateEntry<E>: KerxStateEntryExt,
 {
     let mut state = START_OF_TEXT;
+    // Condition 3 below, precomputed for the start-of-text state: no
+    // end-of-text action can fire if we stop while in the start state.
+    let start_state_safe_to_break_eot = (c.start_end_safe_to_break & (1 << START_OF_TEXT)) != 0;
     c.buffer.idx = 0;
-    loop {
+    'drive: loop {
         let class = if c.buffer.idx < c.buffer.len {
             get_class(
                 state_table,
@@ -393,6 +396,49 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
         };
 
         let next_state = entry.new_state;
+
+        // Fast path for when transitioning from start-state to start-state with
+        // no action and advancing. Do so as long as the class remains the same.
+        // This is common with runs of non-actionable glyphs.
+        if state == START_OF_TEXT
+            && next_state == START_OF_TEXT
+            && start_state_safe_to_break_eot
+            && !entry.is_actionable()
+            && entry.has_advance()
+        {
+            let old_class = class;
+            loop {
+                let _ = driver.transition(
+                    kind,
+                    &entry,
+                    subtable.is_cross_stream(),
+                    subtable.tuple_count(),
+                    c,
+                );
+                if c.buffer.idx >= c.buffer.len {
+                    break 'drive;
+                }
+                c.buffer.next_glyph();
+                c.buffer.max_ops -= 1;
+
+                let new_class = if c.buffer.idx < c.buffer.len {
+                    get_class(
+                        state_table,
+                        c.buffer.cur(0).as_glyph(),
+                        c.machine_class_cache.unwrap(),
+                    )
+                } else {
+                    u16::from(aat::class::END_OF_TEXT)
+                };
+                if new_class != old_class {
+                    break;
+                }
+            }
+            if c.buffer.idx >= c.buffer.len {
+                break 'drive;
+            }
+            continue 'drive;
+        }
 
         // Conditions under which it's guaranteed safe-to-break before current glyph:
         //

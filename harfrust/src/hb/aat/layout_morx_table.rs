@@ -229,8 +229,11 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
             None
         }
     });
+    // Condition 3 below, precomputed for the start-of-text state: no
+    // end-of-text action can fire if we stop while in the start state.
+    let start_state_safe_to_break_eot = (ac.start_end_safe_to_break & (1 << START_OF_TEXT)) != 0;
     ac.buffer.idx = 0;
-    loop {
+    'drive: loop {
         // This block copied from NoncontextualSubtable::apply. Keep in sync.
         if let Some(range_flags) = ac.range_flags.as_ref() {
             if let Some(last_range) = last_range.as_mut() {
@@ -276,6 +279,43 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
         };
 
         let next_state = entry.new_state;
+
+        // Fast path for when transitioning from start-state to start-state with
+        // no action and advancing. Do so as long as the class remains the same.
+        // This is common with runs of non-actionable glyphs.
+        if last_range.is_none()
+            && state == START_OF_TEXT
+            && next_state == START_OF_TEXT
+            && start_state_safe_to_break_eot
+            && !Ctx::is_actionable(&entry)
+            && Ctx::can_advance(&entry)
+        {
+            let old_class = class;
+            loop {
+                c.transition(&entry, ac);
+                if ac.buffer.idx >= ac.buffer.len || !ac.buffer.successful {
+                    break 'drive;
+                }
+                ac.buffer.next_glyph();
+
+                let new_class = if ac.buffer.idx < ac.buffer.len {
+                    get_class(
+                        machine,
+                        ac.buffer.cur(0).as_glyph(),
+                        ac.machine_class_cache.unwrap(),
+                    )
+                } else {
+                    u16::from(aat::class::END_OF_TEXT)
+                };
+                if new_class != old_class {
+                    break;
+                }
+            }
+            if ac.buffer.idx >= ac.buffer.len || !ac.buffer.successful {
+                break 'drive;
+            }
+            continue 'drive;
+        }
 
         // Conditions under which it's guaranteed safe-to-break before current glyph:
         //
