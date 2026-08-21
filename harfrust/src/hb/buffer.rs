@@ -1477,6 +1477,12 @@ impl hb_buffer_t {
                 return false;
             }
 
+            self.max_ops -= count as i32;
+            if self.max_ops < 0 {
+                self.successful = false;
+                return false;
+            }
+
             self.copy_infos_to_out(self.idx, self.out_len, count);
 
             self.idx += count;
@@ -1497,6 +1503,12 @@ impl hb_buffer_t {
             }
 
             debug_assert!(self.idx >= count);
+
+            self.max_ops -= count as i32;
+            if self.max_ops < 0 {
+                self.successful = false;
+                return false;
+            }
 
             self.idx -= count;
             self.out_len -= count;
