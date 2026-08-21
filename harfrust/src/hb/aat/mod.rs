@@ -6,7 +6,7 @@ pub mod layout_trak_table;
 pub mod map;
 
 use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
-use crate::hb::aat::layout_morx_table::MorxSubtableCache;
+use crate::hb::aat::layout_morx_table::{MorxSubtableCache, MorxSubtableDescriptor};
 use crate::hb::kerning::KernSubtableCache;
 use crate::hb::ot::OtTables;
 use crate::hb::tables::TableRanges;
@@ -19,6 +19,7 @@ use read_fonts::{
 #[derive(Default)]
 pub struct AatCache {
     pub morx: Vec<MorxSubtableCache>,
+    pub morx_descriptors: Vec<MorxSubtableDescriptor>,
     pub kern: Vec<KernSubtableCache>,
     pub kerx: Vec<KerxSubtableCache>,
 }
@@ -32,8 +33,8 @@ impl AatCache {
             .map(|maxp| maxp.num_glyphs() as u32)
             .unwrap_or_default();
         if let Ok(morx) = font.morx() {
-            let chains = morx.chains();
-            for chain in morx.chains().iter() {
+            let morx_base = morx.offset_data().as_bytes().as_ptr() as usize;
+            for (chain_index, chain) in morx.chains().iter().enumerate() {
                 let Ok(chain) = chain else {
                     continue;
                 };
@@ -41,9 +42,13 @@ impl AatCache {
                     let Ok(subtable) = subtable else {
                         continue;
                     };
-                    cache
-                        .morx
-                        .push(MorxSubtableCache::new(&subtable, num_glyphs));
+                    let entry = MorxSubtableCache::new(&subtable, num_glyphs);
+                    cache.morx_descriptors.push(MorxSubtableCache::descriptor(
+                        chain_index,
+                        &subtable,
+                        morx_base,
+                    ));
+                    cache.morx.push(entry);
                 }
             }
         }
@@ -73,7 +78,11 @@ impl AatCache {
 
 #[derive(Clone, Default)]
 pub struct AatTables<'a> {
-    pub morx: Option<(Morx<'a>, &'a [MorxSubtableCache])>,
+    pub morx: Option<(
+        Morx<'a>,
+        &'a [MorxSubtableCache],
+        &'a [MorxSubtableDescriptor],
+    )>,
     pub ankr: Option<Ankr<'a>>,
     pub kern: Option<(Kern<'a>, &'a [KernSubtableCache])>,
     pub kerx: Option<(Kerx<'a>, &'a [KerxSubtableCache])>,
@@ -103,10 +112,13 @@ impl<'a> AatTables<'a> {
         ) {
             None
         } else {
-            table_ranges
-                .morx
-                .resolve_table(font)
-                .map(|table| (table, cache.morx.as_slice()))
+            table_ranges.morx.resolve_table(font).map(|table| {
+                (
+                    table,
+                    cache.morx.as_slice(),
+                    cache.morx_descriptors.as_slice(),
+                )
+            })
         };
         let ankr = table_ranges.ankr.resolve_table(font);
         let kern = table_ranges
@@ -147,7 +159,11 @@ impl<'a> AatTables<'a> {
             if is_morx_blocklisted(morx.offset_data().len() as u32, gsub_len, gdef_len) {
                 None
             } else {
-                Some((morx, cache.morx.as_slice()))
+                Some((
+                    morx,
+                    cache.morx.as_slice(),
+                    cache.morx_descriptors.as_slice(),
+                ))
             }
         } else {
             None
