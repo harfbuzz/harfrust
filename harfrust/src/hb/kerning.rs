@@ -1,5 +1,6 @@
 use super::aat::layout::DELETED_GLYPH;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use read_fonts::{
     tables::{
         aat,
@@ -105,7 +106,12 @@ pub fn hb_ot_layout_kern(
                 apply_simple_kerning(&mut c, &format0, is_cross_stream);
             }
             SubtableKind::Format1(format1) => {
-                apply_state_machine_kerning(&mut c, &format1, is_cross_stream);
+                apply_state_machine_kerning(
+                    &mut c,
+                    &format1,
+                    subtable_cache.decoded.as_ref(),
+                    is_cross_stream,
+                );
             }
             SubtableKind::Format2(format2) if plan.requested_kerning => {
                 apply_simple_kerning(&mut c, &format2, is_cross_stream);
@@ -229,6 +235,134 @@ struct StateMachineDriver {
     depth: usize,
 }
 
+/// Bit layout of a decoded transition: `[flags:16][safe:1][poison:1][new_state:14]`.
+const DECODED_NEW_STATE_MASK: u32 = 0x3FFF;
+const DECODED_POISON: u32 = 1 << 14;
+const DECODED_SAFE_TO_BREAK: u32 = 1 << 15;
+const DECODED_FLAGS_SHIFT: u32 = 16;
+/// `new_state` must pack into 14 bits, with 0x3FFF reserved as the
+/// always-out-of-bounds sentinel that makes an unrepresentable next
+/// state fail the next lookup, exactly like the raw path does.
+const DECODED_MAX_STATES: usize = 0x3FFE;
+
+/// A legacy `kern` Format1 state machine decoded into a flat transition
+/// array, one packed `u32` per state-array byte in the same linear
+/// layout. The drive loop replaces the per-transition `entry()` parsing
+/// (offset arithmetic, big-endian reads, new-state division and error
+/// plumbing) — plus the extra `entry()` probes the safe-to-break
+/// computation needs — with a single indexed load. Everything stored
+/// here depends only on `(state, class)`, so it is computed once per
+/// face; the machines are tiny, a few hundred entries.
+pub(crate) struct DecodedStateMachine {
+    n_classes: usize,
+    entries: Vec<u32>,
+}
+
+impl DecodedStateMachine {
+    fn new(machine: &aat::StateTable, start_end_safe_to_break: u64) -> Option<Self> {
+        // Guard against hostile geometry: bound the decode size, and
+        // require OUT_OF_BOUNDS to be a valid class so the clamp in
+        // `transition` can never alias into a neighboring state row
+        // (the raw path is kept for such degenerate machines).
+        const MAX_ENTRIES: usize = 1 << 20;
+
+        let n_classes = machine.header.state_size() as usize;
+        let len = machine.header.state_array().ok()?.data().len();
+        if n_classes <= aat::class::OUT_OF_BOUNDS as usize
+            || len == 0
+            || len > MAX_ENTRIES
+            || len.div_ceil(n_classes) > DECODED_MAX_STATES
+        {
+            return None;
+        }
+
+        let mut entries = Vec::with_capacity(len);
+        for i in 0..len {
+            let state = (i / n_classes) as u16;
+            let class = i % n_classes;
+            if class > u8::MAX as usize {
+                // Classes come from u8 data, so these columns are
+                // unreachable; only the row-aligned layout needs them.
+                entries.push(DECODED_POISON);
+                continue;
+            }
+            let Ok(entry) = machine.entry(state, class as u8) else {
+                entries.push(DECODED_POISON);
+                continue;
+            };
+
+            let next_state = entry.new_state;
+
+            // The safe-to-break conditions; see the walk-through in
+            // `apply_state_machine_kerning_raw`.
+            let is_safe_to_break =
+                // 1
+                !entry.is_actionable() &&
+
+                // 2
+                (
+                    state == START_OF_TEXT
+                    || (!entry.has_advance() && next_state == START_OF_TEXT)
+                    ||
+                    {
+                        // 2c
+                        if let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class as u8) {
+                            // 2c'
+                            !wouldbe_entry.is_actionable() &&
+
+                            // 2c"
+                            (
+                                next_state == wouldbe_entry.new_state &&
+                                entry.has_advance() == wouldbe_entry.has_advance()
+                            )
+                        } else {
+                            false
+                        }
+                    }
+                ) &&
+
+                // 3
+                (
+                    if state < 64 {
+                        (start_end_safe_to_break & (1 << state)) != 0
+                    } else {
+                        if let Ok(end_entry) = machine.entry(state, aat::class::END_OF_TEXT) {
+                            !end_entry.is_actionable()
+                        } else {
+                            false
+                        }
+                    }
+                )
+            ;
+
+            entries.push(
+                ((entry.flags as u32) << DECODED_FLAGS_SHIFT)
+                    | ((is_safe_to_break as u32) << 15)
+                    | (next_state as u32).min(DECODED_NEW_STATE_MASK),
+            );
+        }
+        Some(DecodedStateMachine { n_classes, entries })
+    }
+
+    /// Mirrors `StateTable::entry`: the same class clamp, and `None`
+    /// exactly where it would error (out-of-bounds row, or a poisoned
+    /// slot recording that the raw entry failed to decode).
+    #[inline(always)]
+    fn transition(&self, state: u16, class: u8) -> Option<u32> {
+        let mut class = class as usize;
+        if class >= self.n_classes {
+            class = aat::class::OUT_OF_BOUNDS as usize;
+        }
+        let packed = *self
+            .entries
+            .get(state as usize * self.n_classes + class)?;
+        if packed & DECODED_POISON != 0 {
+            return None;
+        }
+        Some(packed)
+    }
+}
+
 pub trait CollectGlyphs {
     /// For each valid index, read the value of type `T`.
     /// If `filter(&value)` returns true, insert the index into `set`.
@@ -303,6 +437,116 @@ fn collect_start_end_safe_to_break(machine: &aat::StateTable) -> u64 {
 fn apply_state_machine_kerning(
     c: &mut AatApplyContext,
     subtable: &aat::StateTable,
+    decoded: Option<&DecodedStateMachine>,
+    is_cross_stream: bool,
+) {
+    if let Some(machine) = decoded {
+        apply_state_machine_kerning_decoded(c, subtable, machine, is_cross_stream);
+    } else {
+        apply_state_machine_kerning_raw(c, subtable, is_cross_stream);
+    }
+}
+
+/// The same drive loop as `apply_state_machine_kerning_raw`, but over
+/// the decoded transition array: one load replaces the `entry()` parse,
+/// and the precomputed bit replaces the safe-to-break probe lookups.
+fn apply_state_machine_kerning_decoded(
+    c: &mut AatApplyContext,
+    subtable: &aat::StateTable,
+    machine: &DecodedStateMachine,
+    is_cross_stream: bool,
+) {
+    let mut driver = StateMachineDriver {
+        stack: [0; 8],
+        depth: 0,
+    };
+
+    let mut state = START_OF_TEXT;
+    // No end-of-text action can fire if we stop while in the start state.
+    let start_state_safe_to_break_eot = (c.start_end_safe_to_break & (1 << START_OF_TEXT)) != 0;
+    c.buffer.idx = 0;
+    'drive: loop {
+        let class = if c.buffer.idx < c.buffer.len {
+            get_class(
+                subtable,
+                c.buffer.cur(0).as_glyph(),
+                c.machine_class_cache.unwrap(),
+            )
+        } else {
+            aat::class::END_OF_TEXT
+        };
+
+        let Some(packed) = machine.transition(state, class) else {
+            break;
+        };
+
+        let next_state = (packed & DECODED_NEW_STATE_MASK) as u16;
+        let entry = (packed >> DECODED_FLAGS_SHIFT) as u16;
+
+        // Fast path for when transitioning from start-state to start-state with
+        // no action and advancing. Do so as long as the class remains the same.
+        // This is common with runs of non-actionable glyphs.
+        if state == START_OF_TEXT
+            && next_state == START_OF_TEXT
+            && start_state_safe_to_break_eot
+            && !entry.is_actionable()
+            && entry.has_advance()
+        {
+            let old_class = class;
+            loop {
+                state_machine_transition(c, subtable, entry, is_cross_stream, &mut driver);
+                if c.buffer.idx >= c.buffer.len {
+                    break 'drive;
+                }
+                c.buffer.max_ops -= 1;
+                c.buffer.next_glyph();
+
+                let new_class = if c.buffer.idx < c.buffer.len {
+                    get_class(
+                        subtable,
+                        c.buffer.cur(0).as_glyph(),
+                        c.machine_class_cache.unwrap(),
+                    )
+                } else {
+                    aat::class::END_OF_TEXT
+                };
+                if new_class != old_class {
+                    break;
+                }
+            }
+            if c.buffer.idx >= c.buffer.len {
+                break 'drive;
+            }
+            continue 'drive;
+        }
+
+        let is_safe_to_break = packed & DECODED_SAFE_TO_BREAK != 0;
+
+        if !is_safe_to_break && c.buffer.backtrack_len() > 0 && c.buffer.idx < c.buffer.len {
+            c.buffer.unsafe_to_break_from_outbuffer(
+                Some(c.buffer.backtrack_len() - 1),
+                Some(c.buffer.idx + 1),
+            );
+        }
+
+        state_machine_transition(c, subtable, entry, is_cross_stream, &mut driver);
+
+        state = next_state;
+
+        if c.buffer.idx >= c.buffer.len {
+            break;
+        }
+
+        c.buffer.max_ops -= 1;
+        if entry.has_advance() || c.buffer.max_ops <= 0 {
+            c.buffer.next_glyph();
+        }
+    }
+}
+
+fn apply_state_machine_kerning_raw(
+    c: &mut AatApplyContext,
+    subtable: &aat::StateTable,
     is_cross_stream: bool,
 ) {
     let mut driver = StateMachineDriver {
@@ -343,7 +587,7 @@ fn apply_state_machine_kerning(
         {
             let old_class = class;
             loop {
-                state_machine_transition(c, subtable, &entry, is_cross_stream, &mut driver);
+                state_machine_transition(c, subtable, entry.flags, is_cross_stream, &mut driver);
                 if c.buffer.idx >= c.buffer.len {
                     break 'drive;
                 }
@@ -444,7 +688,7 @@ fn apply_state_machine_kerning(
             );
         }
 
-        state_machine_transition(c, subtable, &entry, is_cross_stream, &mut driver);
+        state_machine_transition(c, subtable, entry.flags, is_cross_stream, &mut driver);
 
         state = next_state;
 
@@ -463,7 +707,7 @@ fn apply_state_machine_kerning(
 fn state_machine_transition(
     c: &mut AatApplyContext,
     subtable: &aat::StateTable,
-    entry: &aat::StateEntry,
+    entry: u16,
     is_cross_stream: bool,
     driver: &mut StateMachineDriver,
 ) {
@@ -597,6 +841,12 @@ impl<T> KernStateEntryExt for aat::StateEntry<T> {
     }
 }
 
+impl KernStateEntryExt for u16 {
+    fn flags(&self) -> u16 {
+        *self
+    }
+}
+
 impl SimpleKerning for Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
@@ -642,6 +892,7 @@ pub(crate) struct KernSubtableCache {
     first_set: U32Set,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
+    decoded: Option<DecodedStateMachine>,
 }
 
 impl KernSubtableCache {
@@ -649,6 +900,7 @@ impl KernSubtableCache {
         let mut start_end_safe_to_break = 0u64;
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
+        let mut decoded = None;
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Format0(format0) => {
@@ -657,6 +909,7 @@ impl KernSubtableCache {
                 SubtableKind::Format1(format1) => {
                     start_end_safe_to_break = collect_start_end_safe_to_break(format1);
                     collect_initial_glyphs(format1, &mut first_set, num_glyphs);
+                    decoded = DecodedStateMachine::new(format1, start_end_safe_to_break);
                 }
                 SubtableKind::Format2(format2) => {
                     format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
@@ -671,6 +924,7 @@ impl KernSubtableCache {
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
+            decoded,
         }
     }
 }
