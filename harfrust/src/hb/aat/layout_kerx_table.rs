@@ -1,6 +1,7 @@
 use super::layout::DELETED_GLYPH;
 use crate::hb::aat::layout_common::{
-    get_class, AatApplyContext, ClassCache, TypedCollectGlyphs, START_OF_TEXT,
+    get_class, AatApplyContext, ClassCache, DecodedExtMachine, TypedCollectGlyphs,
+    MACHINE_META_SAFE, START_OF_TEXT,
 };
 use crate::hb::{
     buffer::*,
@@ -102,13 +103,34 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     stack: [0; 8],
                     depth: 0,
                 };
-                apply_state_machine_kerning(
-                    c,
-                    &subtable,
-                    format1,
-                    &format1.state_table,
-                    &mut driver,
-                );
+                let decoded = subtable_cache.decoded.get_or_init(|| {
+                    DecodedExtMachine::build(
+                        &format1.state_table,
+                        subtable.data(),
+                        subtable_cache.start_end_safe_to_break,
+                        &KerxStateEntryExt::is_actionable,
+                        &KerxStateEntryExt::has_advance,
+                    )
+                });
+                if let Some(decoded) = decoded {
+                    apply_state_machine_kerning(
+                        c,
+                        &subtable,
+                        format1,
+                        &format1.state_table,
+                        &decoded,
+                        &mut driver,
+                    );
+                } else {
+                    apply_state_machine_kerning(
+                        c,
+                        &subtable,
+                        format1,
+                        &format1.state_table,
+                        &RawKerxMachine(&format1.state_table),
+                        &mut driver,
+                    );
+                }
             }
             SubtableKind::Format2(format2) => {
                 if !c.plan.requested_kerning {
@@ -122,13 +144,34 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     mark: 0,
                     ankr_table: c.face.aat_tables.ankr.clone(),
                 };
-                apply_state_machine_kerning(
-                    c,
-                    &subtable,
-                    format4,
-                    &format4.state_table,
-                    &mut driver,
-                );
+                let decoded = subtable_cache.decoded.get_or_init(|| {
+                    DecodedExtMachine::build(
+                        &format4.state_table,
+                        subtable.data(),
+                        subtable_cache.start_end_safe_to_break,
+                        &KerxStateEntryExt::is_actionable,
+                        &KerxStateEntryExt::has_advance,
+                    )
+                });
+                if let Some(decoded) = decoded {
+                    apply_state_machine_kerning(
+                        c,
+                        &subtable,
+                        format4,
+                        &format4.state_table,
+                        &decoded,
+                        &mut driver,
+                    );
+                } else {
+                    apply_state_machine_kerning(
+                        c,
+                        &subtable,
+                        format4,
+                        &format4.state_table,
+                        &RawKerxMachine(&format4.state_table),
+                        &mut driver,
+                    );
+                }
             }
             SubtableKind::Format6(format6) => {
                 if !c.plan.requested_kerning {
@@ -365,16 +408,106 @@ where
     result
 }
 
-fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
+/// Where the kerx drive loop fetches transitions from: the raw state
+/// table, or the per-face decoded copy. Monomorphized, so the raw path
+/// compiles exactly as before and the decoded path is a single load.
+trait KerxEntrySource {
+    fn lookup(&self, state: u16, class: u16) -> Option<(aat::StateEntry<BigEndian<u16>>, u8)>;
+    fn is_safe_to_break(
+        &self,
+        state: u16,
+        class: u16,
+        entry: &aat::StateEntry<BigEndian<u16>>,
+        meta: u8,
+        start_end_safe_to_break: u64,
+    ) -> bool;
+}
+
+struct RawKerxMachine<'a, 'b>(&'b aat::ExtendedStateTable<'a, BigEndian<u16>>);
+
+impl KerxEntrySource for RawKerxMachine<'_, '_> {
+    #[inline(always)]
+    fn lookup(&self, state: u16, class: u16) -> Option<(aat::StateEntry<BigEndian<u16>>, u8)> {
+        self.0.entry(state, class).ok().map(|entry| (entry, 0))
+    }
+
+    fn is_safe_to_break(
+        &self,
+        state: u16,
+        class: u16,
+        entry: &aat::StateEntry<BigEndian<u16>>,
+        _meta: u8,
+        start_end_safe_to_break: u64,
+    ) -> bool {
+        let state_table = self.0;
+        let next_state = entry.new_state;
+        // 1
+        !entry.is_actionable() &&
+
+        // 2
+        (
+            state == START_OF_TEXT
+            || (!entry.has_advance() && next_state == START_OF_TEXT)
+            ||
+            {
+                // 2c
+                if let Ok(wouldbe_entry) = state_table.entry(START_OF_TEXT, class) {
+                    // 2c'
+                    !wouldbe_entry.is_actionable() &&
+
+                    // 2c"
+                    (
+                        next_state == wouldbe_entry.new_state &&
+                        entry.has_advance() == wouldbe_entry.has_advance()
+                    )
+                } else {
+                    false
+                }
+            }
+        ) &&
+
+        // 3
+        (
+            if state < 64 {
+                (start_end_safe_to_break & (1 << state)) != 0
+            } else {
+                if let Ok(end_entry) = state_table.entry(state, u16::from(aat::class::END_OF_TEXT)) {
+                    !end_entry.is_actionable()
+                } else {
+                    false
+                }
+            }
+        )
+    }
+}
+
+impl KerxEntrySource for &DecodedExtMachine<BigEndian<u16>> {
+    #[inline(always)]
+    fn lookup(&self, state: u16, class: u16) -> Option<(aat::StateEntry<BigEndian<u16>>, u8)> {
+        self.get(state, class).map(|(entry, meta)| (entry.clone(), meta))
+    }
+
+    #[inline(always)]
+    fn is_safe_to_break(
+        &self,
+        _state: u16,
+        _class: u16,
+        _entry: &aat::StateEntry<BigEndian<u16>>,
+        meta: u8,
+        _start_end_safe_to_break: u64,
+    ) -> bool {
+        meta & MACHINE_META_SAFE != 0
+    }
+}
+
+fn apply_state_machine_kerning<T, Driver: StateTableDriver<T, BigEndian<u16>>, S: KerxEntrySource>(
     c: &mut AatApplyContext,
     subtable: &Subtable,
     kind: &T,
-    state_table: &aat::ExtendedStateTable<E>,
+    state_table: &aat::ExtendedStateTable<BigEndian<u16>>,
+    source: &S,
     driver: &mut Driver,
-) where
-    E: FixedSize + bytemuck::AnyBitPattern,
-    aat::StateEntry<E>: KerxStateEntryExt,
-{
+) {
     let mut state = START_OF_TEXT;
     // Condition 3 below, precomputed for the start-of-text state: no
     // end-of-text action can fire if we stop while in the start state.
@@ -391,7 +524,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
             u16::from(aat::class::END_OF_TEXT)
         };
 
-        let Ok(entry) = state_table.entry(state, class) else {
+        let Some((entry, meta)) = source.lookup(state, class) else {
             break;
         };
 
@@ -468,45 +601,13 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
         //
         //   https://github.com/harfbuzz/harfbuzz/issues/2860
 
-        let is_safe_to_break =
-            // 1
-            !entry.is_actionable() &&
-
-            // 2
-            (
-                state == START_OF_TEXT
-                || (!entry.has_advance() && next_state == START_OF_TEXT)
-                ||
-                {
-                    // 2c
-                    if let Ok(wouldbe_entry) = state_table.entry(START_OF_TEXT, class) {
-                        // 2c'
-                        !wouldbe_entry.is_actionable() &&
-
-                        // 2c"
-                        (
-                            next_state == wouldbe_entry.new_state &&
-                            entry.has_advance() == wouldbe_entry.has_advance()
-                        )
-                    } else {
-                        false
-                    }
-                }
-            ) &&
-
-            // 3
-            (
-                if state < 64 {
-                    (c.start_end_safe_to_break & (1 << state)) != 0
-                } else {
-                    if let Ok(end_entry) = state_table.entry(state, u16::from(aat::class::END_OF_TEXT)) {
-                        !end_entry.is_actionable()
-                    } else {
-                        false
-                    }
-                }
-            )
-        ;
+        let is_safe_to_break = source.is_safe_to_break(
+            state,
+            class,
+            &entry,
+            meta,
+            c.start_end_safe_to_break,
+        );
 
         if !is_safe_to_break && c.buffer.backtrack_len() > 0 && c.buffer.idx < c.buffer.len {
             c.buffer.unsafe_to_break_from_outbuffer(
@@ -736,11 +837,52 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
     }
 }
 
+/// Decoding a machine costs work proportional to its size, and some
+/// fonts carry machines a given text never walks. Decode lazily, on the
+/// first application that passes the gates. Under no_std there is no
+/// OnceLock; those builds stay on the raw path.
+#[cfg(feature = "std")]
+pub(crate) struct LazyDecodedKerx(std::sync::OnceLock<Option<DecodedExtMachine<BigEndian<u16>>>>);
+
+#[cfg(feature = "std")]
+impl LazyDecodedKerx {
+    fn new() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+
+    #[inline(always)]
+    fn get_or_init(
+        &self,
+        init: impl FnOnce() -> Option<DecodedExtMachine<BigEndian<u16>>>,
+    ) -> &Option<DecodedExtMachine<BigEndian<u16>>> {
+        self.0.get_or_init(init)
+    }
+}
+
+#[cfg(not(feature = "std"))]
+pub(crate) struct LazyDecodedKerx;
+
+#[cfg(not(feature = "std"))]
+impl LazyDecodedKerx {
+    fn new() -> Self {
+        Self
+    }
+
+    #[inline(always)]
+    fn get_or_init(
+        &self,
+        _init: impl FnOnce() -> Option<DecodedExtMachine<BigEndian<u16>>>,
+    ) -> &Option<DecodedExtMachine<BigEndian<u16>>> {
+        &None
+    }
+}
+
 pub(crate) struct KerxSubtableCache {
     start_end_safe_to_break: u64,
     first_set: GlyphSet,
     second_set: GlyphSet,
     class_cache: Box<ClassCache>,
+    decoded: LazyDecodedKerx,
 }
 
 impl KerxSubtableCache {
@@ -774,6 +916,7 @@ impl KerxSubtableCache {
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
+            decoded: LazyDecodedKerx::new(),
         }
     }
 }
