@@ -7,8 +7,10 @@ use crate::hb::hb_mask_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
 use super::glyph_set::GlyphSet;
+use alloc::vec::Vec;
 use read_fonts::tables::aat::*;
 use read_fonts::types::{FixedSize, GlyphId};
+use read_fonts::FontData;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
@@ -442,6 +444,166 @@ impl CollectGlyphs for Lookup10<'_> {
                 }
             }
         }
+    }
+}
+
+pub(crate) const MACHINE_META_SAFE: u8 = 1;
+pub(crate) const MACHINE_META_POISON: u8 = 2;
+
+/// An extended state machine decoded into flat per-(state, class) arrays,
+/// built once per face. The drive loops replace the per-transition
+/// `entry()` parsing — plus the extra `entry()` probes behind the
+/// safe-to-break computation — with a single indexed load; everything
+/// stored here depends only on `(state, class)`.
+///
+/// The bounds-checked lookup reproduces `entry()`'s error semantics: an
+/// out-of-range row fails the lookup and breaks the drive exactly where
+/// the raw path would, and a per-slot decode failure carries a poison
+/// flag in `meta`.
+pub(crate) struct DecodedExtMachine<T> {
+    n_classes: usize,
+    entries: Vec<StateEntry<T>>,
+    meta: Vec<u8>,
+}
+
+impl<T: bytemuck::AnyBitPattern + FixedSize> DecodedExtMachine<T> {
+    #[inline(never)]
+    pub(crate) fn build(
+        machine: &ExtendedStateTable<T>,
+        data: &[u8],
+        start_end_safe_to_break: u64,
+        is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
+        can_advance: &dyn Fn(&StateEntry<T>) -> bool,
+    ) -> Option<Self> {
+        // Guard against hostile geometry: bound the decode size, and
+        // require OUT_OF_BOUNDS to be a valid class so the clamp in
+        // `get` can never alias into a neighboring state row (the raw
+        // path handles such degenerate machines).
+        const MAX_CELLS: usize = 1 << 18;
+
+        let n_classes = machine.n_classes;
+        // The state array runs from its offset to the end of the
+        // subtable, matching how the table reader slices it.
+        let parts = StateTableParts::read(FontData::new(data)).ok()?;
+        let n_cells = (data.len().checked_sub(parts.state_array_offset as usize)?)
+            / u16::RAW_BYTE_LEN;
+        if n_classes <= class::OUT_OF_BOUNDS as usize
+            || n_cells == 0
+            || n_cells > MAX_CELLS
+            || n_cells.div_ceil(n_classes) > u16::MAX as usize
+        {
+            return None;
+        }
+
+        // Pass 1: decode every cell once; a failed decode is poisoned so
+        // the lookup fails exactly where the raw entry() would.
+        let mut entries = Vec::with_capacity(n_cells);
+        let mut meta = Vec::with_capacity(n_cells);
+        for i in 0..n_cells {
+            let state = (i / n_classes) as u16;
+            let class = (i % n_classes) as u16;
+            if let Ok(entry) = machine.entry(state, class) {
+                entries.push(entry);
+                meta.push(0);
+            } else {
+                entries.push(StateEntry {
+                    new_state: 0,
+                    flags: 0,
+                    payload: T::zeroed(),
+                });
+                meta.push(MACHINE_META_POISON);
+            }
+        }
+
+        // Pass 2: the safe-to-break conditions (see the walk-through in
+        // the morx drive loop), reading the probe entries — start-row
+        // "wouldbe" and end-of-text — from the decoded array instead of
+        // re-parsing them. A poisoned or out-of-range probe answers
+        // false, exactly like the raw path's Err.
+        fn probe<T: Clone>(
+            entries: &[StateEntry<T>],
+            meta: &[u8],
+            ix: usize,
+        ) -> Option<StateEntry<T>> {
+            (meta.get(ix).copied()? & MACHINE_META_POISON == 0).then(|| entries[ix].clone())
+        }
+        for i in 0..n_cells {
+            if meta[i] & MACHINE_META_POISON != 0 {
+                continue;
+            }
+            let state = (i / n_classes) as u16;
+            let class = i % n_classes;
+            let entry = entries[i].clone();
+            let next_state = entry.new_state;
+
+            let is_safe_to_break =
+                // 1
+                !is_actionable(&entry) &&
+
+                // 2
+                (
+                    state == START_OF_TEXT
+                    || (!can_advance(&entry) && next_state == START_OF_TEXT)
+                    ||
+                    {
+                        // 2c
+                        if let Some(wouldbe_entry) = probe(&entries, &meta, class) {
+                            // 2c'
+                            !is_actionable(&wouldbe_entry) &&
+
+                            // 2c"
+                            (
+                                next_state == wouldbe_entry.new_state &&
+                                can_advance(&entry) == can_advance(&wouldbe_entry)
+                            )
+                        } else {
+                            false
+                        }
+                    }
+                ) &&
+
+                // 3
+                (
+                    if state < 64 {
+                        (start_end_safe_to_break & (1 << state)) != 0
+                    } else {
+                        if let Some(end_entry) = probe(
+                            &entries,
+                            &meta,
+                            state as usize * n_classes + class::END_OF_TEXT as usize,
+                        ) {
+                            !is_actionable(&end_entry)
+                        } else {
+                            false
+                        }
+                    }
+                )
+            ;
+
+            meta[i] |= (is_safe_to_break as u8) * MACHINE_META_SAFE;
+        }
+        Some(DecodedExtMachine {
+            n_classes,
+            entries,
+            meta,
+        })
+    }
+
+    /// Mirrors `ExtendedStateTable::entry`: the same class clamp, and
+    /// `None` exactly where it would error.
+    #[inline(always)]
+    pub(crate) fn get(&self, state: u16, class: u16) -> Option<(&StateEntry<T>, u8)> {
+        let mut class = class as usize;
+        if class >= self.n_classes {
+            class = class::OUT_OF_BOUNDS as usize;
+        }
+        let ix = state as usize * self.n_classes + class;
+        let entry = self.entries.get(ix)?;
+        let meta = *self.meta.get(ix)?;
+        if meta & MACHINE_META_POISON != 0 {
+            return None;
+        }
+        Some((entry, meta))
     }
 }
 
