@@ -6,7 +6,7 @@ use crate::hb::glyph_names::GlyphNames;
 use crate::hb::set_digest::hb_set_digest_t;
 use crate::hb::tables::TableRanges;
 use crate::unicode::{CharExt, Codepoint};
-use crate::U32Set;
+use super::aat::glyph_set::GlyphSet;
 use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
@@ -503,7 +503,7 @@ pub struct hb_buffer_t {
     pub context_len: [usize; 2],
 
     pub(crate) digest: hb_set_digest_t,
-    pub(crate) glyph_set: U32Set,
+    pub(crate) glyph_set: GlyphSet,
 
     // Managed by enter / leave
     pub allocated_var_bits: u8,
@@ -553,7 +553,7 @@ impl hb_buffer_t {
             context: Default::default(),
             context_len: [0, 0],
             digest: hb_set_digest_t::new(),
-            glyph_set: U32Set::default(),
+            glyph_set: GlyphSet::default(),
         }
     }
 
@@ -726,8 +726,9 @@ impl hb_buffer_t {
     }
     pub fn update_glyph_set(&mut self) {
         self.glyph_set.clear();
-        self.glyph_set
-            .extend_unsorted(self.info.iter().map(|i| i.glyph_id));
+        for info in &self.info {
+            self.glyph_set.insert(info.glyph_id);
+        }
     }
 
     fn clear(&mut self) {

@@ -1,11 +1,12 @@
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use crate::hb::aat::layout_common::{
-    get_class, AatApplyContext, ClassCache, TypedCollectGlyphs, START_OF_TEXT,
+    get_class, AatApplyContext, ClassCache, DecodedExtMachine, TypedCollectGlyphs,
+    MACHINE_META_SAFE, START_OF_TEXT,
 };
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
-use crate::U32Set;
+use super::glyph_set::GlyphSet;
 use alloc::vec;
 use read_fonts::tables::aat;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
@@ -142,7 +143,10 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             continue;
         };
         if let Ok(kind) = SubtableKind::from_parts(FontData::new(data), &subtable_cache.parts) {
-            apply_subtable(kind, c);
+            let decoded = subtable_cache.decoded.get_or_init(|| {
+                decode_morx_machine(&kind, data, subtable_cache.start_end_safe_to_break)
+            });
+            apply_subtable(kind, decoded, c);
         }
     }
     if c.buffer_is_reversed {
@@ -154,12 +158,12 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
 fn collect_initial_glyphs<T, Ctx: DriverContext<T>>(
     machine: &ExtendedStateTable<T>,
-    glyphs: &mut U32Set,
+    glyphs: &mut GlyphSet,
     num_glyphs: u32,
 ) where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
-    let mut classes = U32Set::default();
+    let mut classes = GlyphSet::default();
 
     let class_table = &machine.class_table;
     for i in 0..machine.n_classes {
@@ -211,11 +215,108 @@ pub(crate) trait DriverContext<T> {
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
-fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverContext<T>>(
+/// Where the drive loop fetches transitions from: the raw state table,
+/// or the per-face decoded copy. Monomorphized, so the raw path
+/// compiles exactly as before and the decoded path is a single load.
+trait EntrySource<T> {
+    fn lookup(&self, state: u16, class: u16) -> Option<(StateEntry<T>, u8)>;
+    fn is_safe_to_break<Ctx: DriverContext<T>>(
+        &self,
+        state: u16,
+        class: u16,
+        entry: &StateEntry<T>,
+        meta: u8,
+        start_end_safe_to_break: u64,
+    ) -> bool;
+}
+
+struct RawMachine<'a, 'b, T>(&'b ExtendedStateTable<'a, T>);
+
+impl<T: bytemuck::AnyBitPattern + FixedSize> EntrySource<T> for RawMachine<'_, '_, T> {
+    #[inline(always)]
+    fn lookup(&self, state: u16, class: u16) -> Option<(StateEntry<T>, u8)> {
+        self.0.entry(state, class).ok().map(|entry| (entry, 0))
+    }
+
+    fn is_safe_to_break<Ctx: DriverContext<T>>(
+        &self,
+        state: u16,
+        class: u16,
+        entry: &StateEntry<T>,
+        _meta: u8,
+        start_end_safe_to_break: u64,
+    ) -> bool {
+        let machine = self.0;
+        let next_state = entry.new_state;
+        // 1
+        !Ctx::is_actionable(entry) &&
+
+        // 2
+        (
+            state == START_OF_TEXT
+            || (!Ctx::can_advance(entry) && next_state == START_OF_TEXT)
+            ||
+            {
+                // 2c
+                if let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class) {
+                    // 2c'
+                    !Ctx::is_actionable(&wouldbe_entry) &&
+
+                    // 2c"
+                    (
+                        next_state == wouldbe_entry.new_state &&
+                        Ctx::can_advance(entry) == Ctx::can_advance(&wouldbe_entry)
+                    )
+                } else {
+                    false
+                }
+            }
+        ) &&
+
+        // 3
+        (
+            if state < 64 {
+                (start_end_safe_to_break & (1 << state)) != 0
+            } else {
+                if let Ok(end_entry) = machine.entry(state, u16::from(aat::class::END_OF_TEXT)) {
+                    !Ctx::is_actionable(&end_entry)
+                } else {
+                    false
+                }
+            }
+        )
+    }
+}
+
+impl<T: bytemuck::AnyBitPattern + FixedSize> EntrySource<T> for &DecodedExtMachine<T> {
+    #[inline(always)]
+    fn lookup(&self, state: u16, class: u16) -> Option<(StateEntry<T>, u8)> {
+        self.get(state, class).map(|(entry, meta)| (entry.clone(), meta))
+    }
+
+    #[inline(always)]
+    fn is_safe_to_break<Ctx: DriverContext<T>>(
+        &self,
+        _state: u16,
+        _class: u16,
+        _entry: &StateEntry<T>,
+        meta: u8,
+        _start_end_safe_to_break: u64,
+    ) -> bool {
+        meta & MACHINE_META_SAFE != 0
+    }
+}
+
+fn drive<T, Ctx, S>(
     machine: &ExtendedStateTable<'_, T>,
+    source: &S,
     c: &mut Ctx,
     ac: &mut AatApplyContext,
-) {
+) where
+    T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug,
+    Ctx: DriverContext<T>,
+    S: EntrySource<T>,
+{
     if !Ctx::in_place() {
         ac.buffer.clear_output();
     }
@@ -274,7 +375,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
             u16::from(aat::class::END_OF_TEXT)
         };
 
-        let Ok(entry) = machine.entry(state, class) else {
+        let Some((entry, meta)) = source.lookup(state, class) else {
             break;
         };
 
@@ -345,45 +446,13 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
         //
         //   https://github.com/harfbuzz/harfbuzz/issues/2860
 
-        let is_safe_to_break =
-            // 1
-            !Ctx::is_actionable(&entry) &&
-
-            // 2
-            (
-                state == START_OF_TEXT
-                || (!Ctx::can_advance(&entry) && next_state == START_OF_TEXT)
-                ||
-                {
-                    // 2c
-                    if let Ok(wouldbe_entry) = machine.entry(START_OF_TEXT, class) {
-                        // 2c'
-                        !Ctx::is_actionable(&wouldbe_entry) &&
-
-                        // 2c"
-                        (
-                            next_state == wouldbe_entry.new_state &&
-                            Ctx::can_advance(&entry) == Ctx::can_advance(&wouldbe_entry)
-                        )
-                    } else {
-                        false
-                    }
-                }
-            ) &&
-
-            // 3
-            (
-                if state < 64 {
-                    (ac.start_end_safe_to_break & (1 << state)) != 0
-                } else {
-                    if let Ok(end_entry) = machine.entry(state, u16::from(aat::class::END_OF_TEXT)) {
-                        !Ctx::is_actionable(&end_entry)
-                    } else {
-                        false
-                    }
-                }
-            )
-        ;
+        let is_safe_to_break = source.is_safe_to_break::<Ctx>(
+            state,
+            class,
+            &entry,
+            meta,
+            ac.start_end_safe_to_break,
+        );
 
         if !is_safe_to_break && ac.buffer.backtrack_len() > 0 && ac.buffer.idx < ac.buffer.len {
             ac.buffer.unsafe_to_break_from_outbuffer(
@@ -415,11 +484,19 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
     }
 }
 
-fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
+fn apply_subtable<'a>(
+    kind: SubtableKind<'a>,
+    decoded: &DecodedMorxMachine,
+    ac: &mut AatApplyContext<'a>,
+) {
     match kind {
         SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            drive(&table, &mut c, ac);
+            if let DecodedMorxMachine::Rearrangement(dec) = decoded {
+                drive(&table, &dec, &mut c, ac);
+            } else {
+                drive(&table, &RawMachine(&table), &mut c, ac);
+            }
         }
         SubtableKind::Contextual(table) => {
             let mut c = ContextualCtx {
@@ -427,7 +504,11 @@ fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
                 mark: 0,
                 table: table.clone(),
             };
-            drive(&table.state_table, &mut c, ac);
+            if let DecodedMorxMachine::Contextual(dec) = decoded {
+                drive(&table.state_table, &dec, &mut c, ac);
+            } else {
+                drive(&table.state_table, &RawMachine(&table.state_table), &mut c, ac);
+            }
         }
         SubtableKind::Ligature(table) => {
             let mut c = LigatureCtx {
@@ -435,7 +516,11 @@ fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
                 match_length: 0,
                 match_positions: [0; LIGATURE_MAX_MATCHES],
             };
-            drive(&table.state_table, &mut c, ac);
+            if let DecodedMorxMachine::Ligature(dec) = decoded {
+                drive(&table.state_table, &dec, &mut c, ac);
+            } else {
+                drive(&table.state_table, &RawMachine(&table.state_table), &mut c, ac);
+            }
         }
         SubtableKind::NonContextual(ref lookup) => {
             let mut last_range = ac.range_flags.as_ref().and_then(|rf| {
@@ -484,7 +569,11 @@ fn apply_subtable<'a>(kind: SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
                 mark: 0,
                 glyphs: table.glyphs,
             };
-            drive(&table.state_table, &mut c, ac);
+            if let DecodedMorxMachine::Insertion(dec) = decoded {
+                drive(&table.state_table, &dec, &mut c, ac);
+            } else {
+                drive(&table.state_table, &RawMachine(&table.state_table), &mut c, ac);
+            }
         }
     }
 }
@@ -998,10 +1087,101 @@ pub(crate) struct MorxSubtableDescriptor {
     pub(crate) data_end: u32,
 }
 
+/// The per-kind decoded machine for a morx subtable, if its geometry
+/// allowed decoding; `None` (or a kind mismatch) sends the drive loop
+/// down the raw `entry()` path.
+pub(crate) enum DecodedMorxMachine {
+    None,
+    Rearrangement(DecodedExtMachine<NoPayload>),
+    Contextual(DecodedExtMachine<ContextualEntryData>),
+    Ligature(DecodedExtMachine<BigEndian<u16>>),
+    Insertion(DecodedExtMachine<InsertionEntryData>),
+}
+
+#[inline(never)]
+fn decode_morx_machine(
+    kind: &SubtableKind,
+    data: &[u8],
+    start_end_safe_to_break: u64,
+) -> DecodedMorxMachine {
+    match kind {
+        SubtableKind::Rearrangement(table) => DecodedExtMachine::build(
+            table,
+            data,
+            start_end_safe_to_break,
+            &RearrangementCtx::is_actionable,
+            &RearrangementCtx::can_advance,
+        )
+        .map_or(DecodedMorxMachine::None, DecodedMorxMachine::Rearrangement),
+        SubtableKind::Contextual(table) => DecodedExtMachine::build(
+            &table.state_table,
+            data,
+            start_end_safe_to_break,
+            &ContextualCtx::is_actionable,
+            &ContextualCtx::can_advance,
+        )
+        .map_or(DecodedMorxMachine::None, DecodedMorxMachine::Contextual),
+        SubtableKind::Ligature(table) => DecodedExtMachine::build(
+            &table.state_table,
+            data,
+            start_end_safe_to_break,
+            &LigatureCtx::is_actionable,
+            &LigatureCtx::can_advance,
+        )
+        .map_or(DecodedMorxMachine::None, DecodedMorxMachine::Ligature),
+        SubtableKind::Insertion(table) => DecodedExtMachine::build(
+            &table.state_table,
+            data,
+            start_end_safe_to_break,
+            &InsertionCtx::is_actionable,
+            &InsertionCtx::can_advance,
+        )
+        .map_or(DecodedMorxMachine::None, DecodedMorxMachine::Insertion),
+        SubtableKind::NonContextual(_) => DecodedMorxMachine::None,
+    }
+}
+
+/// Decoding a machine costs work proportional to its size, and some
+/// fonts carry large machines that a given text never walks (their
+/// subtable fails the glyph-set gate on every line). Decode lazily, on
+/// the first application that passes the gates, so unwalked machines
+/// cost nothing. Under no_std there is no OnceLock; those builds stay
+/// on the raw path.
+#[cfg(feature = "std")]
+pub(crate) struct LazyDecodedMorx(std::sync::OnceLock<DecodedMorxMachine>);
+
+#[cfg(feature = "std")]
+impl LazyDecodedMorx {
+    fn new() -> Self {
+        Self(std::sync::OnceLock::new())
+    }
+
+    #[inline(always)]
+    fn get_or_init(&self, init: impl FnOnce() -> DecodedMorxMachine) -> &DecodedMorxMachine {
+        self.0.get_or_init(init)
+    }
+}
+
+#[cfg(not(feature = "std"))]
+pub(crate) struct LazyDecodedMorx;
+
+#[cfg(not(feature = "std"))]
+impl LazyDecodedMorx {
+    fn new() -> Self {
+        Self
+    }
+
+    #[inline(always)]
+    fn get_or_init(&self, _init: impl FnOnce() -> DecodedMorxMachine) -> &DecodedMorxMachine {
+        &DecodedMorxMachine::None
+    }
+}
+
 pub(crate) struct MorxSubtableCache {
     start_end_safe_to_break: u64,
-    glyph_set: U32Set,
+    glyph_set: GlyphSet,
     class_cache: ClassCache,
+    decoded: LazyDecodedMorx,
     /// Pre-resolved subtable layout, so per-application dispatch rebuilds
     /// the kind without re-reading headers. An unreadable subtable stores
     /// an invalid format, which makes from_parts fail like the full read
@@ -1028,7 +1208,7 @@ impl MorxSubtableCache {
 
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut glyph_set = U32Set::default();
+        let mut glyph_set = GlyphSet::default();
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Rearrangement(table) => {
@@ -1081,6 +1261,7 @@ impl MorxSubtableCache {
             start_end_safe_to_break,
             glyph_set,
             class_cache: ClassCache::new(),
+            decoded: LazyDecodedMorx::new(),
             parts,
         }
     }
