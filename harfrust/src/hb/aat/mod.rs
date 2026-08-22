@@ -1,3 +1,4 @@
+pub mod glyph_set;
 pub mod layout;
 pub mod layout_common;
 pub mod layout_kerx_table;

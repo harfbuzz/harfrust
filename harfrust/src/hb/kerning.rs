@@ -19,7 +19,7 @@ use super::ot_layout_gpos_table::attach_type;
 use super::ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t};
 use super::ot_shape_plan::hb_ot_shape_plan_t;
 use super::{hb_font_t, hb_mask_t};
-use crate::U32Set;
+use super::aat::glyph_set::GlyphSet;
 
 pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &ClassCache) -> u8 {
     if let Some(klass) = cache.get(glyph_id.to_u32()) {
@@ -366,13 +366,13 @@ impl DecodedStateMachine {
 pub trait CollectGlyphs {
     /// For each valid index, read the value of type `T`.
     /// If `filter(&value)` returns true, insert the index into `set`.
-    fn collect_glyphs_filtered<F>(&self, _set: &mut U32Set, _num_glyphs: u32, _filter: F)
+    fn collect_glyphs_filtered<F>(&self, _set: &mut GlyphSet, _num_glyphs: u32, _filter: F)
     where
         F: Fn(u8) -> bool;
 }
 
 impl CollectGlyphs for aat::ClassSubtable<'_> {
-    fn collect_glyphs_filtered<F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<F>(&self, set: &mut GlyphSet, _num_glyphs: u32, filter: F)
     where
         F: Fn(u8) -> bool,
     {
@@ -387,8 +387,8 @@ impl CollectGlyphs for aat::ClassSubtable<'_> {
     }
 }
 
-fn collect_initial_glyphs(machine: &aat::StateTable, glyphs: &mut U32Set, num_glyphs: u32) {
-    let mut classes = U32Set::default();
+fn collect_initial_glyphs(machine: &aat::StateTable, glyphs: &mut GlyphSet, num_glyphs: u32) {
+    let mut classes = GlyphSet::default();
 
     let class_table = machine.header.class_table().ok();
     let Some(class_table) = class_table else {
@@ -851,7 +851,7 @@ impl SimpleKerning for Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
-    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+    fn collect_glyphs(&self, first_set: &mut GlyphSet, second_set: &mut GlyphSet, _num_glyphs: u32) {
         for &pair in self.pairs() {
             first_set.insert(pair.left.get().to_u32());
             second_set.insert(pair.right.get().to_u32());
@@ -863,7 +863,7 @@ impl SimpleKerning for Subtable2<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
-    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+    fn collect_glyphs(&self, first_set: &mut GlyphSet, second_set: &mut GlyphSet, _num_glyphs: u32) {
         let left_classes = &self.left_offset_table;
         let right_classes = &self.right_offset_table;
 
@@ -881,7 +881,7 @@ impl SimpleKerning for Subtable3<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
-    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+    fn collect_glyphs(&self, first_set: &mut GlyphSet, second_set: &mut GlyphSet, _num_glyphs: u32) {
         first_set.insert_range(0..=self.glyph_count().saturating_sub(1) as u32);
         second_set.insert_range(0..=self.glyph_count().saturating_sub(1) as u32);
     }
@@ -889,8 +889,8 @@ impl SimpleKerning for Subtable3<'_> {
 
 pub(crate) struct KernSubtableCache {
     start_end_safe_to_break: u64,
-    first_set: U32Set,
-    second_set: U32Set,
+    first_set: GlyphSet,
+    second_set: GlyphSet,
     class_cache: Box<ClassCache>,
     decoded: Option<DecodedStateMachine>,
 }
@@ -898,8 +898,8 @@ pub(crate) struct KernSubtableCache {
 impl KernSubtableCache {
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut first_set = U32Set::default();
-        let mut second_set = U32Set::default();
+        let mut first_set = GlyphSet::default();
+        let mut second_set = GlyphSet::default();
         let mut decoded = None;
         if let Ok(kind) = subtable.kind() {
             match &kind {

@@ -9,7 +9,7 @@ use crate::hb::{
     ot_layout_gpos_table::attach_type,
     ot_layout_gsubgpos::{skipping_iterator_t, OT::hb_ot_apply_context_t},
 };
-use crate::U32Set;
+use super::glyph_set::GlyphSet;
 use alloc::boxed::Box;
 use core::convert::TryFrom;
 use read_fonts::{
@@ -147,14 +147,14 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
 pub trait SimpleKerning {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32>;
-    fn collect_glyphs(&self, _first_set: &mut U32Set, _second_set: &mut U32Set, _num_glyphs: u32);
+    fn collect_glyphs(&self, _first_set: &mut GlyphSet, _second_set: &mut GlyphSet, _num_glyphs: u32);
 }
 
 impl SimpleKerning for Subtable0<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
-    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, _num_glyphs: u32) {
+    fn collect_glyphs(&self, first_set: &mut GlyphSet, second_set: &mut GlyphSet, _num_glyphs: u32) {
         for &pair in self.pairs() {
             first_set.insert(pair.left.get().to_u32());
             second_set.insert(pair.right.get().to_u32());
@@ -166,7 +166,7 @@ impl SimpleKerning for Subtable2<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
-    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, num_glyphs: u32) {
+    fn collect_glyphs(&self, first_set: &mut GlyphSet, second_set: &mut GlyphSet, num_glyphs: u32) {
         let left_classes = &self.left_offset_table;
         let right_classes = &self.right_offset_table;
 
@@ -179,7 +179,7 @@ impl SimpleKerning for Subtable6<'_> {
     fn simple_kerning(&self, left: GlyphId, right: GlyphId) -> Option<i32> {
         self.kerning(left, right)
     }
-    fn collect_glyphs(&self, first_set: &mut U32Set, second_set: &mut U32Set, num_glyphs: u32) {
+    fn collect_glyphs(&self, first_set: &mut GlyphSet, second_set: &mut GlyphSet, num_glyphs: u32) {
         match &self {
             Self::ShortValues(rows, columns, ..) => {
                 rows.collect_glyphs(first_set, num_glyphs);
@@ -314,13 +314,13 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
 
 fn collect_initial_glyphs<T>(
     machine: &aat::ExtendedStateTable<T>,
-    glyphs: &mut U32Set,
+    glyphs: &mut GlyphSet,
     num_glyphs: u32,
 ) where
     T: FixedSize + bytemuck::AnyBitPattern,
     aat::StateEntry<T>: KerxStateEntryExt,
 {
-    let mut classes = U32Set::default();
+    let mut classes = GlyphSet::default();
 
     let class_table = &machine.class_table;
     for i in 0..machine.n_classes {
@@ -738,16 +738,16 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
 
 pub(crate) struct KerxSubtableCache {
     start_end_safe_to_break: u64,
-    first_set: U32Set,
-    second_set: U32Set,
+    first_set: GlyphSet,
+    second_set: GlyphSet,
     class_cache: Box<ClassCache>,
 }
 
 impl KerxSubtableCache {
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut first_set = U32Set::default();
-        let mut second_set = U32Set::default();
+        let mut first_set = GlyphSet::default();
+        let mut second_set = GlyphSet::default();
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Format0(format0) => {

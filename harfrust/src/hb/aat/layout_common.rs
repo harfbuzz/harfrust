@@ -6,7 +6,7 @@ use crate::hb::face::Scale;
 use crate::hb::hb_mask_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
-use crate::U32Set;
+use super::glyph_set::GlyphSet;
 use read_fonts::tables::aat::*;
 use read_fonts::types::{FixedSize, GlyphId};
 
@@ -46,8 +46,8 @@ pub struct AatApplyContext<'a> {
     pub(crate) buffer_is_reversed: bool,
     // Caches
     using_buffer_glyph_set: bool,
-    pub(crate) first_set: Option<&'a U32Set>,
-    pub(crate) second_set: Option<&'a U32Set>,
+    pub(crate) first_set: Option<&'a GlyphSet>,
+    pub(crate) second_set: Option<&'a GlyphSet>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
     pub(crate) start_end_safe_to_break: u64,
 }
@@ -198,13 +198,13 @@ impl<'a> AatApplyContext<'a> {
 
 pub trait TypedCollectGlyphs<T: LookupValue> {
     /// Add all indices into `set`.
-    fn collect_glyphs(&self, set: &mut U32Set, num_glyphs: u32) {
+    fn collect_glyphs(&self, set: &mut GlyphSet, num_glyphs: u32) {
         self.collect_glyphs_filtered::<_>(set, num_glyphs, |_| true);
     }
 
     /// For each valid index, read the value of type `T`.
     /// If `filter(&value)` returns true, insert the index into `set`.
-    fn collect_glyphs_filtered<F>(&self, _set: &mut U32Set, _num_glyphs: u32, _filter: F)
+    fn collect_glyphs_filtered<F>(&self, _set: &mut GlyphSet, _num_glyphs: u32, _filter: F)
     where
         F: Fn(T) -> bool;
 }
@@ -213,10 +213,10 @@ impl<T> TypedCollectGlyphs<T> for TypedLookup<'_, T>
 where
     T: LookupValue,
 {
-    fn collect_glyphs(&self, set: &mut U32Set, num_glyphs: u32) {
+    fn collect_glyphs(&self, set: &mut GlyphSet, num_glyphs: u32) {
         self.lookup.collect_glyphs::<T>(set, num_glyphs);
     }
-    fn collect_glyphs_filtered<F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<F>(&self, set: &mut GlyphSet, num_glyphs: u32, filter: F)
     where
         F: Fn(T) -> bool,
     {
@@ -227,7 +227,7 @@ where
 
 pub trait CollectGlyphs {
     /// Add all indices into `set`.
-    fn collect_glyphs<T>(&self, set: &mut U32Set, num_glyphs: u32)
+    fn collect_glyphs<T>(&self, set: &mut GlyphSet, num_glyphs: u32)
     where
         T: LookupValue,
     {
@@ -236,14 +236,14 @@ pub trait CollectGlyphs {
 
     /// For each valid index, read the value of type `T`.
     /// If `filter(&value)` returns true, insert the index into `set`.
-    fn collect_glyphs_filtered<T, F>(&self, _set: &mut U32Set, _num_glyphs: u32, _filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, _set: &mut GlyphSet, _num_glyphs: u32, _filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool;
 }
 
 impl CollectGlyphs for Lookup<'_> {
-    fn collect_glyphs<T>(&self, set: &mut U32Set, num_glyphs: u32)
+    fn collect_glyphs<T>(&self, set: &mut GlyphSet, num_glyphs: u32)
     where
         T: LookupValue,
     {
@@ -256,7 +256,7 @@ impl CollectGlyphs for Lookup<'_> {
             Lookup::Format10(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
         }
     }
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
@@ -285,13 +285,13 @@ impl CollectGlyphs for Lookup<'_> {
 }
 
 impl CollectGlyphs for Lookup0<'_> {
-    fn collect_glyphs<T>(&self, set: &mut U32Set, num_glyphs: u32)
+    fn collect_glyphs<T>(&self, set: &mut GlyphSet, num_glyphs: u32)
     where
         T: LookupValue,
     {
         set.insert_range(0..=num_glyphs.saturating_sub(1));
     }
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
@@ -306,7 +306,7 @@ impl CollectGlyphs for Lookup0<'_> {
     }
 }
 impl CollectGlyphs for Lookup2<'_> {
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
@@ -327,7 +327,7 @@ impl CollectGlyphs for Lookup2<'_> {
     }
 }
 impl CollectGlyphs for Lookup4<'_> {
-    fn collect_glyphs<T>(&self, set: &mut U32Set, _num_glyphs: u32)
+    fn collect_glyphs<T>(&self, set: &mut GlyphSet, _num_glyphs: u32)
     where
         T: LookupValue,
     {
@@ -338,7 +338,7 @@ impl CollectGlyphs for Lookup4<'_> {
             set.insert_range(segment.first_glyph.get() as u32..=segment.last_glyph.get() as u32);
         }
     }
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
@@ -359,7 +359,7 @@ impl CollectGlyphs for Lookup4<'_> {
     }
 }
 impl CollectGlyphs for Lookup6<'_> {
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
@@ -379,7 +379,7 @@ impl CollectGlyphs for Lookup6<'_> {
     }
 }
 impl CollectGlyphs for Lookup8<'_> {
-    fn collect_glyphs<T>(&self, set: &mut U32Set, _num_glyphs: u32)
+    fn collect_glyphs<T>(&self, set: &mut GlyphSet, _num_glyphs: u32)
     where
         T: LookupValue,
     {
@@ -392,7 +392,7 @@ impl CollectGlyphs for Lookup8<'_> {
             first_glyph as u32..=first_glyph as u32 + n_values.saturating_sub(1) as u32,
         );
     }
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
@@ -410,7 +410,7 @@ impl CollectGlyphs for Lookup8<'_> {
     }
 }
 impl CollectGlyphs for Lookup10<'_> {
-    fn collect_glyphs<T>(&self, set: &mut U32Set, _num_glyphs: u32)
+    fn collect_glyphs<T>(&self, set: &mut GlyphSet, _num_glyphs: u32)
     where
         T: LookupValue,
     {
@@ -423,7 +423,7 @@ impl CollectGlyphs for Lookup10<'_> {
             first_glyph as u32..=first_glyph as u32 + n_values.saturating_sub(1) as u32,
         );
     }
-    fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
+    fn collect_glyphs_filtered<T, F>(&self, set: &mut GlyphSet, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,

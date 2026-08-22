@@ -5,7 +5,7 @@ use crate::hb::aat::layout_common::{
 };
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
-use crate::U32Set;
+use super::glyph_set::GlyphSet;
 use alloc::vec;
 use read_fonts::tables::aat;
 use read_fonts::tables::aat::{ExtendedStateTable, NoPayload, StateEntry};
@@ -154,12 +154,12 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
 fn collect_initial_glyphs<T, Ctx: DriverContext<T>>(
     machine: &ExtendedStateTable<T>,
-    glyphs: &mut U32Set,
+    glyphs: &mut GlyphSet,
     num_glyphs: u32,
 ) where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
-    let mut classes = U32Set::default();
+    let mut classes = GlyphSet::default();
 
     let class_table = &machine.class_table;
     for i in 0..machine.n_classes {
@@ -1000,7 +1000,7 @@ pub(crate) struct MorxSubtableDescriptor {
 
 pub(crate) struct MorxSubtableCache {
     start_end_safe_to_break: u64,
-    glyph_set: U32Set,
+    glyph_set: GlyphSet,
     class_cache: ClassCache,
     /// Pre-resolved subtable layout, so per-application dispatch rebuilds
     /// the kind without re-reading headers. An unreadable subtable stores
@@ -1028,7 +1028,7 @@ impl MorxSubtableCache {
 
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut glyph_set = U32Set::default();
+        let mut glyph_set = GlyphSet::default();
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Rearrangement(table) => {
