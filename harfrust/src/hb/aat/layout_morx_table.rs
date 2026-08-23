@@ -1,7 +1,7 @@
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use crate::hb::aat::layout_common::{
-    get_class, AatApplyContext, ClassCache, SafeToBreakCache, TypedCollectGlyphs, START_OF_TEXT,
+    get_class, AatApplyContext, ClassCache, SafeToBreakAccel, TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
 use crate::hb::{hb_font_t, GlyphInfo};
@@ -115,7 +115,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
         c.first_set = Some(&subtable_cache.glyph_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-        c.safe_to_break_cache = Some(&subtable_cache.safe_to_break);
+        c.safe_to_break_accel = Some(&subtable_cache.safe_to_break);
 
         if !c.buffer_intersects_machine() {
             continue;
@@ -355,7 +355,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
                 state == START_OF_TEXT
                 || (!Ctx::can_advance(&entry) && next_state == START_OF_TEXT)
                 // 2c, 2c', 2c"
-                || ac.safe_to_break_cache.unwrap().wouldbe_matches(class, next_state, Ctx::can_advance(&entry))
+                || ac.safe_to_break_accel.unwrap().wouldbe_matches(class, next_state, Ctx::can_advance(&entry))
             ) &&
 
             // 3
@@ -363,7 +363,7 @@ fn drive<T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug, Ctx: DriverC
                 if state < 64 {
                     (ac.start_end_safe_to_break & (1 << state)) != 0
                 } else {
-                    ac.safe_to_break_cache.unwrap().eot_safe_high(state)
+                    ac.safe_to_break_accel.unwrap().eot_safe_high(state)
                 }
             )
         ;
@@ -983,7 +983,7 @@ pub(crate) struct MorxSubtableDescriptor {
 
 pub(crate) struct MorxSubtableCache {
     start_end_safe_to_break: u64,
-    safe_to_break: SafeToBreakCache,
+    safe_to_break: SafeToBreakAccel,
     glyph_set: U32Set,
     class_cache: ClassCache,
     /// Pre-resolved subtable layout, so per-application dispatch rebuilds
@@ -1012,14 +1012,14 @@ impl MorxSubtableCache {
 
     pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut safe_to_break = SafeToBreakCache::empty();
+        let mut safe_to_break = SafeToBreakAccel::empty();
         let mut glyph_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
             match &kind {
                 SubtableKind::Rearrangement(table) => {
                     start_end_safe_to_break =
                         collect_start_end_safe_to_break::<_, RearrangementCtx>(table);
-                    safe_to_break = SafeToBreakCache::build_extended(
+                    safe_to_break = SafeToBreakAccel::build_extended(
                         table,
                         subtable.data(),
                         &RearrangementCtx::is_actionable,
@@ -1034,7 +1034,7 @@ impl MorxSubtableCache {
                 SubtableKind::Contextual(table) => {
                     start_end_safe_to_break =
                         collect_start_end_safe_to_break::<_, ContextualCtx>(&table.state_table);
-                    safe_to_break = SafeToBreakCache::build_extended(
+                    safe_to_break = SafeToBreakAccel::build_extended(
                         &table.state_table,
                         subtable.data(),
                         &ContextualCtx::is_actionable,
@@ -1049,7 +1049,7 @@ impl MorxSubtableCache {
                 SubtableKind::Ligature(table) => {
                     start_end_safe_to_break =
                         collect_start_end_safe_to_break::<_, LigatureCtx>(&table.state_table);
-                    safe_to_break = SafeToBreakCache::build_extended(
+                    safe_to_break = SafeToBreakAccel::build_extended(
                         &table.state_table,
                         subtable.data(),
                         &LigatureCtx::is_actionable,
@@ -1067,7 +1067,7 @@ impl MorxSubtableCache {
                 SubtableKind::Insertion(table) => {
                     start_end_safe_to_break =
                         collect_start_end_safe_to_break::<_, InsertionCtx>(&table.state_table);
-                    safe_to_break = SafeToBreakCache::build_extended(
+                    safe_to_break = SafeToBreakAccel::build_extended(
                         &table.state_table,
                         subtable.data(),
                         &InsertionCtx::is_actionable,
