@@ -498,6 +498,15 @@ pub struct hb_font_t<'a> {
 }
 
 impl<'a> crate::Shaper<'a> {
+    /// Builds a shaper for the font instance, reusing the instance's
+    /// cached shaping data. The shaper borrows the instance; callers
+    /// that shape repeatedly can build it once and reuse it across
+    /// calls.
+    #[cfg(feature = "experimental_font_api")]
+    pub fn from_font_instance(font: &'a crate::font::FontInstance) -> Option<Self> {
+        Self::from_font(font)
+    }
+
     pub(crate) fn from_font(font: &'a crate::font::FontInstance) -> Option<Self> {
         let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
             Box::new(ShaperData::from_font(font))
