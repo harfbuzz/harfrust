@@ -5,6 +5,7 @@ pub mod layout_morx_table;
 pub mod layout_trak_table;
 pub mod map;
 
+use crate::hb::aat::layout_common::SafeToBreakAccel;
 use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
 use crate::hb::aat::layout_morx_table::{MorxSubtableCache, MorxSubtableDescriptor};
 use crate::hb::kerning::KernSubtableCache;
@@ -18,6 +19,7 @@ use read_fonts::{
 
 #[derive(Default)]
 pub struct AatCache {
+    safe_to_break: SafeToBreakAccel,
     pub morx: Vec<MorxSubtableCache>,
     pub morx_descriptors: Vec<MorxSubtableDescriptor>,
     pub kern: Vec<KernSubtableCache>,
@@ -42,7 +44,8 @@ impl AatCache {
                     let Ok(subtable) = subtable else {
                         continue;
                     };
-                    let entry = MorxSubtableCache::new(&subtable, num_glyphs);
+                    let entry =
+                        MorxSubtableCache::new(&subtable, num_glyphs, &mut cache.safe_to_break);
                     cache.morx_descriptors.push(MorxSubtableCache::descriptor(
                         chain_index,
                         &subtable,
@@ -57,9 +60,8 @@ impl AatCache {
                 let Ok(subtable) = subtable else {
                     continue;
                 };
-                cache
-                    .kern
-                    .push(KernSubtableCache::new(&subtable, num_glyphs));
+                let entry = KernSubtableCache::new(&subtable, num_glyphs, &mut cache.safe_to_break);
+                cache.kern.push(entry);
             }
         }
         if let Ok(kerx) = font.kerx() {
@@ -67,9 +69,8 @@ impl AatCache {
                 let Ok(subtable) = subtable else {
                     continue;
                 };
-                cache
-                    .kerx
-                    .push(KerxSubtableCache::new(&subtable, num_glyphs));
+                let entry = KerxSubtableCache::new(&subtable, num_glyphs, &mut cache.safe_to_break);
+                cache.kerx.push(entry);
             }
         }
         cache
@@ -78,6 +79,7 @@ impl AatCache {
 
 #[derive(Clone, Default)]
 pub struct AatTables<'a> {
+    pub(crate) safe_to_break: Option<&'a SafeToBreakAccel>,
     pub morx: Option<(
         Morx<'a>,
         &'a [MorxSubtableCache],
@@ -132,6 +134,7 @@ impl<'a> AatTables<'a> {
         let trak = table_ranges.trak.resolve_table(font);
         let feat = table_ranges.feat.resolve_table(font);
         Self {
+            safe_to_break: Some(&cache.safe_to_break),
             morx,
             ankr,
             kern,
@@ -174,6 +177,7 @@ impl<'a> AatTables<'a> {
         let trak = font.trak().ok();
         let feat = font.feat().ok();
         Self {
+            safe_to_break: Some(&cache.safe_to_break),
             morx,
             ankr,
             kern,
