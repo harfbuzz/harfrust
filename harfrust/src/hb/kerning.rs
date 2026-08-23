@@ -42,6 +42,8 @@ pub fn hb_ot_layout_kern(
     c.setup_buffer_glyph_set();
 
     let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
+    let safe_to_break = c.face.aat_tables.safe_to_break?;
+    let safe_to_break_start = c.face.aat_tables.kern_safe_to_break_start;
 
     let mut subtable_idx = 0;
 
@@ -49,6 +51,7 @@ pub fn hb_ot_layout_kern(
     for subtable in kern.subtables() {
         let Ok(subtable) = subtable else { continue };
 
+        let safe_to_break_index = safe_to_break_start.checked_add(subtable_idx)?;
         let subtable_cache = subtable_caches.get(subtable_idx);
         let Some(subtable_cache) = subtable_cache.as_ref() else {
             break;
@@ -67,7 +70,7 @@ pub fn hb_ot_layout_kern(
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-        c.safe_to_break_accel = Some(&subtable_cache.safe_to_break);
+        c.safe_to_break = safe_to_break.subtable(safe_to_break_index)?;
 
         if !c.buffer_intersects_machine() {
             continue;
@@ -407,7 +410,7 @@ fn apply_state_machine_kerning(
                 state == START_OF_TEXT
                 || (!entry.has_advance() && next_state == START_OF_TEXT)
                 // 2c, 2c', 2c"
-                || c.safe_to_break_accel.unwrap().wouldbe_matches(u16::from(class), next_state, entry.has_advance())
+                || c.safe_to_break.wouldbe_matches(u16::from(class), next_state, entry.has_advance())
             ) &&
 
             // 3
@@ -415,7 +418,7 @@ fn apply_state_machine_kerning(
                 if state < 64 {
                     (c.start_end_safe_to_break & (1 << state)) != 0
                 } else {
-                    c.safe_to_break_accel.unwrap().eot_safe_high(state)
+                    c.safe_to_break.eot_safe_high(state)
                 }
             )
         ;
@@ -622,16 +625,19 @@ impl SimpleKerning for Subtable3<'_> {
 
 pub(crate) struct KernSubtableCache {
     start_end_safe_to_break: u64,
-    safe_to_break: SafeToBreakAccel,
     first_set: U32Set,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
 }
 
 impl KernSubtableCache {
-    pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+    pub(crate) fn new(
+        subtable: &Subtable,
+        num_glyphs: u32,
+        safe_to_break: &mut SafeToBreakAccel,
+    ) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut safe_to_break = SafeToBreakAccel::empty();
+        let mut has_safe_to_break = false;
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
@@ -641,11 +647,12 @@ impl KernSubtableCache {
                 }
                 SubtableKind::Format1(format1) => {
                     start_end_safe_to_break = collect_start_end_safe_to_break(format1);
-                    safe_to_break = SafeToBreakAccel::build_legacy(
+                    safe_to_break.build_legacy(
                         format1,
                         &KernStateEntryExt::is_actionable,
                         &KernStateEntryExt::has_advance,
                     );
+                    has_safe_to_break = true;
                     collect_initial_glyphs(format1, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format2(format2) => {
@@ -656,9 +663,11 @@ impl KernSubtableCache {
                 }
             }
         }
+        if !has_safe_to_break {
+            safe_to_break.add_empty();
+        }
         KernSubtableCache {
             start_end_safe_to_break,
-            safe_to_break,
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
