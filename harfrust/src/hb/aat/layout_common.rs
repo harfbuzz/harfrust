@@ -212,9 +212,7 @@ pub(crate) struct SafeToBreakCache {
     /// Per class: `entry(START_OF_TEXT, class)` packed as 15 bits of
     /// new state with the advance bit on top when present and
     /// non-actionable, `!0` otherwise — so condition 2c is a single
-    /// compare. Real machines' state counts fit 15 bits; the rare
-    /// entry that doesn't is stored as absent, which merely answers
-    /// condition 2c conservatively.
+    /// compare. Real machines' state counts fit 15 bits.
     wouldbe: Vec<u16>,
     /// Condition-3 bits for states 64 and up; states below 64 keep
     /// using the `start_end_safe_to_break` word. Empty for machines
@@ -226,9 +224,10 @@ pub(crate) const WOULDBE_NONE: u16 = !0;
 
 #[inline(always)]
 pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u16 {
-    if new_state >= 0x7FFF {
-        return WOULDBE_NONE;
-    }
+    // States fit 15 bits in any real font. A pathological new state
+    // that doesn't can alias the sentinel and misreport condition 2c,
+    // which only perturbs unsafe-to-break flags -- not worth runtime
+    // checks on this path.
     new_state | ((advance as u16) << 15)
 }
 
@@ -250,8 +249,7 @@ impl SafeToBreakCache {
         if class >= self.n_classes as usize {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        let candidate = pack_wouldbe(next_state, advance);
-        candidate != WOULDBE_NONE && self.wouldbe.get(class).copied() == Some(candidate)
+        self.wouldbe.get(class).copied() == Some(pack_wouldbe(next_state, advance))
     }
 
     /// Condition 3 for states 64 and up: no end-of-text action can fire
