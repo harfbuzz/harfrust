@@ -294,9 +294,7 @@ impl SafeToBreakCache {
         let mut eot_tail = Vec::new();
         if n_classes > 0 {
             if let Ok(parts) = StateTableParts::read(FontData::new(data)) {
-                let n_cells = data
-                    .len()
-                    .saturating_sub(parts.state_array_offset as usize)
+                let n_cells = data.len().saturating_sub(parts.state_array_offset as usize)
                     / u16::RAW_BYTE_LEN;
                 let n_rows = n_cells.div_ceil(n_classes).min(u16::MAX as usize + 1);
                 if n_rows > 64 {
@@ -332,9 +330,7 @@ impl SafeToBreakCache {
     ) -> Self {
         let n_classes = machine.header.state_size() as usize;
 
-        let wouldbe_len = n_classes
-            .max(class::OUT_OF_BOUNDS as usize + 1)
-            .min(1 << 8);
+        let wouldbe_len = n_classes.max(class::OUT_OF_BOUNDS as usize + 1).min(1 << 8);
         let mut wouldbe = Vec::with_capacity(wouldbe_len);
         for class in 0..wouldbe_len {
             wouldbe.push(match machine.entry(START_OF_TEXT, class as u8) {
