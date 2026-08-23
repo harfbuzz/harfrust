@@ -9,6 +9,7 @@ use smallvec::SmallVec;
 use core_maths::CoreFloat as _;
 
 use super::aat::AatTables;
+use super::buffer::hb_buffer_t;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::font_funcs::FontFuncsDispatch;
 use super::glyph_metrics::GlyphMetrics;
@@ -446,10 +447,12 @@ impl Scale {
 #[cfg(feature = "experimental_font_api")]
 pub fn shape(
     font: &crate::font::FontInstance,
-    mut buffer: UnicodeBuffer,
+    buffer: UnicodeBuffer,
     mut options: ShapeOptions<'_>,
 ) -> GlyphBuffer {
-    let Some(hb_font) = hb_font_t::from_font(font) else {
+    let hb_font = hb_font_t::from_font(font);
+    let Some(hb_font) = hb_font.as_ref() else {
+        let mut buffer = buffer;
         buffer.clear();
         return GlyphBuffer(buffer.0);
     };
@@ -460,7 +463,9 @@ pub fn shape(
             options = options.scale(Some((ppem * 65536.0) as i32));
         }
     }
-    hb_font.shape(buffer, options)
+    let mut buffer = buffer.0;
+    hb_font.shape_buffer(&mut buffer, options);
+    GlyphBuffer(buffer)
 }
 
 // This will go away completely when we drop the old API.
@@ -553,27 +558,32 @@ impl<'a> crate::Shaper<'a> {
     /// Will panic when debugging assertions are enabled if the buffer and plan have mismatched
     /// properties.    
     pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions<'_>) -> GlyphBuffer {
+        let mut buffer = buffer.0;
+        self.shape_buffer(&mut buffer, options);
+        GlyphBuffer(buffer)
+    }
+
+    fn shape_buffer(&self, buffer: &mut hb_buffer_t, options: ShapeOptions<'_>) {
         if let Some(plan) = options.plan {
-            self.shape_with_plan(plan, buffer, options)
+            self.shape_with_plan(plan, buffer, options);
         } else {
             let plan = ShapePlan::new(
                 self,
-                buffer.0.direction,
-                buffer.0.script,
-                buffer.0.language.as_ref(),
+                buffer.direction,
+                buffer.script,
+                buffer.language.as_ref(),
                 options.features,
             );
-            self.shape_with_plan(&plan, buffer, options)
+            self.shape_with_plan(&plan, buffer, options);
         }
     }
 
     fn shape_with_plan(
         &self,
         plan: &ShapePlan,
-        buffer: UnicodeBuffer,
+        buffer: &mut hb_buffer_t,
         options: ShapeOptions<'_>,
-    ) -> GlyphBuffer {
-        let mut buffer = buffer.0;
+    ) {
         buffer.enter();
 
         assert_eq!(
@@ -597,7 +607,7 @@ impl<'a> crate::Shaper<'a> {
             OtShapeContext {
                 plan,
                 face: self,
-                buffer: &mut buffer,
+                buffer,
                 target_direction,
                 features: options.features,
                 point_size: options.point_size,
@@ -607,8 +617,6 @@ impl<'a> crate::Shaper<'a> {
         }
 
         buffer.leave();
-
-        GlyphBuffer(buffer)
     }
 
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
