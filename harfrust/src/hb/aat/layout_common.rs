@@ -7,8 +7,10 @@ use crate::hb::hb_mask_t;
 use crate::hb::ot_layout_gsubgpos::MappingCache;
 use crate::hb::ot_shape_plan::hb_ot_shape_plan_t;
 use crate::U32Set;
+use alloc::vec::Vec;
 use read_fonts::tables::aat::*;
 use read_fonts::types::{FixedSize, GlyphId};
+use read_fonts::FontData;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
@@ -50,6 +52,7 @@ pub struct AatApplyContext<'a> {
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
     pub(crate) start_end_safe_to_break: u64,
+    pub(crate) safe_to_break_cache: Option<&'a SafeToBreakCache>,
 }
 
 impl<'a> AatApplyContext<'a> {
@@ -73,6 +76,7 @@ impl<'a> AatApplyContext<'a> {
             second_set: None,
             machine_class_cache: None,
             start_end_safe_to_break: 0,
+            safe_to_break_cache: None,
         }
     }
 
@@ -192,6 +196,178 @@ impl<'a> AatApplyContext<'a> {
         }
         if self.has_glyph_classes {
             self.buffer.info[i].set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
+        }
+    }
+}
+
+/// Per-machine acceleration for the drive loops' safe-to-break
+/// computation. The conditions factor by state and class: condition
+/// 2c's "wouldbe" probe (`entry(START_OF_TEXT, class)`) depends only on
+/// the class, and condition 3's end-of-text probe only on the state —
+/// so instead of re-fetching those entries on every transition, look
+/// them up in two small per-machine tables built once per face:
+/// O(classes) + O(states) storage, typically a few hundred bytes.
+pub(crate) struct SafeToBreakCache {
+    n_classes: u32,
+    /// Per class: `entry(START_OF_TEXT, class)` packed as
+    /// `new_state | advance << 16` when present and non-actionable,
+    /// `!0` otherwise — so condition 2c is a single compare.
+    wouldbe: Vec<u32>,
+    /// Condition-3 bits for states 64 and up; states below 64 keep
+    /// using the `start_end_safe_to_break` word. Empty for machines
+    /// with at most 64 states.
+    eot_tail: Vec<u64>,
+}
+
+pub(crate) const WOULDBE_NONE: u32 = !0;
+
+#[inline(always)]
+pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u32 {
+    new_state as u32 | ((advance as u32) << 16)
+}
+
+impl SafeToBreakCache {
+    pub(crate) fn empty() -> Self {
+        SafeToBreakCache {
+            n_classes: 0,
+            wouldbe: Vec::new(),
+            eot_tail: Vec::new(),
+        }
+    }
+
+    /// Condition 2c: would starting from the start state on this class
+    /// take a non-actionable transition to the same state, advancing
+    /// the same way?
+    #[inline(always)]
+    pub(crate) fn wouldbe_matches(&self, class: u16, next_state: u16, advance: bool) -> bool {
+        let mut class = class as usize;
+        if class >= self.n_classes as usize {
+            class = class::OUT_OF_BOUNDS as usize;
+        }
+        self.wouldbe.get(class).copied() == Some(pack_wouldbe(next_state, advance))
+    }
+
+    /// Condition 3 for states 64 and up: no end-of-text action can fire
+    /// out of this state.
+    #[inline(always)]
+    pub(crate) fn eot_safe_high(&self, state: u16) -> bool {
+        let ix = (state - 64) as usize;
+        self.eot_tail
+            .get(ix / 64)
+            .is_some_and(|word| word & (1 << (ix % 64)) != 0)
+    }
+
+    /// Builds the cache for an extended state table whose machine
+    /// starts at the beginning of `data`. The predicates mirror the
+    /// subtable kind's notion of actionable/advancing entries.
+    #[inline(never)]
+    pub(crate) fn build_extended<T: bytemuck::AnyBitPattern + FixedSize>(
+        machine: &ExtendedStateTable<T>,
+        data: &[u8],
+        is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
+        can_advance: &dyn Fn(&StateEntry<T>) -> bool,
+    ) -> Self {
+        let n_classes = machine.n_classes;
+
+        // Cover the OUT_OF_BOUNDS column the runtime clamp can select
+        // even on degenerate machines; entry() applies the same clamp
+        // internally, so the aliasing matches.
+        // Classes are u16 values, so columns past 0x10000 are
+        // unreachable and need no slots.
+        let wouldbe_len = n_classes
+            .max(class::OUT_OF_BOUNDS as usize + 1)
+            .min(1 << 16);
+        let mut wouldbe = Vec::with_capacity(wouldbe_len);
+        for class in 0..wouldbe_len {
+            wouldbe.push(match machine.entry(START_OF_TEXT, class as u16) {
+                Ok(entry) if !is_actionable(&entry) => {
+                    pack_wouldbe(entry.new_state, can_advance(&entry))
+                }
+                _ => WOULDBE_NONE,
+            });
+        }
+
+        // The state array runs from its offset to the end of the
+        // subtable, matching how the table reader slices it; states
+        // beyond it fail entry() and stay unsafe, like the probes they
+        // replace.
+        let mut eot_tail = Vec::new();
+        if n_classes > 0 {
+            if let Ok(parts) = StateTableParts::read(FontData::new(data)) {
+                let n_cells = data
+                    .len()
+                    .saturating_sub(parts.state_array_offset as usize)
+                    / u16::RAW_BYTE_LEN;
+                let n_rows = n_cells.div_ceil(n_classes).min(u16::MAX as usize + 1);
+                if n_rows > 64 {
+                    eot_tail = alloc::vec![0u64; (n_rows - 64).div_ceil(64)];
+                    for state in 64..n_rows {
+                        if let Ok(entry) =
+                            machine.entry(state as u16, u16::from(class::END_OF_TEXT))
+                        {
+                            if !is_actionable(&entry) {
+                                let ix = state - 64;
+                                eot_tail[ix / 64] |= 1 << (ix % 64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SafeToBreakCache {
+            n_classes: n_classes as u32,
+            wouldbe,
+            eot_tail,
+        }
+    }
+
+    /// The legacy (`kern` Format1) counterpart of [`build_extended`]:
+    /// one-byte state cells and u8 classes.
+    #[inline(never)]
+    pub(crate) fn build_legacy(
+        machine: &StateTable,
+        is_actionable: &dyn Fn(&StateEntry) -> bool,
+        can_advance: &dyn Fn(&StateEntry) -> bool,
+    ) -> Self {
+        let n_classes = machine.header.state_size() as usize;
+
+        let wouldbe_len = n_classes
+            .max(class::OUT_OF_BOUNDS as usize + 1)
+            .min(1 << 8);
+        let mut wouldbe = Vec::with_capacity(wouldbe_len);
+        for class in 0..wouldbe_len {
+            wouldbe.push(match machine.entry(START_OF_TEXT, class as u8) {
+                Ok(entry) if !is_actionable(&entry) => {
+                    pack_wouldbe(entry.new_state, can_advance(&entry))
+                }
+                _ => WOULDBE_NONE,
+            });
+        }
+
+        let mut eot_tail = Vec::new();
+        if n_classes > 0 {
+            if let Ok(state_array) = machine.header.state_array() {
+                let n_cells = state_array.data().len();
+                let n_rows = n_cells.div_ceil(n_classes).min(u16::MAX as usize + 1);
+                if n_rows > 64 {
+                    eot_tail = alloc::vec![0u64; (n_rows - 64).div_ceil(64)];
+                    for state in 64..n_rows {
+                        if let Ok(entry) = machine.entry(state as u16, class::END_OF_TEXT) {
+                            if !is_actionable(&entry) {
+                                let ix = state - 64;
+                                eot_tail[ix / 64] |= 1 << (ix % 64);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SafeToBreakCache {
+            n_classes: n_classes as u32,
+            wouldbe,
+            eot_tail,
         }
     }
 }
