@@ -52,7 +52,7 @@ pub struct AatApplyContext<'a> {
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
     pub(crate) start_end_safe_to_break: u64,
-    pub(crate) safe_to_break_cache: Option<&'a SafeToBreakCache>,
+    pub(crate) safe_to_break_accel: Option<&'a SafeToBreakAccel>,
 }
 
 impl<'a> AatApplyContext<'a> {
@@ -76,7 +76,7 @@ impl<'a> AatApplyContext<'a> {
             second_set: None,
             machine_class_cache: None,
             start_end_safe_to_break: 0,
-            safe_to_break_cache: None,
+            safe_to_break_accel: None,
         }
     }
 
@@ -207,7 +207,7 @@ impl<'a> AatApplyContext<'a> {
 /// so instead of re-fetching those entries on every transition, look
 /// them up in two small per-machine tables built once per face:
 /// O(classes) + O(states) storage, typically a few hundred bytes.
-pub(crate) struct SafeToBreakCache {
+pub(crate) struct SafeToBreakAccel {
     n_classes: u32,
     /// Per class: `entry(START_OF_TEXT, class)` packed as 15 bits of
     /// new state with the advance bit on top when present and
@@ -231,9 +231,9 @@ pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u16 {
     new_state | ((advance as u16) << 15)
 }
 
-impl SafeToBreakCache {
+impl SafeToBreakAccel {
     pub(crate) fn empty() -> Self {
-        SafeToBreakCache {
+        SafeToBreakAccel {
             n_classes: 0,
             wouldbe: Vec::new(),
             eot_tail: Vec::new(),
@@ -318,7 +318,7 @@ impl SafeToBreakCache {
             }
         }
 
-        SafeToBreakCache {
+        SafeToBreakAccel {
             n_classes: n_classes as u32,
             wouldbe,
             eot_tail,
@@ -365,7 +365,7 @@ impl SafeToBreakCache {
             }
         }
 
-        SafeToBreakCache {
+        SafeToBreakAccel {
             n_classes: n_classes as u32,
             wouldbe,
             eot_tail,
