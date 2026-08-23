@@ -60,11 +60,11 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
+        c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         if !c.buffer_intersects_machine() {
             continue;
         }
-        c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         let reverse = c.buffer.direction.is_backward();
 

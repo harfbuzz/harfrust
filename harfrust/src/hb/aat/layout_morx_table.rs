@@ -117,11 +117,11 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
         c.first_set = Some(&subtable_cache.glyph_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
+        c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         if !c.buffer_intersects_machine() {
             continue;
         }
-        c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         // Buffer contents is always in logical direction.  Determine if
         // we need to reverse before applying this subtable.  We reverse
