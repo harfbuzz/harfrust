@@ -52,7 +52,7 @@ pub struct AatApplyContext<'a> {
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
     pub(crate) start_end_safe_to_break: u64,
-    pub(crate) safe_to_break: SafeToBreak<'a>,
+    pub(crate) safe_to_break: &'a SafeToBreak<'a>,
 }
 
 impl<'a> AatApplyContext<'a> {
@@ -76,7 +76,7 @@ impl<'a> AatApplyContext<'a> {
             second_set: None,
             machine_class_cache: None,
             start_end_safe_to_break: 0,
-            safe_to_break: SafeToBreak::default(),
+            safe_to_break: &EMPTY_SAFE_TO_BREAK,
         }
     }
 
@@ -235,6 +235,12 @@ pub(crate) struct SafeToBreak<'a> {
     eot_tail: &'a [u64],
 }
 
+static EMPTY_SAFE_TO_BREAK: SafeToBreak<'static> = SafeToBreak {
+    n_classes: 0,
+    wouldbe: &[],
+    eot_tail: &[],
+};
+
 pub(crate) const WOULDBE_NONE: u16 = !0;
 
 #[inline(always)]
@@ -256,7 +262,7 @@ impl SafeToBreak<'_> {
         if class >= self.n_classes as usize {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        self.wouldbe[class] == pack_wouldbe(next_state, advance)
+        self.wouldbe.get(class).copied() == Some(pack_wouldbe(next_state, advance))
     }
 
     /// Condition 3 for states 64 and up: no end-of-text action can fire
@@ -271,6 +277,14 @@ impl SafeToBreak<'_> {
 }
 
 impl SafeToBreakAccel {
+    /// Resolves all subtable ranges into views. The returned views are kept in
+    /// the configured shaper, so shaping only has to select one by index.
+    pub(crate) fn resolve_subtables(&self) -> Option<Vec<SafeToBreak<'_>>> {
+        (0..self.subtables.len())
+            .map(|index| self.subtable(index))
+            .collect()
+    }
+
     /// Returns a view of the acceleration data for a subtable. Subtables are
     /// registered in the same order as the three top-level cache arrays.
     pub(crate) fn subtable(&self, index: usize) -> Option<SafeToBreak<'_>> {
@@ -702,17 +716,20 @@ mod tests {
             eot_tail: alloc::vec![1, 2],
         };
 
-        let first = accel.subtable(0).unwrap();
+        let subtables = accel.resolve_subtables().unwrap();
+        assert_eq!(subtables.len(), 3);
+
+        let first = subtables[0];
         assert!(first.wouldbe_matches(99, 7, true));
         assert!(first.eot_safe_high(64));
         assert!(!first.eot_safe_high(65));
         assert!(!first.eot_safe_high(128));
 
-        let empty = accel.subtable(1).unwrap();
+        let empty = subtables[1];
         assert!(empty.wouldbe.is_empty());
         assert!(empty.eot_tail.is_empty());
 
-        let last = accel.subtable(2).unwrap();
+        let last = subtables[2];
         assert!(last.wouldbe_matches(99, 9, false));
         assert!(!last.eot_safe_high(64));
         assert!(last.eot_safe_high(65));

@@ -80,13 +80,17 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
     c.setup_buffer_glyph_set();
 
     let (morx, subtable_caches, descriptors) = c.face.aat_tables.morx.as_ref()?;
-    let safe_to_break = c.face.aat_tables.safe_to_break?;
+    let safe_to_break = c.face.aat_tables.safe_to_break.get(..descriptors.len())?;
     let morx_bytes = morx.offset_data().as_bytes();
 
     let mut last_chain_index = u32::MAX;
     let mut chain_flags = None;
 
-    for (subtable_idx, desc) in descriptors.iter().enumerate() {
+    for ((desc, subtable_cache), safe_to_break) in descriptors
+        .iter()
+        .zip(subtable_caches.iter())
+        .zip(safe_to_break)
+    {
         if desc.chain_index != last_chain_index {
             // Chain boundary: restore buffer order, load this chain's flags.
             if c.buffer_is_reversed {
@@ -111,12 +115,11 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             continue;
         }
 
-        let subtable_cache = &subtable_caches[subtable_idx];
         c.subtable_flags = desc.sub_feature_flags;
         c.first_set = Some(&subtable_cache.glyph_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-        c.safe_to_break = safe_to_break.subtable(subtable_idx)?;
+        c.safe_to_break = safe_to_break;
 
         if !c.buffer_intersects_machine() {
             continue;

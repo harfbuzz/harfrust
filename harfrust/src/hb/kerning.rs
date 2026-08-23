@@ -42,21 +42,22 @@ pub fn hb_ot_layout_kern(
     c.setup_buffer_glyph_set();
 
     let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
-    let safe_to_break = c.face.aat_tables.safe_to_break?;
     let safe_to_break_start = c.face.aat_tables.kern_safe_to_break_start;
-
-    let mut subtable_idx = 0;
+    let safe_to_break_end = safe_to_break_start.checked_add(subtable_caches.len())?;
+    let safe_to_break = c
+        .face
+        .aat_tables
+        .safe_to_break
+        .get(safe_to_break_start..safe_to_break_end)?;
+    let mut subtable_caches = subtable_caches.iter().zip(safe_to_break);
 
     let mut seen_cross_stream = false;
     for subtable in kern.subtables() {
         let Ok(subtable) = subtable else { continue };
 
-        let safe_to_break_index = safe_to_break_start.checked_add(subtable_idx)?;
-        let subtable_cache = subtable_caches.get(subtable_idx);
-        let Some(subtable_cache) = subtable_cache.as_ref() else {
+        let Some((subtable_cache, safe_to_break)) = subtable_caches.next() else {
             break;
         };
-        subtable_idx += 1;
 
         if subtable.is_variable() {
             continue;
@@ -70,7 +71,7 @@ pub fn hb_ot_layout_kern(
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-        c.safe_to_break = safe_to_break.subtable(safe_to_break_index)?;
+        c.safe_to_break = safe_to_break;
 
         if !c.buffer_intersects_machine() {
             continue;
