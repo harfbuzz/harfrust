@@ -202,22 +202,21 @@ impl<'a> AatApplyContext<'a> {
 
 /// Per-face acceleration for the drive loops' safe-to-break computation.
 ///
-/// The data for every AAT state-machine subtable is stored in three packed
-/// vectors: 12 bytes of metadata per subtable, all condition-2c entries,
-/// and all condition-3 bits. This avoids two `Vec` allocations in every
-/// subtable cache while retaining O(classes) + O(states) storage.
+/// The data for every AAT state-machine subtable is stored in two packed
+/// vectors. Each top-level subtable cache carries a compact descriptor for
+/// its ranges. This avoids two `Vec` allocations in every subtable cache
+/// while retaining O(classes) + O(states) storage.
 #[derive(Default)]
 pub(crate) struct SafeToBreakAccel {
-    subtables: Vec<SafeToBreakSubtable>,
     wouldbe: Vec<u16>,
     eot_tail: Vec<u64>,
 }
 
-#[derive(Clone, Copy)]
-struct SafeToBreakSubtable {
-    n_classes: u32,
+#[derive(Clone, Copy, Default)]
+pub(crate) struct SafeToBreakSubtable {
     wouldbe_start: u32,
     eot_tail_start: u32,
+    info: u32,
 }
 
 /// The slice of [`SafeToBreakAccel`] belonging to the active subtable.
@@ -256,7 +255,7 @@ impl SafeToBreak<'_> {
         if class >= self.n_classes as usize {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        self.wouldbe[class] == pack_wouldbe(next_state, advance)
+        self.wouldbe.get(class).copied() == Some(pack_wouldbe(next_state, advance))
     }
 
     /// Condition 3 for states 64 and up: no end-of-text action can fire
@@ -271,36 +270,28 @@ impl SafeToBreak<'_> {
 }
 
 impl SafeToBreakAccel {
-    /// Returns a view of the acceleration data for a subtable. Subtables are
-    /// registered in the same order as the three top-level cache arrays.
-    pub(crate) fn subtable(&self, index: usize) -> Option<SafeToBreak<'_>> {
-        let subtable = *self.subtables.get(index)?;
-        let next = self.subtables.get(index + 1);
-        let wouldbe_end = next.map_or(self.wouldbe.len(), |subtable| {
-            subtable.wouldbe_start as usize
-        });
-        let eot_tail_end = next.map_or(self.eot_tail.len(), |subtable| {
-            subtable.eot_tail_start as usize
-        });
+    /// Returns a view of the acceleration data described by a top-level
+    /// subtable cache.
+    pub(crate) fn subtable(&self, subtable: SafeToBreakSubtable) -> Option<SafeToBreak<'_>> {
+        let wouldbe_start = subtable.wouldbe_start as usize;
+        let wouldbe_end = wouldbe_start.checked_add(subtable.wouldbe_len())?;
+        let eot_tail_start = subtable.eot_tail_start as usize;
+        let eot_tail_end = eot_tail_start.checked_add(subtable.eot_tail_len())?;
 
         Some(SafeToBreak {
-            n_classes: subtable.n_classes,
-            wouldbe: self
-                .wouldbe
-                .get(subtable.wouldbe_start as usize..wouldbe_end)?,
-            eot_tail: self
-                .eot_tail
-                .get(subtable.eot_tail_start as usize..eot_tail_end)?,
+            n_classes: subtable.n_classes(),
+            wouldbe: self.wouldbe.get(wouldbe_start..wouldbe_end)?,
+            eot_tail: self.eot_tail.get(eot_tail_start..eot_tail_end)?,
         })
     }
 
-    /// Registers a subtable that does not contain a state machine.
-    pub(crate) fn add_empty(&mut self) {
-        self.subtables.push(SafeToBreakSubtable {
-            n_classes: 0,
+    /// Describes a subtable that does not contain a state machine.
+    pub(crate) fn empty_subtable(&self) -> SafeToBreakSubtable {
+        SafeToBreakSubtable {
             wouldbe_start: self.wouldbe.len() as u32,
             eot_tail_start: self.eot_tail.len() as u32,
-        });
+            info: 0,
+        }
     }
 
     /// Appends the data for an extended state table whose machine
@@ -313,13 +304,10 @@ impl SafeToBreakAccel {
         data: &[u8],
         is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
         can_advance: &dyn Fn(&StateEntry<T>) -> bool,
-    ) {
+    ) -> SafeToBreakSubtable {
         let n_classes = machine.n_classes;
-        self.subtables.push(SafeToBreakSubtable {
-            n_classes: n_classes as u32,
-            wouldbe_start: self.wouldbe.len() as u32,
-            eot_tail_start: self.eot_tail.len() as u32,
-        });
+        let wouldbe_start = self.wouldbe.len();
+        let eot_tail_start = self.eot_tail.len();
 
         // Cover the OUT_OF_BOUNDS column the runtime clamp can select
         // even on degenerate machines; entry() applies the same clamp
@@ -366,6 +354,14 @@ impl SafeToBreakAccel {
                 }
             }
         }
+
+        SafeToBreakSubtable::new(
+            n_classes,
+            wouldbe_start,
+            self.wouldbe.len(),
+            eot_tail_start,
+            self.eot_tail.len(),
+        )
     }
 
     /// The legacy (`kern` Format1) counterpart of [`Self::build_extended`]:
@@ -376,13 +372,10 @@ impl SafeToBreakAccel {
         machine: &StateTable,
         is_actionable: &dyn Fn(&StateEntry) -> bool,
         can_advance: &dyn Fn(&StateEntry) -> bool,
-    ) {
+    ) -> SafeToBreakSubtable {
         let n_classes = machine.header.state_size() as usize;
-        self.subtables.push(SafeToBreakSubtable {
-            n_classes: n_classes as u32,
-            wouldbe_start: self.wouldbe.len() as u32,
-            eot_tail_start: self.eot_tail.len() as u32,
-        });
+        let wouldbe_start = self.wouldbe.len();
+        let eot_tail_start = self.eot_tail.len();
 
         let wouldbe_len = n_classes.max(class::OUT_OF_BOUNDS as usize + 1).min(1 << 8);
         self.wouldbe.reserve(wouldbe_len);
@@ -415,6 +408,61 @@ impl SafeToBreakAccel {
                 }
             }
         }
+
+        SafeToBreakSubtable::new(
+            n_classes,
+            wouldbe_start,
+            self.wouldbe.len(),
+            eot_tail_start,
+            self.eot_tail.len(),
+        )
+    }
+}
+
+impl SafeToBreakSubtable {
+    const N_CLASSES_MASK: u32 = (1 << 17) - 1;
+    const EOT_TAIL_SHIFT: u32 = 17;
+    const EOT_TAIL_MASK: u32 = (1 << 10) - 1;
+    const HAS_MACHINE: u32 = 1 << 27;
+
+    fn new(
+        n_classes: usize,
+        wouldbe_start: usize,
+        wouldbe_end: usize,
+        eot_tail_start: usize,
+        eot_tail_end: usize,
+    ) -> Self {
+        let n_classes = n_classes.min(1 << 16);
+        let wouldbe_len = n_classes
+            .max(class::OUT_OF_BOUNDS as usize + 1)
+            .min(1 << 16);
+        let eot_tail_len = eot_tail_end - eot_tail_start;
+        debug_assert_eq!(wouldbe_end - wouldbe_start, wouldbe_len);
+        debug_assert!(eot_tail_len <= Self::EOT_TAIL_MASK as usize);
+        Self {
+            wouldbe_start: wouldbe_start as u32,
+            eot_tail_start: eot_tail_start as u32,
+            info: n_classes as u32
+                | (eot_tail_len as u32) << Self::EOT_TAIL_SHIFT
+                | Self::HAS_MACHINE,
+        }
+    }
+
+    fn n_classes(self) -> u32 {
+        self.info & Self::N_CLASSES_MASK
+    }
+
+    fn wouldbe_len(self) -> usize {
+        if self.info & Self::HAS_MACHINE == 0 {
+            return 0;
+        }
+        (self.n_classes() as usize)
+            .max(class::OUT_OF_BOUNDS as usize + 1)
+            .min(1 << 16)
+    }
+
+    fn eot_tail_len(self) -> usize {
+        ((self.info >> Self::EOT_TAIL_SHIFT) & Self::EOT_TAIL_MASK) as usize
     }
 }
 
@@ -680,39 +728,29 @@ mod tests {
         let mut wouldbe = alloc::vec![WOULDBE_NONE; 8];
         wouldbe[class::OUT_OF_BOUNDS as usize] = pack_wouldbe(7, true);
         wouldbe[4 + class::OUT_OF_BOUNDS as usize] = pack_wouldbe(9, false);
+        let first_subtable = SafeToBreakSubtable::new(4, 0, 4, 0, 1);
+        let empty_subtable = SafeToBreakSubtable {
+            wouldbe_start: 4,
+            eot_tail_start: 1,
+            info: 0,
+        };
+        let last_subtable = SafeToBreakSubtable::new(4, 4, 8, 1, 2);
         let accel = SafeToBreakAccel {
-            subtables: alloc::vec![
-                SafeToBreakSubtable {
-                    n_classes: 4,
-                    wouldbe_start: 0,
-                    eot_tail_start: 0,
-                },
-                SafeToBreakSubtable {
-                    n_classes: 0,
-                    wouldbe_start: 4,
-                    eot_tail_start: 1,
-                },
-                SafeToBreakSubtable {
-                    n_classes: 4,
-                    wouldbe_start: 4,
-                    eot_tail_start: 1,
-                },
-            ],
             wouldbe,
             eot_tail: alloc::vec![1, 2],
         };
 
-        let first = accel.subtable(0).unwrap();
+        let first = accel.subtable(first_subtable).unwrap();
         assert!(first.wouldbe_matches(99, 7, true));
         assert!(first.eot_safe_high(64));
         assert!(!first.eot_safe_high(65));
         assert!(!first.eot_safe_high(128));
 
-        let empty = accel.subtable(1).unwrap();
+        let empty = accel.subtable(empty_subtable).unwrap();
         assert!(empty.wouldbe.is_empty());
         assert!(empty.eot_tail.is_empty());
 
-        let last = accel.subtable(2).unwrap();
+        let last = accel.subtable(last_subtable).unwrap();
         assert!(last.wouldbe_matches(99, 9, false));
         assert!(!last.eot_safe_high(64));
         assert!(last.eot_safe_high(65));

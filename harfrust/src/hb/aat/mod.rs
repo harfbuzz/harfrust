@@ -80,8 +80,6 @@ impl AatCache {
 #[derive(Clone, Default)]
 pub struct AatTables<'a> {
     pub(crate) safe_to_break: Option<&'a SafeToBreakAccel>,
-    pub(crate) kern_safe_to_break_start: usize,
-    pub(crate) kerx_safe_to_break_start: usize,
     pub morx: Option<(
         Morx<'a>,
         &'a [MorxSubtableCache],
@@ -137,8 +135,6 @@ impl<'a> AatTables<'a> {
         let feat = table_ranges.feat.resolve_table(font);
         Self {
             safe_to_break: Some(&cache.safe_to_break),
-            kern_safe_to_break_start: cache.morx.len(),
-            kerx_safe_to_break_start: cache.morx.len() + cache.kern.len(),
             morx,
             ankr,
             kern,
@@ -182,8 +178,6 @@ impl<'a> AatTables<'a> {
         let feat = font.feat().ok();
         Self {
             safe_to_break: Some(&cache.safe_to_break),
-            kern_safe_to_break_start: cache.morx.len(),
-            kerx_safe_to_break_start: cache.morx.len() + cache.kern.len(),
             morx,
             ankr,
             kern,

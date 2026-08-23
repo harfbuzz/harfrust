@@ -8,7 +8,9 @@ use read_fonts::{
     types::{GlyphId, GlyphId16},
 };
 
-use super::aat::layout_common::{AatApplyContext, ClassCache, SafeToBreakAccel, START_OF_TEXT};
+use super::aat::layout_common::{
+    AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, START_OF_TEXT,
+};
 use super::aat::layout_kerx_table::SimpleKerning;
 use super::buffer::*;
 use super::face::Scale;
@@ -43,7 +45,6 @@ pub fn hb_ot_layout_kern(
 
     let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
     let safe_to_break = c.face.aat_tables.safe_to_break?;
-    let safe_to_break_start = c.face.aat_tables.kern_safe_to_break_start;
 
     let mut subtable_idx = 0;
 
@@ -51,7 +52,6 @@ pub fn hb_ot_layout_kern(
     for subtable in kern.subtables() {
         let Ok(subtable) = subtable else { continue };
 
-        let safe_to_break_index = safe_to_break_start.checked_add(subtable_idx)?;
         let subtable_cache = subtable_caches.get(subtable_idx);
         let Some(subtable_cache) = subtable_cache.as_ref() else {
             break;
@@ -70,11 +70,11 @@ pub fn hb_ot_layout_kern(
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-        c.safe_to_break = safe_to_break.subtable(safe_to_break_index)?;
 
         if !c.buffer_intersects_machine() {
             continue;
         }
+        c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         let reverse = c.buffer.direction.is_backward();
         let is_cross_stream = subtable.is_cross_stream();
@@ -625,6 +625,7 @@ impl SimpleKerning for Subtable3<'_> {
 
 pub(crate) struct KernSubtableCache {
     start_end_safe_to_break: u64,
+    safe_to_break: SafeToBreakSubtable,
     first_set: U32Set,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
@@ -637,7 +638,7 @@ impl KernSubtableCache {
         safe_to_break: &mut SafeToBreakAccel,
     ) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut has_safe_to_break = false;
+        let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
@@ -647,12 +648,11 @@ impl KernSubtableCache {
                 }
                 SubtableKind::Format1(format1) => {
                     start_end_safe_to_break = collect_start_end_safe_to_break(format1);
-                    safe_to_break.build_legacy(
+                    safe_to_break_subtable = safe_to_break.build_legacy(
                         format1,
                         &KernStateEntryExt::is_actionable,
                         &KernStateEntryExt::has_advance,
                     );
-                    has_safe_to_break = true;
                     collect_initial_glyphs(format1, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format2(format2) => {
@@ -663,11 +663,9 @@ impl KernSubtableCache {
                 }
             }
         }
-        if !has_safe_to_break {
-            safe_to_break.add_empty();
-        }
         KernSubtableCache {
             start_end_safe_to_break,
+            safe_to_break: safe_to_break_subtable,
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
