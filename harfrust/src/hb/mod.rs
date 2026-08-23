@@ -45,6 +45,7 @@ mod ot_shape_normalize;
 pub mod ot_shape_plan;
 mod ot_shaper;
 mod ot_shaper_arabic;
+mod unsafe_vec;
 #[rustfmt::skip]
 mod ot_shaper_arabic_table;
 mod ot_shaper_hangul;

@@ -5,10 +5,11 @@ use crate::hb::glyph_metrics::GlyphMetrics;
 use crate::hb::glyph_names::GlyphNames;
 use crate::hb::set_digest::hb_set_digest_t;
 use crate::hb::tables::TableRanges;
+use crate::hb::unsafe_vec::UnsafeVec;
 use crate::unicode::{CharExt, Codepoint};
 use crate::U32Set;
 use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use core::cmp::min;
 use core::convert::TryFrom;
 use read_fonts::types::{F2Dot14, GlyphId, GlyphId16};
@@ -493,8 +494,8 @@ pub struct hb_buffer_t {
     pub len: usize,
     pub out_len: usize,
 
-    pub info: Vec<GlyphInfo>,
-    pub pos: Vec<GlyphPosition>,
+    pub info: UnsafeVec<GlyphInfo>,
+    pub pos: UnsafeVec<GlyphPosition>,
 
     // Text before / after the main buffer contents.
     // Always in Unicode, and ordered outward.
@@ -545,8 +546,8 @@ impl hb_buffer_t {
             idx: 0,
             len: 0,
             out_len: 0,
-            info: Vec::new(),
-            pos: Vec::new(),
+            info: UnsafeVec::new(),
+            pos: UnsafeVec::new(),
             have_separate_output: false,
             allocated_var_bits: 0,
             serial: 0,
@@ -907,8 +908,12 @@ impl hb_buffer_t {
 
         if self.have_separate_output {
             // Swap info and pos buffers.
-            let info: Vec<GlyphPosition> = bytemuck::cast_vec(core::mem::take(&mut self.info));
-            let pos: Vec<GlyphInfo> = bytemuck::cast_vec(core::mem::take(&mut self.pos));
+            let info: UnsafeVec<GlyphPosition> = UnsafeVec::from_vec(bytemuck::cast_vec(
+                core::mem::take(&mut self.info).into_vec(),
+            ));
+            let pos: UnsafeVec<GlyphInfo> = UnsafeVec::from_vec(bytemuck::cast_vec(
+                core::mem::take(&mut self.pos).into_vec(),
+            ));
             self.pos = info;
             self.info = pos;
             self.have_separate_output = false;
