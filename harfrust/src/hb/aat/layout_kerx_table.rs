@@ -30,6 +30,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
     c.setup_buffer_glyph_set();
 
     let (kerx, subtable_caches) = c.face.aat_tables.kerx.as_ref()?;
+    let safe_to_break = c.face.aat_tables.safe_to_break?;
+    let safe_to_break_start = c.face.aat_tables.kerx_safe_to_break_start;
 
     let mut subtable_idx = 0;
 
@@ -39,6 +41,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             continue;
         };
 
+        let safe_to_break_index = safe_to_break_start.checked_add(subtable_idx)?;
         let subtable_cache = subtable_caches.get(subtable_idx);
         let Some(subtable_cache) = subtable_cache.as_ref() else {
             break;
@@ -58,7 +61,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
-        c.safe_to_break_accel = Some(&subtable_cache.safe_to_break);
+        c.safe_to_break = safe_to_break.subtable(safe_to_break_index)?;
 
         if !c.buffer_intersects_machine() {
             continue;
@@ -478,7 +481,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
                 state == START_OF_TEXT
                 || (!entry.has_advance() && next_state == START_OF_TEXT)
                 // 2c, 2c', 2c"
-                || c.safe_to_break_accel.unwrap().wouldbe_matches(class, next_state, entry.has_advance())
+                || c.safe_to_break.wouldbe_matches(class, next_state, entry.has_advance())
             ) &&
 
             // 3
@@ -486,7 +489,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
                 if state < 64 {
                     (c.start_end_safe_to_break & (1 << state)) != 0
                 } else {
-                    c.safe_to_break_accel.unwrap().eot_safe_high(state)
+                    c.safe_to_break.eot_safe_high(state)
                 }
             )
         ;
@@ -721,16 +724,19 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
 
 pub(crate) struct KerxSubtableCache {
     start_end_safe_to_break: u64,
-    safe_to_break: SafeToBreakAccel,
     first_set: U32Set,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
 }
 
 impl KerxSubtableCache {
-    pub(crate) fn new(subtable: &Subtable, num_glyphs: u32) -> Self {
+    pub(crate) fn new(
+        subtable: &Subtable,
+        num_glyphs: u32,
+        safe_to_break: &mut SafeToBreakAccel,
+    ) -> Self {
         let mut start_end_safe_to_break = 0u64;
-        let mut safe_to_break = SafeToBreakAccel::empty();
+        let mut has_safe_to_break = false;
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
         if let Ok(kind) = subtable.kind() {
@@ -740,12 +746,13 @@ impl KerxSubtableCache {
                 }
                 SubtableKind::Format1(format1) => {
                     start_end_safe_to_break = collect_start_end_safe_to_break(&format1.state_table);
-                    safe_to_break = SafeToBreakAccel::build_extended(
+                    safe_to_break.build_extended(
                         &format1.state_table,
                         subtable.data(),
                         &KerxStateEntryExt::is_actionable,
                         &KerxStateEntryExt::has_advance,
                     );
+                    has_safe_to_break = true;
                     collect_initial_glyphs(&format1.state_table, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format2(format2) => {
@@ -753,12 +760,13 @@ impl KerxSubtableCache {
                 }
                 SubtableKind::Format4(format4) => {
                     start_end_safe_to_break = collect_start_end_safe_to_break(&format4.state_table);
-                    safe_to_break = SafeToBreakAccel::build_extended(
+                    safe_to_break.build_extended(
                         &format4.state_table,
                         subtable.data(),
                         &KerxStateEntryExt::is_actionable,
                         &KerxStateEntryExt::has_advance,
                     );
+                    has_safe_to_break = true;
                     collect_initial_glyphs(&format4.state_table, &mut first_set, num_glyphs);
                 }
                 SubtableKind::Format6(format6) => {
@@ -766,9 +774,11 @@ impl KerxSubtableCache {
                 }
             }
         }
+        if !has_safe_to_break {
+            safe_to_break.add_empty();
+        }
         KerxSubtableCache {
             start_end_safe_to_break,
-            safe_to_break,
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
