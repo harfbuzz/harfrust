@@ -209,21 +209,27 @@ impl<'a> AatApplyContext<'a> {
 /// O(classes) + O(states) storage, typically a few hundred bytes.
 pub(crate) struct SafeToBreakCache {
     n_classes: u32,
-    /// Per class: `entry(START_OF_TEXT, class)` packed as
-    /// `new_state | advance << 16` when present and non-actionable,
-    /// `!0` otherwise — so condition 2c is a single compare.
-    wouldbe: Vec<u32>,
+    /// Per class: `entry(START_OF_TEXT, class)` packed as 15 bits of
+    /// new state with the advance bit on top when present and
+    /// non-actionable, `!0` otherwise — so condition 2c is a single
+    /// compare. Real machines' state counts fit 15 bits; the rare
+    /// entry that doesn't is stored as absent, which merely answers
+    /// condition 2c conservatively.
+    wouldbe: Vec<u16>,
     /// Condition-3 bits for states 64 and up; states below 64 keep
     /// using the `start_end_safe_to_break` word. Empty for machines
     /// with at most 64 states.
     eot_tail: Vec<u64>,
 }
 
-pub(crate) const WOULDBE_NONE: u32 = !0;
+pub(crate) const WOULDBE_NONE: u16 = !0;
 
 #[inline(always)]
-pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u32 {
-    new_state as u32 | ((advance as u32) << 16)
+pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u16 {
+    if new_state >= 0x7FFF {
+        return WOULDBE_NONE;
+    }
+    new_state | ((advance as u16) << 15)
 }
 
 impl SafeToBreakCache {
@@ -244,7 +250,8 @@ impl SafeToBreakCache {
         if class >= self.n_classes as usize {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        self.wouldbe.get(class).copied() == Some(pack_wouldbe(next_state, advance))
+        let candidate = pack_wouldbe(next_state, advance);
+        candidate != WOULDBE_NONE && self.wouldbe.get(class).copied() == Some(candidate)
     }
 
     /// Condition 3 for states 64 and up: no end-of-text action can fire
