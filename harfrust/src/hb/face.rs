@@ -39,7 +39,7 @@ impl ShaperData {
     /// Creates new cached shaper data for the given font.
     pub fn new(font: &FontRef) -> Self {
         let ot_cache = OtCache::new(font);
-        let aat_cache = AatCache::new(font);
+        let aat_cache = AatCache::new(font, &ot_cache);
         let table_ranges = TableRanges::new(font);
         let cmap_cache = cmap_cache_t::new();
         let apply_trak = font.trak().is_ok() && font.stat().is_ok();
@@ -55,7 +55,7 @@ impl ShaperData {
     fn from_font(font: &crate::font::Font) -> Self {
         let tables = font.tables();
         let ot_cache = OtCache::new(&tables);
-        let aat_cache = AatCache::new(&tables);
+        let aat_cache = AatCache::new(&tables, &ot_cache);
         let table_ranges = TableRanges::from_tables(&tables);
         let cmap_cache = cmap_cache_t::new();
         let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
@@ -510,11 +510,15 @@ impl<'a> crate::Shaper<'a> {
             descent: data.table_ranges.descent,
         };
         let coords = font.normalized_coords();
-        let feature_variations = font.feature_variations();
-        let feature_variations = [feature_variations.gsub(), feature_variations.gpos()];
+        let feature_variations = if coords.is_empty() {
+            [None; 2]
+        } else {
+            let feature_variations = font.feature_variations();
+            [feature_variations.gsub(), feature_variations.gpos()]
+        };
         let tables = font.tables();
         let ot_tables = OtTables::from_tables(&tables, &data.ot_cache, coords, feature_variations);
-        let aat_tables = AatTables::from_tables(&tables, &ot_tables, &data.aat_cache);
+        let aat_tables = AatTables::from_tables(&tables, &data.aat_cache);
         Some(Self {
             font: FontKind::FontInstance(font, metrics),
             units_per_em: data.table_ranges.units_per_em,
@@ -659,6 +663,47 @@ pub struct GlyphExtents {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Tag;
+    use core::cell::Cell;
+    use read_fonts::{FontData, TableProvider};
+
+    struct CountingProvider<'a> {
+        font: FontRef<'a>,
+        loads: Cell<usize>,
+    }
+
+    impl<'a> TableProvider<'a> for CountingProvider<'a> {
+        fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
+            self.loads.set(self.loads.get() + 1);
+            self.font.data_for_tag(tag)
+        }
+    }
+
+    #[test]
+    fn cached_table_disposition_skips_missing_tables() {
+        let font = FontRef::new(include_bytes!("../../benches/fonts/Roboto-Regular.ttf")).unwrap();
+        let provider = CountingProvider {
+            font,
+            loads: Cell::new(0),
+        };
+        let ot_cache = OtCache::new(&provider);
+        let aat_cache = AatCache::new(&provider, &ot_cache);
+
+        provider.loads.set(0);
+        let ot_tables = OtTables::from_tables(&provider, &ot_cache, &[], [None; 2]);
+        let aat_tables = AatTables::from_tables(&provider, &aat_cache);
+
+        assert!(ot_tables.gsub.is_some());
+        assert!(ot_tables.gpos.is_some());
+        assert!(ot_tables.gdef.table.is_some());
+        assert!(aat_tables.morx.is_none());
+        assert!(aat_tables.ankr.is_none());
+        assert!(aat_tables.kern.is_none());
+        assert!(aat_tables.kerx.is_none());
+        assert!(aat_tables.trak.is_none());
+        assert!(aat_tables.feat.is_none());
+        assert_eq!(provider.loads.get(), 3);
+    }
 
     #[test]
     fn extents_scale_from_corners_like_harfbuzz() {
