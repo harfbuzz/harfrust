@@ -160,9 +160,7 @@ fn resolve_tuple_kerning(value: i32, tuple_count: u32, data: FontData<'_>) -> Op
     }
 
     let offset = usize::try_from(value).ok()?;
-    let byte_len = usize::try_from(tuple_count).ok()?.checked_mul(2)?;
-    let tuple = data.slice(offset..offset.checked_add(byte_len)?)?;
-    tuple.read_at::<i16>(0).ok().map(i32::from)
+    data.read_at::<i16>(offset).ok().map(i32::from)
 }
 
 impl SimpleKerning for Subtable0<'_> {
@@ -823,6 +821,6 @@ mod tests {
 
         assert_eq!(value, 22);
         assert_eq!(subtable.resolve_tuple_kerning(value, 2), Some(-100));
-        assert_eq!(subtable.resolve_tuple_kerning(value, 3), None);
+        assert_eq!(subtable.resolve_tuple_kerning(value, 3), Some(-100));
     }
 }
