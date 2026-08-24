@@ -15,6 +15,7 @@ use read_fonts::{
         kern::Kern,
         kerx::Kerx,
         loca::Loca,
+        mort::Mort,
         morx::Morx,
         mvar::Mvar,
         trak::Trak,
@@ -65,6 +66,7 @@ pub struct TableRanges {
     pub gdef: TableRange,
     pub gsub: TableRange,
     pub gpos: TableRange,
+    pub mort: TableRange,
     pub morx: TableRange,
     pub kerx: TableRange,
     pub ankr: TableRange,
@@ -139,6 +141,7 @@ impl TableRanges {
         let gdef = offset(Gdef::TAG);
         let gsub = offset(Gsub::TAG);
         let gpos = offset(Gpos::TAG);
+        let mort = offset(Mort::TAG);
         let morx = offset(Morx::TAG);
         let kerx = offset(Kerx::TAG);
         let ankr = offset(Ankr::TAG);
@@ -168,6 +171,7 @@ impl TableRanges {
             gdef,
             gsub,
             gpos,
+            mort,
             morx,
             kerx,
             ankr,
@@ -224,6 +228,7 @@ impl TableRanges {
             gdef: TableRange::default(),
             gsub: TableRange::default(),
             gpos: TableRange::default(),
+            mort: TableRange::default(),
             morx: TableRange::default(),
             kerx: TableRange::default(),
             ankr: TableRange::default(),

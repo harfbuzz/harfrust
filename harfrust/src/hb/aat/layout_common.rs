@@ -369,11 +369,11 @@ impl SafeToBreakAccel {
     /// The legacy (`kern` Format1) counterpart of [`Self::build_extended`]:
     /// one-byte state cells and u8 classes.
     #[inline(never)]
-    pub(crate) fn build_legacy(
+    pub(crate) fn build_legacy<T: bytemuck::AnyBitPattern + FixedSize>(
         &mut self,
-        machine: &StateTable,
-        is_actionable: &dyn Fn(&StateEntry) -> bool,
-        can_advance: &dyn Fn(&StateEntry) -> bool,
+        machine: &StateTable<T>,
+        is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
+        can_advance: &dyn Fn(&StateEntry<T>) -> bool,
     ) -> SafeToBreakSubtable {
         let n_classes = machine.header.state_size() as usize;
         let wouldbe_start = self.wouldbe.len();

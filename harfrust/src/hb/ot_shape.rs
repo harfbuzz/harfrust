@@ -51,7 +51,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         let script_fallback_position = shaper.fallback_position;
 
         // https://github.com/harfbuzz/harfbuzz/issues/2124
-        let apply_morx = face.aat_tables.morx.is_some()
+        let apply_morx = (face.aat_tables.morx.is_some() || face.aat_tables.mort.is_some())
             && (direction.is_horizontal() || face.ot_tables.gsub.is_none());
 
         // https://github.com/harfbuzz/harfbuzz/issues/1528
