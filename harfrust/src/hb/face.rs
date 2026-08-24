@@ -711,6 +711,7 @@ mod tests {
         assert!(aat_tables.kerx.is_none());
         assert!(aat_tables.trak.is_none());
         assert!(aat_tables.feat.is_none());
+        assert!(aat_tables.ltag.is_none());
         assert_eq!(provider.loads.get(), 3);
     }
 

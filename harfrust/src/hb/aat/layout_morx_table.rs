@@ -5,7 +5,8 @@ use crate::hb::aat::layout_common::{
     START_OF_TEXT,
 };
 use crate::hb::ot_layout::MAX_CONTEXT_LENGTH;
-use crate::hb::{hb_font_t, GlyphInfo};
+use crate::hb::tag::lang_matches;
+use crate::hb::{hb_font_t, GlyphInfo, Language};
 use crate::U32Set;
 use alloc::{vec, vec::Vec};
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
@@ -66,10 +67,32 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
             })
             .is_ok()
     };
+    let language_matches = |setting: u16| {
+        let Some(index) = setting.checked_sub(1) else {
+            return false;
+        };
+        let Some(requested) = builder.language.as_ref() else {
+            return false;
+        };
+        let Some(ltag) = face.aat_tables.ltag.as_ref() else {
+            return false;
+        };
+        let Some(tag) = ltag
+            .tag_indices()
+            .find_map(|(tag_index, tag)| (tag_index == u32::from(index)).then_some(tag))
+        else {
+            return false;
+        };
+        let Some(language) = Language::new(tag) else {
+            return false;
+        };
+        lang_matches(requested.as_bytes(), language.as_bytes())
+    };
 
     fn compile_chain(
         chain: &impl MorphChain,
         has_feature: &impl Fn(u16, u16) -> bool,
+        language_matches: &impl Fn(u16) -> bool,
         chain_flags: &mut Vec<RangeFlags>,
         builder: &AatMapBuilder,
     ) {
@@ -93,8 +116,12 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
                         flags &= disable_flags;
                         flags |= enable_flags;
                     }
+                } else if feature_type == FEATURE_TYPE_LANGUAGE_TAG_TYPE as u16
+                    && language_matches(feature_setting)
+                {
+                    flags &= disable_flags;
+                    flags |= enable_flags;
                 }
-                // TODO: Port the following commit: https://github.com/harfbuzz/harfbuzz/commit/2124ad890
             },
         );
 
@@ -110,7 +137,13 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
         map.chain_flags.resize(chains.iter().count(), vec![]);
         for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
             if let Ok(chain) = chain {
-                compile_chain(&chain, &has_feature, chain_flags, builder);
+                compile_chain(
+                    &chain,
+                    &has_feature,
+                    &language_matches,
+                    chain_flags,
+                    builder,
+                );
             }
         }
     } else {
@@ -118,7 +151,13 @@ pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap
         map.chain_flags.resize(chains.iter().count(), vec![]);
         for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
             if let Ok(chain) = chain {
-                compile_chain(&chain, &has_feature, chain_flags, builder);
+                compile_chain(
+                    &chain,
+                    &has_feature,
+                    &language_matches,
+                    chain_flags,
+                    builder,
+                );
             }
         }
     }

@@ -48,40 +48,23 @@ locks the environment variables.
 $ HB_SHAPER_LIST=harfrust meson test -C build
 ```
 
-If all goes well, you should see lots of output, ending in:
+The exact totals change as HarfBuzz adds tests. As of August 24, 2026,
+the relevant shaping suites report:
 
 ```
-Ok:                 217
-Expected Fail:      0
-Fail:               2
-Unexpected Pass:    0
-Skipped:            0
-Timeout:            0
+shape+aots:                 800/800 passed
+shape+text-rendering-tests: 437/437 passed
+shape+in-house:             5012/5021 passed
 ```
-
-If you scroll up, you'd see that the two failing tests are:
-```
-214/219 harfbuzz:shape+text-rendering-tests / text-rendering-tests            FAIL             0.12s   432/435 subtests passed
-```
-and
-```
-218/219 harfbuzz:shape+in-house / in-house                                    FAIL             0.36s   4779/4800 subtests passed
-```
-
-This is pretty good. In total, there are 24 shaping tests failing.
-Those are mostly due to HarfRust not supporting some esoteric
-shaping features of HarfBuzz.
 
 To see specific failures, you can run inspect the test log:
 ```sh
 $ less build/meson-logs/testlog.txt
 ```
 
-Currently the following tests fail:
-- `SHBALI-3.tests`: Rounding differences with unusual UPEM.
-- `arabic-fallback-positioning.tests`: Not implemented.
-- `collections.tests`: `DFONT` format is not supported.
-- `vertical.tests`: Fallback based on glyph extents not supported.
+The nine remaining shaping failures are all in
+`arabic-fallback-shaping.tests`; HarfRust does not yet synthesize Arabic
+fallback lookups for fonts without the required OpenType substitutions.
 
 
 ## Running HarfBuzz's Benchmark Tests
