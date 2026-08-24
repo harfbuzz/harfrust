@@ -13,7 +13,10 @@ use crate::hb::ot::OtCache;
 use crate::hb::tables::TableRanges;
 use alloc::vec::Vec;
 use read_fonts::{
-    tables::{ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, mort::Mort, morx::Morx, trak::Trak},
+    tables::{
+        ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, ltag::Ltag, mort::Mort, morx::Morx,
+        trak::Trak,
+    },
     FontRef, TableProvider,
 };
 
@@ -35,6 +38,7 @@ pub struct AatCache {
     has_kerx: bool,
     pub(crate) has_trak: bool,
     has_feat: bool,
+    has_ltag: bool,
 }
 
 impl AatCache {
@@ -68,6 +72,7 @@ impl AatCache {
         cache.has_kerx = kerx.is_some();
         cache.has_trak = font.trak().is_ok();
         cache.has_feat = font.feat().is_ok();
+        cache.has_ltag = font.ltag().is_ok();
 
         if let Some(morx) = morx.filter(|_| cache.has_morx || cache.has_morx_from_tables) {
             let morx_base = morx.offset_data().as_bytes().as_ptr() as usize;
@@ -161,6 +166,7 @@ pub struct AatTables<'a> {
     pub kerx: Option<(Kerx<'a>, &'a [KerxSubtableCache])>,
     pub trak: Option<Trak<'a>>,
     pub feat: Option<Feat<'a>>,
+    pub ltag: Option<Ltag<'a>>,
 }
 
 use crate::algs::HB_CODEPOINT_ENCODE3 as encode3;
@@ -222,6 +228,10 @@ impl<'a> AatTables<'a> {
             .has_feat
             .then(|| table_ranges.feat.resolve_table(font))
             .flatten();
+        let ltag = cache
+            .has_ltag
+            .then(|| table_ranges.ltag.resolve_table(font))
+            .flatten();
         Self {
             safe_to_break: Some(&cache.safe_to_break),
             morx,
@@ -231,6 +241,7 @@ impl<'a> AatTables<'a> {
             kerx,
             trak,
             feat,
+            ltag,
         }
     }
 
@@ -270,6 +281,7 @@ impl<'a> AatTables<'a> {
             .map(|table| (table, cache.kerx.as_slice()));
         let trak = cache.has_trak.then(|| font.trak().ok()).flatten();
         let feat = cache.has_feat.then(|| font.feat().ok()).flatten();
+        let ltag = cache.has_ltag.then(|| font.ltag().ok()).flatten();
         Self {
             safe_to_break: Some(&cache.safe_to_break),
             morx,
@@ -279,6 +291,7 @@ impl<'a> AatTables<'a> {
             kerx,
             trak,
             feat,
+            ltag,
         }
     }
 }

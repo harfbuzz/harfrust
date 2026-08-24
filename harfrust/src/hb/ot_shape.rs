@@ -36,7 +36,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         language: Option<&Language>,
     ) -> Self {
         let ot_map = hb_ot_map_builder_t::new(face, script, language);
-        let aat_map = AatMapBuilder::default();
+        let aat_map = AatMapBuilder::new(language);
 
         let mut shaper = match script {
             Some(script) => hb_ot_shape_complex_categorize(
