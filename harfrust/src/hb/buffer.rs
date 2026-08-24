@@ -2234,6 +2234,49 @@ impl GlyphBuffer {
     }
 }
 
+/// A scoped view of shaping results in a reusable [`UnicodeBuffer`].
+///
+/// The buffer is cleared automatically when this view is dropped, preserving
+/// the `UnicodeBuffer` type-state while allowing its allocation-bearing state
+/// to remain in place during shaping.
+#[cfg(feature = "experimental_font_api")]
+pub struct GlyphBufferRef<'a>(pub(crate) &'a mut hb_buffer_t);
+
+#[cfg(feature = "experimental_font_api")]
+impl GlyphBufferRef<'_> {
+    /// Returns the number of glyphs in the buffer.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len
+    }
+
+    /// Returns `true` if the buffer contains no glyphs.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Returns the glyph infos.
+    #[inline]
+    pub fn glyph_infos(&self) -> &[GlyphInfo] {
+        &self.0.info[..self.0.len]
+    }
+
+    /// Returns the glyph positions.
+    #[inline]
+    pub fn glyph_positions(&self) -> &[GlyphPosition] {
+        &self.0.pos[..self.0.len]
+    }
+}
+
+#[cfg(feature = "experimental_font_api")]
+impl Drop for GlyphBufferRef<'_> {
+    #[inline]
+    fn drop(&mut self) {
+        self.0.clear();
+    }
+}
+
 pub trait SerializerFont {
     fn coords(&self) -> &[F2Dot14];
     fn glyph_names(&self) -> GlyphNames<'_>;

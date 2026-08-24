@@ -19,6 +19,8 @@ use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
+#[cfg(feature = "experimental_font_api")]
+use crate::GlyphBufferRef;
 use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
 
 pub use super::font_funcs::{
@@ -468,6 +470,33 @@ pub fn shape(
     GlyphBuffer(buffer)
 }
 
+/// Shapes a reusable buffer in place and returns a scoped view of the results.
+///
+/// The returned view borrows `buffer` and clears it when dropped. This avoids
+/// moving the buffer's allocation-bearing state into and out of a
+/// [`GlyphBuffer`], while leaving `buffer` ready for reuse afterward.
+///
+/// If a plan is provided, it is up to the caller to ensure that the shape plan
+/// matches the properties of the provided buffer.
+#[cfg(feature = "experimental_font_api")]
+pub fn shape_in_place<'a>(
+    font: &crate::font::FontInstance,
+    buffer: &'a mut UnicodeBuffer,
+    mut options: ShapeOptions<'_>,
+) -> GlyphBufferRef<'a> {
+    if let Some(hb_font) = hb_font_t::from_font(font).as_ref() {
+        if options.scale.is_none() {
+            if let Some(ppem) = font.size() {
+                options = options.scale(Some((ppem * 65536.0) as i32));
+            }
+        }
+        hb_font.shape_buffer(&mut buffer.0, options);
+    } else {
+        buffer.clear();
+    }
+    GlyphBufferRef(&mut buffer.0)
+}
+
 // This will go away completely when we drop the old API.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
@@ -745,5 +774,50 @@ mod tests {
         assert_eq!(scaled.y_bearing, i32::MIN);
         assert_eq!(scaled.width, i32::MAX);
         assert_eq!(scaled.height, i32::MIN);
+    }
+
+    #[cfg(feature = "experimental_font_api")]
+    #[test]
+    fn shape_in_place_matches_shape_and_clears_on_drop() {
+        use crate::font::{Font, FontInstance};
+
+        fn text_buffer() -> UnicodeBuffer {
+            let mut buffer = UnicodeBuffer::new();
+            buffer.push_str("office");
+            buffer.guess_segment_properties();
+            buffer
+        }
+
+        let font = Font::new(
+            &include_bytes!("../../benches/fonts/Roboto-Regular.ttf")[..],
+            0,
+        )
+        .unwrap();
+        let instance = FontInstance::builder(&font).build();
+        let expected = shape(&instance, text_buffer(), ShapeOptions::default());
+
+        let mut buffer = text_buffer();
+        {
+            let glyphs = shape_in_place(&instance, &mut buffer, ShapeOptions::default());
+            assert_eq!(glyphs.len(), expected.len());
+            for (actual, expected) in glyphs.glyph_infos().iter().zip(expected.glyph_infos()) {
+                assert_eq!(actual.glyph_id, expected.glyph_id);
+                assert_eq!(actual.mask, expected.mask);
+                assert_eq!(actual.cluster, expected.cluster);
+                assert_eq!(actual.vars, expected.vars);
+            }
+            for (actual, expected) in glyphs
+                .glyph_positions()
+                .iter()
+                .zip(expected.glyph_positions())
+            {
+                assert_eq!(actual.x_advance, expected.x_advance);
+                assert_eq!(actual.y_advance, expected.y_advance);
+                assert_eq!(actual.x_offset, expected.x_offset);
+                assert_eq!(actual.y_offset, expected.y_offset);
+                assert_eq!(actual.var, expected.var);
+            }
+        }
+        assert!(buffer.is_empty());
     }
 }

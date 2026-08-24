@@ -27,7 +27,7 @@ pub use read_fonts::{
 };
 
 #[cfg(feature = "experimental_font_api")]
-pub use hb::face::shape;
+pub use hb::face::{shape, shape_in_place};
 
 /// Font related types.
 pub mod font {
@@ -45,6 +45,8 @@ pub mod font {
     pub(crate) use read_fonts::model::*;
 }
 
+#[cfg(feature = "experimental_font_api")]
+pub use hb::buffer::GlyphBufferRef;
 pub use hb::buffer::{GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
 pub use hb::face::{
