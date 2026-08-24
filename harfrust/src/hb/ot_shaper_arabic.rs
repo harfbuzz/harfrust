@@ -284,20 +284,33 @@ pub struct arabic_shape_plan_t {
     // having to do a "if (... < NONE) ..." and just rely on the fact that
     // mask_array[NONE] == 0.
     mask_array: [hb_mask_t; ARABIC_FEATURES.len() + 1],
+    do_fallback: bool,
     has_stch: bool,
+    #[cfg(feature = "std")]
+    fallback_plan: std::sync::OnceLock<Option<super::ot_shaper_arabic_fallback::FallbackPlan>>,
+    #[cfg(not(feature = "std"))]
+    fallback_plan: spin::Once<Option<super::ot_shaper_arabic_fallback::FallbackPlan>>,
 }
 
 pub fn data_create_arabic(plan: &hb_ot_shape_plan_t) -> arabic_shape_plan_t {
     let has_stch = plan.ot_map.get_1_mask(hb_tag_t::new(b"stch")) != 0;
+    let mut do_fallback = plan.script == Some(script::ARABIC);
 
     let mut mask_array = [0; ARABIC_FEATURES.len() + 1];
     for i in 0..ARABIC_FEATURES.len() {
         mask_array[i] = plan.ot_map.get_1_mask(ARABIC_FEATURES[i]);
+        do_fallback &=
+            feature_is_syriac(ARABIC_FEATURES[i]) || plan.ot_map.needs_fallback(ARABIC_FEATURES[i]);
     }
 
     arabic_shape_plan_t {
         mask_array,
+        do_fallback,
         has_stch,
+        #[cfg(feature = "std")]
+        fallback_plan: std::sync::OnceLock::new(),
+        #[cfg(not(feature = "std"))]
+        fallback_plan: spin::Once::new(),
     }
 }
 
@@ -417,11 +430,27 @@ pub fn setup_masks_inner(
 }
 
 fn arabic_fallback_shape(
-    _: &hb_ot_shape_plan_t,
-    _: &mut FontFuncsDispatch,
-    _: &mut hb_buffer_t,
+    plan: &hb_ot_shape_plan_t,
+    font_funcs: &mut FontFuncsDispatch,
+    buffer: &mut hb_buffer_t,
 ) -> bool {
-    false
+    let arabic_plan = plan.data::<arabic_shape_plan_t>();
+    if !arabic_plan.do_fallback {
+        return false;
+    }
+
+    #[cfg(feature = "std")]
+    let fallback_plan = arabic_plan
+        .fallback_plan
+        .get_or_init(|| super::ot_shaper_arabic_fallback::FallbackPlan::new(plan, font_funcs));
+    #[cfg(not(feature = "std"))]
+    let fallback_plan = arabic_plan
+        .fallback_plan
+        .call_once(|| super::ot_shaper_arabic_fallback::FallbackPlan::new(plan, font_funcs));
+    if let Some(fallback_plan) = fallback_plan {
+        fallback_plan.apply(font_funcs, buffer);
+    }
+    true
 }
 
 // Stretch feature: "stch".

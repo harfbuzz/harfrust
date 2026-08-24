@@ -38,7 +38,7 @@ The following conformance issues need to be fixed:
 
 - HarfRust for the most part passes the HarfBuzz test and fuzzing suites, but there are some known issues. See [HARFBUZZ.md](./HARFBUZZ.md) for details.
 - Malformed fonts will cause an error. HarfBuzz uses fallback/dummy shaper in this case.
-- No Arabic fallback shaper. This requires the ability to build lookups on the fly. In HarfBuzz (C++) this requires serialization code that is associated with subsetting.
+- Arabic fallback lookups are synthesized when the default `std` feature is enabled. `no_std` builds skip this fallback.
 - Experimental HarfBuzz features like most of the boring-expansion-spec are not supported yet.
 
 ## Performance

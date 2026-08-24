@@ -23,6 +23,7 @@ inherits = "release"
 
 [workspace.dependencies]
 read-fonts = { version = "0.43.2", default-features = false, features = ["experimental_font_api"] }
+spin = { version = "0.12.3", default-features = false, features = ["once"] }
 harfrust = { version = "0.13.2", path = "./harfrust", default-features = false }
 
 [workspace.lints.rust]

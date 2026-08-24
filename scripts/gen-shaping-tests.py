@@ -14,7 +14,6 @@ IGNORE_TESTS = [
     "coretext.tests", # Irrelevant
     "directwrite.tests", # Irrelevant
     "uniscribe.tests", # Irrelevant
-    "arabic-fallback-shaping.tests", # Not implemented
     "synthetic.tests", # Not implemented
     "harfbust.tests", # We behave differently
 ]
