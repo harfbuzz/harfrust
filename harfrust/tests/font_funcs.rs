@@ -168,6 +168,43 @@ fn font_funcs_nominal_override_bypasses_cmap_cache() {
 }
 
 #[test]
+fn arabic_win1256_fallback_is_applied() {
+    struct Win1256Funcs;
+
+    impl FontFuncs for Win1256Funcs {
+        fn nominal_glyph(&mut self, _: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+            let glyph = match c {
+                0x0627 => 199, // ALEF
+                0x0644 => 225, // LAM
+                0x0645 => 229, // MEEM
+                0x0649 => 236, // ALEF MAKSURA
+                0x064A => 237, // YEH
+                0x0652 => 250, // SUKUN
+                _ => return None,
+            };
+            Some(GlyphId::new(glyph))
+        }
+    }
+
+    let mut funcs = Win1256Funcs;
+    let glyphs = with_test_shaper(|shaper| {
+        shaper.shape(
+            buffer_with_text("لم"),
+            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+        )
+    });
+
+    assert_eq!(
+        glyphs
+            .glyph_infos()
+            .iter()
+            .map(|info| info.glyph_id)
+            .collect::<Vec<_>>(),
+        [152, 141],
+    );
+}
+
+#[test]
 fn font_funcs_batch_advance_override_is_used() {
     struct BatchAdvanceFuncs {
         batch_calls: usize,
