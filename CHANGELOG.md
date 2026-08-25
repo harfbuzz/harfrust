@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
+## [0.13.3] - 2026-08-25
+
+This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+- Add support for shaping legacy AAT `mort` tables, including
+  language-specific morph features (#451, #453).
+- Handle tuple kerning in AAT `kerx` tables (#452).
+- Fix a debug assertion for legacy `kern` state tables that declare more than
+  256 classes (#455).
+- Synthesize Arabic fallback GSUB lookups, including legacy Windows-1256
+  glyph layouts and `no_std` builds (#454, #456).
+- Update `read-fonts` to 0.43.3.
+
 ## [0.13.2] - 2026-08-23
 
 This release matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1),
@@ -286,7 +300,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.13.2...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.13.3...HEAD
+[0.13.3]: https://github.com/harfbuzz/harfrust/compare/0.13.2...0.13.3
 [0.13.2]: https://github.com/harfbuzz/harfrust/compare/0.13.1...0.13.2
 [0.13.1]: https://github.com/harfbuzz/harfrust/compare/0.13.0...0.13.1
 [0.13.0]: https://github.com/harfbuzz/harfrust/compare/0.12.0...0.13.0
