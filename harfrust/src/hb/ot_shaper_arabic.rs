@@ -286,10 +286,7 @@ pub struct arabic_shape_plan_t {
     mask_array: [hb_mask_t; ARABIC_FEATURES.len() + 1],
     do_fallback: bool,
     has_stch: bool,
-    #[cfg(feature = "std")]
-    fallback_plan: std::sync::OnceLock<Option<super::ot_shaper_arabic_fallback::FallbackPlan>>,
-    #[cfg(not(feature = "std"))]
-    fallback_plan: spin::Once<Option<super::ot_shaper_arabic_fallback::FallbackPlan>>,
+    fallback_plan: once_cell::race::OnceBox<Option<super::ot_shaper_arabic_fallback::FallbackPlan>>,
 }
 
 pub fn data_create_arabic(plan: &hb_ot_shape_plan_t) -> arabic_shape_plan_t {
@@ -307,10 +304,7 @@ pub fn data_create_arabic(plan: &hb_ot_shape_plan_t) -> arabic_shape_plan_t {
         mask_array,
         do_fallback,
         has_stch,
-        #[cfg(feature = "std")]
-        fallback_plan: std::sync::OnceLock::new(),
-        #[cfg(not(feature = "std"))]
-        fallback_plan: spin::Once::new(),
+        fallback_plan: once_cell::race::OnceBox::new(),
     }
 }
 
@@ -439,14 +433,11 @@ fn arabic_fallback_shape(
         return false;
     }
 
-    #[cfg(feature = "std")]
-    let fallback_plan = arabic_plan
-        .fallback_plan
-        .get_or_init(|| super::ot_shaper_arabic_fallback::FallbackPlan::new(plan, font_funcs));
-    #[cfg(not(feature = "std"))]
-    let fallback_plan = arabic_plan
-        .fallback_plan
-        .call_once(|| super::ot_shaper_arabic_fallback::FallbackPlan::new(plan, font_funcs));
+    let fallback_plan = arabic_plan.fallback_plan.get_or_init(|| {
+        Box::new(super::ot_shaper_arabic_fallback::FallbackPlan::new(
+            plan, font_funcs,
+        ))
+    });
     if let Some(fallback_plan) = fallback_plan {
         fallback_plan.apply(font_funcs, buffer);
     }
