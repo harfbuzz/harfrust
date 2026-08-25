@@ -23,6 +23,104 @@ const FALLBACK_FEATURES: [hb_tag_t; 7] = [
     hb_tag_t::new(b"rlig"),
 ];
 
+// HarfBuzz uses this signature to identify legacy Windows-1256 Arabic fonts.
+// These fonts encode Arabic glyphs at fixed glyph IDs rather than providing
+// Unicode presentation forms, so use the matching fallback GSUB recipe below.
+const WIN1256_SIGNATURE: &[(u32, u16)] = &[
+    (0x0627, 199), // ALEF
+    (0x0644, 225), // LAM
+    (0x0649, 236), // ALEF MAKSURA
+    (0x064A, 237), // YEH
+    (0x0652, 250), // SUKUN
+];
+
+const WIN1256_INIT_MAPPINGS: &[(u16, u16)] = &[
+    (198, 162),
+    (200, 4),
+    (201, 5),
+    (202, 5),
+    (203, 6),
+    (204, 7),
+    (205, 9),
+    (206, 11),
+    (211, 13),
+    (212, 14),
+    (213, 15),
+    (214, 26),
+    (218, 27),
+    (219, 30),
+    (221, 128),
+    (222, 131),
+    (223, 140),
+    (225, 141),
+    (227, 142),
+    (228, 143),
+    (229, 144),
+    (236, 154),
+    (237, 154),
+];
+
+const WIN1256_MEDI_MAPPINGS: &[(u16, u16)] = &[
+    (165, 170),
+    (178, 179),
+    (180, 185),
+    (198, 162),
+    (200, 4),
+    (201, 5),
+    (202, 5),
+    (203, 6),
+    (204, 7),
+    (205, 9),
+    (206, 11),
+    (211, 13),
+    (212, 14),
+    (213, 15),
+    (214, 26),
+    (218, 28),
+    (219, 31),
+    (221, 129),
+    (222, 138),
+    (223, 140),
+    (225, 141),
+    (227, 142),
+    (228, 143),
+    (229, 149),
+    (236, 154),
+    (237, 154),
+    (252, 255),
+];
+
+const WIN1256_FINA_MAPPINGS: &[(u16, u16)] = &[
+    (165, 170),
+    (178, 179),
+    (180, 185),
+    (194, 2),
+    (195, 1),
+    (197, 3),
+    (198, 181),
+    (199, 0),
+    (201, 159),
+    (204, 8),
+    (205, 10),
+    (206, 12),
+    (218, 29),
+    (219, 127),
+    (229, 152),
+    (236, 160),
+    (237, 156),
+    (252, 255),
+];
+
+const WIN1256_LAM_ALEF_LIGATURES: &[([u16; 2], u16)] = &[
+    ([225, 199], 165),
+    ([225, 195], 178),
+    ([225, 194], 180),
+    ([225, 197], 252),
+];
+
+const WIN1256_SHADDA_LIGATURES: &[([u16; 2], u16)] =
+    &[([248, 243], 172), ([248, 245], 173), ([248, 246], 175)];
+
 pub(crate) struct FallbackPlan {
     lookups: Vec<FallbackLookup>,
 }
@@ -45,6 +143,10 @@ impl FallbackPlan {
         plan: &hb_ot_shape_plan_t,
         font_funcs: &mut FontFuncsDispatch,
     ) -> Option<Self> {
+        Self::new_unicode(plan, font_funcs).or_else(|| Self::new_win1256(plan, font_funcs))
+    }
+
+    fn new_unicode(plan: &hb_ot_shape_plan_t, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
         let mut lookups = Vec::with_capacity(FALLBACK_FEATURES.len());
 
         for (feature_index, feature) in FALLBACK_FEATURES.iter().enumerate() {
@@ -78,6 +180,43 @@ impl FallbackPlan {
         (!lookups.is_empty()).then_some(Self { lookups })
     }
 
+    fn new_win1256(plan: &hb_ot_shape_plan_t, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
+        if !is_win1256_font(font_funcs) {
+            return None;
+        }
+
+        let mut lookups = Vec::with_capacity(5);
+        add_direct_ligature_lookup(
+            &mut lookups,
+            plan.ot_map.get_1_mask(hb_tag_t::new(b"rlig")),
+            WIN1256_LAM_ALEF_LIGATURES,
+            lookup_flags::IGNORE_MARKS,
+        );
+        add_direct_single_lookup(
+            &mut lookups,
+            plan.ot_map.get_1_mask(hb_tag_t::new(b"init")),
+            WIN1256_INIT_MAPPINGS,
+        );
+        add_direct_single_lookup(
+            &mut lookups,
+            plan.ot_map.get_1_mask(hb_tag_t::new(b"medi")),
+            WIN1256_MEDI_MAPPINGS,
+        );
+        add_direct_single_lookup(
+            &mut lookups,
+            plan.ot_map.get_1_mask(hb_tag_t::new(b"fina")),
+            WIN1256_FINA_MAPPINGS,
+        );
+        add_direct_ligature_lookup(
+            &mut lookups,
+            plan.ot_map.get_1_mask(hb_tag_t::new(b"rlig")),
+            WIN1256_SHADDA_LIGATURES,
+            0,
+        );
+
+        (!lookups.is_empty()).then_some(Self { lookups })
+    }
+
     pub(crate) fn apply(&self, font_funcs: &FontFuncsDispatch, buffer: &mut hb_buffer_t) {
         let mut ctx = hb_ot_apply_context_t::new(
             TableIndex::GSUB,
@@ -88,6 +227,52 @@ impl FallbackPlan {
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
             apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);
+        }
+    }
+}
+
+fn is_win1256_font(font_funcs: &mut FontFuncsDispatch) -> bool {
+    WIN1256_SIGNATURE.iter().all(|&(codepoint, glyph)| {
+        font_funcs
+            .nominal_glyph(codepoint)
+            .is_some_and(|actual| actual.to_u32() == u32::from(glyph))
+    })
+}
+
+fn add_direct_single_lookup(
+    lookups: &mut Vec<FallbackLookup>,
+    mask: hb_mask_t,
+    mappings: &[(u16, u16)],
+) {
+    if mask == 0 {
+        return;
+    }
+
+    let mut mappings = mappings.to_vec();
+    mappings.sort_by_key(|(glyph, _)| *glyph);
+    let Some(data) = serialize_single_lookup(&mappings, lookup_flags::IGNORE_MARKS) else {
+        return;
+    };
+    if let Some(lookup) = FallbackLookup::new(mask, data) {
+        lookups.push(lookup);
+    }
+}
+
+fn add_direct_ligature_lookup<const N: usize>(
+    lookups: &mut Vec<FallbackLookup>,
+    mask: hb_mask_t,
+    ligatures: &[([u16; N], u16)],
+    flags: u16,
+) {
+    if mask == 0 {
+        return;
+    }
+
+    let mut ligatures = ligatures.to_vec();
+    ligatures.sort_by_key(|(components, _)| components[0]);
+    if let Some(data) = serialize_ligature_lookup(&ligatures, flags) {
+        if let Some(lookup) = FallbackLookup::new(mask, data) {
+            lookups.push(lookup);
         }
     }
 }
@@ -301,5 +486,18 @@ mod tests {
         )
         .unwrap();
         assert!(LookupInfo::new_subst(&data).is_some());
+    }
+
+    #[test]
+    fn serializes_win1256_fallback_lookups() {
+        let mut mappings = WIN1256_MEDI_MAPPINGS.to_vec();
+        mappings.sort_by_key(|(glyph, _)| *glyph);
+        let single = serialize_single_lookup(&mappings, lookup_flags::IGNORE_MARKS).unwrap();
+        assert!(LookupInfo::new_subst(&single).is_some());
+
+        let ligature =
+            serialize_ligature_lookup(WIN1256_LAM_ALEF_LIGATURES, lookup_flags::IGNORE_MARKS)
+                .unwrap();
+        assert!(LookupInfo::new_subst(&ligature).is_some());
     }
 }
