@@ -12,6 +12,7 @@ GENERATED := \
 	$(HARFRUST_HB_DIR)/ucd_table.rs \
 	$(HARFRUST_HB_DIR)/ot_shaper_use_table.rs \
 	$(HARFRUST_HB_DIR)/ot_shaper_arabic_table.rs \
+	$(HARFRUST_HB_DIR)/ot_shaper_arabic_pua.rs \
 	$(HARFRUST_HB_DIR)/ot_shaper_indic_table.rs \
 	$(HARFRUST_HB_DIR)/unicode_emoji_table.rs \
 	$(HARFRUST_HB_DIR)/tag_table.rs \
@@ -39,6 +40,11 @@ $(HARFRUST_HB_DIR)/ot_shaper_use_table.rs: $(HB_SRC)/gen-use-table.py $(HB_SRC)/
 $(HARFRUST_HB_DIR)/ot_shaper_arabic_table.rs: $(HB_SRC)/gen-arabic-table.py $(HB_SRC)/ArabicShaping.txt $(HB_SRC)/UnicodeData.txt $(HB_SRC)/Blocks.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
 		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,4,$^) > $@ || ($(RM) $@; false)
+
+$(HARFRUST_HB_DIR)/ot_shaper_arabic_pua.rs: $(HB_SRC)/gen-arabic-pua.py $(HB_SRC)/ArabicPUASimplified.txt $(HB_SRC)/ArabicPUATraditional.txt
+	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
+		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,3,$^) > $@ || ($(RM) $@; false)
+	rustfmt $@
 
 $(HARFRUST_HB_DIR)/ot_shaper_indic_table.rs: $(HB_SRC)/gen-indic-table.py $(HB_SRC)/IndicSyllabicCategory.txt $(HB_SRC)/IndicPositionalCategory.txt $(HB_SRC)/Blocks.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \

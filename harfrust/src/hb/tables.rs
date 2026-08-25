@@ -19,6 +19,7 @@ use read_fonts::{
         mort::Mort,
         morx::Morx,
         mvar::Mvar,
+        os2::Os2,
         trak::Trak,
         vmtx::Vmtx,
         vorg::Vorg,
@@ -82,6 +83,17 @@ pub struct SelectedCmapSubtable {
     pub index: u16,
     pub is_mac_roman: bool,
     pub is_symbol: bool,
+    pub symbol_font_page: u16,
+}
+
+pub(crate) fn legacy_symbol_font_page(os2: Option<&Os2<'_>>) -> u16 {
+    let Some(os2) = os2.filter(|os2| os2.version() == 0) else {
+        return 0;
+    };
+    os2.offset_data()
+        .read_at::<u16>(os2.fs_selection_byte_range().start)
+        .unwrap_or_default()
+        & 0xFF00
 }
 
 impl TableRanges {
@@ -128,6 +140,7 @@ impl TableRanges {
                 index,
                 is_mac_roman: platform == PlatformId::Macintosh,
                 is_symbol: platform == PlatformId::Windows && encoding == WINDOWS_SYMBOL_ENCODING,
+                symbol_font_page: legacy_symbol_font_page(os2.as_ref()),
             });
         let cmap_vs_subtable = cmap_table.and_then(|cmap| {
             let data = cmap.offset_data();
