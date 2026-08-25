@@ -2832,6 +2832,18 @@ fn kern_2_002() {
 }
 
 #[test]
+fn mort_1_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/text-rendering-tests/TestAATMort.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0045}\u{0046}\u{0047}\u{0058}",
+            "--ned --remove-default-ignorables",
+        ),
+        "[B|A@830,0|D@1660,0|one@2490,0|H@3340,0|X@4170,0|Y@5000,0]"
+    );
+}
+
+#[test]
 fn morx_1_002() {
     assert_eq!(
         shape(
@@ -4531,6 +4543,18 @@ fn morx_41_005() {
         "tests/fonts/text-rendering-tests/TestMORXFourtyone.ttf",
         "\u{0061}\u{0062}\u{0063}\u{0063}",
         "",
+    );
+}
+
+#[test]
+fn morx_42_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/text-rendering-tests/TestAATMorx.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0045}\u{0046}\u{0047}\u{0058}",
+            "--ned --remove-default-ignorables",
+        ),
+        "[B|A@830,0|D@1660,0|one@2490,0|H@3340,0|X@4170,0|Y@5000,0]"
     );
 }
 
