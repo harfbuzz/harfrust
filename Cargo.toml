@@ -22,7 +22,7 @@ codegen-units = 1
 inherits = "release"
 
 [workspace.dependencies]
-read-fonts = { git = "https://github.com/googlefonts/fontations", rev = "df7ba9db6fd29553b86442fc004f28cb7997e99a", version = "0.43.2", default-features = false, features = ["experimental_font_api"] }
+read-fonts = { version = "0.43.3", default-features = false, features = ["experimental_font_api"] }
 harfrust = { version = "0.13.2", path = "./harfrust", default-features = false }
 
 [workspace.lints.rust]

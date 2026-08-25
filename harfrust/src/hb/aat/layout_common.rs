@@ -358,7 +358,7 @@ impl SafeToBreakAccel {
         }
 
         SafeToBreakSubtable::new(
-            n_classes,
+            wouldbe_len,
             wouldbe_start,
             self.wouldbe.len(),
             eot_tail_start,
@@ -412,7 +412,7 @@ impl SafeToBreakAccel {
         }
 
         SafeToBreakSubtable::new(
-            n_classes,
+            wouldbe_len,
             wouldbe_start,
             self.wouldbe.len(),
             eot_tail_start,
@@ -423,15 +423,12 @@ impl SafeToBreakAccel {
 
 impl SafeToBreakSubtable {
     fn new(
-        n_classes: usize,
+        wouldbe_len: usize,
         wouldbe_start: usize,
         wouldbe_end: usize,
         eot_tail_start: usize,
         eot_tail_end: usize,
     ) -> Self {
-        let wouldbe_len = n_classes
-            .max(class::OUT_OF_BOUNDS as usize + 1)
-            .min(1 << 16);
         debug_assert_eq!(wouldbe_end - wouldbe_start, wouldbe_len);
         Self {
             wouldbe_start: wouldbe_start as u32,
