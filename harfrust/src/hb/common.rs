@@ -356,12 +356,6 @@ impl Script {
         }
 
         Some(match &tag.to_be_bytes() {
-            // These graduated from the 'Q' private-area codes, but
-            // the old code is still aliased by Unicode, and the Qaai
-            // one in use by ICU.
-            b"Qaai" => script::INHERITED,
-            b"Qaac" => script::COPTIC,
-
             // Script variants from https://unicode.org/iso15924/
             b"Aran" => script::ARABIC,
             b"Cyrs" => script::CYRILLIC,
