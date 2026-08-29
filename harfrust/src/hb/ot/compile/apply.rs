@@ -608,7 +608,11 @@ mod tests {
         for (i, &g) in case.glyphs.iter().enumerate() {
             buffer.push(g, i as u32);
         }
-        buffer.reset_masks(1);
+        // Shaping seeds these during the unicode-props pass; a buffer built
+        // by hand has to do it itself, and every lookup here runs with mask 1.
+        for info in &mut buffer.info[..case.glyphs.len()] {
+            info.mask = 1;
+        }
         if concat {
             buffer.flags |= BufferFlags::PRODUCE_UNSAFE_TO_CONCAT;
         }
@@ -1002,7 +1006,11 @@ mod tests {
         for (i, &g) in case.glyphs.iter().enumerate() {
             buffer.push(g, i as u32);
         }
-        buffer.reset_masks(1);
+        // Shaping seeds these during the unicode-props pass; a buffer built
+        // by hand has to do it itself, and every lookup here runs with mask 1.
+        for info in &mut buffer.info[..case.glyphs.len()] {
+            info.mask = 1;
+        }
         if concat {
             buffer.flags |= BufferFlags::PRODUCE_UNSAFE_TO_CONCAT;
         }
