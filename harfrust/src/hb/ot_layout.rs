@@ -92,6 +92,24 @@ pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut Buffer) {
     }
 }
 
+/// `_hb_ot_layout_set_glyph_props` fused with the buffer-digest rebuild:
+/// one pass over the buffer instead of two. The digest covers exactly the
+/// in-use glyphs, a subset of what the from-scratch rebuild admits (which
+/// also hashes slack entries), so lookups it skips could never have
+/// matched.
+pub fn _hb_ot_layout_set_glyph_props_with_digest(face: &hb_font_t, buffer: &mut Buffer) {
+    buffer.assert_gsubgpos_vars();
+
+    let len = buffer.len;
+    let mut digest = crate::hb::set_digest::hb_set_digest_t::new();
+    for info in &mut buffer.info[..len] {
+        digest.add(info.glyph_id);
+        info.set_glyph_props(face.ot_tables.glyph_props(info.as_glyph()));
+        info.set_lig_props(0);
+    }
+    buffer.digest = digest;
+}
+
 pub fn hb_ot_layout_has_glyph_classes(face: &hb_font_t) -> bool {
     face.ot_tables.has_glyph_classes()
 }
