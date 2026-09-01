@@ -27,6 +27,40 @@ hr_glyph_position_t *positions = hr_buffer_get_glyph_positions(buffer, &count);
 
 See [`examples/shape.c`](examples/shape.c) for a complete program.
 
+## Drop-in replacement for HarfBuzz
+
+[`include/hr-hb.h`](include/hr-hb.h) maps every HarfBuzz name onto its
+HarfRust counterpart. Include it in place of `<hb.h>` and existing HarfBuzz
+shaping code builds unchanged:
+
+```c
+#include <hr-hb.h>
+
+hb_blob_t   *blob   = hb_blob_create_from_file("font.ttf");
+hb_face_t   *face   = hb_face_create(blob, 0);
+hb_font_t   *font   = hb_font_create(face);
+hb_buffer_t *buffer = hb_buffer_create();
+
+hb_buffer_add_utf8(buffer, "Hello", -1, 0, -1);
+hb_buffer_guess_segment_properties(buffer);
+hb_shape(font, buffer, NULL, 0);
+```
+
+[`examples/hb-compat.c`](examples/hb-compat.c) is the same program as
+`shape.c` written entirely in HarfBuzz's names, and mentions HarfRust nowhere.
+
+Two things to know. It cannot be combined with HarfBuzz itself in one
+translation unit, since the macros would rewrite HarfBuzz's own declarations;
+include one or the other. And it covers only the shaping API, so anything from
+the list below fails to compile rather than failing at run time, which is the
+point.
+
+The header is generated from `hr.h`, so the two cannot drift:
+
+```sh
+python3 scripts/gen-hb-compat-header.py
+```
+
 ## Building
 
 ```sh
@@ -84,6 +118,8 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data
   is always used.
 - `hb_buffer_diff`, buffer message callbacks, and `hb_font_get_glyph_name`.
+- The buffer's replacement codepoint (`hb_buffer_set_replacement_codepoint`);
+  invalid UTF is always replaced with U+FFFD, which is HarfBuzz's default.
 
 ## Deliberate differences from HarfBuzz
 
@@ -103,13 +139,17 @@ HarfRust is a shaping library, so anything outside shaping is absent:
   The constants carry the same values as HarfBuzz's enumerators and still work
   as `switch` case labels.
 
-- **`hr_shape_plan_execute` aborts on a plan that does not apply,** as
-  HarfBuzz's assertions do, rather than reporting it. The plan must have been
-  built over the same face, for the same variation settings, and for the
-  properties the buffer carries. HarfBuzz compiles its assertions out with
-  `NDEBUG`; these are always on, because HarfRust asserts unconditionally on a
-  mismatched plan anyway and a clear message beats one from deep inside the
-  shaper.
+- **Misusing the shaping calls aborts,** as HarfBuzz's assertions do, rather
+  than being reported. `hr_shape` and `hr_shape_full` abort when handed a
+  buffer that already holds glyphs or a font with nothing to shape with, and
+  `hr_shape_plan_execute` aborts on a plan built for another face, other
+  variation settings, or properties the buffer does not carry. HarfBuzz
+  compiles its assertions out with `NDEBUG`; these are always on, because
+  `hr_shape` returns nothing and could not otherwise report them at all.
+
+  Running past the length, operation or nesting limits is not in that set.
+  Pathological input can provoke it, so `hr_shape_full` returns false and
+  `hr_shape` carries on, exactly as HarfBuzz does.
 
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.

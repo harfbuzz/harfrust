@@ -434,17 +434,40 @@ fn shaping_twice_reuses_the_plan_and_agrees() {
 }
 
 #[test]
-fn shaping_an_already_shaped_buffer_is_a_noop() {
+fn shaping_the_same_text_again_means_refilling_the_buffer() {
     unsafe {
         with_font(|_, font| {
             let buffer = buffer_with_text(TEXT);
             hr_shape(font, buffer, ptr::null(), 0);
             let once = glyph_ids(buffer);
+
+            // The buffer holds glyphs now, so shaping it again would be a
+            // misuse. Clearing and refilling is how the same text is shaped
+            // afresh; relabelling the contents as text would instead shape the
+            // glyph ids as though they were codepoints.
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_utf8(
+                buffer,
+                TEXT.as_ptr().cast::<c_char>(),
+                TEXT.len() as c_int,
+                0,
+                -1,
+            );
+            hr_buffer_guess_segment_properties(buffer);
             hr_shape(font, buffer, ptr::null(), 0);
             assert_eq!(glyph_ids(buffer), once);
+
             hr_buffer_destroy(buffer);
         });
     }
+}
+
+#[test]
+fn shaping_an_already_shaped_buffer_aborts() {
+    // Shaping glyphs as though they were text is a misuse of the API, which
+    // HarfBuzz asserts on. `hr_shape` returns nothing, so it could not report
+    // this any other way.
+    assert!(aborts("already_shaped"));
 }
 
 #[test]
@@ -1083,6 +1106,14 @@ unsafe fn run_abort_case(case: &str) {
                 // The font is still at its defaults.
                 let buffer = buffer_with_text(TEXT);
                 hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0);
+            });
+        },
+        // Shaping a buffer that already holds glyphs.
+        "already_shaped" => unsafe {
+            with_font(|_, font| {
+                let buffer = buffer_with_text(TEXT);
+                hr_shape(font, buffer, ptr::null(), 0);
+                hr_shape(font, buffer, ptr::null(), 0);
             });
         },
         other => panic!("unknown abort case {other}"),

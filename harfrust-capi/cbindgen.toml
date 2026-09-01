@@ -27,11 +27,31 @@ header = """
 trailer = """
 /* Convenience macros with no Rust counterpart, matching HarfBuzz's. */
 
+/** Builds a tag from four characters. */
+#define HR_TAG(c1, c2, c3, c4) ((hr_tag_t)((((uint32_t) (c1) & 0xFF) << 24) | (((uint32_t) (c2) & 0xFF) << 16) | (((uint32_t) (c3) & 0xFF) << 8) | ((uint32_t) (c4) & 0xFF)))
+
+/** Expands a tag into its four characters, as separate arguments. */
+#define HR_UNTAG(tag) (uint8_t)(((tag) >> 24) & 0xFF), (uint8_t)(((tag) >> 16) & 0xFF), (uint8_t)(((tag) >> 8) & 0xFF), (uint8_t)((tag) & 0xFF)
+
 /** An unset language. */
 #define HR_LANGUAGE_INVALID ((hr_language_t) 0)
 
 /** Segment properties with every field unset. */
 #define HR_SEGMENT_PROPERTIES_DEFAULT { HR_DIRECTION_INVALID, HR_SCRIPT_INVALID, HR_LANGUAGE_INVALID, (void *) 0, (void *) 0 }
+
+/* Spelled as macros because HarfBuzz spells them that way. */
+#define HR_DIRECTION_IS_VALID(dir) hr_direction_is_valid(dir)
+#define HR_DIRECTION_IS_HORIZONTAL(dir) hr_direction_is_horizontal(dir)
+#define HR_DIRECTION_IS_VERTICAL(dir) hr_direction_is_vertical(dir)
+#define HR_DIRECTION_IS_FORWARD(dir) hr_direction_is_forward(dir)
+#define HR_DIRECTION_IS_BACKWARD(dir) hr_direction_is_backward(dir)
+#define HR_DIRECTION_REVERSE(dir) hr_direction_reverse(dir)
+
+/** The version of this library, as a string. */
+#define HR_VERSION_STRING "0.13.3"
+
+/** True if this library is at least the given version. */
+#define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
 """
 
 [parse]
