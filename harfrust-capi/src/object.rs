@@ -1,0 +1,266 @@
+//! Reference counting, user data and immutability, mirroring HarfBuzz's
+//! object model (`hb-object.hh`).
+//!
+//! Every public object in this API carries an [`ObjectHeader`] as its first
+//! field. Objects are heap allocated and handed to C as raw pointers, with the
+//! usual `hr_*_reference` / `hr_*_destroy` pair managing their lifetime.
+//!
+//! Each type also has an immortal "empty" singleton, returned by
+//! `hr_*_get_empty()` and used in place of `NULL` whenever a constructor
+//! fails. Immortal objects carry a reference count of [`IMMORTAL`]; referencing
+//! and destroying them are both no-ops, and they reject user data, exactly as
+//! in HarfBuzz.
+
+use core::ffi::c_void;
+use core::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::sync::Mutex;
+
+/// Reference count of an immortal (inert) object.
+const IMMORTAL: i64 = -1;
+
+/// Callback invoked to release a `user_data` value.
+pub type hr_destroy_func_t = Option<unsafe extern "C" fn(user_data: *mut c_void)>;
+
+/// Key used to attach and retrieve user data on an object.
+///
+/// Only the address of the key matters; its contents are never read.
+#[repr(C)]
+pub struct hr_user_data_key_t {
+    /// Unused; present so the struct has a well-defined size in C.
+    pub unused: core::ffi::c_char,
+}
+
+/// One `user_data` entry, owning its value.
+struct UserDataItem {
+    key: *const hr_user_data_key_t,
+    data: *mut c_void,
+    destroy: hr_destroy_func_t,
+}
+
+// SAFETY: the pointers are opaque to us; we only ever compare `key` by address
+// and hand `data` back to the callbacks the caller supplied. Callers are
+// required to make their user data safe to release from any thread, which is
+// documented on `hr_*_set_user_data`.
+unsafe impl Send for UserDataItem {}
+unsafe impl Sync for UserDataItem {}
+
+impl Drop for UserDataItem {
+    fn drop(&mut self) {
+        if let Some(destroy) = self.destroy {
+            // SAFETY: `destroy` was supplied by the caller alongside `data`.
+            unsafe { destroy(self.data) };
+        }
+    }
+}
+
+/// Header shared by every reference counted object in this API.
+pub struct ObjectHeader {
+    ref_count: AtomicI64,
+    immutable: AtomicBool,
+    user_data: Mutex<Vec<UserDataItem>>,
+}
+
+impl ObjectHeader {
+    /// Creates a header for a live object with a reference count of one.
+    pub fn new() -> Self {
+        Self {
+            ref_count: AtomicI64::new(1),
+            immutable: AtomicBool::new(false),
+            user_data: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Creates a header for an immortal object.
+    pub fn immortal() -> Self {
+        Self {
+            ref_count: AtomicI64::new(IMMORTAL),
+            immutable: AtomicBool::new(true),
+            user_data: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn is_immortal(&self) -> bool {
+        self.ref_count.load(Ordering::Relaxed) == IMMORTAL
+    }
+}
+
+impl Default for ObjectHeader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Implemented by every reference counted object in this API.
+pub trait Object: Sized + 'static {
+    /// Returns this object's header.
+    fn header(&self) -> &ObjectHeader;
+
+    /// Returns the immortal empty singleton for this type.
+    fn empty() -> *mut Self;
+}
+
+/// Allocates a new object with a reference count of one.
+pub fn create<T: Object>(value: T) -> *mut T {
+    Box::into_raw(Box::new(value))
+}
+
+/// Increments the reference count and returns the object.
+///
+/// Returns `NULL` for a `NULL` argument, and is a no-op for immortal objects.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a pointer returned by this API and not yet
+/// destroyed.
+pub unsafe fn reference<T: Object>(ptr: *mut T) -> *mut T {
+    let Some(obj) = (unsafe { ptr.as_ref() }) else {
+        return core::ptr::null_mut();
+    };
+    let header = obj.header();
+    if header.is_immortal() {
+        return ptr;
+    }
+    header.ref_count.fetch_add(1, Ordering::Relaxed);
+    ptr
+}
+
+/// Decrements the reference count, freeing the object when it reaches zero.
+///
+/// Ignores `NULL` and immortal objects.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a pointer returned by this API and not yet
+/// destroyed. The caller must own the reference being released.
+pub unsafe fn destroy<T: Object>(ptr: *mut T) {
+    let Some(obj) = (unsafe { ptr.as_ref() }) else {
+        return;
+    };
+    let header = obj.header();
+    if header.is_immortal() {
+        return;
+    }
+    if header.ref_count.fetch_sub(1, Ordering::AcqRel) != 1 {
+        return;
+    }
+    // Last reference: take ownership back and drop it. This also runs the
+    // destroy callback of every attached user data item.
+    drop(unsafe { Box::from_raw(ptr) });
+}
+
+/// Attaches user data to an object, returning `false` if it could not be set.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API. `key` must
+/// outlive the object.
+pub unsafe fn set_user_data<T: Object>(
+    ptr: *mut T,
+    key: *const hr_user_data_key_t,
+    data: *mut c_void,
+    destroy_func: hr_destroy_func_t,
+    replace: bool,
+) -> bool {
+    let Some(obj) = (unsafe { ptr.as_ref() }) else {
+        return false;
+    };
+    let header = obj.header();
+    // Matches HarfBuzz: inert objects never take user data.
+    if header.is_immortal() || key.is_null() {
+        return false;
+    }
+    let Ok(mut items) = header.user_data.lock() else {
+        return false;
+    };
+    if let Some(slot) = items.iter_mut().find(|item| item.key == key) {
+        if !replace {
+            return false;
+        }
+        // Dropping the old item runs its destroy callback.
+        *slot = UserDataItem {
+            key,
+            data,
+            destroy: destroy_func,
+        };
+        return true;
+    }
+    items.push(UserDataItem {
+        key,
+        data,
+        destroy: destroy_func,
+    });
+    true
+}
+
+/// Retrieves user data previously attached with [`set_user_data`].
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API.
+pub unsafe fn get_user_data<T: Object>(ptr: *mut T, key: *const hr_user_data_key_t) -> *mut c_void {
+    let Some(obj) = (unsafe { ptr.as_ref() }) else {
+        return core::ptr::null_mut();
+    };
+    let Ok(items) = obj.header().user_data.lock() else {
+        return core::ptr::null_mut();
+    };
+    items
+        .iter()
+        .find(|item| item.key == key)
+        .map_or(core::ptr::null_mut(), |item| item.data)
+}
+
+/// Marks an object immutable. Immutable objects reject all further mutation.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API.
+pub unsafe fn make_immutable<T: Object>(ptr: *mut T) {
+    if let Some(obj) = unsafe { ptr.as_ref() } {
+        obj.header().immutable.store(true, Ordering::Release);
+    }
+}
+
+/// Returns whether an object has been marked immutable.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API.
+pub unsafe fn is_immutable<T: Object>(ptr: *const T) -> bool {
+    unsafe { ptr.as_ref() }.is_some_and(|obj| obj.header().immutable.load(Ordering::Acquire))
+}
+
+/// Returns a shared reference to an object, falling back to its immortal empty
+/// singleton when `ptr` is `NULL`.
+///
+/// This mirrors HarfBuzz, where passing `NULL` to a getter behaves like
+/// passing the empty object rather than crashing.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API.
+pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
+    match unsafe { ptr.as_ref() } {
+        Some(obj) => obj,
+        // SAFETY: `empty()` always returns a live, leaked singleton.
+        None => unsafe { &*T::empty().cast_const() },
+    }
+}
+
+/// Returns a mutable reference to an object, or `None` when `ptr` is `NULL` or
+/// the object has been marked immutable.
+///
+/// Setters use this so that mutating an immutable object is silently ignored,
+/// as it is in HarfBuzz.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API, and the caller
+/// must not alias the returned reference.
+pub unsafe fn as_mutable<'a, T: Object>(ptr: *mut T) -> Option<&'a mut T> {
+    let obj = unsafe { ptr.as_mut() }?;
+    if obj.header().immutable.load(Ordering::Acquire) {
+        return None;
+    }
+    Some(obj)
+}
