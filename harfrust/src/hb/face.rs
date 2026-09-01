@@ -469,7 +469,7 @@ pub fn shape(
     let mut buffer = buffer.0;
     // As above, this signature cannot report a failure.
     if let Err(err) = hb_font.shape_buffer(&mut buffer, options) {
-        assert!(err == ShapeError::LimitsExceeded, "{err}");
+        panic!("{err}");
     }
     GlyphBuffer(buffer)
 }
@@ -492,11 +492,12 @@ impl Buffer {
     /// was supplied to give it one, [`ShapeError::UnusableFont`] if the font
     /// has nothing to shape with, [`ShapeError::DirectionMismatch`] or
     /// [`ShapeError::ScriptMismatch`] if the supplied plan was built for other
-    /// properties, and [`ShapeError::LimitsExceeded`] if the shaper ran past
-    /// its budget.
+    /// properties.
     ///
-    /// Apart from [`ShapeError::LimitsExceeded`], which leaves the buffer
-    /// partly shaped, a failure leaves it exactly as it arrived.
+    /// Each of these is a misuse of the API, caught before anything is
+    /// touched, so a failure leaves the buffer exactly as it arrived. Running
+    /// out of room is not among them; check
+    /// [`allocation_successful`](Buffer::allocation_successful) for that.
     pub fn shape(
         &mut self,
         font: &crate::font::FontInstance,
@@ -608,11 +609,10 @@ impl<'a> crate::Shaper<'a> {
     /// properties.    
     pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions<'_>) -> GlyphBuffer {
         let mut buffer = buffer.0;
-        // This signature cannot report a failure. Running out of room still
-        // leaves glyphs worth returning; a plan that does not match the buffer
-        // is a programming error, and panics.
+        // This signature cannot report a failure, and every way shaping can
+        // fail is a programming error, so panic.
         if let Err(err) = self.shape_buffer(&mut buffer, options) {
-            assert!(err == ShapeError::LimitsExceeded, "{err}");
+            panic!("{err}");
         }
         GlyphBuffer(buffer)
     }
@@ -689,11 +689,9 @@ impl<'a> crate::Shaper<'a> {
         buffer.leave();
         buffer.content_type = Some(BufferContentType::Glyphs);
 
-        // Set anywhere the shaper ran past its length, operation or nesting
-        // budget, and also by a buffer that failed to allocate while filling.
-        if !buffer.successful {
-            return Err(ShapeError::LimitsExceeded);
-        }
+        // Running past the length, operation or nesting budget leaves
+        // `successful` false, which the caller reads through
+        // `Buffer::allocation_successful`.
         Ok(())
     }
 

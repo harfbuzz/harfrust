@@ -1930,6 +1930,12 @@ impl Buffer {
     }
 
     /// Returns `true` if every allocation made on this buffer has succeeded.
+    ///
+    /// This goes false when filling the buffer runs out of memory, and when
+    /// shaping needs more room, more operations or more nesting than the
+    /// shaper allows. Pathological input can provoke the latter, so it is
+    /// reported here rather than as a [`ShapeError`], and the contents are
+    /// left partly shaped.
     #[inline]
     pub fn allocation_successful(&self) -> bool {
         self.successful
@@ -2237,6 +2243,10 @@ impl From<GlyphBuffer> for Buffer {
 }
 
 /// The reason a call to [`Buffer::shape`] could not produce glyphs.
+///
+/// Each of these is a misuse of the API. Running out of room is not among
+/// them: pathological input can provoke it, so it is reported through
+/// [`Buffer::allocation_successful`] rather than as a failure to shape.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[non_exhaustive]
 pub enum ShapeError {
@@ -2275,16 +2285,6 @@ pub enum ShapeError {
         /// The script the buffer carries.
         buffer: Script,
     },
-
-    /// Shaping gave up, having needed more room, more operations or more
-    /// nesting than the shaper allows.
-    ///
-    /// This guards against pathological input rather than reporting a mistake
-    /// by the caller, and it also covers a buffer that failed to allocate while
-    /// being filled. The contents are left partly shaped and should be
-    /// discarded; [`allocation_successful`](Buffer::allocation_successful)
-    /// reports the same condition.
-    LimitsExceeded,
 }
 
 impl core::fmt::Display for ShapeError {
@@ -2301,7 +2301,6 @@ impl core::fmt::Display for ShapeError {
                 fmt,
                 "buffer script does not match plan script: {buffer:?} != {plan:?}"
             ),
-            Self::LimitsExceeded => fmt.write_str("shaping exceeded its limits"),
         }
     }
 }

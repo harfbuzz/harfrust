@@ -15,8 +15,8 @@ This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/
   `GlyphBuffer` are unchanged, and convert to and from `Buffer`.
 - `Buffer::shape` returns `Result<(), ShapeError>`, reporting a buffer that
   already holds glyphs, a buffer with no direction, a font with nothing to
-  shape with, a plan built for other properties, and shaping that ran past its
-  length, operation or nesting limits.
+  shape with, and a plan built for other properties. Running out of room is
+  reported through `Buffer::allocation_successful`, as before.
 
 ## [0.13.3] - 2026-08-25
 

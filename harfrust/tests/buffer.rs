@@ -100,6 +100,8 @@ fn shaping_sets_glyphs_content_type() {
     assert_eq!(buffer.content_type(), Some(BufferContentType::Glyphs));
     assert!(!buffer.is_empty());
     assert_eq!(buffer.glyph_positions().len(), buffer.len());
+    // Running out of room is reported here rather than as a `ShapeError`.
+    assert!(buffer.allocation_successful());
 }
 
 #[test]
