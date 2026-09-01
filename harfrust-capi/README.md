@@ -149,7 +149,8 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 
   Running past the length, operation or nesting limits is not in that set.
   Pathological input can provoke it, so `hr_shape_full` returns false and
-  `hr_shape` carries on, exactly as HarfBuzz does.
+  `hr_shape` carries on, exactly as HarfBuzz does. `hr_buffer_allocation_successful`
+  reports the same condition.
 
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.
