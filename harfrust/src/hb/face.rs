@@ -20,8 +20,8 @@ use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
 use crate::{
-    script, BufferContentType, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer,
-    Variation,
+    script, BufferContentType, Direction, Feature, GlyphBuffer, NormalizedCoord, ShapeError,
+    ShapePlan, UnicodeBuffer, Variation,
 };
 
 pub use super::font_funcs::{
@@ -467,7 +467,10 @@ pub fn shape(
         }
     }
     let mut buffer = buffer.0;
-    hb_font.shape_buffer(&mut buffer, options);
+    // As above, this signature cannot report a failure.
+    if let Err(err) = hb_font.shape_buffer(&mut buffer, options) {
+        assert!(err == ShapeError::LimitsExceeded, "{err}");
+    }
     GlyphBuffer(buffer)
 }
 
@@ -475,23 +478,33 @@ pub fn shape(
 impl Buffer {
     /// Shapes the buffer contents in place with the given font.
     ///
-    /// This matches HarfBuzz's `hb_shape`. On return the buffer holds
-    /// [`BufferContentType::Glyphs`]; shaping a buffer that already holds
-    /// glyphs is a no-op.
+    /// This matches HarfBuzz's `hb_shape`. On success the buffer holds
+    /// [`BufferContentType::Glyphs`].
     ///
-    /// If a plan is provided via [`ShapeOptions::plan`], it is up to the caller
-    /// to ensure that it matches the properties of this buffer, otherwise the
-    /// shaping result will likely be incorrect.
+    /// If a plan is supplied through [`ShapeOptions::plan`] it must have been
+    /// built for this buffer's direction and script, which is checked before
+    /// anything is touched.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Will panic when debugging assertions are enabled if the buffer and plan
-    /// have mismatched properties.
-    pub fn shape(&mut self, font: &crate::font::FontInstance, mut options: ShapeOptions<'_>) {
+    /// [`ShapeError::AlreadyShaped`] if the buffer holds glyphs rather than
+    /// text, [`ShapeError::DirectionUnset`] if it has no direction and no plan
+    /// was supplied to give it one, [`ShapeError::UnusableFont`] if the font
+    /// has nothing to shape with, [`ShapeError::DirectionMismatch`] or
+    /// [`ShapeError::ScriptMismatch`] if the supplied plan was built for other
+    /// properties, and [`ShapeError::LimitsExceeded`] if the shaper ran past
+    /// its budget.
+    ///
+    /// Apart from [`ShapeError::LimitsExceeded`], which leaves the buffer
+    /// partly shaped, a failure leaves it exactly as it arrived.
+    pub fn shape(
+        &mut self,
+        font: &crate::font::FontInstance,
+        mut options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
         let hb_font = hb_font_t::from_font(font);
         let Some(hb_font) = hb_font.as_ref() else {
-            self.clear();
-            return;
+            return Err(ShapeError::UnusableFont);
         };
         // If the user didn't request an explicit scale but the font instance
         // has a size, set the scale to that size with 16 fractional bits.
@@ -500,7 +513,7 @@ impl Buffer {
                 options = options.scale(Some((ppem * 65536.0) as i32));
             }
         }
-        hb_font.shape_buffer(self, options);
+        hb_font.shape_buffer(self, options)
     }
 }
 
@@ -595,17 +608,31 @@ impl<'a> crate::Shaper<'a> {
     /// properties.    
     pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions<'_>) -> GlyphBuffer {
         let mut buffer = buffer.0;
-        self.shape_buffer(&mut buffer, options);
+        // This signature cannot report a failure. Running out of room still
+        // leaves glyphs worth returning; a plan that does not match the buffer
+        // is a programming error, and panics.
+        if let Err(err) = self.shape_buffer(&mut buffer, options) {
+            assert!(err == ShapeError::LimitsExceeded, "{err}");
+        }
         GlyphBuffer(buffer)
     }
 
-    fn shape_buffer(&self, buffer: &mut Buffer, options: ShapeOptions<'_>) {
+    pub(crate) fn shape_buffer(
+        &self,
+        buffer: &mut Buffer,
+        options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
         if buffer.content_type == Some(BufferContentType::Glyphs) {
-            return;
+            return Err(ShapeError::AlreadyShaped);
         }
         if let Some(plan) = options.plan {
-            self.shape_with_plan(plan, buffer, options);
+            self.shape_with_plan(plan, buffer, options)
         } else {
+            // Compiling a plan requires a direction, and asserts on its own if
+            // it does not get one.
+            if buffer.direction == Direction::Invalid {
+                return Err(ShapeError::DirectionUnset);
+            }
             let plan = ShapePlan::new(
                 self,
                 buffer.direction,
@@ -613,25 +640,34 @@ impl<'a> crate::Shaper<'a> {
                 buffer.language.as_ref(),
                 options.features,
             );
-            self.shape_with_plan(&plan, buffer, options);
+            self.shape_with_plan(&plan, buffer, options)
         }
     }
 
-    fn shape_with_plan(&self, plan: &ShapePlan, buffer: &mut Buffer, options: ShapeOptions<'_>) {
-        buffer.enter();
+    fn shape_with_plan(
+        &self,
+        plan: &ShapePlan,
+        buffer: &mut Buffer,
+        options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
+        // Check before `enter`, so a buffer that cannot be shaped is handed
+        // back exactly as it arrived.
+        if buffer.direction != plan.direction {
+            return Err(ShapeError::DirectionMismatch {
+                plan: plan.direction,
+                buffer: buffer.direction,
+            });
+        }
+        let plan_script = plan.script.unwrap_or(script::UNKNOWN);
+        let buffer_script = buffer.script.unwrap_or(script::UNKNOWN);
+        if buffer_script != plan_script {
+            return Err(ShapeError::ScriptMismatch {
+                plan: plan_script,
+                buffer: buffer_script,
+            });
+        }
 
-        assert_eq!(
-            buffer.direction, plan.direction,
-            "Buffer direction does not match plan direction: {:?} != {:?}",
-            buffer.direction, plan.direction
-        );
-        assert_eq!(
-            buffer.script.unwrap_or(script::UNKNOWN),
-            plan.script.unwrap_or(script::UNKNOWN),
-            "Buffer script does not match plan script: {:?} != {:?}",
-            buffer.script.unwrap_or(script::UNKNOWN),
-            plan.script.unwrap_or(script::UNKNOWN)
-        );
+        buffer.enter();
 
         if buffer.len > 0 {
             // Save the original direction, we use it later.
@@ -652,6 +688,13 @@ impl<'a> crate::Shaper<'a> {
 
         buffer.leave();
         buffer.content_type = Some(BufferContentType::Glyphs);
+
+        // Set anywhere the shaper ran past its length, operation or nesting
+        // budget, and also by a buffer that failed to allocate while filling.
+        if !buffer.successful {
+            return Err(ShapeError::LimitsExceeded);
+        }
+        Ok(())
     }
 
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {

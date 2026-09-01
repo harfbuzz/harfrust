@@ -46,8 +46,8 @@ pub mod font {
 }
 
 pub use hb::buffer::{
-    Buffer, BufferContentType, GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer,
-    WrongContentType,
+    Buffer, BufferContentType, GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, ShapeError,
+    UnicodeBuffer, WrongContentType,
 };
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
 pub use hb::face::{

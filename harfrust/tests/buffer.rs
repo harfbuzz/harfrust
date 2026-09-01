@@ -6,7 +6,8 @@ use std::path::PathBuf;
 
 use harfrust::{
     font::{Font, FontInstance},
-    shape, Buffer, BufferContentType, Direction, GlyphBuffer, ShapeOptions, UnicodeBuffer,
+    shape, Buffer, BufferContentType, Direction, GlyphBuffer, ShapeError, ShapeOptions,
+    UnicodeBuffer,
 };
 
 fn test_instance() -> FontInstance {
@@ -95,21 +96,151 @@ fn glyph_positions_mut_allocates_on_demand() {
 fn shaping_sets_glyphs_content_type() {
     let instance = test_instance();
     let mut buffer = unicode_buffer(TEXT);
-    buffer.shape(&instance, ShapeOptions::new());
+    buffer.shape(&instance, ShapeOptions::new()).unwrap();
     assert_eq!(buffer.content_type(), Some(BufferContentType::Glyphs));
     assert!(!buffer.is_empty());
     assert_eq!(buffer.glyph_positions().len(), buffer.len());
 }
 
 #[test]
-fn shaping_a_shaped_buffer_is_a_noop() {
+fn shaping_a_shaped_buffer_is_refused() {
     let instance = test_instance();
     let mut buffer = unicode_buffer(TEXT);
-    buffer.shape(&instance, ShapeOptions::new());
+    buffer.shape(&instance, ShapeOptions::new()).unwrap();
     let once = ids_and_clusters(buffer.glyph_infos());
 
-    buffer.shape(&instance, ShapeOptions::new());
-    assert_eq!(ids_and_clusters(buffer.glyph_infos()), once);
+    // Shaping glyphs as though they were text would be nonsense, so it is
+    // reported rather than quietly ignored.
+    assert_eq!(
+        buffer.shape(&instance, ShapeOptions::new()),
+        Err(ShapeError::AlreadyShaped)
+    );
+    assert_eq!(
+        ids_and_clusters(buffer.glyph_infos()),
+        once,
+        "a refused call must leave the buffer alone"
+    );
+
+    // Relabelling the contents is how you ask for them to be shaped again.
+    buffer.set_content_type(Some(BufferContentType::Unicode));
+    assert!(buffer.shape(&instance, ShapeOptions::new()).is_ok());
+}
+
+#[test]
+fn shaping_without_a_direction_is_refused() {
+    let instance = test_instance();
+    let mut buffer = Buffer::new();
+    buffer.push_str(TEXT);
+    // No direction, and none guessed.
+    assert_eq!(buffer.direction(), Direction::Invalid);
+    assert_eq!(
+        buffer.shape(&instance, ShapeOptions::new()),
+        Err(ShapeError::DirectionUnset)
+    );
+    assert_eq!(
+        buffer.content_type(),
+        Some(BufferContentType::Unicode),
+        "a refused call must leave the buffer alone"
+    );
+
+    buffer.guess_segment_properties();
+    assert!(buffer.shape(&instance, ShapeOptions::new()).is_ok());
+}
+
+#[test]
+fn shaping_with_a_mismatched_plan_is_refused() {
+    use harfrust::{script, ShapePlan};
+
+    let instance = test_instance();
+    let plan = ShapePlan::new(
+        &instance,
+        Direction::RightToLeft,
+        Some(script::ARABIC),
+        None,
+        &[],
+    );
+
+    let mut buffer = unicode_buffer(TEXT);
+    let before = ids_and_clusters(buffer.glyph_infos());
+    let err = buffer
+        .shape(&instance, ShapeOptions::new().plan(Some(&plan)))
+        .unwrap_err();
+    // The direction is checked first.
+    assert_eq!(
+        err,
+        ShapeError::DirectionMismatch {
+            plan: Direction::RightToLeft,
+            buffer: Direction::LeftToRight,
+        }
+    );
+    assert_eq!(
+        ids_and_clusters(buffer.glyph_infos()),
+        before,
+        "a refused call must leave the buffer alone"
+    );
+    assert_eq!(buffer.content_type(), Some(BufferContentType::Unicode));
+
+    // With the direction agreed, the script is checked next.
+    let plan = ShapePlan::new(
+        &instance,
+        Direction::LeftToRight,
+        Some(script::ARABIC),
+        None,
+        &[],
+    );
+    let err = buffer
+        .shape(&instance, ShapeOptions::new().plan(Some(&plan)))
+        .unwrap_err();
+    assert_eq!(
+        err,
+        ShapeError::ScriptMismatch {
+            plan: script::ARABIC,
+            buffer: script::LATIN,
+        }
+    );
+}
+
+#[test]
+fn a_matching_plan_shapes() {
+    use harfrust::{script, ShapePlan};
+
+    let instance = test_instance();
+    let plan = ShapePlan::new(
+        &instance,
+        Direction::LeftToRight,
+        Some(script::LATIN),
+        None,
+        &[],
+    );
+
+    let mut planned = unicode_buffer(TEXT);
+    planned
+        .shape(&instance, ShapeOptions::new().plan(Some(&plan)))
+        .unwrap();
+
+    let mut direct = unicode_buffer(TEXT);
+    direct.shape(&instance, ShapeOptions::new()).unwrap();
+
+    assert_eq!(
+        ids_and_clusters(planned.glyph_infos()),
+        ids_and_clusters(direct.glyph_infos())
+    );
+}
+
+#[test]
+fn shape_errors_describe_themselves() {
+    assert_eq!(
+        ShapeError::AlreadyShaped.to_string(),
+        "buffer already holds shaped glyphs"
+    );
+    assert_eq!(
+        ShapeError::DirectionMismatch {
+            plan: Direction::RightToLeft,
+            buffer: Direction::LeftToRight,
+        }
+        .to_string(),
+        "buffer direction does not match plan direction: LeftToRight != RightToLeft"
+    );
 }
 
 #[test]
@@ -122,7 +253,7 @@ fn buffer_matches_typed_buffer_shaping() {
     let typed = shape(&instance, typed, ShapeOptions::new());
 
     let mut unified = unicode_buffer(TEXT);
-    unified.shape(&instance, ShapeOptions::new());
+    unified.shape(&instance, ShapeOptions::new()).unwrap();
 
     assert_eq!(
         ids_and_clusters(typed.glyph_infos()),
@@ -173,7 +304,7 @@ fn conversions_reject_mismatched_content() {
 
     // A shaped buffer is not a UnicodeBuffer.
     let mut buffer = unicode_buffer(TEXT);
-    buffer.shape(&instance, ShapeOptions::new());
+    buffer.shape(&instance, ShapeOptions::new()).unwrap();
     let err = UnicodeBuffer::try_from(buffer).unwrap_err();
     assert_eq!(err.found, Some(BufferContentType::Glyphs));
     assert_eq!(err.expected, BufferContentType::Unicode);

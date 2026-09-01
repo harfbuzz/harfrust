@@ -13,6 +13,10 @@ This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/
   `BufferContentType` describing whether it holds input characters or shaped
   glyphs, and is shaped in place with `Buffer::shape`. `UnicodeBuffer` and
   `GlyphBuffer` are unchanged, and convert to and from `Buffer`.
+- `Buffer::shape` returns `Result<(), ShapeError>`, reporting a buffer that
+  already holds glyphs, a buffer with no direction, a font with nothing to
+  shape with, a plan built for other properties, and shaping that ran past its
+  length, operation or nesting limits.
 
 ## [0.13.3] - 2026-08-25
 
