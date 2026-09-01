@@ -17,6 +17,8 @@ This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/
   already holds glyphs, a buffer with no direction, a font with nothing to
   shape with, and a plan built for other properties. Running out of room is
   reported through `Buffer::allocation_successful`, as before.
+- Add the `harfrust-capi` crate, a C API mirroring the shaping half of
+  HarfBuzz's API with an `hr_` prefix in place of `hb_`.
 
 ## [0.13.3] - 2026-08-25
 
