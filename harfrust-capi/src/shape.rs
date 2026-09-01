@@ -11,10 +11,10 @@ use crate::common::{hr_bool_t, hr_feature_t};
 use crate::font::hr_font_t;
 use crate::font_funcs::FontFuncsAdapter;
 
-/// Runs `f`, turning any panic into `false` rather than letting it unwind into
-/// C, which would be undefined behaviour.
-fn guard(f: impl FnOnce()) -> bool {
-    catch_unwind(AssertUnwindSafe(f)).is_ok()
+/// Runs `f`, catching any panic rather than letting it unwind into C, which
+/// would be undefined behaviour. Returns `None` if it panicked.
+fn guard<T>(f: impl FnOnce() -> T) -> Option<T> {
+    catch_unwind(AssertUnwindSafe(f)).ok()
 }
 
 /// Reads `num_features` features, or none if `features` is `NULL`.
@@ -66,17 +66,18 @@ pub(crate) fn shape_with_plan(
         if !font_ref.funcs.is_null() {
             options = options.font_funcs(Some(&mut adapter));
         }
-        buffer_ref.buffer.shape(instance, options);
+        buffer_ref.buffer.shape(instance, options)
     })
+    .is_some_and(|result| result.is_ok())
     .into()
 }
 
 /// Shapes a buffer with a font, applying the given features.
 ///
 /// The buffer's direction, script and language must be set beforehand; call
-/// `hr_buffer_guess_segment_properties` to fill in whatever is missing. On
-/// return the buffer holds glyphs, and shaping a buffer that already holds
-/// glyphs does nothing.
+/// `hr_buffer_guess_segment_properties` to fill in whatever is missing, which
+/// this does for the direction on your behalf. On return the buffer holds
+/// glyphs. Use `hr_shape_full` if you want to know whether it worked.
 ///
 /// # Safety
 ///
@@ -95,8 +96,11 @@ pub unsafe extern "C" fn hr_shape(
 /// Shapes a buffer, selecting from a list of shaper names.
 ///
 /// This library has a single shaper, so `shaper_list` is honoured only to the
-/// extent of failing when it names shapers that are all unavailable. Returns
-/// false if shaping could not be carried out.
+/// extent of failing when it names shapers that are all unavailable.
+///
+/// Returns false if shaping could not be carried out: because the buffer
+/// already holds glyphs, because the font has nothing to shape with, or
+/// because the shaper ran past its limits on pathological input.
 ///
 /// # Safety
 ///
@@ -130,7 +134,7 @@ pub unsafe extern "C" fn hr_shape_full(
         font_data: font_ref.font_data,
     };
 
-    let ok = guard(|| {
+    guard(|| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
         // so fill in whatever the caller left out rather than failing.
         if buffer_ref.buffer.direction() == Direction::Invalid {
@@ -158,9 +162,12 @@ pub unsafe extern "C" fn hr_shape_full(
         if !font_ref.funcs.is_null() {
             options = options.font_funcs(Some(&mut adapter));
         }
-        buffer_ref.buffer.shape(instance, options);
-    });
-    ok.into()
+        // Any reason shaping could not run, including a buffer that already
+        // holds glyphs, is reported here as false.
+        buffer_ref.buffer.shape(instance, options)
+    })
+    .is_some_and(|result| result.is_ok())
+    .into()
 }
 
 /// Returns whether `shaper_list` permits this library's shaper.
