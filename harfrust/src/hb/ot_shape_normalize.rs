@@ -19,7 +19,7 @@ impl GlyphInfo {
 
 pub struct hb_ot_shape_normalize_context_t<'a, 'x, 'u> {
     pub plan: &'a hb_ot_shape_plan_t,
-    pub buffer: &'x mut hb_buffer_t,
+    pub buffer: &'x mut Buffer,
     pub font_funcs: &'x mut FontFuncsDispatch<'a, 'u>,
     pub decompose: DecomposeFn,
     pub compose: ComposeFn,
@@ -105,7 +105,7 @@ fn compose_unicode(
     crate::unicode::compose(a, b)
 }
 
-fn output_char(buffer: &mut hb_buffer_t, unichar: u32, glyph: u32) {
+fn output_char(buffer: &mut Buffer, unichar: u32, glyph: u32) {
     // This is very confusing indeed.
     buffer.cur_mut(0).set_normalizer_glyph_index(glyph);
     buffer.output_glyph(unichar);
@@ -115,12 +115,12 @@ fn output_char(buffer: &mut hb_buffer_t, unichar: u32, glyph: u32) {
     buffer.scratch_flags = flags;
 }
 
-fn next_char(buffer: &mut hb_buffer_t, glyph: u32) {
+fn next_char(buffer: &mut Buffer, glyph: u32) {
     buffer.cur_mut(0).set_normalizer_glyph_index(glyph);
     buffer.next_glyph();
 }
 
-fn skip_char(buffer: &mut hb_buffer_t) {
+fn skip_char(buffer: &mut Buffer) {
     buffer.skip_glyph();
 }
 
@@ -300,7 +300,7 @@ fn compare_combining_class(pa: &GlyphInfo, pb: &GlyphInfo) -> bool {
 
 pub fn _hb_ot_shape_normalize<'a, 'x>(
     plan: &'a hb_ot_shape_plan_t,
-    buffer: &'x mut hb_buffer_t,
+    buffer: &'x mut Buffer,
     _face: &'a hb_font_t<'a>,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {

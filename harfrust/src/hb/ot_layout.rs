@@ -25,7 +25,7 @@ impl GlyphInfo {
     );
 }
 
-impl hb_buffer_t {
+impl Buffer {
     pub(crate) fn allocate_unicode_vars(&mut self) {
         self.allocate_var(GlyphInfo::UNICODE_PROPS_VAR);
     }
@@ -82,7 +82,7 @@ pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
 
 // hb_ot_layout_kern
 
-pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut hb_buffer_t) {
+pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut Buffer) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
@@ -138,7 +138,7 @@ pub trait LayoutTable {
 
 /// Called before substitution lookups are performed, to ensure that glyph
 /// class and other properties are set on the glyphs in the buffer.
-pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut hb_buffer_t) {
+pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut Buffer) {
     _hb_ot_layout_set_glyph_props(face, buffer);
 }
 
@@ -147,7 +147,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
     font_funcs: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
     table: Option<&T>,
 ) {
     let mut ctx = OT::hb_ot_apply_context_t::new(T::INDEX, face, *font_funcs.scale(), buffer);
@@ -363,7 +363,7 @@ fn apply_backward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> b
 //   HB_MARK_AS_FLAG_T (hb_unicode_props_flags_t);
 
 //   static inline void
-//   _hb_glyph_info_set_unicode_props (hb_glyph_info_t *info, hb_buffer_t *buffer)
+//   _hb_glyph_info_set_unicode_props (hb_glyph_info_t *info, Buffer *buffer)
 //   {
 //     hb_unicode_funcs_t *unicode = buffer->unicode;
 //     unsigned int u = info->codepoint;
@@ -616,7 +616,7 @@ pub(crate) fn _hb_grapheme_group_func(_: &GlyphInfo, b: &GlyphInfo) -> bool {
     b.is_continuation()
 }
 
-pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut hb_buffer_t) {
+pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut Buffer) {
     // MONOTONE_GRAPHEMES was already applied and is taken care of by _hb_grapheme_group_func.
     // So we just check for MONOTONE_CHARACTERS here.
     buffer.reverse_groups(
@@ -897,7 +897,7 @@ impl GlyphInfo {
 pub fn _hb_clear_substitution_flags(
     _: &hb_ot_shape_plan_t,
     _: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) -> bool {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {

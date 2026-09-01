@@ -37,7 +37,7 @@ pub fn hb_ot_layout_kern(
     plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
     scale: Scale,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, scale, buffer);
 
@@ -129,7 +129,7 @@ pub fn hb_ot_layout_kern(
 fn machine_kern<F>(
     face: &hb_font_t,
     scale: Scale,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
     kern_mask: hb_mask_t,
     cross_stream: bool,
     get_kerning: F,

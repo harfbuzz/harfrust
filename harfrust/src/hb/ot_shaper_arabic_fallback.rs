@@ -1,5 +1,5 @@
 use super::{
-    buffer::hb_buffer_t,
+    buffer::Buffer,
     font_funcs::FontFuncsDispatch,
     hb_mask_t, hb_tag_t,
     ot::lookup::LookupInfo,
@@ -217,7 +217,7 @@ impl FallbackPlan {
         (!lookups.is_empty()).then_some(Self { lookups })
     }
 
-    pub(crate) fn apply(&self, font_funcs: &FontFuncsDispatch, buffer: &mut hb_buffer_t) {
+    pub(crate) fn apply(&self, font_funcs: &FontFuncsDispatch, buffer: &mut Buffer) {
         let mut ctx = hb_ot_apply_context_t::new(
             TableIndex::GSUB,
             font_funcs.font(),

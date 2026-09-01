@@ -9,7 +9,7 @@ use smallvec::SmallVec;
 use core_maths::CoreFloat as _;
 
 use super::aat::AatTables;
-use super::buffer::hb_buffer_t;
+use super::buffer::Buffer;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::font_funcs::FontFuncsDispatch;
 use super::glyph_metrics::GlyphMetrics;
@@ -19,7 +19,10 @@ use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
-use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
+use crate::{
+    script, BufferContentType, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer,
+    Variation,
+};
 
 pub use super::font_funcs::{
     AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, NominalGlyphBatch, RawAdvanceWidthBatch,
@@ -468,6 +471,39 @@ pub fn shape(
     GlyphBuffer(buffer)
 }
 
+#[cfg(feature = "experimental_font_api")]
+impl Buffer {
+    /// Shapes the buffer contents in place with the given font.
+    ///
+    /// This matches HarfBuzz's `hb_shape`. On return the buffer holds
+    /// [`BufferContentType::Glyphs`]; shaping a buffer that already holds
+    /// glyphs is a no-op.
+    ///
+    /// If a plan is provided via [`ShapeOptions::plan`], it is up to the caller
+    /// to ensure that it matches the properties of this buffer, otherwise the
+    /// shaping result will likely be incorrect.
+    ///
+    /// # Panics
+    ///
+    /// Will panic when debugging assertions are enabled if the buffer and plan
+    /// have mismatched properties.
+    pub fn shape(&mut self, font: &crate::font::FontInstance, mut options: ShapeOptions<'_>) {
+        let hb_font = hb_font_t::from_font(font);
+        let Some(hb_font) = hb_font.as_ref() else {
+            self.clear();
+            return;
+        };
+        // If the user didn't request an explicit scale but the font instance
+        // has a size, set the scale to that size with 16 fractional bits.
+        if options.scale.is_none() {
+            if let Some(ppem) = font.size() {
+                options = options.scale(Some((ppem * 65536.0) as i32));
+            }
+        }
+        hb_font.shape_buffer(self, options);
+    }
+}
+
 // This will go away completely when we drop the old API.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
@@ -563,7 +599,10 @@ impl<'a> crate::Shaper<'a> {
         GlyphBuffer(buffer)
     }
 
-    fn shape_buffer(&self, buffer: &mut hb_buffer_t, options: ShapeOptions<'_>) {
+    fn shape_buffer(&self, buffer: &mut Buffer, options: ShapeOptions<'_>) {
+        if buffer.content_type == Some(BufferContentType::Glyphs) {
+            return;
+        }
         if let Some(plan) = options.plan {
             self.shape_with_plan(plan, buffer, options);
         } else {
@@ -578,12 +617,7 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    fn shape_with_plan(
-        &self,
-        plan: &ShapePlan,
-        buffer: &mut hb_buffer_t,
-        options: ShapeOptions<'_>,
-    ) {
+    fn shape_with_plan(&self, plan: &ShapePlan, buffer: &mut Buffer, options: ShapeOptions<'_>) {
         buffer.enter();
 
         assert_eq!(
@@ -617,6 +651,7 @@ impl<'a> crate::Shaper<'a> {
         }
 
         buffer.leave();
+        buffer.content_type = Some(BufferContentType::Glyphs);
     }
 
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {

@@ -1,6 +1,6 @@
 use read_fonts::types::GlyphId;
 
-use super::buffer::{hb_buffer_t, GlyphPosition};
+use super::buffer::{Buffer, GlyphPosition};
 use super::face::GlyphExtents;
 use super::font_funcs::FontFuncsDispatch;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
@@ -10,7 +10,7 @@ use crate::unicode::*;
 struct FallbackShapeContext<'a, 'x, 'u> {
     plan: &'a hb_ot_shape_plan_t,
     face: &'a hb_font_t<'a>,
-    buffer: &'x mut hb_buffer_t,
+    buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
     font_funcs: &'x mut FontFuncsDispatch<'a, 'u>,
 }
@@ -98,7 +98,7 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
 pub fn _hb_ot_shape_fallback_mark_position_recategorize_marks(
     _: &hb_ot_shape_plan_t,
     _: &hb_font_t,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
@@ -111,7 +111,7 @@ pub fn _hb_ot_shape_fallback_mark_position_recategorize_marks(
 }
 
 fn zero_mark_advances(
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
     start: usize,
     end: usize,
     adjust_offsets_when_zeroing: bool,
@@ -421,7 +421,7 @@ fn position_cluster(ctx: &mut FallbackShapeContext, start: usize, end: usize) {
 pub fn position_marks<'a, 'x>(
     plan: &'a hb_ot_shape_plan_t,
     face: &'a hb_font_t<'a>,
-    buffer: &'x mut hb_buffer_t,
+    buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {
@@ -450,14 +450,14 @@ pub fn position_marks<'a, 'x>(
     position_cluster(&mut ctx, start, len);
 }
 
-pub fn _hb_ot_shape_fallback_kern(_: &hb_ot_shape_plan_t, _: &hb_font_t, _: &mut hb_buffer_t) {
+pub fn _hb_ot_shape_fallback_kern(_: &hb_ot_shape_plan_t, _: &hb_font_t, _: &mut Buffer) {
     // STUB: this is deprecated in HarfBuzz
 }
 
 pub fn _hb_ot_shape_fallback_spaces<'a, 'x>(
     plan: &'a hb_ot_shape_plan_t,
     face: &'a hb_font_t<'a>,
-    buffer: &'x mut hb_buffer_t,
+    buffer: &'x mut Buffer,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {
     use crate::unicode::hb_unicode_funcs_t as t;

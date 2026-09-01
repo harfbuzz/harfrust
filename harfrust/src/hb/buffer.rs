@@ -469,66 +469,84 @@ pub const HB_BUFFER_CLUSTER_LEVEL_CHARACTERS: u32 = 2;
 pub const HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES: u32 = 3;
 pub const HB_BUFFER_CLUSTER_LEVEL_DEFAULT: u32 = HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES;
 
-pub struct hb_buffer_t {
+/// The type of contents currently held by a [`Buffer`].
+///
+/// This matches HarfBuzz's `hb_buffer_content_type_t`.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum BufferContentType {
+    /// The buffer holds input characters, ready for shaping.
+    Unicode,
+    /// The buffer holds the glyphs produced by shaping.
+    Glyphs,
+}
+
+/// A buffer of text to be shaped, and of the glyphs that shaping produces.
+///
+/// This is the unified buffer type, matching HarfBuzz's `hb_buffer_t`. It
+/// carries a [`BufferContentType`] describing which of the two states it is
+/// currently in. See [`UnicodeBuffer`] and [`GlyphBuffer`] for the typed
+/// alternative, which encodes that state in the type system instead.
+pub struct Buffer {
     // Information about how the text in the buffer should be treated.
-    pub flags: BufferFlags,
-    pub cluster_level: hb_buffer_cluster_level_t,
-    pub invisible: Option<GlyphId>,
-    pub not_found_variation_selector: Option<u32>,
+    pub(crate) flags: BufferFlags,
+    pub(crate) cluster_level: hb_buffer_cluster_level_t,
+    pub(crate) invisible: Option<GlyphId>,
+    pub(crate) not_found_variation_selector: Option<u32>,
 
     // Buffer contents.
-    pub direction: Direction,
-    pub script: Option<Script>,
-    pub language: Option<Language>,
+    pub(crate) content_type: Option<BufferContentType>,
+    pub(crate) direction: Direction,
+    pub(crate) script: Option<Script>,
+    pub(crate) language: Option<Language>,
 
     /// Allocations successful.
-    pub successful: bool,
+    pub(crate) successful: bool,
     /// Whether we have an output buffer going on.
     pub(crate) have_output: bool,
-    pub have_separate_output: bool,
+    pub(crate) have_separate_output: bool,
     /// Whether we have positions
-    pub have_positions: bool,
+    pub(crate) have_positions: bool,
 
-    pub idx: usize,
-    pub len: usize,
-    pub out_len: usize,
+    pub(crate) idx: usize,
+    pub(crate) len: usize,
+    pub(crate) out_len: usize,
 
-    pub info: Vec<GlyphInfo>,
-    pub pos: Vec<GlyphPosition>,
+    pub(crate) info: Vec<GlyphInfo>,
+    pub(crate) pos: Vec<GlyphPosition>,
 
     // Text before / after the main buffer contents.
     // Always in Unicode, and ordered outward.
     // Index 0 is for "pre-context", 1 for "post-context".
-    pub context: [[Codepoint; CONTEXT_LENGTH]; 2],
-    pub context_len: [usize; 2],
+    pub(crate) context: [[Codepoint; CONTEXT_LENGTH]; 2],
+    pub(crate) context_len: [usize; 2],
 
     pub(crate) digest: hb_set_digest_t,
     pub(crate) glyph_set: U32Set,
 
     // Managed by enter / leave
-    pub allocated_var_bits: u8,
-    pub serial: u8,
-    pub scratch_flags: hb_buffer_scratch_flags_t,
+    pub(crate) allocated_var_bits: u8,
+    pub(crate) serial: u8,
+    pub(crate) scratch_flags: hb_buffer_scratch_flags_t,
     /// Maximum allowed len.
-    pub max_len: usize,
+    pub(crate) max_len: usize,
     /// Maximum allowed operations.
-    pub max_ops: i32,
+    pub(crate) max_ops: i32,
 }
 
-impl hb_buffer_t {
-    pub const MAX_LEN_FACTOR: usize = 256;
-    pub const MAX_LEN_MIN: usize = 65536;
+impl Buffer {
+    pub(crate) const MAX_LEN_FACTOR: usize = 256;
+    pub(crate) const MAX_LEN_MIN: usize = 65536;
     // Shaping more than a billion chars? Let us know!
-    pub const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
+    pub(crate) const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
 
-    pub const MAX_OPS_FACTOR: i32 = 4096;
-    pub const MAX_OPS_MIN: i32 = 65536;
+    pub(crate) const MAX_OPS_FACTOR: i32 = 4096;
+    pub(crate) const MAX_OPS_MIN: i32 = 65536;
     // Shaping more than a billion operations? Let us know!
-    pub const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
+    pub(crate) const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
 
     /// Creates a new `Buffer`.
     pub fn new() -> Self {
-        hb_buffer_t {
+        Buffer {
             flags: BufferFlags::empty(),
             cluster_level: HB_BUFFER_CLUSTER_LEVEL_DEFAULT,
             invisible: None,
@@ -536,6 +554,7 @@ impl hb_buffer_t {
             not_found_variation_selector: None,
             max_len: Self::MAX_LEN_DEFAULT,
             max_ops: Self::MAX_OPS_DEFAULT,
+            content_type: None,
             direction: Direction::Invalid,
             script: None,
             language: None,
@@ -558,7 +577,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn allocate_var(&mut self, shape: buffer_var_shape) {
+    pub(crate) fn allocate_var(&mut self, shape: buffer_var_shape) {
         let bits = shape.bits();
         debug_assert_eq!(
             self.allocated_var_bits & bits,
@@ -569,7 +588,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn try_allocate_var(&mut self, shape: buffer_var_shape) -> bool {
+    pub(crate) fn try_allocate_var(&mut self, shape: buffer_var_shape) -> bool {
         let bits = shape.bits();
         if self.allocated_var_bits & bits != 0 {
             return false;
@@ -579,7 +598,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn deallocate_var(&mut self, shape: buffer_var_shape) {
+    pub(crate) fn deallocate_var(&mut self, shape: buffer_var_shape) {
         let bits = shape.bits();
         debug_assert_eq!(
             self.allocated_var_bits & bits,
@@ -590,7 +609,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn assert_var(&self, shape: buffer_var_shape) {
+    pub(crate) fn assert_var(&self, shape: buffer_var_shape) {
         let bits = shape.bits();
         debug_assert_eq!(
             self.allocated_var_bits & bits,
@@ -600,12 +619,12 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn info_slice_mut(&mut self) -> &mut [GlyphInfo] {
+    pub(crate) fn info_slice_mut(&mut self) -> &mut [GlyphInfo] {
         &mut self.info[..self.len]
     }
 
     #[inline]
-    pub fn out_info(&self) -> &[GlyphInfo] {
+    pub(crate) fn out_info(&self) -> &[GlyphInfo] {
         if self.have_separate_output {
             bytemuck::cast_slice(self.pos.as_slice())
         } else {
@@ -614,7 +633,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn out_info_mut(&mut self) -> &mut [GlyphInfo] {
+    pub(crate) fn out_info_mut(&mut self) -> &mut [GlyphInfo] {
         if self.have_separate_output {
             bytemuck::cast_slice_mut(self.pos.as_mut_slice())
         } else {
@@ -692,45 +711,49 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn cur(&self, i: usize) -> &GlyphInfo {
+    pub(crate) fn cur(&self, i: usize) -> &GlyphInfo {
         &self.info[self.idx + i]
     }
 
     #[inline]
-    pub fn cur_mut(&mut self, i: usize) -> &mut GlyphInfo {
+    pub(crate) fn cur_mut(&mut self, i: usize) -> &mut GlyphInfo {
         let idx = self.idx + i;
         &mut self.info[idx]
     }
 
     #[inline]
-    pub fn cur_pos_mut(&mut self) -> &mut GlyphPosition {
+    pub(crate) fn cur_pos_mut(&mut self) -> &mut GlyphPosition {
         let i = self.idx;
         &mut self.pos[i]
     }
 
     #[inline]
-    pub fn prev(&self) -> &GlyphInfo {
+    pub(crate) fn prev(&self) -> &GlyphInfo {
         let idx = self.out_len.saturating_sub(1);
         &self.out_info()[idx]
     }
 
     #[inline]
-    pub fn prev_mut(&mut self) -> &mut GlyphInfo {
+    pub(crate) fn prev_mut(&mut self) -> &mut GlyphInfo {
         let idx = self.out_len.saturating_sub(1);
         &mut self.out_info_mut()[idx]
     }
 
-    pub fn update_digest(&mut self) {
+    pub(crate) fn update_digest(&mut self) {
         self.digest = hb_set_digest_t::new();
         self.digest.add_array(self.info.iter().map(|i| i.glyph_id));
     }
-    pub fn update_glyph_set(&mut self) {
+    pub(crate) fn update_glyph_set(&mut self) {
         self.glyph_set.clear();
         self.glyph_set
             .extend_unsorted(self.info.iter().map(|i| i.glyph_id));
     }
 
-    fn clear(&mut self) {
+    /// Clears the contents of the buffer, retaining its allocation.
+    ///
+    /// This matches HarfBuzz's `hb_buffer_clear_contents`.
+    pub fn clear(&mut self) {
+        self.content_type = None;
         self.direction = Direction::Invalid;
         self.script = None;
         self.language = None;
@@ -756,7 +779,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn backtrack_len(&self) -> usize {
+    pub(crate) fn backtrack_len(&self) -> usize {
         if self.have_output {
             self.out_len
         } else {
@@ -765,7 +788,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn lookahead_len(&self) -> usize {
+    pub(crate) fn lookahead_len(&self) -> usize {
         self.len - self.idx
     }
 
@@ -781,7 +804,11 @@ impl hb_buffer_t {
         self.serial
     }
 
-    fn add(&mut self, codepoint: u32, cluster: u32) {
+    /// Appends a codepoint to the buffer with the given cluster value.
+    ///
+    /// This matches HarfBuzz's `hb_buffer_add`.
+    pub fn push(&mut self, codepoint: u32, cluster: u32) {
+        self.content_type = Some(BufferContentType::Unicode);
         if !self.ensure(self.len + 1) {
             return;
         }
@@ -793,6 +820,7 @@ impl hb_buffer_t {
         self.len += 1;
     }
 
+    /// Reverses the buffer contents.
     #[inline]
     pub fn reverse(&mut self) {
         if self.is_empty() {
@@ -802,6 +830,7 @@ impl hb_buffer_t {
         self.reverse_range(0, self.len);
     }
 
+    /// Reverses the buffer contents between `start` and `end`.
     pub fn reverse_range(&mut self, start: usize, end: usize) {
         if end - start < 2 {
             return;
@@ -813,7 +842,7 @@ impl hb_buffer_t {
         }
     }
 
-    pub fn reverse_groups<F>(&mut self, group: F, merge_clusters: bool)
+    pub(crate) fn reverse_groups<F>(&mut self, group: F, merge_clusters: bool)
     where
         F: Fn(&GlyphInfo, &GlyphInfo) -> bool,
     {
@@ -846,7 +875,7 @@ impl hb_buffer_t {
         self.reverse();
     }
 
-    pub fn group_end<F>(&self, mut start: usize, group: F) -> usize
+    pub(crate) fn group_end<F>(&self, mut start: usize, group: F) -> usize
     where
         F: Fn(&GlyphInfo, &GlyphInfo) -> bool,
     {
@@ -859,13 +888,17 @@ impl hb_buffer_t {
         start
     }
 
+    /// Resets the cluster value of each item to its index.
     #[inline]
-    fn reset_clusters(&mut self) {
+    pub fn reset_clusters(&mut self) {
         for (i, info) in self.info.iter_mut().enumerate() {
             info.cluster = i as u32;
         }
     }
 
+    /// Guesses the direction, script and language of the buffer contents.
+    ///
+    /// Only properties that are still unset are filled in.
     pub fn guess_segment_properties(&mut self) {
         if self.script.is_none() {
             for info in &self.info {
@@ -892,7 +925,7 @@ impl hb_buffer_t {
         // TODO: language must be set
     }
 
-    pub fn sync(&mut self) -> bool {
+    pub(crate) fn sync(&mut self) -> bool {
         debug_assert!(self.have_output);
         debug_assert!(self.idx <= self.len);
 
@@ -922,7 +955,7 @@ impl hb_buffer_t {
         true
     }
 
-    pub fn clear_output(&mut self) {
+    pub(crate) fn clear_output(&mut self) {
         self.have_output = true;
         self.have_positions = false;
 
@@ -931,7 +964,7 @@ impl hb_buffer_t {
         self.have_separate_output = false;
     }
 
-    pub fn clear_positions(&mut self) {
+    pub(crate) fn clear_positions(&mut self) {
         self.have_output = false;
         self.have_positions = true;
 
@@ -943,7 +976,7 @@ impl hb_buffer_t {
         }
     }
 
-    pub fn replace_glyphs(&mut self, num_in: usize, num_out: usize, glyph_data: &[u32]) {
+    pub(crate) fn replace_glyphs(&mut self, num_in: usize, num_out: usize, glyph_data: &[u32]) {
         if !self.make_room_for(num_in, num_out) {
             return;
         }
@@ -964,7 +997,7 @@ impl hb_buffer_t {
         self.out_len += num_out;
     }
 
-    pub fn replace_glyph(&mut self, glyph_index: u32) {
+    pub(crate) fn replace_glyph(&mut self, glyph_index: u32) {
         if self.have_separate_output || self.out_len != self.idx {
             if !self.make_room_for(1, 1) {
                 return;
@@ -980,7 +1013,7 @@ impl hb_buffer_t {
         self.out_len += 1;
     }
 
-    pub fn output_glyph(&mut self, glyph_index: u32) {
+    pub(crate) fn output_glyph(&mut self, glyph_index: u32) {
         if !self.make_room_for(0, 1) {
             return;
         }
@@ -1002,7 +1035,7 @@ impl hb_buffer_t {
         self.out_len += 1;
     }
 
-    pub fn output_info(&mut self, glyph_info: GlyphInfo) {
+    pub(crate) fn output_info(&mut self, glyph_info: GlyphInfo) {
         if !self.make_room_for(0, 1) {
             return;
         }
@@ -1012,7 +1045,7 @@ impl hb_buffer_t {
     }
 
     /// Copies glyph at idx to output but doesn't advance idx.
-    pub fn copy_glyph(&mut self) {
+    pub(crate) fn copy_glyph(&mut self) {
         if !self.make_room_for(0, 1) {
             return;
         }
@@ -1025,7 +1058,7 @@ impl hb_buffer_t {
     ///
     /// If there's no output, just advance idx.
     #[inline(always)]
-    pub fn next_glyph(&mut self) {
+    pub(crate) fn next_glyph(&mut self) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
                 if !self.ensure(self.out_len + 1) {
@@ -1045,7 +1078,7 @@ impl hb_buffer_t {
     /// Copies n glyphs at idx to output and advance idx.
     ///
     /// If there's no output, just advance idx.
-    pub fn next_glyphs(&mut self, n: usize) {
+    pub(crate) fn next_glyphs(&mut self, n: usize) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
                 if !self.ensure(self.out_len + n) {
@@ -1062,17 +1095,17 @@ impl hb_buffer_t {
     }
 
     /// Advance idx without copying to output.
-    pub fn skip_glyph(&mut self) {
+    pub(crate) fn skip_glyph(&mut self) {
         self.idx += 1;
     }
 
-    pub fn reset_masks(&mut self, mask: hb_mask_t) {
+    pub(crate) fn reset_masks(&mut self, mask: hb_mask_t) {
         for info in &mut self.info[..self.len] {
             info.mask = mask;
         }
     }
 
-    pub fn set_masks(
+    pub(crate) fn set_masks(
         &mut self,
         mut value: hb_mask_t,
         mask: hb_mask_t,
@@ -1107,7 +1140,7 @@ impl hb_buffer_t {
     }
 
     #[inline(always)]
-    pub fn merge_clusters(&mut self, start: usize, end: usize) {
+    pub(crate) fn merge_clusters(&mut self, start: usize, end: usize) {
         if end - start < 2 {
             return;
         }
@@ -1160,7 +1193,7 @@ impl hb_buffer_t {
         }
     }
 
-    pub fn merge_grapheme_clusters(&mut self, start: usize, end: usize) {
+    pub(crate) fn merge_grapheme_clusters(&mut self, start: usize, end: usize) {
         if end - start < 2 {
             return;
         }
@@ -1173,7 +1206,7 @@ impl hb_buffer_t {
         self.merge_clusters_impl(start, end);
     }
 
-    pub fn merge_out_clusters(&mut self, start: usize, end: usize) {
+    pub(crate) fn merge_out_clusters(&mut self, start: usize, end: usize) {
         if end - start < 2 {
             return;
         }
@@ -1185,7 +1218,7 @@ impl hb_buffer_t {
         self.merge_out_clusters_impl(start, end);
     }
 
-    pub fn merge_out_grapheme_clusters(&mut self, start: usize, end: usize) {
+    pub(crate) fn merge_out_grapheme_clusters(&mut self, start: usize, end: usize) {
         if end - start < 2 {
             return;
         }
@@ -1235,7 +1268,7 @@ impl hb_buffer_t {
     }
 
     /// Merge clusters for deleting current glyph, and skip it.
-    pub fn delete_glyph(&mut self) {
+    pub(crate) fn delete_glyph(&mut self) {
         let cluster = self.info[self.idx].cluster;
 
         if (self.idx + 1 < self.len && cluster == self.info[self.idx + 1].cluster)
@@ -1271,7 +1304,7 @@ impl hb_buffer_t {
         self.skip_glyph();
     }
 
-    pub fn delete_glyphs_inplace(&mut self, filter: impl Fn(&GlyphInfo) -> bool) {
+    pub(crate) fn delete_glyphs_inplace(&mut self, filter: impl Fn(&GlyphInfo) -> bool) {
         // Merge clusters and delete filtered glyphs.
         // NOTE! We can't use out-buffer as we have positioning data.
         let mut j = 0;
@@ -1321,7 +1354,7 @@ impl hb_buffer_t {
         self.len = j;
     }
 
-    pub fn unsafe_to_break(&mut self, start: Option<usize>, end: Option<usize>) {
+    pub(crate) fn unsafe_to_break(&mut self, start: Option<usize>, end: Option<usize>) {
         self.set_glyph_flags(
             GlyphFlags::UNSAFE_TO_BREAK | GlyphFlags::UNSAFE_TO_CONCAT,
             start,
@@ -1331,7 +1364,7 @@ impl hb_buffer_t {
         );
     }
 
-    pub fn safe_to_insert_tatweel(&mut self, start: Option<usize>, end: Option<usize>) {
+    pub(crate) fn safe_to_insert_tatweel(&mut self, start: Option<usize>, end: Option<usize>) {
         if !self
             .flags
             .contains(BufferFlags::PRODUCE_SAFE_TO_INSERT_TATWEEL)
@@ -1426,7 +1459,7 @@ impl hb_buffer_t {
         self._set_glyph_flags_impl(flags.0, start, end, interior, from_out_buffer);
     }
 
-    pub fn unsafe_to_concat(&mut self, start: Option<usize>, end: Option<usize>) {
+    pub(crate) fn unsafe_to_concat(&mut self, start: Option<usize>, end: Option<usize>) {
         if !self.flags.contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT) {
             return;
         }
@@ -1434,7 +1467,11 @@ impl hb_buffer_t {
         self.set_glyph_flags(GlyphFlags::UNSAFE_TO_CONCAT, start, end, Some(false), None);
     }
 
-    pub fn unsafe_to_break_from_outbuffer(&mut self, start: Option<usize>, end: Option<usize>) {
+    pub(crate) fn unsafe_to_break_from_outbuffer(
+        &mut self,
+        start: Option<usize>,
+        end: Option<usize>,
+    ) {
         self.set_glyph_flags(
             GlyphFlags::UNSAFE_TO_BREAK | GlyphFlags::UNSAFE_TO_CONCAT,
             start,
@@ -1444,7 +1481,11 @@ impl hb_buffer_t {
         );
     }
 
-    pub fn unsafe_to_concat_from_outbuffer(&mut self, start: Option<usize>, end: Option<usize>) {
+    pub(crate) fn unsafe_to_concat_from_outbuffer(
+        &mut self,
+        start: Option<usize>,
+        end: Option<usize>,
+    ) {
         if !self.flags.contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT) {
             return;
         }
@@ -1458,7 +1499,7 @@ impl hb_buffer_t {
         );
     }
 
-    pub fn move_to(&mut self, i: usize) -> bool {
+    pub(crate) fn move_to(&mut self, i: usize) -> bool {
         if !self.have_output {
             debug_assert!(i <= self.len);
             self.idx = i;
@@ -1521,7 +1562,7 @@ impl hb_buffer_t {
 
     #[must_use]
     #[inline(always)]
-    pub fn ensure(&mut self, size: usize) -> bool {
+    pub(crate) fn ensure(&mut self, size: usize) -> bool {
         if size <= self.info.len() {
             true
         } else {
@@ -1596,7 +1637,12 @@ impl hb_buffer_t {
         self.context_len[side] = 0;
     }
 
-    pub fn sort(&mut self, start: usize, end: usize, cmp: impl Fn(&GlyphInfo, &GlyphInfo) -> bool) {
+    pub(crate) fn sort(
+        &mut self,
+        start: usize,
+        end: usize,
+        cmp: impl Fn(&GlyphInfo, &GlyphInfo) -> bool,
+    ) {
         debug_assert!(!self.have_positions);
 
         for i in start + 1..end {
@@ -1623,7 +1669,7 @@ impl hb_buffer_t {
         }
     }
 
-    pub fn set_cluster(info: &mut GlyphInfo, cluster: u32, mask: hb_mask_t) {
+    pub(crate) fn set_cluster(info: &mut GlyphInfo, cluster: u32, mask: hb_mask_t) {
         if info.cluster != cluster {
             info.mask = (info.mask & !GlyphFlags::DEFINED_BITS) | (mask & GlyphFlags::DEFINED_BITS);
         }
@@ -1636,21 +1682,21 @@ impl hb_buffer_t {
         self.serial = 0;
         self.scratch_flags = HB_BUFFER_SCRATCH_FLAG_DEFAULT;
 
-        if let Some(len) = self.len.checked_mul(hb_buffer_t::MAX_LEN_FACTOR) {
-            self.max_len = len.max(hb_buffer_t::MAX_LEN_MIN);
+        if let Some(len) = self.len.checked_mul(Buffer::MAX_LEN_FACTOR) {
+            self.max_len = len.max(Buffer::MAX_LEN_MIN);
         }
 
         if let Ok(len) = i32::try_from(self.len) {
-            if let Some(ops) = len.checked_mul(hb_buffer_t::MAX_OPS_FACTOR) {
-                self.max_ops = ops.max(hb_buffer_t::MAX_OPS_MIN);
+            if let Some(ops) = len.checked_mul(Buffer::MAX_OPS_FACTOR) {
+                self.max_ops = ops.max(Buffer::MAX_OPS_MIN);
             }
         }
     }
 
     // Called around shape()
     pub(crate) fn leave(&mut self) {
-        self.max_len = hb_buffer_t::MAX_LEN_DEFAULT;
-        self.max_ops = hb_buffer_t::MAX_OPS_DEFAULT;
+        self.max_len = Buffer::MAX_LEN_DEFAULT;
+        self.max_ops = Buffer::MAX_OPS_DEFAULT;
         self.serial = 0;
     }
 
@@ -1735,14 +1781,19 @@ impl hb_buffer_t {
     }
 
     /// Checks that buffer contains no elements.
+    /// Returns `true` if the buffer contains no items.
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
-    fn push_str(&mut self, text: &str) {
+    /// Appends a string to the buffer.
+    ///
+    /// Cluster values are set to the UTF-8 byte offset of each character.
+    pub fn push_str(&mut self, text: &str) {
         if !self.ensure(self.len + text.chars().count()) {
             return;
         }
+        self.content_type = Some(BufferContentType::Unicode);
 
         for (i, c) in text.char_indices() {
             self.info[self.len] = GlyphInfo {
@@ -1754,7 +1805,8 @@ impl hb_buffer_t {
         }
     }
 
-    fn set_pre_context(&mut self, text: &str) {
+    /// Sets the pre-context for this buffer.
+    pub fn set_pre_context(&mut self, text: &str) {
         self.clear_context(0);
         for (i, c) in text.chars().rev().enumerate().take(CONTEXT_LENGTH) {
             self.context[0][i] = c as Codepoint;
@@ -1762,7 +1814,12 @@ impl hb_buffer_t {
         }
     }
 
-    fn set_pre_context_codepoints(&mut self, codepoints: &[u32]) {
+    /// Sets the pre-context for this buffer from codepoints.
+    ///
+    /// The input is expected to be the Unicode codepoints in reverse order.
+    /// This matches HarfBuzz's internal storage of pre-context, and serves
+    /// as a low-overhead method to pass pre-context from HarfBuzz-HarfRust.
+    pub fn set_pre_context_codepoints(&mut self, codepoints: &[u32]) {
         self.clear_context(0);
         for (i, &c) in codepoints.iter().take(CONTEXT_LENGTH).enumerate() {
             self.context[0][i] = c;
@@ -1770,7 +1827,8 @@ impl hb_buffer_t {
         }
     }
 
-    fn set_post_context(&mut self, text: &str) {
+    /// Sets the post-context for this buffer.
+    pub fn set_post_context(&mut self, text: &str) {
         self.clear_context(1);
         for (i, c) in text.chars().enumerate().take(CONTEXT_LENGTH) {
             self.context[1][i] = c as Codepoint;
@@ -1778,7 +1836,8 @@ impl hb_buffer_t {
         }
     }
 
-    fn set_post_context_codepoints(&mut self, codepoints: &[u32]) {
+    /// Sets the post-context for this buffer from codepoints.
+    pub fn set_post_context_codepoints(&mut self, codepoints: &[u32]) {
         self.clear_context(1);
         for (i, &c) in codepoints.iter().take(CONTEXT_LENGTH).enumerate() {
             self.context[1][i] = c;
@@ -1786,7 +1845,7 @@ impl hb_buffer_t {
         }
     }
 
-    pub fn next_syllable(&self, mut start: usize) -> usize {
+    pub(crate) fn next_syllable(&self, mut start: usize) -> usize {
         if start >= self.len {
             return start;
         }
@@ -1802,7 +1861,7 @@ impl hb_buffer_t {
     }
 
     #[inline]
-    pub fn allocate_lig_id(&mut self) -> u8 {
+    pub(crate) fn allocate_lig_id(&mut self) -> u8 {
         let mut lig_id = self.next_serial() & 0x07;
 
         if lig_id == 0 {
@@ -1810,6 +1869,427 @@ impl hb_buffer_t {
         }
 
         lig_id
+    }
+}
+
+/// Public API, mirroring HarfBuzz's `hb-buffer.h`.
+impl Buffer {
+    /// Returns the type of content currently held by the buffer, or `None`
+    /// if the buffer is empty or has been cleared.
+    #[inline]
+    pub fn content_type(&self) -> Option<BufferContentType> {
+        self.content_type
+    }
+
+    /// Sets the type of content held by the buffer.
+    ///
+    /// This only relabels the buffer; it never clears it. Shaping sets this to
+    /// [`BufferContentType::Glyphs`] on its own, so most callers never need it.
+    ///
+    /// Setting it explicitly reinterprets the items already in the buffer, which
+    /// is occasionally what you want: label a buffer of glyph ids as
+    /// [`BufferContentType::Glyphs`] to serialize a run that was shaped
+    /// elsewhere, or label a shaped buffer as [`BufferContentType::Unicode`] to
+    /// force [`shape`](Self::shape) to run over it again.
+    #[inline]
+    pub fn set_content_type(&mut self, content_type: Option<BufferContentType>) {
+        self.content_type = content_type;
+    }
+
+    /// Returns the number of items in the buffer.
+    ///
+    /// Before shaping this is the number of Unicode codepoints; after
+    /// shaping it is the number of glyphs.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Sets the number of items in the buffer.
+    ///
+    /// Growing the buffer fills the new items with zeros. Returns `false` if
+    /// the allocation failed, in which case the buffer is left unchanged.
+    pub fn set_length(&mut self, len: usize) -> bool {
+        if !self.ensure(len) {
+            return false;
+        }
+        if len > self.len {
+            self.info[self.len..len].fill(GlyphInfo::default());
+            if self.have_positions {
+                self.pos[self.len..len].fill(GlyphPosition::default());
+            }
+        }
+        self.len = len;
+        true
+    }
+
+    /// Ensures that the buffer can hold at least `size` items.
+    #[inline]
+    pub fn reserve(&mut self, size: usize) -> bool {
+        self.ensure(size)
+    }
+
+    /// Returns `true` if every allocation made on this buffer has succeeded.
+    #[inline]
+    pub fn allocation_successful(&self) -> bool {
+        self.successful
+    }
+
+    /// Returns the buffer contents.
+    ///
+    /// Before shaping, [`GlyphInfo::glyph_id`] holds the input Unicode
+    /// codepoint rather than a glyph id.
+    #[inline]
+    pub fn glyph_infos(&self) -> &[GlyphInfo] {
+        &self.info[..self.len]
+    }
+
+    /// Returns the buffer contents mutably.
+    #[inline]
+    pub fn glyph_infos_mut(&mut self) -> &mut [GlyphInfo] {
+        let len = self.len;
+        &mut self.info[..len]
+    }
+
+    /// Returns the glyph positions.
+    ///
+    /// Returns an empty slice if the buffer has not been shaped and has no
+    /// positions allocated. Use
+    /// [`glyph_positions_mut`](Self::glyph_positions_mut) to allocate them on
+    /// demand.
+    #[inline]
+    pub fn glyph_positions(&self) -> &[GlyphPosition] {
+        if !self.have_positions {
+            return &[];
+        }
+        &self.pos[..self.len]
+    }
+
+    /// Returns the glyph positions mutably, allocating and zeroing them if
+    /// the buffer does not have positions yet.
+    #[inline]
+    pub fn glyph_positions_mut(&mut self) -> &mut [GlyphPosition] {
+        if !self.have_positions {
+            self.clear_positions();
+        }
+        let len = self.len;
+        &mut self.pos[..len]
+    }
+
+    /// Appends glyph infos to the buffer.
+    pub fn push_glyph_infos(&mut self, infos: &[GlyphInfo]) -> bool {
+        let len = infos.len();
+        if !self.ensure(self.len + len) {
+            return false;
+        }
+        self.info[self.len..self.len + len].copy_from_slice(infos);
+        self.len += len;
+        true
+    }
+
+    /// Appends codepoints to the buffer, using each item's index as its
+    /// cluster value.
+    pub fn push_codepoints(&mut self, codepoints: &[u32]) {
+        if !self.ensure(self.len + codepoints.len()) {
+            return;
+        }
+        self.content_type = Some(BufferContentType::Unicode);
+        for (i, &c) in codepoints.iter().enumerate() {
+            self.info[self.len] = GlyphInfo {
+                glyph_id: c,
+                cluster: i as u32,
+                ..GlyphInfo::default()
+            };
+            self.len += 1;
+        }
+    }
+
+    /// Returns the buffer's text direction.
+    #[inline]
+    pub fn direction(&self) -> Direction {
+        self.direction
+    }
+
+    /// Sets the buffer's text direction.
+    #[inline]
+    pub fn set_direction(&mut self, direction: Direction) {
+        self.direction = direction;
+    }
+
+    /// Returns the buffer's ISO 15924 script.
+    #[inline]
+    pub fn script(&self) -> Script {
+        self.script.unwrap_or(script::UNKNOWN)
+    }
+
+    /// Sets the buffer's script from an ISO 15924 tag.
+    #[inline]
+    pub fn set_script(&mut self, script: Script) {
+        self.script = Some(script);
+    }
+
+    /// Returns the buffer's language.
+    #[inline]
+    pub fn language(&self) -> Option<Language> {
+        self.language.clone()
+    }
+
+    /// Sets the buffer's language.
+    #[inline]
+    pub fn set_language(&mut self, language: Language) {
+        self.language = Some(language);
+    }
+
+    /// Returns the buffer's flags.
+    #[inline]
+    pub fn flags(&self) -> BufferFlags {
+        self.flags
+    }
+
+    /// Sets the buffer's flags.
+    #[inline]
+    pub fn set_flags(&mut self, flags: BufferFlags) {
+        self.flags = flags;
+    }
+
+    /// Returns the buffer's cluster level.
+    #[inline]
+    pub fn cluster_level(&self) -> BufferClusterLevel {
+        BufferClusterLevel::new(self.cluster_level)
+    }
+
+    /// Sets the buffer's cluster level.
+    #[inline]
+    pub fn set_cluster_level(&mut self, cluster_level: BufferClusterLevel) {
+        self.cluster_level = match cluster_level {
+            BufferClusterLevel::MonotoneGraphemes => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
+            BufferClusterLevel::MonotoneCharacters => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
+            BufferClusterLevel::Characters => HB_BUFFER_CLUSTER_LEVEL_CHARACTERS,
+            BufferClusterLevel::Graphemes => HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
+        };
+    }
+
+    /// Returns the glyph used to replace invisible characters, if set.
+    #[inline]
+    pub fn invisible_glyph(&self) -> Option<GlyphId> {
+        self.invisible
+    }
+
+    /// Sets the glyph used to replace invisible characters.
+    #[inline]
+    pub fn set_invisible_glyph(&mut self, glyph: Option<GlyphId>) {
+        self.invisible = glyph;
+    }
+
+    /// Returns the glyph used to replace not-found variation selectors, if set.
+    #[inline]
+    pub fn not_found_variation_selector_glyph(&self) -> Option<u32> {
+        self.not_found_variation_selector
+    }
+
+    /// Sets the glyph used to replace not-found variation-selector characters.
+    #[inline]
+    pub fn set_not_found_variation_selector_glyph(&mut self, glyph: Option<u32>) {
+        self.not_found_variation_selector = glyph;
+    }
+
+    /// Reverses the buffer contents, keeping the items within each cluster in
+    /// their original order.
+    #[inline]
+    pub fn reverse_clusters(&mut self) {
+        self.reverse_groups(|a, b| a.cluster == b.cluster, false);
+    }
+
+    /// Resets the buffer to its default state, clearing its contents along
+    /// with the flags and cluster level.
+    pub fn reset(&mut self) {
+        self.clear();
+        self.flags = BufferFlags::empty();
+        self.cluster_level = HB_BUFFER_CLUSTER_LEVEL_DEFAULT;
+        self.invisible = None;
+        self.not_found_variation_selector = None;
+    }
+    /// Serializes the buffer contents into a string.
+    pub fn serialize(&self, font: &impl SerializerFont, flags: SerializeFlags) -> String {
+        self.serialize_impl(font, flags).unwrap_or_default()
+    }
+
+    pub(crate) fn serialize_impl(
+        &self,
+        font: &impl SerializerFont,
+        flags: SerializeFlags,
+    ) -> Result<String, core::fmt::Error> {
+        use core::fmt::Write;
+
+        let mut s = String::with_capacity(64);
+
+        let info = self.glyph_infos();
+        let pos = self.glyph_positions();
+        let mut x: i32 = 0;
+        let mut y: i32 = 0;
+        let names = font.glyph_names();
+        let glyph_metrics = if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
+            Some(font.glyph_metrics())
+        } else {
+            None
+        };
+        for (info, pos) in info.iter().zip(pos) {
+            s.push(if s.is_empty() { '[' } else { '|' });
+
+            if !flags.contains(SerializeFlags::NO_GLYPH_NAMES) {
+                match names.get(info.as_glyph().to_u32()) {
+                    Some(name) => s.push_str(name),
+                    None => write!(&mut s, "gid{}", info.glyph_id)?,
+                }
+            } else {
+                write!(&mut s, "{}", info.glyph_id)?;
+            }
+
+            if !flags.contains(SerializeFlags::NO_CLUSTERS) {
+                write!(&mut s, "={}", info.cluster)?;
+            }
+
+            if !flags.contains(SerializeFlags::NO_POSITIONS) {
+                let dx = x.saturating_add(pos.x_offset);
+                let dy = y.saturating_add(pos.y_offset);
+                if dx != 0 || dy != 0 {
+                    write!(&mut s, "@{dx},{dy}")?;
+                }
+
+                if !flags.contains(SerializeFlags::NO_ADVANCES) {
+                    write!(&mut s, "+{}", pos.x_advance)?;
+                    if pos.y_advance != 0 {
+                        write!(&mut s, ",{}", pos.y_advance)?;
+                    }
+                }
+            }
+
+            if flags.contains(SerializeFlags::GLYPH_FLAGS) {
+                if info.mask & GlyphFlags::DEFINED_BITS != 0 {
+                    write!(&mut s, "#{:X}", info.mask & GlyphFlags::DEFINED_BITS)?;
+                }
+            }
+
+            if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
+                let extents = glyph_metrics
+                    .as_ref()
+                    .unwrap()
+                    .extents(info.as_glyph(), font.coords())
+                    .unwrap_or_default();
+                write!(
+                    &mut s,
+                    "<{},{},{},{}>",
+                    extents.x_bearing, extents.y_bearing, extents.width, extents.height
+                )?;
+            }
+
+            if flags.contains(SerializeFlags::NO_ADVANCES) {
+                x = x.saturating_add(pos.x_advance);
+                y = y.saturating_add(pos.y_advance);
+            }
+        }
+
+        if !s.is_empty() {
+            s.push(']');
+        }
+
+        Ok(s)
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl core::fmt::Debug for Buffer {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fmt.debug_struct("Buffer")
+            .field("content_type", &self.content_type())
+            .field("direction", &self.direction())
+            .field("language", &self.language())
+            .field("script", &self.script())
+            .field("cluster_level", &self.cluster_level())
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
+impl From<UnicodeBuffer> for Buffer {
+    #[inline]
+    fn from(buffer: UnicodeBuffer) -> Self {
+        let mut buffer = buffer.0;
+        if buffer.len != 0 {
+            buffer.content_type = Some(BufferContentType::Unicode);
+        }
+        buffer
+    }
+}
+
+impl From<GlyphBuffer> for Buffer {
+    #[inline]
+    fn from(buffer: GlyphBuffer) -> Self {
+        let mut buffer = buffer.0;
+        buffer.content_type = Some(BufferContentType::Glyphs);
+        buffer
+    }
+}
+
+/// Error returned when a [`Buffer`] holds the wrong kind of content for the
+/// typed buffer it is being converted into.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct WrongContentType {
+    /// The content type the buffer actually holds.
+    pub found: Option<BufferContentType>,
+    /// The content type that was required.
+    pub expected: BufferContentType,
+}
+
+impl core::fmt::Display for WrongContentType {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            fmt,
+            "buffer holds {:?} content, expected {:?}",
+            self.found, self.expected
+        )
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for WrongContentType {}
+
+impl TryFrom<Buffer> for UnicodeBuffer {
+    type Error = WrongContentType;
+
+    /// Converts into a [`UnicodeBuffer`], which succeeds unless the buffer
+    /// holds the output of shaping.
+    #[inline]
+    fn try_from(buffer: Buffer) -> Result<Self, Self::Error> {
+        if buffer.content_type == Some(BufferContentType::Glyphs) {
+            return Err(WrongContentType {
+                found: buffer.content_type,
+                expected: BufferContentType::Unicode,
+            });
+        }
+        Ok(UnicodeBuffer(buffer))
+    }
+}
+
+impl TryFrom<Buffer> for GlyphBuffer {
+    type Error = WrongContentType;
+
+    /// Converts into a [`GlyphBuffer`], which succeeds only if the buffer
+    /// holds the output of shaping.
+    #[inline]
+    fn try_from(buffer: Buffer) -> Result<Self, Self::Error> {
+        if buffer.content_type != Some(BufferContentType::Glyphs) {
+            return Err(WrongContentType {
+                found: buffer.content_type,
+                expected: BufferContentType::Glyphs,
+            });
+        }
+        Ok(GlyphBuffer(buffer))
     }
 }
 
@@ -1910,13 +2390,13 @@ pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER3: u32 = 0x08000000;
 
 /// A buffer that contains an input string ready for shaping.
-pub struct UnicodeBuffer(pub(crate) hb_buffer_t);
+pub struct UnicodeBuffer(pub(crate) Buffer);
 
 impl UnicodeBuffer {
     /// Create a new `UnicodeBuffer`.
     #[inline]
     pub fn new() -> UnicodeBuffer {
-        UnicodeBuffer(hb_buffer_t::new())
+        UnicodeBuffer(Buffer::new())
     }
 
     /// Returns the length of the data of the buffer.
@@ -1989,7 +2469,7 @@ impl UnicodeBuffer {
     /// Appends a character to a buffer with the given cluster value.
     #[inline]
     pub fn add(&mut self, codepoint: char, cluster: u32) {
-        self.0.add(codepoint as u32, cluster);
+        self.0.push(codepoint as u32, cluster);
         self.0.context_len[1] = 0;
     }
 
@@ -2107,7 +2587,7 @@ impl Default for UnicodeBuffer {
 }
 
 /// A buffer that contains the results of the shaping process.
-pub struct GlyphBuffer(pub(crate) hb_buffer_t);
+pub struct GlyphBuffer(pub(crate) Buffer);
 
 impl GlyphBuffer {
     /// Returns the length of the data of the buffer.
@@ -2148,89 +2628,7 @@ impl GlyphBuffer {
 
     /// Converts the glyph buffer content into a string.
     pub fn serialize(&self, font: &impl SerializerFont, flags: SerializeFlags) -> String {
-        self.serialize_impl(font, flags).unwrap_or_default()
-    }
-
-    pub(crate) fn serialize_impl(
-        &self,
-        font: &impl SerializerFont,
-        flags: SerializeFlags,
-    ) -> Result<String, core::fmt::Error> {
-        use core::fmt::Write;
-
-        let mut s = String::with_capacity(64);
-
-        let info = self.glyph_infos();
-        let pos = self.glyph_positions();
-        let mut x: i32 = 0;
-        let mut y: i32 = 0;
-        let names = font.glyph_names();
-        let glyph_metrics = if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
-            Some(font.glyph_metrics())
-        } else {
-            None
-        };
-        for (info, pos) in info.iter().zip(pos) {
-            s.push(if s.is_empty() { '[' } else { '|' });
-
-            if !flags.contains(SerializeFlags::NO_GLYPH_NAMES) {
-                match names.get(info.as_glyph().to_u32()) {
-                    Some(name) => s.push_str(name),
-                    None => write!(&mut s, "gid{}", info.glyph_id)?,
-                }
-            } else {
-                write!(&mut s, "{}", info.glyph_id)?;
-            }
-
-            if !flags.contains(SerializeFlags::NO_CLUSTERS) {
-                write!(&mut s, "={}", info.cluster)?;
-            }
-
-            if !flags.contains(SerializeFlags::NO_POSITIONS) {
-                let dx = x.saturating_add(pos.x_offset);
-                let dy = y.saturating_add(pos.y_offset);
-                if dx != 0 || dy != 0 {
-                    write!(&mut s, "@{dx},{dy}")?;
-                }
-
-                if !flags.contains(SerializeFlags::NO_ADVANCES) {
-                    write!(&mut s, "+{}", pos.x_advance)?;
-                    if pos.y_advance != 0 {
-                        write!(&mut s, ",{}", pos.y_advance)?;
-                    }
-                }
-            }
-
-            if flags.contains(SerializeFlags::GLYPH_FLAGS) {
-                if info.mask & GlyphFlags::DEFINED_BITS != 0 {
-                    write!(&mut s, "#{:X}", info.mask & GlyphFlags::DEFINED_BITS)?;
-                }
-            }
-
-            if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
-                let extents = glyph_metrics
-                    .as_ref()
-                    .unwrap()
-                    .extents(info.as_glyph(), font.coords())
-                    .unwrap_or_default();
-                write!(
-                    &mut s,
-                    "<{},{},{},{}>",
-                    extents.x_bearing, extents.y_bearing, extents.width, extents.height
-                )?;
-            }
-
-            if flags.contains(SerializeFlags::NO_ADVANCES) {
-                x = x.saturating_add(pos.x_advance);
-                y = y.saturating_add(pos.y_advance);
-            }
-        }
-
-        if !s.is_empty() {
-            s.push(']');
-        }
-
-        Ok(s)
+        self.0.serialize(font, flags)
     }
 }
 
@@ -2290,7 +2688,7 @@ mod tests {
 
     #[test]
     fn next_syllable_is_bounded() {
-        let mut buffer = hb_buffer_t::new();
+        let mut buffer = Buffer::new();
         buffer
             .info
             .resize(MAX_SYLLABLE_LENGTH + 1, GlyphInfo::default());

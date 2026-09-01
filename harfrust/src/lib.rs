@@ -45,7 +45,10 @@ pub mod font {
     pub(crate) use read_fonts::model::*;
 }
 
-pub use hb::buffer::{GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer};
+pub use hb::buffer::{
+    Buffer, BufferContentType, GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition, UnicodeBuffer,
+    WrongContentType,
+};
 pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
 pub use hb::face::{
     hb_font_t as Shaper, GlyphExtents, ShapeOptions, ShaperBuilder, ShaperData, ShaperInstance,
