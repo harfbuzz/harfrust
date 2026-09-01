@@ -4,7 +4,7 @@ use core::ffi::{c_char, c_uint};
 use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use harfrust::{Direction, Feature, ShapeError, ShapeOptions};
+use harfrust::{Direction, Feature, ShapeOptions};
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
@@ -181,14 +181,14 @@ pub unsafe extern "C" fn hr_shape_full(
     match outcome {
         // A panic that unwound out of the shaper. Nothing useful to say.
         None => false.into(),
-        Some(Ok(())) => true.into(),
-        // Pathological input rather than a mistake by the caller, and
-        // attacker-controllable, so it is reported rather than fatal. This is
-        // the one failure HarfBuzz also lets `hb_shape_full` return.
-        Some(Err(ShapeError::LimitsExceeded)) => false.into(),
-        // Everything else is a misuse of the API, which HarfBuzz asserts on.
-        // Aborting here rather than returning false means `hr_shape`, which
-        // cannot report anything, does not swallow it.
+        // Shaping ran, but may have given up partway through on pathological
+        // input. That is attacker-controllable, so it is reported rather than
+        // fatal, and is the one failure HarfBuzz also lets `hb_shape_full`
+        // return.
+        Some(Ok(())) => buffer_ref.buffer.allocation_successful().into(),
+        // Every way shaping can fail is a misuse of the API, which HarfBuzz
+        // asserts on. Aborting rather than returning false means `hr_shape`,
+        // which cannot report anything, does not swallow it.
         Some(Err(err)) => panic!("hr_shape: {err}"),
     }
 }
