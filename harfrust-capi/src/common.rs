@@ -35,7 +35,10 @@ pub const HR_TAG_MAX_SIGNED: hr_tag_t = 0x7fff_ffff;
 /// Value applied to a feature that covers the whole buffer, as its start.
 pub const HR_FEATURE_GLOBAL_START: c_uint = 0;
 /// Value applied to a feature that covers the whole buffer, as its end.
-pub const HR_FEATURE_GLOBAL_END: c_uint = c_uint::MAX;
+///
+/// Spelled as a literal rather than `c_uint::MAX` so that it reaches the
+/// generated header.
+pub const HR_FEATURE_GLOBAL_END: c_uint = 0xFFFF_FFFF;
 
 /// Builds a tag from a string, padding with spaces and truncating past four
 /// bytes, as HarfBuzz's `hb_tag_from_string` does.

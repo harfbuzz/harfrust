@@ -4,7 +4,7 @@ use core::ffi::{c_char, c_uint};
 use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use harfrust::{Direction, Feature, ShapeOptions};
+use harfrust::{Direction, Feature, ShapeError, ShapeOptions};
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
@@ -77,7 +77,13 @@ pub(crate) fn shape_with_plan(
 /// The buffer's direction, script and language must be set beforehand; call
 /// `hr_buffer_guess_segment_properties` to fill in whatever is missing, which
 /// this does for the direction on your behalf. On return the buffer holds
-/// glyphs. Use `hr_shape_full` if you want to know whether it worked.
+/// glyphs.
+///
+/// Use `hr_shape_full` if you want to know whether the shaper ran out of room.
+///
+/// # Aborts
+///
+/// See [`hr_shape_full`].
 ///
 /// # Safety
 ///
@@ -98,9 +104,16 @@ pub unsafe extern "C" fn hr_shape(
 /// This library has a single shaper, so `shaper_list` is honoured only to the
 /// extent of failing when it names shapers that are all unavailable.
 ///
-/// Returns false if shaping could not be carried out: because the buffer
-/// already holds glyphs, because the font has nothing to shape with, or
-/// because the shaper ran past its limits on pathological input.
+/// Returns false when the shaper ran past its length, operation or nesting
+/// limits, which pathological input can provoke and which a caller can
+/// reasonably recover from.
+///
+/// # Aborts
+///
+/// Misusing the API aborts the process, as HarfBuzz's assertions do: passing a
+/// buffer that already holds glyphs, or a font with nothing to shape with.
+/// `hr_shape` returns nothing and so could not otherwise report these at
+/// all.
 ///
 /// # Safety
 ///
@@ -134,7 +147,7 @@ pub unsafe extern "C" fn hr_shape_full(
         font_data: font_ref.font_data,
     };
 
-    guard(|| {
+    let outcome = guard(|| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
         // so fill in whatever the caller left out rather than failing.
         if buffer_ref.buffer.direction() == Direction::Invalid {
@@ -162,12 +175,22 @@ pub unsafe extern "C" fn hr_shape_full(
         if !font_ref.funcs.is_null() {
             options = options.font_funcs(Some(&mut adapter));
         }
-        // Any reason shaping could not run, including a buffer that already
-        // holds glyphs, is reported here as false.
         buffer_ref.buffer.shape(instance, options)
-    })
-    .is_some_and(|result| result.is_ok())
-    .into()
+    });
+
+    match outcome {
+        // A panic that unwound out of the shaper. Nothing useful to say.
+        None => false.into(),
+        Some(Ok(())) => true.into(),
+        // Pathological input rather than a mistake by the caller, and
+        // attacker-controllable, so it is reported rather than fatal. This is
+        // the one failure HarfBuzz also lets `hb_shape_full` return.
+        Some(Err(ShapeError::LimitsExceeded)) => false.into(),
+        // Everything else is a misuse of the API, which HarfBuzz asserts on.
+        // Aborting here rather than returning false means `hr_shape`, which
+        // cannot report anything, does not swallow it.
+        Some(Err(err)) => panic!("hr_shape: {err}"),
+    }
 }
 
 /// Returns whether `shaper_list` permits this library's shaper.
@@ -207,6 +230,18 @@ pub extern "C" fn hr_shape_list_shapers() -> *const *const c_char {
     SHAPERS.0.as_ptr()
 }
 
+/// The major version of this library.
+///
+/// These are literals so that they reach the generated header, and a test
+/// keeps them in step with the crate version.
+pub const HR_VERSION_MAJOR: c_uint = 0;
+/// The minor version of this library.
+pub const HR_VERSION_MINOR: c_uint = 13;
+/// The micro version of this library.
+pub const HR_VERSION_MICRO: c_uint = 3;
+/// The version of this library, as a string.
+pub const HR_VERSION_STRING: &str = "0.13.3";
+
 /// Returns the version of the underlying HarfRust library.
 ///
 /// # Safety
@@ -231,7 +266,10 @@ pub unsafe extern "C" fn hr_version(major: *mut c_uint, minor: *mut c_uint, micr
 /// Returns the version of the underlying HarfRust library as a string.
 #[no_mangle]
 pub extern "C" fn hr_version_string() -> *const c_char {
-    c"0.13.3".as_ptr()
+    // Kept in step with the crate version, NUL-terminated for C.
+    concat!(env!("CARGO_PKG_VERSION"), "\0")
+        .as_ptr()
+        .cast::<c_char>()
 }
 
 /// Returns whether the library is at least the given version.
@@ -247,4 +285,38 @@ pub extern "C" fn hr_version_atleast(major: c_uint, minor: c_uint, micro: c_uint
         );
     };
     (have >= [major, minor, micro]).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_constants_match_the_crate() {
+        assert_eq!(
+            format!("{HR_VERSION_MAJOR}.{HR_VERSION_MINOR}.{HR_VERSION_MICRO}"),
+            env!("CARGO_PKG_VERSION"),
+        );
+        assert_eq!(HR_VERSION_STRING, env!("CARGO_PKG_VERSION"));
+    }
+
+    /// The header is generated and committed, so it can fall behind the crate.
+    #[test]
+    fn generated_header_matches_the_crate_version() {
+        let header = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/include/hr.h"))
+            .expect("include/hr.h should be committed alongside the crate");
+
+        for (name, value) in [
+            ("HR_VERSION_MAJOR", HR_VERSION_MAJOR.to_string()),
+            ("HR_VERSION_MINOR", HR_VERSION_MINOR.to_string()),
+            ("HR_VERSION_MICRO", HR_VERSION_MICRO.to_string()),
+            ("HR_VERSION_STRING", format!("{HR_VERSION_STRING:?}")),
+        ] {
+            let expected = format!("#define {name} {value}");
+            assert!(
+                header.contains(&expected),
+                "include/hr.h is out of date: expected `{expected}`.                  Regenerate it with cbindgen, then run                  scripts/gen-hb-compat-header.py."
+            );
+        }
+    }
 }

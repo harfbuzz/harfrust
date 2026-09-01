@@ -27,7 +27,31 @@
  */
 #define HR_FEATURE_GLOBAL_START 0
 
+/**
+ * Value applied to a feature that covers the whole buffer, as its end.
+ *
+ * Spelled as a literal rather than `c_uint::MAX` so that it reaches the
+ * generated header.
+ */
+#define HR_FEATURE_GLOBAL_END 4294967295
 
+/**
+ * The major version of this library.
+ *
+ * These are literals so that they reach the generated header, and a test
+ * keeps them in step with the crate version.
+ */
+#define HR_VERSION_MAJOR 0
+
+/**
+ * The minor version of this library.
+ */
+#define HR_VERSION_MINOR 13
+
+/**
+ * The micro version of this library.
+ */
+#define HR_VERSION_MICRO 3
 
 /**
  * How clusters are merged during shaping.
@@ -2926,9 +2950,15 @@ void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
  * Shapes a buffer with a font, applying the given features.
  *
  * The buffer's direction, script and language must be set beforehand; call
- * `hr_buffer_guess_segment_properties` to fill in whatever is missing. On
- * return the buffer holds glyphs, and shaping a buffer that already holds
- * glyphs does nothing.
+ * `hr_buffer_guess_segment_properties` to fill in whatever is missing, which
+ * this does for the direction on your behalf. On return the buffer holds
+ * glyphs.
+ *
+ * Use `hr_shape_full` if you want to know whether the shaper ran out of room.
+ *
+ * # Aborts
+ *
+ * See [`hr_shape_full`].
  *
  * # Safety
  *
@@ -2944,8 +2974,18 @@ void hr_shape(struct hr_font_t *font,
  * Shapes a buffer, selecting from a list of shaper names.
  *
  * This library has a single shaper, so `shaper_list` is honoured only to the
- * extent of failing when it names shapers that are all unavailable. Returns
- * false if shaping could not be carried out.
+ * extent of failing when it names shapers that are all unavailable.
+ *
+ * Returns false when the shaper ran past its length, operation or nesting
+ * limits, which pathological input can provoke and which a caller can
+ * reasonably recover from.
+ *
+ * # Aborts
+ *
+ * Misusing the API aborts the process, as HarfBuzz's assertions do: passing a
+ * buffer that already holds glyphs, or a font with nothing to shape with.
+ * `hr_shape` returns nothing and so could not otherwise report these at
+ * all.
  *
  * # Safety
  *
@@ -3186,8 +3226,28 @@ hr_bool_t hr_shape_plan_execute(struct hr_shape_plan_t *shape_plan,
 
 /* Convenience macros with no Rust counterpart, matching HarfBuzz's. */
 
+/** Builds a tag from four characters. */
+#define HR_TAG(c1, c2, c3, c4) ((hr_tag_t)((((uint32_t) (c1) & 0xFF) << 24) | (((uint32_t) (c2) & 0xFF) << 16) | (((uint32_t) (c3) & 0xFF) << 8) | ((uint32_t) (c4) & 0xFF)))
+
+/** Expands a tag into its four characters, as separate arguments. */
+#define HR_UNTAG(tag) (uint8_t)(((tag) >> 24) & 0xFF), (uint8_t)(((tag) >> 16) & 0xFF), (uint8_t)(((tag) >> 8) & 0xFF), (uint8_t)((tag) & 0xFF)
+
 /** An unset language. */
 #define HR_LANGUAGE_INVALID ((hr_language_t) 0)
 
 /** Segment properties with every field unset. */
 #define HR_SEGMENT_PROPERTIES_DEFAULT { HR_DIRECTION_INVALID, HR_SCRIPT_INVALID, HR_LANGUAGE_INVALID, (void *) 0, (void *) 0 }
+
+/* Spelled as macros because HarfBuzz spells them that way. */
+#define HR_DIRECTION_IS_VALID(dir) hr_direction_is_valid(dir)
+#define HR_DIRECTION_IS_HORIZONTAL(dir) hr_direction_is_horizontal(dir)
+#define HR_DIRECTION_IS_VERTICAL(dir) hr_direction_is_vertical(dir)
+#define HR_DIRECTION_IS_FORWARD(dir) hr_direction_is_forward(dir)
+#define HR_DIRECTION_IS_BACKWARD(dir) hr_direction_is_backward(dir)
+#define HR_DIRECTION_REVERSE(dir) hr_direction_reverse(dir)
+
+/** The version of this library, as a string. */
+#define HR_VERSION_STRING "0.13.3"
+
+/** True if this library is at least the given version. */
+#define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
