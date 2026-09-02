@@ -19,20 +19,10 @@
 //! properties (scale, point size and callbacks) do not enter into a plan at
 //! all. Two fonts over one face share the cache safely for the same reason.
 
-use std::ops::Deref;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::FontInstance;
 use harfrust::{Direction, Feature, Language, Script, ShapePlan};
-
-/// How many plans one face keeps.
-///
-/// HarfBuzz's list is unbounded; this caps it so a caller that varies feature
-/// ranges cannot grow the cache without limit. Plans are a few kilobytes each,
-/// and a face rarely sees more than a handful of distinct combinations. The
-/// cap also bounds the depth of the recursive drop of the list below.
-const CAPACITY: usize = 32;
 
 /// Everything a plan depends on.
 ///
@@ -80,7 +70,18 @@ impl PlanKey {
 #[derive(Default)]
 pub(crate) struct PlanCache {
     head: OnceLock<Box<Node>>,
-    len: AtomicUsize,
+}
+
+impl Drop for PlanCache {
+    fn drop(&mut self) {
+        // Iteratively. The chain is boxed, so the derived recursive drop would
+        // put one stack frame per plan and overflow on a face that collected a
+        // great many. HarfBuzz frees its list with the same explicit loop.
+        let mut link = self.head.take();
+        while let Some(mut node) = link {
+            link = node.next.take();
+        }
+    }
 }
 
 /// One cached plan and the link to the next.
@@ -90,33 +91,6 @@ struct Node {
     /// out as an object the caller owns. Shaping only ever borrows it.
     plan: Arc<ShapePlan>,
     next: OnceLock<Box<Node>>,
-}
-
-/// A plan held by the cache, or one built for a caller it had no room for.
-pub(crate) enum CachedPlan<'a> {
-    Cached(&'a Arc<ShapePlan>),
-    Uncached(Arc<ShapePlan>),
-}
-
-impl CachedPlan<'_> {
-    /// Takes a counted reference, for a caller that keeps the plan.
-    pub(crate) fn to_arc(&self) -> Arc<ShapePlan> {
-        match self {
-            Self::Cached(plan) => Arc::clone(plan),
-            Self::Uncached(plan) => Arc::clone(plan),
-        }
-    }
-}
-
-impl Deref for CachedPlan<'_> {
-    type Target = ShapePlan;
-
-    fn deref(&self) -> &ShapePlan {
-        match self {
-            Self::Cached(plan) => plan,
-            Self::Uncached(plan) => plan,
-        }
-    }
 }
 
 impl PlanCache {
@@ -129,7 +103,7 @@ impl PlanCache {
         script: Option<Script>,
         language: Option<Language>,
         features: &[Feature],
-    ) -> CachedPlan<'_> {
+    ) -> &Arc<ShapePlan> {
         let variations = instance.feature_variations();
         let feature_variations = [variations.gsub(), variations.gpos()];
 
@@ -145,15 +119,18 @@ impl PlanCache {
                 features,
                 feature_variations,
             ) {
-                return CachedPlan::Cached(&node.plan);
+                return &node.plan;
             }
             link = &node.next;
         }
 
-        let plan = Arc::new(build(instance, direction, script, language.as_ref(), features));
-        if self.len.load(Ordering::Relaxed) >= CAPACITY {
-            return CachedPlan::Uncached(plan);
-        }
+        let plan = Arc::new(build(
+            instance,
+            direction,
+            script,
+            language.as_ref(),
+            features,
+        ));
         let key = PlanKey {
             direction,
             script,
@@ -161,7 +138,7 @@ impl PlanCache {
             feature_variations,
             features: features.to_vec(),
         };
-        CachedPlan::Cached(self.insert(key, plan))
+        self.insert(key, plan)
     }
 
     /// Publishes a node at the end of the list, or hands back an equal one that
@@ -176,7 +153,6 @@ impl PlanCache {
         loop {
             match link.set(node) {
                 Ok(()) => {
-                    self.len.fetch_add(1, Ordering::Relaxed);
                     let published = link.get().expect("just set");
                     return &published.plan;
                 }

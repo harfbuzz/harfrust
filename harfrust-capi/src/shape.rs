@@ -200,7 +200,7 @@ pub unsafe extern "C" fn hr_shape_full(
         let mut options = ShapeOptions::new()
             .scale_separate(Some((x_scale, y_scale)))
             .features(&features)
-            .plan(plan.as_deref());
+            .plan(plan.map(|plan| &**plan));
         if ptem > 0.0 {
             options = options.point_size(Some(ptem));
         }
