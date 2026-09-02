@@ -88,9 +88,11 @@ impl hr_font_t {
             x_scale: self.x_scale,
             y_scale: self.y_scale,
             ptem: self.ptem,
-            // SAFETY: the font owns a reference, which this one is taken from.
-            funcs: unsafe { object::reference(self.funcs) },
-            font_data: self.font_data.clone(),
+            callbacks: CallbackState {
+                // SAFETY: the font owns a reference, which this one is taken from.
+                funcs: unsafe { object::reference(self.funcs) },
+                font_data: self.font_data.clone(),
+            },
         })
     }
 }
@@ -101,13 +103,20 @@ pub(crate) struct ShapingState {
     pub(crate) x_scale: c_int,
     pub(crate) y_scale: c_int,
     pub(crate) ptem: f32,
+    pub(crate) callbacks: CallbackState,
+}
+
+/// The half of the snapshot the callbacks need. Kept separate so that the
+/// instance can be moved out of the snapshot, which a type with a `Drop`
+/// implementation does not allow.
+pub(crate) struct CallbackState {
     /// Owned reference, so that callbacks replacing the font's callbacks
     /// cannot free the set being used.
     pub(crate) funcs: *mut hr_font_funcs_t,
     pub(crate) font_data: Option<Arc<FontData>>,
 }
 
-impl Drop for ShapingState {
+impl Drop for CallbackState {
     fn drop(&mut self) {
         // SAFETY: taken in `shaping_state`.
         unsafe { object::destroy(self.funcs) };

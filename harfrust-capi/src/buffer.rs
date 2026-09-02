@@ -448,7 +448,9 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
         unsafe { core::slice::from_raw_parts(text.cast::<u8>(), text_length as usize) }
     };
     let (start, end) = item_range(bytes.len(), item_offset, item_length);
-    let decode = |slice: &[u8]| String::from_utf8_lossy(slice).into_owned();
+    // Borrowed for well-formed text, which is the whole point: this is the
+    // hottest call in the API and it should not allocate.
+    let decode = String::from_utf8_lossy;
 
     if start > 0 {
         buffer.buffer.set_pre_context(&decode(&bytes[..start]));
@@ -457,8 +459,22 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
         buffer.buffer.set_post_context(&decode(&bytes[end..]));
     }
     // Cluster values are offsets into the whole text, not into the item.
-    for (offset, ch) in decode(&bytes[start..end]).char_indices() {
-        buffer.buffer.push(ch as u32, (start + offset) as c_uint);
+    //
+    // Well-formed text is the overwhelmingly common case, and validating it
+    // outright is faster than the lossy decoder, which walks the bytes once to
+    // find the ill-formed sequences and then again to yield the characters.
+    let item = &bytes[start..end];
+    match core::str::from_utf8(item) {
+        Ok(text) => {
+            for (offset, ch) in text.char_indices() {
+                buffer.buffer.push(ch as u32, (start + offset) as c_uint);
+            }
+        }
+        Err(_) => {
+            for (offset, ch) in decode(item).char_indices() {
+                buffer.buffer.push(ch as u32, (start + offset) as c_uint);
+            }
+        }
     }
 }
 

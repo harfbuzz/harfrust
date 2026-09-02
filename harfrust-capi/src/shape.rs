@@ -5,11 +5,10 @@ use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use harfrust::{Direction, Feature, ShapeOptions};
-use std::sync::Arc;
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
-use crate::font::hr_font_t;
+use crate::font::{hr_font_t, ShapingState};
 use crate::font_funcs::FontFuncsAdapter;
 
 /// Runs `f`, catching any panic rather than letting it unwind into C, which
@@ -60,10 +59,18 @@ pub(crate) fn shape_with_plan(
         }
     };
 
-    let (x_scale, y_scale, ptem) = (state.x_scale, state.y_scale, state.ptem);
-    let has_funcs = !state.funcs.is_null();
-    let instance = Arc::clone(&state.instance);
-    let mut adapter = FontFuncsAdapter::new(font, state);
+    // The instance is moved out rather than cloned: the adapter never reads
+    // it, and a shape call should not pay for a reference count to find that
+    // out.
+    let ShapingState {
+        instance,
+        x_scale,
+        y_scale,
+        ptem,
+        callbacks,
+    } = state;
+    let has_funcs = !callbacks.funcs.is_null();
+    let mut adapter = FontFuncsAdapter::new(font, callbacks);
 
     guard(|| {
         let mut options = ShapeOptions::new()
@@ -159,10 +166,18 @@ pub unsafe extern "C" fn hr_shape_full(
     // The plan cache lives on the face, which outlives the font.
     let face = unsafe { font.as_ref() }.map_or(ptr::null_mut(), hr_font_t::face);
 
-    let (x_scale, y_scale, ptem) = (state.x_scale, state.y_scale, state.ptem);
-    let has_funcs = !state.funcs.is_null();
-    let instance = Arc::clone(&state.instance);
-    let mut adapter = FontFuncsAdapter::new(font, state);
+    // The instance is moved out rather than cloned: the adapter never reads
+    // it, and a shape call should not pay for a reference count to find that
+    // out.
+    let ShapingState {
+        instance,
+        x_scale,
+        y_scale,
+        ptem,
+        callbacks,
+    } = state;
+    let has_funcs = !callbacks.funcs.is_null();
+    let mut adapter = FontFuncsAdapter::new(font, callbacks);
 
     let outcome = guard(|| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,

@@ -216,6 +216,7 @@ unsafe fn create_plan(
         face_ref
             .plans
             .get(&instance, direction, script, language, &features)
+            .to_arc()
     } else {
         Arc::new(ShapePlan::new(
             &instance,

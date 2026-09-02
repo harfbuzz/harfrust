@@ -13,7 +13,7 @@ use harfrust::font::{BuiltinFontFuncs, FontFuncs};
 use harfrust::{GlyphExtents, GlyphId};
 
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_glyph_extents_t, hr_position_t};
-use crate::font::{hr_font_t, ShapingState};
+use crate::font::{hr_font_t, CallbackState};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// Maps a Unicode scalar value to a glyph. Returns false if there is none.
@@ -421,12 +421,12 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
 pub(crate) struct FontFuncsAdapter {
     /// The snapshot owns a reference to the callbacks and to the font data,
     /// so a callback that replaces either cannot free what is in use.
-    state: ShapingState,
+    state: CallbackState,
     font: *mut hr_font_t,
 }
 
 impl FontFuncsAdapter {
-    pub(crate) fn new(font: *mut hr_font_t, state: ShapingState) -> Self {
+    pub(crate) fn new(font: *mut hr_font_t, state: CallbackState) -> Self {
         Self { state, font }
     }
 

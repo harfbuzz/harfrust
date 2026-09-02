@@ -19,7 +19,9 @@
 //! properties (scale, point size and callbacks) do not enter into a plan at
 //! all. Two fonts over one face share the cache safely for the same reason.
 
-use std::sync::{Arc, RwLock};
+use std::ops::Deref;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 
 use harfrust::font::FontInstance;
 use harfrust::{Direction, Feature, Language, Script, ShapePlan};
@@ -28,7 +30,8 @@ use harfrust::{Direction, Feature, Language, Script, ShapePlan};
 ///
 /// HarfBuzz's list is unbounded; this caps it so a caller that varies feature
 /// ranges cannot grow the cache without limit. Plans are a few kilobytes each,
-/// and a face rarely sees more than a handful of distinct combinations.
+/// and a face rarely sees more than a handful of distinct combinations. The
+/// cap also bounds the depth of the recursive drop of the list below.
 const CAPACITY: usize = 32;
 
 /// Everything a plan depends on.
@@ -49,31 +52,71 @@ struct PlanKey {
 }
 
 impl PlanKey {
-    fn new(
-        instance: &FontInstance,
+    /// Compares against a caller's values without building a key from them.
+    fn matches(
+        &self,
         direction: Direction,
         script: Option<Script>,
-        language: Option<Language>,
+        language: Option<&Language>,
         features: &[Feature],
-    ) -> Self {
-        let variations = instance.feature_variations();
-        Self {
-            direction,
-            script,
-            language,
-            feature_variations: [variations.gsub(), variations.gpos()],
-            features: features.to_vec(),
+        feature_variations: [Option<u32>; 2],
+    ) -> bool {
+        self.direction == direction
+            && self.script == script
+            && self.language.as_ref() == language
+            && self.feature_variations == feature_variations
+            && self.features == features
+    }
+}
+
+/// A face's cache of shape plans.
+///
+/// A singly linked list whose links are each written once, mirroring the
+/// atomic list HarfBuzz keeps on its own faces. No node is ever unlinked or
+/// changed after it is published, which is what lets a reader walk the list
+/// with plain acquire loads: a hit takes no lock, and hands back a borrow
+/// rather than a counted reference, because the nodes live as long as the
+/// cache and the cache outlives every shaping call made through the face.
+#[derive(Default)]
+pub(crate) struct PlanCache {
+    head: OnceLock<Box<Node>>,
+    len: AtomicUsize,
+}
+
+/// One cached plan and the link to the next.
+struct Node {
+    key: PlanKey,
+    /// Counted, because [`hr_shape_plan_create_cached`] hands the same plan
+    /// out as an object the caller owns. Shaping only ever borrows it.
+    plan: Arc<ShapePlan>,
+    next: OnceLock<Box<Node>>,
+}
+
+/// A plan held by the cache, or one built for a caller it had no room for.
+pub(crate) enum CachedPlan<'a> {
+    Cached(&'a Arc<ShapePlan>),
+    Uncached(Arc<ShapePlan>),
+}
+
+impl CachedPlan<'_> {
+    /// Takes a counted reference, for a caller that keeps the plan.
+    pub(crate) fn to_arc(&self) -> Arc<ShapePlan> {
+        match self {
+            Self::Cached(plan) => Arc::clone(plan),
+            Self::Uncached(plan) => Arc::clone(plan),
         }
     }
 }
 
-/// A face's cache of shape plans, newest first.
-///
-/// Hits vastly outnumber misses once a face is warm, and a hit only reads, so
-/// concurrent shaping over one face does not serialise on the cache.
-#[derive(Default)]
-pub(crate) struct PlanCache {
-    entries: RwLock<Vec<(PlanKey, Arc<ShapePlan>)>>,
+impl Deref for CachedPlan<'_> {
+    type Target = ShapePlan;
+
+    fn deref(&self) -> &ShapePlan {
+        match self {
+            Self::Cached(plan) => plan,
+            Self::Uncached(plan) => plan,
+        }
+    }
 }
 
 impl PlanCache {
@@ -86,32 +129,67 @@ impl PlanCache {
         script: Option<Script>,
         language: Option<Language>,
         features: &[Feature],
-    ) -> Arc<ShapePlan> {
-        let key = PlanKey::new(instance, direction, script, language.clone(), features);
+    ) -> CachedPlan<'_> {
+        let variations = instance.feature_variations();
+        let feature_variations = [variations.gsub(), variations.gpos()];
 
-        // A poisoned lock only means some other caller panicked mid-shape; fall
-        // back to an uncached plan rather than propagating it.
-        let Ok(entries) = self.entries.read() else {
-            return Arc::new(build(instance, direction, script, language, features));
+        // A linear walk, as HarfBuzz does over its per-face plan list. The key
+        // is compared against the caller's own values, so a hit -- the common
+        // case once a face is warm -- builds nothing at all.
+        let mut link = &self.head;
+        while let Some(node) = link.get() {
+            if node.key.matches(
+                direction,
+                script,
+                language.as_ref(),
+                features,
+                feature_variations,
+            ) {
+                return CachedPlan::Cached(&node.plan);
+            }
+            link = &node.next;
+        }
+
+        let plan = Arc::new(build(instance, direction, script, language.as_ref(), features));
+        if self.len.load(Ordering::Relaxed) >= CAPACITY {
+            return CachedPlan::Uncached(plan);
+        }
+        let key = PlanKey {
+            direction,
+            script,
+            language,
+            feature_variations,
+            features: features.to_vec(),
         };
+        CachedPlan::Cached(self.insert(key, plan))
+    }
 
-        // A linear search, as HarfBuzz does over its per-face plan list.
-        if let Some((_, plan)) = entries.iter().find(|(found, _)| *found == key) {
-            return Arc::clone(plan);
+    /// Publishes a node at the end of the list, or hands back an equal one that
+    /// another thread published while this one was building.
+    fn insert(&self, key: PlanKey, plan: Arc<ShapePlan>) -> &Arc<ShapePlan> {
+        let mut node = Box::new(Node {
+            key,
+            plan,
+            next: OnceLock::new(),
+        });
+        let mut link = &self.head;
+        loop {
+            match link.set(node) {
+                Ok(()) => {
+                    self.len.fetch_add(1, Ordering::Relaxed);
+                    let published = link.get().expect("just set");
+                    return &published.plan;
+                }
+                Err(unplaced) => {
+                    node = unplaced;
+                    let occupant = link.get().expect("set failed, so it is occupied");
+                    if occupant.key == node.key {
+                        return &occupant.plan;
+                    }
+                    link = &occupant.next;
+                }
+            }
         }
-
-        // Build without holding the lock, so one slow plan does not stall
-        // shaping on other threads.
-        drop(entries);
-        let plan = Arc::new(build(instance, direction, script, language, features));
-
-        if let Ok(mut entries) = self.entries.write() {
-            // Another thread may have inserted an equal key meanwhile; an extra
-            // copy is harmless, so just prepend, as HarfBuzz does.
-            entries.insert(0, (key, Arc::clone(&plan)));
-            entries.truncate(CAPACITY);
-        }
-        plan
     }
 }
 
@@ -119,8 +197,8 @@ fn build(
     instance: &FontInstance,
     direction: Direction,
     script: Option<Script>,
-    language: Option<Language>,
+    language: Option<&Language>,
     features: &[Feature],
 ) -> ShapePlan {
-    ShapePlan::new(instance, direction, script, language.as_ref(), features)
+    ShapePlan::new(instance, direction, script, language, features)
 }
