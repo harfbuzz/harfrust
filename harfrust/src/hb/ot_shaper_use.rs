@@ -238,7 +238,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
 fn setup_syllables(
     plan: &hb_ot_shape_plan_t,
     _: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
@@ -254,7 +254,7 @@ fn setup_syllables(
     false
 }
 
-fn setup_rphf_mask(plan: &hb_ot_shape_plan_t, buffer: &mut hb_buffer_t) -> bool {
+fn setup_rphf_mask(plan: &hb_ot_shape_plan_t, buffer: &mut Buffer) -> bool {
     let universal_plan = plan.data::<UniversalShapePlan>();
 
     let mask = universal_plan.rphf_mask;
@@ -282,7 +282,7 @@ fn setup_rphf_mask(plan: &hb_ot_shape_plan_t, buffer: &mut hb_buffer_t) -> bool 
     false
 }
 
-fn setup_topographical_masks(plan: &hb_ot_shape_plan_t, buffer: &mut hb_buffer_t) {
+fn setup_topographical_masks(plan: &hb_ot_shape_plan_t, buffer: &mut Buffer) {
     use super::ot_shaper_use_machine::SyllableType;
 
     if plan.data::<UniversalShapePlan>().arabic_plan.is_some() {
@@ -352,11 +352,7 @@ fn setup_topographical_masks(plan: &hb_ot_shape_plan_t, buffer: &mut hb_buffer_t
     }
 }
 
-fn record_rphf(
-    plan: &hb_ot_shape_plan_t,
-    _: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
-) -> bool {
+fn record_rphf(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     let universal_plan = plan.data::<UniversalShapePlan>();
 
     let mask = universal_plan.rphf_mask;
@@ -386,11 +382,7 @@ fn record_rphf(
     false
 }
 
-fn reorder_use(
-    _: &hb_ot_shape_plan_t,
-    font: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
-) -> bool {
+fn reorder_use(_: &hb_ot_shape_plan_t, font: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     use super::ot_shaper_use_machine::SyllableType;
 
     let mut ret = false;
@@ -446,7 +438,7 @@ const POST_BASE_FLAGS: u64 = category_flag64(category::FAbv)
     | category_flag64(category::VMPst)
     | category_flag64(category::VMPre);
 
-fn reorder_syllable_use(start: usize, end: usize, buffer: &mut hb_buffer_t) {
+fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
     use super::ot_shaper_use_machine::SyllableType;
 
     let syllable_type = (buffer.info[start].syllable() & 0x0F) as u32;
@@ -514,11 +506,7 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut hb_buffer_t) {
     }
 }
 
-fn record_pref(
-    _: &hb_ot_shape_plan_t,
-    _: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
-) -> bool {
+fn record_pref(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
@@ -557,7 +545,7 @@ fn has_arabic_joining(script: Script) -> bool {
     )
 }
 
-fn preprocess_text(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut hb_buffer_t) {
+fn preprocess_text(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     super::ot_shaper_vowel_constraints::preprocess_text_vowel_constraints(buffer);
 }
 
@@ -570,7 +558,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
     crate::unicode::compose(a, b)
 }
 
-fn setup_masks(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut hb_buffer_t) {
+fn setup_masks(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     let universal_plan = plan.data::<UniversalShapePlan>();
 
     // Do this before allocating use_category().

@@ -124,7 +124,7 @@ fn is_zero_width_char(face: &mut FontFuncsDispatch, c: Codepoint) -> bool {
 fn preprocess_text_hangul(
     _: &hb_ot_shape_plan_t,
     face: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     buffer.allocate_var(GlyphInfo::HANGUL_SHAPING_FEATURE_VAR);
 
@@ -369,11 +369,7 @@ fn preprocess_text_hangul(
     buffer.sync();
 }
 
-fn setup_masks_hangul(
-    plan: &hb_ot_shape_plan_t,
-    _: &mut FontFuncsDispatch,
-    buffer: &mut hb_buffer_t,
-) {
+fn setup_masks_hangul(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     let hangul_plan = plan.data::<hangul_shape_plan_t>();
     for info in buffer.info_slice_mut() {
         info.mask |= hangul_plan.mask_array[info.hangul_shaping_feature() as usize];

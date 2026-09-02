@@ -9,7 +9,7 @@ use smallvec::SmallVec;
 use core_maths::CoreFloat as _;
 
 use super::aat::AatTables;
-use super::buffer::hb_buffer_t;
+use super::buffer::Buffer;
 use super::charmap::{cache_t as cmap_cache_t, Charmap};
 use super::font_funcs::FontFuncsDispatch;
 use super::glyph_metrics::GlyphMetrics;
@@ -19,7 +19,10 @@ use super::ot_layout::TableIndex;
 use super::ot_shape::OtShapeContext;
 use crate::hb::aat::AatCache;
 use crate::hb::tables::TableRanges;
-use crate::{script, Feature, GlyphBuffer, NormalizedCoord, ShapePlan, UnicodeBuffer, Variation};
+use crate::{
+    script, BufferContentType, Direction, Feature, GlyphBuffer, NormalizedCoord, ShapeError,
+    ShapePlan, UnicodeBuffer, Variation,
+};
 
 pub use super::font_funcs::{
     AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, NominalGlyphBatch, RawAdvanceWidthBatch,
@@ -464,8 +467,55 @@ pub fn shape(
         }
     }
     let mut buffer = buffer.0;
-    hb_font.shape_buffer(&mut buffer, options);
+    // As above, this signature cannot report a failure.
+    if let Err(err) = hb_font.shape_buffer(&mut buffer, options) {
+        panic!("{err}");
+    }
     GlyphBuffer(buffer)
+}
+
+#[cfg(feature = "experimental_font_api")]
+impl Buffer {
+    /// Shapes the buffer contents in place with the given font.
+    ///
+    /// This matches HarfBuzz's `hb_shape`. On success the buffer holds
+    /// [`BufferContentType::Glyphs`].
+    ///
+    /// If a plan is supplied through [`ShapeOptions::plan`] it must have been
+    /// built for this buffer's direction and script, which is checked before
+    /// anything is touched.
+    ///
+    /// # Errors
+    ///
+    /// [`ShapeError::AlreadyShaped`] if the buffer holds glyphs rather than
+    /// text, [`ShapeError::DirectionUnset`] if it has no direction and no plan
+    /// was supplied to give it one, [`ShapeError::UnusableFont`] if the font
+    /// has nothing to shape with, [`ShapeError::DirectionMismatch`] or
+    /// [`ShapeError::ScriptMismatch`] if the supplied plan was built for other
+    /// properties.
+    ///
+    /// Each of these is a misuse of the API, caught before anything is
+    /// touched, so a failure leaves the buffer exactly as it arrived. Running
+    /// out of room is not among them; check
+    /// [`allocation_successful`](Buffer::allocation_successful) for that.
+    pub fn shape(
+        &mut self,
+        font: &crate::font::FontInstance,
+        mut options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
+        let hb_font = hb_font_t::from_font(font);
+        let Some(hb_font) = hb_font.as_ref() else {
+            return Err(ShapeError::UnusableFont);
+        };
+        // If the user didn't request an explicit scale but the font instance
+        // has a size, set the scale to that size with 16 fractional bits.
+        if options.scale.is_none() {
+            if let Some(ppem) = font.size() {
+                options = options.scale(Some((ppem * 65536.0) as i32));
+            }
+        }
+        hb_font.shape_buffer(self, options)
+    }
 }
 
 // This will go away completely when we drop the old API.
@@ -559,14 +609,30 @@ impl<'a> crate::Shaper<'a> {
     /// properties.    
     pub fn shape(&self, buffer: UnicodeBuffer, options: ShapeOptions<'_>) -> GlyphBuffer {
         let mut buffer = buffer.0;
-        self.shape_buffer(&mut buffer, options);
+        // This signature cannot report a failure, and every way shaping can
+        // fail is a programming error, so panic.
+        if let Err(err) = self.shape_buffer(&mut buffer, options) {
+            panic!("{err}");
+        }
         GlyphBuffer(buffer)
     }
 
-    fn shape_buffer(&self, buffer: &mut hb_buffer_t, options: ShapeOptions<'_>) {
+    pub(crate) fn shape_buffer(
+        &self,
+        buffer: &mut Buffer,
+        options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
+        if buffer.content_type == Some(BufferContentType::Glyphs) {
+            return Err(ShapeError::AlreadyShaped);
+        }
         if let Some(plan) = options.plan {
-            self.shape_with_plan(plan, buffer, options);
+            self.shape_with_plan(plan, buffer, options)
         } else {
+            // Compiling a plan requires a direction, and asserts on its own if
+            // it does not get one.
+            if buffer.direction == Direction::Invalid {
+                return Err(ShapeError::DirectionUnset);
+            }
             let plan = ShapePlan::new(
                 self,
                 buffer.direction,
@@ -574,30 +640,34 @@ impl<'a> crate::Shaper<'a> {
                 buffer.language.as_ref(),
                 options.features,
             );
-            self.shape_with_plan(&plan, buffer, options);
+            self.shape_with_plan(&plan, buffer, options)
         }
     }
 
     fn shape_with_plan(
         &self,
         plan: &ShapePlan,
-        buffer: &mut hb_buffer_t,
+        buffer: &mut Buffer,
         options: ShapeOptions<'_>,
-    ) {
-        buffer.enter();
+    ) -> Result<(), ShapeError> {
+        // Check before `enter`, so a buffer that cannot be shaped is handed
+        // back exactly as it arrived.
+        if buffer.direction != plan.direction {
+            return Err(ShapeError::DirectionMismatch {
+                plan: plan.direction,
+                buffer: buffer.direction,
+            });
+        }
+        let plan_script = plan.script.unwrap_or(script::UNKNOWN);
+        let buffer_script = buffer.script.unwrap_or(script::UNKNOWN);
+        if buffer_script != plan_script {
+            return Err(ShapeError::ScriptMismatch {
+                plan: plan_script,
+                buffer: buffer_script,
+            });
+        }
 
-        assert_eq!(
-            buffer.direction, plan.direction,
-            "Buffer direction does not match plan direction: {:?} != {:?}",
-            buffer.direction, plan.direction
-        );
-        assert_eq!(
-            buffer.script.unwrap_or(script::UNKNOWN),
-            plan.script.unwrap_or(script::UNKNOWN),
-            "Buffer script does not match plan script: {:?} != {:?}",
-            buffer.script.unwrap_or(script::UNKNOWN),
-            plan.script.unwrap_or(script::UNKNOWN)
-        );
+        buffer.enter();
 
         if buffer.len > 0 {
             // Save the original direction, we use it later.
@@ -617,6 +687,12 @@ impl<'a> crate::Shaper<'a> {
         }
 
         buffer.leave();
+        buffer.content_type = Some(BufferContentType::Glyphs);
+
+        // Running past the length, operation or nesting budget leaves
+        // `successful` false, which the caller reads through
+        // `Buffer::allocation_successful`.
+        Ok(())
     }
 
     pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {

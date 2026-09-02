@@ -72,12 +72,11 @@ pub struct hb_ot_shaper_t {
 
     /// Called during `shape()`.
     /// Shapers can use to modify text before shaping starts.
-    pub preprocess_text: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut hb_buffer_t)>,
+    pub preprocess_text: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer)>,
 
     /// Called during `shape()`.
     /// Shapers can use to modify text before shaping starts.
-    pub postprocess_glyphs:
-        Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut hb_buffer_t)>,
+    pub postprocess_glyphs: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer)>,
 
     /// How to normalize.
     pub normalization_preference: hb_ot_shape_normalization_mode_t,
@@ -91,7 +90,7 @@ pub struct hb_ot_shaper_t {
     /// Called during `shape()`.
     /// Shapers should use map to get feature masks and set on buffer.
     /// Shapers may NOT modify characters.
-    pub setup_masks: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut hb_buffer_t)>,
+    pub setup_masks: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer)>,
 
     /// If not `None`, then must match found GPOS script tag for
     /// GPOS to be applied.  Otherwise, fallback positioning will be used.
@@ -99,7 +98,7 @@ pub struct hb_ot_shaper_t {
 
     /// Called during `shape()`.
     /// Shapers can use to modify ordering of combining marks.
-    pub reorder_marks: Option<fn(&hb_ot_shape_plan_t, &mut hb_buffer_t, usize, usize)>,
+    pub reorder_marks: Option<fn(&hb_ot_shape_plan_t, &mut Buffer, usize, usize)>,
 
     /// If and when to zero-width marks.
     pub zero_width_marks: hb_ot_shape_zero_width_marks_type_t,

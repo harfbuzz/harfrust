@@ -7,14 +7,14 @@ use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
 
-use crate::hb::{buffer::hb_buffer_t, face::Scale, hb_font_t, ot_shape_plan::hb_ot_shape_plan_t};
+use crate::hb::{buffer::Buffer, face::Scale, hb_font_t, ot_shape_plan::hb_ot_shape_plan_t};
 
 pub fn apply(
     _plan: &hb_ot_shape_plan_t,
     face: &hb_font_t,
     scale: Scale,
     point_size: Option<f32>,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) -> Option<()> {
     let trak = face.aat_tables.trak.as_ref()?;
     let mut ptem = point_size.unwrap_or(0.0);

@@ -301,7 +301,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
 pub(crate) struct OtShapeContext<'a, 'u> {
     pub plan: &'a hb_ot_shape_plan_t,
     pub face: &'a hb_font_t<'a>,
-    pub buffer: &'a mut hb_buffer_t,
+    pub buffer: &'a mut Buffer,
     pub features: &'a [Feature],
     // Transient stuff
     pub target_direction: Direction,
@@ -786,7 +786,7 @@ impl OtShapeContext<'_, '_> {
     }
 }
 
-fn form_clusters(buffer: &mut hb_buffer_t) {
+fn form_clusters(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_CONTINUATIONS != 0 {
         foreach_grapheme!(buffer, start, end, {
             buffer.merge_grapheme_clusters(start, end);
@@ -794,7 +794,7 @@ fn form_clusters(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn ensure_native_direction(buffer: &mut hb_buffer_t) {
+fn ensure_native_direction(buffer: &mut Buffer) {
     let dir = buffer.direction;
     let mut hor = buffer
         .script
@@ -850,7 +850,7 @@ fn ensure_native_direction(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn map_glyphs_fast(buffer: &mut hb_buffer_t) {
+fn map_glyphs_fast(buffer: &mut Buffer) {
     // Normalization process sets up normalizer_glyph_index(), we just copy it.
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
@@ -862,7 +862,7 @@ fn map_glyphs_fast(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn hb_synthesize_glyph_classes(buffer: &mut hb_buffer_t) {
+fn hb_synthesize_glyph_classes(buffer: &mut Buffer) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         // Never mark default-ignorables as marks.
@@ -885,7 +885,7 @@ fn hb_synthesize_glyph_classes(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn zero_width_default_ignorables(buffer: &mut hb_buffer_t) {
+fn zero_width_default_ignorables(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES != 0
         && !buffer
             .flags
@@ -909,7 +909,7 @@ fn zero_width_default_ignorables(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn deal_with_variation_selectors(buffer: &mut hb_buffer_t) {
+fn deal_with_variation_selectors(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK == 0 {
         return;
     }
@@ -936,7 +936,7 @@ fn deal_with_variation_selectors(buffer: &mut hb_buffer_t) {
     }
 }
 
-fn zero_mark_widths_by_gdef(buffer: &mut hb_buffer_t, adjust_offsets: bool) {
+fn zero_mark_widths_by_gdef(buffer: &mut Buffer, adjust_offsets: bool) {
     let len = buffer.len;
     for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
         if info.is_mark() {
@@ -951,7 +951,7 @@ fn zero_mark_widths_by_gdef(buffer: &mut hb_buffer_t, adjust_offsets: bool) {
     }
 }
 
-fn hide_default_ignorables(buffer: &mut hb_buffer_t, font_funcs: &mut FontFuncsDispatch<'_, '_>) {
+fn hide_default_ignorables(buffer: &mut Buffer, font_funcs: &mut FontFuncsDispatch<'_, '_>) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES != 0
         && !buffer
             .flags
@@ -979,7 +979,7 @@ fn hide_default_ignorables(buffer: &mut hb_buffer_t, font_funcs: &mut FontFuncsD
     }
 }
 
-fn propagate_flags(buffer: &mut hb_buffer_t) {
+fn propagate_flags(buffer: &mut Buffer) {
     // Propagate cluster-level glyph flags to be the same on all cluster glyphs.
     // Simplifies using them.
 

@@ -10,7 +10,7 @@ use crate::hb::face::FontKind;
 use crate::hb::face::Scale;
 use crate::hb::glyph_metrics::GlyphMetrics;
 
-use super::buffer::{hb_buffer_t, GlyphInfo, GlyphPosition};
+use super::buffer::{Buffer, GlyphInfo, GlyphPosition};
 use super::face::{hb_font_t, GlyphExtents};
 
 /// Raw C-style view over a batch of glyph ids and advance widths.
@@ -38,7 +38,7 @@ pub struct AdvanceWidthBatch<'a> {
 }
 
 impl<'a> AdvanceWidthBatch<'a> {
-    pub(crate) fn new(buffer: &'a mut hb_buffer_t) -> Self {
+    pub(crate) fn new(buffer: &'a mut Buffer) -> Self {
         let len = buffer.len;
         let infos = &buffer.info[..len];
         let positions = &mut buffer.pos[..len];
