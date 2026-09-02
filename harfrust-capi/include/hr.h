@@ -2954,7 +2954,8 @@ void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
  * this does for the direction on your behalf. On return the buffer holds
  * glyphs.
  *
- * Use `hr_shape_full` if you want to know whether the shaper ran out of room.
+ * Call `hr_buffer_allocation_successful` if you want to know whether the
+ * buffer ran out of room.
  *
  * # Aborts
  *
@@ -2976,9 +2977,13 @@ void hr_shape(struct hr_font_t *font,
  * This library has a single shaper, so `shaper_list` is honoured only to the
  * extent of failing when it names shapers that are all unavailable.
  *
- * Returns false when the shaper ran past its length, operation or nesting
- * limits, which pathological input can provoke and which a caller can
- * reasonably recover from.
+ * Returns false only when no shaper could be run: `shaper_list` names none
+ * that this library provides, or there is nothing to shape with. Shaping
+ * itself never fails the call, which is what HarfBuzz does -- its
+ * `hb_shape_full` reports failure only when it cannot find or instantiate a
+ * shaper, and every shaper it does run returns true whatever became of the
+ * buffer. So a buffer that ran past its length, operation or nesting limits
+ * still returns true; call `hr_buffer_allocation_successful` to detect that.
  *
  * # Aborts
  *
