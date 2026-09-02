@@ -4,6 +4,7 @@ mod in_house;
 mod macos;
 #[cfg(target_os = "macos")]
 mod macos_lazy_tables;
+mod properties;
 mod regressions;
 mod text_rendering_tests;
 
