@@ -19,7 +19,7 @@
 //! properties (scale, point size and callbacks) do not enter into a plan at
 //! all. Two fonts over one face share the cache safely for the same reason.
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use harfrust::font::FontInstance;
 use harfrust::{Direction, Feature, Language, Script, ShapePlan};
@@ -68,9 +68,12 @@ impl PlanKey {
 }
 
 /// A face's cache of shape plans, newest first.
+///
+/// Hits vastly outnumber misses once a face is warm, and a hit only reads, so
+/// concurrent shaping over one face does not serialise on the cache.
 #[derive(Default)]
 pub(crate) struct PlanCache {
-    entries: Mutex<Vec<(PlanKey, Arc<ShapePlan>)>>,
+    entries: RwLock<Vec<(PlanKey, Arc<ShapePlan>)>>,
 }
 
 impl PlanCache {
@@ -88,7 +91,7 @@ impl PlanCache {
 
         // A poisoned lock only means some other caller panicked mid-shape; fall
         // back to an uncached plan rather than propagating it.
-        let Ok(entries) = self.entries.lock() else {
+        let Ok(entries) = self.entries.read() else {
             return Arc::new(build(instance, direction, script, language, features));
         };
 
@@ -102,7 +105,7 @@ impl PlanCache {
         drop(entries);
         let plan = Arc::new(build(instance, direction, script, language, features));
 
-        if let Ok(mut entries) = self.entries.lock() {
+        if let Ok(mut entries) = self.entries.write() {
             // Another thread may have inserted an equal key meanwhile; an extra
             // copy is harmless, so just prepend, as HarfBuzz does.
             entries.insert(0, (key, Arc::clone(&plan)));

@@ -2,7 +2,7 @@
 //! shaping-relevant half of HarfBuzz's `hb-font.h`.
 
 use core::ffi::{c_int, c_uint, c_void};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{FontInstance, FontVariation, NormalizedCoord};
 use read_fonts::TableProvider;
@@ -10,7 +10,32 @@ use read_fonts::TableProvider;
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_variation_t};
 use crate::face::hr_face_t;
 use crate::font_funcs::hr_font_funcs_t;
-use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Object, ObjectHeader};
+use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
+
+/// The `font_data` a caller attached along with a set of callbacks.
+///
+/// Shared, because a sub-font inherits its parent's and shaping holds it for
+/// the duration of a call. Whoever lets go of the last reference runs the
+/// destroy callback, so replacing a font's callbacks cannot pull the data out
+/// from under a sub-font or an in-flight shaping call.
+pub(crate) struct FontData {
+    pub(crate) data: *mut c_void,
+    destroy: hr_destroy_func_t,
+}
+
+// SAFETY: `hr_font_set_funcs` documents that the callbacks and their data must
+// be safe to use, and to release, from any thread.
+unsafe impl Send for FontData {}
+unsafe impl Sync for FontData {}
+
+impl Drop for FontData {
+    fn drop(&mut self) {
+        if let Some(destroy) = self.destroy {
+            // SAFETY: `destroy` was supplied alongside `data`.
+            unsafe { destroy(self.data) };
+        }
+    }
+}
 
 /// A font: a face with a scale, an optional point size, and variation
 /// settings applied.
@@ -19,7 +44,10 @@ pub struct hr_font_t {
     /// Owned reference to the face this font draws from.
     face: *mut hr_face_t,
     /// `None` only for the immortal empty font.
-    pub(crate) instance: Option<FontInstance>,
+    ///
+    /// Shared, so that a shaping call can hold the instance it started with
+    /// even if a font callback changes the font's variation settings midway.
+    pub(crate) instance: Option<Arc<FontInstance>>,
     pub(crate) x_scale: c_int,
     pub(crate) y_scale: c_int,
     pub(crate) ptem: f32,
@@ -29,8 +57,7 @@ pub struct hr_font_t {
     coords: Vec<c_int>,
     /// Owned reference to the callbacks, or null for the built-in ones.
     pub(crate) funcs: *mut hr_font_funcs_t,
-    pub(crate) font_data: *mut c_void,
-    font_data_destroy: hr_destroy_func_t,
+    pub(crate) font_data: Option<Arc<FontData>>,
     /// Owned reference to the parent, for fonts made by
     /// [`hr_font_create_sub_font`].
     parent: *mut hr_font_t,
@@ -49,21 +76,46 @@ impl hr_font_t {
             .iter()
             .map(|coord| c_int::from(coord.to_bits()))
             .collect();
-        self.instance = Some(instance);
+        self.instance = Some(Arc::new(instance));
     }
 
-    fn release_font_data(&mut self) {
-        if let Some(destroy) = self.font_data_destroy.take() {
-            // SAFETY: `destroy` was supplied alongside `font_data`.
-            unsafe { destroy(self.font_data) };
-        }
-        self.font_data = core::ptr::null_mut();
+    /// Everything a shaping call needs, lifted out of the font so that no
+    /// borrow of it is alive while callbacks, which are handed the same font,
+    /// can run.
+    pub(crate) fn shaping_state(&self) -> Option<ShapingState> {
+        Some(ShapingState {
+            instance: Arc::clone(self.instance.as_ref()?),
+            x_scale: self.x_scale,
+            y_scale: self.y_scale,
+            ptem: self.ptem,
+            // SAFETY: the font owns a reference, which this one is taken from.
+            funcs: unsafe { object::reference(self.funcs) },
+            font_data: self.font_data.clone(),
+        })
+    }
+}
+
+/// A snapshot of the font, owning everything it borrows.
+pub(crate) struct ShapingState {
+    pub(crate) instance: Arc<FontInstance>,
+    pub(crate) x_scale: c_int,
+    pub(crate) y_scale: c_int,
+    pub(crate) ptem: f32,
+    /// Owned reference, so that callbacks replacing the font's callbacks
+    /// cannot free the set being used.
+    pub(crate) funcs: *mut hr_font_funcs_t,
+    pub(crate) font_data: Option<Arc<FontData>>,
+}
+
+impl Drop for ShapingState {
+    fn drop(&mut self) {
+        // SAFETY: taken in `shaping_state`.
+        unsafe { object::destroy(self.funcs) };
     }
 }
 
 impl Drop for hr_font_t {
     fn drop(&mut self) {
-        self.release_font_data();
         // SAFETY: this font owns one reference to each of these.
         unsafe {
             object::destroy(self.funcs);
@@ -73,7 +125,7 @@ impl Drop for hr_font_t {
     }
 }
 
-static EMPTY_FONT: OnceLock<usize> = OnceLock::new();
+static EMPTY_FONT: OnceLock<Empty<hr_font_t>> = OnceLock::new();
 
 impl Object for hr_font_t {
     fn header(&self) -> &ObjectHeader {
@@ -81,22 +133,22 @@ impl Object for hr_font_t {
     }
 
     fn empty() -> *mut Self {
-        let addr = *EMPTY_FONT.get_or_init(|| {
-            Box::into_raw(Box::new(hr_font_t {
-                header: ObjectHeader::immortal(),
-                face: hr_face_t::empty(),
-                instance: None,
-                x_scale: 0,
-                y_scale: 0,
-                ptem: 0.0,
-                coords: Vec::new(),
-                funcs: core::ptr::null_mut(),
-                font_data: core::ptr::null_mut(),
-                font_data_destroy: None,
-                parent: core::ptr::null_mut(),
-            })) as usize
-        });
-        addr as *mut Self
+        EMPTY_FONT
+            .get_or_init(|| {
+                Empty::new(hr_font_t {
+                    header: ObjectHeader::immortal(),
+                    face: hr_face_t::empty(),
+                    instance: None,
+                    x_scale: 0,
+                    y_scale: 0,
+                    ptem: 0.0,
+                    coords: Vec::new(),
+                    funcs: core::ptr::null_mut(),
+                    font_data: None,
+                    parent: core::ptr::null_mut(),
+                })
+            })
+            .get()
     }
 }
 
@@ -133,8 +185,7 @@ pub unsafe extern "C" fn hr_font_create(face: *mut hr_face_t) -> *mut hr_font_t 
         ptem: 0.0,
         coords: Vec::new(),
         funcs: core::ptr::null_mut(),
-        font_data: core::ptr::null_mut(),
-        font_data_destroy: None,
+        font_data: None,
         parent: core::ptr::null_mut(),
     };
     this.set_instance(FontInstance::builder(font).build());
@@ -155,7 +206,7 @@ pub unsafe extern "C" fn hr_font_create_sub_font(parent: *mut hr_font_t) -> *mut
     let Some(parent_ref) = (unsafe { parent.as_ref() }) else {
         return hr_font_t::empty();
     };
-    let Some(instance) = parent_ref.instance.as_ref() else {
+    let Some(instance) = parent_ref.instance.as_deref() else {
         return hr_font_t::empty();
     };
     let mut this = hr_font_t {
@@ -167,10 +218,9 @@ pub unsafe extern "C" fn hr_font_create_sub_font(parent: *mut hr_font_t) -> *mut
         ptem: parent_ref.ptem,
         coords: Vec::new(),
         funcs: unsafe { object::reference(parent_ref.funcs) },
-        // Font data belongs to whoever set the callbacks; a sub-font shares the
-        // pointer but never releases it.
-        font_data: parent_ref.font_data,
-        font_data_destroy: None,
+        // Shared, so that replacing the parent's callbacks does not release
+        // data this font is still using.
+        font_data: parent_ref.font_data.clone(),
         parent: unsafe { object::reference(parent) },
     };
     this.set_instance(
@@ -357,7 +407,7 @@ pub unsafe extern "C" fn hr_font_set_variations(
     let Some(font) = (unsafe { object::as_mutable(font) }) else {
         return;
     };
-    let Some(instance) = font.instance.as_ref() else {
+    let Some(instance) = font.instance.as_deref() else {
         return;
     };
     let settings: Vec<FontVariation> = if variations.is_null() || variations_length == 0 {
@@ -395,7 +445,7 @@ pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
     let Some(font) = (unsafe { object::as_mutable(font) }) else {
         return;
     };
-    let Some(instance) = font.instance.as_ref() else {
+    let Some(instance) = font.instance.as_deref() else {
         return;
     };
     let settings: Vec<NormalizedCoord> = if coords.is_null() || coords_length == 0 {
@@ -446,7 +496,7 @@ pub unsafe extern "C" fn hr_font_set_var_named_instance(font: *mut hr_font_t, in
     let Some(font) = (unsafe { object::as_mutable(font) }) else {
         return;
     };
-    let Some(current) = font.instance.as_ref() else {
+    let Some(current) = font.instance.as_deref() else {
         return;
     };
     let rebuilt = FontInstance::builder(current.font())
@@ -491,9 +541,12 @@ pub unsafe extern "C" fn hr_font_set_funcs(
     let previous = font.funcs;
     font.funcs = unsafe { object::reference(ffuncs) };
     unsafe { object::destroy(previous) };
-    font.release_font_data();
-    font.font_data = font_data;
-    font.font_data_destroy = destroy;
+    // Dropping the old data runs its destroy callback, unless a sub-font or an
+    // in-flight shaping call still holds a reference to it.
+    font.font_data = Some(Arc::new(FontData {
+        data: font_data,
+        destroy,
+    }));
 }
 
 /// Maps a Unicode scalar value to a glyph, returning false if the font has

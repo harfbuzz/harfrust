@@ -23,7 +23,7 @@ use crate::common::{
 };
 use crate::face::hr_face_t;
 use crate::font::hr_font_t;
-use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Object, ObjectHeader};
+use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 use crate::shape::{collect_features, shaper_list_allows_ot};
 
 /// The direction, script and language a run of text is set in.
@@ -134,7 +134,7 @@ impl Drop for hr_shape_plan_t {
     }
 }
 
-static EMPTY_SHAPE_PLAN: OnceLock<usize> = OnceLock::new();
+static EMPTY_SHAPE_PLAN: OnceLock<Empty<hr_shape_plan_t>> = OnceLock::new();
 
 impl Object for hr_shape_plan_t {
     fn header(&self) -> &ObjectHeader {
@@ -142,15 +142,16 @@ impl Object for hr_shape_plan_t {
     }
 
     fn empty() -> *mut Self {
-        let addr = *EMPTY_SHAPE_PLAN.get_or_init(|| {
-            Box::into_raw(Box::new(hr_shape_plan_t {
-                header: ObjectHeader::immortal(),
-                face: hr_face_t::empty(),
-                plan: None,
-                coords: Vec::new(),
-            })) as usize
-        });
-        addr as *mut Self
+        EMPTY_SHAPE_PLAN
+            .get_or_init(|| {
+                Empty::new(hr_shape_plan_t {
+                    header: ObjectHeader::immortal(),
+                    face: hr_face_t::empty(),
+                    plan: None,
+                    coords: Vec::new(),
+                })
+            })
+            .get()
     }
 }
 
@@ -510,7 +511,7 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         font_ref.face() == plan_ref.face,
         "shape plan was built for a different face than this font"
     );
-    let Some(instance) = font_ref.instance.as_ref() else {
+    let Some(instance) = font_ref.instance.as_deref() else {
         return false.into();
     };
     // ... and against one variation of it.
@@ -518,6 +519,9 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         instance.normalized_coords() == plan_ref.coords.as_slice(),
         "shape plan was built for different variation settings than this font"
     );
+    // Take a share of the plan, so that a callback destroying it during
+    // shaping cannot pull it out from under the call.
+    let plan = Arc::clone(plan);
     let Some(buffer_ref) = (unsafe { buffer.as_mut() }) else {
         return false.into();
     };
@@ -526,7 +530,7 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         return true.into();
     }
     assert!(
-        plan_matches_buffer(plan, &buffer_ref.buffer),
+        plan_matches_buffer(&plan, &buffer_ref.buffer),
         "shape plan properties do not match the buffer: \
          plan is {:?}/{:?}/{:?}, buffer is {:?}/{:?}/{:?}",
         plan.direction(),
@@ -538,7 +542,7 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     );
 
     let features = unsafe { collect_features(features, num_features) };
-    crate::shape::shape_with_plan(font, font_ref, buffer_ref, &features, plan)
+    crate::shape::shape_with_plan(font, buffer_ref, &features, &plan)
 }
 
 /// Returns whether a buffer carries the properties a plan was built for.

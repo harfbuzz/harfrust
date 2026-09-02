@@ -696,6 +696,111 @@ fn unset_callbacks_report_nothing_available() {
     }
 }
 
+// ------------------------------------------------- font data ownership ----
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static SHARED_DROPS: AtomicUsize = AtomicUsize::new(0);
+static REPLACED_DROPS: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" fn count_shared_drop(_user_data: *mut c_void) {
+    SHARED_DROPS.fetch_add(1, Ordering::SeqCst);
+}
+
+unsafe extern "C" fn count_replaced_drop(_user_data: *mut c_void) {
+    REPLACED_DROPS.fetch_add(1, Ordering::SeqCst);
+}
+
+#[test]
+fn font_data_outlives_every_font_sharing_it() {
+    unsafe {
+        with_font(|_, font| {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_set_funcs(
+                font,
+                ffuncs,
+                ptr::dangling_mut::<c_void>(),
+                Some(count_shared_drop),
+            );
+
+            // A sub-font shares the parent's font data.
+            let sub = hr_font_create_sub_font(font);
+            assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 0);
+
+            // Replacing the parent's callbacks must not release data the
+            // sub-font is still holding.
+            hr_font_set_funcs(font, ffuncs, ptr::dangling_mut::<c_void>(), None);
+            assert_eq!(
+                SHARED_DROPS.load(Ordering::SeqCst),
+                0,
+                "font data released while a sub-font still shares it"
+            );
+
+            // It goes only once the last font holding it is gone.
+            hr_font_destroy(sub);
+            assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 1);
+
+            hr_font_funcs_destroy(ffuncs);
+        });
+    }
+}
+
+#[test]
+fn font_data_is_released_once_when_replaced() {
+    unsafe {
+        with_font(|_, font| {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_set_funcs(
+                font,
+                ffuncs,
+                ptr::dangling_mut::<c_void>(),
+                Some(count_replaced_drop),
+            );
+            assert_eq!(REPLACED_DROPS.load(Ordering::SeqCst), 0);
+
+            // With nothing else sharing it, replacing releases it at once.
+            hr_font_set_funcs(font, ffuncs, ptr::dangling_mut::<c_void>(), None);
+            assert_eq!(REPLACED_DROPS.load(Ordering::SeqCst), 1);
+
+            hr_font_funcs_destroy(ffuncs);
+        });
+        // And not again when the font itself goes.
+        assert_eq!(REPLACED_DROPS.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn a_sub_font_shapes_with_the_parents_callbacks() {
+    unsafe {
+        with_font(|_, font| {
+            let mut advance: hr_position_t = 777;
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_glyph_h_advance_func(
+                ffuncs,
+                Some(fixed_advance),
+                ptr::from_mut(&mut advance).cast::<c_void>(),
+                None,
+            );
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+
+            let sub = hr_font_create_sub_font(font);
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(sub, buffer, ptr::null(), 0);
+
+            let mut len: c_uint = 0;
+            let positions = hr_buffer_get_glyph_positions(buffer, ptr::from_mut(&mut len));
+            assert!(len > 0);
+            for i in 0..len as usize {
+                assert_eq!((*positions.add(i)).x_advance, 777);
+            }
+
+            hr_buffer_destroy(buffer);
+            hr_font_destroy(sub);
+            hr_font_funcs_destroy(ffuncs);
+        });
+    }
+}
+
 // ------------------------------------------------------------- user data ----
 
 static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
@@ -714,7 +819,7 @@ fn user_data_is_keyed_by_address() {
         assert!(hr_buffer_get_user_data(buffer, &raw const OTHER_KEY).is_null());
 
         // Without `replace`, an existing key is left alone.
-        let other = 7usize as *mut c_void;
+        let other = ptr::without_provenance_mut::<c_void>(7);
         assert_eq!(
             hr_buffer_set_user_data(buffer, &raw const KEY, other, None, 0),
             0
@@ -1250,4 +1355,181 @@ fn plans_carry_user_data_and_refcounts() {
             hr_shape_plan_destroy(plan);
         });
     }
+}
+
+// ------------------------------------------------------------- threading ----
+
+/// A handle shared across threads on purpose: the C API documents faces and
+/// fonts as safe to use from several at once, and these tests are what backs
+/// that up. Buffers are never shared.
+struct Shared<T>(*mut T);
+
+// SAFETY: exactly the claim under test.
+unsafe impl<T> Send for Shared<T> {}
+
+// Derived copies would demand `T: Copy`, which these objects are not.
+impl<T> Clone for Shared<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T> Copy for Shared<T> {}
+
+impl<T> Shared<T> {
+    /// Taking the pointer through a method captures the whole wrapper in a
+    /// closure, rather than just the field, which would not be `Send`.
+    fn get(&self) -> *mut T {
+        self.0
+    }
+}
+
+#[test]
+fn one_face_shapes_from_several_threads() {
+    let data = font_data();
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+
+        // What every thread should agree on.
+        let expected = {
+            let font = hr_font_create(face);
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let ids = glyph_ids(buffer);
+            hr_buffer_destroy(buffer);
+            hr_font_destroy(font);
+            ids
+        };
+
+        // Each thread builds its own font over the shared face, which is what
+        // exercises the face's plan cache, its lazily loaded tables, and the
+        // glyph caches hanging off it.
+        let shared = Shared(face);
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                std::thread::spawn(move || {
+                    let font = hr_font_create(shared.get());
+                    let mut seen = Vec::new();
+                    for _ in 0..4 {
+                        let buffer = buffer_with_text(TEXT);
+                        hr_shape(font, buffer, ptr::null(), 0);
+                        seen = glyph_ids(buffer);
+                        hr_buffer_destroy(buffer);
+                    }
+                    hr_font_destroy(font);
+                    seen
+                })
+            })
+            .collect();
+
+        for thread in threads {
+            assert_eq!(thread.join().expect("thread panicked"), expected);
+        }
+
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn one_font_shapes_from_several_threads() {
+    let data = font_data();
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let font = hr_font_create(face);
+        // Nothing may change the font once it is shared, which this makes
+        // explicit and enforces.
+        hr_font_make_immutable(font);
+
+        let expected = {
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let ids = glyph_ids(buffer);
+            hr_buffer_destroy(buffer);
+            ids
+        };
+
+        let shared = Shared(font);
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                std::thread::spawn(move || {
+                    let mut seen = Vec::new();
+                    for _ in 0..4 {
+                        let buffer = buffer_with_text(TEXT);
+                        hr_shape(shared.get(), buffer, ptr::null(), 0);
+                        seen = glyph_ids(buffer);
+                        hr_buffer_destroy(buffer);
+                    }
+                    seen
+                })
+            })
+            .collect();
+
+        for thread in threads {
+            assert_eq!(thread.join().expect("thread panicked"), expected);
+        }
+
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn reference_counts_survive_several_threads() {
+    let data = font_data();
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+
+        // Every thread takes and drops references to the same objects.
+        let shared = Shared(face);
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                std::thread::spawn(move || {
+                    for _ in 0..8 {
+                        let taken = hr_face_reference(shared.get());
+                        let table = hr_face_reference_table(
+                            taken,
+                            hr_tag_from_string(c"cmap".as_ptr(), -1),
+                        );
+                        assert!(hr_blob_get_length(table) > 0);
+                        hr_blob_destroy(table);
+                        hr_face_destroy(taken);
+                    }
+                })
+            })
+            .collect();
+
+        for thread in threads {
+            thread.join().expect("thread panicked");
+        }
+
+        // The face survived, so the counting balanced out.
+        assert!(hr_face_get_glyph_count(face) > 0);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn interning_a_language_from_several_threads_agrees() {
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| unsafe {
+                (0..8)
+                    .map(|_| hr_language_from_string(c"en-US".as_ptr(), -1) as usize)
+                    .collect::<Vec<_>>()
+            })
+        })
+        .collect();
+
+    let mut all = Vec::new();
+    for thread in threads {
+        all.extend(thread.join().expect("thread panicked"));
+    }
+    // Interning must hand back one pointer, however many threads raced for it.
+    assert!(all.iter().all(|value| *value == all[0]));
+    assert_ne!(all[0], 0);
 }

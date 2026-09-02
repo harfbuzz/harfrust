@@ -15,7 +15,7 @@ use crate::common::{
     language_from_rust, language_to_rust, script_from_rust, script_to_rust,
 };
 use crate::font::hr_font_t;
-use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Object, ObjectHeader};
+use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// What a buffer currently holds.
 #[repr(C)]
@@ -172,7 +172,7 @@ pub struct hr_buffer_t {
     pub(crate) buffer: Buffer,
 }
 
-static EMPTY_BUFFER: OnceLock<usize> = OnceLock::new();
+static EMPTY_BUFFER: OnceLock<Empty<hr_buffer_t>> = OnceLock::new();
 
 impl Object for hr_buffer_t {
     fn header(&self) -> &ObjectHeader {
@@ -180,13 +180,14 @@ impl Object for hr_buffer_t {
     }
 
     fn empty() -> *mut Self {
-        let addr = *EMPTY_BUFFER.get_or_init(|| {
-            Box::into_raw(Box::new(hr_buffer_t {
-                header: ObjectHeader::immortal(),
-                buffer: Buffer::new(),
-            })) as usize
-        });
-        addr as *mut Self
+        EMPTY_BUFFER
+            .get_or_init(|| {
+                Empty::new(hr_buffer_t {
+                    header: ObjectHeader::immortal(),
+                    buffer: Buffer::new(),
+                })
+            })
+            .get()
     }
 }
 
@@ -1107,7 +1108,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     }
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
     let font = unsafe { object::or_empty(font.cast_const()) };
-    let Some(instance) = font.instance.as_ref() else {
+    let Some(instance) = font.instance.as_deref() else {
         return 0;
     };
 

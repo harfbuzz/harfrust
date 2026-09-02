@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 use harfrust::font::FontBlob;
 
 use crate::common::hr_bool_t;
-use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Object, ObjectHeader};
+use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// How a blob relates to the memory it was created over.
 #[repr(C)]
@@ -105,7 +105,7 @@ impl hr_blob_t {
     }
 }
 
-static EMPTY_BLOB: OnceLock<usize> = OnceLock::new();
+static EMPTY_BLOB: OnceLock<Empty<hr_blob_t>> = OnceLock::new();
 
 impl Object for hr_blob_t {
     fn header(&self) -> &ObjectHeader {
@@ -113,13 +113,14 @@ impl Object for hr_blob_t {
     }
 
     fn empty() -> *mut Self {
-        let addr = *EMPTY_BLOB.get_or_init(|| {
-            Box::into_raw(Box::new(hr_blob_t {
-                header: ObjectHeader::immortal(),
-                blob: FontBlob::Static(&[]),
-            })) as usize
-        });
-        addr as *mut Self
+        EMPTY_BLOB
+            .get_or_init(|| {
+                Empty::new(hr_blob_t {
+                    header: ObjectHeader::immortal(),
+                    blob: FontBlob::Static(&[]),
+                })
+            })
+            .get()
     }
 }
 

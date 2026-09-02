@@ -13,7 +13,7 @@
 
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 /// Reference count of an immortal (inert) object.
 const IMMORTAL: i64 = -1;
@@ -57,7 +57,9 @@ impl Drop for UserDataItem {
 pub struct ObjectHeader {
     ref_count: AtomicI64,
     immutable: AtomicBool,
-    user_data: Mutex<Vec<UserDataItem>>,
+    /// Read far more often than written: user data is typically attached once
+    /// and then looked up, so readers should not queue behind one another.
+    user_data: RwLock<Vec<UserDataItem>>,
 }
 
 impl ObjectHeader {
@@ -66,7 +68,7 @@ impl ObjectHeader {
         Self {
             ref_count: AtomicI64::new(1),
             immutable: AtomicBool::new(false),
-            user_data: Mutex::new(Vec::new()),
+            user_data: RwLock::new(Vec::new()),
         }
     }
 
@@ -75,7 +77,7 @@ impl ObjectHeader {
         Self {
             ref_count: AtomicI64::new(IMMORTAL),
             immutable: AtomicBool::new(true),
-            user_data: Mutex::new(Vec::new()),
+            user_data: RwLock::new(Vec::new()),
         }
     }
 
@@ -102,6 +104,31 @@ pub trait Object: Sized + 'static {
 /// Allocates a new object with a reference count of one.
 pub fn create<T: Object>(value: T) -> *mut T {
     Box::into_raw(Box::new(value))
+}
+
+/// A leaked, immortal object, held so that `hr_*_get_empty` hands back the
+/// same pointer every time.
+///
+/// This keeps the pointer itself rather than its address, so that the
+/// provenance needed to dereference it survives.
+pub struct Empty<T>(*mut T);
+
+// SAFETY: the pointee is leaked and lives as long as the process. Immortal
+// objects reject user data and are permanently immutable, so nothing a caller
+// can reach through one is written after it is built.
+unsafe impl<T> Send for Empty<T> {}
+unsafe impl<T> Sync for Empty<T> {}
+
+impl<T> Empty<T> {
+    /// Leaks `value`, to be handed out for the life of the process.
+    pub fn new(value: T) -> Self {
+        Self(Box::into_raw(Box::new(value)))
+    }
+
+    /// Returns the singleton.
+    pub fn get(&self) -> *mut T {
+        self.0
+    }
 }
 
 /// Increments the reference count and returns the object.
@@ -169,7 +196,7 @@ pub unsafe fn set_user_data<T: Object>(
     if header.is_immortal() || key.is_null() {
         return false;
     }
-    let Ok(mut items) = header.user_data.lock() else {
+    let Ok(mut items) = header.user_data.write() else {
         return false;
     };
     if let Some(slot) = items.iter_mut().find(|item| item.key == key) {
@@ -201,7 +228,7 @@ pub unsafe fn get_user_data<T: Object>(ptr: *mut T, key: *const hr_user_data_key
     let Some(obj) = (unsafe { ptr.as_ref() }) else {
         return core::ptr::null_mut();
     };
-    let Ok(items) = obj.header().user_data.lock() else {
+    let Ok(items) = obj.header().user_data.read() else {
         return core::ptr::null_mut();
     };
     items

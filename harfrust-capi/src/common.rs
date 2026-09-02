@@ -6,7 +6,7 @@
 
 use core::ffi::{c_char, c_int, c_uint};
 use core::str::FromStr;
-use std::sync::Mutex;
+use std::sync::{OnceLock, RwLock};
 
 use harfrust::{Direction, Feature, Language, Script, Tag, Variation};
 
@@ -649,12 +649,24 @@ pub struct hr_language_impl_t {
 /// A language, as an interned pointer. `NULL` means "unset".
 pub type hr_language_t = *const hr_language_impl_t;
 
-static LANGUAGES: Mutex<Vec<&'static hr_language_impl_t>> = Mutex::new(Vec::new());
+/// Interned languages, which live for the life of the process.
+///
+/// Looking one up is far more common than adding one, and adding is what the
+/// write lock is for.
+static LANGUAGES: RwLock<Vec<&'static hr_language_impl_t>> = RwLock::new(Vec::new());
 
 fn intern_language(lang: Language) -> hr_language_t {
-    let Ok(mut languages) = LANGUAGES.lock() else {
+    // The common path: already interned, so only a read lock is needed.
+    if let Ok(languages) = LANGUAGES.read() {
+        if let Some(found) = languages.iter().find(|entry| entry.lang == lang) {
+            return *found as hr_language_t;
+        }
+    }
+
+    let Ok(mut languages) = LANGUAGES.write() else {
         return core::ptr::null();
     };
+    // Another thread may have interned it between the two locks.
     if let Some(found) = languages.iter().find(|entry| entry.lang == lang) {
         return *found as hr_language_t;
     }
@@ -710,11 +722,10 @@ pub unsafe extern "C" fn hr_language_to_string(language: hr_language_t) -> *cons
 /// Returns the process's default language, taken from the environment.
 #[no_mangle]
 pub extern "C" fn hr_language_get_default() -> hr_language_t {
-    static DEFAULT: Mutex<Option<usize>> = Mutex::new(None);
-    let Ok(mut cached) = DEFAULT.lock() else {
-        return core::ptr::null();
-    };
-    *cached.get_or_insert_with(|| {
+    // Worked out once and never changed, so this wants a `OnceLock` rather
+    // than a lock that is taken on every call.
+    static DEFAULT: OnceLock<Language> = OnceLock::new();
+    let language = DEFAULT.get_or_init(|| {
         let from_env = ["LC_ALL", "LC_CTYPE", "LANG"]
             .into_iter()
             .find_map(|key| std::env::var(key).ok())
@@ -723,8 +734,12 @@ pub extern "C" fn hr_language_get_default() -> hr_language_t {
                 let tag = value.split(['.', '@']).next().unwrap_or_default();
                 Language::new(tag)
             });
-        language_from_rust(from_env.or_else(|| Language::new("x-hbot"))) as usize
-    }) as hr_language_t
+        from_env
+            .or_else(|| Language::new("x-hbot"))
+            .unwrap_or_else(|| Language::new("und").expect("a valid language tag"))
+    });
+    // Interning is idempotent, so this is the same pointer every time.
+    intern_language(language.clone())
 }
 
 /// Returns whether `language` is the same as, or a more specific form of,

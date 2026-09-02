@@ -163,9 +163,28 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 
 ## Threading
 
-Faces and fonts may be shared between threads; the plan cache and every
-reference count are synchronised internally. A single buffer must not be used
-from two threads at once, which matches HarfBuzz.
+Blobs, faces and fonts may be shaped with from several threads at once.
+Reference counts are atomic, the per-face plan cache and the user data on every
+object are behind read-write locks, and the caches HarfRust fills in while
+shaping -- lazily loaded tables, glyph lookups, layout lookups -- are atomics
+and one-shot cells. There are tests that shape through one shared face, and
+through one shared font, from several threads; they run under Miri's data race
+detector across a spread of thread interleavings.
+
+What is not shared is anything being written:
+
+- **A buffer belongs to one thread.** Shaping writes to it throughout, so two
+  threads must not touch the same one. This matches HarfBuzz.
+- **A font must not be modified while another thread shapes with it.**
+  `hr_font_set_scale`, `hr_font_set_variations` and `hr_font_set_funcs` all
+  write. Call them before sharing the font, then `hr_font_make_immutable` to
+  have later attempts ignored rather than raced.
+- **The same goes for a set of callbacks.** Populate an `hr_font_funcs_t`
+  before installing it, and `hr_font_funcs_make_immutable` to hold it that way.
+
+Callbacks are handed the font they were installed on so they can read its
+scale and variation settings. They must not modify it, nor free it, nor touch
+the buffer being shaped.
 
 ## License
 
