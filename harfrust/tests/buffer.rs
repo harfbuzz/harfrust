@@ -412,3 +412,444 @@ fn properties_round_trip() {
     assert_eq!(buffer.invisible_glyph(), Some(harfrust::GlyphId::new(3)));
     assert_eq!(buffer.not_found_variation_selector_glyph(), Some(7));
 }
+
+/// Property-based tests for the buffer's documented behaviour.
+mod properties {
+    use harfrust::{
+        script, BufferClusterLevel, BufferContentType, Direction, GlyphId, Language, ShapeError,
+        ShapeOptions, ShapePlan,
+    };
+    use hegel::generators::{self, Generator};
+
+    use super::{ids_and_clusters, test_instance, Buffer, UnicodeBuffer};
+
+    const DIRECTIONS: &[Direction] = &[
+        Direction::Invalid,
+        Direction::LeftToRight,
+        Direction::RightToLeft,
+        Direction::TopToBottom,
+        Direction::BottomToTop,
+    ];
+
+    const CLUSTER_LEVELS: &[BufferClusterLevel] = &[
+        BufferClusterLevel::MonotoneGraphemes,
+        BufferClusterLevel::MonotoneCharacters,
+        BufferClusterLevel::Characters,
+        BufferClusterLevel::Graphemes,
+    ];
+
+    /// The buffer's settings, all of them generated.
+    #[derive(Debug, Clone)]
+    struct Settings {
+        direction: Direction,
+        script: harfrust::Script,
+        language: Option<Language>,
+        cluster_level: BufferClusterLevel,
+        flags: harfrust::BufferFlags,
+        invisible_glyph: Option<GlyphId>,
+        not_found_variation_selector_glyph: Option<u32>,
+    }
+
+    fn draw_settings(tc: &hegel::TestCase) -> Settings {
+        let settings = Settings {
+            direction: tc.draw_silent(generators::sampled_from(DIRECTIONS.to_vec())),
+            script: harfrust::Script::from_iso15924_tag(harfrust::Tag::new(&tc.draw_silent(
+                generators::arrays(generators::integers::<u8>().min_value(b'A').max_value(b'z')),
+            )))
+            .unwrap_or(script::UNKNOWN),
+            language: Language::new(
+                tc.draw_silent(generators::text().min_size(1).max_size(12).codec("ascii")),
+            ),
+            cluster_level: tc.draw_silent(generators::sampled_from(CLUSTER_LEVELS.to_vec())),
+            flags: harfrust::BufferFlags::from_bits_truncate(
+                tc.draw_silent(generators::integers::<u32>()),
+            ),
+            invisible_glyph: tc.draw_silent(generators::optional(
+                generators::integers::<u32>().map(GlyphId::new),
+            )),
+            not_found_variation_selector_glyph: tc
+                .draw_silent(generators::optional(generators::integers::<u32>())),
+        };
+        tc.note(&format!("{settings:?}"));
+        settings
+    }
+
+    fn apply(buffer: &mut Buffer, s: &Settings) {
+        buffer.set_direction(s.direction);
+        buffer.set_script(s.script);
+        if let Some(language) = &s.language {
+            buffer.set_language(language.clone());
+        }
+        buffer.set_cluster_level(s.cluster_level);
+        buffer.set_flags(s.flags);
+        buffer.set_invisible_glyph(s.invisible_glyph);
+        buffer.set_not_found_variation_selector_glyph(s.not_found_variation_selector_glyph);
+    }
+
+    fn read(buffer: &Buffer) -> Settings {
+        Settings {
+            direction: buffer.direction(),
+            script: buffer.script(),
+            language: buffer.language(),
+            cluster_level: buffer.cluster_level(),
+            flags: buffer.flags(),
+            invisible_glyph: buffer.invisible_glyph(),
+            not_found_variation_selector_glyph: buffer.not_found_variation_selector_glyph(),
+        }
+    }
+
+    fn same(a: &Settings, b: &Settings) -> bool {
+        a.direction == b.direction
+            && a.script == b.script
+            && a.language == b.language
+            && a.cluster_level == b.cluster_level
+            && a.flags.bits() == b.flags.bits()
+            && a.invisible_glyph == b.invisible_glyph
+            && a.not_found_variation_selector_glyph == b.not_found_variation_selector_glyph
+    }
+
+    /// Draws (codepoint, cluster) pairs, with clusters in no particular order
+    /// so that cluster grouping is exercised rather than only the monotone
+    /// shape `push_str` produces.
+    fn draw_items(tc: &hegel::TestCase) -> Vec<(u32, u32)> {
+        let items = tc.draw_silent(
+            generators::vecs(generators::tuples!(
+                generators::integers::<u32>(),
+                generators::integers::<u32>().max_value(6),
+            ))
+            .max_size(24),
+        );
+        tc.note(&format!("items = {items:?}"));
+        items
+    }
+
+    fn filled(items: &[(u32, u32)]) -> Buffer {
+        let mut buffer = Buffer::new();
+        for &(codepoint, cluster) in items {
+            buffer.push(codepoint, cluster);
+        }
+        buffer
+    }
+
+    /// Property: `push_str` gives each character its UTF-8 byte offset as its
+    /// cluster value, and stores the codepoint itself as the item.
+    ///
+    /// Both halves are documented on `Buffer::push_str` and
+    /// `GlyphInfo::glyph_id`; the oracle is `str::char_indices`.
+    #[hegel::test]
+    fn push_str_records_codepoints_at_their_byte_offsets(tc: hegel::TestCase) {
+        let text: String = tc.draw(generators::text().max_size(64));
+        let mut buffer = Buffer::new();
+        buffer.push_str(&text);
+        assert_eq!(
+            ids_and_clusters(buffer.glyph_infos()),
+            text.char_indices()
+                .map(|(i, c)| (c as u32, i as u32))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// Property: every buffer setting survives the trip through
+    /// `UnicodeBuffer` and back.
+    ///
+    /// `round_trip_through_unicode_buffer` asserts this for the direction of
+    /// one fixed buffer; the conversions are documented to change nothing but
+    /// the content type.
+    #[hegel::test]
+    fn settings_survive_the_unicode_buffer_round_trip(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let settings = draw_settings(&tc);
+        let mut buffer = filled(&items);
+        apply(&mut buffer, &settings);
+
+        let typed = UnicodeBuffer::try_from(buffer).expect("unicode content converts");
+        let back = Buffer::from(typed);
+        assert!(same(&read(&back), &settings), "{:?}", read(&back));
+    }
+
+    /// Property: the buffer contents survive the trip through `UnicodeBuffer`
+    /// and back.
+    ///
+    /// Both conversions are documented to touch nothing but the content type,
+    /// and `round_trip_through_glyph_buffer` asserts the same for a shaped
+    /// buffer.
+    #[hegel::test]
+    fn contents_survive_the_unicode_buffer_round_trip(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let buffer = filled(&items);
+        let before = ids_and_clusters(buffer.glyph_infos());
+
+        let typed = UnicodeBuffer::try_from(buffer).expect("unicode content converts");
+        let back = Buffer::from(typed);
+        assert_eq!(ids_and_clusters(back.glyph_infos()), before);
+    }
+
+    /// Property: `reverse` is its own inverse.
+    ///
+    /// `reverse_and_reverse_clusters` asserts the forward half for one fixed
+    /// buffer.
+    #[hegel::test]
+    fn reverse_is_an_involution(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let mut buffer = filled(&items);
+        let before = ids_and_clusters(buffer.glyph_infos());
+        buffer.reverse();
+        buffer.reverse();
+        assert_eq!(ids_and_clusters(buffer.glyph_infos()), before);
+    }
+
+    /// Property: `reverse_clusters` reverses the order of the runs of equal
+    /// cluster while leaving the items within each run in their original
+    /// order.
+    ///
+    /// That is the documented behaviour ("keeping the items within each
+    /// cluster in their original order"); `reverse_and_reverse_clusters`
+    /// asserts one instance of it.
+    #[hegel::test]
+    fn reverse_clusters_reverses_runs_and_not_their_contents(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let mut buffer = filled(&items);
+        buffer.reverse_clusters();
+
+        let mut expected: Vec<Vec<(u32, u32)>> = Vec::new();
+        for item in &items {
+            match expected.last_mut() {
+                Some(run) if run[0].1 == item.1 => run.push(*item),
+                _ => expected.push(vec![*item]),
+            }
+        }
+        let expected: Vec<(u32, u32)> = expected.into_iter().rev().flatten().collect();
+        assert_eq!(ids_and_clusters(buffer.glyph_infos()), expected);
+    }
+
+    /// Property: `reset_clusters` replaces every cluster value with the item's
+    /// index, leaving the items themselves alone.
+    ///
+    /// "Resets the cluster value of each item to its index" is what the method
+    /// documents.
+    #[hegel::test]
+    fn reset_clusters_numbers_items_from_zero(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let mut buffer = filled(&items);
+        buffer.reset_clusters();
+        assert_eq!(
+            ids_and_clusters(buffer.glyph_infos()),
+            items
+                .iter()
+                .enumerate()
+                .map(|(i, (codepoint, _))| (*codepoint, i as u32))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// Property: `set_length` keeps the first `len` items when shrinking and
+    /// zero-fills when growing.
+    ///
+    /// "Growing the buffer fills the new items with zeros" is documented on
+    /// `Buffer::set_length`.
+    #[hegel::test]
+    fn set_length_truncates_or_zero_fills(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let len = tc.draw(generators::integers::<usize>().max_value(64));
+        let mut buffer = filled(&items);
+
+        let mut expected = ids_and_clusters(buffer.glyph_infos());
+        expected.truncate(len);
+        expected.resize(len, (0, 0));
+
+        assert!(buffer.set_length(len));
+        assert_eq!(ids_and_clusters(buffer.glyph_infos()), expected);
+    }
+
+    /// Property: `clear` empties the buffer and drops its segment properties.
+    ///
+    /// `clear` matches HarfBuzz's `hb_buffer_clear_contents`;
+    /// `clear_resets_content_type` covers one instance.
+    #[hegel::test]
+    fn clear_empties_the_buffer_and_drops_the_segment_properties(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let settings = draw_settings(&tc);
+        let mut buffer = filled(&items);
+        apply(&mut buffer, &settings);
+        buffer.clear();
+
+        assert!(buffer.is_empty());
+        assert_eq!(buffer.content_type(), None);
+        assert_eq!(buffer.direction(), Direction::Invalid);
+        assert_eq!(buffer.script(), script::UNKNOWN);
+        assert_eq!(buffer.language(), None);
+        assert_eq!(
+            buffer.cluster_level(),
+            BufferClusterLevel::MonotoneGraphemes
+        );
+    }
+
+    /// Property: `clear` keeps the flags and the invisible glyph.
+    ///
+    /// Like HarfBuzz's `hb_buffer_clear_contents`, `clear` leaves the buffer's
+    /// configuration in place; `reset` is the call that clears that too.
+    #[hegel::test]
+    fn clear_keeps_the_flags_and_the_invisible_glyph(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let settings = draw_settings(&tc);
+        let mut buffer = filled(&items);
+        apply(&mut buffer, &settings);
+        buffer.clear();
+
+        assert_eq!(buffer.flags().bits(), settings.flags.bits());
+        assert_eq!(buffer.invisible_glyph(), settings.invisible_glyph);
+    }
+
+    /// Property: `reset` restores a buffer to the state of a fresh one.
+    ///
+    /// `reset` is documented as resetting "to its default state";
+    /// `reset_restores_defaults` checks four of those defaults against
+    /// literals rather than against a fresh buffer.
+    #[hegel::test]
+    fn reset_leaves_a_buffer_indistinguishable_from_a_new_one(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let settings = draw_settings(&tc);
+        let mut buffer = filled(&items);
+        apply(&mut buffer, &settings);
+        buffer.reset();
+
+        let fresh = Buffer::new();
+        assert!(same(&read(&buffer), &read(&fresh)), "{:?}", read(&buffer));
+        assert_eq!(buffer.len(), fresh.len());
+        assert_eq!(buffer.content_type(), fresh.content_type());
+    }
+
+    /// Property: `set_content_type` relabels the buffer without touching its
+    /// contents.
+    ///
+    /// "This only relabels the buffer; it never clears it" is documented on
+    /// `Buffer::set_content_type`.
+    #[hegel::test]
+    fn set_content_type_only_relabels(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let content_type = tc.draw(generators::optional(
+            generators::booleans()
+                .map(|glyphs| {
+                    if glyphs {
+                        BufferContentType::Glyphs
+                    } else {
+                        BufferContentType::Unicode
+                    }
+                })
+                .print_as_debug(),
+        ));
+        let mut buffer = filled(&items);
+        let before = ids_and_clusters(buffer.glyph_infos());
+        buffer.set_content_type(content_type);
+        assert_eq!(ids_and_clusters(buffer.glyph_infos()), before);
+        assert_eq!(buffer.content_type(), content_type);
+    }
+
+    /// Property: `guess_segment_properties` only fills in what is unset.
+    ///
+    /// That is what the method documents ("Only properties that are still
+    /// unset are filled in"), so a second call cannot change anything and a
+    /// preset direction or script has to survive.
+    #[hegel::test]
+    fn guess_segment_properties_is_idempotent(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let mut buffer = filled(&items);
+        if tc.draw(generators::booleans()) {
+            buffer.set_direction(
+                tc.draw(generators::sampled_from(DIRECTIONS.to_vec()).print_as_debug()),
+            );
+        }
+        if tc.draw(generators::booleans()) {
+            buffer.set_script(script::ARABIC);
+        }
+
+        buffer.guess_segment_properties();
+        let (direction, script, language) =
+            (buffer.direction(), buffer.script(), buffer.language());
+        buffer.guess_segment_properties();
+        assert_eq!(
+            (buffer.direction(), buffer.script(), buffer.language()),
+            (direction, script, language)
+        );
+    }
+
+    /// Property: `guess_segment_properties` always resolves a direction.
+    ///
+    /// Shaping refuses a buffer with `Direction::Invalid`
+    /// (`ShapeError::DirectionUnset`), and `guess_segment_properties` is what
+    /// its documentation points callers at, so it has to produce one.
+    #[hegel::test]
+    fn guess_segment_properties_always_resolves_a_direction(tc: hegel::TestCase) {
+        let items = draw_items(&tc);
+        let mut buffer = filled(&items);
+        buffer.guess_segment_properties();
+        assert_ne!(buffer.direction(), Direction::Invalid);
+    }
+
+    /// Property: a refused `shape` call leaves the buffer exactly as it
+    /// arrived.
+    ///
+    /// `Buffer::shape` documents every `ShapeError` as "a misuse of the API,
+    /// caught before anything is touched, so a failure leaves the buffer
+    /// exactly as it arrived". Each of the refusals is provoked here in turn.
+    #[hegel::test]
+    fn a_refused_shape_call_changes_nothing(tc: hegel::TestCase) {
+        let instance = test_instance();
+        let items = draw_items(&tc);
+        let mut buffer = filled(&items);
+
+        // 0: no direction, 1: already shaped, 2: plan built for another
+        // direction, 3: plan built for another script.
+        let refusal = tc.draw(generators::integers::<u8>().max_value(3));
+        let plan = match refusal {
+            0 => {
+                buffer.set_direction(Direction::Invalid);
+                None
+            }
+            1 => {
+                buffer.set_direction(Direction::LeftToRight);
+                buffer.set_content_type(Some(BufferContentType::Glyphs));
+                None
+            }
+            2 => {
+                buffer.set_direction(Direction::LeftToRight);
+                Some(ShapePlan::new(
+                    &instance,
+                    Direction::RightToLeft,
+                    Some(script::LATIN),
+                    None,
+                    &[],
+                ))
+            }
+            _ => {
+                buffer.set_direction(Direction::LeftToRight);
+                buffer.set_script(script::LATIN);
+                Some(ShapePlan::new(
+                    &instance,
+                    Direction::LeftToRight,
+                    Some(script::ARABIC),
+                    None,
+                    &[],
+                ))
+            }
+        };
+
+        let before = ids_and_clusters(buffer.glyph_infos());
+        let content_type = buffer.content_type();
+        let err = buffer
+            .shape(&instance, ShapeOptions::new().plan(plan.as_ref()))
+            .expect_err("this call is a misuse and must be refused");
+        assert!(
+            matches!(
+                err,
+                ShapeError::DirectionUnset
+                    | ShapeError::AlreadyShaped
+                    | ShapeError::DirectionMismatch { .. }
+                    | ShapeError::ScriptMismatch { .. }
+            ),
+            "{err:?}"
+        );
+        assert_eq!(ids_and_clusters(buffer.glyph_infos()), before);
+        assert_eq!(buffer.content_type(), content_type);
+    }
+}
