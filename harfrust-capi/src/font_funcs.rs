@@ -13,8 +13,8 @@ use harfrust::font::{BuiltinFontFuncs, FontFuncs};
 use harfrust::{GlyphExtents, GlyphId};
 
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_glyph_extents_t, hr_position_t};
-use crate::font::hr_font_t;
-use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Object, ObjectHeader};
+use crate::font::{hr_font_t, ShapingState};
+use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// Maps a Unicode scalar value to a glyph. Returns false if there is none.
 pub type hr_font_get_nominal_glyph_func_t = Option<
@@ -105,7 +105,7 @@ pub struct hr_font_funcs_t {
 unsafe impl Send for hr_font_funcs_t {}
 unsafe impl Sync for hr_font_funcs_t {}
 
-static EMPTY_FONT_FUNCS: OnceLock<usize> = OnceLock::new();
+static EMPTY_FONT_FUNCS: OnceLock<Empty<hr_font_funcs_t>> = OnceLock::new();
 
 impl Object for hr_font_funcs_t {
     fn header(&self) -> &ObjectHeader {
@@ -113,13 +113,14 @@ impl Object for hr_font_funcs_t {
     }
 
     fn empty() -> *mut Self {
-        let addr = *EMPTY_FONT_FUNCS.get_or_init(|| {
-            Box::into_raw(Box::new(hr_font_funcs_t {
-                header: ObjectHeader::immortal(),
-                ..Default::default()
-            })) as usize
-        });
-        addr as *mut Self
+        EMPTY_FONT_FUNCS
+            .get_or_init(|| {
+                Empty::new(hr_font_funcs_t {
+                    header: ObjectHeader::immortal(),
+                    ..Default::default()
+                })
+            })
+            .get()
     }
 }
 
@@ -418,15 +419,27 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
 /// zero advance, a zero origin, no extents. HarfRust's own table-driven
 /// implementation is used only when a font has no funcs object at all.
 pub(crate) struct FontFuncsAdapter {
-    pub(crate) funcs: *mut hr_font_funcs_t,
-    pub(crate) font: *mut hr_font_t,
-    pub(crate) font_data: *mut c_void,
+    /// The snapshot owns a reference to the callbacks and to the font data,
+    /// so a callback that replaces either cannot free what is in use.
+    state: ShapingState,
+    font: *mut hr_font_t,
 }
 
 impl FontFuncsAdapter {
+    pub(crate) fn new(font: *mut hr_font_t, state: ShapingState) -> Self {
+        Self { state, font }
+    }
+
     fn funcs(&self) -> Option<&hr_font_funcs_t> {
-        // SAFETY: the font owns a reference to this object for the whole call.
-        unsafe { self.funcs.as_ref() }
+        // SAFETY: `state` holds a reference for as long as this adapter lives.
+        unsafe { self.state.funcs.as_ref() }
+    }
+
+    fn font_data(&self) -> *mut c_void {
+        self.state
+            .font_data
+            .as_ref()
+            .map_or(ptr::null_mut(), |data| data.data)
     }
 }
 
@@ -439,7 +452,7 @@ impl FontFuncs for FontFuncsAdapter {
         let found = unsafe {
             func(
                 self.font,
-                self.font_data,
+                self.font_data(),
                 c,
                 ptr::from_mut(&mut glyph),
                 cb.user_data,
@@ -456,7 +469,7 @@ impl FontFuncs for FontFuncsAdapter {
         let found = unsafe {
             func(
                 self.font,
-                self.font_data,
+                self.font_data(),
                 c,
                 vs,
                 ptr::from_mut(&mut glyph),
@@ -474,7 +487,7 @@ impl FontFuncs for FontFuncsAdapter {
             return 0;
         };
         // SAFETY: as above.
-        unsafe { func(self.font, self.font_data, glyph.to_u32(), cb.user_data) }
+        unsafe { func(self.font, self.font_data(), glyph.to_u32(), cb.user_data) }
     }
 
     fn advance_height(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
@@ -485,7 +498,7 @@ impl FontFuncs for FontFuncsAdapter {
             return 0;
         };
         // SAFETY: as above.
-        unsafe { func(self.font, self.font_data, glyph.to_u32(), cb.user_data) }
+        unsafe { func(self.font, self.font_data(), glyph.to_u32(), cb.user_data) }
     }
 
     fn vertical_origin(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
@@ -500,7 +513,7 @@ impl FontFuncs for FontFuncsAdapter {
         let found = unsafe {
             func(
                 self.font,
-                self.font_data,
+                self.font_data(),
                 glyph.to_u32(),
                 ptr::from_mut(&mut x),
                 ptr::from_mut(&mut y),
@@ -521,7 +534,7 @@ impl FontFuncs for FontFuncsAdapter {
         let found = unsafe {
             func(
                 self.font,
-                self.font_data,
+                self.font_data(),
                 glyph.to_u32(),
                 ptr::from_mut(&mut extents),
                 cb.user_data,

@@ -10,7 +10,7 @@ use read_fonts::TableProvider;
 
 use crate::blob::hr_blob_t;
 use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust};
-use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Object, ObjectHeader};
+use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 use crate::plan::PlanCache;
 
 /// Callback returning the data for one table of a face.
@@ -121,7 +121,7 @@ impl hr_face_t {
     }
 }
 
-static EMPTY_FACE: OnceLock<usize> = OnceLock::new();
+static EMPTY_FACE: OnceLock<Empty<hr_face_t>> = OnceLock::new();
 
 impl Object for hr_face_t {
     fn header(&self) -> &ObjectHeader {
@@ -129,16 +129,17 @@ impl Object for hr_face_t {
     }
 
     fn empty() -> *mut Self {
-        let addr = *EMPTY_FACE.get_or_init(|| {
-            Box::into_raw(Box::new(hr_face_t {
-                header: ObjectHeader::immortal(),
-                font: None,
-                index: 0,
-                source: FaceSource::Empty,
-                plans: PlanCache::default(),
-            })) as usize
-        });
-        addr as *mut Self
+        EMPTY_FACE
+            .get_or_init(|| {
+                Empty::new(hr_face_t {
+                    header: ObjectHeader::immortal(),
+                    font: None,
+                    index: 0,
+                    source: FaceSource::Empty,
+                    plans: PlanCache::default(),
+                })
+            })
+            .get()
     }
 }
 

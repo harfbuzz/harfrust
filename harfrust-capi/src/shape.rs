@@ -5,6 +5,7 @@ use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use harfrust::{Direction, Feature, ShapeOptions};
+use std::sync::Arc;
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
@@ -42,31 +43,40 @@ pub(crate) unsafe fn collect_features(
 /// font, borrowed.
 pub(crate) fn shape_with_plan(
     font: *mut hr_font_t,
-    font_ref: &hr_font_t,
     buffer_ref: &mut hr_buffer_t,
     features: &[Feature],
     plan: &harfrust::ShapePlan,
 ) -> hr_bool_t {
-    let Some(instance) = font_ref.instance.as_ref() else {
-        return false.into();
+    // Lift everything out of the font before shaping. Callbacks are handed the
+    // same font and may set its scale or variations, so no borrow of it can be
+    // alive across the call.
+    let state = {
+        let Some(font_ref) = (unsafe { font.as_ref() }) else {
+            return false.into();
+        };
+        match font_ref.shaping_state() {
+            Some(state) => state,
+            None => return false.into(),
+        }
     };
-    let mut adapter = FontFuncsAdapter {
-        funcs: font_ref.funcs,
-        font,
-        font_data: font_ref.font_data,
-    };
+
+    let (x_scale, y_scale, ptem) = (state.x_scale, state.y_scale, state.ptem);
+    let has_funcs = !state.funcs.is_null();
+    let instance = Arc::clone(&state.instance);
+    let mut adapter = FontFuncsAdapter::new(font, state);
+
     guard(|| {
         let mut options = ShapeOptions::new()
-            .scale_separate(Some((font_ref.x_scale, font_ref.y_scale)))
+            .scale_separate(Some((x_scale, y_scale)))
             .features(features)
             .plan(Some(plan));
-        if font_ref.ptem > 0.0 {
-            options = options.point_size(Some(font_ref.ptem));
+        if ptem > 0.0 {
+            options = options.point_size(Some(ptem));
         }
-        if !font_ref.funcs.is_null() {
+        if has_funcs {
             options = options.font_funcs(Some(&mut adapter));
         }
-        buffer_ref.buffer.shape(instance, options)
+        buffer_ref.buffer.shape(&instance, options)
     })
     .is_some_and(|result| result.is_ok())
     .into()
@@ -131,21 +141,28 @@ pub unsafe extern "C" fn hr_shape_full(
     if !unsafe { shaper_list_allows_ot(shaper_list) } {
         return false.into();
     }
-    let (Some(font_ref), Some(buffer_ref)) = (unsafe { font.as_ref() }, unsafe { buffer.as_mut() })
-    else {
+    let Some(buffer_ref) = (unsafe { buffer.as_mut() }) else {
         return false.into();
     };
-    let Some(instance) = font_ref.instance.as_ref() else {
-        return false.into();
-    };
-
     let features = unsafe { collect_features(features, num_features) };
 
-    let mut adapter = FontFuncsAdapter {
-        funcs: font_ref.funcs,
-        font,
-        font_data: font_ref.font_data,
+    // As in `shape_with_plan`, nothing may borrow the font across the call.
+    let state = {
+        let Some(font_ref) = (unsafe { font.as_ref() }) else {
+            return false.into();
+        };
+        match font_ref.shaping_state() {
+            Some(state) => state,
+            None => return false.into(),
+        }
     };
+    // The plan cache lives on the face, which outlives the font.
+    let face = unsafe { font.as_ref() }.map_or(ptr::null_mut(), hr_font_t::face);
+
+    let (x_scale, y_scale, ptem) = (state.x_scale, state.y_scale, state.ptem);
+    let has_funcs = !state.funcs.is_null();
+    let instance = Arc::clone(&state.instance);
+    let mut adapter = FontFuncsAdapter::new(font, state);
 
     let outcome = guard(|| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
@@ -155,9 +172,9 @@ pub unsafe extern "C" fn hr_shape_full(
         }
 
         // Reuse a plan from the face's cache, as HarfBuzz's `hb_shape` does.
-        let plan = unsafe { font_ref.face().as_ref() }.map(|face| {
+        let plan = unsafe { face.as_ref() }.map(|face| {
             face.plans.get(
-                instance,
+                &instance,
                 buffer_ref.buffer.direction(),
                 Some(buffer_ref.buffer.script()),
                 buffer_ref.buffer.language(),
@@ -166,16 +183,16 @@ pub unsafe extern "C" fn hr_shape_full(
         });
 
         let mut options = ShapeOptions::new()
-            .scale_separate(Some((font_ref.x_scale, font_ref.y_scale)))
+            .scale_separate(Some((x_scale, y_scale)))
             .features(&features)
             .plan(plan.as_deref());
-        if font_ref.ptem > 0.0 {
-            options = options.point_size(Some(font_ref.ptem));
+        if ptem > 0.0 {
+            options = options.point_size(Some(ptem));
         }
-        if !font_ref.funcs.is_null() {
+        if has_funcs {
             options = options.font_funcs(Some(&mut adapter));
         }
-        buffer_ref.buffer.shape(instance, options)
+        buffer_ref.buffer.shape(&instance, options)
     });
 
     match outcome {
@@ -200,10 +217,12 @@ pub unsafe extern "C" fn hr_shape_full(
 /// `shaper_list` must be `NULL` or a `NULL`-terminated array of
 /// NUL-terminated strings.
 pub(crate) unsafe fn shaper_list_allows_ot(shaper_list: *const *const c_char) -> bool {
-    let Some(list) = (unsafe { shaper_list.as_ref() }) else {
+    if shaper_list.is_null() {
         return true;
-    };
-    let mut entry: *const *const c_char = list;
+    }
+    // Walk the caller's pointer rather than a reference to its first element,
+    // whose provenance would not cover the rest of the array.
+    let mut entry = shaper_list;
     let mut saw_any = false;
     loop {
         let name = unsafe { *entry };
