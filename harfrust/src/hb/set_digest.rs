@@ -214,4 +214,101 @@ mod tests {
         b.add(123);
         assert!(a.may_intersect(&b));
     }
+    /// Gated on `std` because `#[hegel::test]`'s generated code uses the std
+    /// prelude.
+    #[cfg(feature = "std")]
+    mod properties {
+        use super::*;
+        use hegel::generators::{self, Generator};
+
+        /// Glyph ids the digest is asked about in practice are small, but it is
+        /// indexed by arbitrary `u32`, and the bit arithmetic is where a digest
+        /// goes wrong.
+        fn glyphs(tc: &hegel::TestCase) -> Vec<u32> {
+            tc.draw(
+                generators::vecs(hegel::one_of!(
+                    generators::integers::<u32>().max_value(0xFFFF),
+                    generators::integers::<u32>(),
+                ))
+                .max_size(32)
+                .print_as_debug(),
+            )
+        }
+
+        /// Property: the digest has no false negatives.
+        ///
+        /// That is the whole contract of a set digest: `may_have` is allowed to
+        /// say yes about a glyph that was never added, but never no about one that
+        /// was. `ot_layout.rs` skips a lookup outright when `may_intersect` says
+        /// no, so a false negative drops shaping work.
+        #[hegel::test]
+        fn everything_added_may_be_had(tc: hegel::TestCase) {
+            let glyphs = glyphs(&tc);
+            let mut digest = hb_set_digest_t::new();
+            digest.add_array(glyphs.iter().copied());
+            for glyph in &glyphs {
+                assert!(digest.may_have(*glyph), "{glyph} was added");
+            }
+        }
+
+        /// Property: `add_range` has no false negatives either.
+        ///
+        /// Ranges take a separate path that folds a whole span into each mask in
+        /// one go (`mb + (mb - ma) - (mb < ma)`), rather than one bit at a time.
+        #[hegel::test]
+        fn everything_in_an_added_range_may_be_had(tc: hegel::TestCase) {
+            let start = tc.draw(generators::integers::<u32>());
+            // A span wider than a mask covers every bit anyway, so keep it narrow
+            // enough that the test can enumerate it.
+            let width = tc.draw(generators::integers::<u32>().max_value(300));
+            let end = start.saturating_add(width);
+
+            let mut digest = hb_set_digest_t::new();
+            digest.add_range(start, end);
+            for glyph in start..=end {
+                assert!(digest.may_have(glyph), "{glyph} is in {start}..={end}");
+            }
+        }
+
+        /// Property: a union has no false negatives about either side.
+        ///
+        /// `ot/lookup.rs` builds a lookup's digest by unioning its subtables',
+        /// so a glyph lost here is a subtable that never gets tried.
+        #[hegel::test]
+        fn a_union_may_have_everything_either_side_had(tc: hegel::TestCase) {
+            let left = glyphs(&tc);
+            let right = glyphs(&tc);
+
+            let mut a = hb_set_digest_t::new();
+            a.add_array(left.iter().copied());
+            let mut b = hb_set_digest_t::new();
+            b.add_array(right.iter().copied());
+            a.union(&b);
+
+            for glyph in left.iter().chain(&right) {
+                assert!(a.may_have(*glyph), "{glyph} was added to one side");
+            }
+        }
+
+        /// Property: two digests that share a glyph may intersect.
+        ///
+        /// `may_intersect` is the guard `ot_layout.rs` uses to skip a lookup whose
+        /// coverage cannot match the buffer, so saying no about a shared glyph
+        /// would drop a substitution.
+        #[hegel::test]
+        fn digests_sharing_a_glyph_may_intersect(tc: hegel::TestCase) {
+            let left = glyphs(&tc);
+            let right = glyphs(&tc);
+            let shared = tc.draw(generators::integers::<u32>());
+
+            let mut a = hb_set_digest_t::new();
+            a.add_array(left.iter().copied());
+            a.add(shared);
+            let mut b = hb_set_digest_t::new();
+            b.add_array(right.iter().copied());
+            b.add(shared);
+
+            assert!(a.may_intersect(&b), "both hold {shared}");
+        }
+    }
 }
