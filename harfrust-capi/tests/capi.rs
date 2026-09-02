@@ -1334,6 +1334,32 @@ fn an_unknown_shaper_list_yields_the_empty_plan() {
 }
 
 #[test]
+fn shape_full_reports_only_whether_a_shaper_ran() {
+    unsafe {
+        with_font(|_, font| {
+            // The one thing that fails: a list naming only shapers this
+            // library does not have.
+            let buffer = buffer_with_text(TEXT);
+            let absent = [c"graphite2".as_ptr(), ptr::null()];
+            assert_eq!(
+                hr_shape_full(font, buffer, ptr::null(), 0, absent.as_ptr()),
+                0
+            );
+            hr_buffer_destroy(buffer);
+
+            // A list naming "ot" runs the shaper, and so does no list at all.
+            for list in [[c"ot".as_ptr(), ptr::null()].as_ptr(), ptr::null()] {
+                let buffer = buffer_with_text(TEXT);
+                assert_ne!(hr_shape_full(font, buffer, ptr::null(), 0, list), 0);
+                assert_ne!(hr_buffer_allocation_successful(buffer), 0);
+                assert!(!glyph_ids(buffer).is_empty());
+                hr_buffer_destroy(buffer);
+            }
+        });
+    }
+}
+
+#[test]
 fn plans_carry_user_data_and_refcounts() {
     unsafe {
         with_font(|face, _| {

@@ -96,7 +96,8 @@ pub(crate) fn shape_with_plan(
 /// this does for the direction on your behalf. On return the buffer holds
 /// glyphs.
 ///
-/// Use `hr_shape_full` if you want to know whether the shaper ran out of room.
+/// Call `hr_buffer_allocation_successful` if you want to know whether the
+/// buffer ran out of room.
 ///
 /// # Aborts
 ///
@@ -121,9 +122,13 @@ pub unsafe extern "C" fn hr_shape(
 /// This library has a single shaper, so `shaper_list` is honoured only to the
 /// extent of failing when it names shapers that are all unavailable.
 ///
-/// Returns false when the shaper ran past its length, operation or nesting
-/// limits, which pathological input can provoke and which a caller can
-/// reasonably recover from.
+/// Returns false only when no shaper could be run: `shaper_list` names none
+/// that this library provides, or there is nothing to shape with. Shaping
+/// itself never fails the call, which is what HarfBuzz does -- its
+/// `hb_shape_full` reports failure only when it cannot find or instantiate a
+/// shaper, and every shaper it does run returns true whatever became of the
+/// buffer. So a buffer that ran past its length, operation or nesting limits
+/// still returns true; call `hr_buffer_allocation_successful` to detect that.
 ///
 /// # Aborts
 ///
@@ -213,11 +218,11 @@ pub unsafe extern "C" fn hr_shape_full(
     match outcome {
         // A panic that unwound out of the shaper. Nothing useful to say.
         None => false.into(),
-        // Shaping ran, but may have given up partway through on pathological
-        // input. That is attacker-controllable, so it is reported rather than
-        // fatal, and is the one failure HarfBuzz also lets `hb_shape_full`
-        // return.
-        Some(Ok(())) => buffer_ref.buffer.allocation_successful().into(),
+        // Shaping ran. Whether it gave up partway through on pathological
+        // input does not change the answer: HarfBuzz's shapers return true
+        // whatever became of the buffer, and a caller that cares about it
+        // reads `hr_buffer_allocation_successful`.
+        Some(Ok(())) => true.into(),
         // Every way shaping can fail is a misuse of the API, which HarfBuzz
         // asserts on. Aborting rather than returning false means `hr_shape`,
         // which cannot report anything, does not swallow it.
