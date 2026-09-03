@@ -127,6 +127,16 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
     // With an index, only the subtables that can start on this glyph, in the
     // order they must be. Without one, all of them.
     let row = lookup.dispatch.as_ref().map(|d| d.row(glyph));
+    // A row naming one subtable is what an index is for, and it is what nearly
+    // every row is: SourceSerif's kerning is five subtables and a glyph
+    // reaches one of them. There is no order to walk and nothing to fall
+    // through to, so take the same path a one-subtable lookup takes.
+    if let Some([only]) = row {
+        if let Some(sub) = lookup.subtables.get(*only as usize) {
+            let index = if sub.rank { sub.gate(glyph)? } else { 0 };
+            return (sub.apply)(ctx, lookup, sub, index);
+        }
+    }
     let count = row.map_or(lookup.subtables.len(), <[u16]>::len);
     for k in 0..count {
         let at = match row {
