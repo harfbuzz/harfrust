@@ -177,17 +177,18 @@ pub fn apply_layout_table<T: LayoutTable>(
                     continue;
                 };
 
-                if lookup.digest().may_intersect(&ctx.buffer.digest) {
-                    ctx.lookup_index = lookup_map.index;
-                    ctx.set_lookup_mask(lookup_map.mask);
-                    ctx.auto_zwj = lookup_map.auto_zwj;
-                    ctx.auto_zwnj = lookup_map.auto_zwnj;
-
-                    ctx.random = lookup_map.random;
-                    ctx.per_syllable = lookup_map.per_syllable;
-
-                    apply_string::<T>(&mut ctx, lookup);
+                if !may_touch::<T>(&ctx, lookup, lookup_map.index) {
+                    continue;
                 }
+                ctx.lookup_index = lookup_map.index;
+                ctx.set_lookup_mask(lookup_map.mask);
+                ctx.auto_zwj = lookup_map.auto_zwj;
+                ctx.auto_zwnj = lookup_map.auto_zwnj;
+
+                ctx.random = lookup_map.random;
+                ctx.per_syllable = lookup_map.per_syllable;
+
+                apply_string::<T>(&mut ctx, lookup);
             }
         }
 
@@ -207,6 +208,43 @@ pub fn apply_layout_table<T: LayoutTable>(
         TableIndex::GSUB => face.ot_tables.gsub_compiled.release_scratch(),
         TableIndex::GPOS => face.ot_tables.gpos_compiled.release_scratch(),
     }
+}
+
+/// Whether this lookup can change anything in this buffer, before a pass over
+/// it is started.
+///
+/// Two summaries, both three words wide. The first is what the lookup can
+/// match at a starting position, and rejects a lookup for a script the text is
+/// not written in. The second is what may *follow* a start, for the formats
+/// that constrain it -- a ligature's second components, a context's second
+/// input coverage -- and rejects a lookup whose first glyphs are all over the
+/// buffer but whose second ones are absent. That is every `ccmp` and `liga`
+/// lookup on a line of English, whose second components are combining marks
+/// the text does not contain: the compiled path skips them without the scan
+/// that would otherwise have to discover it position by position.
+///
+/// The compiled path derives both from the compiled form, which is where the
+/// exact pair key lives. Without it, only the first test exists.
+fn may_touch<T: LayoutTable>(
+    ctx: &OT::hb_ot_apply_context_t,
+    lookup: &LookupInfo,
+    index: u16,
+) -> bool {
+    #[cfg(feature = "compile-path")]
+    {
+        let program = match T::INDEX {
+            TableIndex::GSUB => &ctx.face.ot_tables.gsub_compiled,
+            TableIndex::GPOS => &ctx.face.ot_tables.gpos_compiled,
+        };
+        if let Some(table) = ctx.face.ot_tables.table_data(ctx.table_index) {
+            if let Some(compiled) = program.get(index, table) {
+                let buffer = ctx.buffer.digest.masks();
+                return compiled.digest.may_intersect_raw(buffer)
+                    && compiled.pair_digest.may_intersect_raw(buffer);
+            }
+        }
+    }
+    lookup.digest().may_intersect(&ctx.buffer.digest)
 }
 
 fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) {
@@ -988,4 +1026,17 @@ pub fn _hb_clear_substitution_flags(
     }
 
     false
+}
+
+#[cfg(all(test, feature = "compile-path"))]
+mod digest_bridge {
+    /// The compiled form's digests are met against the buffer's, word for
+    /// word, which is only meaningful while both fold a glyph id the same way.
+    #[test]
+    fn digests_agree() {
+        assert_eq!(
+            crate::hb::ot::compile::set::DIGEST_SHIFTS,
+            crate::hb::set_digest::HB_SET_DIGEST_SHIFTS,
+        );
+    }
 }
