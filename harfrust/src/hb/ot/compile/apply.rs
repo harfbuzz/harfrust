@@ -18,29 +18,44 @@
 
 pub use super::lookup::Apply;
 use super::lookup::{CompiledLookup, Program};
-use super::set::{Coverage, GlyphSet};
+use super::set::GlyphSet;
 
-/// A set the candidate scan can probe.
+/// Settle which shape the reach has, once, and run the pass against it.
 ///
-/// Exists so the scan can be handed either a lookup's reach or, when it has a
-/// single subtable, that subtable's coverage -- without asking which per
-/// position. Two instantiations, each with the probe inlined.
-pub trait Members {
-    fn has(&self, glyph: u32) -> bool;
-}
-
-impl Members for Coverage {
-    #[inline]
-    fn has(&self, glyph: u32) -> bool {
-        self.contains(glyph)
-    }
-}
-
-impl Members for GlyphSet {
-    #[inline]
-    fn has(&self, glyph: u32) -> bool {
-        self.contains(glyph)
-    }
+/// `GlyphSet::contains` is a match over five variants. Inlined into the scan
+/// that match becomes the loop's own overhead, and it is worse than it looks:
+/// the compiler builds a jump table, so every position pays a load of the
+/// set's discriminant -- a different cache line from its words -- a load from
+/// the table, and an indirect jump. A profile of English put a third of the
+/// scan's time on those three instructions.
+///
+/// The variant cannot change under the pass, so it is settled here and the
+/// scan is handed a closure with the test already chosen. Each arm gets its
+/// own copy of the loop with a straight-line probe in it.
+macro_rules! over_reach {
+    ($set:expr, $run:ident, $ctx:expr, $lookup:expr) => {
+        match $set {
+            GlyphSet::Empty => false,
+            GlyphSet::Range { first, len } => {
+                let (first, len) = (*first, *len);
+                $run($ctx, $lookup, move |g| g.wrapping_sub(first) < len)
+            }
+            GlyphSet::Bitmap { base, words } => {
+                let (base, words) = (*base, &words[..]);
+                $run($ctx, $lookup, move |g| {
+                    let Some(o) = g.checked_sub(base) else {
+                        return false;
+                    };
+                    let o = o as usize;
+                    matches!(words.get(o / 64), Some(w) if (w >> (o % 64)) & 1 != 0)
+                })
+            }
+            other => {
+                let other: &GlyphSet = other;
+                $run($ctx, $lookup, move |g| other.contains(g))
+            }
+        }
+    };
 }
 
 /// Counting, not guessing.
@@ -168,14 +183,11 @@ fn apply_at_reached(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
 /// discipline -- `clear_output` before, `sync` after, for a table that is not
 /// applied in place.
 pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
-    // The scan is handed its set once rather than asking per position, which
-    // is worth a little on its own and is what would let a lookup be scanned
-    // over something other than its reach.
-    forward_over(ctx, lookup, lookup.reach())
+    over_reach!(lookup.reach(), forward_over, ctx, lookup)
 }
 
-/// The forward pass, over a candidate set whose type is known.
-fn forward_over<R: Members + ?Sized>(ctx: &mut Apply, lookup: &CompiledLookup, reach: &R) -> bool {
+/// The forward pass, over a candidate test that is already resolved.
+fn forward_over<F: Fn(u32) -> bool>(ctx: &mut Apply, lookup: &CompiledLookup, reach: F) -> bool {
     let mut applied = false;
     // Read out of the context once. A nested lookup saves and restores all
     // three, so they cannot change under this loop -- and hoisting them is what
@@ -195,7 +207,7 @@ fn forward_over<R: Members + ?Sized>(ctx: &mut Apply, lookup: &CompiledLookup, r
             while j < infos.len() {
                 let info = &infos[j];
                 count!(SCANNED, 1);
-                if reach.has(info.glyph_id) {
+                if reach(info.glyph_id) {
                     count!(REACHED, 1);
                     if (info.mask & lookup_mask) != 0 {
                         count!(MASKED, 1);
@@ -301,10 +313,10 @@ pub fn recurse(
 /// because a one-glyph input consumes nothing a later position wanted -- the
 /// format leaves the cursor alone and this owns it.
 pub fn apply_backward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
-    backward_over(ctx, lookup, lookup.reach())
+    over_reach!(lookup.reach(), backward_over, ctx, lookup)
 }
 
-fn backward_over<R: Members + ?Sized>(ctx: &mut Apply, lookup: &CompiledLookup, reach: &R) -> bool {
+fn backward_over<F: Fn(u32) -> bool>(ctx: &mut Apply, lookup: &CompiledLookup, reach: F) -> bool {
     let mut applied = false;
     // Read out of the context once: these cannot change under a reverse
     // lookup, which neither recurses nor alters the buffer's length.
@@ -315,7 +327,7 @@ fn backward_over<R: Members + ?Sized>(ctx: &mut Apply, lookup: &CompiledLookup, 
     loop {
         let idx = ctx.host.buffer.idx;
         let candidate = ctx.host.buffer.info[..=idx].iter().rposition(|info| {
-            reach.has(info.glyph_id)
+            reach(info.glyph_id)
                 && (info.mask & lookup_mask) != 0
                 && check_glyph_property(face, info, lookup_props)
         });
