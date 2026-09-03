@@ -41,13 +41,17 @@ macro_rules! over_reach {
                 $run($ctx, $lookup, move |g| g.wrapping_sub(first) < len)
             }
             GlyphSet::Bitmap { base, words } => {
+                // One compare, not two. `checked_sub` and a bounds check on
+                // the word ask the same question twice: a glyph is in range
+                // exactly when its offset from the base is below the span the
+                // words cover, and wrapping makes a glyph below the base land
+                // above that. Both ends fall out of the one unsigned compare,
+                // and the index that follows is then in range by construction.
                 let (base, words) = (*base, &words[..]);
+                let span = (words.len() as u32) << 6;
                 $run($ctx, $lookup, move |g| {
-                    let Some(o) = g.checked_sub(base) else {
-                        return false;
-                    };
-                    let o = o as usize;
-                    matches!(words.get(o / 64), Some(w) if (w >> (o % 64)) & 1 != 0)
+                    let o = g.wrapping_sub(base);
+                    o < span && (words[(o >> 6) as usize] >> (o & 63)) & 1 != 0
                 })
             }
             other => {
