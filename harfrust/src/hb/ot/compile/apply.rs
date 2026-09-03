@@ -35,6 +35,15 @@ use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 /// so it does not recompute it.
 pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
     let glyph = ctx.glyph();
+    // One subtable is the common case and none of the machinery below earns
+    // its place there: no order to choose, nothing to index, nothing to skip.
+    // SourceSerif reaches ten lookups holding sixteen subtables between them,
+    // and paying a dispatch probe and a bounds check per application is how a
+    // faster format ends up a slower lookup.
+    if let [sub] = &lookup.subtables[..] {
+        let index = sub.gate(glyph)?;
+        return (sub.apply)(ctx, lookup, sub, index);
+    }
     // With an index, only the subtables that can start on this glyph, in the
     // order they must be. Without one, all of them.
     let row = lookup.dispatch.as_ref().map(|d| d.row(glyph));
