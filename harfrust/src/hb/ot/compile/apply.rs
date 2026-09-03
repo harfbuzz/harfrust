@@ -136,8 +136,19 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
         let Some(sub) = lookup.subtables.get(at) else {
             continue;
         };
-        let Some(index) = sub.gate(glyph) else {
-            continue;
+        // A row is built from the subtables' own coverages, so a subtable
+        // named by one has already been shown to cover this glyph. Only the
+        // formats that read the coverage *index* still have to ask.
+        let index = if row.is_some() && !sub.rank {
+            count!(CANDIDATES, 0);
+            0
+        } else {
+            count!(GATED, 1);
+            let Some(index) = sub.gate(glyph) else {
+                continue;
+            };
+            count!(GATE_PASS, 1);
+            index
         };
         // An indirect call, not a match. The format was settled when the
         // subtable was compiled.
