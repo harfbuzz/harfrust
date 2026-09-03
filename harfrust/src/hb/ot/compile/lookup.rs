@@ -308,7 +308,70 @@ pub struct Subtable {
     /// a bitmap the two differ by a load and a popcount, and several formats
     /// never read the number.
     pub rank: bool,
+    /// The gate, with the coverage's shape already chosen. See `gate_for`.
+    gate: GateFn,
     pub kind: SubtableKind,
+}
+
+/// Whether this subtable can start at a glyph, and where in its coverage.
+///
+/// A function pointer for the same reason `apply` is one. `Coverage` has five
+/// shapes and `rank` two readings of them, and which pair applies was settled
+/// when the subtable was compiled -- but written as a match it is re-decided
+/// per candidate, and the compiler turns ten arms into a jump table: a load of
+/// the discriminant, a load from the table, an indirect jump. The pointer is
+/// the same indirect jump with the two loads gone, and its target is stable
+/// for as long as a lookup runs, which is what the branch predictor wants.
+pub type GateFn = fn(&Coverage, u32) -> Option<u32>;
+
+/// Pick the gate for a coverage of this shape, read this way.
+///
+/// Each of these matches the one shape it was chosen for and hands the rest
+/// back to the general path -- a single compare that always goes the same way,
+/// rather than a table.
+fn gate_for(cov: &Coverage, rank: bool) -> GateFn {
+    match (cov, rank) {
+        (Coverage::Range { .. }, true) => |c, g| match c {
+            Coverage::Range { first, len } => {
+                let o = g.checked_sub(*first)?;
+                (o < *len).then_some(o)
+            }
+            _ => c.index(g),
+        },
+        (Coverage::Range { .. }, false) => |c, g| match c {
+            Coverage::Range { first, len } => (g.wrapping_sub(*first) < *len).then_some(0),
+            _ => c.contains(g).then_some(0),
+        },
+        (Coverage::Bitmap { .. }, true) => |c, g| match c {
+            Coverage::Bitmap { base, words, rank } => {
+                let o = g.checked_sub(*base)? as usize;
+                let w = *words.get(o / 64)?;
+                let bit = o % 64;
+                if (w >> bit) & 1 == 0 {
+                    return None;
+                }
+                let below = if bit == 0 {
+                    0
+                } else {
+                    (w & ((1u64 << bit) - 1)).count_ones()
+                };
+                Some(rank[o / 64] + below)
+            }
+            _ => c.index(g),
+        },
+        (Coverage::Bitmap { .. }, false) => |c, g| match c {
+            Coverage::Bitmap { base, words, .. } => {
+                let Some(o) = g.checked_sub(*base) else {
+                    return None;
+                };
+                let o = o as usize;
+                matches!(words.get(o / 64), Some(w) if (w >> (o % 64)) & 1 != 0).then_some(0)
+            }
+            _ => c.contains(g).then_some(0),
+        },
+        (_, true) => Coverage::index,
+        (_, false) => |c, g| c.contains(g).then_some(0),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -532,6 +595,7 @@ impl Subtable {
     /// A subtable whose coverage index is read, not just tested.
     pub fn ranked(cov: Arc<Coverage>, kind: SubtableKind) -> Self {
         Self {
+            gate: gate_for(&cov, true),
             cov,
             apply: dispatch_for(&kind),
             next: None,
@@ -543,6 +607,7 @@ impl Subtable {
     /// A subtable that only asks whether the glyph is covered.
     pub fn member(cov: Arc<Coverage>, kind: SubtableKind) -> Self {
         Self {
+            gate: gate_for(&cov, false),
             cov,
             apply: dispatch_for(&kind),
             next: None,
@@ -568,11 +633,7 @@ impl Subtable {
     /// a rule set indexes by class when it has one.
     #[inline]
     pub fn gate(&self, glyph: u32) -> Option<u32> {
-        if self.rank {
-            self.cov.index(glyph)
-        } else {
-            self.cov.contains(glyph).then_some(0)
-        }
+        (self.gate)(&self.cov, glyph)
     }
 
     /// Append every glyph this subtable can match at the starting position.
