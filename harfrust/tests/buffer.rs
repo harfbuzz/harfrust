@@ -414,6 +414,11 @@ fn properties_round_trip() {
 }
 
 /// Property-based tests for the buffer's documented behaviour.
+///
+/// The settings and the items are drawn with `draw_silent` and recorded with
+/// `tc.note`, so a failing case prints each of them as one line rather than
+/// draw by draw. `.print_as_debug()` marks a `draw` of a type hegel cannot
+/// otherwise print.
 mod properties {
     use harfrust::{
         script, BufferClusterLevel, BufferContentType, Direction, GlyphId, Language, ShapeError,

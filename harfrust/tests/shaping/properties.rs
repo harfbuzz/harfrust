@@ -1,4 +1,15 @@
 //! Property-based tests for the shaping API.
+//!
+//! Each test runs 100 cases (`HEGEL_TEST_CASES` changes that) and calls
+//! `hegel::Hegel::new` rather than using `#[hegel::test]`, so that `test_fonts()`
+//! runs once per test rather than once per case. A failing case is shrunk and
+//! printed, but a run built this way has no database key, so unlike a
+//! `#[hegel::test]` function it is not saved under `.hegel/` for replay.
+//! Composite inputs are drawn with `draw_silent` and recorded with `tc.note`, so
+//! the report names the font, the text, the settings, the features and the
+//! variations rather than every draw that built them. A test that adjusts a
+//! drawn input before using it draws the `_silent` variant and notes the
+//! adjusted value.
 
 use std::collections::HashSet;
 use std::fs;
@@ -10,7 +21,7 @@ use harfrust::{
     SerializeFlags, ShapeOptions, ShapePlan, ShaperData, ShaperInstance, Tag, UnicodeBuffer,
     Variation,
 };
-use hegel::generators::{self, Generator};
+use hegel::generators;
 
 /// Fonts spanning the shapers: OpenType GSUB/GPOS, the complex-script shapers
 /// (Arabic, Indic, USE, Myanmar, Khmer, Hangul), AAT (`morx`/`kerx`/`trak`),
@@ -125,8 +136,14 @@ fn draw_codepoint_in(tc: &hegel::TestCase, lo: u32, hi: u32) -> char {
 
 /// Draws text biased towards a single script run, with special characters and
 /// fully arbitrary codepoints mixed in.
-fn draw_text(tc: &hegel::TestCase, max_len: usize) -> String {
-    let text = if tc.draw_silent(generators::integers::<u8>().max_value(4)) == 0 {
+fn draw_text(tc: &hegel::TestCase, name: &str, max_len: usize) -> String {
+    let text = draw_text_silent(tc, max_len);
+    tc.note(&format!("{name} = {text:?}"));
+    text
+}
+
+fn draw_text_silent(tc: &hegel::TestCase, max_len: usize) -> String {
+    if tc.draw_silent(generators::integers::<u8>().max_value(4)) == 0 {
         tc.draw_silent(generators::text().max_size(max_len))
     } else {
         let block = tc.draw_silent(generators::sampled_from(SCRIPT_BLOCKS.to_vec()));
@@ -145,9 +162,7 @@ fn draw_text(tc: &hegel::TestCase, max_len: usize) -> String {
             );
         }
         text
-    };
-    tc.note(&format!("text = {text:?}"));
-    text
+    }
 }
 
 const COMMON_FEATURE_TAGS: &[&[u8; 4]] = &[
@@ -166,6 +181,12 @@ fn draw_tag(tc: &hegel::TestCase, common: &[&'static [u8; 4]]) -> Tag {
 }
 
 fn draw_features(tc: &hegel::TestCase) -> Vec<Feature> {
+    let features = draw_features_silent(tc);
+    tc.note(&format!("features = {features:?}"));
+    features
+}
+
+fn draw_features_silent(tc: &hegel::TestCase) -> Vec<Feature> {
     let n = tc.draw_silent(generators::integers::<usize>().max_value(3));
     (0..n)
         .map(|_| {
@@ -196,12 +217,14 @@ fn draw_features(tc: &hegel::TestCase) -> Vec<Feature> {
 
 fn draw_variations(tc: &hegel::TestCase) -> Vec<Variation> {
     let n = tc.draw_silent(generators::integers::<usize>().max_value(3));
-    (0..n)
+    let variations: Vec<Variation> = (0..n)
         .map(|_| Variation {
             tag: draw_tag(tc, VARIATION_TAGS),
             value: tc.draw_silent(generators::floats::<f32>()),
         })
-        .collect()
+        .collect();
+    tc.note(&format!("variations = {variations:?}"));
+    variations
 }
 
 const DIRECTIONS: &[Direction] = &[
@@ -255,6 +278,12 @@ struct Settings {
 }
 
 fn draw_settings(tc: &hegel::TestCase) -> Settings {
+    let settings = draw_settings_silent(tc);
+    tc.note(&format!("settings = {settings:?}"));
+    settings
+}
+
+fn draw_settings_silent(tc: &hegel::TestCase) -> Settings {
     // A direction is required: shaping without one is refused (see
     // `shaping_without_a_direction_is_refused` in tests/buffer.rs).
     let direction = tc.draw_silent(generators::sampled_from(DIRECTIONS.to_vec()));
@@ -269,12 +298,12 @@ fn draw_settings(tc: &hegel::TestCase) -> Settings {
     let cluster_level = tc.draw_silent(generators::sampled_from(CLUSTER_LEVELS.to_vec()));
     let flags = BufferFlags::from_bits_truncate(tc.draw_silent(generators::integers::<u32>()));
     let pre_context = if tc.draw_silent(generators::booleans()) {
-        Some(draw_text(tc, 8))
+        Some(draw_text_silent(tc, 8))
     } else {
         None
     };
     let post_context = if tc.draw_silent(generators::booleans()) {
-        Some(draw_text(tc, 8))
+        Some(draw_text_silent(tc, 8))
     } else {
         None
     };
@@ -285,7 +314,7 @@ fn draw_settings(tc: &hegel::TestCase) -> Settings {
     let not_found_variation_selector_glyph = tc.draw_silent(generators::optional(
         generators::integers::<u32>().max_value(u32::from(u16::MAX)),
     ));
-    let settings = Settings {
+    Settings {
         direction,
         script,
         language,
@@ -294,9 +323,7 @@ fn draw_settings(tc: &hegel::TestCase) -> Settings {
         pre_context,
         post_context,
         not_found_variation_selector_glyph,
-    };
-    tc.note(&format!("settings = {settings:?}"));
-    settings
+    }
 }
 
 /// `Direction::is_forward` is crate-private, so mirror it here.
@@ -374,7 +401,7 @@ fn shaping_never_panics() {
         let instance = ShaperInstance::from_variations(font, &variations);
         let shaper = data.shaper(font).instance(Some(&instance)).build();
 
-        let text = draw_text(&tc, 32);
+        let text = draw_text(&tc, "text", 32);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
         let mut options = ShapeOptions::new().features(&features);
@@ -408,7 +435,7 @@ fn shaping_is_deterministic() {
         let instance = ShaperInstance::from_variations(font, &variations);
         let shaper = data.shaper(font).instance(Some(&instance)).build();
 
-        let text = draw_text(&tc, 32);
+        let text = draw_text(&tc, "text", 32);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
 
@@ -438,7 +465,7 @@ fn an_explicit_plan_matches_the_implicit_one() {
         let (font, data) = &fonts[draw_font_index(&tc)];
         let shaper = data.shaper(font).build();
 
-        let text = draw_text(&tc, 32);
+        let text = draw_text(&tc, "text", 32);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
 
@@ -490,7 +517,7 @@ fn the_font_instance_path_matches_the_font_ref_path() {
         let (font, data) = &fonts[index];
         let shaper = data.shaper(font).build();
 
-        let text = draw_text(&tc, 32);
+        let text = draw_text(&tc, "text", 32);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
 
@@ -520,15 +547,13 @@ fn clusters_are_monotone_at_the_monotone_cluster_levels() {
         let (font, data) = &fonts[draw_font_index(&tc)];
         let shaper = data.shaper(font).build();
 
-        let text = draw_text(&tc, 32);
-        let mut settings = draw_settings(&tc);
-        settings.cluster_level = tc.draw(
-            generators::sampled_from(vec![
-                BufferClusterLevel::MonotoneGraphemes,
-                BufferClusterLevel::MonotoneCharacters,
-            ])
-            .print_as_debug(),
-        );
+        let text = draw_text(&tc, "text", 32);
+        let mut settings = draw_settings_silent(&tc);
+        settings.cluster_level = tc.draw_silent(generators::sampled_from(vec![
+            BufferClusterLevel::MonotoneGraphemes,
+            BufferClusterLevel::MonotoneCharacters,
+        ]));
+        tc.note(&format!("settings = {settings:?}"));
         let features = draw_features(&tc);
 
         let glyphs = shaper.shape(
@@ -561,7 +586,7 @@ fn clusters_are_input_character_offsets() {
         let (font, data) = &fonts[draw_font_index(&tc)];
         let shaper = data.shaper(font).build();
 
-        let text = draw_text(&tc, 32);
+        let text = draw_text(&tc, "text", 32);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
 
@@ -597,9 +622,11 @@ fn clusters_are_input_character_offsets() {
 ///
 /// Ignored because it does not hold, and HarfBuzz does not uphold it either:
 /// see `known_failure_a_safe_break_can_change_an_arabic_joining_form`. The
-/// cases fall into two groups — a cluster's Arabic joining form changing, and
-/// a sequence recomposing or not depending on what follows it. Run it with
-/// `cargo test --test shaping -- --ignored safe_break`.
+/// failures seen so far include a cluster's Arabic joining form changing, a
+/// sequence recomposing or not depending on what follows it, and default
+/// ignorables at the start of the tail merging into one cluster. Failing
+/// cases are rare enough that the default 100 usually pass, so run it as
+/// `HEGEL_TEST_CASES=20000 cargo test --test shaping -- --ignored safe_break`.
 #[test]
 #[ignore = "the unsafe-to-break flag does not cover joining or normalisation context"]
 fn safe_break_positions_shape_independently() {
@@ -608,8 +635,8 @@ fn safe_break_positions_shape_independently() {
         let (font, data) = &fonts[draw_font_index(&tc)];
         let shaper = data.shaper(font).build();
 
-        let text = draw_text(&tc, 32);
-        let mut settings = draw_settings(&tc);
+        let text = draw_text(&tc, "text", 32);
+        let mut settings = draw_settings_silent(&tc);
         // The beginning/end-of-text flags describe the whole run, so they
         // would legitimately differ between the halves and the whole.
         settings.flags &= !(BufferFlags::BEGINNING_OF_TEXT | BufferFlags::END_OF_TEXT);
@@ -620,13 +647,11 @@ fn safe_break_positions_shape_independently() {
         // A monotone cluster level is what makes "the beginning of a cluster"
         // a single position: at the other levels a cluster value can turn up
         // in several places in the run, so there is no one break to test.
-        settings.cluster_level = tc.draw(
-            generators::sampled_from(vec![
-                BufferClusterLevel::MonotoneGraphemes,
-                BufferClusterLevel::MonotoneCharacters,
-            ])
-            .print_as_debug(),
-        );
+        settings.cluster_level = tc.draw_silent(generators::sampled_from(vec![
+            BufferClusterLevel::MonotoneGraphemes,
+            BufferClusterLevel::MonotoneCharacters,
+        ]));
+        tc.note(&format!("settings = {settings:?}"));
         let features = draw_features(&tc);
         let options = || ShapeOptions::new().features(&features);
 
@@ -661,7 +686,8 @@ fn safe_break_positions_shape_independently() {
         if breaks.is_empty() {
             return;
         }
-        let split = breaks[tc.draw(generators::integers::<usize>().max_value(breaks.len() - 1))];
+        let split =
+            breaks[tc.draw_silent(generators::integers::<usize>().max_value(breaks.len() - 1))];
         tc.note(&format!("split at byte {split}"));
 
         let head = shaper.shape(fill_buffer(&text[..split], &settings), options());
@@ -710,7 +736,7 @@ fn shaping_mutated_fonts_never_panics() {
         let instance = ShaperInstance::from_variations(&font, &variations);
         let shaper = data.shaper(&font).instance(Some(&instance)).build();
 
-        let text = draw_text(&tc, 16);
+        let text = draw_text(&tc, "text", 16);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
         let glyphs = shaper.shape(
@@ -736,8 +762,8 @@ fn a_recycled_buffer_matches_a_fresh_one() {
         let (font, data) = &fonts[draw_font_index(&tc)];
         let shaper = data.shaper(font).build();
 
-        let first = draw_text(&tc, 32);
-        let second = draw_text(&tc, 32);
+        let first = draw_text(&tc, "first", 32);
+        let second = draw_text(&tc, "second", 32);
         let settings = draw_settings(&tc);
         let features = draw_features(&tc);
         let options = || ShapeOptions::new().features(&features);
@@ -889,8 +915,8 @@ fn matches_harfbuzz() {
         let (font, data) = &fonts[index];
         let shaper = data.shaper(font).build();
 
-        let text = draw_text(&tc, 32);
-        let mut settings = draw_settings(&tc);
+        let text = draw_text(&tc, "text", 32);
+        let mut settings = draw_settings_silent(&tc);
         settings.flags = BufferFlags::empty();
         settings.pre_context = None;
         settings.post_context = None;
@@ -902,8 +928,9 @@ fn matches_harfbuzz() {
         let language = settings.language.clone().or_else(|| Language::new("en"));
         settings.language = language.clone();
         let language = language.unwrap();
+        tc.note(&format!("settings = {settings:?}"));
 
-        let features: Vec<Feature> = draw_features(&tc)
+        let features: Vec<Feature> = draw_features_silent(&tc)
             .into_iter()
             .map(|f| Feature {
                 start: 0,
@@ -911,6 +938,7 @@ fn matches_harfbuzz() {
                 ..f
             })
             .collect();
+        tc.note(&format!("features = {features:?}"));
 
         let ours = ids_and_clusters(&shaper.shape(
             fill_buffer(&text, &settings),
