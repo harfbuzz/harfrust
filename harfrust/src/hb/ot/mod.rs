@@ -21,6 +21,9 @@ use read_fonts::{
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 
+// An experiment: an alternative compile-and-apply path, lifted from another
+// shaper. Nothing calls into it yet.
+pub mod compile;
 pub mod contextual;
 pub mod gpos;
 pub mod gsub;

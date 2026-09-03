@@ -14,6 +14,8 @@ exclude = ["benches/", "tests/"]
 [dependencies]
 read-fonts.workspace = true
 once_cell.workspace = true
+hashbrown.workspace = true
+spin = { workspace = true, optional = true }
 bitflags = "2.9"
 bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
 core_maths = { version = "0.1", optional = true }
@@ -24,7 +26,7 @@ icu_normalizer = { version = "2.2.0", optional = true }
 [features]
 default = ["std"]
 std = ["read-fonts/std"]
-libm = ["dep:core_maths", "read-fonts/libm"]
+libm = ["dep:core_maths", "dep:spin", "read-fonts/libm"]
 experimental_font_api = []
 icu = ["dep:icu_properties", "dep:icu_normalizer"]
 
