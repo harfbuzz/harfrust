@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use harfrust::{
     font::{Font, FontInstance},
-    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language,
+    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language, Script,
     SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey, UnicodeBuffer, Variation,
 };
 
@@ -22,10 +22,11 @@ impl ShapePlanCache {
         &'a mut self,
         instance: &FontInstance,
         buffer: &UnicodeBuffer,
+        script: Option<Script>,
         features: &[Feature],
     ) -> &'a ShapePlan {
         let language = buffer.language();
-        let key = ShapePlanKey::new(Some(buffer.script()), buffer.direction())
+        let key = ShapePlanKey::new(script, buffer.direction())
             .language(language.as_ref())
             .features(features);
 
@@ -36,7 +37,7 @@ impl ShapePlanCache {
         self.plans.push(ShapePlan::new(
             instance,
             buffer.direction(),
-            Some(buffer.script()),
+            script,
             language.as_ref(),
             features,
         ));
@@ -117,7 +118,7 @@ pub struct Args {
 
     /// Set text script as ISO-15924 tag
     #[arg(long)]
-    script: Option<harfrust::Script>,
+    script: Option<Script>,
 
     /// Comma-separated list of font features
     #[arg(long, value_delimiter = ',')]
@@ -487,7 +488,8 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 buffer.guess_segment_properties();
 
-                let plan = shape_plan_cache.get(&instance, &buffer, features);
+                let script = resolved_script(args.script, &buffer);
+                let plan = shape_plan_cache.get(&instance, &buffer, script, features);
                 result = Some(shape_impl(
                     &instance,
                     buffer,
@@ -591,6 +593,13 @@ fn parse_output_format(s: &str) -> Result<String, String> {
     }
 }
 
+fn resolved_script(explicit_script: Option<Script>, buffer: &UnicodeBuffer) -> Option<Script> {
+    explicit_script.or_else(|| {
+        let script = buffer.script();
+        (script != harfrust::script::UNKNOWN).then_some(script)
+    })
+}
+
 fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
     use std::fmt::Write;
 
@@ -625,5 +634,18 @@ mod tests {
             .unwrap()
             .to_string();
         assert!(error.contains("unknown output format 'xml'"));
+    }
+
+    #[test]
+    fn emoji_only_buffer_preserves_unset_script() {
+        let mut buffer = UnicodeBuffer::new();
+        buffer.push_str("\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}");
+        buffer.guess_segment_properties();
+
+        assert_eq!(resolved_script(None, &buffer), None);
+        assert_eq!(
+            resolved_script(Some(harfrust::script::UNKNOWN), &buffer),
+            Some(harfrust::script::UNKNOWN)
+        );
     }
 }
