@@ -1015,6 +1015,15 @@ impl Dispatch {
             }
         }
         starts.push(subs.len() as u32);
+        // Does it actually narrow anything? Without the index a glyph tries
+        // every subtable; with it, its row plus one coverage probe to find the
+        // row. A lookup whose subtables mostly cover the same glyphs has rows
+        // nearly as long as the list, and then the index is a second probe
+        // buying nothing -- which is not hypothetical: building these
+        // unconditionally is measurably slower on two of seven benchmarks.
+        if subs.len() * 2 > union.len() * subtables.len() {
+            return None;
+        }
         Some(Self {
             cov: Coverage::build(union),
             starts: starts.into_boxed_slice(),

@@ -1345,6 +1345,16 @@ fn pair_filter(data: &[u8], lookup: &CompiledLookup, glyphs: &mut Vec<u32>) -> O
             _ => return None,
         }
     }
+    // Does it actually reject anything? A filter is only worth a probe if the
+    // probe usually says no, and these saturate more easily than they look:
+    // class zero of a class definition holds every glyph the definition omits,
+    // so any class-1 row that pairs with it admits everything. A variable
+    // font's kerning is the case that does this -- its records are rarely
+    // inert, so most rows survive the row summary and reach class zero.
+    let ones: u32 = slots.iter().map(|w| w.count_ones()).sum();
+    if usize::try_from(ones).unwrap_or(usize::MAX) * 2 > slots.len() * 64 {
+        return None;
+    }
     Some(PairFilter::new(slots))
 }
 
