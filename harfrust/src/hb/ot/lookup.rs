@@ -126,6 +126,12 @@ mod cache {
                     .sum::<usize>()
         }
 
+        /// The slot if it has already been filled, without filling it.
+        #[allow(dead_code)]
+        pub fn get_if_present(&self, index: u16) -> Option<&LookupInfo> {
+            self.lookups.get(index as usize)?.get()?.as_deref()
+        }
+
         pub fn get<'a>(&self, host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
             self.lookups
                 .get(index as usize)?

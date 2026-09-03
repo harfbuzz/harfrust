@@ -1533,6 +1533,8 @@ mod heap_cost {
         /// The per-lookup slot vectors, sized for every lookup in the table
         /// whether or not one has been compiled.
         slots: usize,
+        /// The compiled lookups themselves, one box per slot actually filled.
+        boxes: usize,
         /// The vectors holding the subtables, and the subtable records in them.
         subtable_vecs: usize,
         /// What a compiled lookup owns beyond that: its reach, its dispatch
@@ -1549,7 +1551,13 @@ mod heap_cost {
 
     impl Parts {
         fn total(&self) -> usize {
-            self.slots + self.subtable_vecs + self.owned + self.interned + self.keys + self.scratch
+            self.slots
+                + self.boxes
+                + self.subtable_vecs
+                + self.owned
+                + self.interned
+                + self.keys
+                + self.scratch
         }
     }
 
@@ -1562,6 +1570,7 @@ mod heap_cost {
             for i in 0..program.len() as u16 {
                 let Some(l) = program.get(i, b) else { continue };
                 let vec = l.subtables.capacity() * size_of::<Subtable>();
+                p.boxes += size_of::<CompiledLookup>();
                 p.subtable_vecs += vec;
                 p.owned += l.heap_bytes() - vec;
             }
@@ -1611,6 +1620,11 @@ mod heap_cost {
         println!();
         // The two per-subtable records, which is what the vectors above are
         // full of and what most of the difference comes down to.
+        println!(
+            "per lookup slot: {} bytes ({} of it the compiled lookup itself)",
+            size_of::<lookup::CompiledLookupSlot>(),
+            size_of::<CompiledLookup>(),
+        );
         println!(
             "per subtable record: compiled {} bytes, interpreted {} bytes",
             size_of::<Subtable>(),
@@ -1691,6 +1705,189 @@ mod heap_cost {
                 kib(at[2]),
                 kib(at[3]),
                 kib(at[4])
+            );
+        }
+        println!();
+    }
+}
+
+#[cfg(all(test, feature = "std", feature = "compile-path"))]
+mod reached_cost {
+    use crate::{FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
+
+    /// Font and a text that exercises it, as the shaping benchmark pairs them.
+    const CASES: &[(&str, &str)] = &[
+        ("Roboto-Regular.ttf", "en-thelittleprince.txt"),
+        ("NotoNastaliqUrdu-Regular.ttf", "fa-thelittleprince.txt"),
+        ("NotoSansDevanagari-Regular.ttf", "hi-words.txt"),
+        ("Amiri-Regular.ttf", "fa-thelittleprince.txt"),
+        ("SourceSerifVariable-Roman.ttf", "react-dom.txt"),
+    ];
+
+    #[allow(clippy::cast_precision_loss)]
+    fn kib(bytes: usize) -> f64 {
+        bytes as f64 / 1024.0
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn pct(a: usize, b: usize) -> f64 {
+        100.0 * a as f64 / b.max(1) as f64
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn ratio(a: usize, b: usize) -> f64 {
+        a as f64 / b.max(1) as f64
+    }
+
+    /// What each side holds after a plain shaping run.
+    ///
+    /// This is the number that matters, and it is not the one `heap_cost`
+    /// reports. That one compiles every lookup in the font, which is the worst
+    /// case and the fair way to compare the two forms *per lookup*. But a plan
+    /// reaches a fraction of a font -- 54 of NotoSans Devanagari's 394
+    /// substitution lookups shape Hindi -- and both sides fill lazily, so what
+    /// a caller actually holds is this.
+    ///
+    /// Both caches fill on the same run: the compiled path still asks the
+    /// interpreted one for the lookup's properties before it dispatches, so
+    /// one pass over the text populates both and the comparison is exact.
+    #[test]
+    fn report() {
+        println!();
+        println!(
+            "{:<32} {:>9} {:>5} {:>9} {:>11} {:>11} {:>8}",
+            "font", "reached", "", "subtables", "interp KiB", "compiled", "ratio"
+        );
+        for (font_name, text_name) in CASES {
+            let font_path = format!("{}/benches/fonts/{font_name}", env!("CARGO_MANIFEST_DIR"));
+            let text_path = format!("{}/benches/texts/{text_name}", env!("CARGO_MANIFEST_DIR"));
+            let (Ok(data), Ok(text)) = (
+                std::fs::read(&font_path),
+                std::fs::read_to_string(&text_path),
+            ) else {
+                continue;
+            };
+            let font = FontRef::new(&data).unwrap();
+            let shaper_data = ShaperData::new(&font);
+            let shaper = shaper_data.shaper(&font).build();
+
+            // A default shape: no explicit features, properties guessed from
+            // the text, which is what a caller gets without asking.
+            let mut buffer = Some(UnicodeBuffer::new());
+            for line in text.lines().take(400) {
+                let mut b = buffer.take().unwrap();
+                b.push_str(line);
+                b.guess_segment_properties();
+                buffer = Some(shaper.shape(b, ShapeOptions::new()).clear());
+            }
+
+            let tables = &shaper.ot_tables;
+            // Fill the interpreted cache for exactly the lookups the compiled
+            // one holds. Without this the two hold different sets: with the
+            // compiled path on, a nested lookup recurses through the compiled
+            // program and the interpreted cache never sees it, so a
+            // chain-context font like Nastaliq would be compared against a
+            // cache holding only its top-level lookups.
+            if let Some(t) = tables.gsub.as_ref() {
+                for i in 0..tables.gsub_compiled.len() as u16 {
+                    if tables.gsub_compiled.is_compiled(i) {
+                        let _ = t.lookups.get(&t.table, i);
+                    }
+                }
+            }
+            if let Some(t) = tables.gpos.as_ref() {
+                for i in 0..tables.gpos_compiled.len() as u16 {
+                    if tables.gpos_compiled.is_compiled(i) {
+                        let _ = t.lookups.get(&t.table, i);
+                    }
+                }
+            }
+            let mut interp = 0;
+            let mut total = 0;
+            let mut hit = 0;
+            for lookups in [
+                tables.gsub.as_ref().map(|t| t.lookups),
+                tables.gpos.as_ref().map(|t| t.lookups),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                interp += lookups.heap_bytes();
+            }
+            let mut compiled = 0;
+            for program in [&tables.gsub_compiled, &tables.gpos_compiled] {
+                compiled += program.heap_bytes();
+                total += program.len();
+                hit += (0..program.len() as u16)
+                    .filter(|&i| program.is_compiled(i))
+                    .count();
+            }
+            // Sanity: both sides should see the same lookups and the same
+            // subtables, or the comparison is not comparing the same work.
+            let mut interp_subs = 0;
+            for lookups in [
+                tables.gsub.as_ref().map(|t| {
+                    (
+                        t.lookups,
+                        t.table.lookup_list().map_or(0, |l| l.lookup_count()),
+                    )
+                }),
+                tables.gpos.as_ref().map(|t| {
+                    (
+                        t.lookups,
+                        t.table.lookup_list().map_or(0, |l| l.lookup_count()),
+                    )
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let (cache, n) = lookups;
+                for i in 0..n {
+                    if let Some(info) = cache.get_if_present(i) {
+                        interp_subs += info.subtables.len();
+                    }
+                }
+            }
+            let mut compiled_subs = 0;
+            let mut compiled_hit = 0;
+            for (program, bytes) in [
+                (
+                    &tables.gsub_compiled,
+                    tables
+                        .gsub
+                        .as_ref()
+                        .map(|t| t.table.offset_data().as_bytes()),
+                ),
+                (
+                    &tables.gpos_compiled,
+                    tables
+                        .gpos
+                        .as_ref()
+                        .map(|t| t.table.offset_data().as_bytes()),
+                ),
+            ] {
+                let Some(b) = bytes else { continue };
+                for i in 0..program.len() as u16 {
+                    if program.is_compiled(i) {
+                        compiled_hit += 1;
+                        if let Some(l) = program.get(i, b) {
+                            compiled_subs += l.subtables.len();
+                        }
+                    }
+                }
+            }
+            let _ = compiled_hit;
+            println!(
+                "{font_name:<32} {:>4}/{:<4} {:>4.0}% {:>4}/{:<4} {:>11.1} {:>11.1} {:>7.2}x",
+                hit,
+                total,
+                pct(hit, total),
+                interp_subs,
+                compiled_subs,
+                kib(interp),
+                kib(compiled),
+                ratio(compiled, interp),
             );
         }
         println!();
