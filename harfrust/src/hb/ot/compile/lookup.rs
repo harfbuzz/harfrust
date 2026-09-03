@@ -749,14 +749,21 @@ pub struct CompiledLookup {
     /// Three-word summary of `reach`, so a lookup that cannot touch a buffer is
     /// thrown away before the buffer is scanned at all.
     pub digest: Digest,
-    /// Three-word summary of `pair_key`, when there is one. A lookup whose
+    /// Three-word summary of what may follow a start, when the formats in this
+    /// lookup all constrain it. A lookup whose
     /// second component cannot appear in the buffer at all is thrown away
     /// without the scan that would otherwise discover it -- which is every
     /// `ccmp` and `liga` lookup on a line of English, since their second
     /// components are combining marks.
     pub pair_digest: Digest,
     /// Glyph-to-subtable index, for lookups with enough subtables to want one.
-    pub dispatch: Option<Dispatch>,
+    /// Behind a pointer because most lookups have none. Inline it is the
+    /// largest field here by some way -- seventy-two bytes of vectors and
+    /// bounds against twenty-four for the reach -- and a font's lookups are
+    /// mostly one or two subtables, which want no index at all. The
+    /// indirection is paid only where there is something to point at, and
+    /// there by a path that was going to chase pointers anyway.
+    pub dispatch: Option<Box<Dispatch>>,
     /// Which glyphs can follow which, for a lookup that is entirely pair
     /// positioning. See [`PairFilter`].
     ///
@@ -776,10 +783,6 @@ pub struct CompiledLookup {
     /// the start. True only for reverse chaining substitution, which is
     /// defined that way -- see [`SubtableKind::ReverseChain`].
     pub reverse: bool,
-    /// Union of every subtable's second-component set, present only when *all*
-    /// subtables are pair-keyable. A lookup mixing ligature and single subtables
-    /// must not use it, or the single subtable's candidates would be rejected.
-    pub pair_key: Option<GlyphSet>,
 }
 
 impl CompiledLookup {
@@ -879,7 +882,12 @@ impl CompiledLookup {
         // a numerator, and the rule does match. The compiler leaves `next`
         // unset on these subtables, so this collect yields `None` on its own;
         // the assert is here because the invariant is not local to it.
-        let pair_key = subtables
+        // Built to be summarised and then dropped. The exact set is worth
+        // keeping per *subtable*, where a format consults it after its own
+        // gate has admitted a candidate; at the lookup level it is a union
+        // over subtables, so it is both weaker and asked earlier -- and three
+        // words are enough to answer at the only point anything asks.
+        let pair_key: Option<GlyphSet> = subtables
             .iter()
             .map(Subtable::next_set)
             .collect::<Option<Vec<_>>>()
@@ -900,7 +908,8 @@ impl CompiledLookup {
 
         let dispatch = accelerate
             .then(|| Dispatch::build(&subtables, &scratch_union, scratch))
-            .flatten();
+            .flatten()
+            .map(Box::new);
         let unsettling = effect != LengthEffect::Preserving
             || subtables.iter().any(|s| {
                 matches!(
@@ -915,7 +924,6 @@ impl CompiledLookup {
             reach,
             digest,
             pair_digest,
-            pair_key,
             dispatch,
             // Filled by the compiler, which can see the font the pairs live in.
             pair_filter: None,
@@ -935,8 +943,10 @@ impl CompiledLookup {
                 .map(Subtable::heap_bytes)
                 .sum::<usize>()
             + self.reach.heap_bytes()
-            + self.pair_key.as_ref().map_or(0, GlyphSet::heap_bytes)
-            + self.dispatch.as_ref().map_or(0, Dispatch::heap_bytes)
+            + self
+                .dispatch
+                .as_ref()
+                .map_or(0, |d| size_of::<Dispatch>() + d.heap_bytes())
             + self.pair_filter.as_ref().map_or(0, PairFilter::heap_bytes)
     }
 }
@@ -1466,14 +1476,18 @@ mod tests {
     fn single_lookup_is_preserving_and_has_no_pair_key() {
         let l = CompiledLookup::new(0, vec![single(&[5, 6])]);
         assert_eq!(l.effect, LengthEffect::Preserving);
-        assert!(l.pair_key.is_none());
+        assert_eq!(l.pair_digest, Digest::FULL, "nothing to key on");
     }
 
     #[test]
     fn ligature_lookup_is_shrinking_and_pair_keyed() {
         let l = CompiledLookup::new(0, vec![lig(&[1], &[2])]);
         assert_eq!(l.effect, LengthEffect::Shrinking);
-        assert_eq!(l.pair_key.as_ref().map(|c| c.len()), Some(1));
+        assert_ne!(
+            l.pair_digest,
+            Digest::FULL,
+            "keyed on its second components"
+        );
     }
 }
 
