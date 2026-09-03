@@ -28,6 +28,10 @@ default = ["std"]
 std = ["read-fonts/std"]
 libm = ["dep:core_maths", "dep:spin", "read-fonts/libm"]
 experimental_font_api = []
+# Route lookup application through the compiled path in hb::ot::compile instead
+# of applying straight from font bytes. An experiment: same output, different
+# machinery, and the point is to find out whether it is faster. Off by default.
+compile-path = []
 icu = ["dep:icu_properties", "dep:icu_normalizer"]
 
 [dev-dependencies]

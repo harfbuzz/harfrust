@@ -189,6 +189,11 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
     ctx.lookup_props = lookup.props();
     ctx.update_matchers();
 
+    #[cfg(feature = "compile-path")]
+    if apply_string_compiled::<T>(ctx) {
+        return;
+    }
+
     if !lookup.is_reverse() {
         // in/out forward substitution/positioning
         if !T::IN_PLACE {
@@ -207,6 +212,56 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
         ctx.buffer.idx = ctx.buffer.len - 1;
         apply_backward(ctx, lookup);
     }
+}
+
+/// The same pass, driven by the compiled form of this lookup.
+///
+/// Returns whether it ran. A lookup that fails to compile falls through to the
+/// path above rather than being skipped -- the two are meant to agree, and a
+/// font that defeats one should still be shaped by the other.
+#[cfg(feature = "compile-path")]
+fn apply_string_compiled<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t) -> bool {
+    use crate::hb::ot::compile::apply::{apply_backward, apply_forward, Apply};
+
+    let Some(table) = ctx.face.ot_tables.table_data(ctx.table_index) else {
+        return false;
+    };
+    let program = match ctx.table_index {
+        TableIndex::GSUB => &ctx.face.ot_tables.gsub_compiled,
+        TableIndex::GPOS => &ctx.face.ot_tables.gpos_compiled,
+    };
+    let Some(compiled) = program.get(ctx.lookup_index, table) else {
+        return false;
+    };
+
+    if compiled.reverse {
+        debug_assert!(!ctx.buffer.have_output);
+        ctx.buffer.idx = ctx.buffer.len - 1;
+        let mut apply = Apply {
+            host: ctx,
+            table,
+            program,
+        };
+        apply_backward(&mut apply, compiled);
+        return true;
+    }
+
+    if !T::IN_PLACE {
+        ctx.buffer.clear_output();
+    }
+    ctx.buffer.idx = 0;
+    {
+        let mut apply = Apply {
+            host: ctx,
+            table,
+            program,
+        };
+        apply_forward(&mut apply, compiled);
+    }
+    if !T::IN_PLACE {
+        ctx.buffer.sync();
+    }
+    true
 }
 
 fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {

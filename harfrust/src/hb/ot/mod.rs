@@ -32,6 +32,14 @@ pub mod lookup;
 pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
+    /// The compiled form of the same two lookup lists, when the experimental
+    /// apply path is enabled. Empty slots: a lookup is compiled the first time
+    /// something asks for it, because a shaping plan reaches a small part of a
+    /// font.
+    #[cfg(feature = "compile-path")]
+    pub gsub_compiled: compile::lookup::Program,
+    #[cfg(feature = "compile-path")]
+    pub gpos_compiled: compile::lookup::Program,
     pub gdef_glyph_props_cache: MappingCache,
     gdef: GdefCache,
     has_gsub: bool,
@@ -153,6 +161,16 @@ impl OtCache {
             .map(GdefCache::new)
             .unwrap_or_default();
         Self {
+            #[cfg(feature = "compile-path")]
+            gsub_compiled: gsub_table
+                .as_ref()
+                .map(compile::compile_gsub_program)
+                .unwrap_or_default(),
+            #[cfg(feature = "compile-path")]
+            gpos_compiled: gpos_table
+                .as_ref()
+                .map(compile::compile_gpos_program)
+                .unwrap_or_default(),
             gsub,
             gpos,
             gdef_glyph_props_cache: MappingCache::new(),
@@ -282,6 +300,12 @@ pub struct OtTables<'a> {
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
     pub feature_variations: [Option<u32>; 2],
+    /// Borrowed from the cache, so the compiled lookups survive across shaping
+    /// runs the same way the interpreted ones do.
+    #[cfg(feature = "compile-path")]
+    pub gsub_compiled: &'a compile::lookup::Program,
+    #[cfg(feature = "compile-path")]
+    pub gpos_compiled: &'a compile::lookup::Program,
 }
 
 impl<'a> OtTables<'a> {
@@ -332,6 +356,10 @@ impl<'a> OtTables<'a> {
             var_store,
             coords,
             feature_variations,
+            #[cfg(feature = "compile-path")]
+            gsub_compiled: &cache.gsub_compiled,
+            #[cfg(feature = "compile-path")]
+            gpos_compiled: &cache.gpos_compiled,
         }
     }
 
@@ -380,6 +408,10 @@ impl<'a> OtTables<'a> {
             var_store,
             coords,
             feature_variations,
+            #[cfg(feature = "compile-path")]
+            gsub_compiled: &cache.gsub_compiled,
+            #[cfg(feature = "compile-path")]
+            gpos_compiled: &cache.gpos_compiled,
         }
     }
 

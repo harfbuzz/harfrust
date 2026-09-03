@@ -16,7 +16,8 @@
 //! from the lookup's compiled reach, its pair key and the buffer's transposed
 //! feature masks, which is a later piece of work and a bigger one.
 
-use super::lookup::{Apply, CompiledLookup, Program};
+pub use super::lookup::Apply;
+use super::lookup::{CompiledLookup, Program};
 use crate::hb::ot_layout_gsubgpos::MatchPositions;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
