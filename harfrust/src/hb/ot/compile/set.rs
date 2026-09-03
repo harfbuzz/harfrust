@@ -310,27 +310,56 @@ impl<T> Default for Table<T> {
     }
 }
 
+/// One interned table, keyed by a 128-bit digest of the font bytes it was
+/// built from rather than by a copy of them.
+///
+/// The bytes were the obvious key and cost more than the thing they identified:
+/// on Nastaliq they came to 24.7KiB against 46.8KiB of compiled tables, so a
+/// third of what the interner held was there only to recognise a table it had
+/// already seen. Two 64-bit hashes are sixteen bytes, and the copy and its
+/// allocation go with them.
+///
+/// Two hashes rather than one because a single 64-bit hash is a key this has to
+/// trust: a collision here does not crash, it silently hands back the wrong
+/// compiled coverage, and a font is untrusted input. At 128 bits the chance of
+/// an accidental collision across the few hundred tables a font interns is
+/// around 2^-110, and the seed is drawn per process, so a crafted pair cannot
+/// be computed in advance.
 struct Entry<T> {
-    /// The font bytes this was built from.
-    bytes: Box<[u8]>,
+    /// The hash the table is bucketed by, kept so a resize can rehash without
+    /// the bytes it no longer has.
+    hash: u64,
+    /// A second hash of the same bytes, under a different domain. This is what
+    /// stands in for comparing them.
+    check: u64,
     value: Arc<T>,
 }
 
 impl<T> Table<T> {
+    /// The two halves of the key. The leading byte separates the domains, so
+    /// the halves are not the same function of the same input.
+    #[inline]
+    fn key(&self, bytes: &[u8]) -> (u64, u64) {
+        (
+            self.hasher.hash_one((0u8, bytes)),
+            self.hasher.hash_one((1u8, bytes)),
+        )
+    }
+
     fn intern(&mut self, bytes: &[u8], build: impl FnOnce() -> T) -> Arc<T> {
-        let hash = self.hasher.hash_one(bytes);
-        if let Some(entry) = self.entries.find(hash, |e| &*e.bytes == bytes) {
+        let (hash, check) = self.key(bytes);
+        if let Some(entry) = self.entries.find(hash, |e| e.check == check) {
             return Arc::clone(&entry.value);
         }
         let value = Arc::new(build());
-        let Self { entries, hasher } = self;
-        entries.insert_unique(
+        self.entries.insert_unique(
             hash,
             Entry {
-                bytes: bytes.into(),
+                hash,
+                check,
                 value: Arc::clone(&value),
             },
-            |e| hasher.hash_one(&e.bytes),
+            |e| e.hash,
         );
         value
     }
@@ -366,6 +395,17 @@ impl Interner {
 
     pub fn is_empty(&self) -> bool {
         self.len() == (0, 0, 0)
+    }
+
+    /// Bytes held by the interning keys themselves.
+    ///
+    /// Separate from `heap_bytes` because it is not what the compiled form
+    /// costs to *use* -- it is what the compiler kept in order to recognise a
+    /// table it had already seen. Sixteen bytes an entry since the keys became
+    /// digests; it was the tables' own bytes before that.
+    pub fn key_bytes(&self) -> usize {
+        let (sets, coverages, classes) = self.len();
+        (sets + coverages + classes) * 16
     }
 
     /// Bytes held by the compiled tables. The interning keys are compiler
@@ -870,6 +910,28 @@ fn find_range(ranges: &[CovRange], g: u32) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+    /// The interner recognises a table it has seen and distinguishes ones it
+    /// has not -- which is the whole of its contract, and is now decided by a
+    /// digest rather than by comparing the bytes.
+    #[test]
+    fn interning_is_by_content() {
+        let pool = Interner::new();
+        let a = pool.set(b" ", || GlyphSet::build(&[1]));
+        let again = pool.set(b" ", || GlyphSet::build(&[99]));
+        // The second build closure must never have run.
+        assert!(Arc::ptr_eq(&a, &again));
+        assert_eq!(again.to_vec(), vec![1]);
+
+        let b = pool.set(b" ", || GlyphSet::build(&[2]));
+        assert!(!Arc::ptr_eq(&a, &b));
+        assert_eq!(pool.len().0, 2);
+
+        // Same bytes, different kind: separate tables, because a coverage read
+        // as a set compiles to something else than one read for its index.
+        let _ = pool.coverage(b" ", || Coverage::build(&[1]));
+        assert_eq!(pool.len(), (2, 1, 0));
+    }
+
     use super::*;
 
     /// Every representation must agree with the set it was built from, for both
