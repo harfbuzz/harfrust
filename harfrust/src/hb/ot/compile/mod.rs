@@ -417,6 +417,7 @@ impl Compiler {
             subtables,
             &mut self.union,
             self.detail.accelerators(),
+            set::scan_budget(self.budget),
         ))
     }
 
@@ -1006,6 +1007,7 @@ impl Compiler {
             subtables,
             &mut self.union,
             self.detail.accelerators(),
+            set::scan_budget(self.budget),
         );
         // Only positioning has pair lookups, and only here is the font at hand.
         if self.detail.accelerators() {
@@ -2050,6 +2052,11 @@ mod lookup_shapes {
                 let shapes: Vec<&str> = l.subtables.iter().map(|s| cov_shape(&s.cov)).collect();
                 println!("      gate shapes: {}", shapes.join(", "));
                 println!(
+                    "      reach shape: {} ({} bytes)",
+                    set_shape(l.reach()),
+                    l.reach().heap_bytes()
+                );
+                println!(
                     "  {name} {i:>3}: {} subtable(s), {ranked} ranked, dispatch {}, pair filter {}, reach {} :: {}",
                     l.subtables.len(),
                     l.dispatch.is_some(),
@@ -2060,6 +2067,17 @@ mod lookup_shapes {
             }
         }
         println!();
+    }
+
+    fn set_shape(g: &super::set::GlyphSet) -> &'static str {
+        use super::set::GlyphSet as G;
+        match g {
+            G::Empty => "Empty",
+            G::Range { .. } => "Range",
+            G::Bitmap { .. } => "Bitmap",
+            G::Sorted { .. } => "Sorted",
+            G::Ranges(_) => "Ranges",
+        }
     }
 
     /// Which representation the picker chose, since that is what a probe costs.

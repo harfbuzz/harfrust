@@ -29,6 +29,25 @@ pub const DEFAULT_BUDGET: usize = 384;
 /// representation.
 pub const SLACK: usize = 8;
 
+/// How much more a set the candidate scan probes may spend than one probed
+/// once per candidate.
+///
+/// A lookup's reach is asked about every glyph of every buffer the lookup is
+/// entered for; a coverage is asked only about the glyphs the reach admitted,
+/// which on English is one position in five. So the reach earns a bigger
+/// allowance, and this is how much bigger. Measured on Amiri: at the plain
+/// budget 38 of its 160 reached lookups scan by binary search, and giving them
+/// bitmaps instead costs 23KiB and buys 10% of the run.
+///
+/// It scales the caller's budget rather than replacing it, so a caller who
+/// asks for a smaller one still gets a smaller one.
+pub const SCAN_FACTOR: usize = 11;
+
+/// The budget for a set the candidate scan probes.
+pub fn scan_budget(budget: usize) -> usize {
+    budget.saturating_mul(SCAN_FACTOR)
+}
+
 /// A conservative summary of a set of glyphs, in three machine words.
 ///
 /// Answers one question -- "could these two sets possibly overlap?" -- with

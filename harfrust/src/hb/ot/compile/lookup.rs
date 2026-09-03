@@ -44,7 +44,7 @@ use read_fonts::tables::gpos::Gpos;
 use read_fonts::tables::gsub::Gsub;
 use read_fonts::{FontData, FontRead};
 
-use super::set::{ClassMap, Coverage, Digest, GlyphSet, Interner};
+use super::set::{scan_budget, ClassMap, Coverage, Digest, GlyphSet, Interner, DEFAULT_BUDGET};
 use super::Table;
 
 /// Whether applying a lookup can change the number of glyphs.
@@ -769,7 +769,7 @@ impl CompiledLookup {
     /// Build reusing `scratch`, so compiling a whole font does not allocate a
     /// fresh buffer per lookup.
     pub fn new_in(props: u32, subtables: Vec<Subtable>, scratch: &mut Vec<u32>) -> Self {
-        Self::new_with(props, subtables, scratch, true)
+        Self::new_with(props, subtables, scratch, true, scan_budget(DEFAULT_BUDGET))
     }
 
     /// Build, optionally without the glyph-to-subtable dispatch index.
@@ -778,6 +778,7 @@ impl CompiledLookup {
         mut subtables: Vec<Subtable>,
         scratch: &mut Vec<u32>,
         accelerate: bool,
+        scan_budget: usize,
     ) -> Self {
         // Built by pushing, so the capacity is rounded up to a power of two and
         // a lookup with five subtables has paid for eight. These live for as
@@ -799,7 +800,7 @@ impl CompiledLookup {
         scratch.dedup();
         // One subtable means the union is that subtable's coverage. Keep the
         // glyph list, which the rest of this needs, but not a second set.
-        let reach = GlyphSet::build(scratch);
+        let reach = GlyphSet::build_with_budget(scratch, scan_budget);
         let digest = Digest::from_glyphs(scratch.iter().copied());
         // Keep the union: the dispatch index is built over it, and building it
         // reuses `scratch` for each subtable's own reach.
