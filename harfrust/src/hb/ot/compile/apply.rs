@@ -785,6 +785,8 @@ mod tests {
                         | SubtableKind::PairPos2 { .. }
                         | SubtableKind::ChainCtx3 { .. }
                         | SubtableKind::Rules { .. }
+                        | SubtableKind::Cursive { .. }
+                        | SubtableKind::MarkTo { .. }
                 )
             })
     }

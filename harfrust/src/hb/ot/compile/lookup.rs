@@ -403,6 +403,14 @@ pub enum SubtableKind {
     /// coverages compile; the anchors stay in the font, since a run reads a
     /// handful of the hundreds a font carries.
     MarkTo {
+        /// Offset of the subtable itself.
+        ///
+        /// Unlike every other format, this one is applied straight from the
+        /// font rather than from the fields below -- see `gpos::at_mark_to` for
+        /// why. The rest is kept because it is what the shaper this came from
+        /// applies, and because dropping it would make the two copies diverge
+        /// for no gain.
+        offset: u32,
         /// Coverage of what they attach to: bases, or other marks.
         bases: Arc<Coverage>,
         /// Offset of the mark array.

@@ -4,7 +4,7 @@ use crate::hb::ot_layout_gpos_table::attach_type;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{skipping_iterator_t, Apply};
 use crate::{Direction, GlyphPosition};
-use read_fonts::tables::gpos::CursivePosFormat1;
+use read_fonts::tables::gpos::{AnchorTable, CursivePosFormat1};
 
 impl Apply for CursivePosFormat1<'_> {
     fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
@@ -38,8 +38,24 @@ impl Apply for CursivePosFormat1<'_> {
             return None;
         };
 
-        let (exit_x, exit_y) = ctx.face.ot_tables.resolve_anchor(&exit_prev);
-        let (entry_x, entry_y) = ctx.face.ot_tables.resolve_anchor(&entry_this);
+        attach(ctx, i, &entry_this, &exit_prev)
+    }
+}
+
+/// Join a glyph's entry anchor to the previous glyph's exit anchor.
+///
+/// Split out so the compiled apply path in `ot::compile` can share it: what
+/// differs between the two is how the anchors are found, and none of the
+/// geometry or the attachment bookkeeping below depends on that.
+pub(in crate::hb::ot) fn attach(
+    ctx: &mut hb_ot_apply_context_t,
+    i: usize,
+    entry_this: &AnchorTable,
+    exit_prev: &AnchorTable,
+) -> Option<()> {
+    {
+        let (exit_x, exit_y) = ctx.face.ot_tables.resolve_anchor(exit_prev);
+        let (entry_x, entry_y) = ctx.face.ot_tables.resolve_anchor(entry_this);
         let exit_x = ctx.scale_x(exit_x);
         let exit_y = ctx.scale_y(exit_y);
         let entry_x = ctx.scale_x(entry_x);

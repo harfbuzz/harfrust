@@ -989,6 +989,7 @@ impl Compiler {
         Subtable::ranked(
             self.coverage_or_empty(t.mark_coverage()),
             SubtableKind::MarkTo {
+                offset: at as u32,
                 bases: self.coverage_or_empty(t.base_coverage()),
                 mark_array: (at + t.mark_array_offset().to_usize()) as u32,
                 base_array: (at + t.base_array_offset().to_usize()) as u32,
@@ -1002,6 +1003,7 @@ impl Compiler {
         Subtable::ranked(
             self.coverage_or_empty(t.mark1_coverage()),
             SubtableKind::MarkTo {
+                offset: at as u32,
                 bases: self.coverage_or_empty(t.mark2_coverage()),
                 mark_array: (at + t.mark1_array_offset().to_usize()) as u32,
                 base_array: (at + t.mark2_array_offset().to_usize()) as u32,
@@ -1018,6 +1020,7 @@ impl Compiler {
         Subtable::ranked(
             self.coverage_or_empty(t.mark_coverage()),
             SubtableKind::MarkTo {
+                offset: at as u32,
                 bases: self.coverage_or_empty(t.ligature_coverage()),
                 mark_array: (at + t.mark_array_offset().to_usize()) as u32,
                 base_array: (at + t.ligature_array_offset().to_usize()) as u32,

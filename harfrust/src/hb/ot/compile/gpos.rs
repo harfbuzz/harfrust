@@ -24,12 +24,17 @@
 //! exactly the flag decision above.
 
 use super::be16;
-use super::lookup::{Apply, CompiledLookup, Subtable, SubtableKind};
+use super::lookup::{Apply, AttachTo, CompiledLookup, Subtable, SubtableKind};
 use super::record_size;
 use crate::hb::ot::gpos::apply_value;
+use crate::hb::ot::gpos::cursive::attach;
 use crate::hb::ot_layout_gsubgpos::skipping_iterator_t;
-use read_fonts::tables::gpos::ValueFormat;
+use crate::hb::ot_layout_gsubgpos::Apply as _;
+use read_fonts::tables::gpos::{
+    AnchorTable, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, ValueFormat,
+};
 use read_fonts::FontData;
+use read_fonts::FontRead;
 
 /// Byte offset of the pair-set offset array in a `PairPosFormat1` subtable:
 /// past the format, the coverage offset, both value formats and the count.
@@ -277,32 +282,150 @@ fn apply_pair(
 }
 
 /// Cursive attachment: the exit anchor of one glyph meets the entry anchor of
-/// the next, and which of the two moves depends on the run's direction.
+/// the next.
+///
+/// What makes a cursive script actually cursive. Nastaliq stacks its letters
+/// along a descending baseline this way, so without it the letters are all
+/// correct and all sitting on the wrong line.
+///
+/// The compiled part is only the coverage, which is probed twice here -- once
+/// for this glyph by the gate, once for the previous one. The anchors stay in
+/// the font: a run reads a handful of the hundreds a font carries, and each is
+/// two coordinates behind a nullable offset.
+///
+/// The geometry and the attachment bookkeeping are this crate's own. Which of
+/// the pair moves depends on the run's direction and on the lookup's
+/// right-to-left flag, an already-attached glyph has its whole chain reversed
+/// so the tree re-roots, and a chain that will not fit in its `i16` field is
+/// dropped rather than truncated to a bogus link. None of that depends on how
+/// the anchors were found, which is the only thing that differs here.
+///
+/// Flags: **owes an unsafe-to-break across the pair.** They are positioned
+/// relative to each other, so neither can be shaped without the other. Every
+/// way of failing owes a concat hazard instead, except failing because the
+/// previous glyph is not covered at all -- that is not a near miss.
 pub fn at_cursive(
-    _ctx: &mut Apply,
+    ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
-    _index: u32,
+    index: u32,
 ) -> Option<()> {
-    let SubtableKind::Cursive { .. } = &sub.kind else {
+    let SubtableKind::Cursive {
+        records,
+        base,
+        count,
+    } = &sub.kind
+    else {
         return None;
     };
-    None
+    // This glyph's entry anchor, which has to exist for anything to attach to
+    // it. Read before the search, so a glyph that cannot be a target does not
+    // pay for one.
+    let entry_this = anchor(ctx.table, *records, *base, *count, index, ENTRY)?;
+
+    let mut iter = skipping_iterator_t::new(&mut *ctx.host, false);
+    iter.reset_fast(iter.buffer.idx);
+    let mut unsafe_from = 0;
+    if !iter.prev(Some(&mut unsafe_from)) {
+        let idx = ctx.host.buffer.idx;
+        ctx.host
+            .buffer
+            .unsafe_to_concat_from_outbuffer(Some(unsafe_from), Some(idx + 1));
+        return None;
+    }
+    let prev = iter.index();
+    let prev_glyph = iter.buffer.info[prev].glyph_id;
+
+    // Not covered is not a near miss: nothing about this run would make the
+    // previous glyph joinable, so there is no hazard to report.
+    let prev_index = sub.cov.index(prev_glyph)?;
+    let Some(exit_prev) = anchor(ctx.table, *records, *base, *count, prev_index, EXIT) else {
+        let idx = ctx.host.buffer.idx;
+        ctx.host
+            .buffer
+            .unsafe_to_concat_from_outbuffer(Some(prev), Some(idx + 1));
+        return None;
+    };
+
+    attach(&mut *ctx.host, prev, &entry_this, &exit_prev)
+}
+
+/// Byte offsets of the two anchor offsets within an `EntryExitRecord`.
+const ENTRY: usize = 0;
+const EXIT: usize = 2;
+
+/// One anchor out of the entry/exit record array, or `None` if it is null.
+///
+/// Both offsets are nullable and most records carry only one of the two: a
+/// glyph that starts a join has no entry, one that ends it has no exit.
+fn anchor(
+    table: &[u8],
+    records: u32,
+    base: u32,
+    count: u16,
+    index: u32,
+    which: usize,
+) -> Option<AnchorTable<'_>> {
+    if index >= u32::from(count) {
+        return None;
+    }
+    let at = records as usize + index as usize * 4 + which;
+    let offset = be16(table, at)?;
+    if offset == 0 {
+        return None;
+    }
+    AnchorTable::read(FontData::new(
+        table.get(base as usize + usize::from(offset)..)?,
+    ))
+    .ok()
 }
 
 /// Mark attachment, all three kinds at once.
 ///
 /// Base, ligature and mark-to-mark differ in how the target is found and how
-/// its anchors are laid out, not in what happens once it is -- so they share a
+/// its anchors are laid out, not in what happens once it is, so they share a
 /// routine and carry an [`super::lookup::AttachTo`] to say which.
+///
+/// # The one format that gains nothing from being compiled
+///
+/// This is a pass-through to the font's own application, and that is a finding
+/// rather than a shortcut. What compilation buys elsewhere is a cheap answer
+/// to "could this apply here", and for the other twelve formats that question
+/// is asked per position against a compiled set. Here almost all the work is
+/// somewhere else: finding the target is a *backwards scan* whose cost is the
+/// scan, and which is guided by a cache of the last base found on the context
+/// rather than by anything in a subtable. Compiling the coverages does not
+/// make that scan shorter.
+///
+/// Mark attachment does have a filter that pays, and it is a level up: a
+/// lookup whose marks cannot appear in the buffer at all is thrown away before
+/// the buffer is scanned. Eight of NotoSans's fourteen Latin positioning
+/// lookups are mark attachment and none can match a line of English. That
+/// filter is the driver's, built from this subtable's compiled coverage, and
+/// it is already in place -- see [`super::apply::apply_forward`].
+///
+/// So the coverages are still compiled, because the candidate scan needs them.
+/// The anchors are read by the font's own code, because there is nothing to
+/// gain by reading them here and a good deal of intricacy to lose: which
+/// component of a ligature a mark belongs to, whether two marks share a base,
+/// and the cross-offset walk up an existing cursive chain.
+///
+/// Flags: owed by that code, which marks the mark and its target unsafe to
+/// break apart, and reports a concat hazard for each of the several ways the
+/// search can come up empty.
 pub fn at_mark_to(
-    _ctx: &mut Apply,
+    ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,
 ) -> Option<()> {
-    let SubtableKind::MarkTo { .. } = &sub.kind else {
+    let SubtableKind::MarkTo { offset, to, .. } = &sub.kind else {
         return None;
     };
-    None
+    let data = FontData::new(ctx.table.get(*offset as usize..)?);
+    match to {
+        AttachTo::Base => MarkBasePosFormat1::read(data).ok()?.apply(ctx.host),
+        AttachTo::Mark => MarkMarkPosFormat1::read(data).ok()?.apply(ctx.host),
+        AttachTo::Ligature => MarkLigPosFormat1::read(data).ok()?.apply(ctx.host),
+    }
 }

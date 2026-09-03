@@ -6,7 +6,7 @@ use read_fonts::{
     FontData,
 };
 
-mod cursive;
+pub(super) mod cursive;
 mod mark;
 mod pair;
 mod single;
