@@ -124,53 +124,61 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
         count!(GATE_PASS, 1);
         return (sub.apply)(ctx, lookup, sub, index);
     }
-    // With an index, only the subtables that can start on this glyph, in the
-    // order they must be. Without one, all of them.
-    let row = lookup.dispatch.as_ref().map(|d| d.row(glyph));
+    // Without an index, every subtable in font order, each asking its own
+    // coverage.
+    //
+    // The call below is an indirect one, not a match. The format was settled
+    // when the subtable was compiled. Calling the cheapest formats directly
+    // instead -- a short match on pair positioning and single substitution,
+    // falling through to the pointer -- was measured and is slower, by about a
+    // percent on all six benchmark cases. The premise of the pointer holds
+    // better than it looks: within a hot loop the target is stable per lookup,
+    // so the branch predictor gets it right nearly every time, and a match in
+    // front of it only adds work. Inlining the four arms also grows this frame
+    // for the paths that do not use them.
+    let Some(dispatch) = lookup.dispatch.as_deref() else {
+        for sub in &lookup.subtables {
+            count!(GATED, 1);
+            let Some(index) = sub.gate(glyph) else {
+                continue;
+            };
+            count!(GATE_PASS, 1);
+            if (sub.apply)(ctx, lookup, sub, index).is_some() {
+                return Some(());
+            }
+        }
+        return None;
+    };
+
+    // With one, only the subtables that can start on this glyph, in the order
+    // they must be. A row is built from the subtables' own coverages, so a
+    // subtable named by one has already been shown to cover this glyph, and
+    // only the formats that read the coverage *index* still have to ask.
+    let row = dispatch.row(glyph);
     // A row naming one subtable is what an index is for, and it is what nearly
     // every row is: SourceSerif's kerning is five subtables and a glyph
     // reaches one of them. There is no order to walk and nothing to fall
     // through to, so take the same path a one-subtable lookup takes.
-    if let Some([only]) = row {
+    if let [only] = row {
         if let Some(sub) = lookup.subtables.get(*only as usize) {
             let index = if sub.rank { sub.gate(glyph)? } else { 0 };
             return (sub.apply)(ctx, lookup, sub, index);
         }
     }
-    let count = row.map_or(lookup.subtables.len(), <[u16]>::len);
-    for k in 0..count {
-        let at = match row {
-            Some(r) => r[k] as usize,
-            None => k,
-        };
-        let Some(sub) = lookup.subtables.get(at) else {
+    for &at in row {
+        let Some(sub) = lookup.subtables.get(at as usize) else {
             continue;
         };
-        // A row is built from the subtables' own coverages, so a subtable
-        // named by one has already been shown to cover this glyph. Only the
-        // formats that read the coverage *index* still have to ask.
-        let index = if row.is_some() && !sub.rank {
-            count!(CANDIDATES, 0);
-            0
-        } else {
+        let index = if sub.rank {
             count!(GATED, 1);
             let Some(index) = sub.gate(glyph) else {
                 continue;
             };
             count!(GATE_PASS, 1);
             index
+        } else {
+            0
         };
-        // An indirect call, not a match. The format was settled when the
-        // subtable was compiled.
-        //
-        // Calling the cheapest formats directly instead -- a short match on
-        // pair positioning and single substitution, falling through to the
-        // pointer -- was measured and is slower, by about a percent on all six
-        // benchmark cases. The premise of the pointer holds better than it
-        // looks: within a hot loop the target is stable per lookup, so the
-        // branch predictor gets it right nearly every time, and a match in
-        // front of it only adds work. Inlining the four arms also grows this
-        // frame for the paths that do not use them.
         if (sub.apply)(ctx, lookup, sub, index).is_some() {
             return Some(());
         }
