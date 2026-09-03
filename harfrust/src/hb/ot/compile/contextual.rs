@@ -65,6 +65,7 @@ pub fn at_rules(
         base,
         rule_set_count,
         chained,
+        index: rule_index,
         ..
     } = &sub.kind
     else {
@@ -97,6 +98,25 @@ pub fn at_rules(
     let (table, program) = (ctx.table, ctx.program);
     let recurse = |host: &mut hb_ot_apply_context_t, index| recurse(host, table, program, index);
 
+    // One word per rule set, saying which values its rules accept at the
+    // position every one of them begins by testing. Nothing in a rule set says
+    // that, so this is the one filter here with no counterpart in the font --
+    // and it earns its place because a set that survives coverage still mostly
+    // does not match: measured on Nastaliq, half the entered rule sets are dead
+    // this way, and they hold half of every rule that would otherwise be
+    // parsed.
+    //
+    // Answering it with a single glyph's value rather than a window of them is
+    // deliberate. It is the same question the walk inside asks per rule, at the
+    // same position, so dismissing a set here reaches exactly the conclusion
+    // that walk would have reached -- including the concat hazard it would have
+    // reported. A wider window would reject more and would then owe a flag it
+    // no longer sets.
+    let digests = &rule_index.digests;
+    let input = input_classes.as_deref();
+    let dismiss =
+        |info: &mut GlyphInfo| !digests.may_hold(set_index, class_of(input, info.glyph_id));
+
     match chained {
         false => apply_context_rules(
             &mut *ctx.host,
@@ -104,6 +124,7 @@ pub fn at_rules(
             rules,
             |info, value| class_of(input_classes.as_deref(), info.glyph_id) == value,
             &recurse,
+            Some(&dismiss),
         ),
         true => apply_chain_context_rules(
             &mut *ctx.host,
@@ -121,6 +142,7 @@ pub fn at_rules(
                 },
             ),
             &recurse,
+            Some(&dismiss),
         ),
     }
 }

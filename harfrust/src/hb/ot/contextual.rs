@@ -57,6 +57,7 @@ impl Apply for SequenceContextFormat1<'_> {
             set.seq_rule_offsets(),
             match_glyph,
             &recurse_host,
+            None,
         )
     }
 }
@@ -114,6 +115,7 @@ impl Apply for SequenceContextFormat2<'_> {
             set.class_seq_rule_offsets(),
             |info, value| u32::from(input_class(info.as_glyph())) == value,
             &recurse_host,
+            None,
         )
     }
 
@@ -141,6 +143,7 @@ impl Apply for SequenceContextFormat2<'_> {
             set.class_seq_rule_offsets(),
             match_class_cached(&input_class),
             &recurse_host,
+            None,
         )
     }
 
@@ -258,6 +261,7 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
             set.chained_seq_rule_offsets(),
             (match_glyph, match_glyph, match_glyph),
             &recurse_host,
+            None,
         )
     }
 }
@@ -390,6 +394,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 |info, val| u32::from(cache.lookahead.class(&offset_data, info.as_glyph())) == val,
             ),
             &recurse_host,
+            None,
         )
     }
     fn apply_cached(
@@ -421,6 +426,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 match_class_cached1(&lookahead_class),
             ),
             &recurse_host,
+            None,
         )
     }
     fn cache_cost(&self) -> u32 {
@@ -762,6 +768,7 @@ pub(super) fn apply_context_rules(
     rule_offsets: &[BigEndian<Offset16>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
+    dismiss: Option<&dyn Fn(&mut GlyphInfo) -> bool>,
 ) -> Option<()> {
     // HarfBuzz bypasses the first/second-component pre-match below for rule
     // sets of at most 4 rules, because its pre-match setup costs more than
@@ -829,6 +836,20 @@ pub(super) fn apply_context_rules(
                     return Some(());
                 }
             }
+            return None;
+        }
+    }
+    // Every rule in this set begins by testing the same position, and a caller
+    // may hold a summary of what they all accept there. When it shares nothing
+    // with what the buffer offers, the loop below would probe every rule, fail
+    // every first-value test, and end by reporting a concat hazard -- so reach
+    // that conclusion without the probes. This is the one filter here that has
+    // no counterpart in the font: nothing in a rule set says what the set as a
+    // whole accepts.
+    if let Some(dismiss) = dismiss {
+        if dismiss(&mut ctx.buffer.info[first]) {
+            let idx = ctx.buffer.idx;
+            ctx.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to1));
             return None;
         }
     }
@@ -965,6 +986,7 @@ pub(super) fn apply_chain_context_rules<
     rule_offsets: &[BigEndian<Offset16>],
     match_funcs: (F1, F2, F3),
     recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
+    dismiss: Option<&dyn Fn(&mut GlyphInfo) -> bool>,
 ) -> Option<()> {
     // No small-rule-set bypass here either; see apply_context_rules.
     //
@@ -1031,6 +1053,20 @@ pub(super) fn apply_chain_context_rules<
                     return Some(());
                 }
             }
+            return None;
+        }
+    }
+    // Every rule in this set begins by testing the same position, and a caller
+    // may hold a summary of what they all accept there. When it shares nothing
+    // with what the buffer offers, the loop below would probe every rule, fail
+    // every first-value test, and end by reporting a concat hazard -- so reach
+    // that conclusion without the probes. This is the one filter here that has
+    // no counterpart in the font: nothing in a rule set says what the set as a
+    // whole accepts.
+    if let Some(dismiss) = dismiss {
+        if dismiss(&mut ctx.buffer.info[first]) {
+            let idx = ctx.buffer.idx;
+            ctx.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to1));
             return None;
         }
     }
