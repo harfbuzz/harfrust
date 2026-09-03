@@ -146,7 +146,7 @@ mod tests {
     use crate::hb::buffer::Buffer;
     use crate::hb::common::Direction;
     use crate::hb::face::Scale;
-    use crate::hb::ot::compile::lookup::{Program, SubtableKind};
+    use crate::hb::ot::compile::lookup::{CompiledLookup, Program, SubtableKind};
     use crate::hb::ot::compile::set::GlyphSet;
     use crate::hb::ot::compile::{compile_gpos_program, compile_gsub_program};
     use crate::hb::ot_layout::{apply_synthesized_subst_lookup, TableIndex};
@@ -205,6 +205,7 @@ mod tests {
                         | SubtableKind::Ligature { .. }
                         | SubtableKind::Multiple { .. }
                         | SubtableKind::ReverseChain { .. }
+                        | SubtableKind::ChainCtx3 { .. }
                 )
             })
     }
@@ -225,42 +226,7 @@ mod tests {
         reach.push(0);
         let mut out = vec![reach];
 
-        // A reverse chain only fires when the glyphs either side are in its
-        // backtrack and lookahead coverages, so build one buffer that is: one
-        // glyph from each set, the backtrack laid out in buffer order.
-        for sub in &lookup.subtables {
-            let SubtableKind::ReverseChain {
-                backtrack,
-                lookahead,
-                ..
-            } = &sub.kind
-            else {
-                continue;
-            };
-            let Some(&covered) = sub.cov.to_vec().first() else {
-                continue;
-            };
-            let one = |set: &GlyphSet| set.to_vec().first().copied();
-            let Some(before) = backtrack
-                .iter()
-                .rev()
-                .map(|s| one(s))
-                .collect::<Option<Vec<u32>>>()
-            else {
-                continue;
-            };
-            let Some(after) = lookahead
-                .iter()
-                .map(|s| one(s))
-                .collect::<Option<Vec<u32>>>()
-            else {
-                continue;
-            };
-            let mut seq = before;
-            seq.push(covered);
-            seq.extend(after);
-            out.push(seq);
-        }
+        out.extend(context_probes(lookup));
 
         for sub in ligature_subtables(gsub, index) {
             let Ok(cov) = sub.coverage() else { continue };
@@ -281,6 +247,58 @@ mod tests {
                     out.push(seq);
                 }
             }
+        }
+        out
+    }
+
+    /// One buffer per context subtable that satisfies its pattern.
+    ///
+    /// The context formats fire only when the glyphs around the gate are in the
+    /// right coverages, which arbitrary glyphs are not, so the buffer has to be
+    /// built to match: one glyph from each set, with the backtrack laid out in
+    /// buffer order rather than the nearest-first order the format stores it
+    /// in. A set with no glyphs in it means the pattern is unsatisfiable, and
+    /// the case is dropped rather than tested as a near miss.
+    fn context_probes(lookup: &CompiledLookup) -> Vec<Vec<u32>> {
+        let one = |set: &GlyphSet| set.to_vec().first().copied();
+        let mut out = Vec::new();
+        for sub in &lookup.subtables {
+            let (backtrack, middle, lookahead) = match &sub.kind {
+                SubtableKind::ReverseChain {
+                    backtrack,
+                    lookahead,
+                    ..
+                } => (&backtrack[..], &[][..], &lookahead[..]),
+                SubtableKind::ChainCtx3 {
+                    backtrack,
+                    input,
+                    lookahead,
+                    ..
+                } => (&backtrack[..], &input[..], &lookahead[..]),
+                _ => continue,
+            };
+            let Some(&gate) = sub.cov.to_vec().first() else {
+                continue;
+            };
+            let Some(mut seq) = backtrack
+                .iter()
+                .rev()
+                .map(|s| one(s))
+                .collect::<Option<Vec<u32>>>()
+            else {
+                continue;
+            };
+            seq.push(gate);
+            let Some(rest) = middle
+                .iter()
+                .chain(lookahead.iter())
+                .map(|s| one(s))
+                .collect::<Option<Vec<u32>>>()
+            else {
+                continue;
+            };
+            seq.extend(rest);
+            out.push(seq);
         }
         out
     }
@@ -622,6 +640,7 @@ mod tests {
                     SubtableKind::SinglePos { .. }
                         | SubtableKind::PairPos1 { .. }
                         | SubtableKind::PairPos2 { .. }
+                        | SubtableKind::ChainCtx3 { .. }
                 )
             })
     }
@@ -640,6 +659,7 @@ mod tests {
         reach.truncate(MAX_GLYPHS - 1);
         reach.push(0);
         let mut out = vec![reach];
+        out.extend(context_probes(lookup));
 
         for sub in pair_subtables(gpos, index) {
             match sub {

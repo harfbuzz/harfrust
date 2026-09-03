@@ -452,6 +452,16 @@ pub enum SubtableKind {
         input: Box<[Arc<GlyphSet>]>,
         lookahead: Box<[Arc<GlyphSet>]>,
         records: Box<[SeqRecord]>,
+        /// Whether this came from a *chained* format 3 rather than a plain one.
+        ///
+        /// The two are otherwise the same subtable -- a plain one simply has no
+        /// backtrack or lookahead -- and the shaper this came from collapsed
+        /// them for exactly that reason. They part company on one thing only:
+        /// which flag calls a match makes. A chained context reports its span
+        /// through the out-buffer variants, a plain one does not, and a chained
+        /// context with empty backtrack and lookahead is legal, so the emptiness
+        /// cannot stand in for this.
+        chained: bool,
     },
     /// Reverse chaining contextual single substitution, GSUB type 8.
     ///
@@ -637,6 +647,7 @@ impl SubtableKind {
                 input,
                 lookahead,
                 records,
+                ..
             } => {
                 (backtrack.len() + input.len() + lookahead.len()) * size_of::<Arc<GlyphSet>>()
                     + records.len() * size_of::<SeqRecord>()

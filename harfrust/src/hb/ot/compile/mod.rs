@@ -595,6 +595,7 @@ impl Compiler {
                         input,
                         lookahead: Box::new([]),
                         records,
+                        chained: false,
                     },
                 )
                 .following(next))
@@ -645,6 +646,7 @@ impl Compiler {
                 input,
                 lookahead,
                 records,
+                chained: true,
             },
         )
         .following(next))

@@ -13,7 +13,6 @@ use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::unicode::GeneralCategory;
 use alloc::boxed::Box;
-use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
 pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
@@ -510,11 +509,18 @@ where
     }
 }
 
+/// Apply a context's nested lookups at the positions it matched.
+///
+/// `lookups` yields `(sequence_index, lookup_list_index)` rather than the
+/// font's own records, so a caller holding them in some other form -- the
+/// compiled path in `ot::compile` does -- can reuse this. There is nothing
+/// format-specific left in here: it is position renumbering around recursion,
+/// and getting it wrong is what the TODOs below are about.
 pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
     match_end: usize,
-    lookups: &[SequenceLookupRecord],
+    lookups: impl IntoIterator<Item = (u16, u16)>,
 ) {
     let mut count = input_len + 1;
 
@@ -534,12 +540,12 @@ pub(crate) fn apply_lookup(
         backtrack_len as isize + match_end as isize - ctx.buffer.idx as isize
     };
 
-    for record in lookups {
+    for (sequence_index, lookup_list_index) in lookups {
         if !ctx.buffer.successful {
             break;
         }
 
-        let idx = usize::from(record.sequence_index.get());
+        let idx = usize::from(sequence_index);
         if idx >= count {
             continue;
         }
@@ -559,7 +565,7 @@ pub(crate) fn apply_lookup(
             break;
         }
 
-        if ctx.recurse(record.lookup_list_index.get()).is_none() {
+        if ctx.recurse(lookup_list_index).is_none() {
             continue;
         }
 

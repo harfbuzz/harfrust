@@ -153,6 +153,13 @@ impl Apply for SequenceContextFormat2<'_> {
     }
 }
 
+/// A font's own lookup records, in the shape [`apply_lookup`] takes.
+fn records(records: &[SequenceLookupRecord]) -> impl IntoIterator<Item = (u16, u16)> + use<'_> {
+    records
+        .iter()
+        .map(|r| (r.sequence_index.get(), r.lookup_list_index.get()))
+}
+
 impl WouldApply for SequenceContextFormat3<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
         let coverages = self.coverages();
@@ -188,7 +195,7 @@ impl Apply for SequenceContextFormat3<'_> {
                 ctx,
                 input_coverages.len() - 1,
                 match_end,
-                self.seq_lookup_records(),
+                records(self.seq_lookup_records()),
             );
             Some(())
         } else {
@@ -522,7 +529,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
             ctx,
             input_coverages.len() - 1,
             match_end,
-            self.seq_lookup_records(),
+            records(self.seq_lookup_records()),
         );
 
         Some(())
@@ -596,7 +603,7 @@ impl<'a> ParsedRule<'a> {
         if match_input(ctx, inputs.len() as _, match_func, &mut match_end, None) {
             ctx.buffer
                 .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
-            apply_lookup(ctx, inputs.len(), match_end, self.records);
+            apply_lookup(ctx, inputs.len(), match_end, records(self.records));
             return Some(());
         }
         None
@@ -926,7 +933,7 @@ fn apply_chain_with_sequences<
 
     ctx.buffer
         .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
-    apply_lookup(ctx, input.len(), match_end, rule.records);
+    apply_lookup(ctx, input.len(), match_end, records(rule.records));
 
     Some(())
 }
