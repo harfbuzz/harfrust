@@ -13,11 +13,13 @@
 //!
 //! Every one of these is a stub. See [`super::gsub`].
 
+use super::apply::recurse;
 use super::be16;
 use super::lookup::{Apply, CompiledLookup, SeqRecord, Subtable, SubtableKind};
 use super::set::ClassMap;
 use crate::hb::buffer::GlyphInfo;
 use crate::hb::ot::contextual::{apply_chain_context_rules, apply_context_rules};
+use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{apply_lookup, match_backtrack, match_input, match_lookahead};
 use read_fonts::types::{BigEndian, Offset16};
 use read_fonts::FontData;
@@ -34,6 +36,9 @@ use read_fonts::FontData;
 /// class-based context resolves a class per rule per position and a rule set
 /// can hold hundreds; this crate answers that from a cache in front of the
 /// font, and here it is an owned map with no font access at all.
+///
+/// The nested lookups a matching rule invokes recurse through the compiled
+/// program rather than the font's own path -- see [`super::apply::recurse`].
 ///
 /// The rule-set walk is this crate's own, and deliberately. It probes a rule's
 /// first two input values without parsing it, skips ahead over runs of rules
@@ -87,10 +92,19 @@ pub fn at_rules(
     let count = usize::from(set.read_at::<u16>(0).ok()?);
     let rules: &[BigEndian<Offset16>] = set.read_array(2..2 + count * 2).ok()?;
 
+    // Copied out before the context is borrowed mutably, so the nested lookups
+    // can be found on the compiled path rather than the font's.
+    let (table, program) = (ctx.table, ctx.program);
+    let recurse = |host: &mut hb_ot_apply_context_t, index| recurse(host, table, program, index);
+
     match chained {
-        false => apply_context_rules(&mut *ctx.host, set, rules, |info, value| {
-            class_of(input_classes.as_deref(), info.glyph_id) == value
-        }),
+        false => apply_context_rules(
+            &mut *ctx.host,
+            set,
+            rules,
+            |info, value| class_of(input_classes.as_deref(), info.glyph_id) == value,
+            &recurse,
+        ),
         true => apply_chain_context_rules(
             &mut *ctx.host,
             set,
@@ -106,6 +120,7 @@ pub fn at_rules(
                     class_of(lookahead_classes.as_deref(), info.glyph_id) == value
                 },
             ),
+            &recurse,
         ),
     }
 }
@@ -235,15 +250,17 @@ pub fn at_chain3(
 /// changes the buffer length, the hard cases are documented in its TODOs, and
 /// duplicating it to save a `map` would be trading correctness for nothing.
 ///
-/// The nested lookups themselves still recurse through the host's own path
-/// rather than the compiled program. That is the next step and the reason
-/// [`Apply::program`] exists; until then this isolates what is under test --
-/// the context match -- from the application of whatever it invokes.
+/// The nested lookups recurse through the compiled program rather than the
+/// font's own path -- see [`super::apply::recurse`]. Without that a context
+/// would be a hole through which everything fell back, and on a cursive script
+/// that is most of the work.
 fn apply_nested(ctx: &mut Apply, input_len: usize, match_end: usize, records: &[SeqRecord]) {
+    let (table, program) = (ctx.table, ctx.program);
     apply_lookup(
         &mut *ctx.host,
         input_len,
         match_end,
         records.iter().map(|r| (r.seq_index, r.lookup_index)),
+        &|host: &mut hb_ot_apply_context_t, index| recurse(host, table, program, index),
     );
 }

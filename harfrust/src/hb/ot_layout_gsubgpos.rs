@@ -516,11 +516,23 @@ where
 /// compiled path in `ot::compile` does -- can reuse this. There is nothing
 /// format-specific left in here: it is position renumbering around recursion,
 /// and getting it wrong is what the TODOs below are about.
+/// How a context invokes one of its nested lookups.
+///
+/// The font's own way is [`recurse_host`]. The compiled path in `ot::compile`
+/// supplies its own, so that a lookup reached through a context is applied the
+/// same way as one reached directly -- otherwise a context would be a hole
+/// through which everything fell back to this path, and on a script whose
+/// shaping is mostly contexts that would be nearly everything.
+pub(crate) fn recurse_host(ctx: &mut hb_ot_apply_context_t, index: u16) -> Option<()> {
+    ctx.recurse(index)
+}
+
 pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
     match_end: usize,
     lookups: impl IntoIterator<Item = (u16, u16)>,
+    recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
 ) {
     let mut count = input_len + 1;
 
@@ -565,7 +577,7 @@ pub(crate) fn apply_lookup(
             break;
         }
 
-        if ctx.recurse(lookup_list_index).is_none() {
+        if recurse(ctx, lookup_list_index).is_none() {
             continue;
         }
 

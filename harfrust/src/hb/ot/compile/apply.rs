@@ -16,8 +16,10 @@
 //! from the lookup's compiled reach, its pair key and the buffer's transposed
 //! feature masks, which is a later piece of work and a bigger one.
 
-use super::lookup::{Apply, CompiledLookup};
+use super::lookup::{Apply, CompiledLookup, Program};
+use crate::hb::ot_layout_gsubgpos::MatchPositions;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
+use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 
 /// Try this lookup at the cursor, reporting whether a subtable applied.
 ///
@@ -93,6 +95,66 @@ pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
             ctx.host.buffer.next_glyph();
         }
     }
+    applied
+}
+
+/// Apply a nested lookup, staying on the compiled path.
+///
+/// The counterpart of this crate's own `hb_ot_apply_context_t::recurse`, and it
+/// exists because a context that fell back to the font's path would be a hole
+/// that everything reached through it fell into. On a script whose shaping is
+/// mostly contexts -- which is what a cursive script is -- that would be nearly
+/// every lookup that does any work, and a measurement taken with it would say
+/// almost nothing about this path.
+///
+/// The state it saves and restores is the same state, and for the same reasons.
+/// The nested lookup gets its own properties and its own matchers, and must not
+/// be able to see or disturb the match positions of the context that invoked
+/// it. The two budgets are shared and are what stop a font recursing forever.
+pub fn recurse(
+    host: &mut hb_ot_apply_context_t,
+    table: &[u8],
+    program: &Program,
+    lookup_index: u16,
+) -> Option<()> {
+    if host.nesting_level_left == 0 {
+        host.buffer.successful = false;
+        return None;
+    }
+    host.buffer.max_ops -= 1;
+    if host.buffer.max_ops < 0 {
+        host.buffer.successful = false;
+        return None;
+    }
+
+    host.nesting_level_left -= 1;
+    let saved_props = host.lookup_props;
+    let saved_index = host.lookup_index;
+    // Moved out rather than cloned: the nested lookup never reads the caller's
+    // positions, and the replacement has to keep the length at one or more,
+    // since a single-position match writes slot zero without resizing.
+    let saved_positions =
+        core::mem::replace(&mut host.match_positions, MatchPositions::from_elem(0, 1));
+    let saved_positions_len = host.match_positions_len;
+
+    host.lookup_index = lookup_index;
+    let applied = program.get(lookup_index, table).and_then(|nested| {
+        host.lookup_props = nested.props;
+        host.update_matchers();
+        let mut ctx = Apply {
+            host,
+            table,
+            program,
+        };
+        apply_at(&mut ctx, nested)
+    });
+
+    host.lookup_props = saved_props;
+    host.lookup_index = saved_index;
+    host.update_matchers();
+    host.match_positions = saved_positions;
+    host.match_positions_len = saved_positions_len;
+    host.nesting_level_left += 1;
     applied
 }
 
