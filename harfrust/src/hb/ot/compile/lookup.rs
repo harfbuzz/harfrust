@@ -1036,7 +1036,13 @@ impl Dispatch {
 /// "does not apply" — wrong output is preferable to a panic only if it is loud,
 /// so callers check [`Program::missing`] to know what they are missing.
 /// One slot of a [`Program`], named so its size can be accounted for.
-pub type CompiledLookupSlot = OnceLock<Option<CompiledLookup>>;
+///
+/// Boxed, and that is the whole reason this is a named type. A slot holding a
+/// `CompiledLookup` inline is 232 bytes, and there is one per lookup in the
+/// font whether or not a plan ever reaches it -- 394 of them in NotoSans
+/// Devanagari, of which shaping Hindi touches 54. Behind a box the empty slot
+/// costs a pointer and the reached ones cost what they always did.
+pub type CompiledLookupSlot = OnceLock<Option<Box<CompiledLookup>>>;
 
 #[derive(Debug)]
 pub struct Program {
@@ -1046,7 +1052,7 @@ pub struct Program {
     /// shape Latin text. Compiling all 404 to run five is most of the cost of
     /// the first shape, and all of it is avoidable, so a slot stays empty until
     /// something asks for it.
-    lookups: Vec<OnceLock<Option<CompiledLookup>>>,
+    lookups: Vec<CompiledLookupSlot>,
     /// The interning index, shared with every lookup compiled into this program
     /// and with anything else built against the same font. Shaping never reads
     /// it: subtables hold their tables directly.
@@ -1104,7 +1110,7 @@ impl Program {
             .into_iter()
             .map(|l| {
                 let slot = OnceLock::new();
-                let _ = slot.set(l);
+                let _ = slot.set(l.map(Box::new));
                 slot
             })
             .collect();
@@ -1155,9 +1161,10 @@ impl Program {
         let slot = self.lookups.get(index as usize)?;
         // The hit path: no lock, no font parsing, just a load.
         if let Some(compiled) = slot.get() {
-            return compiled.as_ref();
+            return compiled.as_deref();
         }
-        slot.get_or_init(|| self.compile(index, data)).as_ref()
+        slot.get_or_init(|| self.compile(index, data).map(Box::new))
+            .as_deref()
     }
 
     #[cold]
@@ -1196,6 +1203,14 @@ impl Program {
         }
     }
 
+    /// Whether this slot has been filled, for callers measuring how much of a
+    /// font a plan actually reaches.
+    pub fn is_compiled(&self, index: u16) -> bool {
+        self.lookups
+            .get(index as usize)
+            .is_some_and(|s| s.get().is_some())
+    }
+
     /// How many lookups have been compiled so far, which is the measure of what
     /// laziness actually saved.
     pub fn compiled_count(&self) -> usize {
@@ -1229,12 +1244,13 @@ impl Program {
     /// one has been compiled, so an empty program is not free -- that is the
     /// price of being able to fill a slot behind `&self`.
     pub fn heap_bytes(&self) -> usize {
-        self.lookups.capacity() * size_of::<OnceLock<Option<CompiledLookup>>>()
+        self.lookups.capacity() * size_of::<CompiledLookupSlot>()
             + self
                 .lookups
                 .iter()
-                .filter_map(|l| l.get()?.as_ref())
-                .map(CompiledLookup::heap_bytes)
+                .filter_map(|l| l.get()?.as_deref())
+                // The box itself, then what the lookup inside it owns.
+                .map(|l| size_of::<CompiledLookup>() + l.heap_bytes())
                 .sum::<usize>()
             + self.pool.heap_bytes()
             + self.pool.key_bytes()
