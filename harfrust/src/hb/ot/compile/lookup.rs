@@ -361,10 +361,7 @@ fn gate_for(cov: &Coverage, rank: bool) -> GateFn {
         },
         (Coverage::Bitmap { .. }, false) => |c, g| match c {
             Coverage::Bitmap { base, words, .. } => {
-                let Some(o) = g.checked_sub(*base) else {
-                    return None;
-                };
-                let o = o as usize;
+                let o = g.checked_sub(*base)? as usize;
                 matches!(words.get(o / 64), Some(w) if (w >> (o % 64)) & 1 != 0).then_some(0)
             }
             _ => c.contains(g).then_some(0),
