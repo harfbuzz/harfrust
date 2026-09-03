@@ -146,8 +146,9 @@ mod tests {
     use crate::hb::buffer::Buffer;
     use crate::hb::common::Direction;
     use crate::hb::face::Scale;
+    use crate::hb::ot::compile::be16;
     use crate::hb::ot::compile::lookup::{CompiledLookup, Program, SubtableKind};
-    use crate::hb::ot::compile::set::GlyphSet;
+    use crate::hb::ot::compile::set::{ClassMap, GlyphSet};
     use crate::hb::ot::compile::{compile_gpos_program, compile_gsub_program};
     use crate::hb::ot_layout::{apply_synthesized_subst_lookup, TableIndex};
     use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
@@ -206,6 +207,7 @@ mod tests {
                         | SubtableKind::Multiple { .. }
                         | SubtableKind::ReverseChain { .. }
                         | SubtableKind::ChainCtx3 { .. }
+                        | SubtableKind::Rules { .. }
                 )
             })
     }
@@ -227,6 +229,7 @@ mod tests {
         let mut out = vec![reach];
 
         out.extend(context_probes(lookup));
+        out.extend(rule_probes(table, lookup));
 
         for sub in ligature_subtables(gsub, index) {
             let Ok(cov) = sub.coverage() else { continue };
@@ -299,6 +302,146 @@ mod tests {
             };
             seq.extend(rest);
             out.push(seq);
+        }
+        out
+    }
+
+    /// One buffer per rule, built to satisfy it.
+    ///
+    /// Coverage glyphs in a row will enter a rule set and then match nothing in
+    /// it, so without this the rule-based formats would be tested only for
+    /// their rejection paths. A rule names its positions either as glyph ids or
+    /// as classes, depending on the format, so the buffer is built by walking
+    /// the rule's own value arrays out of the font and turning each value into
+    /// a glyph that satisfies it -- for a class, by finding any glyph the
+    /// compiled map puts in that class.
+    ///
+    /// Rules are variable-length and the two layouts differ in a way that is
+    /// easy to miss: an unchained rule puts its lookup count second, right
+    /// after the glyph count, while a chained one puts it last, after the
+    /// lookahead. Reading one the other way round yields a rule that simply
+    /// never matches, which is why this parses them explicitly rather than
+    /// sharing a path.
+    fn rule_probes(table: &[u8], lookup: &CompiledLookup) -> Vec<Vec<u32>> {
+        let mut out = Vec::new();
+        for sub in &lookup.subtables {
+            let SubtableKind::Rules {
+                input_classes,
+                backtrack_classes,
+                lookahead_classes,
+                rule_sets,
+                base,
+                rule_set_count,
+                chained,
+                ..
+            } = &sub.kind
+            else {
+                continue;
+            };
+            let covered = sub.cov.to_vec();
+            // Any glyph in the given class, or the value itself when the format
+            // compares glyph ids.
+            let glyph_for = |map: Option<&ClassMap>, value: u32| -> Option<u32> {
+                match map {
+                    None => Some(value),
+                    Some(m) => (0..4096u32).find(|&g| u32::from(m.get(g)) == value),
+                }
+            };
+
+            for set_index in 0..u32::from(*rule_set_count) {
+                // The gate glyph has to be one that selects this rule set:
+                // the coverage entry at this rank for format 1, or any covered
+                // glyph in this class for format 2.
+                let Some(gate) = (match input_classes {
+                    None => covered.get(set_index as usize).copied(),
+                    Some(m) => covered
+                        .iter()
+                        .copied()
+                        .find(|&g| u32::from(m.get(g)) == set_index),
+                }) else {
+                    continue;
+                };
+                let Some(offset) = be16(table, *rule_sets as usize + set_index as usize * 2) else {
+                    continue;
+                };
+                if offset == 0 {
+                    continue;
+                }
+                let set_at = *base as usize + usize::from(offset);
+                let Some(count) = be16(table, set_at) else {
+                    continue;
+                };
+                for r in 0..usize::from(count).min(MAX_CASES) {
+                    let Some(rule_off) = be16(table, set_at + 2 + r * 2) else {
+                        continue;
+                    };
+                    let mut at = set_at + usize::from(rule_off);
+
+                    // Backtrack, nearest-first, so laying it out in buffer
+                    // order means reversing it.
+                    let mut before = Vec::new();
+                    if *chained {
+                        let Some(n) = be16(table, at) else { continue };
+                        at += 2;
+                        for k in 0..usize::from(n) {
+                            let Some(v) = be16(table, at + k * 2) else {
+                                continue;
+                            };
+                            before.push(glyph_for(backtrack_classes.as_deref(), u32::from(v)));
+                        }
+                        at += usize::from(n) * 2;
+                    }
+
+                    let Some(input_count) = be16(table, at) else {
+                        continue;
+                    };
+                    at += 2;
+                    if input_count == 0 {
+                        continue;
+                    }
+                    // Unchained: the lookup count sits here, before the input.
+                    if !*chained {
+                        at += 2;
+                    }
+                    // The first input position is the covered glyph itself, so
+                    // only the rest are listed.
+                    let mut middle = Vec::new();
+                    for k in 0..usize::from(input_count) - 1 {
+                        let Some(v) = be16(table, at + k * 2) else {
+                            continue;
+                        };
+                        middle.push(glyph_for(input_classes.as_deref(), u32::from(v)));
+                    }
+                    at += (usize::from(input_count) - 1) * 2;
+
+                    let mut after = Vec::new();
+                    if *chained {
+                        let Some(n) = be16(table, at) else { continue };
+                        at += 2;
+                        for k in 0..usize::from(n) {
+                            let Some(v) = be16(table, at + k * 2) else {
+                                continue;
+                            };
+                            after.push(glyph_for(lookahead_classes.as_deref(), u32::from(v)));
+                        }
+                    }
+
+                    // A value with no glyph in its class makes the rule
+                    // unsatisfiable; drop the case rather than test a near miss.
+                    let gate = Some(gate);
+                    let parts = before
+                        .iter()
+                        .rev()
+                        .chain(core::iter::once(&gate))
+                        .chain(middle.iter())
+                        .chain(after.iter());
+                    if let Some(seq) = parts.copied().collect::<Option<Vec<u32>>>() {
+                        if seq.len() >= 2 {
+                            out.push(seq);
+                        }
+                    }
+                }
+            }
         }
         out
     }
@@ -641,6 +784,7 @@ mod tests {
                         | SubtableKind::PairPos1 { .. }
                         | SubtableKind::PairPos2 { .. }
                         | SubtableKind::ChainCtx3 { .. }
+                        | SubtableKind::Rules { .. }
                 )
             })
     }
@@ -660,6 +804,7 @@ mod tests {
         reach.push(0);
         let mut out = vec![reach];
         out.extend(context_probes(lookup));
+        out.extend(rule_probes(table, lookup));
 
         for sub in pair_subtables(gpos, index) {
             match sub {

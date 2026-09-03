@@ -13,32 +13,114 @@
 //!
 //! Every one of these is a stub. See [`super::gsub`].
 
+use super::be16;
 use super::lookup::{Apply, CompiledLookup, SeqRecord, Subtable, SubtableKind};
+use super::set::ClassMap;
 use crate::hb::buffer::GlyphInfo;
+use crate::hb::ot::contextual::{apply_chain_context_rules, apply_context_rules};
 use crate::hb::ot_layout_gsubgpos::{apply_lookup, match_backtrack, match_input, match_lookahead};
+use read_fonts::types::{BigEndian, Offset16};
+use read_fonts::FontData;
 
 /// The rule-based contexts: sequence context 1 and 2, chained 1 and 2.
 ///
-/// The compiled part is two indexes the font does not contain, and they are
-/// what makes this cheap on the fonts that lean on it hardest:
+/// One routine covers four formats because they differ in only two ways, and
+/// both are settled when the subtable is compiled: whether a position is
+/// compared against a glyph id or against a class, and whether a rule carries
+/// backtrack and lookahead. The rules themselves are variable-length arrays,
+/// so they stay in the font.
 ///
-/// * [`super::lookup::SetDigests`], one word per rule set, so a set that
-///   cannot match is thrown away before a single rule header is parsed.
-/// * [`super::lookup::RuleFirsts`], one byte per rule, so a rule whose first
-///   input step wants something the buffer does not offer is thrown away
-///   without parsing its header -- which is variable-length, so reaching that
-///   first value otherwise means walking the backtrack sequence out of the
-///   font.
+/// What is compiled is the class definitions, which every probe reads. A
+/// class-based context resolves a class per rule per position and a rule set
+/// can hold hundreds; this crate answers that from a cache in front of the
+/// font, and here it is an owned map with no font access at all.
+///
+/// The rule-set walk is this crate's own, and deliberately. It probes a rule's
+/// first two input values without parsing it, skips ahead over runs of rules
+/// sharing a first value, and accumulates exactly which concat hazard to
+/// report -- and that last part is a function of *which* probes ran, so it is
+/// not something to reimplement next to a filter that changes them. Layering
+/// the per-set and per-rule summaries on top is the next step, and it has to
+/// answer for those flags rather than merely be faster.
+///
+/// Flags: owed entirely by that walk, which reports a break hazard over a
+/// matched span and a concat hazard over the longest prefix any rule agreed
+/// with.
 pub fn at_rules(
-    _ctx: &mut Apply,
+    ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
-    _index: u32,
+    index: u32,
 ) -> Option<()> {
-    let SubtableKind::Rules { .. } = &sub.kind else {
+    let SubtableKind::Rules {
+        input_classes,
+        backtrack_classes,
+        lookahead_classes,
+        rule_sets,
+        base,
+        rule_set_count,
+        chained,
+        ..
+    } = &sub.kind
+    else {
         return None;
     };
-    None
+
+    // Which rule set. Format 1 indexes them by coverage rank -- which the gate
+    // already computed, and is the only reason that format ranks -- and format
+    // 2 by the first glyph's class, throwing the rank away.
+    let set_index = match input_classes {
+        Some(classes) => u32::from(classes.get(ctx.glyph())),
+        None => index,
+    };
+    if set_index >= u32::from(*rule_set_count) {
+        return None;
+    }
+    let offset = be16(ctx.table, *rule_sets as usize + set_index as usize * 2)?;
+    // A null offset means this glyph or class has no rules, which is most of
+    // them: the array has an entry per class whether or not it is used.
+    if offset == 0 {
+        return None;
+    }
+
+    let set = FontData::new(ctx.table.get(*base as usize + usize::from(offset)..)?);
+    let count = usize::from(set.read_at::<u16>(0).ok()?);
+    let rules: &[BigEndian<Offset16>] = set.read_array(2..2 + count * 2).ok()?;
+
+    match chained {
+        false => apply_context_rules(&mut *ctx.host, set, rules, |info, value| {
+            class_of(input_classes.as_deref(), info.glyph_id) == value
+        }),
+        true => apply_chain_context_rules(
+            &mut *ctx.host,
+            set,
+            rules,
+            (
+                |info: &mut GlyphInfo, value| {
+                    class_of(backtrack_classes.as_deref(), info.glyph_id) == value
+                },
+                |info: &mut GlyphInfo, value| {
+                    class_of(input_classes.as_deref(), info.glyph_id) == value
+                },
+                |info: &mut GlyphInfo, value| {
+                    class_of(lookahead_classes.as_deref(), info.glyph_id) == value
+                },
+            ),
+        ),
+    }
+}
+
+/// What a rule compares a position against.
+///
+/// Format 2 compares classes; format 1 compares glyph ids, which is the same
+/// question with the identity map, and is why there is one routine here rather
+/// than four.
+#[inline]
+fn class_of(classes: Option<&ClassMap>, glyph: u32) -> u32 {
+    match classes {
+        Some(map) => u32::from(map.get(glyph)),
+        None => glyph,
+    }
 }
 
 /// Format 3 of both contexts: one run of coverages, no rules.

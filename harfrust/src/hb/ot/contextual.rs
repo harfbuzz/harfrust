@@ -741,7 +741,7 @@ fn parse_chain_rule_at<'a>(
         .map(|d| ParsedRule::from_chain_rule_data(d).unwrap_or_default())
 }
 
-fn apply_context_rules(
+pub(super) fn apply_context_rules(
     ctx: &mut hb_ot_apply_context_t,
     set_data: FontData<'_>,
     rule_offsets: &[BigEndian<Offset16>],
@@ -938,7 +938,7 @@ fn apply_chain_with_sequences<
     Some(())
 }
 
-fn apply_chain_context_rules<
+pub(super) fn apply_chain_context_rules<
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
