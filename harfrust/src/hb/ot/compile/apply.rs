@@ -149,6 +149,7 @@ mod tests {
                         | SubtableKind::SingleList { .. }
                         | SubtableKind::Alternate { .. }
                         | SubtableKind::Ligature { .. }
+                        | SubtableKind::Multiple { .. }
                 )
             })
     }
@@ -322,6 +323,8 @@ mod tests {
         let cases = cases();
         let mut checked = 0usize;
         let mut effective = 0usize;
+        let mut grew = 0usize;
+        let mut shrank = 0usize;
         let mut failures = Vec::new();
 
         for case in &cases {
@@ -329,6 +332,11 @@ mod tests {
                 continue;
             };
             checked += 1;
+            match want.0.len().cmp(&case.glyphs.len()) {
+                core::cmp::Ordering::Greater => grew += 1,
+                core::cmp::Ordering::Less => shrank += 1,
+                core::cmp::Ordering::Equal => {}
+            }
             // Did the lookup do anything at all? Two paths that both leave the
             // buffer alone prove only that neither crashed.
             if want.0 != case.glyphs || want.1.iter().enumerate().any(|(i, &c)| c != i as u32) {
@@ -354,7 +362,22 @@ mod tests {
             "only {effective} of {checked} cases changed anything; the probes \
              are not exercising these formats"
         );
-        println!("{checked} cases agree, {effective} of them changing glyphs or clusters");
+        // Both directions of length change have to be reached, or a whole
+        // path is untested: ligature is the only format here that shortens
+        // the buffer, and multiple substitution the only one that lengthens
+        // it.
+        assert!(
+            shrank > 0,
+            "no case shortened the buffer; ligature untested"
+        );
+        assert!(
+            grew > 0,
+            "no case lengthened the buffer; the splice untested"
+        );
+        println!(
+            "{checked} cases agree, {effective} of them changing glyphs or \
+             clusters, {grew} lengthening the buffer and {shrank} shortening it"
+        );
     }
 
     /// The same cases with the caller asking for unsafe-to-concat, where the

@@ -20,7 +20,7 @@
 
 use super::be16;
 use super::lookup::{Apply, CompiledLookup, Subtable, SubtableKind};
-use crate::hb::buffer::GlyphInfo;
+use crate::hb::buffer::{GlyphInfo, GlyphPropsFlags};
 use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t,
 };
@@ -76,22 +76,69 @@ pub fn at_single_list(
 /// Multiple substitution: one glyph becomes a sequence, so this is the only
 /// format that can lengthen the buffer -- see [`super::lookup::LengthEffect`].
 ///
-/// Flags: the components inherit the input's cluster, so nothing is owed
-/// beyond what the buffer's own splice does.
+/// Flags: nothing owed beyond what the splice already does. Every piece
+/// carries the input's cluster, so a caller cannot break between them, and
+/// `output_glyph_for_component` is what arranges that.
 pub fn at_multiple(
-    _ctx: &mut Apply,
+    ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
-    _index: u32,
+    index: u32,
 ) -> Option<()> {
-    let SubtableKind::Multiple {
-        offset: _,
-        effect: _,
-    } = &sub.kind
-    else {
+    let SubtableKind::Multiple { offset, .. } = &sub.kind else {
         return None;
     };
-    None
+    // The sequences stay in the font: one per covered glyph, of which a run
+    // reads at most one. Two indexed reads to reach ours, then its length.
+    let base = *offset as usize;
+    if index >= u32::from(be16(ctx.table, base + 4)?) {
+        return None;
+    }
+    let seq = base + usize::from(be16(ctx.table, base + 6 + index as usize * 2)?);
+    let count = usize::from(be16(ctx.table, seq)?);
+    let subst = |i: usize| be16(ctx.table, seq + 2 + i * 2);
+
+    match count {
+        // The spec disallows an empty sequence, but Uniscribe accepts one and
+        // fonts ship it, so it deletes.
+        0 => ctx.host.buffer.delete_glyph(),
+        // One glyph out is an ordinary substitution. In place, and deliberately
+        // not recorded as a multiplication -- what follows must not treat the
+        // result as a component of anything.
+        1 => ctx.host.replace_glyph(GlyphId::from(u32::from(subst(0)?))),
+        _ => {
+            // A ligature being split yields base glyphs; anything else yields
+            // pieces whose class GDEF will decide.
+            let class = if ctx.host.buffer.cur(0).is_ligature() {
+                GlyphPropsFlags::BASE_GLYPH
+            } else {
+                GlyphPropsFlags::empty()
+            };
+            // Whether these pieces may be numbered as components at all. If
+            // this glyph is itself attached to a ligature, its component id
+            // belongs to that ligature and renumbering would detach the marks
+            // that point at it.
+            let attached = ctx.host.buffer.cur(0).lig_id() != 0;
+
+            for i in 0..count {
+                let glyph = GlyphId::from(u32::from(subst(i)?));
+                if !attached {
+                    // Truncated to four bits downstream, so the cast is safe
+                    // for any sequence a font can express.
+                    ctx.host
+                        .buffer
+                        .cur_mut(0)
+                        .set_lig_props_for_component(i as u8);
+                }
+                ctx.host.output_glyph_for_component(glyph, class);
+            }
+            // The input is consumed without being written: the pieces above
+            // replaced it. Every piece carries the input's cluster, which is
+            // what keeps a caller from breaking between them.
+            ctx.host.buffer.skip_glyph();
+        }
+    }
+    Some(())
 }
 
 /// Ligature substitution: walk the ligature set for the coverage index in font
