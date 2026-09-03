@@ -882,7 +882,7 @@ mod tests {
 
             let ideal = f64::from(advance) * f64::from(factor) / f64::from(upem);
             // Above this the `i32` result truncates rather than saturating,
-            // which is what HarfBuzz's `em_mult` does too.
+            // as HarfBuzz's `hb_font_t::em_mult` does.
             if ideal.abs() >= f64::from(1 << 30) {
                 return;
             }
@@ -901,11 +901,12 @@ mod tests {
         /// `mult` is `(scale << 16) / upem`, which reaches 2^47 for a `upem`
         /// of 1, and nothing bounds the product: a debug build panics and the
         /// workspace release profile (`overflow-checks = false`) wraps.
-        /// HarfBuzz computes the same expression in `hb_font_t::em_mult`,
-        /// where it wraps silently. The values that reach `scale_x` through
-        /// shaping today are `u16`-wide advances, which stay just inside
-        /// `i64::MAX` at the largest possible scale, so this is not
-        /// demonstrated through the public API.
+        /// HarfBuzz 14.4.0 computes the same expression, unguarded, in
+        /// `hb_font_t::em_mult` (11.3.3 took an `int16_t`, which cannot
+        /// overflow it). The values that reach `scale_x` through shaping
+        /// today are `u16`-wide advances, which stay just inside `i64::MAX`
+        /// at the largest possible scale, so this is not demonstrated
+        /// through the public API.
         #[test]
         #[ignore = "unguarded i64 multiply in Scale::scale_by_mult"]
         fn known_failure_scaling_a_wide_value_overflows() {
