@@ -66,21 +66,32 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
 /// applied in place.
 pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
     let mut applied = false;
+    // Read out of the context once. A nested lookup saves and restores all
+    // three, so they cannot change under this loop -- and hoisting them is what
+    // lets the scan below borrow the buffer as a plain slice.
+    let face = ctx.host.face;
+    let lookup_mask = ctx.host.lookup_mask();
+    let lookup_props = ctx.host.lookup_props;
+
     while ctx.host.buffer.successful {
         // Scan to the next position this lookup could touch. Three tests, and
         // the first is the compiled reach rather than a parse of the font.
         let idx = ctx.host.buffer.idx;
-        let mut j = idx;
-        while j < ctx.host.buffer.len {
-            let info = &ctx.host.buffer.info[j];
-            if lookup.reach.contains(info.glyph_id)
-                && (info.mask & ctx.host.lookup_mask()) != 0
-                && check_glyph_property(ctx.host.face, info, ctx.host.lookup_props)
-            {
-                break;
+        let j = {
+            let infos = &ctx.host.buffer.info[..ctx.host.buffer.len];
+            let mut j = idx;
+            while j < infos.len() {
+                let info = &infos[j];
+                if lookup.reach.contains(info.glyph_id)
+                    && (info.mask & lookup_mask) != 0
+                    && check_glyph_property(face, info, lookup_props)
+                {
+                    break;
+                }
+                j += 1;
             }
-            j += 1;
-        }
+            j
+        };
         if j > idx {
             ctx.host.buffer.next_glyphs(j - idx);
         }
