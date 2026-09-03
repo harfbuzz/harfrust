@@ -723,7 +723,17 @@ impl CompiledLookup {
 
     /// Build reusing `scratch`, so compiling a whole font does not allocate a
     /// fresh buffer per lookup.
-    pub fn new_in(props: u32, mut subtables: Vec<Subtable>, scratch: &mut Vec<u32>) -> Self {
+    pub fn new_in(props: u32, subtables: Vec<Subtable>, scratch: &mut Vec<u32>) -> Self {
+        Self::new_with(props, subtables, scratch, true)
+    }
+
+    /// Build, optionally without the glyph-to-subtable dispatch index.
+    pub fn new_with(
+        props: u32,
+        mut subtables: Vec<Subtable>,
+        scratch: &mut Vec<u32>,
+        accelerate: bool,
+    ) -> Self {
         // Built by pushing, so the capacity is rounded up to a power of two and
         // a lookup with five subtables has paid for eight. These live for as
         // long as the font cache does, and at 104 bytes each the slack is the
@@ -782,7 +792,9 @@ impl CompiledLookup {
 
         debug_assert!(!(reverse && pair_key.is_some()));
 
-        let dispatch = Dispatch::build(&subtables, &scratch_union, scratch);
+        let dispatch = accelerate
+            .then(|| Dispatch::build(&subtables, &scratch_union, scratch))
+            .flatten();
         let unsettling = effect != LengthEffect::Preserving
             || subtables.iter().any(|s| {
                 matches!(
@@ -1082,21 +1094,21 @@ impl Default for Program {
 impl Program {
     /// A program over `count` lookups, none of them compiled yet.
     pub fn new(count: u16, pool: Arc<Interner>) -> Self {
-        Self::with_table(count, pool, Table::Gsub, super::set::DEFAULT_BUDGET)
+        Self::with_table(count, pool, Table::Gsub, super::Detail::Full)
     }
 
     pub fn new_gpos(count: u16, pool: Arc<Interner>) -> Self {
-        Self::with_table(count, pool, Table::Gpos, super::set::DEFAULT_BUDGET)
+        Self::with_table(count, pool, Table::Gpos, super::Detail::Full)
     }
 
-    /// The same, at a chosen representation budget. See
-    /// [`Compiler::with_budget`](super::Compiler::with_budget).
-    pub fn new_with_budget(count: u16, pool: Arc<Interner>, budget: usize) -> Self {
-        Self::with_table(count, pool, Table::Gsub, budget)
+    /// The same, at a chosen level of precomputation. See
+    /// [`Detail`](super::Detail).
+    pub fn new_with_detail(count: u16, pool: Arc<Interner>, detail: super::Detail) -> Self {
+        Self::with_table(count, pool, Table::Gsub, detail)
     }
 
-    pub fn new_gpos_with_budget(count: u16, pool: Arc<Interner>, budget: usize) -> Self {
-        Self::with_table(count, pool, Table::Gpos, budget)
+    pub fn new_gpos_with_detail(count: u16, pool: Arc<Interner>, detail: super::Detail) -> Self {
+        Self::with_table(count, pool, Table::Gpos, detail)
     }
 
     /// A program over lookups that are already compiled.
@@ -1105,7 +1117,7 @@ impl Program {
     /// lookup list -- tests that build a lookup by hand, mostly. `get` never
     /// compiles here: every slot is already filled.
     pub fn prebuilt(lookups: Vec<Option<CompiledLookup>>, pool: Arc<Interner>) -> Self {
-        let mut p = Self::with_table(0, pool, Table::Gsub, super::set::DEFAULT_BUDGET);
+        let mut p = Self::with_table(0, pool, Table::Gsub, super::Detail::Full);
         p.lookups = lookups
             .into_iter()
             .map(|l| {
@@ -1117,8 +1129,8 @@ impl Program {
         p
     }
 
-    fn with_table(count: u16, pool: Arc<Interner>, table: Table, budget: usize) -> Self {
-        let compiler = Mutex::new(Compiler::with_budget(Arc::clone(&pool), budget));
+    fn with_table(count: u16, pool: Arc<Interner>, table: Table, detail: super::Detail) -> Self {
+        let compiler = Mutex::new(Compiler::with_detail(Arc::clone(&pool), detail));
         let mut lookups = Vec::new();
         lookups.resize_with(usize::from(count), OnceLock::new);
         Self {

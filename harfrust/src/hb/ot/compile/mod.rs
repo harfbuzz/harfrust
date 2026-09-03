@@ -93,6 +93,69 @@ use self::lookup::{
 };
 use self::set::{ClassMap, Coverage, GlyphSet, Interner};
 
+/// How much precomputation to keep alongside the compiled lookups.
+///
+/// Everything here is optional in the strict sense: dropping any of it changes
+/// how long shaping takes and nothing else. What is *not* optional is the
+/// compiled coverages and class definitions, which are what a lookup is
+/// probed through -- so this dial cannot take the memory to zero, and the
+/// levels below are the whole of what it can give back.
+///
+/// See the `detail_cost` report for what each level costs in time and saves in
+/// space; the short version is that the two accelerators are cheap to keep and
+/// the rule summaries are not optional in practice.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub enum Detail {
+    /// Everything. The default, and what the benchmarks measure.
+    #[default]
+    Full,
+    /// Without the two per-lookup accelerators: the glyph-to-subtable dispatch
+    /// index, and the pair filter that rejects a kerning candidate on the two
+    /// glyphs together. Both are pure speed -- a lookup without them tries its
+    /// subtables in order and asks the font.
+    Lean,
+    /// Also without the rule-set summaries, so a context enters every rule set
+    /// its coverage admits and probes the rules one at a time.
+    Minimal,
+}
+
+impl Detail {
+    /// Whether to build the per-lookup accelerators.
+    fn accelerators(self) -> bool {
+        matches!(self, Detail::Full)
+    }
+
+    /// Whether to summarise rule sets.
+    fn rule_summaries(self) -> bool {
+        !matches!(self, Detail::Minimal)
+    }
+}
+
+/// The level to compile at, from the environment.
+///
+/// A measurement affordance, not an interface: the level belongs on whatever
+/// builds a shaper, and putting it there means threading an option through
+/// `ShaperData`. Read once, so a process cannot change level halfway.
+///
+/// `HARFRUST_COMPILE_DETAIL=lean` or `=minimal`; anything else is `full`.
+#[cfg(feature = "std")]
+pub fn detail_from_env() -> Detail {
+    use std::sync::OnceLock;
+    static LEVEL: OnceLock<Detail> = OnceLock::new();
+    *LEVEL.get_or_init(
+        || match std::env::var("HARFRUST_COMPILE_DETAIL").as_deref() {
+            Ok("lean") => Detail::Lean,
+            Ok("minimal") => Detail::Minimal,
+            _ => Detail::Full,
+        },
+    )
+}
+
+#[cfg(not(feature = "std"))]
+pub fn detail_from_env() -> Detail {
+    Detail::Full
+}
+
 /// Which fields a GPOS value record carries.
 ///
 /// Only the *sizes* live here, not the reading: a record's size is what decides
@@ -160,6 +223,7 @@ impl Default for Compiler {
             union: Vec::new(),
             pool: Arc::default(),
             budget: set::DEFAULT_BUDGET,
+            detail: Detail::Full,
         }
     }
 }
@@ -182,6 +246,8 @@ pub struct Compiler {
     /// How much a compiled set may spend before a cheaper representation is
     /// preferred. See [`set::pick`] and [`Compiler::with_budget`].
     budget: usize,
+    /// How much precomputation to keep. See [`Detail`].
+    detail: Detail,
 }
 
 impl Compiler {
@@ -194,6 +260,15 @@ impl Compiler {
     pub fn with_pool(pool: Arc<Interner>) -> Self {
         Self {
             pool,
+            ..Self::default()
+        }
+    }
+
+    /// The same, at a chosen level of precomputation. See [`Detail`].
+    pub fn with_detail(pool: Arc<Interner>, detail: Detail) -> Self {
+        Self {
+            pool,
+            detail,
             ..Self::default()
         }
     }
@@ -337,10 +412,11 @@ impl Compiler {
             }
         }
 
-        Ok(CompiledLookup::new_in(
+        Ok(CompiledLookup::new_with(
             props_of(flag, filtering_set),
             subtables,
             &mut self.union,
+            self.detail.accelerators(),
         ))
     }
 
@@ -526,6 +602,7 @@ impl Compiler {
                     at as u32,
                     t.chained_seq_rule_set_count(),
                     true,
+                    self.detail.rule_summaries(),
                 );
                 Ok(Subtable::ranked(
                     self.coverage_or_empty(t.coverage()),
@@ -549,6 +626,7 @@ impl Compiler {
                     at as u32,
                     t.chained_class_seq_rule_set_count(),
                     true,
+                    self.detail.rule_summaries(),
                 );
                 Ok(Subtable::member(
                     self.coverage_or_empty(t.coverage()),
@@ -587,6 +665,7 @@ impl Compiler {
                     at as u32,
                     t.seq_rule_set_count(),
                     false,
+                    self.detail.rule_summaries(),
                 );
                 Ok(Subtable::ranked(
                     self.coverage_or_empty(t.coverage()),
@@ -609,6 +688,7 @@ impl Compiler {
                     at as u32,
                     t.class_seq_rule_set_count(),
                     false,
+                    self.detail.rule_summaries(),
                 );
                 Ok(Subtable::member(
                     self.coverage_or_empty(t.coverage()),
@@ -921,10 +1001,16 @@ impl Compiler {
             }
         }
 
-        let mut lookup =
-            CompiledLookup::new_in(props_of(flag, filtering_set), subtables, &mut self.union);
+        let mut lookup = CompiledLookup::new_with(
+            props_of(flag, filtering_set),
+            subtables,
+            &mut self.union,
+            self.detail.accelerators(),
+        );
         // Only positioning has pair lookups, and only here is the font at hand.
-        lookup.pair_filter = pair_filter(data, &lookup, &mut self.glyphs);
+        if self.detail.accelerators() {
+            lookup.pair_filter = pair_filter(data, &lookup, &mut self.glyphs);
+        }
         Ok(lookup)
     }
 
@@ -1152,18 +1238,14 @@ pub fn compile_gsub_program(gsub: &Gsub) -> Program {
 /// Worth using over the two separately: GSUB and GPOS name many of the same
 /// coverages, and interning across the pair is what collapses them to one copy.
 pub fn compile_font(gsub: Option<&Gsub>, gpos: Option<&Gpos>) -> (Program, Program) {
-    compile_font_with_budget(gsub, gpos, set::DEFAULT_BUDGET)
+    compile_font_with_detail(gsub, gpos, Detail::Full)
 }
 
-/// The same, at a chosen representation budget.
-///
-/// The budget is the one dial worth exposing: it decides, per compiled set,
-/// whether to spend memory on a bitmap or time on a binary search. Everything
-/// else about the compiled form is fixed by the font.
-pub fn compile_font_with_budget(
+/// The same, keeping less precomputation. See [`Detail`].
+pub fn compile_font_with_detail(
     gsub: Option<&Gsub>,
     gpos: Option<&Gpos>,
-    budget: usize,
+    detail: Detail,
 ) -> (Program, Program) {
     let pool = Arc::<Interner>::default();
     let gsub_count = gsub
@@ -1173,8 +1255,8 @@ pub fn compile_font_with_budget(
         .and_then(|t| t.lookup_list().ok())
         .map_or(0, |l| l.lookup_count());
     (
-        Program::new_with_budget(gsub_count, Arc::clone(&pool), budget),
-        Program::new_gpos_with_budget(gpos_count, pool, budget),
+        Program::new_with_detail(gsub_count, Arc::clone(&pool), detail),
+        Program::new_gpos_with_detail(gpos_count, pool, detail),
     )
 }
 
@@ -1284,7 +1366,13 @@ fn rule_index(
     base: u32,
     count: u16,
     chained: bool,
+    summarise: bool,
 ) -> (SetDigests, RuleFirsts) {
+    if !summarise {
+        // An empty summary admits everything, which is what a filter must do
+        // when it knows nothing.
+        return (SetDigests::default(), RuleFirsts::default());
+    }
     let mut starts: Vec<u32> = Vec::with_capacity(usize::from(count) + 1);
     let mut firsts: Vec<u8> = Vec::new();
     let digests = SetDigests::build(count, |set| {
@@ -1480,7 +1568,6 @@ mod heap_cost {
     use crate::hb::ot::lookup::LookupCache;
     use crate::FontRef;
     use read_fonts::TableProvider;
-    use set::DEFAULT_BUDGET;
 
     /// Both tables of a font, as bytes and as parsed tables.
     struct Font<'a> {
@@ -1561,8 +1648,8 @@ mod heap_cost {
         }
     }
 
-    fn parts(f: &Font<'_>, budget: usize) -> Parts {
-        let (sub, pos) = compile_font_with_budget(f.gsub.as_ref(), f.gpos.as_ref(), budget);
+    fn parts(f: &Font<'_>, detail: Detail) -> Parts {
+        let (sub, pos) = compile_font_with_detail(f.gsub.as_ref(), f.gpos.as_ref(), detail);
         let mut p = Parts::default();
         for (program, bytes) in [(&sub, &f.gsub_bytes), (&pos, &f.gpos_bytes)] {
             p.slots += program.len() * size_of::<lookup::CompiledLookupSlot>();
@@ -1587,8 +1674,8 @@ mod heap_cost {
     }
 
     /// What the compiled path holds for the same font, at a given set budget.
-    fn compiled(f: &Font<'_>, budget: usize) -> usize {
-        let (sub, pos) = compile_font_with_budget(f.gsub.as_ref(), f.gpos.as_ref(), budget);
+    fn compiled(f: &Font<'_>, detail: Detail) -> usize {
+        let (sub, pos) = compile_font_with_detail(f.gsub.as_ref(), f.gpos.as_ref(), detail);
         if let Some(b) = &f.gsub_bytes {
             for i in 0..sub.len() as u16 {
                 let _ = sub.get(i, b);
@@ -1646,7 +1733,7 @@ mod heap_cost {
             let reps = 20;
             let start = std::time::Instant::now();
             for _ in 0..reps {
-                let _ = parts(f, DEFAULT_BUDGET);
+                let _ = parts(f, Detail::Full);
             }
             start.elapsed().as_secs_f64() * 1000.0 / f64::from(reps)
         };
@@ -1666,7 +1753,7 @@ mod heap_cost {
             let font = FontRef::new(&data).unwrap();
             let f = load(&font);
             let interp = interpreted(&f);
-            let p = parts(&f, DEFAULT_BUDGET);
+            let p = parts(&f, Detail::Full);
             println!(
                 "{:<32} {:>10.1} {:>10.1} {:>6.2}x  {:>7.1} {:>7.1} {:>7.1} {:>8.1} {:>6.1}",
                 path.file_name().unwrap().to_string_lossy(),
@@ -1685,7 +1772,7 @@ mod heap_cost {
             ));
             budgets.push((
                 path.file_name().unwrap().to_string_lossy().into_owned(),
-                [64usize, 128, DEFAULT_BUDGET, 1024, 4096].map(|b| compiled(&f, b)),
+                [Detail::Full, Detail::Lean, Detail::Minimal].map(|d| compiled(&f, d)),
             ));
         }
         println!();
@@ -1694,17 +1781,15 @@ mod heap_cost {
         }
         println!();
         println!(
-            "{:<32} {:>9} {:>9} {:>9} {:>9} {:>9}",
-            "budget", "64", "128", "384", "1024", "4096"
+            "{:<32} {:>9} {:>9} {:>9}",
+            "detail", "full", "lean", "minimal"
         );
         for (name, at) in budgets {
             println!(
-                "{name:<32} {:>9.1} {:>9.1} {:>9.1} {:>9.1} {:>9.1}",
+                "{name:<32} {:>9.1} {:>9.1} {:>9.1}",
                 kib(at[0]),
                 kib(at[1]),
-                kib(at[2]),
-                kib(at[3]),
-                kib(at[4])
+                kib(at[2])
             );
         }
         println!();
