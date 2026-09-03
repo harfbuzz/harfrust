@@ -96,6 +96,50 @@ pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
     applied
 }
 
+/// One descending pass over the buffer, for a reverse lookup.
+///
+/// Reverse chaining substitution is the only thing that runs this way, and the
+/// direction is the format rather than an optimisation: a fraction font
+/// substitutes a digit for its numerator form when what follows is the
+/// fraction slash *or another numerator*, so each position's rule can only
+/// match because the one to its right was already decided. Running forwards,
+/// the chain could not propagate.
+///
+/// Simpler than the forward pass, and every difference follows from that. No
+/// output buffer, because the substitution is in place. No cursor advance,
+/// because a one-glyph input consumes nothing a later position wanted -- the
+/// format leaves the cursor alone and this owns it.
+pub fn apply_backward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
+    let mut applied = false;
+    // Read out of the context once: these cannot change under a reverse
+    // lookup, which neither recurses nor alters the buffer's length.
+    let face = ctx.host.face;
+    let lookup_mask = ctx.host.lookup_mask();
+    let lookup_props = ctx.host.lookup_props;
+
+    loop {
+        let idx = ctx.host.buffer.idx;
+        let candidate = ctx.host.buffer.info[..=idx].iter().rposition(|info| {
+            lookup.reach.contains(info.glyph_id)
+                && (info.mask & lookup_mask) != 0
+                && check_glyph_property(face, info, lookup_props)
+        });
+        let Some(at) = candidate else {
+            ctx.host.buffer.idx = 0;
+            break;
+        };
+
+        ctx.host.buffer.idx = at;
+        applied |= apply_at(ctx, lookup).is_some();
+
+        if at == 0 {
+            break;
+        }
+        ctx.host.buffer.idx = at - 1;
+    }
+    applied
+}
+
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
@@ -103,6 +147,7 @@ mod tests {
     use crate::hb::face::Scale;
     use crate::hb::ot::compile::compile_gsub_program;
     use crate::hb::ot::compile::lookup::{Program, SubtableKind};
+    use crate::hb::ot::compile::set::GlyphSet;
     use crate::hb::ot_layout::{apply_synthesized_subst_lookup, TableIndex};
     use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
     use crate::BufferFlags;
@@ -124,6 +169,10 @@ mod tests {
         data: Vec<u8>,
         index: u16,
         glyphs: Vec<u32>,
+        /// Whether this lookup runs from the end of the buffer towards the
+        /// start. Tracked so the descending pass can be shown to have done
+        /// something rather than assumed to.
+        reverse: bool,
     }
 
     /// What a run left behind: glyphs, clusters, and the flag masks.
@@ -150,6 +199,7 @@ mod tests {
                         | SubtableKind::Alternate { .. }
                         | SubtableKind::Ligature { .. }
                         | SubtableKind::Multiple { .. }
+                        | SubtableKind::ReverseChain { .. }
                 )
             })
     }
@@ -169,6 +219,43 @@ mod tests {
         reach.truncate(MAX_GLYPHS - 1);
         reach.push(0);
         let mut out = vec![reach];
+
+        // A reverse chain only fires when the glyphs either side are in its
+        // backtrack and lookahead coverages, so build one buffer that is: one
+        // glyph from each set, the backtrack laid out in buffer order.
+        for sub in &lookup.subtables {
+            let SubtableKind::ReverseChain {
+                backtrack,
+                lookahead,
+                ..
+            } = &sub.kind
+            else {
+                continue;
+            };
+            let Some(&covered) = sub.cov.to_vec().first() else {
+                continue;
+            };
+            let one = |set: &GlyphSet| set.to_vec().first().copied();
+            let Some(before) = backtrack
+                .iter()
+                .rev()
+                .map(|s| one(s))
+                .collect::<Option<Vec<u32>>>()
+            else {
+                continue;
+            };
+            let Some(after) = lookahead
+                .iter()
+                .map(|s| one(s))
+                .collect::<Option<Vec<u32>>>()
+            else {
+                continue;
+            };
+            let mut seq = before;
+            seq.push(covered);
+            seq.extend(after);
+            out.push(seq);
+        }
 
         for sub in ligature_subtables(gsub, index) {
             let Ok(cov) = sub.coverage() else { continue };
@@ -242,6 +329,11 @@ mod tests {
                 if !all_implemented(&program, index, &table) {
                     continue;
                 }
+                let reverse = program.get(index, &table).is_some_and(|l| {
+                    l.subtables
+                        .iter()
+                        .any(|s| matches!(s.kind, SubtableKind::ReverseChain { .. }))
+                });
                 for glyphs in probes(&gsub, &program, index, &table) {
                     if glyphs.len() < 2 {
                         continue;
@@ -251,6 +343,7 @@ mod tests {
                         data: data.clone(),
                         index,
                         glyphs,
+                        reverse,
                     });
                 }
             }
@@ -266,9 +359,10 @@ mod tests {
         let (table, info) = face
             .ot_tables
             .table_data_and_lookup(TableIndex::GSUB, case.index)?;
-        if !info.is_subst || info.is_reverse() {
+        if !info.is_subst {
             return None;
         }
+        let reverse = info.is_reverse();
 
         let mut buffer = Buffer::new();
         for (i, &g) in case.glyphs.iter().enumerate() {
@@ -289,23 +383,65 @@ mod tests {
         ctx.lookup_index = case.index;
         ctx.set_lookup_mask(1);
 
-        if mine {
-            let gsub = font.gsub().ok()?;
-            let program = compile_gsub_program(&gsub);
-            let compiled = program.get(case.index, table)?;
-            ctx.lookup_props = info.props();
-            ctx.update_matchers();
-            ctx.buffer.clear_output();
-            ctx.buffer.idx = 0;
-            let mut apply = Apply {
-                host: &mut ctx,
-                table,
-                program: &program,
-            };
-            apply_forward(&mut apply, compiled);
-            ctx.buffer.sync();
-        } else {
-            apply_synthesized_subst_lookup(&mut ctx, info, table);
+        ctx.lookup_props = info.props();
+        ctx.update_matchers();
+
+        match (mine, reverse) {
+            (true, false) => {
+                let gsub = font.gsub().ok()?;
+                let program = compile_gsub_program(&gsub);
+                let compiled = program.get(case.index, table)?;
+                ctx.buffer.clear_output();
+                ctx.buffer.idx = 0;
+                let mut apply = Apply {
+                    host: &mut ctx,
+                    table,
+                    program: &program,
+                };
+                apply_forward(&mut apply, compiled);
+                ctx.buffer.sync();
+            }
+            (true, true) => {
+                let gsub = font.gsub().ok()?;
+                let program = compile_gsub_program(&gsub);
+                let compiled = program.get(case.index, table)?;
+                ctx.buffer.idx = ctx.buffer.len - 1;
+                let mut apply = Apply {
+                    host: &mut ctx,
+                    table,
+                    program: &program,
+                };
+                apply_backward(&mut apply, compiled);
+            }
+            (false, false) => apply_synthesized_subst_lookup(&mut ctx, info, table),
+            // This crate has no entry point that applies one reverse lookup,
+            // so the loop is written out here. It is the same loop both sides
+            // run, which is the point: what this compares is the format, not
+            // the pass around it.
+            (false, true) => {
+                ctx.buffer.idx = ctx.buffer.len - 1;
+                let face = ctx.face;
+                let mask = ctx.lookup_mask();
+                let props = ctx.lookup_props;
+                loop {
+                    let idx = ctx.buffer.idx;
+                    let candidate = ctx.buffer.info[..=idx].iter().rposition(|i| {
+                        info.digest().may_have(i.glyph_id)
+                            && (i.mask & mask) != 0
+                            && check_glyph_property(face, i, props)
+                    });
+                    let Some(at) = candidate else {
+                        ctx.buffer.idx = 0;
+                        break;
+                    };
+                    ctx.buffer.idx = at;
+                    info.apply(&mut ctx, table, false);
+                    if at == 0 {
+                        break;
+                    }
+                    ctx.buffer.idx = at - 1;
+                }
+            }
         }
 
         let n = buffer.len;
@@ -325,6 +461,7 @@ mod tests {
         let mut effective = 0usize;
         let mut grew = 0usize;
         let mut shrank = 0usize;
+        let mut reversed = 0usize;
         let mut failures = Vec::new();
 
         for case in &cases {
@@ -339,8 +476,13 @@ mod tests {
             }
             // Did the lookup do anything at all? Two paths that both leave the
             // buffer alone prove only that neither crashed.
-            if want.0 != case.glyphs || want.1.iter().enumerate().any(|(i, &c)| c != i as u32) {
+            let changed =
+                want.0 != case.glyphs || want.1.iter().enumerate().any(|(i, &c)| c != i as u32);
+            if changed {
                 effective += 1;
+                if case.reverse {
+                    reversed += 1;
+                }
             }
             if got != want {
                 failures.push(format!(
@@ -374,9 +516,14 @@ mod tests {
             grew > 0,
             "no case lengthened the buffer; the splice untested"
         );
+        assert!(
+            reversed > 0,
+            "no reverse lookup changed anything; the descending pass is untested"
+        );
         println!(
             "{checked} cases agree, {effective} of them changing glyphs or \
-             clusters, {grew} lengthening the buffer and {shrank} shortening it"
+             clusters, {grew} lengthening the buffer, {shrank} shortening it \
+             and {reversed} substituting on the descending pass"
         );
     }
 

@@ -21,8 +21,10 @@
 use super::be16;
 use super::lookup::{Apply, CompiledLookup, Subtable, SubtableKind};
 use crate::hb::buffer::{GlyphInfo, GlyphPropsFlags};
+use crate::hb::ot_layout::MAX_NESTING_LEVEL;
 use crate::hb::ot_layout_gsubgpos::{
-    ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t,
+    ligate_input, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
+    may_skip_t, skipping_iterator_t,
 };
 use crate::hb::ot_map::hb_ot_map_t;
 use read_fonts::tables::gsub::{Ligature, LigatureSet};
@@ -373,18 +375,76 @@ pub fn at_alternate(
 /// lookahead included -- the substitution depended on glyphs either side, so
 /// neither side can be cut away from it.
 pub fn at_reverse_chain(
-    _ctx: &mut Apply,
+    ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
-    _index: u32,
+    index: u32,
 ) -> Option<()> {
     let SubtableKind::ReverseChain {
-        backtrack: _,
-        lookahead: _,
-        subst: _,
+        backtrack,
+        lookahead,
+        subst,
     } = &sub.kind
     else {
         return None;
     };
-    None
+    // Nothing may chain to this type, so being here at any depth but the top
+    // means a font asked for something the format does not offer.
+    if ctx.host.nesting_level_left != MAX_NESTING_LEVEL {
+        return None;
+    }
+    // Read the substitute before walking the context: one indexed big-endian
+    // load that cannot fail for a well-formed font, and a malformed one must
+    // not be allowed to match, so bailing here saves the walk rather than
+    // discovering the missing glyph after paying for it.
+    let glyph = subst.get(ctx.table, index)?;
+
+    let mut start = 0;
+    let mut end = 0;
+    // Two walks, and the second only if the first got anywhere. Split rather
+    // than chained with `&&` because the lookahead has to start after the input
+    // glyph, and reading the cursor for that needs the borrow the first walk
+    // holds.
+    let matched = match_backtrack(
+        &mut *ctx.host,
+        backtrack.len() as u16,
+        |info: &mut GlyphInfo, i: u32| {
+            backtrack
+                .get(i as usize)
+                .is_some_and(|set| set.contains(info.glyph_id))
+        },
+        &mut start,
+    );
+    let after = ctx.host.buffer.idx + 1;
+    let matched = matched
+        && match_lookahead(
+            &mut *ctx.host,
+            lookahead.len() as u16,
+            |info: &mut GlyphInfo, i: u32| {
+                lookahead
+                    .get(i as usize)
+                    .is_some_and(|set| set.contains(info.glyph_id))
+            },
+            after,
+            &mut end,
+        );
+
+    if !matched {
+        ctx.host
+            .buffer
+            .unsafe_to_concat_from_outbuffer(Some(start), Some(end));
+        return None;
+    }
+
+    // The context on both sides decided this substitution, so neither side can
+    // be cut away from it -- which is why the whole matched span is marked,
+    // not just the position that changed.
+    ctx.host
+        .buffer
+        .unsafe_to_break_from_outbuffer(Some(start), Some(end));
+    ctx.host
+        .replace_glyph_inplace(GlyphId::from(u32::from(glyph)));
+    // Deliberately not advancing: the descending loop owns the cursor. Leaving
+    // it alone is also what keeps this harmless if a font does chain to it.
+    Some(())
 }
