@@ -13,8 +13,7 @@
 //!
 //! Every one of these is a stub. See [`super::gsub`].
 
-use super::lookup::host::hb_ot_apply_context_t;
-use super::lookup::{CompiledLookup, Subtable, SubtableKind};
+use super::lookup::{Apply, CompiledLookup, Subtable, SubtableKind};
 
 /// The rule-based contexts: sequence context 1 and 2, chained 1 and 2.
 ///
@@ -29,7 +28,7 @@ use super::lookup::{CompiledLookup, Subtable, SubtableKind};
 ///   first value otherwise means walking the backtrack sequence out of the
 ///   font.
 pub fn at_rules(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,
@@ -47,7 +46,7 @@ pub fn at_rules(
 /// tables. The first input coverage is not among them: it is the gate, and it
 /// lives on the [`Subtable`] alongside every other format's.
 pub fn at_chain3(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,

@@ -188,12 +188,42 @@ impl SetDigests {
 ///
 /// In the shaper this came from the block named five things: a context, a
 /// buffer, a matcher, a match-position array and the dispatch. HarfBuzz bundles
-/// all of those into its apply context, so here it names one.
+/// all of those into its apply context, so here it names one -- which [`Apply`]
+/// then pairs with the layout table and the program.
 pub(crate) mod host {
     pub use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 }
 
 use host::hb_ot_apply_context_t;
+
+/// What every format needs beyond the payload it borrowed.
+///
+/// Built once per lookup, not once per position. Three things, and the reason
+/// each is here rather than fetched:
+///
+/// * `host` is the shaper's own context, which already carries the buffer, the
+///   two matchers, the match-position array and the nesting budget.
+/// * `table` is the layout table every compiled offset is relative to. It is
+///   reachable as `host.face.ot_tables.table_data(host.table_index)`, but that
+///   is an `Option` and two derefs to answer a question whose answer cannot
+///   change while a lookup runs.
+/// * `program` is how a context reaches the lookups it invokes. Holding it
+///   here is also what lets the compiled form stay free of lifetimes: the
+///   offsets in it mean nothing without `table`, and this is where the two are
+///   brought back together.
+pub struct Apply<'a, 'f> {
+    pub host: &'a mut hb_ot_apply_context_t<'f>,
+    pub table: &'a [u8],
+    pub program: &'a Program,
+}
+
+impl Apply<'_, '_> {
+    /// The glyph at the cursor, which is the position a format was gated on.
+    #[inline]
+    pub fn glyph(&self) -> u32 {
+        self.host.buffer.cur(0).glyph_id
+    }
+}
 
 /// How to apply one subtable.
 ///
@@ -206,7 +236,7 @@ use host::hb_ot_apply_context_t;
 /// the nesting budget is `ctx.nesting_level_left`. Returning `Option<()>`
 /// rather than an end position follows the convention here, where a format
 /// advances the cursor itself.
-pub type ApplyFn = fn(&mut hb_ot_apply_context_t, &CompiledLookup, &Subtable, u32) -> Option<()>;
+pub type ApplyFn = fn(&mut Apply, &CompiledLookup, &Subtable, u32) -> Option<()>;
 
 /// Which function applies this format. Resolved once, when the subtable is
 /// compiled, so no format is ever matched on at apply time.

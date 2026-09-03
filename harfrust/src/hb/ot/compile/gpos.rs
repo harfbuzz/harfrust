@@ -9,13 +9,12 @@
 //!
 //! Every one of these is a stub. See [`super::gsub`].
 
-use super::lookup::host::hb_ot_apply_context_t;
-use super::lookup::{CompiledLookup, Subtable, SubtableKind};
+use super::lookup::{Apply, CompiledLookup, Subtable, SubtableKind};
 
 /// Single positioning, both formats: one value record, either shared by the
 /// whole coverage or indexed by the coverage rank.
 pub fn at_single_pos(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,
@@ -33,7 +32,7 @@ pub fn at_single_pos(
 /// key, which lets a candidate be rejected on the glyph that follows it before
 /// the font is touched at all.
 pub fn at_pair1(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,
@@ -47,7 +46,7 @@ pub fn at_pair1(
 /// Pair positioning format 2: both glyphs resolve to classes and the record is
 /// at the intersection, so the lookup is a matrix index rather than a search.
 pub fn at_pair2(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,
@@ -61,7 +60,7 @@ pub fn at_pair2(
 /// Cursive attachment: the exit anchor of one glyph meets the entry anchor of
 /// the next, and which of the two moves depends on the run's direction.
 pub fn at_cursive(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,
@@ -78,7 +77,7 @@ pub fn at_cursive(
 /// its anchors are laid out, not in what happens once it is -- so they share a
 /// routine and carry an [`super::lookup::AttachTo`] to say which.
 pub fn at_mark_to(
-    _ctx: &mut hb_ot_apply_context_t,
+    _ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
     _index: u32,

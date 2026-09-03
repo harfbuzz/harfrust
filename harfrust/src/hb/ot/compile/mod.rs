@@ -58,6 +58,7 @@
 // and a silent one.
 #![allow(dead_code)]
 
+pub mod apply;
 pub mod contextual;
 pub mod gpos;
 pub mod gsub;
@@ -1282,7 +1283,7 @@ fn pair_digests(
 const PAIR_SET_OFFSETS: usize = 10;
 
 /// A big-endian `u16` at a byte offset, bounds checked.
-fn be16(data: &[u8], at: usize) -> Option<u16> {
+pub(super) fn be16(data: &[u8], at: usize) -> Option<u16> {
     let bytes: [u8; 2] = data.get(at..at + 2)?.try_into().ok()?;
     Some(u16::from_be_bytes(bytes))
 }
