@@ -144,17 +144,22 @@ pub fn apply_backward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
 mod tests {
     use super::*;
     use crate::hb::buffer::Buffer;
+    use crate::hb::common::Direction;
     use crate::hb::face::Scale;
-    use crate::hb::ot::compile::compile_gsub_program;
     use crate::hb::ot::compile::lookup::{Program, SubtableKind};
     use crate::hb::ot::compile::set::GlyphSet;
+    use crate::hb::ot::compile::{compile_gpos_program, compile_gsub_program};
     use crate::hb::ot_layout::{apply_synthesized_subst_lookup, TableIndex};
     use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
     use crate::BufferFlags;
     use crate::{FontRef, ShaperData};
+    use read_fonts::tables::gpos::{
+        ExtensionSubtable as PosExtension, Gpos, PairPos, PositionLookup,
+    };
     use read_fonts::tables::gsub::{
         ExtensionSubtable, Gsub, LigatureSubstFormat1, SubstitutionLookup,
     };
+    use read_fonts::types::GlyphId;
     use read_fonts::TableProvider;
 
     /// Longest buffer a case builds, so a lookup with a huge coverage does not
@@ -592,6 +597,334 @@ mod tests {
             "{checked} cases agree on glyphs and clusters; {fewer} mark fewer \
              concat hazards than this crate does"
         );
+    }
+
+    // ---- positioning ----------------------------------------------------
+    //
+    // The same shape of differential, but the answer is positions rather than
+    // glyphs, so it needs its own probes and its own comparison. Pair
+    // positioning in particular will not fire on arbitrary glyphs: the probes
+    // below are built from the pairs and classes the font itself names.
+
+    /// Advance and offset per position, which is the whole of what GPOS does.
+    type Positions = Vec<(i32, i32, i32, i32)>;
+
+    /// Whether every subtable of this GPOS lookup is a format implemented so
+    /// far.
+    fn gpos_implemented(program: &Program, index: u16, table: &[u8]) -> bool {
+        let Some(lookup) = program.get(index, table) else {
+            return false;
+        };
+        !lookup.subtables.is_empty()
+            && lookup.subtables.iter().all(|s| {
+                matches!(
+                    s.kind,
+                    SubtableKind::SinglePos { .. }
+                        | SubtableKind::PairPos1 { .. }
+                        | SubtableKind::PairPos2 { .. }
+                )
+            })
+    }
+
+    /// Buffers worth running a positioning lookup over.
+    ///
+    /// Single positioning is happy with any covered glyph, but a pair format
+    /// needs two glyphs that actually pair. Format 1 names its pairs outright,
+    /// so those are read straight out of the font. Format 2 names classes, so
+    /// glyphs are sampled one per class -- pairing a covered glyph with one
+    /// representative of each second class reaches a spread of matrix cells,
+    /// including the mostly-zero ones the row summaries exist to skip.
+    fn gpos_probes(gpos: &Gpos, program: &Program, index: u16, table: &[u8]) -> Vec<Vec<u32>> {
+        let lookup = program.get(index, table).unwrap();
+        let mut reach = lookup.reach.to_vec();
+        reach.truncate(MAX_GLYPHS - 1);
+        reach.push(0);
+        let mut out = vec![reach];
+
+        for sub in pair_subtables(gpos, index) {
+            match sub {
+                PairPos::Format1(t) => {
+                    let Ok(cov) = t.coverage() else { continue };
+                    let sets = t.pair_sets();
+                    for (i, first) in cov.iter().enumerate().take(MAX_CASES) {
+                        let Ok(set) = sets.get(i) else { continue };
+                        for rec in set
+                            .pair_value_records()
+                            .iter()
+                            .filter_map(Result::ok)
+                            .take(MAX_CASES)
+                        {
+                            out.push(vec![first.to_u32(), rec.second_glyph.get().to_u32()]);
+                        }
+                    }
+                }
+                PairPos::Format2(t) => {
+                    let Ok(cov) = t.coverage() else { continue };
+                    let Ok(class2) = t.class_def2() else { continue };
+                    // One glyph per second class, found by probing. There is no
+                    // reverse index from class to glyph in the format.
+                    let mut seen = alloc::collections::BTreeMap::new();
+                    for gid in 0..2048u32 {
+                        let class = class2.get(GlyphId::from(gid));
+                        if class < t.class2_count() {
+                            seen.entry(class).or_insert(gid);
+                        }
+                    }
+                    for first in cov.iter().take(MAX_CASES) {
+                        for second in seen.values().take(MAX_CASES) {
+                            out.push(vec![first.to_u32(), *second]);
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Pair subtables of one lookup, through an extension or not.
+    fn pair_subtables<'a>(gpos: &Gpos<'a>, index: u16) -> Vec<PairPos<'a>> {
+        let Ok(list) = gpos.lookup_list() else {
+            return Vec::new();
+        };
+        let Ok(lookup) = list.lookups().get(index as usize) else {
+            return Vec::new();
+        };
+        match lookup {
+            PositionLookup::Pair(l) => l.subtables().iter().filter_map(Result::ok).collect(),
+            PositionLookup::Extension(l) => l
+                .subtables()
+                .iter()
+                .filter_map(Result::ok)
+                .filter_map(|e| match e {
+                    PosExtension::Pair(e) => e.extension().ok(),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn gpos_cases() -> Vec<Case> {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fonts");
+        let mut out = Vec::new();
+        for entry in walk(dir) {
+            let Ok(data) = std::fs::read(&entry) else {
+                continue;
+            };
+            let Ok(font) = FontRef::new(&data) else {
+                continue;
+            };
+            let Ok(gpos) = font.gpos() else { continue };
+            let Some(table) = font
+                .table_data(read_fonts::types::Tag::new(b"GPOS"))
+                .map(|d| d.as_bytes().to_vec())
+            else {
+                continue;
+            };
+            let name = entry.file_name().unwrap().to_string_lossy().into_owned();
+            let program = compile_gpos_program(&gpos);
+            for index in 0..program.len() as u16 {
+                if !gpos_implemented(&program, index, &table) {
+                    continue;
+                }
+                for glyphs in gpos_probes(&gpos, &program, index, &table) {
+                    if glyphs.len() < 2 {
+                        continue;
+                    }
+                    out.push(Case {
+                        name: name.clone(),
+                        data: data.clone(),
+                        index,
+                        glyphs,
+                        reverse: false,
+                    });
+                }
+            }
+        }
+        out
+    }
+
+    /// Apply one GPOS lookup by one path or the other and report the positions
+    /// and flags it left.
+    fn run_gpos(case: &Case, mine: bool, concat: bool) -> Option<(Positions, Vec<u32>)> {
+        let font = FontRef::new(&case.data).ok()?;
+        let shaper_data = ShaperData::new(&font);
+        let face = shaper_data.shaper(&font).build();
+        let (table, info) = face
+            .ot_tables
+            .table_data_and_lookup(TableIndex::GPOS, case.index)?;
+        if info.is_subst || info.is_reverse() {
+            return None;
+        }
+
+        let mut buffer = Buffer::new();
+        for (i, &g) in case.glyphs.iter().enumerate() {
+            buffer.push(g, i as u32);
+        }
+        buffer.reset_masks(1);
+        if concat {
+            buffer.flags |= BufferFlags::PRODUCE_UNSAFE_TO_CONCAT;
+        }
+        // Positioning reads the direction -- an advance is horizontal or it is
+        // not -- so pin it rather than leave it at whatever a fresh buffer has.
+        buffer.direction = Direction::LeftToRight;
+        buffer.allocate_gsubgpos_vars();
+        crate::hb::ot_layout::hb_ot_layout_substitute_start(&face, &mut buffer);
+        // Sizes `pos` and zeroes it, so every case starts from no adjustment
+        // and what is compared is exactly what the lookup contributed.
+        buffer.clear_positions();
+
+        let mut ctx =
+            hb_ot_apply_context_t::new(TableIndex::GPOS, &face, Scale::default(), &mut buffer);
+        ctx.lookup_index = case.index;
+        ctx.set_lookup_mask(1);
+        ctx.lookup_props = info.props();
+        ctx.update_matchers();
+        ctx.buffer.idx = 0;
+
+        if mine {
+            let gpos = font.gpos().ok()?;
+            let program = compile_gpos_program(&gpos);
+            let compiled = program.get(case.index, table)?;
+            let mut apply = Apply {
+                host: &mut ctx,
+                table,
+                program: &program,
+            };
+            // GPOS applies in place, so no output buffer to clear or sync.
+            apply_forward(&mut apply, compiled);
+        } else {
+            // This crate has no entry point that applies a single GPOS lookup,
+            // so the pass is written out. It is the same pass both sides run,
+            // which is the point: what this compares is the format.
+            let face = ctx.face;
+            let mask = ctx.lookup_mask();
+            let props = ctx.lookup_props;
+            while ctx.buffer.successful {
+                let idx = ctx.buffer.idx;
+                let mut j = idx;
+                while j < ctx.buffer.len {
+                    let i = &ctx.buffer.info[j];
+                    if info.digest().may_have(i.glyph_id)
+                        && (i.mask & mask) != 0
+                        && check_glyph_property(face, i, props)
+                    {
+                        break;
+                    }
+                    j += 1;
+                }
+                if j > idx {
+                    ctx.buffer.next_glyphs(j - idx);
+                }
+                if ctx.buffer.idx >= ctx.buffer.len {
+                    break;
+                }
+                if info.apply(&mut ctx, table, false).is_none() {
+                    ctx.buffer.next_glyph();
+                }
+            }
+        }
+
+        let n = buffer.len;
+        Some((
+            buffer.pos[..n]
+                .iter()
+                .map(|p| (p.x_advance, p.y_advance, p.x_offset, p.y_offset))
+                .collect(),
+            buffer.info[..n].iter().map(|i| i.mask).collect(),
+        ))
+    }
+
+    /// The compiled positioning path against this crate's own.
+    #[test]
+    fn positioning_agrees_with_the_shaper_it_was_lifted_into() {
+        let cases = gpos_cases();
+        let mut checked = 0usize;
+        let mut moved = 0usize;
+        let mut failures = Vec::new();
+
+        for case in &cases {
+            let (Some(want), Some(got)) =
+                (run_gpos(case, false, false), run_gpos(case, true, false))
+            else {
+                continue;
+            };
+            checked += 1;
+            // A lookup that adjusted nothing proves only that neither path
+            // crashed, so require that a real share of them did something.
+            if want
+                .0
+                .iter()
+                .any(|&(a, b, c, d)| a != 0 || b != 0 || c != 0 || d != 0)
+            {
+                moved += 1;
+            }
+            if got != want {
+                failures.push(format!(
+                    "{}: lookup {} on {:?}\n    want {want:?}\n    got  {got:?}",
+                    case.name, case.index, case.glyphs
+                ));
+            }
+        }
+
+        assert!(checked > 0, "no positioning lookups exercised");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} cases differ:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+        assert!(
+            moved * 8 > checked,
+            "only {moved} of {checked} cases adjusted a position; the probes \
+             are not exercising these formats"
+        );
+        println!("{checked} positioning cases agree, {moved} of them adjusting a position");
+    }
+
+    /// The same cases with concat hazards requested.
+    ///
+    /// Unlike ligature, nothing here is knowingly more precise than this
+    /// crate: the pair-set summaries reject only where the search would have
+    /// failed, and the row summaries stand in for a record of all zeros, which
+    /// this crate applies and finds inert. So the flags must match exactly,
+    /// and that is asserted rather than weakened.
+    #[test]
+    fn positioning_flags_agree_when_concat_hazards_are_requested() {
+        let cases = gpos_cases();
+        let mut checked = 0usize;
+        let mut flagged = 0usize;
+        let mut failures = Vec::new();
+
+        for case in &cases {
+            let (Some(want), Some(got)) = (run_gpos(case, false, true), run_gpos(case, true, true))
+            else {
+                continue;
+            };
+            checked += 1;
+            if want.1.iter().any(|&m| m != 1) {
+                flagged += 1;
+            }
+            if got != want {
+                failures.push(format!(
+                    "{}: lookup {} on {:?}\n    want {want:?}\n    got  {got:?}",
+                    case.name, case.index, case.glyphs
+                ));
+            }
+        }
+
+        assert!(checked > 0, "no positioning lookups exercised");
+        assert!(
+            failures.is_empty(),
+            "{} of {checked} cases differ:\n{}",
+            failures.len(),
+            failures.join("\n")
+        );
+        assert!(
+            flagged > 0,
+            "no case set a flag; the hazard logic is untested"
+        );
+        println!("{checked} positioning cases agree exactly, {flagged} of them setting a flag");
     }
 
     fn walk(dir: &str) -> Vec<std::path::PathBuf> {
