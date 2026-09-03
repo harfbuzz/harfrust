@@ -20,8 +20,14 @@
 
 use super::be16;
 use super::lookup::{Apply, CompiledLookup, Subtable, SubtableKind};
+use crate::hb::buffer::GlyphInfo;
+use crate::hb::ot_layout_gsubgpos::{
+    ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t,
+};
 use crate::hb::ot_map::hb_ot_map_t;
+use read_fonts::tables::gsub::{Ligature, LigatureSet};
 use read_fonts::types::GlyphId;
+use read_fonts::{FontData, FontRead};
 
 /// Single substitution format 1: the substitute is `glyph + delta`, wrapped
 /// within the 16-bit glyph space as the format requires.
@@ -101,15 +107,155 @@ pub fn at_multiple(
 /// become one glyph, so a caller may not break between the characters they
 /// came from.
 pub fn at_ligature(
-    _ctx: &mut Apply,
+    ctx: &mut Apply,
     _lookup: &CompiledLookup,
     sub: &Subtable,
-    _index: u32,
+    index: u32,
 ) -> Option<()> {
-    let SubtableKind::Ligature { offset: _ } = &sub.kind else {
+    let SubtableKind::Ligature { offset } = &sub.kind else {
         return None;
     };
+    // Two indexed reads to reach our set, then read-fonts for the walk: a
+    // LigatureSet is a count and a list of offsets, so parsing one is a slice
+    // and a bounds check, and its offsets are relative to its own start.
+    let base = *offset as usize;
+    if index >= u32::from(be16(ctx.table, base + 4)?) {
+        return None;
+    }
+    let at = base + usize::from(be16(ctx.table, base + 6 + index as usize * 2)?);
+    let set = LigatureSet::read(FontData::new(ctx.table.get(at..)?)).ok()?;
+    let ligatures = set.ligatures();
+
+    // What follows the start, if that is even a question with an answer. It is
+    // not when the set holds a single ligature (nothing to choose between), and
+    // it is not when the next position is skippable -- a default-ignorable
+    // between the two means the glyph at `idx + 1` is not the glyph a matcher
+    // would see, so filtering on it would be filtering on the wrong glyph.
+    let mut second = u32::MAX;
+    let mut unsafe_to = 0usize;
+    let one_by_one = if ligatures.len() <= 1 {
+        true
+    } else {
+        let mut iter = skipping_iterator_t::with_match_fn(&mut *ctx.host, true, Some(match_always));
+        iter.reset(iter.buffer.idx);
+        if iter.next(Some(&mut unsafe_to)) {
+            let next = iter.index();
+            second = iter.buffer.info[next].glyph_id;
+            unsafe_to = next + 1;
+            iter.may_skip(&iter.buffer.info[next]) != may_skip_t::SKIP_NO
+        } else {
+            true
+        }
+    };
+
+    if one_by_one {
+        for lig in ligatures.iter().filter_map(Result::ok) {
+            if one_ligature(ctx, &lig).is_some() {
+                return Some(());
+            }
+        }
+        return None;
+    }
+
+    // The pair key. This is the filter the whole format turns on: `ccmp` covers
+    // 72% of English text by first glyph and ligates none of it, because what
+    // has to follow is a combining mark.
+    //
+    // This set is exact, where the filter it replaces is a three-word digest,
+    // and that difference is observable in exactly one place: a second glyph
+    // the digest lets through reaches the loop below, and the loop records a
+    // concat hazard. So we mark fewer positions unsafe-to-concat than this
+    // crate does -- 7 cases in 3169 of its own test corpus, and only when a
+    // caller has asked for those flags at all.
+    //
+    // Left exact deliberately. The predicate is "could any ligature here start
+    // with this glyph", which is what the digest approximates and what this
+    // answers; the extra marks are the approximation showing through, not a
+    // hazard anyone identified. Two things support that reading: the digest is
+    // the *only* test in that path -- there is no exact check behind it, unlike
+    // every coverage probe -- and its value depends on whether the subtable
+    // happened to be given an external cache, since without one it is
+    // `full()`, which passes everything. Reproducing it would mean reproducing
+    // a caching artifact.
+    //
+    // Gating the shortcut on the flag was tried and is worse: it moves the
+    // count from 7 to 91 and in the over-marking direction, because skipping
+    // the shortcut is not the same as consulting their digest.
+    if let Some(seconds) = sub.next.as_deref() {
+        if !seconds.contains(second) {
+            return None;
+        }
+    }
+
+    // A ligature that wanted a different second glyph did not fail because of
+    // where this run ends -- but appending text could change what follows, so
+    // the two cannot be concatenated blind.
+    let mut concat_hazard = false;
+    for lig in ligatures.iter().filter_map(Result::ok) {
+        let components = lig.component_glyph_ids();
+        if components.is_empty() || u32::from(components[0].get()) == second {
+            if one_ligature(ctx, &lig).is_some() {
+                if concat_hazard {
+                    let idx = ctx.host.buffer.idx;
+                    ctx.host.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to));
+                }
+                return Some(());
+            }
+        } else {
+            concat_hazard = true;
+        }
+    }
+    if concat_hazard {
+        let idx = ctx.host.buffer.idx;
+        ctx.host.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to));
+    }
     None
+}
+
+/// Try one ligature: match its components, then ligate.
+///
+/// Both halves are this crate's own. `match_input` is the trickiest walk in
+/// OpenType -- ligatures may not form across glyphs attached to different
+/// components of an earlier ligature -- and `ligate_input` is what merges the
+/// clusters and reassigns the component ids the marks depend on. There is
+/// nothing to gain by reimplementing either: they run only once a ligature is
+/// actually about to happen, which filtering has made rare.
+fn one_ligature(ctx: &mut Apply, lig: &Ligature) -> Option<()> {
+    let components = lig.component_glyph_ids();
+    let glyph = GlyphId::from(lig.ligature_glyph());
+    if components.is_empty() {
+        // A one-component ligature is an ordinary substitution. In place, and
+        // deliberately not recorded as a ligation, so marks can still attach.
+        ctx.host.replace_glyph(glyph);
+        return Some(());
+    }
+
+    let mut match_end = 0;
+    let mut total_components = 0u8;
+    let matched = match_input(
+        &mut *ctx.host,
+        components.len() as u16,
+        |info: &mut GlyphInfo, i: u32| {
+            components
+                .get(i as usize)
+                .is_some_and(|c| match_glyph(info, c.get().to_u32()))
+        },
+        &mut match_end,
+        Some(&mut total_components),
+    );
+    if !matched {
+        let idx = ctx.host.buffer.idx;
+        ctx.host.buffer.unsafe_to_concat(Some(idx), Some(match_end));
+        return None;
+    }
+    ligate_input(
+        &mut *ctx.host,
+        components.len() + 1,
+        match_end,
+        total_components,
+        glyph,
+    );
+    Some(())
 }
 
 /// Alternate substitution: the feature's value selects which alternate, so
