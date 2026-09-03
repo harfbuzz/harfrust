@@ -1988,3 +1988,94 @@ mod reached_cost {
         println!();
     }
 }
+
+#[cfg(all(test, feature = "std", feature = "compile-path"))]
+mod lookup_shapes {
+    use crate::{FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
+
+    /// What the lookups a font actually reaches look like, so an optimisation
+    /// aimed at them can be aimed at the right thing.
+    #[test]
+    fn report() {
+        let font_name =
+            std::env::var("SHAPES_FONT").unwrap_or_else(|_| "SourceSerifVariable-Roman.ttf".into());
+        let text_name = std::env::var("SHAPES_TEXT").unwrap_or_else(|_| "react-dom.txt".into());
+        let font_path = format!("{}/benches/fonts/{font_name}", env!("CARGO_MANIFEST_DIR"));
+        let text_path = format!("{}/benches/texts/{text_name}", env!("CARGO_MANIFEST_DIR"));
+        let (Ok(data), Ok(text)) = (
+            std::fs::read(&font_path),
+            std::fs::read_to_string(&text_path),
+        ) else {
+            return;
+        };
+        let font = FontRef::new(&data).unwrap();
+        let shaper_data = ShaperData::new(&font);
+        let shaper = shaper_data.shaper(&font).build();
+        let mut buffer = Some(UnicodeBuffer::new());
+        for line in text.lines().take(400) {
+            let mut b = buffer.take().unwrap();
+            b.push_str(line);
+            b.guess_segment_properties();
+            buffer = Some(shaper.shape(b, ShapeOptions::new()).clear());
+        }
+
+        println!("\n{font_name} / {text_name}");
+        let tables = &shaper.ot_tables;
+        for (name, program, bytes) in [
+            (
+                "GSUB",
+                &tables.gsub_compiled,
+                tables
+                    .gsub
+                    .as_ref()
+                    .map(|t| t.table.offset_data().as_bytes()),
+            ),
+            (
+                "GPOS",
+                &tables.gpos_compiled,
+                tables
+                    .gpos
+                    .as_ref()
+                    .map(|t| t.table.offset_data().as_bytes()),
+            ),
+        ] {
+            let Some(b) = bytes else { continue };
+            for i in 0..program.len() as u16 {
+                if !program.is_compiled(i) {
+                    continue;
+                }
+                let Some(l) = program.get(i, b) else { continue };
+                let kinds: Vec<&str> = l.subtables.iter().map(|s| kind_name(&s.kind)).collect();
+                let ranked = l.subtables.iter().filter(|s| s.rank).count();
+                println!(
+                    "  {name} {i:>3}: {} subtable(s), {ranked} ranked, dispatch {}, pair filter {}, reach {} :: {}",
+                    l.subtables.len(),
+                    l.dispatch.is_some(),
+                    l.pair_filter.is_some(),
+                    l.reach.len(),
+                    kinds.join(", ")
+                );
+            }
+        }
+        println!();
+    }
+
+    fn kind_name(k: &super::SubtableKind) -> &'static str {
+        use super::SubtableKind as K;
+        match k {
+            K::SingleDelta { .. } => "SingleDelta",
+            K::SingleList { .. } => "SingleList",
+            K::Multiple { .. } => "Multiple",
+            K::Ligature { .. } => "Ligature",
+            K::Alternate { .. } => "Alternate",
+            K::ReverseChain { .. } => "ReverseChain",
+            K::SinglePos { .. } => "SinglePos",
+            K::PairPos1 { .. } => "PairPos1",
+            K::PairPos2 { .. } => "PairPos2",
+            K::Cursive { .. } => "Cursive",
+            K::MarkTo { .. } => "MarkTo",
+            K::Rules { .. } => "Rules",
+            K::ChainCtx3 { .. } => "ChainCtx3",
+        }
+    }
+}
