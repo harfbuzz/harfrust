@@ -67,9 +67,15 @@ pub struct Digest {
     words: [u64; 3],
 }
 
-/// Chosen so the three views of a glyph id barely overlap: the low six bits,
-/// bits 4 upward, and bits 9 upward.
-const DIGEST_SHIFTS: [u32; 3] = [0, 4, 9];
+/// Three views of a glyph id, each folded into six bits: bits 4 upward, the
+/// low six, and bits 6 upward.
+///
+/// The same three the host's own digest uses, deliberately. A digest is only
+/// useful against another digest, and the one this has to meet is the buffer's
+/// -- maintained there as glyphs are substituted, which is not something this
+/// module can do from outside. Same views, same bits, so the two intersect
+/// word for word. `digests_agree` in `ot_layout` holds the two tables to it.
+pub(crate) const DIGEST_SHIFTS: [u32; 3] = [4, 0, 6];
 
 impl Digest {
     pub const EMPTY: Self = Self { words: [0; 3] };
@@ -79,6 +85,21 @@ impl Digest {
     pub const FULL: Self = Self {
         words: [u64::MAX; 3],
     };
+
+    /// The raw words, for a host that has to meet this against a digest of its
+    /// own. Meaningful only against one built over [`DIGEST_SHIFTS`].
+    #[inline]
+    pub fn words(&self) -> &[u64; 3] {
+        &self.words
+    }
+
+    /// Whether this digest and one built over the same views can share a glyph.
+    #[inline]
+    pub fn may_intersect_raw(&self, other: &[u64; 3]) -> bool {
+        self.words[0] & other[0] != 0
+            && self.words[1] & other[1] != 0
+            && self.words[2] & other[2] != 0
+    }
 
     #[inline]
     pub fn insert(&mut self, gid: u32) {

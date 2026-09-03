@@ -539,25 +539,29 @@ impl Compiler {
         self.seconds.clear();
 
         let sets = t.ligature_sets();
+        // A ligature declaring one component substitutes the covered glyph on
+        // its own, whatever follows. One of those anywhere in the subtable and
+        // there is nothing to key on: the filter's promise is that a candidate
+        // whose second glyph is absent cannot match, and this one can.
+        let mut keyable = true;
         for i in 0..cov.len() {
             // A coverage entry with no ligature set is malformed; treat it as
             // empty so one bad entry cannot poison the rest of the font.
             let Ok(set) = sets.get(i) else { continue };
             for lig in set.ligatures().iter() {
                 let Ok(lig) = lig else { continue };
-                // Component 2 is what the pair key filters on. A ligature with a
-                // single component has no second glyph and cannot be filtered
-                // this way, so it must not contribute.
-                if let Some(second) = lig.component_glyph_ids().first() {
-                    self.seconds.push(second.get().to_u32());
+                // Component 2 is what the pair key filters on.
+                match lig.component_glyph_ids().first() {
+                    Some(second) => self.seconds.push(second.get().to_u32()),
+                    None => keyable = false,
                 }
             }
         }
 
         self.seconds.sort_unstable();
         self.seconds.dedup();
-        Subtable::ranked(cov, SubtableKind::Ligature { offset: at as u32 })
-            .following(Some(Arc::new(GlyphSet::build(&self.seconds))))
+        let next = keyable.then(|| Arc::new(GlyphSet::build(&self.seconds)));
+        Subtable::ranked(cov, SubtableKind::Ligature { offset: at as u32 }).following(next)
     }
 
     /// Multiple substitution. The sequences stay in the font; what compilation

@@ -2,7 +2,7 @@ use read_fonts::tables::layout::CoverageTable;
 
 type mask_t = u64;
 
-const HB_SET_DIGEST_SHIFTS: [u32; 3] = [4, 0, 6];
+pub(crate) const HB_SET_DIGEST_SHIFTS: [u32; 3] = [4, 0, 6];
 const N: usize = HB_SET_DIGEST_SHIFTS.len();
 const MASK_BITS: u32 = mask_t::BITS;
 const MB1: u32 = MASK_BITS - 1;
@@ -107,6 +107,13 @@ impl hb_set_digest_t {
             }
         }
         true
+    }
+
+    /// The raw masks, for meeting this against a digest built elsewhere over
+    /// the same views.
+    #[inline]
+    pub fn masks(&self) -> &[u64; N] {
+        &self.masks
     }
 
     pub fn may_intersect(&self, other: &Self) -> bool {
