@@ -197,6 +197,16 @@ pub fn apply_layout_table<T: LayoutTable>(
             }
         }
     }
+
+    // Everything this plan reaches has been compiled by now, so the compiler's
+    // working buffers have done their job. They are kept across the lookups of
+    // one call -- dropping them between lookups puts malloc back in the profile
+    // -- and given back at the end of it.
+    #[cfg(feature = "compile-path")]
+    match T::INDEX {
+        TableIndex::GSUB => face.ot_tables.gsub_compiled.release_scratch(),
+        TableIndex::GPOS => face.ot_tables.gpos_compiled.release_scratch(),
+    }
 }
 
 fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) {

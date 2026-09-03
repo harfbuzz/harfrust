@@ -916,19 +916,19 @@ mod tests {
     #[test]
     fn interning_is_by_content() {
         let pool = Interner::new();
-        let a = pool.set(b" ", || GlyphSet::build(&[1]));
-        let again = pool.set(b" ", || GlyphSet::build(&[99]));
+        let a = pool.set(b"cov-a", || GlyphSet::build(&[1]));
+        let again = pool.set(b"cov-a", || GlyphSet::build(&[99]));
         // The second build closure must never have run.
         assert!(Arc::ptr_eq(&a, &again));
         assert_eq!(again.to_vec(), vec![1]);
 
-        let b = pool.set(b" ", || GlyphSet::build(&[2]));
+        let b = pool.set(b"cov-b", || GlyphSet::build(&[2]));
         assert!(!Arc::ptr_eq(&a, &b));
         assert_eq!(pool.len().0, 2);
 
         // Same bytes, different kind: separate tables, because a coverage read
         // as a set compiles to something else than one read for its index.
-        let _ = pool.coverage(b" ", || Coverage::build(&[1]));
+        let _ = pool.coverage(b"cov-a", || Coverage::build(&[1]));
         assert_eq!(pool.len(), (2, 1, 0));
     }
 
