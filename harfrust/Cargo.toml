@@ -32,6 +32,8 @@ experimental_font_api = []
 # of applying straight from font bytes. An experiment: same output, different
 # machinery, and the point is to find out whether it is faster. Off by default.
 compile-path = []
+# Counters for the compiled path. Measurement only; compiled out by default.
+compile-stats = ["compile-path"]
 icu = ["dep:icu_properties", "dep:icu_normalizer"]
 
 [dev-dependencies]

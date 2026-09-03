@@ -1131,7 +1131,7 @@ impl Compiler {
     /// Mark-to-base. Only the two coverages compile; every anchor stays in the
     /// font, because a run reads a few of the hundreds a font carries.
     fn mark_base(&mut self, t: &MarkBasePosFormat1, at: usize) -> Subtable {
-        Subtable::ranked(
+        Subtable::member(
             self.coverage_or_empty(t.mark_coverage()),
             SubtableKind::MarkTo {
                 offset: at as u32,
@@ -1145,7 +1145,7 @@ impl Compiler {
     }
 
     fn mark_mark(&mut self, t: &MarkMarkPosFormat1, at: usize) -> Subtable {
-        Subtable::ranked(
+        Subtable::member(
             self.coverage_or_empty(t.mark1_coverage()),
             SubtableKind::MarkTo {
                 offset: at as u32,
@@ -1162,7 +1162,7 @@ impl Compiler {
     /// set of anchors per component, so a mark lands on the component it came
     /// from rather than on the ligature as a whole.
     fn mark_lig(&mut self, t: &MarkLigPosFormat1, at: usize) -> Subtable {
-        Subtable::ranked(
+        Subtable::member(
             self.coverage_or_empty(t.mark_coverage()),
             SubtableKind::MarkTo {
                 offset: at as u32,
@@ -1273,7 +1273,7 @@ fn pair_filter(data: &[u8], lookup: &CompiledLookup, glyphs: &mut Vec<u32>) -> O
         return None;
     }
     glyphs.clear();
-    lookup.reach.extend_into(glyphs);
+    lookup.reach_into(glyphs);
     // Slots scale with what the lookup covers, so a narrow lookup stays small.
     let count = glyphs.len().next_power_of_two().clamp(32, 256);
     let mask = count as u32 - 1;
@@ -1728,16 +1728,16 @@ mod heap_cost {
             size_of::<crate::hb::ot::lookup::SubtableInfo>(),
         );
         println!(
-            "{:<32} {:>10} {:>10} {:>7}  {:>7} {:>7} {:>7} {:>8} {:>6}",
+            "{:<30} {:>9} {:>9} {:>6}  {:>6} {:>6} {:>6} {:>6} {:>8}",
             "font",
             "interp KiB",
             "compiled",
             "ratio",
             "slots",
+            "boxes",
             "subtbl",
             "owned",
-            "interned",
-            "scratch"
+            "interned"
         );
         let time = |f: &Font<'_>| {
             let reps = 20;
@@ -1765,16 +1765,16 @@ mod heap_cost {
             let interp = interpreted(&f);
             let p = parts(&f, Detail::Full);
             println!(
-                "{:<32} {:>10.1} {:>10.1} {:>6.2}x  {:>7.1} {:>7.1} {:>7.1} {:>8.1} {:>6.1}",
+                "{:<30} {:>9.1} {:>9.1} {:>5.2}x  {:>6.1} {:>6.1} {:>6.1} {:>6.1} {:>8.1}",
                 path.file_name().unwrap().to_string_lossy(),
                 kib(interp),
                 kib(p.total()),
                 ratio(p.total(), interp),
                 kib(p.slots),
+                kib(p.boxes),
                 kib(p.subtable_vecs),
                 kib(p.owned),
                 kib(p.interned),
-                kib(p.scratch),
             );
             timings.push((
                 path.file_name().unwrap().to_string_lossy().into_owned(),
@@ -2047,17 +2047,31 @@ mod lookup_shapes {
                 let Some(l) = program.get(i, b) else { continue };
                 let kinds: Vec<&str> = l.subtables.iter().map(|s| kind_name(&s.kind)).collect();
                 let ranked = l.subtables.iter().filter(|s| s.rank).count();
+                let shapes: Vec<&str> = l.subtables.iter().map(|s| cov_shape(&s.cov)).collect();
+                println!("      gate shapes: {}", shapes.join(", "));
                 println!(
                     "  {name} {i:>3}: {} subtable(s), {ranked} ranked, dispatch {}, pair filter {}, reach {} :: {}",
                     l.subtables.len(),
                     l.dispatch.is_some(),
                     l.pair_filter.is_some(),
-                    l.reach.len(),
+                    l.reach_len(),
                     kinds.join(", ")
                 );
             }
         }
         println!();
+    }
+
+    /// Which representation the picker chose, since that is what a probe costs.
+    fn cov_shape(c: &super::set::Coverage) -> &'static str {
+        use super::set::Coverage as C;
+        match c {
+            C::Empty => "Empty",
+            C::Range { .. } => "Range",
+            C::Bitmap { .. } => "Bitmap",
+            C::Sorted { .. } => "Sorted",
+            C::Ranges(_) => "Ranges",
+        }
     }
 
     fn kind_name(k: &super::SubtableKind) -> &'static str {

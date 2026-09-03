@@ -18,6 +18,64 @@
 
 pub use super::lookup::Apply;
 use super::lookup::{CompiledLookup, Program};
+use super::set::{Coverage, GlyphSet};
+
+/// A set the candidate scan can probe.
+///
+/// Exists so the scan can be handed either a lookup's reach or, when it has a
+/// single subtable, that subtable's coverage -- without asking which per
+/// position. Two instantiations, each with the probe inlined.
+pub trait Members {
+    fn has(&self, glyph: u32) -> bool;
+}
+
+impl Members for Coverage {
+    #[inline]
+    fn has(&self, glyph: u32) -> bool {
+        self.contains(glyph)
+    }
+}
+
+impl Members for GlyphSet {
+    #[inline]
+    fn has(&self, glyph: u32) -> bool {
+        self.contains(glyph)
+    }
+}
+
+/// Counting, not guessing.
+///
+/// Enabled by the `compile-stats` feature and compiled out otherwise. Every
+/// number here was a question that could be answered by reasoning, and more
+/// than one of them was answered wrong by reasoning first.
+#[cfg(feature = "compile-stats")]
+pub mod stats {
+    use core::sync::atomic::{AtomicU64, Ordering};
+
+    macro_rules! counters {
+        ($($name:ident),* $(,)?) => {
+            $(pub static $name: AtomicU64 = AtomicU64::new(0);)*
+            pub fn all() -> alloc::vec::Vec<(&'static str, u64)> {
+                alloc::vec![$((stringify!($name), $name.load(Ordering::Relaxed))),*]
+            }
+        };
+    }
+
+    counters!(LOOKUPS, SCANNED, REACHED, MASKED, CANDIDATES, APPLIED, GATED, GATE_PASS,);
+
+    #[inline]
+    pub fn bump(c: &AtomicU64, n: u64) {
+        c.fetch_add(n, Ordering::Relaxed);
+    }
+}
+
+/// Bump a counter when the feature is on, and vanish when it is not.
+macro_rules! count {
+    ($name:ident, $n:expr) => {
+        #[cfg(feature = "compile-stats")]
+        stats::bump(&stats::$name, $n);
+    };
+}
 use crate::hb::ot_layout_gsubgpos::MatchPositions;
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
@@ -34,6 +92,7 @@ use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 /// several formats never read the number. The result is handed to the format
 /// so it does not recompute it.
 pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
+    count!(CANDIDATES, 1);
     let glyph = ctx.glyph();
     // One subtable is the common case and none of the machinery below earns
     // its place there: no order to choose, nothing to index, nothing to skip.
@@ -41,7 +100,9 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
     // and paying a dispatch probe and a bounds check per application is how a
     // faster format ends up a slower lookup.
     if let [sub] = &lookup.subtables[..] {
+        count!(GATED, 1);
         let index = sub.gate(glyph)?;
+        count!(GATE_PASS, 1);
         return (sub.apply)(ctx, lookup, sub, index);
     }
     // With an index, only the subtables that can start on this glyph, in the
@@ -77,12 +138,44 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
     None
 }
 
+/// Apply at the cursor, knowing the scan has already proved the glyph is in
+/// this lookup's reach.
+///
+/// That knowledge is worth a probe. A lookup with one subtable has a reach
+/// which *is* that subtable's coverage -- `reach` is built by unioning the
+/// subtable coverages, and a union of one is the thing itself -- so a gate that
+/// only asks about membership is asking a question the scan just answered.
+/// Counting confirmed it: over a run of English every such gate admitted, fifty
+/// million of them, without once rejecting.
+///
+/// A gate that reads the coverage *index* still has to run, since the index is
+/// what the format indexes with. This only skips the ones that would return a
+/// constant.
+#[inline]
+fn apply_at_reached(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
+    if let [sub] = &lookup.subtables[..] {
+        if !sub.rank {
+            count!(CANDIDATES, 1);
+            return (sub.apply)(ctx, lookup, sub, 0);
+        }
+    }
+    apply_at(ctx, lookup)
+}
+
 /// One forward pass over the buffer.
 ///
 /// Reports whether anything applied. The caller owns the output buffer
 /// discipline -- `clear_output` before, `sync` after, for a table that is not
 /// applied in place.
 pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
+    // The scan is handed its set once rather than asking per position, which
+    // is worth a little on its own and is what would let a lookup be scanned
+    // over something other than its reach.
+    forward_over(ctx, lookup, lookup.reach())
+}
+
+/// The forward pass, over a candidate set whose type is known.
+fn forward_over<R: Members + ?Sized>(ctx: &mut Apply, lookup: &CompiledLookup, reach: &R) -> bool {
     let mut applied = false;
     // Read out of the context once. A nested lookup saves and restores all
     // three, so they cannot change under this loop -- and hoisting them is what
@@ -91,6 +184,7 @@ pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
     let lookup_mask = ctx.host.lookup_mask();
     let lookup_props = ctx.host.lookup_props;
 
+    count!(LOOKUPS, 1);
     while ctx.host.buffer.successful {
         // Scan to the next position this lookup could touch. Three tests, and
         // the first is the compiled reach rather than a parse of the font.
@@ -100,11 +194,15 @@ pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
             let mut j = idx;
             while j < infos.len() {
                 let info = &infos[j];
-                if lookup.reach.contains(info.glyph_id)
-                    && (info.mask & lookup_mask) != 0
-                    && check_glyph_property(face, info, lookup_props)
-                {
-                    break;
+                count!(SCANNED, 1);
+                if reach.has(info.glyph_id) {
+                    count!(REACHED, 1);
+                    if (info.mask & lookup_mask) != 0 {
+                        count!(MASKED, 1);
+                        if check_glyph_property(face, info, lookup_props) {
+                            break;
+                        }
+                    }
                 }
                 j += 1;
             }
@@ -119,7 +217,8 @@ pub fn apply_forward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
 
         // A format that applied has already advanced the cursor past what it
         // consumed; one that did not leaves it to us.
-        if apply_at(ctx, lookup).is_some() {
+        if apply_at_reached(ctx, lookup).is_some() {
+            count!(APPLIED, 1);
             applied = true;
         } else {
             ctx.host.buffer.next_glyph();
@@ -202,6 +301,10 @@ pub fn recurse(
 /// because a one-glyph input consumes nothing a later position wanted -- the
 /// format leaves the cursor alone and this owns it.
 pub fn apply_backward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
+    backward_over(ctx, lookup, lookup.reach())
+}
+
+fn backward_over<R: Members + ?Sized>(ctx: &mut Apply, lookup: &CompiledLookup, reach: &R) -> bool {
     let mut applied = false;
     // Read out of the context once: these cannot change under a reverse
     // lookup, which neither recurses nor alters the buffer's length.
@@ -212,7 +315,7 @@ pub fn apply_backward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
     loop {
         let idx = ctx.host.buffer.idx;
         let candidate = ctx.host.buffer.info[..=idx].iter().rposition(|info| {
-            lookup.reach.contains(info.glyph_id)
+            reach.has(info.glyph_id)
                 && (info.mask & lookup_mask) != 0
                 && check_glyph_property(face, info, lookup_props)
         });
@@ -222,7 +325,7 @@ pub fn apply_backward(ctx: &mut Apply, lookup: &CompiledLookup) -> bool {
         };
 
         ctx.host.buffer.idx = at;
-        applied |= apply_at(ctx, lookup).is_some();
+        applied |= apply_at_reached(ctx, lookup).is_some();
 
         if at == 0 {
             break;
@@ -315,7 +418,8 @@ mod tests {
     /// nothing happens.
     fn probes(gsub: &Gsub, program: &Program, index: u16, table: &[u8]) -> Vec<Vec<u32>> {
         let lookup = program.get(index, table).unwrap();
-        let mut reach = lookup.reach.to_vec();
+        let mut reach = Vec::new();
+        lookup.reach_into(&mut reach);
         reach.truncate(MAX_GLYPHS - 1);
         reach.push(0);
         let mut out = vec![reach];
@@ -897,7 +1001,8 @@ mod tests {
     /// including the mostly-zero ones the row summaries exist to skip.
     fn gpos_probes(gpos: &Gpos, program: &Program, index: u16, table: &[u8]) -> Vec<Vec<u32>> {
         let lookup = program.get(index, table).unwrap();
-        let mut reach = lookup.reach.to_vec();
+        let mut reach = Vec::new();
+        lookup.reach_into(&mut reach);
         reach.truncate(MAX_GLYPHS - 1);
         reach.push(0);
         let mut out = vec![reach];
