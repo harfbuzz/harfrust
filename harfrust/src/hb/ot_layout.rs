@@ -173,11 +173,43 @@ pub fn apply_layout_table<T: LayoutTable>(
     for (stage_index, stage) in plan.ot_map.stages(T::INDEX).iter().enumerate() {
         if let Some(table) = table {
             for lookup_map in plan.ot_map.stage_lookups(T::INDEX, stage_index) {
+                // The compiled form first, and if there is one the interpreted
+                // lookup is never asked for. It would answer the same three
+                // questions -- what may start a match, what properties to
+                // match with, which way to walk -- and asking costs a parse of
+                // every subtable header in the lookup, kept for the life of
+                // the face.
+                #[cfg(feature = "compile-path")]
+                {
+                    let face = ctx.face;
+                    let program = match T::INDEX {
+                        TableIndex::GSUB => &face.ot_tables.gsub_compiled,
+                        TableIndex::GPOS => &face.ot_tables.gpos_compiled,
+                    };
+                    if let Some(data) = face.ot_tables.table_data(T::INDEX) {
+                        if let Some(compiled) = program.get(lookup_map.index, data) {
+                            let seen = *ctx.buffer.digest.masks();
+                            if compiled.digest.may_intersect_raw(&seen)
+                                && compiled.pair_digest.may_intersect_raw(&seen)
+                            {
+                                ctx.lookup_index = lookup_map.index;
+                                ctx.set_lookup_mask(lookup_map.mask);
+                                ctx.auto_zwj = lookup_map.auto_zwj;
+                                ctx.auto_zwnj = lookup_map.auto_zwnj;
+                                ctx.random = lookup_map.random;
+                                ctx.per_syllable = lookup_map.per_syllable;
+                                apply_compiled::<T>(&mut ctx, data, program, compiled);
+                            }
+                            continue;
+                        }
+                    }
+                }
+
                 let Some(lookup) = table.get_lookup(lookup_map.index) else {
                     continue;
                 };
 
-                if !may_touch::<T>(&ctx, lookup, lookup_map.index) {
+                if !lookup.digest().may_intersect(&ctx.buffer.digest) {
                     continue;
                 }
                 ctx.lookup_index = lookup_map.index;
@@ -210,43 +242,6 @@ pub fn apply_layout_table<T: LayoutTable>(
     }
 }
 
-/// Whether this lookup can change anything in this buffer, before a pass over
-/// it is started.
-///
-/// Two summaries, both three words wide. The first is what the lookup can
-/// match at a starting position, and rejects a lookup for a script the text is
-/// not written in. The second is what may *follow* a start, for the formats
-/// that constrain it -- a ligature's second components, a context's second
-/// input coverage -- and rejects a lookup whose first glyphs are all over the
-/// buffer but whose second ones are absent. That is every `ccmp` and `liga`
-/// lookup on a line of English, whose second components are combining marks
-/// the text does not contain: the compiled path skips them without the scan
-/// that would otherwise have to discover it position by position.
-///
-/// The compiled path derives both from the compiled form, which is where the
-/// exact pair key lives. Without it, only the first test exists.
-fn may_touch<T: LayoutTable>(
-    ctx: &OT::hb_ot_apply_context_t,
-    lookup: &LookupInfo,
-    index: u16,
-) -> bool {
-    #[cfg(feature = "compile-path")]
-    {
-        let program = match T::INDEX {
-            TableIndex::GSUB => &ctx.face.ot_tables.gsub_compiled,
-            TableIndex::GPOS => &ctx.face.ot_tables.gpos_compiled,
-        };
-        if let Some(table) = ctx.face.ot_tables.table_data(ctx.table_index) {
-            if let Some(compiled) = program.get(index, table) {
-                let buffer = ctx.buffer.digest.masks();
-                return compiled.digest.may_intersect_raw(buffer)
-                    && compiled.pair_digest.may_intersect_raw(buffer);
-            }
-        }
-    }
-    lookup.digest().may_intersect(&ctx.buffer.digest)
-}
-
 fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
@@ -254,11 +249,6 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
 
     ctx.lookup_props = lookup.props();
     ctx.update_matchers();
-
-    #[cfg(feature = "compile-path")]
-    if apply_string_compiled::<T>(ctx) {
-        return;
-    }
 
     if !lookup.is_reverse() {
         // in/out forward substitution/positioning
@@ -282,23 +272,23 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
 
 /// The same pass, driven by the compiled form of this lookup.
 ///
-/// Returns whether it ran. A lookup that fails to compile falls through to the
-/// path above rather than being skipped -- the two are meant to agree, and a
+/// A lookup that fails to compile is not routed here at all; the caller falls
+/// through to the interpreted path instead. The two are meant to agree, and a
 /// font that defeats one should still be shaped by the other.
 #[cfg(feature = "compile-path")]
-fn apply_string_compiled<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t) -> bool {
+fn apply_compiled<T: LayoutTable>(
+    ctx: &mut OT::hb_ot_apply_context_t,
+    table: &[u8],
+    program: &crate::hb::ot::compile::lookup::Program,
+    compiled: &crate::hb::ot::compile::lookup::CompiledLookup,
+) {
     use crate::hb::ot::compile::apply::{apply_backward, apply_forward, Apply};
 
-    let Some(table) = ctx.face.ot_tables.table_data(ctx.table_index) else {
-        return false;
-    };
-    let program = match ctx.table_index {
-        TableIndex::GSUB => &ctx.face.ot_tables.gsub_compiled,
-        TableIndex::GPOS => &ctx.face.ot_tables.gpos_compiled,
-    };
-    let Some(compiled) = program.get(ctx.lookup_index, table) else {
-        return false;
-    };
+    if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
+        return;
+    }
+    ctx.lookup_props = compiled.props;
+    ctx.update_matchers();
 
     if compiled.reverse {
         debug_assert!(!ctx.buffer.have_output);
@@ -309,7 +299,7 @@ fn apply_string_compiled<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t) ->
             program,
         };
         apply_backward(&mut apply, compiled);
-        return true;
+        return;
     }
 
     if !T::IN_PLACE {
@@ -327,7 +317,6 @@ fn apply_string_compiled<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t) ->
     if !T::IN_PLACE {
         ctx.buffer.sync();
     }
-    true
 }
 
 fn apply_forward(ctx: &mut OT::hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {

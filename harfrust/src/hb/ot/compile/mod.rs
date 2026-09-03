@@ -1849,9 +1849,16 @@ mod reached_cost {
     /// substitution lookups shape Hindi -- and both sides fill lazily, so what
     /// a caller actually holds is this.
     ///
-    /// Both caches fill on the same run: the compiled path still asks the
-    /// interpreted one for the lookup's properties before it dispatches, so
-    /// one pass over the text populates both and the comparison is exact.
+    /// Both caches fill on the same run, and over the same lookups: every
+    /// lookup the plan lists is read by one side or compiled by the other,
+    /// before either knows whether this buffer needs it. So the two columns
+    /// price the same work.
+    ///
+    /// They did not always. While the compiled path still asked the
+    /// interpreted one for a lookup's properties, the interpreted column
+    /// covered every lookup in the plan and the compiled column only the ones
+    /// a buffer had reached -- 54 subtables against 29 on Roboto -- and the
+    /// ratio that came out of that was flattering by about the same factor.
     #[test]
     fn report() {
         println!();
