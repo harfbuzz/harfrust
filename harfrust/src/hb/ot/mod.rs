@@ -164,7 +164,11 @@ impl OtCache {
         // the same coverages -- the set of marks, most obviously -- and
         // interning across the pair is what collapses them to one copy.
         #[cfg(feature = "compile-path")]
-        let compiled = compile::compile_font(gsub_table.as_ref(), gpos_table.as_ref());
+        let compiled = compile::compile_font_with_detail(
+            gsub_table.as_ref(),
+            gpos_table.as_ref(),
+            compile::detail_from_env(),
+        );
         Self {
             #[cfg(feature = "compile-path")]
             gsub_compiled: compiled.0,
