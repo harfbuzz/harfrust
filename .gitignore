@@ -7,4 +7,5 @@
 /Cargo.lock
 benches/Cargo.lock
 /.cargo
+# hegeltest's saved failing inputs
 .hegel/
