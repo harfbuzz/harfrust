@@ -764,6 +764,28 @@ pub(crate) struct ChainContextFormat2Cache {
     pub coverage_cache: BinaryCache,
 }
 
+impl SubtableExternalCache {
+    // Accounting, not shaping: nothing on the hot path asks what a cache
+    // weighs. Kept out of `cfg(test)` so it stays available to anyone
+    // measuring, and because it is the counterpart of the compiled form's own
+    // `heap_bytes`.
+    #[allow(dead_code)]
+    /// Bytes this holds *behind a box*.
+    ///
+    /// The unboxed variants live inside `SubtableInfo`, so their cost is
+    /// already in `size_of::<SubtableInfo>()` and counted by the vector that
+    /// holds them -- which is why the enum is as wide as its widest inline
+    /// variant, `ChainContextFormat2Cache` and its 256-byte binary cache.
+    pub(crate) fn heap_bytes(&self) -> usize {
+        match self {
+            Self::LigatureSubstFormat1Cache(_) => size_of::<LigatureSubstFormat1Cache>(),
+            Self::PairPosFormat1Cache(_) => size_of::<PairPosFormat1Cache>(),
+            Self::PairPosFormat2Cache(_) => size_of::<PairPosFormat2Cache>(),
+            _ => 0,
+        }
+    }
+}
+
 pub(crate) enum SubtableExternalCache {
     None,
     LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),

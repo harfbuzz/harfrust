@@ -39,6 +39,7 @@ use super::Compiler;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
+use core::sync::atomic::{AtomicBool, Ordering};
 use read_fonts::tables::gpos::Gpos;
 use read_fonts::tables::gsub::Gsub;
 use read_fonts::{FontData, FontRead};
@@ -722,7 +723,13 @@ impl CompiledLookup {
 
     /// Build reusing `scratch`, so compiling a whole font does not allocate a
     /// fresh buffer per lookup.
-    pub fn new_in(props: u32, subtables: Vec<Subtable>, scratch: &mut Vec<u32>) -> Self {
+    pub fn new_in(props: u32, mut subtables: Vec<Subtable>, scratch: &mut Vec<u32>) -> Self {
+        // Built by pushing, so the capacity is rounded up to a power of two and
+        // a lookup with five subtables has paid for eight. These live for as
+        // long as the font cache does, and at 104 bytes each the slack is the
+        // largest single thing this holds -- the interpreted form shrinks its
+        // own subtable vector for the same reason.
+        subtables.shrink_to_fit();
         let effect = subtables
             .iter()
             .map(Subtable::effect)
@@ -800,10 +807,15 @@ impl CompiledLookup {
     }
 
     pub fn heap_bytes(&self) -> usize {
-        self.subtables
-            .iter()
-            .map(Subtable::heap_bytes)
-            .sum::<usize>()
+        // The vector holding the subtables, not just what they point at. Each
+        // `Subtable` lives inside it, so its own size is counted here and not
+        // in `Subtable::heap_bytes`.
+        self.subtables.capacity() * size_of::<Subtable>()
+            + self
+                .subtables
+                .iter()
+                .map(Subtable::heap_bytes)
+                .sum::<usize>()
             + self.reach.heap_bytes()
             + self.pair_key.as_ref().map_or(0, GlyphSet::heap_bytes)
             + self.dispatch.as_ref().map_or(0, Dispatch::heap_bytes)
@@ -1023,6 +1035,9 @@ impl Dispatch {
 /// Entries that could not be compiled are `None`, which the runtime treats as
 /// "does not apply" — wrong output is preferable to a panic only if it is loud,
 /// so callers check [`Program::missing`] to know what they are missing.
+/// One slot of a [`Program`], named so its size can be accounted for.
+pub type CompiledLookupSlot = OnceLock<Option<CompiledLookup>>;
+
 #[derive(Debug)]
 pub struct Program {
     /// One slot per lookup in the font, each compiled on first use.
@@ -1036,6 +1051,9 @@ pub struct Program {
     /// and with anything else built against the same font. Shaping never reads
     /// it: subtables hold their tables directly.
     pool: Arc<Interner>,
+    /// Whether the compiler is holding working buffers worth giving back. Read
+    /// once per shaping call, so it must not be a lock.
+    scratch_held: AtomicBool,
     /// Held for the lookups not compiled yet. Behind a lock because compiling
     /// happens through a shared reference, from whichever thread shapes first --
     /// and because the compiler carries scratch buffers whose whole point is to
@@ -1058,11 +1076,21 @@ impl Default for Program {
 impl Program {
     /// A program over `count` lookups, none of them compiled yet.
     pub fn new(count: u16, pool: Arc<Interner>) -> Self {
-        Self::with_table(count, pool, Table::Gsub)
+        Self::with_table(count, pool, Table::Gsub, super::set::DEFAULT_BUDGET)
     }
 
     pub fn new_gpos(count: u16, pool: Arc<Interner>) -> Self {
-        Self::with_table(count, pool, Table::Gpos)
+        Self::with_table(count, pool, Table::Gpos, super::set::DEFAULT_BUDGET)
+    }
+
+    /// The same, at a chosen representation budget. See
+    /// [`Compiler::with_budget`](super::Compiler::with_budget).
+    pub fn new_with_budget(count: u16, pool: Arc<Interner>, budget: usize) -> Self {
+        Self::with_table(count, pool, Table::Gsub, budget)
+    }
+
+    pub fn new_gpos_with_budget(count: u16, pool: Arc<Interner>, budget: usize) -> Self {
+        Self::with_table(count, pool, Table::Gpos, budget)
     }
 
     /// A program over lookups that are already compiled.
@@ -1071,7 +1099,7 @@ impl Program {
     /// lookup list -- tests that build a lookup by hand, mostly. `get` never
     /// compiles here: every slot is already filled.
     pub fn prebuilt(lookups: Vec<Option<CompiledLookup>>, pool: Arc<Interner>) -> Self {
-        let mut p = Self::with_table(0, pool, Table::Gsub);
+        let mut p = Self::with_table(0, pool, Table::Gsub, super::set::DEFAULT_BUDGET);
         p.lookups = lookups
             .into_iter()
             .map(|l| {
@@ -1083,8 +1111,8 @@ impl Program {
         p
     }
 
-    fn with_table(count: u16, pool: Arc<Interner>, table: Table) -> Self {
-        let compiler = Mutex::new(Compiler::with_pool(Arc::clone(&pool)));
+    fn with_table(count: u16, pool: Arc<Interner>, table: Table, budget: usize) -> Self {
+        let compiler = Mutex::new(Compiler::with_budget(Arc::clone(&pool), budget));
         let mut lookups = Vec::new();
         lookups.resize_with(usize::from(count), OnceLock::new);
         Self {
@@ -1092,6 +1120,7 @@ impl Program {
             pool,
             compiler,
             table,
+            scratch_held: AtomicBool::new(false),
         }
     }
 
@@ -1102,6 +1131,12 @@ impl Program {
 
     /// The interning index, for compiling further lookups later.
     #[inline]
+    /// Words of scratch the compiler is holding, so a caller accounting for
+    /// this program can see what compilation left behind.
+    pub fn scratch_capacity(&self) -> usize {
+        self.compiler.lock().scratch_capacity()
+    }
+
     pub fn pool(&self) -> &Arc<Interner> {
         &self.pool
     }
@@ -1129,9 +1164,27 @@ impl Program {
     fn compile(&self, index: u16, data: &[u8]) -> Option<CompiledLookup> {
         let data = FontData::new(data);
         let mut compiler = self.compiler.lock();
+        self.scratch_held.store(true, Ordering::Relaxed);
         match self.table {
             Table::Gsub => compiler.gsub(&Gsub::read(data).ok()?, index).ok(),
             Table::Gpos => compiler.gpos(&Gpos::read(data).ok()?, index).ok(),
+        }
+    }
+
+    /// Drop the compiler's working buffers.
+    ///
+    /// Called when a shaping call finishes, which is the natural boundary:
+    /// everything a plan reaches has been compiled by then, and what is left
+    /// is a compiled form that never needs them again. See
+    /// [`Compiler::release`](super::Compiler::release).
+    ///
+    /// Gated on a flag rather than taking the lock every time. A caller shapes
+    /// a line at a time and compiles on almost none of them, so the common
+    /// case has to be an atomic read: two lock acquisitions per line would be
+    /// a real cost on a benchmark of short lines, to free nothing.
+    pub fn release_scratch(&self) {
+        if self.scratch_held.swap(false, Ordering::Relaxed) {
+            self.compiler.lock().release();
         }
     }
 
@@ -1169,13 +1222,23 @@ impl Program {
             .collect()
     }
 
+    /// Everything this program owns: the slot vector, whatever has been
+    /// compiled into it, the shared interner, and the compiler's own scratch.
+    ///
+    /// The slot vector is sized for every lookup in the table whether or not
+    /// one has been compiled, so an empty program is not free -- that is the
+    /// price of being able to fill a slot behind `&self`.
     pub fn heap_bytes(&self) -> usize {
-        self.lookups
-            .iter()
-            .filter_map(|l| l.get()?.as_ref())
-            .map(CompiledLookup::heap_bytes)
-            .sum::<usize>()
+        self.lookups.capacity() * size_of::<OnceLock<Option<CompiledLookup>>>()
+            + self
+                .lookups
+                .iter()
+                .filter_map(|l| l.get()?.as_ref())
+                .map(CompiledLookup::heap_bytes)
+                .sum::<usize>()
             + self.pool.heap_bytes()
+            + self.pool.key_bytes()
+            + self.compiler.lock().scratch_capacity() * size_of::<u32>()
     }
 }
 

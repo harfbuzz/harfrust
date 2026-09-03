@@ -152,11 +152,23 @@ impl From<ReadError> for CompileError {
     }
 }
 
+impl Default for Compiler {
+    fn default() -> Self {
+        Self {
+            glyphs: Vec::new(),
+            seconds: Vec::new(),
+            union: Vec::new(),
+            pool: Arc::default(),
+            budget: set::DEFAULT_BUDGET,
+        }
+    }
+}
+
 /// Compiles lookups, reusing its buffers between them.
 ///
 /// Hold one across a whole font. The buffers grow to the largest subtable seen
 /// and are reused from then on.
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Compiler {
     /// Glyph ids of the coverage being compiled.
     glyphs: Vec<u32>,
@@ -167,6 +179,9 @@ pub struct Compiler {
     /// Interning index for chain-context sets, shared so a font cache can keep
     /// compiling into it as new plans reach new lookups.
     pool: Arc<Interner>,
+    /// How much a compiled set may spend before a cheaper representation is
+    /// preferred. See [`set::pick`] and [`Compiler::with_budget`].
+    budget: usize,
 }
 
 impl Compiler {
@@ -183,10 +198,44 @@ impl Compiler {
         }
     }
 
+    /// The same, with a different representation budget.
+    ///
+    /// The budget is what a set may spend before the picker prefers a cheaper
+    /// shape: a bitmap is a constant-time probe but costs one bit per glyph of
+    /// span, a sorted list is a binary search but costs only what it holds. A
+    /// smaller budget therefore trades probe time for space, and a larger one
+    /// the reverse. See [`set::pick`].
+    pub fn with_budget(pool: Arc<Interner>, budget: usize) -> Self {
+        Self {
+            pool,
+            budget,
+            ..Self::default()
+        }
+    }
+
     /// Total capacity currently held, so a caller can check that reuse is really
     /// happening rather than the buffers being reallocated each time.
     pub fn scratch_capacity(&self) -> usize {
         self.glyphs.capacity() + self.seconds.capacity() + self.union.capacity()
+    }
+
+    /// Give the scratch back.
+    ///
+    /// These buffers exist to be reused, and that reuse is why compiling a
+    /// font is a handful of allocations rather than thousands -- so they must
+    /// not be dropped between lookups. But they grow to the largest thing ever
+    /// put in them and never shrink, and a font cache holds its compiler for
+    /// as long as it holds the font, so one lookup with a four-thousand-glyph
+    /// coverage would otherwise leave that much scratch behind for good.
+    ///
+    /// The right lifetime is the shaping call: every lookup a plan reaches is
+    /// compiled within one, so the reuse is kept in full, and nothing survives
+    /// it. A later call that reaches new lookups pays to grow the buffers
+    /// again, which is the same cost it would have paid to compile them.
+    pub(super) fn release(&mut self) {
+        self.glyphs = Vec::new();
+        self.seconds = Vec::new();
+        self.union = Vec::new();
     }
 
     /// The interning index, shared with whatever program this builds.
@@ -705,11 +754,16 @@ impl Compiler {
         let bytes = coverage_bytes(c);
         // Disjoint field borrows: the build closure fills the glyph scratch
         // while the interner is borrowed.
-        let Self { glyphs, pool, .. } = self;
-        let pool: &Interner = pool;
+        let Self {
+            glyphs,
+            pool,
+            budget,
+            ..
+        } = self;
+        let (pool, budget): (&Interner, usize) = (pool, *budget);
         pool.set(bytes, || {
             fill_glyphs(glyphs, c);
-            GlyphSet::build(glyphs)
+            GlyphSet::build_with_budget(glyphs, budget)
         })
     }
 
@@ -718,11 +772,16 @@ impl Compiler {
     /// membership-only sets are.
     fn coverage(&mut self, c: &CoverageTable) -> Arc<Coverage> {
         let bytes = coverage_bytes(c);
-        let Self { glyphs, pool, .. } = self;
-        let pool: &Interner = pool;
+        let Self {
+            glyphs,
+            pool,
+            budget,
+            ..
+        } = self;
+        let (pool, budget): (&Interner, usize) = (pool, *budget);
         pool.coverage(bytes, || {
             fill_glyphs(glyphs, c);
-            Coverage::build(glyphs)
+            Coverage::build_with_budget(glyphs, budget)
         })
     }
 }
@@ -1032,6 +1091,7 @@ impl Compiler {
 
     fn class_map(&mut self, c: &ClassDef) -> Arc<ClassMap> {
         let bytes = class_def_bytes(c);
+        let budget = self.budget;
         self.pool.class_map(bytes, || {
             let mut entries: Vec<(u32, u16)> = c
                 .iter()
@@ -1040,7 +1100,7 @@ impl Compiler {
                 .collect();
             entries.sort_unstable();
             entries.dedup_by_key(|e| e.0);
-            ClassMap::build(&entries)
+            ClassMap::build_with_budget(&entries, budget)
         })
     }
 }
@@ -1092,6 +1152,19 @@ pub fn compile_gsub_program(gsub: &Gsub) -> Program {
 /// Worth using over the two separately: GSUB and GPOS name many of the same
 /// coverages, and interning across the pair is what collapses them to one copy.
 pub fn compile_font(gsub: Option<&Gsub>, gpos: Option<&Gpos>) -> (Program, Program) {
+    compile_font_with_budget(gsub, gpos, set::DEFAULT_BUDGET)
+}
+
+/// The same, at a chosen representation budget.
+///
+/// The budget is the one dial worth exposing: it decides, per compiled set,
+/// whether to spend memory on a bitmap or time on a binary search. Everything
+/// else about the compiled form is fixed by the font.
+pub fn compile_font_with_budget(
+    gsub: Option<&Gsub>,
+    gpos: Option<&Gpos>,
+    budget: usize,
+) -> (Program, Program) {
     let pool = Arc::<Interner>::default();
     let gsub_count = gsub
         .and_then(|t| t.lookup_list().ok())
@@ -1100,8 +1173,8 @@ pub fn compile_font(gsub: Option<&Gsub>, gpos: Option<&Gpos>) -> (Program, Progr
         .and_then(|t| t.lookup_list().ok())
         .map_or(0, |l| l.lookup_count());
     (
-        Program::new(gsub_count, Arc::clone(&pool)),
-        Program::new_gpos(gpos_count, pool),
+        Program::new_with_budget(gsub_count, Arc::clone(&pool), budget),
+        Program::new_gpos_with_budget(gpos_count, pool, budget),
     )
 }
 
@@ -1402,91 +1475,224 @@ If the applying side              genuinely needs this, put it in the filter mod
 }
 
 #[cfg(all(test, feature = "std"))]
-mod interner_cost {
+mod heap_cost {
     use super::*;
+    use crate::hb::ot::lookup::LookupCache;
     use crate::FontRef;
     use read_fonts::TableProvider;
+    use set::DEFAULT_BUDGET;
 
-    /// Compile every lookup of both tables and report what the interner holds.
-    fn measure(data: &[u8], share: bool) -> (usize, usize, usize) {
-        let font = FontRef::new(data).unwrap();
-        let gsub = font.gsub().ok();
-        let gpos = font.gpos().ok();
-        let gsub_bytes = font
-            .table_data(read_fonts::types::Tag::new(b"GSUB"))
-            .map(|d| d.as_bytes().to_vec());
-        let gpos_bytes = font
-            .table_data(read_fonts::types::Tag::new(b"GPOS"))
-            .map(|d| d.as_bytes().to_vec());
+    /// Both tables of a font, as bytes and as parsed tables.
+    struct Font<'a> {
+        gsub: Option<Gsub<'a>>,
+        gpos: Option<Gpos<'a>>,
+        gsub_bytes: Option<Vec<u8>>,
+        gpos_bytes: Option<Vec<u8>>,
+    }
 
-        let (sub, pos) = if share {
-            compile_font(gsub.as_ref(), gpos.as_ref())
-        } else {
-            (
-                gsub.as_ref().map(compile_gsub_program).unwrap_or_default(),
-                gpos.as_ref().map(compile_gpos_program).unwrap_or_default(),
-            )
-        };
-        if let Some(b) = &gsub_bytes {
+    fn load<'a>(font: &FontRef<'a>) -> Font<'a> {
+        Font {
+            gsub: font.gsub().ok(),
+            gpos: font.gpos().ok(),
+            gsub_bytes: font
+                .table_data(read_fonts::types::Tag::new(b"GSUB"))
+                .map(|d| d.as_bytes().to_vec()),
+            gpos_bytes: font
+                .table_data(read_fonts::types::Tag::new(b"GPOS"))
+                .map(|d| d.as_bytes().to_vec()),
+        }
+    }
+
+    /// What the interpreted path holds once every lookup has been read.
+    ///
+    /// Reading them all is the fair comparison: both sides fill lazily, so the
+    /// question is what each costs for a font whose lookups have all been
+    /// reached, not what each costs before anything happens.
+    fn interpreted(f: &Font<'_>) -> usize {
+        let mut total = 0;
+        if let Some(gsub) = &f.gsub {
+            let cache = LookupCache::new(gsub);
+            for i in 0..gsub.lookup_list().map_or(0, |l| l.lookup_count()) {
+                let _ = cache.get(gsub, i);
+            }
+            total += cache.heap_bytes();
+        }
+        if let Some(gpos) = &f.gpos {
+            let cache = LookupCache::new(gpos);
+            for i in 0..gpos.lookup_list().map_or(0, |l| l.lookup_count()) {
+                let _ = cache.get(gpos, i);
+            }
+            total += cache.heap_bytes();
+        }
+        total
+    }
+
+    /// Where the compiled path's bytes go, for one font.
+    #[derive(Default)]
+    struct Parts {
+        /// The per-lookup slot vectors, sized for every lookup in the table
+        /// whether or not one has been compiled.
+        slots: usize,
+        /// The vectors holding the subtables, and the subtable records in them.
+        subtable_vecs: usize,
+        /// What a compiled lookup owns beyond that: its reach, its dispatch
+        /// index, its pair filter, and each kind's own tables.
+        owned: usize,
+        /// The interned coverages, class maps and sets, shared across lookups.
+        interned: usize,
+        /// The digests that identify them.
+        keys: usize,
+        /// The compiler's own working buffers, grown to the largest subtable
+        /// seen and kept for the next one.
+        scratch: usize,
+    }
+
+    impl Parts {
+        fn total(&self) -> usize {
+            self.slots + self.subtable_vecs + self.owned + self.interned + self.keys + self.scratch
+        }
+    }
+
+    fn parts(f: &Font<'_>, budget: usize) -> Parts {
+        let (sub, pos) = compile_font_with_budget(f.gsub.as_ref(), f.gpos.as_ref(), budget);
+        let mut p = Parts::default();
+        for (program, bytes) in [(&sub, &f.gsub_bytes), (&pos, &f.gpos_bytes)] {
+            p.slots += program.len() * size_of::<lookup::CompiledLookupSlot>();
+            let Some(b) = bytes else { continue };
+            for i in 0..program.len() as u16 {
+                let Some(l) = program.get(i, b) else { continue };
+                let vec = l.subtables.capacity() * size_of::<Subtable>();
+                p.subtable_vecs += vec;
+                p.owned += l.heap_bytes() - vec;
+            }
+        }
+        // Shared, so counted once.
+        p.interned = sub.pool().heap_bytes();
+        p.keys = sub.pool().key_bytes();
+        // What the end of a shaping call does, and therefore what a caller is
+        // actually left holding.
+        sub.release_scratch();
+        pos.release_scratch();
+        p.scratch = (sub.scratch_capacity() + pos.scratch_capacity()) * size_of::<u32>();
+        p
+    }
+
+    /// What the compiled path holds for the same font, at a given set budget.
+    fn compiled(f: &Font<'_>, budget: usize) -> usize {
+        let (sub, pos) = compile_font_with_budget(f.gsub.as_ref(), f.gpos.as_ref(), budget);
+        if let Some(b) = &f.gsub_bytes {
             for i in 0..sub.len() as u16 {
                 let _ = sub.get(i, b);
             }
         }
-        if let Some(b) = &gpos_bytes {
+        if let Some(b) = &f.gpos_bytes {
             for i in 0..pos.len() as u16 {
                 let _ = pos.get(i, b);
             }
         }
-        let (a, b, c) = sub.pool().len();
-        let mut entries = a + b + c;
-        let mut keys = sub.pool().key_bytes();
-        let mut vals = sub.pool().heap_bytes();
-        if !share {
-            let (a, b, c) = pos.pool().len();
-            entries += a + b + c;
-            keys += pos.pool().key_bytes();
-            vals += pos.pool().heap_bytes();
-        }
-        (entries, keys, vals)
+        // The pool is shared, so counting it once is counting it right; the
+        // GPOS program's own `heap_bytes` would double it.
+        sub.heap_bytes() + pos.heap_bytes() - pos.pool().heap_bytes() - pos.pool().key_bytes()
     }
 
-    /// Bytes as KiB, for a table that is about scale rather than exactness.
     #[allow(clippy::cast_precision_loss)]
     fn kib(bytes: usize) -> f64 {
         bytes as f64 / 1024.0
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    fn ratio(a: usize, b: usize) -> f64 {
+        a as f64 / b.max(1) as f64
+    }
+
     #[test]
     fn report() {
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
+        println!();
+        // The two per-subtable records, which is what the vectors above are
+        // full of and what most of the difference comes down to.
         println!(
-            "{:<36} {:>7} {:>7} {:>9} {:>9} {:>9}",
-            "font", "shared", "split", "key KiB", "val KiB", "compile"
+            "per subtable record: compiled {} bytes, interpreted {} bytes",
+            size_of::<Subtable>(),
+            size_of::<crate::hb::ot::lookup::SubtableInfo>(),
         );
-        for entry in std::fs::read_dir(dir).unwrap().flatten() {
-            let path = entry.path();
-            if path.extension().is_none_or(|e| e != "ttf" && e != "otf") {
-                continue;
-            }
-            let Ok(data) = std::fs::read(&path) else {
-                continue;
-            };
-            let (shared, keys, vals) = measure(&data, true);
-            let (split, _, _) = measure(&data, false);
-            // Compiling a whole font is latency a caller feels before the
-            // first shape, so it is worth watching alongside the memory.
+        println!(
+            "{:<32} {:>10} {:>10} {:>7}  {:>7} {:>7} {:>7} {:>8} {:>6}",
+            "font",
+            "interp KiB",
+            "compiled",
+            "ratio",
+            "slots",
+            "subtbl",
+            "owned",
+            "interned",
+            "scratch"
+        );
+        let time = |f: &Font<'_>| {
             let reps = 20;
             let start = std::time::Instant::now();
             for _ in 0..reps {
-                let _ = measure(&data, true);
+                let _ = parts(f, DEFAULT_BUDGET);
             }
-            let per = start.elapsed().as_secs_f64() * 1000.0 / f64::from(reps);
+            start.elapsed().as_secs_f64() * 1000.0 / f64::from(reps)
+        };
+        let mut budgets = Vec::new();
+        let mut timings = Vec::new();
+        let mut fonts: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "ttf" || e == "otf"))
+            .collect();
+        fonts.sort();
+        for path in fonts {
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            let font = FontRef::new(&data).unwrap();
+            let f = load(&font);
+            let interp = interpreted(&f);
+            let p = parts(&f, DEFAULT_BUDGET);
             println!(
-                "{:<36} {shared:>7} {split:>7} {:>9.1} {:>9.1} {per:>8.2}ms",
+                "{:<32} {:>10.1} {:>10.1} {:>6.2}x  {:>7.1} {:>7.1} {:>7.1} {:>8.1} {:>6.1}",
                 path.file_name().unwrap().to_string_lossy(),
-                kib(keys),
-                kib(vals),
+                kib(interp),
+                kib(p.total()),
+                ratio(p.total(), interp),
+                kib(p.slots),
+                kib(p.subtable_vecs),
+                kib(p.owned),
+                kib(p.interned),
+                kib(p.scratch),
+            );
+            timings.push((
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+                time(&f),
+            ));
+            budgets.push((
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+                [64usize, 128, DEFAULT_BUDGET, 1024, 4096].map(|b| compiled(&f, b)),
+            ));
+        }
+        println!();
+        for (name, ms) in timings {
+            println!("compile {name:<32} {ms:>7.2}ms");
+        }
+        println!();
+        println!(
+            "{:<32} {:>9} {:>9} {:>9} {:>9} {:>9}",
+            "budget", "64", "128", "384", "1024", "4096"
+        );
+        for (name, at) in budgets {
+            println!(
+                "{name:<32} {:>9.1} {:>9.1} {:>9.1} {:>9.1} {:>9.1}",
+                kib(at[0]),
+                kib(at[1]),
+                kib(at[2]),
+                kib(at[3]),
+                kib(at[4])
             );
         }
+        println!();
     }
 }
