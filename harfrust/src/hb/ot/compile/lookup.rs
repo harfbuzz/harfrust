@@ -1085,9 +1085,9 @@ impl PairFilter {
 /// cover thousands of glyphs would spend more on the index than it saves.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Dispatch {
-    /// Indexed over the union of every subtable's reach.
+    /// Turns a glyph into a row of `starts`. See [`Dispatch::build`].
     cov: Coverage,
-    /// Where each covered glyph's list starts, with a terminator.
+    /// Where each row starts, with a terminator.
     starts: Box<[u32]>,
     /// Subtable indices, ascending within each glyph's list.
     subs: Box<[u16]>,
@@ -1098,6 +1098,10 @@ const DISPATCH_MIN_SUBTABLES: usize = 4;
 
 /// Cap on the index's size, in (glyph, subtable) pairs.
 const DISPATCH_MAX_ENTRIES: usize = 4096;
+
+/// How much wider than the glyphs it covers a span-indexed row table may be
+/// before ranking is worth its cost. See [`Dispatch::build`].
+const DISPATCH_SPAN_SLACK: usize = 2;
 
 impl Dispatch {
     fn build(subtables: &[Subtable], union: &[u32], scratch: &mut Vec<u32>) -> Option<Self> {
@@ -1117,10 +1121,34 @@ impl Dispatch {
         }
         pairs.sort_unstable();
 
-        let mut starts = Vec::with_capacity(union.len() + 1);
+        let (&base, &last) = (union.first()?, union.last()?);
+        let span = (last - base) as usize + 1;
+        // What turns a glyph into a row. Ranking within the union is the
+        // general answer and costs a popcount per candidate; but when the
+        // union is nearly contiguous, a coverage of the whole span answers the
+        // same question with a subtract, and the glyphs it admits that no
+        // subtable covers get an empty row, which is the answer they wanted.
+        //
+        // A word per glyph of span is the price, so it is only offered while
+        // the span stays close to the count. Both forms earn their keep:
+        // SourceSerif's kerning is five subtables over a contiguous thousand
+        // glyphs and asked about nearly every position -- ranking it was six
+        // percent of a run -- while Amiri's contexts are scattered, and
+        // spanning those instead costs 150KiB and gains nothing.
+        let dense = span <= union.len() * DISPATCH_SPAN_SLACK;
+        let cov = if dense {
+            Coverage::Range {
+                first: base,
+                len: span as u32,
+            }
+        } else {
+            Coverage::build(union)
+        };
+
+        let mut starts = Vec::with_capacity(if dense { span } else { union.len() } + 1);
         let mut subs = Vec::with_capacity(pairs.len());
         let mut p = 0;
-        for &g in union {
+        let mut push_row = |g: u32, starts: &mut Vec<u32>, subs: &mut Vec<u16>| {
             starts.push(subs.len() as u32);
             while let Some(&packed) = pairs.get(p) {
                 if (packed >> 16) as u32 != g {
@@ -1128,6 +1156,15 @@ impl Dispatch {
                 }
                 subs.push((packed & 0xFFFF) as u16);
                 p += 1;
+            }
+        };
+        if dense {
+            for g in base..=last {
+                push_row(g, &mut starts, &mut subs);
+            }
+        } else {
+            for &g in union {
+                push_row(g, &mut starts, &mut subs);
             }
         }
         starts.push(subs.len() as u32);
@@ -1141,7 +1178,7 @@ impl Dispatch {
             return None;
         }
         Some(Self {
-            cov: Coverage::build(union),
+            cov,
             starts: starts.into_boxed_slice(),
             subs: subs.into_boxed_slice(),
         })
