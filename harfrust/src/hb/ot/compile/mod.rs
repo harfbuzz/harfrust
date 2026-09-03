@@ -1400,3 +1400,93 @@ If the applying side              genuinely needs this, put it in the filter mod
         );
     }
 }
+
+#[cfg(all(test, feature = "std"))]
+mod interner_cost {
+    use super::*;
+    use crate::FontRef;
+    use read_fonts::TableProvider;
+
+    /// Compile every lookup of both tables and report what the interner holds.
+    fn measure(data: &[u8], share: bool) -> (usize, usize, usize) {
+        let font = FontRef::new(data).unwrap();
+        let gsub = font.gsub().ok();
+        let gpos = font.gpos().ok();
+        let gsub_bytes = font
+            .table_data(read_fonts::types::Tag::new(b"GSUB"))
+            .map(|d| d.as_bytes().to_vec());
+        let gpos_bytes = font
+            .table_data(read_fonts::types::Tag::new(b"GPOS"))
+            .map(|d| d.as_bytes().to_vec());
+
+        let (sub, pos) = if share {
+            compile_font(gsub.as_ref(), gpos.as_ref())
+        } else {
+            (
+                gsub.as_ref().map(compile_gsub_program).unwrap_or_default(),
+                gpos.as_ref().map(compile_gpos_program).unwrap_or_default(),
+            )
+        };
+        if let Some(b) = &gsub_bytes {
+            for i in 0..sub.len() as u16 {
+                let _ = sub.get(i, b);
+            }
+        }
+        if let Some(b) = &gpos_bytes {
+            for i in 0..pos.len() as u16 {
+                let _ = pos.get(i, b);
+            }
+        }
+        let (a, b, c) = sub.pool().len();
+        let mut entries = a + b + c;
+        let mut keys = sub.pool().key_bytes();
+        let mut vals = sub.pool().heap_bytes();
+        if !share {
+            let (a, b, c) = pos.pool().len();
+            entries += a + b + c;
+            keys += pos.pool().key_bytes();
+            vals += pos.pool().heap_bytes();
+        }
+        (entries, keys, vals)
+    }
+
+    /// Bytes as KiB, for a table that is about scale rather than exactness.
+    #[allow(clippy::cast_precision_loss)]
+    fn kib(bytes: usize) -> f64 {
+        bytes as f64 / 1024.0
+    }
+
+    #[test]
+    fn report() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
+        println!(
+            "{:<36} {:>7} {:>7} {:>9} {:>9} {:>9}",
+            "font", "shared", "split", "key KiB", "val KiB", "compile"
+        );
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.extension().is_none_or(|e| e != "ttf" && e != "otf") {
+                continue;
+            }
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            let (shared, keys, vals) = measure(&data, true);
+            let (split, _, _) = measure(&data, false);
+            // Compiling a whole font is latency a caller feels before the
+            // first shape, so it is worth watching alongside the memory.
+            let reps = 20;
+            let start = std::time::Instant::now();
+            for _ in 0..reps {
+                let _ = measure(&data, true);
+            }
+            let per = start.elapsed().as_secs_f64() * 1000.0 / f64::from(reps);
+            println!(
+                "{:<36} {shared:>7} {split:>7} {:>9.1} {:>9.1} {per:>8.2}ms",
+                path.file_name().unwrap().to_string_lossy(),
+                kib(keys),
+                kib(vals),
+            );
+        }
+    }
+}

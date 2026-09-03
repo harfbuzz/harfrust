@@ -160,17 +160,16 @@ impl OtCache {
             .filter(|_| has_gdef)
             .map(GdefCache::new)
             .unwrap_or_default();
+        // Both programs share one interning index. GSUB and GPOS name many of
+        // the same coverages -- the set of marks, most obviously -- and
+        // interning across the pair is what collapses them to one copy.
+        #[cfg(feature = "compile-path")]
+        let compiled = compile::compile_font(gsub_table.as_ref(), gpos_table.as_ref());
         Self {
             #[cfg(feature = "compile-path")]
-            gsub_compiled: gsub_table
-                .as_ref()
-                .map(compile::compile_gsub_program)
-                .unwrap_or_default(),
+            gsub_compiled: compiled.0,
             #[cfg(feature = "compile-path")]
-            gpos_compiled: gpos_table
-                .as_ref()
-                .map(compile::compile_gpos_program)
-                .unwrap_or_default(),
+            gpos_compiled: compiled.1,
             gsub,
             gpos,
             gdef_glyph_props_cache: MappingCache::new(),
