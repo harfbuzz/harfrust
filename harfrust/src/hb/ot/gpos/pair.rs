@@ -5,8 +5,31 @@ use crate::hb::ot_layout_gsubgpos::{
     skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
     PairPosFormat2SmallCache, SubtableExternalCache, SubtableExternalCacheMode,
 };
+use crate::hb::set_digest::hb_set_digest_t;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
+
+fn collect_pair_set_digests(table: &PairPosFormat1) -> Box<[hb_set_digest_t]> {
+    table
+        .pair_sets()
+        .iter()
+        .map(|pair_set| {
+            let Ok(pair_set) = pair_set else {
+                return hb_set_digest_t::full();
+            };
+            let mut digest = hb_set_digest_t::new();
+            for pair_value in pair_set.pair_value_records().iter() {
+                let Ok(pair_value) = pair_value else {
+                    return hb_set_digest_t::full();
+                };
+                digest.add(pair_value.second_glyph().to_u32());
+            }
+            digest
+        })
+        .collect::<Vec<_>>()
+        .into_boxed_slice()
+}
 
 impl Apply for PairPosFormat1<'_> {
     fn apply_with_external_cache(
@@ -16,16 +39,20 @@ impl Apply for PairPosFormat1<'_> {
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
 
-        let first_glyph_coverage_index = match external_cache {
-            SubtableExternalCache::PairPosFormat1Cache(cache) => coverage_index_cached(
-                |gid| self.coverage().ok()?.get(gid),
-                first_glyph,
-                &cache.coverage,
-            )?,
-            SubtableExternalCache::PairPosFormat1SmallCache(cache) => {
-                cache.coverage.index(&self.offset_data(), first_glyph)?
-            }
-            _ => coverage_index(self.coverage(), first_glyph)?,
+        let (first_glyph_coverage_index, pair_set_digests) = match external_cache {
+            SubtableExternalCache::PairPosFormat1Cache(cache) => (
+                coverage_index_cached(
+                    |gid| self.coverage().ok()?.get(gid),
+                    first_glyph,
+                    &cache.coverage,
+                )?,
+                Some(&cache.pair_sets),
+            ),
+            SubtableExternalCache::PairPosFormat1SmallCache(cache) => (
+                cache.coverage.index(&self.offset_data(), first_glyph)?,
+                Some(&cache.pair_sets),
+            ),
+            _ => (coverage_index(self.coverage(), first_glyph)?, None),
         };
 
         let mut iter = skipping_iterator_t::new(ctx, false);
@@ -40,6 +67,15 @@ impl Apply for PairPosFormat1<'_> {
 
         let second_glyph_index = iter.index();
         let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
+
+        if pair_set_digests
+            .and_then(|digests| digests.get(first_glyph_coverage_index as usize))
+            .is_some_and(|digest| !digest.may_have(second_glyph.to_u32()))
+        {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+            return None;
+        }
 
         let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
             if has_record2 {
@@ -127,15 +163,16 @@ impl Apply for PairPosFormat1<'_> {
 
     fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         match mode {
-            SubtableExternalCacheMode::Full => {
-                SubtableExternalCache::PairPosFormat1Cache(Box::new(PairPosFormat1Cache::new()))
-            }
+            SubtableExternalCacheMode::Full => SubtableExternalCache::PairPosFormat1Cache(
+                Box::new(PairPosFormat1Cache::new(collect_pair_set_digests(self))),
+            ),
             SubtableExternalCacheMode::Small => {
                 if let Some(coverage) =
                     CoverageInfo::new(&self.offset_data(), self.coverage_offset().to_u32() as u16)
                 {
                     SubtableExternalCache::PairPosFormat1SmallCache(PairPosFormat1SmallCache {
                         coverage,
+                        pair_sets: collect_pair_set_digests(self),
                     })
                 } else {
                     SubtableExternalCache::None

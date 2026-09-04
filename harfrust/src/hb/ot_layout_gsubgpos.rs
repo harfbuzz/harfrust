@@ -696,18 +696,21 @@ pub(crate) struct LigatureSubstFormat1SmallCache {
 
 pub(crate) struct PairPosFormat1Cache {
     pub coverage: MappingCache,
+    pub pair_sets: Box<[hb_set_digest_t]>,
 }
 
 impl PairPosFormat1Cache {
-    pub fn new() -> Self {
+    pub fn new(pair_sets: Box<[hb_set_digest_t]>) -> Self {
         PairPosFormat1Cache {
             coverage: MappingCache::new(),
+            pair_sets,
         }
     }
 }
 
 pub(crate) struct PairPosFormat1SmallCache {
     pub coverage: CoverageInfo,
+    pub pair_sets: Box<[hb_set_digest_t]>,
 }
 
 pub(crate) struct PairPosFormat2Cache {
