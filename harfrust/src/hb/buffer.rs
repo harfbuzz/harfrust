@@ -1099,12 +1099,6 @@ impl Buffer {
         self.idx += 1;
     }
 
-    pub(crate) fn reset_masks(&mut self, mask: hb_mask_t) {
-        for info in &mut self.info[..self.len] {
-            info.mask = mask;
-        }
-    }
-
     pub(crate) fn set_masks(
         &mut self,
         mut value: hb_mask_t,
