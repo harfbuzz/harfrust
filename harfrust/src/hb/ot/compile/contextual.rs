@@ -20,6 +20,7 @@ use super::lookup::{Apply, CompiledLookup, SeqRecord, Subtable, SubtableKind};
 use super::set::ClassMap;
 use crate::hb::buffer::GlyphInfo;
 use crate::hb::ot::contextual::{apply_chain_context_rules, apply_context_rules};
+use crate::hb::ot_layout_gsubgpos::RuleSetDigest;
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{apply_lookup, match_backtrack, match_input, match_lookahead};
 use read_fonts::types::{BigEndian, Offset16};
@@ -113,10 +114,12 @@ pub fn at_rules(
     // that walk would have reached -- including the concat hazard it would have
     // reported. A wider window would reject more and would then owe a flag it
     // no longer sets.
-    let digests = &rule_index.digests;
+    // The set-level summary, in the shape the shared walk now takes: one word
+    // of what every rule in this set accepts at the position they all begin by
+    // testing, and how to read that value off a glyph.
+    let digest = Some(RuleSetDigest::from_bits(rule_index.digests.word(set_index)));
     let input = input_classes.as_deref();
-    let dismiss =
-        |info: &mut GlyphInfo| !digests.may_hold(set_index, class_of(input, info.glyph_id));
+    let first_value = |info: &mut GlyphInfo| class_of(input, info.glyph_id) as u16;
 
     match chained {
         false => apply_context_rules(
@@ -125,7 +128,8 @@ pub fn at_rules(
             rules,
             |info, value| class_of(input_classes.as_deref(), info.glyph_id) == value,
             &recurse,
-            Some(&dismiss),
+            digest,
+            first_value,
         ),
         true => apply_chain_context_rules(
             &mut *ctx.host,
@@ -143,7 +147,8 @@ pub fn at_rules(
                 },
             ),
             &recurse,
-            Some(&dismiss),
+            digest,
+            first_value,
         ),
     }
 }

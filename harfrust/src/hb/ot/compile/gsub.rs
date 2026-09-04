@@ -215,20 +215,14 @@ pub fn at_ligature(
     // 72% of English text by first glyph and ligates none of it, because what
     // has to follow is a combining mark.
     //
-    // Exact, where this crate's own filter is a three-word digest, and that
-    // difference is observable in one place. A second glyph the digest admits
-    // reaches the loop below, which records a concat hazard; an exact set
-    // rejects it here and records nothing. So this marks fewer positions
-    // unsafe-to-concat -- 7 cases in 3169 of the test corpus, and only for a
-    // caller that asked for those flags.
-    //
-    // Sound, because the second glyph is already determined when this rejects:
-    // appending text cannot change it, so no ligature can become possible, and
-    // the hazard the digest reports is one nothing could have acted on. It is
-    // a deliberate divergence all the same, and API output, so it is recorded
-    // here rather than hidden.
+    // Rejecting here reports the hazard the walk below would have reported.
+    // Every ligature in a set this rejects has a second component, and none of
+    // them is this glyph, which is exactly the condition the walk accumulates
+    // into a concat hazard -- so the filter is invisible in the flags.
     if let Some(seconds) = sub.next.as_deref() {
         if !seconds.contains(second) {
+            let idx = ctx.host.buffer.idx;
+            ctx.host.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to));
             return None;
         }
     }

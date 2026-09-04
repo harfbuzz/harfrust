@@ -96,11 +96,12 @@ fn pair_done(
     mut cursor: usize,
     moved: bool,
     has_record2: bool,
+    still_is_hazard: bool,
 ) -> Option<()> {
     let idx = ctx.host.buffer.idx;
     if moved {
         ctx.host.buffer.unsafe_to_break(Some(idx), Some(second + 1));
-    } else {
+    } else if still_is_hazard {
         ctx.host
             .buffer
             .unsafe_to_concat(Some(idx), Some(second + 1));
@@ -111,6 +112,17 @@ fn pair_done(
     }
     ctx.host.buffer.idx = cursor;
     Some(())
+}
+
+/// This pair does not kern, which HarfBuzz reports as a concat hazard: the
+/// decision consulted the neighbour, so a different neighbour could have
+/// kerned.
+fn pair_absent(ctx: &mut Apply, second: usize) -> Option<()> {
+    let idx = ctx.host.buffer.idx;
+    ctx.host
+        .buffer
+        .unsafe_to_concat(Some(idx), Some(second + 1));
+    None
 }
 
 /// The next position a pattern would see, and where the cursor should end up.
@@ -137,10 +149,11 @@ fn second_glyph(ctx: &mut Apply) -> Option<(usize, usize)> {
 /// of others and on running text the next glyph is almost never one of them,
 /// so one `and` answers what the search below walks the font to conclude.
 ///
-/// It is also the one filter here that cannot change a flag. It rejects only
-/// when the search would have failed, and a failed search sets nothing.
+/// It cannot change a flag: it rejects only where the search would have
+/// missed, and both report the same hazard.
 ///
-/// Flags: see [`pair_done`].
+/// Flags: a found record reports one only when it moved something. See
+/// [`pair_done`] and [`pair_absent`].
 pub fn at_pair1(
     ctx: &mut Apply,
     _lookup: &CompiledLookup,
@@ -159,8 +172,12 @@ pub fn at_pair1(
     let (second, cursor) = second_glyph(ctx)?;
     let want = ctx.host.buffer.info[second].glyph_id;
 
+    // The pair key. Rejecting here reports the same hazard the search below
+    // reports when it misses, so the two routes to "this pair does not kern"
+    // are indistinguishable and how this summary folds a glyph id stays
+    // invisible.
     if !seconds.may_hold(index, want) {
-        return None;
+        return pair_absent(ctx, second);
     }
 
     let base = *offset as usize;
@@ -189,11 +206,19 @@ pub fn at_pair1(
             core::cmp::Ordering::Less => lo = mid + 1,
             core::cmp::Ordering::Greater => hi = mid,
             core::cmp::Ordering::Equal => {
-                return apply_pair(ctx, second, cursor, at + 2, *first_format, *second_format);
+                return apply_pair(
+                    ctx,
+                    second,
+                    cursor,
+                    at + 2,
+                    *first_format,
+                    *second_format,
+                    false,
+                );
             }
         }
     }
-    None
+    pair_absent(ctx, second)
 }
 
 /// Pair positioning format 2: both glyphs resolve to classes and the record is
@@ -240,12 +265,12 @@ pub fn at_pair2(
 
     if !rows.may_hold(c1, c2) {
         // Matched, moved nothing.
-        return pair_done(ctx, second, cursor, false, has_record2);
+        return pair_done(ctx, second, cursor, false, has_record2, true);
     }
 
     let pair = record_size(*first_format) + record_size(*second_format);
     let at = *matrix as usize + (c1 as usize * usize::from(*class2_count) + c2 as usize) * pair;
-    apply_pair(ctx, second, cursor, at, *first_format, *second_format)
+    apply_pair(ctx, second, cursor, at, *first_format, *second_format, true)
 }
 
 /// Apply a pair of value records, then settle the flags and the cursor.
@@ -261,6 +286,7 @@ fn apply_pair(
     at: usize,
     first_format: u16,
     second_format: u16,
+    still_is_hazard: bool,
 ) -> Option<()> {
     let data = FontData::new(ctx.table);
     let first = ValueFormat::from_bits_truncate(first_format);
@@ -278,7 +304,14 @@ fn apply_pair(
             second_fmt,
         ) == Some(true);
 
-    pair_done(ctx, second, cursor, moved1 || moved2, has_record2)
+    pair_done(
+        ctx,
+        second,
+        cursor,
+        moved1 || moved2,
+        has_record2,
+        still_is_hazard,
+    )
 }
 
 /// Cursive attachment: the exit anchor of one glyph meets the entry anchor of

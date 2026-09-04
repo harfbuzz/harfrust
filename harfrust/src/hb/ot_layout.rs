@@ -7,9 +7,11 @@ use super::font_funcs::FontFuncsDispatch;
 use super::ot::lookup::LookupInfo;
 use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
+use super::set_digest::hb_set_digest_t;
 use super::{hb_font_t, GlyphInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::unicode::{hb_unicode_funcs_t, GeneralCategory};
+use crate::BufferFlags;
 
 impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
@@ -82,32 +84,20 @@ pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
 
 // hb_ot_layout_kern
 
-pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut Buffer) {
+pub fn _hb_ot_layout_set_glyph_props<const SET_DIGEST: bool>(
+    face: &hb_font_t,
+    buffer: &mut Buffer,
+) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
+        if SET_DIGEST {
+            buffer.digest.add(info.glyph_id);
+        }
         info.set_glyph_props(face.ot_tables.glyph_props(info.as_glyph()));
         info.set_lig_props(0);
     }
-}
-
-/// `_hb_ot_layout_set_glyph_props` fused with the buffer-digest rebuild:
-/// one pass over the buffer instead of two. The digest covers exactly the
-/// in-use glyphs, a subset of what the from-scratch rebuild admits (which
-/// also hashes slack entries), so lookups it skips could never have
-/// matched.
-pub fn _hb_ot_layout_set_glyph_props_with_digest(face: &hb_font_t, buffer: &mut Buffer) {
-    buffer.assert_gsubgpos_vars();
-
-    let len = buffer.len;
-    let mut digest = crate::hb::set_digest::hb_set_digest_t::new();
-    for info in &mut buffer.info[..len] {
-        digest.add(info.glyph_id);
-        info.set_glyph_props(face.ot_tables.glyph_props(info.as_glyph()));
-        info.set_lig_props(0);
-    }
-    buffer.digest = digest;
 }
 
 pub fn hb_ot_layout_has_glyph_classes(face: &hb_font_t) -> bool {
@@ -157,7 +147,12 @@ pub trait LayoutTable {
 /// Called before substitution lookups are performed, to ensure that glyph
 /// class and other properties are set on the glyphs in the buffer.
 pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut Buffer) {
-    _hb_ot_layout_set_glyph_props(face, buffer);
+    _hb_ot_layout_set_glyph_props::<false>(face, buffer);
+}
+
+pub fn hb_ot_layout_substitute_start_with_digest(face: &hb_font_t, buffer: &mut Buffer) {
+    buffer.digest = hb_set_digest_t::new();
+    _hb_ot_layout_set_glyph_props::<true>(face, buffer);
 }
 
 /// Applies the lookups in the given GSUB or GPOS table.
@@ -215,6 +210,19 @@ pub fn apply_layout_table<T: LayoutTable>(
                 };
 
                 if !lookup.digest().may_intersect(&ctx.buffer.digest) {
+                    continue;
+                }
+                // What may *follow* a start, which upstream added alongside.
+                // Gated on the flag because skipping a lookup this way also
+                // skips the concat hazards it would have reported: a caller
+                // that asked for them gets the pass, a caller that did not
+                // gets the speed.
+                if !ctx
+                    .buffer
+                    .flags
+                    .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
+                    && !lookup.digest_second().may_intersect(&ctx.buffer.digest)
+                {
                     continue;
                 }
                 ctx.lookup_index = lookup_map.index;

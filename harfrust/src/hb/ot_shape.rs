@@ -322,8 +322,7 @@ impl OtShapeContext<'_, '_> {
     pub(crate) fn shape_internal(&mut self) {
         self.buffer.allocate_unicode_vars();
 
-        // initialize_masks is fused into set_unicode_props.
-        self.set_unicode_props();
+        self.set_unicode_props(self.plan.ot_map.get_global_mask());
         self.insert_dotted_circle();
 
         form_clusters(self.buffer);
@@ -419,10 +418,7 @@ impl OtShapeContext<'_, '_> {
                 self.buffer.update_digest();
             }
         } else {
-            // One fused pass sets glyph props and rebuilds the digest;
-            // glyph-class synthesis does not change glyph ids, so the
-            // digest can be collected before it.
-            _hb_ot_layout_set_glyph_props_with_digest(self.face, self.buffer);
+            hb_ot_layout_substitute_start_with_digest(self.face, self.buffer);
 
             if self.plan.fallback_glyph_classes {
                 hb_synthesize_glyph_classes(self.buffer);
@@ -554,8 +550,6 @@ impl OtShapeContext<'_, '_> {
         }
     }
 
-    // hb_ot_shape_initialize_masks was fused into set_unicode_props.
-
     // hb_ot_shape_setup_masks: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L757>
     fn setup_masks(&mut self) {
         self.setup_masks_fraction();
@@ -646,11 +640,7 @@ impl OtShapeContext<'_, '_> {
     }
 
     // hb_set_unicode_props: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L471>
-    fn set_unicode_props(&mut self) {
-        // Fused with `initialize_masks`: every glyph passes through exactly
-        // one of the two `init_unicode_props` sites below, which also
-        // resets its mask to the plan's global mask.
-        let global_mask = self.plan.ot_map.get_global_mask();
+    fn set_unicode_props(&mut self, global_mask: hb_mask_t) {
         let buffer = &mut *self.buffer;
         // Implement enough of Unicode Graphemes here that shaping
         // in reverse-direction wouldn't break graphemes.  Namely,

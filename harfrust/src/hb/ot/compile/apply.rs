@@ -933,26 +933,20 @@ mod tests {
         );
     }
 
-    /// The same cases with the caller asking for unsafe-to-concat, where the
-    /// agreement is deliberately weaker.
+    /// The same cases with the caller asking for unsafe-to-concat.
     ///
     /// Worth its own test because those flags are off by default -- the sweep
     /// above cannot see them at all, since `Buffer::unsafe_to_concat` returns
-    /// immediately unless the buffer asked -- and worth its own assertion
-    /// because the compiled path is knowingly *more precise* here. Its pair key
-    /// is an exact set where this crate consults a three-word digest, so it
-    /// rejects some second glyphs the digest lets through, and it is the loop
-    /// past that point which records a hazard. See [`super::super::gsub`].
+    /// immediately unless the buffer asked for them.
     ///
-    /// So glyphs and clusters must still match exactly, and the flags we set
-    /// must be a *subset* of theirs. A superset would mean inventing hazards;
-    /// anything but a subset would mean the difference is not the one this
-    /// documents.
+    /// Every filter the compiled path adds rejects only where the walk it
+    /// replaces would have reported a hazard, and reports the same one, so
+    /// these must match exactly rather than merely closely.
     #[test]
-    fn concat_hazards_are_a_subset_of_the_ones_this_crate_marks() {
+    fn concat_hazards_match_the_ones_this_crate_marks() {
         let cases = cases();
         let mut checked = 0usize;
-        let mut fewer = 0usize;
+        let mut flagged = 0usize;
         let mut failures = Vec::new();
 
         for case in &cases {
@@ -968,35 +962,27 @@ mod tests {
                 ));
                 continue;
             }
-            if got.2 == want.2 {
-                continue;
-            }
-            if got
-                .2
-                .iter()
-                .zip(&want.2)
-                .all(|(&ours, &theirs)| ours & !theirs == 0)
-            {
-                fewer += 1;
-            } else {
+            if got.2 != want.2 {
                 failures.push(format!(
-                    "{}: lookup {} on {:?}: we mark a flag they do not\n    \
+                    "{}: lookup {} on {:?}: concat hazards differ\n    \
                      want {:?}\n    got  {:?}",
                     case.name, case.index, case.glyphs, want.2, got.2
                 ));
+            } else if got.2.iter().any(|&f| f != 0) {
+                flagged += 1;
             }
         }
 
         assert!(checked > 0, "no lookups exercised");
         assert!(
             failures.is_empty(),
-            "{} of {checked} cases disagree beyond concat hazards:\n{}",
+            "{} of {checked} cases disagree on concat hazards:\n{}",
             failures.len(),
             failures.join("\n")
         );
         println!(
-            "{checked} cases agree on glyphs and clusters; {fewer} mark fewer \
-             concat hazards than this crate does"
+            "{checked} cases agree on glyphs, clusters and concat hazards, \
+             {flagged} of them marking one"
         );
     }
 
@@ -1296,11 +1282,10 @@ mod tests {
 
     /// The same cases with concat hazards requested.
     ///
-    /// Unlike ligature, nothing here is knowingly more precise than this
-    /// crate: the pair-set summaries reject only where the search would have
-    /// failed, and the row summaries stand in for a record of all zeros, which
-    /// this crate applies and finds inert. So the flags must match exactly,
-    /// and that is asserted rather than weakened.
+    /// The pair-set summaries reject only where the search would have missed,
+    /// and report what a miss reports; the row summaries stand in for a record
+    /// of all zeros, which HarfBuzz applies and finds inert. Neither is
+    /// visible in the flags, so these must match exactly.
     #[test]
     fn positioning_flags_agree_when_concat_hazards_are_requested() {
         let cases = gpos_cases();
@@ -1317,10 +1302,19 @@ mod tests {
             if want.1.iter().any(|&m| m != 1) {
                 flagged += 1;
             }
-            if got != want {
+            if got.0 != want.0 {
                 failures.push(format!(
-                    "{}: lookup {} on {:?}\n    want {want:?}\n    got  {got:?}",
-                    case.name, case.index, case.glyphs
+                    "{}: lookup {} on {:?}: positions differ
+    \n                     want {:?}
+    got  {:?}",
+                    case.name, case.index, case.glyphs, want.0, got.0
+                ));
+            } else if got.1 != want.1 {
+                failures.push(format!(
+                    "{}: lookup {} on {:?}: concat hazards differ
+    \n                     want {:?}
+    got  {:?}",
+                    case.name, case.index, case.glyphs, want.1, got.1
                 ));
             }
         }
@@ -1328,15 +1322,21 @@ mod tests {
         assert!(checked > 0, "no positioning lookups exercised");
         assert!(
             failures.is_empty(),
-            "{} of {checked} cases differ:\n{}",
+            "{} of {checked} cases disagree:
+{}",
             failures.len(),
-            failures.join("\n")
+            failures.join(
+                "
+"
+            )
         );
         assert!(
             flagged > 0,
             "no case set a flag; the hazard logic is untested"
         );
-        println!("{checked} positioning cases agree exactly, {flagged} of them setting a flag");
+        println!(
+            "{checked} positioning cases agree on positions and concat hazards,              {flagged} of them marking one"
+        );
     }
 
     fn walk(dir: &str) -> Vec<std::path::PathBuf> {

@@ -22,8 +22,9 @@ use read_fonts::{
         },
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-            ChainedSequenceContextFormat3, CoverageTable, Lookup, LookupFlag, SequenceContext,
-            SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
+            ChainedSequenceContextFormat3, ClassDef, CoverageTable, Lookup, LookupFlag,
+            SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
+            SequenceContextFormat3,
         },
     },
     FontData, FontRead, Offset, ReadError,
@@ -224,6 +225,7 @@ pub struct LookupInfo {
     pub is_subst: bool,
     pub is_reversed: bool,
     pub digest: hb_set_digest_t,
+    pub digest_second: hb_set_digest_t,
     pub subtable_cache_user_idx: Option<usize>,
     pub subtables: Vec<SubtableInfo>,
 }
@@ -255,7 +257,7 @@ impl LookupInfo {
                 SubtableExternalCacheMode::Small
             };
             let subtable_offset = subtable_offset.get().to_usize() + data.offset;
-            if let Some((subtable_info, cache_cost)) = SubtableInfo::new(
+            if let Some((subtable_info, cache_cost, digest_second)) = SubtableInfo::new(
                 data.table_data,
                 subtable_offset as u32,
                 data.is_subst,
@@ -263,6 +265,7 @@ impl LookupInfo {
                 cache_mode,
             ) {
                 info.digest.union(&subtable_info.digest);
+                info.digest_second.union(&digest_second);
                 if cache_cost > subtable_cache_user_cost {
                     info.subtable_cache_user_idx = Some(info.subtables.len());
                     subtable_cache_user_cost = cache_cost;
@@ -292,6 +295,10 @@ impl LookupInfo {
 
     pub fn digest(&self) -> &hb_set_digest_t {
         &self.digest
+    }
+
+    pub fn digest_second(&self) -> &hb_set_digest_t {
+        &self.digest_second
     }
 
     // Accounting, not shaping: nothing on the hot path asks what a cache
@@ -475,6 +482,156 @@ impl SubtableInfo {
     }
 }
 
+fn coverage_digest(coverage: Result<CoverageTable, ReadError>) -> hb_set_digest_t {
+    match coverage {
+        Ok(coverage) => hb_set_digest_t::from_coverage(&coverage),
+        Err(_) => hb_set_digest_t::full(),
+    }
+}
+
+fn add_class(digest: &mut hb_set_digest_t, class_def: &ClassDef, class: u16) {
+    if class == 0 {
+        *digest = hb_set_digest_t::full();
+        return;
+    }
+
+    for (glyph, glyph_class) in class_def.iter() {
+        if glyph_class == class {
+            digest.add(glyph.to_u32());
+        }
+    }
+}
+
+fn context_format1_digest(table: &SequenceContextFormat1) -> hb_set_digest_t {
+    let mut digest = hb_set_digest_t::new();
+    for rule_set in table.seq_rule_sets().iter() {
+        let Some(rule_set) = rule_set else { continue };
+        let Ok(rule_set) = rule_set else {
+            return hb_set_digest_t::full();
+        };
+        for rule in rule_set.seq_rules().iter() {
+            let Ok(rule) = rule else {
+                return hb_set_digest_t::full();
+            };
+            let Some(second) = rule.input_sequence().first() else {
+                return hb_set_digest_t::full();
+            };
+            digest.add(second.get().to_u32());
+        }
+    }
+    digest
+}
+
+fn context_format2_digest(table: &SequenceContextFormat2) -> hb_set_digest_t {
+    let Ok(class_def) = table.class_def() else {
+        return hb_set_digest_t::full();
+    };
+    let mut digest = hb_set_digest_t::new();
+    for rule_set in table.class_seq_rule_sets().iter() {
+        let Some(rule_set) = rule_set else { continue };
+        let Ok(rule_set) = rule_set else {
+            return hb_set_digest_t::full();
+        };
+        for rule in rule_set.class_seq_rules().iter() {
+            let Ok(rule) = rule else {
+                return hb_set_digest_t::full();
+            };
+            let Some(second) = rule.input_sequence().first() else {
+                return hb_set_digest_t::full();
+            };
+            add_class(&mut digest, &class_def, second.get());
+        }
+    }
+    digest
+}
+
+fn context_format3_digest(table: &SequenceContextFormat3) -> hb_set_digest_t {
+    if table.coverages().len() <= 1 {
+        hb_set_digest_t::full()
+    } else {
+        coverage_digest(table.coverages().get(1))
+    }
+}
+
+fn chained_context_format1_digest(table: &ChainedSequenceContextFormat1) -> hb_set_digest_t {
+    let mut digest = hb_set_digest_t::new();
+    for rule_set in table.chained_seq_rule_sets().iter() {
+        let Some(rule_set) = rule_set else { continue };
+        let Ok(rule_set) = rule_set else {
+            return hb_set_digest_t::full();
+        };
+        for rule in rule_set.chained_seq_rules().iter() {
+            let Ok(rule) = rule else {
+                return hb_set_digest_t::full();
+            };
+            let second = rule
+                .input_sequence()
+                .first()
+                .or_else(|| rule.lookahead_sequence().first());
+            let Some(second) = second else {
+                return hb_set_digest_t::full();
+            };
+            digest.add(second.get().to_u32());
+        }
+    }
+    digest
+}
+
+fn chained_context_format2_digest(table: &ChainedSequenceContextFormat2) -> hb_set_digest_t {
+    let Ok(input_class_def) = table.input_class_def() else {
+        return hb_set_digest_t::full();
+    };
+    let Ok(lookahead_class_def) = table.lookahead_class_def() else {
+        return hb_set_digest_t::full();
+    };
+    let mut digest = hb_set_digest_t::new();
+    for rule_set in table.chained_class_seq_rule_sets().iter() {
+        let Some(rule_set) = rule_set else { continue };
+        let Ok(rule_set) = rule_set else {
+            return hb_set_digest_t::full();
+        };
+        for rule in rule_set.chained_class_seq_rules().iter() {
+            let Ok(rule) = rule else {
+                return hb_set_digest_t::full();
+            };
+            if let Some(second) = rule.input_sequence().first() {
+                add_class(&mut digest, &input_class_def, second.get());
+            } else if let Some(second) = rule.lookahead_sequence().first() {
+                add_class(&mut digest, &lookahead_class_def, second.get());
+            } else {
+                return hb_set_digest_t::full();
+            }
+        }
+    }
+    digest
+}
+
+fn chained_context_format3_digest(table: &ChainedSequenceContextFormat3) -> hb_set_digest_t {
+    if table.input_coverages().len() > 1 {
+        coverage_digest(table.input_coverages().get(1))
+    } else if !table.lookahead_coverages().is_empty() {
+        coverage_digest(table.lookahead_coverages().get(0))
+    } else {
+        hb_set_digest_t::full()
+    }
+}
+
+fn pair_pos_format1_digest(table: &PairPosFormat1) -> hb_set_digest_t {
+    let mut digest = hb_set_digest_t::new();
+    for pair_set in table.pair_sets().iter() {
+        let Ok(pair_set) = pair_set else {
+            return hb_set_digest_t::full();
+        };
+        for pair_value in pair_set.pair_value_records().iter() {
+            let Ok(pair_value) = pair_value else {
+                return hb_set_digest_t::full();
+            };
+            digest.add(pair_value.second_glyph().to_u32());
+        }
+    }
+    digest
+}
+
 macro_rules! apply_fns {
     ($apply:ident, $apply_cached:ident, $ty:ident) => {
         fn $apply(
@@ -578,24 +735,27 @@ impl SubtableInfo {
         is_subst: bool,
         lookup_type: u8,
         cache_mode: SubtableExternalCacheMode,
-    ) -> Option<(Self, u32)> {
+    ) -> Option<(Self, u32, hb_set_digest_t)> {
         let data = table_data.split_off(subtable_offset as usize)?;
         let maybe_external_cache = |s: &dyn Apply| s.external_cache_create(cache_mode);
-        let (kind, (external_cache, cache_cost, coverage), apply_fns): (
+        let (kind, (external_cache, cache_cost, coverage), apply_fns, digest_second): (
             SubtableKind,
             (SubtableExternalCache, u32, CoverageTable),
             [SubtableApplyFn; 2],
+            hb_set_digest_t,
         ) = match (is_subst, lookup_type) {
             (true, 1) => match SingleSubst::read(data).ok()? {
                 SingleSubst::Format1(s) => (
                     SubtableKind::SingleSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_subst1, single_subst1_cached as _],
+                    hb_set_digest_t::full(),
                 ),
                 SingleSubst::Format2(s) => (
                     SubtableKind::SingleSubst2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_subst2, single_subst2_cached as _],
+                    hb_set_digest_t::full(),
                 ),
             },
             (false, 1) => match SinglePos::read(data).ok()? {
@@ -603,74 +763,90 @@ impl SubtableInfo {
                     SubtableKind::SinglePos1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_pos1, single_pos1_cached as _],
+                    hb_set_digest_t::full(),
                 ),
                 SinglePos::Format2(s) => (
                     SubtableKind::SinglePos2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_pos2, single_pos2_cached as _],
+                    hb_set_digest_t::full(),
                 ),
             },
-            (true, 2) => (
-                SubtableKind::MultipleSubst1,
-                MultipleSubstFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [multiple_subst1, multiple_subst1_cached as _],
-            ),
+            (true, 2) => {
+                let s = MultipleSubstFormat1::read(data).ok()?;
+                (
+                    SubtableKind::MultipleSubst1,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [multiple_subst1, multiple_subst1_cached as _],
+                    hb_set_digest_t::full(),
+                )
+            }
             (false, 2) => match PairPos::read(data).ok()? {
                 PairPos::Format1(s) => (
                     SubtableKind::PairPos1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [pair_pos1, pair_pos1_cached as _],
+                    pair_pos_format1_digest(&s),
                 ),
                 PairPos::Format2(s) => (
                     SubtableKind::PairPos2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [pair_pos2, pair_pos2_cached as _],
+                    hb_set_digest_t::full(),
                 ),
             },
-            (true, 3) => (
-                SubtableKind::AlternateSubst1,
-                AlternateSubstFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [alternate_subst1, alternate_subst1_cached as _],
-            ),
-            (false, 3) => (
-                SubtableKind::CursivePos1,
-                CursivePosFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [cursive_pos1, cursive_pos1_cached as _],
-            ),
-            (true, 4) => (
-                SubtableKind::LigatureSubst1,
-                LigatureSubstFormat1::read(data).ok().and_then(|t| {
-                    Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                })?,
-                [ligature_subst1, ligature_subst1_cached as _],
-            ),
-            (false, 4) => (
-                SubtableKind::MarkBasePos1,
-                MarkBasePosFormat1::read(data).ok().and_then(|t| {
-                    Some((
-                        maybe_external_cache(&t),
-                        t.cache_cost(),
-                        t.mark_coverage().ok()?,
-                    ))
-                })?,
-                [mark_base_pos1, mark_base_pos1_cached as _],
-            ),
+            (true, 3) => {
+                let s = AlternateSubstFormat1::read(data).ok()?;
+                (
+                    SubtableKind::AlternateSubst1,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [alternate_subst1, alternate_subst1_cached as _],
+                    hb_set_digest_t::full(),
+                )
+            }
+            (false, 3) => {
+                let s = CursivePosFormat1::read(data).ok()?;
+                (
+                    SubtableKind::CursivePos1,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [cursive_pos1, cursive_pos1_cached as _],
+                    coverage_digest(s.coverage()),
+                )
+            }
+            (true, 4) => {
+                let s = LigatureSubstFormat1::read(data).ok()?;
+                (
+                    SubtableKind::LigatureSubst1,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [ligature_subst1, ligature_subst1_cached as _],
+                    super::gsub::collect_seconds(&s),
+                )
+            }
+            (false, 4) => {
+                let s = MarkBasePosFormat1::read(data).ok()?;
+                (
+                    SubtableKind::MarkBasePos1,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.mark_coverage().ok()?,
+                    ),
+                    [mark_base_pos1, mark_base_pos1_cached as _],
+                    coverage_digest(s.base_coverage()),
+                )
+            }
             (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
                 SequenceContext::Format1(s) => (
                     SubtableKind::ContextFormat1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [context1, context1_cached as _],
+                    context_format1_digest(&s),
                 ),
                 SequenceContext::Format2(s) => (
                     SubtableKind::ContextFormat2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [context2, context2_cached as _],
+                    context_format2_digest(&s),
                 ),
                 SequenceContext::Format3(s) => (
                     SubtableKind::ContextFormat3,
@@ -680,29 +856,34 @@ impl SubtableInfo {
                         s.coverages().get(0).ok()?,
                     ),
                     [context3, context3_cached as _],
+                    context_format3_digest(&s),
                 ),
             },
-            (false, 5) => (
-                SubtableKind::MarkLigPos1,
-                MarkLigPosFormat1::read(data).ok().and_then(|t| {
-                    Some((
-                        maybe_external_cache(&t),
-                        t.cache_cost(),
-                        t.mark_coverage().ok()?,
-                    ))
-                })?,
-                [mark_lig_pos1, mark_lig_pos1_cached as _],
-            ),
+            (false, 5) => {
+                let s = MarkLigPosFormat1::read(data).ok()?;
+                (
+                    SubtableKind::MarkLigPos1,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.mark_coverage().ok()?,
+                    ),
+                    [mark_lig_pos1, mark_lig_pos1_cached as _],
+                    coverage_digest(s.ligature_coverage()),
+                )
+            }
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
                 ChainedSequenceContext::Format1(s) => (
                     SubtableKind::ChainedContextFormat1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [chained_context1, chained_context1_cached as _],
+                    chained_context_format1_digest(&s),
                 ),
                 ChainedSequenceContext::Format2(s) => (
                     SubtableKind::ChainedContextFormat2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [chained_context2, chained_context2_cached as _],
+                    chained_context_format2_digest(&s),
                 ),
                 ChainedSequenceContext::Format3(s) => (
                     SubtableKind::ChainedContextFormat3,
@@ -712,6 +893,7 @@ impl SubtableInfo {
                         s.input_coverages().get(0).ok()?,
                     ),
                     [chained_context3, chained_context3_cached as _],
+                    chained_context_format3_digest(&s),
                 ),
             },
             (true, 7) | (false, 9) => {
@@ -729,26 +911,28 @@ impl SubtableInfo {
                     cache_mode,
                 );
             }
-            (false, 6) => (
-                SubtableKind::MarkMarkPos1,
-                MarkMarkPosFormat1::read(data).ok().and_then(|t| {
-                    Some((
-                        maybe_external_cache(&t),
-                        t.cache_cost(),
-                        t.mark1_coverage().ok()?,
-                    ))
-                })?,
-                [mark_mark_pos1, mark_mark_pos1_cached as _],
-            ),
-            (true, 8) => (
-                SubtableKind::ReverseChainContext,
-                ReverseChainSingleSubstFormat1::read(data)
-                    .ok()
-                    .and_then(|t| {
-                        Some((maybe_external_cache(&t), t.cache_cost(), t.coverage().ok()?))
-                    })?,
-                [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
-            ),
+            (false, 6) => {
+                let s = MarkMarkPosFormat1::read(data).ok()?;
+                (
+                    SubtableKind::MarkMarkPos1,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.mark1_coverage().ok()?,
+                    ),
+                    [mark_mark_pos1, mark_mark_pos1_cached as _],
+                    coverage_digest(s.mark2_coverage()),
+                )
+            }
+            (true, 8) => {
+                let s = ReverseChainSingleSubstFormat1::read(data).ok()?;
+                (
+                    SubtableKind::ReverseChainContext,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
+                    hb_set_digest_t::full(),
+                )
+            }
             _ => return None,
         };
         let mut digest = hb_set_digest_t::new();
@@ -762,6 +946,7 @@ impl SubtableInfo {
                 external_cache,
             },
             cache_cost,
+            digest_second,
         ))
     }
 }
