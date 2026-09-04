@@ -733,7 +733,7 @@ impl SubtableKind {
 #[derive(Clone, Debug)]
 pub struct CompiledLookup {
     pub props: u32,
-    pub subtables: Vec<Subtable>,
+    pub subtables: Box<[Subtable]>,
     /// Union of every subtable's coverage: the lookup-level candidate filter.
     /// Tested, never indexed, so it carries no rank table.
     ///
@@ -821,7 +821,7 @@ impl CompiledLookup {
     /// Build, optionally without the glyph-to-subtable dispatch index.
     pub fn new_with(
         props: u32,
-        mut subtables: Vec<Subtable>,
+        subtables: Vec<Subtable>,
         scratch: &mut Vec<u32>,
         accelerate: bool,
         scan_budget: usize,
@@ -830,8 +830,9 @@ impl CompiledLookup {
         // a lookup with five subtables has paid for eight. These live for as
         // long as the font cache does, and at 104 bytes each the slack is the
         // largest single thing this holds -- the interpreted form shrinks its
-        // own subtable vector for the same reason.
-        subtables.shrink_to_fit();
+        // own subtable vector for the same reason. Boxed rather than shrunk,
+        // which does the same and drops the capacity field with it.
+        let subtables = subtables.into_boxed_slice();
         scratch.clear();
         for sub in &subtables {
             sub.extend_reach(scratch);
@@ -904,7 +905,7 @@ impl CompiledLookup {
         // The vector holding the subtables, not just what they point at. Each
         // `Subtable` lives inside it, so its own size is counted here and not
         // in `Subtable::heap_bytes`.
-        self.subtables.capacity() * size_of::<Subtable>()
+        self.subtables.len() * size_of::<Subtable>()
             + self
                 .subtables
                 .iter()
