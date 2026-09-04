@@ -200,8 +200,13 @@ pub fn apply_layout_table<T: LayoutTable>(
                                 ctx.per_syllable = lookup_map.per_syllable;
                                 apply_compiled::<T>(&mut ctx, data, program, compiled);
                             }
-                            continue;
                         }
+                        // Whether or not it compiled. An empty slot is a
+                        // lookup with nothing to apply -- see
+                        // `Program::compile` -- and reading the font for it
+                        // here would be the one place a caller disagreed with
+                        // the nested one, which cannot.
+                        continue;
                     }
                 }
 

@@ -39,7 +39,15 @@ compile-stats = ["compile-path"]
 icu = ["dep:icu_properties", "dep:icu_normalizer"]
 
 [dev-dependencies]
-harfrust = { path = "../harfrust", features = ["experimental_font_api"] }
+# Without `default-features = false` this turns `compile-path` back on for
+# every test, bench and example of this package, whatever they were asked to
+# build with -- Cargo unifies features across the graph, and a package that
+# dev-depends on itself unifies with itself. That made
+# `--no-default-features --features std` silently test the compiled path.
+harfrust = { path = "../harfrust", default-features = false, features = [
+    "std",
+    "experimental_font_api",
+] }
 criterion = "0.8.0"
 harfbuzz_rs = { git = "https://github.com/harfbuzz/harfbuzz_rs/", rev = "66dae27" }
 hr-shape = { path = "../hr-shape" }
