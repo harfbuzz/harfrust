@@ -11,7 +11,8 @@
 //! * [`at_chain3`] takes format 3 of both, where there are no rules at all:
 //!   the pattern is one run of coverages, so the subtable *is* the rule.
 //!
-//! Every one of these is a stub. See [`super::gsub`].
+//! On the pointer these are reached through, and on the flags each owes the
+//! buffer, see [`super::gsub`].
 
 use super::apply::recurse;
 use super::be16;

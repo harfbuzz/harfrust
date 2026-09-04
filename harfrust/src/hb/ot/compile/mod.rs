@@ -23,9 +23,10 @@
 //! per format, reached through that pointer. These name this crate's types
 //! freely, because that is their whole job. They are what a port rewrites.
 //!
-//! So the shape of the experiment is three files that came over as they were,
-//! and three that have to be written against this crate's buffer. All six are
-//! in place; the second three are stubs.
+//! So the split is three files that came over as they were, and three written
+//! against this crate's buffer.
+//!
+//! # What it costs to build
 //!
 //! This runs once per font, but it runs *before the first shape*, so its cost is
 //! latency a caller feels directly rather than throughput amortised over a
@@ -52,10 +53,12 @@
 //! routine below therefore takes an explicit absolute offset, and the direct and
 //! extension paths share them.
 
-// Nothing calls into this module yet, so every public item in it is unused and
-// would otherwise bury the build in warnings. Remove this the moment the first
-// caller appears -- it is the only thing standing between a half-wired module
-// and a silent one.
+// Much of this module is reached only from tests and from the heap accounting
+// the reports use -- `heap_bytes` on every compiled form, the constructors that
+// take an explicit budget, the whole-font entry points. Those are not dead in
+// the sense the lint means, and the alternative to this is a `cfg(test)` on
+// each of them, which would make the measurement code harder to read than the
+// thing it measures.
 #![allow(dead_code)]
 
 pub mod apply;
@@ -68,7 +71,6 @@ pub mod sync;
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;
-use alloc::vec;
 use alloc::vec::Vec;
 
 use read_fonts::{
@@ -88,8 +90,8 @@ use read_fonts::{
 };
 
 use self::lookup::{
-    AttachTo, CompiledLookup, LengthEffect, PairFilter, Program, RuleFirsts, RuleIndex, SeqRecord,
-    SetDigests, Subtable, SubtableKind, U16Array, PAIR_WORDS, RULE_ALWAYS,
+    AttachTo, CompiledLookup, LengthEffect, Program, RuleFirsts, RuleIndex, SeqRecord, SetDigests,
+    Subtable, SubtableKind, U16Array, RULE_ALWAYS,
 };
 use self::set::{ClassMap, Coverage, GlyphSet, Interner};
 
@@ -1006,17 +1008,13 @@ impl Compiler {
             }
         }
 
-        let mut lookup = CompiledLookup::new_with(
+        let lookup = CompiledLookup::new_with(
             props_of(flag, filtering_set),
             subtables,
             &mut self.union,
             self.detail.accelerators(),
             set::scan_budget(self.budget),
         );
-        // Only positioning has pair lookups, and only here is the font at hand.
-        if self.detail.accelerators() {
-            lookup.pair_filter = pair_filter(data, &lookup, &mut self.glyphs);
-        }
         Ok(lookup)
     }
 
@@ -1264,104 +1262,6 @@ pub fn compile_font_with_detail(
         Program::new_with_detail(gsub_count, Arc::clone(&pool), detail),
         Program::new_gpos_with_detail(gpos_count, pool, detail),
     )
-}
-
-/// Build the pair filter for a lookup that is entirely pair positioning.
-///
-/// "Entirely" matters: a filter may only reject positions no subtable could
-/// have used, so one subtable it cannot describe means no filter at all.
-///
-/// Built here rather than from the compiled summaries because those are already
-/// folded to six bits, and folding a fold cannot recover what it lost -- which
-/// is exactly what made this useless on a font that lists its pairs explicitly.
-fn pair_filter(data: &[u8], lookup: &CompiledLookup, glyphs: &mut Vec<u32>) -> Option<PairFilter> {
-    if lookup.subtables.is_empty() {
-        return None;
-    }
-    glyphs.clear();
-    lookup.reach_into(glyphs);
-    // Slots scale with what the lookup covers, so a narrow lookup stays small.
-    let count = glyphs.len().next_power_of_two().clamp(32, 256);
-    let mask = count as u32 - 1;
-    let mut slots = vec![0u64; count * PAIR_WORDS];
-    let mut firsts: Vec<u32> = Vec::new();
-
-    let add = |slots: &mut Vec<u64>, first: u32, second: u32| {
-        let (word, bit) = PairFilter::locate(mask, first, second);
-        slots[word] |= bit;
-    };
-
-    for sub in &lookup.subtables {
-        match &sub.kind {
-            SubtableKind::PairPos1 {
-                offset,
-                first_format,
-                second_format,
-                ..
-            } => {
-                let at = *offset as usize;
-                let stride = 2 + record_size(*first_format) + record_size(*second_format);
-                firsts.clear();
-                sub.cov.extend_into(&mut firsts);
-                // Coverage enumerates in rank order, which is pair-set order.
-                for (set, &first) in firsts.iter().enumerate() {
-                    let set_off = be16(data, at + PAIR_SET_OFFSETS + set * 2)?;
-                    let set_at = at + set_off as usize;
-                    let pair_count = be16(data, set_at)?;
-                    for i in 0..pair_count as usize {
-                        let second = be16(data, set_at + 2 + i * stride)?;
-                        add(&mut slots, first, u32::from(second));
-                    }
-                }
-            }
-            SubtableKind::PairPos2 {
-                rows,
-                class1,
-                class2,
-                class2_count,
-                ..
-            } => {
-                // Which glyphs hold each class-2 value. Class zero holds every
-                // glyph the definition omits, and there is no bound on those,
-                // so any row reaching it admits everything.
-                let n = usize::from(*class2_count).max(1);
-                let mut by_class = vec![[0u64; PAIR_WORDS]; n];
-                class2.for_each(|g, c| {
-                    if let Some(w) = by_class.get_mut(usize::from(c)) {
-                        let (word, bit) = PairFilter::locate(0, 0, g);
-                        w[word] |= bit;
-                    }
-                });
-                by_class[0] = [u64::MAX; PAIR_WORDS];
-                firsts.clear();
-                sub.cov.extend_into(&mut firsts);
-                for &first in &firsts {
-                    let row = rows.word(u32::from(class1.get(first)));
-                    let base = (first & mask) as usize * PAIR_WORDS;
-                    for (c2, w) in by_class.iter().enumerate() {
-                        if row & SetDigests::bit(c2 as u32) != 0 {
-                            for k in 0..PAIR_WORDS {
-                                slots[base + k] |= w[k];
-                            }
-                        }
-                    }
-                }
-            }
-            // Anything else can apply where this cannot describe.
-            _ => return None,
-        }
-    }
-    // Does it actually reject anything? A filter is only worth a probe if the
-    // probe usually says no, and these saturate more easily than they look:
-    // class zero of a class definition holds every glyph the definition omits,
-    // so any class-1 row that pairs with it admits everything. A variable
-    // font's kerning is the case that does this -- its records are rarely
-    // inert, so most rows survive the row summary and reach class zero.
-    let ones: u32 = slots.iter().map(|w| w.count_ones()).sum();
-    if usize::try_from(ones).unwrap_or(usize::MAX) * 2 > slots.len() * 64 {
-        return None;
-    }
-    Some(PairFilter::new(slots))
 }
 
 /// Summarise a context subtable's rule sets, at two granularities.
@@ -2068,10 +1968,9 @@ mod lookup_shapes {
                     l.reach().heap_bytes()
                 );
                 println!(
-                    "  {name} {i:>3}: {} subtable(s), {ranked} ranked, dispatch {}, pair filter {}, reach {} :: {}",
+                    "  {name} {i:>3}: {} subtable(s), {ranked} ranked, dispatch {}, reach {} :: {}",
                     l.subtables.len(),
                     l.dispatch.is_some(),
-                    l.pair_filter.is_some(),
                     l.reach_len(),
                     kinds.join(", ")
                 );
