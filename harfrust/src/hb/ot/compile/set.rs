@@ -350,55 +350,75 @@ impl<T> Default for Table<T> {
     }
 }
 
-/// One interned table, keyed by a 128-bit digest of the font bytes it was
-/// built from rather than by a copy of them.
+/// One interned table.
 ///
-/// The bytes were the obvious key and cost more than the thing they identified:
-/// on Nastaliq they came to 24.7KiB against 46.8KiB of compiled tables, so a
-/// third of what the interner held was there only to recognise a table it had
-/// already seen. Two 64-bit hashes are sixteen bytes, and the copy and its
-/// allocation go with them.
+/// Keyed by where it sits -- which layout table, and how far into it -- and
+/// bucketed by what it holds. The two answer different halves of the question
+/// and the entry needs both.
 ///
-/// Two hashes rather than one because a single 64-bit hash is a key this has to
-/// trust: a collision here does not crash, it silently hands back the wrong
-/// compiled coverage, and a font is untrusted input. At 128 bits the chance of
-/// an accidental collision across the few hundred tables a font interns is
-/// around 2^-110, and the seed is drawn per process, so a crafted pair cannot
-/// be computed in advance.
+/// Position is what makes the key *exact*. The bytes were the original key and
+/// cost more than the thing they identified: on Nastaliq 24.7KiB against
+/// 46.8KiB of compiled tables, so a third of what the interner held was there
+/// only to recognise a table it had already seen. They were replaced by two
+/// 64-bit hashes of those bytes, which was smaller and wrong -- two hashes are
+/// not equality, and the failure is not a crash but the wrong compiled
+/// coverage handed back for a table that merely hashed the same. A font is
+/// untrusted input, and `foldhash` promises nothing to an adversary who can
+/// see what it produced. The same offset in the same table is the same bytes
+/// by construction, and costs one `u64`.
+///
+/// Content is what keeps the *sharing*. Position alone would file two tables
+/// that hold the same bytes at different offsets as two tables, and that is
+/// not a rare case: keying Nastaliq by position alone grows what the interner
+/// holds from 46.8KiB to 70.3KiB. So the bucket is chosen by content, and an
+/// entry whose position is new but whose value equals one already there is
+/// given a second key onto the same `Arc`. Deciding that means building the
+/// value to compare it, which happens once per distinct position rather than
+/// once per reference -- a few hundred times against Nastaliq's sixteen
+/// thousand.
 struct Entry<T> {
-    /// The hash the table is bucketed by, kept so a resize can rehash without
-    /// the bytes it no longer has.
+    /// Hash of the bytes this was built from, kept so a resize can rehash
+    /// without them. It is what buckets the entry, and what brings two
+    /// spellings of the same table together.
     hash: u64,
-    /// A second hash of the same bytes, under a different domain. This is what
-    /// stands in for comparing them.
-    check: u64,
+    /// Which layout table, and how far into it. See `origin` in the parent
+    /// module.
+    key: u64,
     value: Arc<T>,
 }
 
-impl<T> Table<T> {
-    /// The two halves of the key. The leading byte separates the domains, so
-    /// the halves are not the same function of the same input.
-    #[inline]
-    fn key(&self, bytes: &[u8]) -> (u64, u64) {
-        (
-            self.hasher.hash_one((0u8, bytes)),
-            self.hasher.hash_one((1u8, bytes)),
-        )
-    }
-
-    fn intern(&mut self, bytes: &[u8], build: impl FnOnce() -> T) -> Arc<T> {
-        let (hash, check) = self.key(bytes);
-        if let Some(entry) = self.entries.find(hash, |e| e.check == check) {
+impl<T: PartialEq> Table<T> {
+    fn intern(&mut self, key: Option<u64>, bytes: &[u8], build: impl FnOnce() -> T) -> Arc<T> {
+        let hash = self.hasher.hash_one(bytes);
+        let Some(key) = key else {
+            // Nowhere to file it under, so it is built and not shared. Always
+            // correct, and not reached by a font whose offsets are what they
+            // say they are.
+            return Arc::new(build());
+        };
+        // Seen this exact table before: same bytes, at the same place.
+        if let Some(entry) = self.entries.find(hash, |e| e.key == key) {
             return Arc::clone(&entry.value);
         }
-        let value = Arc::new(build());
+        // A table this has not seen, whose bytes hash like one it has. Build it
+        // and ask whether they compile to the same thing, which is the question
+        // that matters -- two coverages that describe the same glyphs are
+        // interchangeable however they were spelled. A hash that collided
+        // without matching simply fails here, which is the whole point.
+        let built = build();
+        let value = match self.entries.find(hash, |e| *e.value == built) {
+            Some(entry) => Arc::clone(&entry.value),
+            None => Arc::new(built),
+        };
         self.entries.insert_unique(
             hash,
             Entry {
                 hash,
-                check,
+                key,
                 value: Arc::clone(&value),
             },
+            // Rehashing on resize needs the bytes, which are gone by then;
+            // keeping their hash on the entry is what makes it possible.
             |e| e.hash,
         );
         value
@@ -411,17 +431,49 @@ impl Interner {
     }
 
     /// A membership-only set, for coverages read as sets.
-    pub fn set(&self, bytes: &[u8], build: impl FnOnce() -> GlyphSet) -> Arc<GlyphSet> {
-        self.sets.lock().intern(bytes, build)
+    pub fn set(
+        &self,
+        key: Option<u64>,
+        bytes: &[u8],
+        build: impl FnOnce() -> GlyphSet,
+    ) -> Arc<GlyphSet> {
+        self.sets.lock().intern(key, bytes, build)
     }
 
     /// An indexed coverage, for subtables that index a parallel array.
-    pub fn coverage(&self, bytes: &[u8], build: impl FnOnce() -> Coverage) -> Arc<Coverage> {
-        self.coverages.lock().intern(bytes, build)
+    pub fn coverage(
+        &self,
+        key: Option<u64>,
+        bytes: &[u8],
+        build: impl FnOnce() -> Coverage,
+    ) -> Arc<Coverage> {
+        self.coverages.lock().intern(key, bytes, build)
     }
 
-    pub fn class_map(&self, bytes: &[u8], build: impl FnOnce() -> ClassMap) -> Arc<ClassMap> {
-        self.classes.lock().intern(bytes, build)
+    pub fn class_map(
+        &self,
+        key: Option<u64>,
+        bytes: &[u8],
+        build: impl FnOnce() -> ClassMap,
+    ) -> Arc<ClassMap> {
+        self.classes.lock().intern(key, bytes, build)
+    }
+
+    /// Distinct *values* held, against the number of positions that name
+    /// them. The gap is what interning by content buys over interning by
+    /// position alone.
+    pub fn sharing(&self) -> (usize, usize) {
+        fn count<T>(entries: &HashTable<Entry<T>>) -> (usize, usize) {
+            let mut at: Vec<*const T> = entries.iter().map(|e| Arc::as_ptr(&e.value)).collect();
+            let positions = at.len();
+            at.sort_unstable();
+            at.dedup();
+            (positions, at.len())
+        }
+        let (ps, vs) = count(&self.sets.lock().entries);
+        let (pc, vc) = count(&self.coverages.lock().entries);
+        let (pk, vk) = count(&self.classes.lock().entries);
+        (ps + pc + pk, vs + vc + vk)
     }
 
     /// Distinct tables interned, as `(sets, coverages, classes)`.
@@ -450,28 +502,40 @@ impl Interner {
 
     /// Bytes held by the compiled tables. The interning keys are compiler
     /// bookkeeping and are not counted.
+    ///
+    /// Counted per distinct table, not per entry. Two positions holding the
+    /// same table share one `Arc`, which is the whole point of interning by
+    /// content, and summing over entries would count what is shared as often
+    /// as it is referenced -- reporting Nastaliq at 70.3KiB for 46.8KiB of
+    /// tables.
     pub fn heap_bytes(&self) -> usize {
-        let sets: usize = self
-            .sets
-            .lock()
-            .entries
-            .iter()
-            .map(|e| e.value.heap_bytes() + size_of::<GlyphSet>())
-            .sum();
-        let covs: usize = self
-            .coverages
-            .lock()
-            .entries
-            .iter()
-            .map(|e| e.value.heap_bytes() + size_of::<Coverage>())
-            .sum();
-        let classes: usize = self
-            .classes
-            .lock()
-            .entries
-            .iter()
-            .map(|e| e.value.heap_bytes() + size_of::<ClassMap>())
-            .sum();
+        /// Each interned table once, however many positions name it.
+        fn distinct<T>(
+            entries: &HashTable<Entry<T>>,
+            inline: usize,
+            size: impl Fn(&T) -> usize,
+        ) -> usize {
+            let mut tables: Vec<(*const T, usize)> = entries
+                .iter()
+                .map(|e| (Arc::as_ptr(&e.value), size(&e.value) + inline))
+                .collect();
+            tables.sort_unstable_by_key(|&(at, _)| at);
+            tables.dedup_by_key(|&mut (at, _)| at);
+            tables.iter().map(|&(_, bytes)| bytes).sum()
+        }
+
+        let sets = {
+            let t = self.sets.lock();
+            distinct(&t.entries, size_of::<GlyphSet>(), GlyphSet::heap_bytes)
+        };
+        let covs = {
+            let t = self.coverages.lock();
+            distinct(&t.entries, size_of::<Coverage>(), Coverage::heap_bytes)
+        };
+        let classes = {
+            let t = self.classes.lock();
+            distinct(&t.entries, size_of::<ClassMap>(), ClassMap::heap_bytes)
+        };
         sets + covs + classes
     }
 }
@@ -956,19 +1020,19 @@ mod tests {
     #[test]
     fn interning_is_by_content() {
         let pool = Interner::new();
-        let a = pool.set(b"cov-a", || GlyphSet::build(&[1]));
-        let again = pool.set(b"cov-a", || GlyphSet::build(&[99]));
+        let a = pool.set(Some(0), b"k0", || GlyphSet::build(&[1]));
+        let again = pool.set(Some(0), b"k0", || GlyphSet::build(&[99]));
         // The second build closure must never have run.
         assert!(Arc::ptr_eq(&a, &again));
         assert_eq!(again.to_vec(), vec![1]);
 
-        let b = pool.set(b"cov-b", || GlyphSet::build(&[2]));
+        let b = pool.set(Some(1), b"k1", || GlyphSet::build(&[2]));
         assert!(!Arc::ptr_eq(&a, &b));
         assert_eq!(pool.len().0, 2);
 
         // Same bytes, different kind: separate tables, because a coverage read
         // as a set compiles to something else than one read for its index.
-        let _ = pool.coverage(b"cov-a", || Coverage::build(&[1]));
+        let _ = pool.coverage(Some(0), b"k0", || Coverage::build(&[1]));
         assert_eq!(pool.len(), (2, 1, 0));
     }
 
@@ -1178,11 +1242,11 @@ mod tests {
     fn interning_returns_the_same_table_for_the_same_bytes() {
         let pool = Interner::new();
         let mut built = 0;
-        let a = pool.set(b"cov-a", || {
+        let a = pool.set(Some(0), b"k0", || {
             built += 1;
             GlyphSet::build(&[1, 2, 3])
         });
-        let b = pool.set(b"cov-a", || {
+        let b = pool.set(Some(0), b"k0", || {
             built += 1;
             GlyphSet::build(&[1, 2, 3])
         });
@@ -1194,8 +1258,8 @@ mod tests {
     #[test]
     fn different_bytes_intern_separately() {
         let pool = Interner::new();
-        let a = pool.set(b"cov-a", || GlyphSet::build(&[1]));
-        let b = pool.set(b"cov-b", || GlyphSet::build(&[2]));
+        let a = pool.set(Some(0), b"k0", || GlyphSet::build(&[1]));
+        let b = pool.set(Some(1), b"k1", || GlyphSet::build(&[2]));
         assert!(!Arc::ptr_eq(&a, &b));
         assert_eq!(pool.len().0, 2);
     }
@@ -1206,8 +1270,8 @@ mod tests {
         // does. They cannot share an entry, so they do not share a table.
         let pool = Interner::new();
         let glyphs: Vec<u32> = (0..200).filter(|x| x % 3 == 0).collect();
-        let set = pool.set(b"same", || GlyphSet::build(&glyphs));
-        let cov = pool.coverage(b"same", || Coverage::build(&glyphs));
+        let set = pool.set(Some(2), b"k2", || GlyphSet::build(&glyphs));
+        let cov = pool.coverage(Some(2), b"k2", || Coverage::build(&glyphs));
         assert_eq!(pool.len(), (1, 1, 0));
         assert!(cov.heap_bytes() > set.heap_bytes(), "the index costs extra");
         assert_eq!(cov.index(0), Some(0));
@@ -1217,8 +1281,8 @@ mod tests {
     fn class_maps_intern_too() {
         let pool = Interner::new();
         let entries: Vec<(u32, u16)> = (0..50).map(|g| (g, (g % 4) as u16)).collect();
-        let a = pool.class_map(b"cd", || ClassMap::build(&entries));
-        let b = pool.class_map(b"cd", || ClassMap::build(&entries));
+        let a = pool.class_map(Some(3), b"k3", || ClassMap::build(&entries));
+        let b = pool.class_map(Some(3), b"k3", || ClassMap::build(&entries));
         assert!(Arc::ptr_eq(&a, &b));
         assert_eq!(pool.len(), (0, 0, 1));
     }
@@ -1232,7 +1296,7 @@ mod tests {
             let handles: Vec<_> = (0..8)
                 .map(|_| {
                     let pool = Arc::clone(&pool);
-                    scope.spawn(move || pool.set(b"shared", || GlyphSet::build(&[4, 5, 6])))
+                    scope.spawn(move || pool.set(Some(4), b"k4", || GlyphSet::build(&[4, 5, 6])))
                 })
                 .collect();
             handles.into_iter().map(|h| h.join().unwrap()).collect()

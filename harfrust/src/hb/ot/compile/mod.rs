@@ -221,6 +221,8 @@ impl Default for Compiler {
     fn default() -> Self {
         Self {
             glyphs: Vec::new(),
+            table_span: 0,
+            table_mark: 0,
             seconds: Vec::new(),
             union: Vec::new(),
             pool: Arc::default(),
@@ -238,6 +240,17 @@ impl Default for Compiler {
 pub struct Compiler {
     /// Glyph ids of the coverage being compiled.
     glyphs: Vec<u32>,
+    /// How long the layout table being compiled is, and which one it is.
+    ///
+    /// Both only so an interned table can be named by where it sits. A
+    /// coverage's `offset_data` runs from the coverage to the end of the table
+    /// it was read from, so the distance from the start is the difference of
+    /// the two lengths -- and the table has to be named as well as the offset,
+    /// because one interner serves GSUB and GPOS and offset 100 means a
+    /// different table in each. Held as numbers rather than a borrow: the
+    /// compiler outlives any one call and cannot name the font's lifetime.
+    table_span: usize,
+    table_mark: u64,
     /// Second components seen while walking ligature sets.
     seconds: Vec<u32>,
     /// Used by `CompiledLookup::new_in` for set unions.
@@ -329,6 +342,8 @@ impl Compiler {
         // set summarised at compile time is read the same way it will be read
         // at apply time.
         let data = gsub.offset_data().as_bytes();
+        self.table_span = data.len();
+        self.table_mark = 0;
         let list = gsub.lookup_list()?;
         let lookup_offset = gsub.lookup_list_offset().to_usize()
             + list
@@ -873,6 +888,7 @@ impl Compiler {
     ///   closure, so the borrowed bytes are the key; a `HashMap` would need an
     ///   owned key constructed just to look up.
     fn intern(&mut self, c: &CoverageTable) -> Arc<GlyphSet> {
+        let key = origin(self.table_span, self.table_mark, c.offset_data().as_bytes());
         let bytes = coverage_bytes(c);
         // Disjoint field borrows: the build closure fills the glyph scratch
         // while the interner is borrowed.
@@ -883,7 +899,7 @@ impl Compiler {
             ..
         } = self;
         let (pool, budget): (&Interner, usize) = (pool, *budget);
-        pool.set(bytes, || {
+        pool.set(key, bytes, || {
             fill_glyphs(glyphs, c);
             GlyphSet::build_with_budget(glyphs, budget)
         })
@@ -893,6 +909,7 @@ impl Compiler {
     /// distinct tables 16,006 times -- so these are interned exactly like the
     /// membership-only sets are.
     fn coverage(&mut self, c: &CoverageTable) -> Arc<Coverage> {
+        let key = origin(self.table_span, self.table_mark, c.offset_data().as_bytes());
         let bytes = coverage_bytes(c);
         let Self {
             glyphs,
@@ -901,7 +918,7 @@ impl Compiler {
             ..
         } = self;
         let (pool, budget): (&Interner, usize) = (pool, *budget);
-        pool.coverage(bytes, || {
+        pool.coverage(key, bytes, || {
             fill_glyphs(glyphs, c);
             Coverage::build_with_budget(glyphs, budget)
         })
@@ -924,6 +941,16 @@ fn fill_glyphs(glyphs: &mut Vec<u32>, c: &CoverageTable) {
 /// Format 1 is a start glyph and a run of classes; format 2 is a run of range
 /// records. Either way the extent comes from the count field, since
 /// `offset_data` runs to the end of the parent table.
+/// Where a subtable sits, as a key nothing else can collide with.
+///
+/// `None` when the position cannot be worked out, which means the table is not
+/// interned and is simply built again -- always correct, and never reached by
+/// a font whose offsets are what they say they are.
+fn origin(span: usize, mark: u64, tail: &[u8]) -> Option<u64> {
+    let at = span.checked_sub(tail.len())?;
+    Some(mark | u64::try_from(at).ok()?)
+}
+
 fn class_def_bytes<'a>(c: &ClassDef<'a>) -> &'a [u8] {
     let (len, data) = match c {
         ClassDef::Format1(t) => (6 + 2 * t.glyph_count() as usize, t.offset_data()),
@@ -951,6 +978,8 @@ impl Compiler {
     /// Compile lookup `index` of a GPOS table.
     pub fn gpos(&mut self, gpos: &Gpos, index: u16) -> Result<CompiledLookup, CompileError> {
         let data = gpos.offset_data().as_bytes();
+        self.table_span = data.len();
+        self.table_mark = 1 << 32;
         let list = gpos.lookup_list()?;
         let lookup_offset = gpos.lookup_list_offset().to_usize()
             + list
@@ -1248,9 +1277,10 @@ impl Compiler {
     }
 
     fn class_map(&mut self, c: &ClassDef) -> Arc<ClassMap> {
+        let key = origin(self.table_span, self.table_mark, c.offset_data().as_bytes());
         let bytes = class_def_bytes(c);
         let budget = self.budget;
-        self.pool.class_map(bytes, || {
+        self.pool.class_map(key, bytes, || {
             let mut entries: Vec<(u32, u16)> = c
                 .iter()
                 .filter(|(_, cls)| *cls != 0)
@@ -2080,5 +2110,167 @@ mod lookup_shapes {
             K::Rules { .. } => "Rules",
             K::ChainCtx3 { .. } => "ChainCtx3",
         }
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod interner_key {
+    use super::*;
+    use crate::FontRef;
+    use read_fonts::TableProvider;
+
+    /// Is a coverage table's position in the layout table recoverable from the
+    /// table itself?
+    ///
+    /// It decides what the interner can be keyed by, and the interner's key
+    /// has to be exact: a wrong answer there hands back the wrong compiled
+    /// coverage for a table that merely hashed the same.
+    ///
+    /// `offset_data` runs from the table to the end of the data it was read
+    /// from, so the distance from the layout table's start is the difference of
+    /// the two lengths. This pins that, because it is an assumption about
+    /// `read-fonts` rather than about OpenType, and nothing else would notice
+    /// if a release changed it.
+    #[test]
+    fn a_coverage_knows_where_it_is() {
+        for (name, data, table) in layout_tables() {
+            let Ok(font) = FontRef::new(&data) else {
+                continue;
+            };
+            let Some(bytes) = font.table_data(read_fonts::types::Tag::new(&table)) else {
+                continue;
+            };
+            let bytes = bytes.as_bytes();
+            let lookups: Vec<CoverageTable> = match &table {
+                b"GSUB" => font
+                    .gsub()
+                    .ok()
+                    .into_iter()
+                    .flat_map(gsub_coverages)
+                    .collect(),
+                _ => font
+                    .gpos()
+                    .ok()
+                    .into_iter()
+                    .flat_map(gpos_coverages)
+                    .collect(),
+            };
+            for c in &lookups {
+                let at = bytes.len() - c.offset_data().as_bytes().len();
+                let own = coverage_bytes(c);
+                assert_eq!(
+                    bytes.get(at..at + own.len()),
+                    Some(own),
+                    "{name}: a coverage at {at} does not read back as itself"
+                );
+            }
+        }
+    }
+
+    /// What interning by content buys over interning by position alone.
+    ///
+    /// Position is the exact key -- the same offset in the same table is the
+    /// same bytes -- but two tables at different offsets can hold the same
+    /// bytes, and filing those separately compiles each of them. This says how
+    /// often that happens across a whole font.
+    ///
+    /// It happens enough to matter. An earlier version of this test looked
+    /// only at the coverages the direct formats name, found positions and
+    /// contents equal everywhere, and concluded position alone would do. The
+    /// contextual formats are where the duplication is, and Nastaliq is almost
+    /// entirely contextual: keying it by position alone grew what the interner
+    /// holds from 46.8KiB to 70.3KiB.
+    #[test]
+    fn report() {
+        println!();
+        println!("{:<34} {:>10} {:>10}", "font", "positions", "tables");
+        for (name, data, _) in layout_tables() {
+            let Ok(font) = FontRef::new(&data) else {
+                continue;
+            };
+            let (gsub, gpos) = (font.gsub().ok(), font.gpos().ok());
+            let (sub, pos) = compile_font(gsub.as_ref(), gpos.as_ref());
+            for (program, tag) in [(&sub, b"GSUB"), (&pos, b"GPOS")] {
+                let Some(bytes) = font.table_data(read_fonts::types::Tag::new(tag)) else {
+                    continue;
+                };
+                for i in 0..program.len() as u16 {
+                    let _ = program.get(i, bytes.as_bytes());
+                }
+            }
+            let (positions, tables) = sub.pool().sharing();
+            println!("{name:<34} {positions:>10} {tables:>10}");
+        }
+        println!();
+    }
+
+    /// Each benchmark font, once per layout table it has.
+    fn layout_tables() -> Vec<(String, Vec<u8>, [u8; 4])> {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
+        let mut out = Vec::new();
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return out;
+        };
+        let mut paths: Vec<_> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "ttf" || e == "otf"))
+            .collect();
+        paths.sort();
+        for path in paths {
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            out.push((name, data, *b"GSUB"));
+        }
+        out
+    }
+
+    fn gsub_coverages(gsub: Gsub<'_>) -> Vec<CoverageTable<'_>> {
+        let mut out = Vec::new();
+        let Ok(list) = gsub.lookup_list() else {
+            return out;
+        };
+        for lookup in list.lookups().iter().flatten() {
+            match lookup {
+                SubstitutionLookup::Single(l) => {
+                    for st in l.subtables().iter().flatten() {
+                        out.extend(match st {
+                            SingleSubst::Format1(t) => t.coverage().ok(),
+                            SingleSubst::Format2(t) => t.coverage().ok(),
+                        });
+                    }
+                }
+                SubstitutionLookup::Ligature(l) => {
+                    out.extend(
+                        l.subtables()
+                            .iter()
+                            .flatten()
+                            .filter_map(|t| t.coverage().ok()),
+                    );
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    fn gpos_coverages(gpos: Gpos<'_>) -> Vec<CoverageTable<'_>> {
+        let mut out = Vec::new();
+        let Ok(list) = gpos.lookup_list() else {
+            return out;
+        };
+        for lookup in list.lookups().iter().flatten() {
+            if let PositionLookup::Pair(l) = lookup {
+                for st in l.subtables().iter().flatten() {
+                    out.extend(match st {
+                        PairPos::Format1(t) => t.coverage().ok(),
+                        PairPos::Format2(t) => t.coverage().ok(),
+                    });
+                }
+            }
+        }
+        out
     }
 }
