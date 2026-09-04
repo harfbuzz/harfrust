@@ -441,6 +441,22 @@ impl IndicWouldSubstituteFeature {
                 glyphs,
                 zero_context: self.zero_context,
             };
+            // The compiled form answers this where there is one, and where
+            // there is one there is nothing else to ask: an empty slot is a
+            // lookup that does nothing, here as everywhere else.
+            #[cfg(feature = "compile-path")]
+            {
+                if let Some(data) = face.ot_tables.table_data(TableIndex::GSUB) {
+                    let compiled = face.ot_tables.gsub_compiled.get(lookup.index, data);
+                    if compiled.is_some_and(|compiled| {
+                        crate::hb::ot::compile::gsub::would_apply(compiled, data, &ctx)
+                    }) {
+                        return true;
+                    }
+                    continue;
+                }
+            }
+            #[cfg(not(feature = "compile-path"))]
             if face
                 .ot_tables
                 .gsub

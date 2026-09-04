@@ -90,8 +90,8 @@ use read_fonts::{
 };
 
 use self::lookup::{
-    AttachTo, CompiledLookup, LengthEffect, Program, RuleFirsts, RuleIndex, SeqRecord, SetDigests,
-    Subtable, SubtableKind, U16Array, RULE_ALWAYS,
+    AttachTo, CompiledLookup, LengthEffect, Program, RuleIndex, SeqRecord, SetDigests, Subtable,
+    SubtableKind, U16Array,
 };
 use self::set::{ClassMap, Coverage, GlyphSet, Interner};
 
@@ -635,7 +635,7 @@ impl Compiler {
             // Format 1 lists rules over glyph ids, format 2 over classes; both
             // keep the rules in the font.
             ChainedSequenceContext::Format1(t) => {
-                let (digests, firsts) = rule_index(
+                let digests = rule_index(
                     data,
                     (at + 6) as u32,
                     at as u32,
@@ -653,13 +653,13 @@ impl Compiler {
                         rule_sets: (at + 6) as u32,
                         base: at as u32,
                         rule_set_count: t.chained_seq_rule_set_count(),
-                        index: Box::new(RuleIndex { digests, firsts }),
+                        index: Box::new(RuleIndex { digests }),
                         chained: true,
                     },
                 ))
             }
             ChainedSequenceContext::Format2(t) => {
-                let (digests, firsts) = rule_index(
+                let digests = rule_index(
                     data,
                     (at + 12) as u32,
                     at as u32,
@@ -677,12 +677,12 @@ impl Compiler {
                         rule_sets: (at + 12) as u32,
                         base: at as u32,
                         rule_set_count: t.chained_class_seq_rule_set_count(),
-                        index: Box::new(RuleIndex { digests, firsts }),
+                        index: Box::new(RuleIndex { digests }),
                         chained: true,
                     },
                 ))
             }
-            ChainedSequenceContext::Format3(t) => self.chain_context3(t),
+            ChainedSequenceContext::Format3(t) => self.chain_context3(t, at),
         }
     }
 
@@ -698,7 +698,7 @@ impl Compiler {
     ) -> Result<Subtable, CompileError> {
         match t {
             SequenceContext::Format1(t) => {
-                let (digests, firsts) = rule_index(
+                let digests = rule_index(
                     data,
                     (at + 6) as u32,
                     at as u32,
@@ -715,13 +715,13 @@ impl Compiler {
                         rule_sets: (at + 6) as u32,
                         base: at as u32,
                         rule_set_count: t.seq_rule_set_count(),
-                        index: Box::new(RuleIndex { digests, firsts }),
+                        index: Box::new(RuleIndex { digests }),
                         chained: false,
                     },
                 ))
             }
             SequenceContext::Format2(t) => {
-                let (digests, firsts) = rule_index(
+                let digests = rule_index(
                     data,
                     (at + 8) as u32,
                     at as u32,
@@ -739,7 +739,7 @@ impl Compiler {
                         rule_sets: (at + 8) as u32,
                         base: at as u32,
                         rule_set_count: t.class_seq_rule_set_count(),
-                        index: Box::new(RuleIndex { digests, firsts }),
+                        index: Box::new(RuleIndex { digests }),
                         chained: false,
                     },
                 ))
@@ -763,6 +763,7 @@ impl Compiler {
                         input,
                         lookahead: Box::new([]),
                         records,
+                        offset: at as u32,
                         chained: false,
                     },
                 )
@@ -791,6 +792,7 @@ impl Compiler {
     fn chain_context3(
         &mut self,
         t: &read_fonts::tables::layout::ChainedSequenceContextFormat3,
+        at: usize,
     ) -> Result<Subtable, CompileError> {
         let backtrack = self.sets(t.backtrack_coverages())?;
         let (cov, input) = self.input_sets(t.input_coverages())?;
@@ -814,6 +816,7 @@ impl Compiler {
                 input,
                 lookahead,
                 records,
+                offset: at as u32,
                 chained: true,
             },
         )
@@ -1348,16 +1351,13 @@ fn rule_index(
     count: u16,
     chained: bool,
     summarise: bool,
-) -> (SetDigests, RuleFirsts) {
+) -> SetDigests {
     if !summarise {
         // An empty summary admits everything, which is what a filter must do
         // when it knows nothing.
-        return (SetDigests::default(), RuleFirsts::default());
+        return SetDigests::default();
     }
-    let mut starts: Vec<u32> = Vec::with_capacity(usize::from(count) + 1);
-    let mut firsts: Vec<u8> = Vec::new();
-    let digests = SetDigests::build(count, |set| {
-        starts.push(firsts.len() as u32);
+    SetDigests::build(count, |set| {
         let set_off = be16(data, rule_sets as usize + set as usize * 2)?;
         if set_off == 0 {
             // A null offset means no rules for this class, so nothing matches.
@@ -1369,18 +1369,14 @@ fn rule_index(
         for i in 0..rule_count as usize {
             let rule_off = be16(data, set_at + 2 + i * 2)?;
             let at = set_at + rule_off as usize;
-            if let Some(v) = first_input_value(data, at, chained) {
-                firsts.push((v & 63) as u8);
-                summary |= SetDigests::bit(v);
-            } else {
-                firsts.push(RULE_ALWAYS);
-                return None;
-            }
+            // A rule that constrains nothing at its first input step forces
+            // the whole set open, and so does anything malformed: a filter may
+            // only ever reject what truly cannot match.
+            let v = first_input_value(data, at, chained)?;
+            summary |= SetDigests::bit(v);
         }
         (summary != 0).then_some(summary)
-    });
-    starts.push(firsts.len() as u32);
-    (digests, RuleFirsts::new(starts, firsts))
+    })
 }
 
 /// The value a rule requires at the position after the one it is anchored on.

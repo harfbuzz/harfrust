@@ -26,8 +26,13 @@ use crate::hb::ot_layout_gsubgpos::{
     ligate_input, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
     may_skip_t, skipping_iterator_t,
 };
+use crate::hb::ot_layout_gsubgpos::{WouldApply, WouldApplyContext};
 use crate::hb::ot_map::hb_ot_map_t;
-use read_fonts::tables::gsub::{Ligature, LigatureSet};
+use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
+use read_fonts::tables::layout::{
+    ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
+    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
+};
 use read_fonts::types::GlyphId;
 use read_fonts::{FontData, FontRead};
 
@@ -447,4 +452,112 @@ pub fn at_reverse_chain(
     // Deliberately not advancing: the descending loop owns the cursor. Leaving
     // it alone is also what keeps this harmless if a font does chain to it.
     Some(())
+}
+
+/// Whether this lookup would substitute a given run of glyphs.
+///
+/// Not a pass over a buffer: the Indic shaper asks this about hypothetical
+/// two-glyph sequences -- a consonant and a virama, either way round -- to
+/// decide which reordering category a consonant belongs to, and it asks it
+/// several times per consonant while setting up. The answer is a property of
+/// the font, so the compiled form should be the one giving it. Until now it
+/// was the only thing still reaching for the interpreted lookup, which is why
+/// that form was still being built at all.
+///
+/// Most of it is answered without touching the font. Five of the substitution
+/// formats define "would apply" as one glyph in, covered -- so the compiled
+/// coverage *is* the answer, and a `morx`-sized detour through the font to
+/// re-read a coverage table is exactly what this module exists to remove.
+///
+/// The rest -- ligatures and the contexts -- have to compare a run against
+/// what the font stated, so they are read from the font and handed to the same
+/// routines the interpreted path uses. That is deliberate. Their rules are
+/// subtle in ways that are not obvious from the format (context format 3 tests
+/// its coverages against the run offset by one, and does not test the first
+/// glyph at all), and a second implementation that disagreed would be a
+/// shaping difference nothing in the test suite is aimed at. What the compiled
+/// form contributes there is the rejection: an exact coverage, and for a
+/// ligature the exact set of possible second components, both of which settle
+/// the great majority of calls before anything is read.
+pub fn would_apply(lookup: &CompiledLookup, table: &[u8], ctx: &WouldApplyContext) -> bool {
+    let Some(&first) = ctx.glyphs.first() else {
+        return false;
+    };
+    let first = first.to_u32();
+    if !lookup.may_reach(first) {
+        return false;
+    }
+    lookup
+        .subtables
+        .iter()
+        .any(|sub| subtable_would_apply(sub, first, table, ctx))
+}
+
+fn subtable_would_apply(sub: &Subtable, first: u32, table: &[u8], ctx: &WouldApplyContext) -> bool {
+    // Every format begins by covering the first glyph, so nothing below runs
+    // for a subtable that does not.
+    let Some(index) = sub.gate(first) else {
+        return false;
+    };
+    let data = |at: u32| table.get(at as usize..).map(FontData::new);
+    match &sub.kind {
+        // One glyph in, covered, which the gate has just established.
+        SubtableKind::SingleDelta { .. }
+        | SubtableKind::SingleList { .. }
+        | SubtableKind::Multiple { .. }
+        | SubtableKind::Alternate { .. }
+        | SubtableKind::ReverseChain { .. } => ctx.glyphs.len() == 1,
+        SubtableKind::Ligature { offset } => {
+            // The pair key first: a ligature needs a second component, and if
+            // this run's second glyph is not one the subtable ever names then
+            // no ligature in it can match. Exact, so it rejects without
+            // reading, and it is the filter that makes this cheap on the runs
+            // the Indic shaper actually asks about.
+            if let (Some(seconds), Some(second)) = (sub.next.as_deref(), ctx.glyphs.get(1)) {
+                if !seconds.contains(second.to_u32()) {
+                    return false;
+                }
+            }
+            data(*offset)
+                .and_then(|d| LigatureSubstFormat1::read(d).ok())
+                .is_some_and(|t| t.would_apply(ctx))
+        }
+        SubtableKind::Rules {
+            base,
+            input_classes,
+            chained,
+            ..
+        } => {
+            let _ = index;
+            let Some(d) = data(*base) else {
+                return false;
+            };
+            // Which of the four the subtable was: whether it compares classes
+            // or glyph ids, and whether it carries backtrack and lookahead.
+            match (*chained, input_classes.is_some()) {
+                (false, false) => SequenceContextFormat1::read(d).is_ok_and(|t| t.would_apply(ctx)),
+                (false, true) => SequenceContextFormat2::read(d).is_ok_and(|t| t.would_apply(ctx)),
+                (true, false) => {
+                    ChainedSequenceContextFormat1::read(d).is_ok_and(|t| t.would_apply(ctx))
+                }
+                (true, true) => {
+                    ChainedSequenceContextFormat2::read(d).is_ok_and(|t| t.would_apply(ctx))
+                }
+            }
+        }
+        SubtableKind::ChainCtx3 {
+            offset, chained, ..
+        } => {
+            let Some(d) = data(*offset) else {
+                return false;
+            };
+            if *chained {
+                ChainedSequenceContextFormat3::read(d).is_ok_and(|t| t.would_apply(ctx))
+            } else {
+                SequenceContextFormat3::read(d).is_ok_and(|t| t.would_apply(ctx))
+            }
+        }
+        // Positioning substitutes nothing.
+        _ => false,
+    }
 }

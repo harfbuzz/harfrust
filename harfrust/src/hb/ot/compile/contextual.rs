@@ -185,6 +185,7 @@ pub fn at_chain3(
 ) -> Option<()> {
     let SubtableKind::ChainCtx3 {
         backtrack,
+        offset: _,
         input,
         lookahead,
         records,
