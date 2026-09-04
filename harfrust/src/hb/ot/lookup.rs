@@ -40,6 +40,9 @@ pub struct LookupData<'a> {
 }
 
 pub trait LookupHost<'a> {
+    /// Unused when the compiled path is on and nothing builds a
+    /// [`LookupCache`]; see `OtTables::new`.
+    #[allow(dead_code)]
     fn lookup_count(&self) -> u16;
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError>;
 }
@@ -103,6 +106,9 @@ mod cache {
     }
 
     impl LookupCache {
+        /// Not built when the compiled path is on -- see `OtTables::new`, which
+        /// leaves this cache empty because nothing on that path reads it.
+        #[allow(dead_code)]
         pub fn new<'a>(host: &impl LookupHost<'a>) -> Self {
             let mut lookups = Vec::new();
             lookups.resize_with(host.lookup_count() as usize, Default::default);
