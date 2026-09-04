@@ -739,6 +739,7 @@ pub(crate) struct ContextFormat2Cache {
     pub coverage: CoverageInfo,
     pub input: ClassDefInfo,
     pub coverage_cache: BinaryCache,
+    pub rule_sets: Box<[RuleSetDigest]>,
 }
 
 pub(crate) struct ChainContextFormat2Cache {
@@ -748,11 +749,34 @@ pub(crate) struct ChainContextFormat2Cache {
     pub lookahead: ClassDefInfo,
     pub coverage_cache: BinaryCache,
     pub class_caches: Option<Box<ChainContextClassCaches>>,
+    pub rule_sets: Box<[RuleSetDigest]>,
 }
 
 pub(crate) struct ChainContextClassCaches {
     pub input: MappingCache,
     pub lookahead: MappingCache,
+}
+
+#[derive(Copy, Clone, Default)]
+// One word per rule set; collisions only admit extra work.
+pub(crate) struct RuleSetDigest(u64);
+
+impl RuleSetDigest {
+    pub fn full() -> Self {
+        Self(u64::MAX)
+    }
+
+    pub fn add(&mut self, value: u16) {
+        self.0 |= 1 << (value & 63);
+    }
+
+    pub fn is_full(self) -> bool {
+        self.0 == u64::MAX
+    }
+
+    pub fn may_have(self, value: u16) -> bool {
+        self.0 & (1 << (value & 63)) != 0
+    }
 }
 
 pub(crate) enum SubtableExternalCache {
