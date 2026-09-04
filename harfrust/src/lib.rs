@@ -32,7 +32,7 @@ pub use hb::face::shape;
 /// Counters from the compiled apply path, for measurement builds.
 #[cfg(feature = "compile-stats")]
 #[doc(hidden)]
-pub fn _compile_stats() -> alloc::vec::Vec<(&'static str, u64)> {
+pub fn _compile_stats() -> Vec<(&'static str, u64)> {
     hb::ot::compile::apply::stats::all()
 }
 

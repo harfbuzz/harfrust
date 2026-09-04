@@ -59,7 +59,8 @@ pub enum LengthEffect {
 }
 
 impl LengthEffect {
-    /// The combined effect of a set of subtables.
+    /// The combined effect of a set of subtables, or of one subtable's
+    /// sequences.
     pub fn join(self, other: Self) -> Self {
         use LengthEffect::{Growing, Preserving, Shrinking};
         match (self, other) {
@@ -732,7 +733,6 @@ impl SubtableKind {
 #[derive(Clone, Debug)]
 pub struct CompiledLookup {
     pub props: u32,
-    pub effect: LengthEffect,
     pub subtables: Vec<Subtable>,
     /// Union of every subtable's coverage: the lookup-level candidate filter.
     /// Tested, never indexed, so it carries no rank table.
@@ -764,21 +764,6 @@ pub struct CompiledLookup {
     /// indirection is paid only where there is something to point at, and
     /// there by a path that was going to chase pointers anyway.
     pub dispatch: Option<Box<Dispatch>>,
-    /// Which glyphs can follow which, for a lookup that is entirely pair
-    /// positioning. See [`PairFilter`].
-    ///
-    /// Set by the compiler rather than derived here: building it well needs the
-    /// pairs as the font lists them, and what reaches this point is already
-    /// folded into summaries.
-    pub pair_filter: Option<PairFilter>,
-    /// Whether applying this lookup can move positions or kill them.
-    ///
-    /// Only a context can: its nested lookups may be anything, including a
-    /// multiplication that splices. Everything else writes where it stands, so
-    /// the candidate loop need not re-check that a position is still live or
-    /// that the buffer is still the length it was. Kerning is the case that
-    /// cares -- it is nearly every position of a line of Latin.
-    pub unsettling: bool,
     /// Whether the candidate loop must run from the end of the buffer towards
     /// the start. True only for reverse chaining substitution, which is
     /// defined that way -- see [`SubtableKind::ReverseChain`].
@@ -847,12 +832,6 @@ impl CompiledLookup {
         // largest single thing this holds -- the interpreted form shrinks its
         // own subtable vector for the same reason.
         subtables.shrink_to_fit();
-        let effect = subtables
-            .iter()
-            .map(Subtable::effect)
-            .reduce(LengthEffect::join)
-            .unwrap_or(LengthEffect::Preserving);
-
         scratch.clear();
         for sub in &subtables {
             sub.extend_reach(scratch);
@@ -910,24 +889,13 @@ impl CompiledLookup {
             .then(|| Dispatch::build(&subtables, &scratch_union, scratch))
             .flatten()
             .map(Box::new);
-        let unsettling = effect != LengthEffect::Preserving
-            || subtables.iter().any(|s| {
-                matches!(
-                    s.kind,
-                    SubtableKind::Rules { .. } | SubtableKind::ChainCtx3 { .. }
-                )
-            });
         Self {
             props,
-            effect,
             subtables,
             reach,
             digest,
             pair_digest,
             dispatch,
-            // Filled by the compiler, which can see the font the pairs live in.
-            pair_filter: None,
-            unsettling,
             reverse,
         }
     }
@@ -947,7 +915,6 @@ impl CompiledLookup {
                 .dispatch
                 .as_ref()
                 .map_or(0, |d| size_of::<Dispatch>() + d.heap_bytes())
-            + self.pair_filter.as_ref().map_or(0, PairFilter::heap_bytes)
     }
 }
 
@@ -1005,64 +972,6 @@ impl RuleFirsts {
 
     pub fn heap_bytes(&self) -> usize {
         self.starts.len() * 4 + self.firsts.len()
-    }
-}
-
-/// For each first glyph, which glyphs it can be paired with.
-///
-/// Measured on Roboto and a line of English: of 166 candidate positions a kern
-/// lookup is handed, seven produce a kern. The rest are rejected inside the
-/// subtables, but only after a dispatch, two coverage probes and two class
-/// lookups apiece. This answers the same question during candidate selection,
-/// in two loads and an `and`.
-///
-/// Direct-mapped on the low bits of the first glyph, and a bitmap of the second
-/// folded to eight bits. Both fold, so a collision merges two glyphs' answers
-/// -- conservative in the only direction that matters: it may keep a position
-/// that will not kern, never drop one that will.
-///
-/// The width is not incidental. Roboto lists its kern pairs explicitly and a
-/// busy letter has forty of them; forty entries in a sixty-four bit word is a
-/// saturated word, and a saturated word says yes to everything. At sixty-four
-/// bits this rejected sixteen percent of Roboto's candidates against
-/// eighty-four percent of NotoSans's, which kerns by class and has sparse rows.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PairFilter {
-    mask: u32,
-    /// [`PAIR_WORDS`] words per first-glyph slot.
-    slots: Box<[u64]>,
-}
-
-/// Words per slot, so the second glyph folds to `6 + log2` bits.
-pub const PAIR_WORDS: usize = 4;
-
-impl PairFilter {
-    /// `slots` holds [`PAIR_WORDS`] words for each of a power-of-two number of
-    /// first-glyph slots.
-    pub fn new(slots: Vec<u64>) -> Self {
-        let count = slots.len() / PAIR_WORDS;
-        debug_assert!(count.is_power_of_two());
-        Self {
-            mask: count as u32 - 1,
-            slots: slots.into_boxed_slice(),
-        }
-    }
-
-    /// Where a pair's bit lives: the word, and the bit within it.
-    #[inline]
-    pub fn locate(mask: u32, first: u32, second: u32) -> (usize, u64) {
-        let word = (first & mask) as usize * PAIR_WORDS + (second >> 6) as usize % PAIR_WORDS;
-        (word, 1u64 << (second & 63))
-    }
-
-    #[inline]
-    pub fn may_pair(&self, first: u32, second: u32) -> bool {
-        let (word, bit) = Self::locate(self.mask, first, second);
-        self.slots[word] & bit != 0
-    }
-
-    pub fn heap_bytes(&self) -> usize {
-        self.slots.len() * 8
     }
 }
 
@@ -1511,15 +1420,15 @@ mod tests {
 
     #[test]
     fn single_lookup_is_preserving_and_has_no_pair_key() {
+        assert_eq!(single(&[5, 6]).effect(), LengthEffect::Preserving);
         let l = CompiledLookup::new(0, vec![single(&[5, 6])]);
-        assert_eq!(l.effect, LengthEffect::Preserving);
         assert_eq!(l.pair_digest, Digest::FULL, "nothing to key on");
     }
 
     #[test]
     fn ligature_lookup_is_shrinking_and_pair_keyed() {
+        assert_eq!(lig(&[1], &[2]).effect(), LengthEffect::Shrinking);
         let l = CompiledLookup::new(0, vec![lig(&[1], &[2])]);
-        assert_eq!(l.effect, LengthEffect::Shrinking);
         assert_ne!(
             l.pair_digest,
             Digest::FULL,
