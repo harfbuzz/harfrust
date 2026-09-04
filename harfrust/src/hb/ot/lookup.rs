@@ -377,6 +377,10 @@ impl LookupInfo {
 }
 
 impl LookupInfo {
+    /// Only for a build without the compiled path: with it, the compiled
+    /// lookup answers this and the interpreted form is never built at all.
+    /// See `compile::gsub::would_apply`.
+    #[cfg_attr(feature = "compile-path", allow(dead_code))]
     pub fn would_apply(&self, face: &hb_font_t, ctx: &WouldApplyContext) -> Option<bool> {
         let glyph = ctx.glyphs[0];
         if !self.digest.may_have(glyph.into()) {

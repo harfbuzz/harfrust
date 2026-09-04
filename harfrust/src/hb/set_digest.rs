@@ -112,6 +112,7 @@ impl hb_set_digest_t {
     /// The raw masks, for meeting this against a digest built elsewhere over
     /// the same views.
     #[inline]
+    #[cfg_attr(not(feature = "compile-path"), allow(dead_code))]
     pub fn masks(&self) -> &[u64; N] {
         &self.masks
     }

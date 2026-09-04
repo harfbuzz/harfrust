@@ -267,18 +267,25 @@ pub fn dispatch_for(kind: &SubtableKind) -> ApplyFn {
     }
 }
 
-/// A context subtable's per-set and per-rule indexes, together.
+/// A context subtable's rule-set index.
+///
+/// One word per set, and nothing per rule. There was a per-rule index here
+/// too -- a byte apiece, saying what each rule's first input step demands --
+/// built, stored, accounted for, and never read. The set-level summary it was
+/// meant to refine already throws away half the rule sets a Nastaliq run
+/// enters; what the byte index would have saved is header parses inside the
+/// sets that survive, and no code was ever written to spend it. Removed rather
+/// than left waiting for that code, because a structure nothing reads is one
+/// nothing can be measured against.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuleIndex {
     /// One word per rule set. See [`SetDigests`].
     pub digests: SetDigests,
-    /// One byte per rule. See [`RuleFirsts`].
-    pub firsts: RuleFirsts,
 }
 
 impl RuleIndex {
     pub fn heap_bytes(&self) -> usize {
-        self.digests.heap_bytes() + self.firsts.heap_bytes()
+        self.digests.heap_bytes()
     }
 }
 
@@ -515,6 +522,11 @@ pub enum SubtableKind {
     /// coverage index — so all three arrays are [`GlyphSet`], and none of them
     /// carries a rank table.
     ChainCtx3 {
+        /// Offset of the subtable itself, so a caller that needs the format's
+        /// own reading of a glyph sequence -- `would_apply` does -- can reach
+        /// it rather than reproduce it. Free: it fits in the padding the
+        /// `chained` flag leaves behind.
+        offset: u32,
         /// Nearest preceding glyph first.
         backtrack: Box<[Arc<GlyphSet>]>,
         /// The input coverages *after* the first, which is the gate and lives
@@ -916,63 +928,6 @@ impl CompiledLookup {
                 .dispatch
                 .as_ref()
                 .map_or(0, |d| size_of::<Dispatch>() + d.heap_bytes())
-    }
-}
-
-/// One byte per rule: the value its first input step demands, folded to six
-/// bits.
-///
-/// The set-level summary throws away a whole rule set when nothing in it can
-/// match. What is left is sets that contain a live rule among many dead ones,
-/// and those still cost a header parse each -- variable-length, so reaching the
-/// first input value means walking the backtrack sequence out of the font.
-/// Measured on Nastaliq: of 1291 headers parsed, 828 are parsed only to find
-/// the rule wants something the buffer does not offer.
-///
-/// A byte per rule answers that without touching the font. It is the same fold
-/// as the set summary, so the two use one offered-mask between them.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct RuleFirsts {
-    /// Where each set's bytes begin, with a terminator.
-    starts: Box<[u32]>,
-    firsts: Box<[u8]>,
-}
-
-/// A rule that constrains nothing at its first input step, and so must always
-/// be tried. Six-bit values never reach it.
-pub const RULE_ALWAYS: u8 = 0xFF;
-
-impl RuleFirsts {
-    pub fn new(starts: Vec<u32>, firsts: Vec<u8>) -> Self {
-        Self {
-            starts: starts.into_boxed_slice(),
-            firsts: firsts.into_boxed_slice(),
-        }
-    }
-
-    /// The per-rule bytes for one set, or an empty slice if there is no index.
-    #[inline]
-    pub fn row(&self, set: u32) -> &[u8] {
-        let (Some(&from), Some(&to)) = (
-            self.starts.get(set as usize),
-            self.starts.get(set as usize + 1),
-        ) else {
-            return &[];
-        };
-        self.firsts.get(from as usize..to as usize).unwrap_or(&[])
-    }
-
-    /// Whether rule `i` of `row` could match a buffer offering `offered`.
-    #[inline]
-    pub fn may_match(row: &[u8], i: usize, offered: u64) -> bool {
-        match row.get(i) {
-            Some(&RULE_ALWAYS) | None => true,
-            Some(&b) => offered & (1u64 << b) != 0,
-        }
-    }
-
-    pub fn heap_bytes(&self) -> usize {
-        self.starts.len() * 4 + self.firsts.len()
     }
 }
 
