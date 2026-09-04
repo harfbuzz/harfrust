@@ -1,0 +1,7 @@
+# PairPosFormat1 regression fixture. The zero-valued A/X record still forms a
+# concat boundary because changing X to V applies positioning to A.
+# Generated against aots/gpos2_1_simple_f1.otf with fonttools feaLib.
+feature test {
+    pos g65 g86 <0 0 -100 0>;
+    pos g65 g88 <0 0 0 0>;
+} test;

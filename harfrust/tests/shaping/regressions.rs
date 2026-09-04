@@ -75,6 +75,21 @@ fn shaping_long_line_kern_does_not_overflow_glyph_data() {
     shaper.shape(buffer, ShapeOptions::new());
 }
 
+/// A zero-valued PairPosFormat1 record is still a concat hazard. In the test
+/// font, changing `X` to `V` selects another record and changes `A`'s advance.
+#[test]
+fn pair_pos_format1_zero_record_is_unsafe_to_concat() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/pairpos1-zero-record.otf",
+            "BAXB",
+            "--features=test --no-glyph-names --no-positions --no-clusters \
+             --show-flags --unsafe-to-concat",
+        ),
+        "[66|65#2|88#2|66]"
+    );
+}
+
 /// A ligature set that cannot possibly match reports an unsafe-to-concat
 /// hazard, whichever path reaches that conclusion.
 ///
