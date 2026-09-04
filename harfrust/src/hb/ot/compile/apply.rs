@@ -127,15 +127,10 @@ pub fn apply_at(ctx: &mut Apply, lookup: &CompiledLookup) -> Option<()> {
     // Without an index, every subtable in font order, each asking its own
     // coverage.
     //
-    // The call below is an indirect one, not a match. The format was settled
-    // when the subtable was compiled. Calling the cheapest formats directly
-    // instead -- a short match on pair positioning and single substitution,
-    // falling through to the pointer -- was measured and is slower, by about a
-    // percent on all six benchmark cases. The premise of the pointer holds
-    // better than it looks: within a hot loop the target is stable per lookup,
-    // so the branch predictor gets it right nearly every time, and a match in
-    // front of it only adds work. Inlining the four arms also grows this frame
-    // for the paths that do not use them.
+    // The call below is indirect rather than a match on the format, which was
+    // settled when the subtable was compiled. Within a hot loop its target is
+    // stable per lookup, so the branch predictor gets it right nearly every
+    // time, and matching the common formats in front of it only adds work.
     let Some(dispatch) = lookup.dispatch.as_deref() else {
         for sub in &lookup.subtables {
             count!(GATED, 1);

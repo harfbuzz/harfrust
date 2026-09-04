@@ -6,10 +6,7 @@
 //! [`lookup`] holds what a compiled lookup is and how a program of them is
 //! stored and lazily filled. This file builds them from `read-fonts` tables.
 //!
-//! # Three files, then three
-//!
-//! This module was written in another shaper and lifted here, and it splits
-//! along the line that made that possible.
+//! # Two halves
 //!
 //! [`set`], [`lookup`] and this file are the compiled form. They know nothing
 //! about a buffer, a matcher, or this crate at all: they describe a font. That
@@ -21,15 +18,12 @@
 //!
 //! [`gsub`], [`gpos`] and [`contextual`] are the applying side: one function
 //! per format, reached through that pointer. These name this crate's types
-//! freely, because that is their whole job. They are what a port rewrites.
-//!
-//! So the split is three files that came over as they were, and three written
-//! against this crate's buffer.
+//! freely, because that is their whole job.
 //!
 //! # What it costs to build
 //!
-//! This runs once per font, but it runs *before the first shape*, so its cost is
-//! latency a caller feels directly rather than throughput amortised over a
+//! A lookup is compiled the first time a shaping call reaches it, so the cost
+//! is latency a caller feels directly rather than throughput amortised over a
 //! corpus. Two things follow.
 //!
 //! First, compilation goes through a [`Compiler`] that owns its scratch buffers
@@ -90,8 +84,8 @@ use read_fonts::{
 };
 
 use self::lookup::{
-    AttachTo, CompiledLookup, LengthEffect, Program, RuleIndex, SeqRecord, SetDigests, Subtable,
-    SubtableKind, U16Array,
+    AttachTo, CompiledLookup, Program, RuleIndex, SeqRecord, SetDigests, Subtable, SubtableKind,
+    U16Array,
 };
 use self::set::{ClassMap, Coverage, GlyphSet, Interner};
 
@@ -111,10 +105,8 @@ pub enum Detail {
     /// Everything. The default, and what the benchmarks measure.
     #[default]
     Full,
-    /// Without the two per-lookup accelerators: the glyph-to-subtable dispatch
-    /// index, and the pair filter that rejects a kerning candidate on the two
-    /// glyphs together. Both are pure speed -- a lookup without them tries its
-    /// subtables in order and asks the font.
+    /// Without the glyph-to-subtable dispatch index. Pure speed: a lookup
+    /// without it tries its subtables in order.
     Lean,
     /// Also without the rule-set summaries, so a context enters every rule set
     /// its coverage admits and probes the rules one at a time.
@@ -613,31 +605,13 @@ impl Compiler {
         Subtable::ranked(cov, SubtableKind::Ligature { offset: at as u32 }).following(next)
     }
 
-    /// Multiple substitution. The sequences stay in the font; what compilation
-    /// derives is the length effect, by scanning how long they are.
-    ///
-    /// Only a sequence of more than one glyph actually grows the buffer. A
-    /// single-glyph sequence substitutes in place and an empty one deletes, so a
-    /// subtable made only of those never needs the rebuild path.
+    /// Multiple substitution. The sequences stay in the font; only the
+    /// coverage is compiled.
     fn multiple(&mut self, t: &MultipleSubstFormat1, at: usize) -> Subtable {
         let cov = t
             .coverage()
             .map_or_else(|_| Arc::new(Coverage::Empty), |c| self.coverage(&c));
-        let mut effect = LengthEffect::Preserving;
-        for seq in t.sequences().iter().flatten() {
-            effect = effect.join(match seq.glyph_count() {
-                0 => LengthEffect::Shrinking,
-                1 => LengthEffect::Preserving,
-                _ => LengthEffect::Growing,
-            });
-        }
-        Subtable::ranked(
-            cov,
-            SubtableKind::Multiple {
-                offset: at as u32,
-                effect,
-            },
-        )
+        Subtable::ranked(cov, SubtableKind::Multiple { offset: at as u32 })
     }
 
     fn chain_context(
@@ -844,9 +818,8 @@ impl Compiler {
     /// subtable alongside every other format's gate. The rest are only ever
     /// tested, so they stay membership-only sets.
     ///
-    /// No coverages at all means nothing can start here. That used to fail the
-    /// whole lookup; an empty gate says the same thing without taking the rest
-    /// of the lookup down with it, and costs one constant-false probe.
+    /// No coverages at all means nothing can start here, which an empty gate
+    /// says at the cost of one constant-false probe.
     fn input_sets<'a>(
         &mut self,
         covs: ArrayOfOffsets<'a, CoverageTable<'a>>,
@@ -1236,10 +1209,6 @@ impl Compiler {
             self.coverage_or_empty(t.mark_coverage()),
             SubtableKind::MarkTo {
                 offset: at as u32,
-                bases: self.coverage_or_empty(t.base_coverage()),
-                mark_array: (at + t.mark_array_offset().to_usize()) as u32,
-                base_array: (at + t.base_array_offset().to_usize()) as u32,
-                class_count: t.mark_class_count(),
                 to: AttachTo::Base,
             },
         )
@@ -1250,10 +1219,6 @@ impl Compiler {
             self.coverage_or_empty(t.mark1_coverage()),
             SubtableKind::MarkTo {
                 offset: at as u32,
-                bases: self.coverage_or_empty(t.mark2_coverage()),
-                mark_array: (at + t.mark1_array_offset().to_usize()) as u32,
-                base_array: (at + t.mark2_array_offset().to_usize()) as u32,
-                class_count: t.mark_class_count(),
                 to: AttachTo::Mark,
             },
         )
@@ -1267,10 +1232,6 @@ impl Compiler {
             self.coverage_or_empty(t.mark_coverage()),
             SubtableKind::MarkTo {
                 offset: at as u32,
-                bases: self.coverage_or_empty(t.ligature_coverage()),
-                mark_array: (at + t.mark_array_offset().to_usize()) as u32,
-                base_array: (at + t.ligature_array_offset().to_usize()) as u32,
-                class_count: t.mark_class_count(),
                 to: AttachTo::Ligature,
             },
         )
@@ -1632,7 +1593,7 @@ mod heap_cost {
         /// The vectors holding the subtables, and the subtable records in them.
         subtable_vecs: usize,
         /// What a compiled lookup owns beyond that: its reach, its dispatch
-        /// index, its pair filter, and each kind's own tables.
+        /// index, and each kind's own tables.
         owned: usize,
         /// The interned coverages, class maps and sets, shared across lookups.
         interned: usize,
