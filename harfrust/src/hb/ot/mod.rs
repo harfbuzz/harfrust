@@ -147,10 +147,24 @@ impl OtCache {
             .as_ref()
             .map_or(0, |table| table.offset_data().len() as u32);
         let has_gdef = gdef_table.is_some() && !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len);
+        // Nothing reads these once the compiled path is in: `apply_layout_table`
+        // continues on the compiled branch whether or not a lookup compiled, a
+        // context recurses through `compile::apply::recurse` rather than the
+        // font's path, and the one other caller -- Indic's `would_apply` -- is
+        // compiled out. A slot per lookup that is never filled is still a slot
+        // per lookup, so do not build them.
+        //
+        // Under `test` they are built anyway: the differential tests in
+        // `compile::apply` run the interpreted path as their reference, and a
+        // context on that path recurses through this cache.
+        #[cfg(all(feature = "compile-path", not(test)))]
+        let (gsub, gpos) = (LookupCache::default(), LookupCache::default());
+        #[cfg(any(not(feature = "compile-path"), test))]
         let gsub = gsub_table
             .as_ref()
             .map(LookupCache::new)
             .unwrap_or_default();
+        #[cfg(any(not(feature = "compile-path"), test))]
         let gpos = gpos_table
             .as_ref()
             .map(LookupCache::new)
