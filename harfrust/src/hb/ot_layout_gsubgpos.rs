@@ -815,12 +815,30 @@ impl SubtableExternalCache {
     /// already in `size_of::<SubtableInfo>()` and counted by the vector that
     /// holds them -- which is why the enum is as wide as its widest inline
     /// variant, `ChainContextFormat2Cache` and its 256-byte binary cache.
+    /// Everything this cache owns beyond the enum itself: the box a variant
+    /// sits behind, and any slice hanging off it.
+    ///
+    /// The unboxed variants own their slices too, so they are not free either;
+    /// only `None` is. Counted so this can be weighed against the compiled
+    /// form's `heap_bytes`, which counts the same way.
     pub(crate) fn heap_bytes(&self) -> usize {
         match self {
+            Self::None => 0,
             Self::LigatureSubstFormat1Cache(_) => size_of::<LigatureSubstFormat1Cache>(),
-            Self::PairPosFormat1Cache(_) => size_of::<PairPosFormat1Cache>(),
+            Self::LigatureSubstFormat1SmallCache(_) => 0,
+            Self::PairPosFormat1Cache(c) => {
+                size_of::<PairPosFormat1Cache>() + size_of_val(&*c.pair_sets)
+            }
+            Self::PairPosFormat1SmallCache(c) => size_of_val(&*c.pair_sets),
             Self::PairPosFormat2Cache(_) => size_of::<PairPosFormat2Cache>(),
-            _ => 0,
+            Self::PairPosFormat2SmallCache(_) => 0,
+            Self::ContextFormat2Cache(c) => size_of_val(&*c.rule_sets),
+            Self::ChainContextFormat2Cache(c) => {
+                size_of_val(&*c.rule_sets)
+                    + c.class_caches
+                        .as_ref()
+                        .map_or(0, |_| size_of::<ChainContextClassCaches>())
+            }
         }
     }
 }
