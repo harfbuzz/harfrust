@@ -8,9 +8,42 @@ use std::path::PathBuf;
 use clap::Parser;
 use harfrust::{
     font::{Font, FontInstance},
-    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language,
-    SerializeFlags, ShapeOptions, UnicodeBuffer, Variation,
+    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language, Script,
+    SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey, UnicodeBuffer, Variation,
 };
+
+#[derive(Default)]
+struct ShapePlanCache {
+    plans: Vec<ShapePlan>,
+}
+
+impl ShapePlanCache {
+    fn get<'a>(
+        &'a mut self,
+        instance: &FontInstance,
+        buffer: &UnicodeBuffer,
+        script: Option<Script>,
+        features: &[Feature],
+    ) -> &'a ShapePlan {
+        let language = buffer.language();
+        let key = ShapePlanKey::new(script, buffer.direction())
+            .language(language.as_ref())
+            .features(features);
+
+        if let Some(index) = self.plans.iter().position(|plan| key.matches(plan)) {
+            return &self.plans[index];
+        }
+
+        self.plans.push(ShapePlan::new(
+            instance,
+            buffer.direction(),
+            script,
+            language.as_ref(),
+            features,
+        ));
+        self.plans.last().unwrap()
+    }
+}
 
 #[derive(Clone, Parser)]
 #[command(name = "hr-shape", version, about = "Shape text using HarfRust")]
@@ -85,7 +118,7 @@ pub struct Args {
 
     /// Set text script as ISO-15924 tag
     #[arg(long)]
-    script: Option<harfrust::Script>,
+    script: Option<Script>,
 
     /// Comma-separated list of font features
     #[arg(long, value_delimiter = ',')]
@@ -182,6 +215,10 @@ pub struct Args {
     /// Set output file-name [default: stdout]
     #[arg(short = 'o', long)]
     output_file: Option<PathBuf>,
+
+    /// Set output format ("text" or empty to suppress glyph output)
+    #[arg(short = 'O', long, default_value = "text", value_parser = parse_output_format)]
+    output_format: String,
 
     /// Run shaper N times
     #[arg(short = 'n', long, default_value_t = 1)]
@@ -358,6 +395,8 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
     let language = args.language;
     let features = &args.features;
+    let mut shape_plan_cache = ShapePlanCache::default();
+    let mut reusable_buffer = Some(UnicodeBuffer::new());
 
     let text = if let Some(ref path) = args.text_file {
         if path == &PathBuf::from("-") {
@@ -413,7 +452,11 @@ pub fn render(mut args: Args) -> Result<String, String> {
         let glyph_buffer = {
             let mut result = None;
             for _ in 0..args.num_iterations {
-                let mut buffer = UnicodeBuffer::new();
+                let mut buffer = result
+                    .take()
+                    .map(|glyphs: harfrust::GlyphBuffer| glyphs.clear())
+                    .or_else(|| reusable_buffer.take())
+                    .unwrap_or_default();
                 buffer.push_str(text);
 
                 if let Some(d) = args.direction {
@@ -445,10 +488,13 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 buffer.guess_segment_properties();
 
+                let script = resolved_script(args.script, &buffer);
+                let plan = shape_plan_cache.get(&instance, &buffer, script, features);
                 result = Some(shape_impl(
                     &instance,
                     buffer,
                     ShapeOptions::new()
+                        .plan(Some(plan))
                         .point_size(args.font_ptem)
                         .features(features),
                 ));
@@ -459,12 +505,16 @@ pub fn render(mut args: Args) -> Result<String, String> {
         if args.show_line_num {
             write!(output, "{line_no}: ").unwrap();
         }
-        writeln!(
-            output,
-            "{}",
-            glyph_buffer.serialize(&instance, SerializeFlags::from_bits_truncate(format_flags))
-        )
-        .unwrap();
+        if !args.output_format.is_empty() {
+            write!(
+                output,
+                "{}",
+                glyph_buffer.serialize(&instance, SerializeFlags::from_bits_truncate(format_flags))
+            )
+            .unwrap();
+        }
+        writeln!(output).unwrap();
+        reusable_buffer = Some(glyph_buffer.clear());
     }
 
     String::from_utf8(output).map_err(|e| format!("Error: invalid UTF-8 output: {e}"))
@@ -534,6 +584,22 @@ fn parse_cluster(s: &str) -> Result<BufferClusterLevel, String> {
     }
 }
 
+fn parse_output_format(s: &str) -> Result<String, String> {
+    match s {
+        "" | "text" => Ok(s.to_string()),
+        _ => Err(format!(
+            "unknown output format '{s}'; supported formats are: text"
+        )),
+    }
+}
+
+fn resolved_script(explicit_script: Option<Script>, buffer: &UnicodeBuffer) -> Option<Script> {
+    explicit_script.or_else(|| {
+        let script = buffer.script();
+        (script != harfrust::script::UNKNOWN).then_some(script)
+    })
+}
+
 fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
     use std::fmt::Write;
 
@@ -549,4 +615,37 @@ fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
         s.push('>');
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_output_format_is_accepted() {
+        let args = Args::try_parse_from(["hr-shape", "font.ttf", "text", "-O", ""]).unwrap();
+        assert!(args.output_format.is_empty());
+    }
+
+    #[test]
+    fn unknown_output_format_is_rejected() {
+        let error = Args::try_parse_from(["hr-shape", "font.ttf", "text", "-O", "xml"])
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("unknown output format 'xml'"));
+    }
+
+    #[test]
+    fn emoji_only_buffer_preserves_unset_script() {
+        let mut buffer = UnicodeBuffer::new();
+        buffer.push_str("\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}");
+        buffer.guess_segment_properties();
+
+        assert_eq!(resolved_script(None, &buffer), None);
+        assert_eq!(
+            resolved_script(Some(harfrust::script::UNKNOWN), &buffer),
+            Some(harfrust::script::UNKNOWN)
+        );
+    }
 }
