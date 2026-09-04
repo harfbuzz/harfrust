@@ -30,6 +30,7 @@ use crate::hb::ot::gpos::apply_value;
 use crate::hb::ot::gpos::cursive::attach;
 use crate::hb::ot_layout_gsubgpos::skipping_iterator_t;
 use crate::hb::ot_layout_gsubgpos::Apply as _;
+use crate::BufferFlags;
 use read_fonts::tables::gpos::{
     AnchorTable, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, ValueFormat,
 };
@@ -117,12 +118,30 @@ fn pair_done(
 /// This pair does not kern, which HarfBuzz reports as a concat hazard: the
 /// decision consulted the neighbour, so a different neighbour could have
 /// kerned.
+#[inline]
 fn pair_absent(ctx: &mut Apply, second: usize) -> Option<()> {
+    // Hoisted out of `unsafe_to_concat`, which starts with this same test.
+    // Every pair that does not kern reaches here, which on Latin is most of
+    // them, and a caller that wants the flags is the exception -- so the test
+    // belongs where it costs one predictable branch and no call.
+    if ctx
+        .host
+        .buffer
+        .flags
+        .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
+    {
+        report_pair_absent(ctx, second);
+    }
+    None
+}
+
+#[cold]
+#[inline(never)]
+fn report_pair_absent(ctx: &mut Apply, second: usize) {
     let idx = ctx.host.buffer.idx;
     ctx.host
         .buffer
         .unsafe_to_concat(Some(idx), Some(second + 1));
-    None
 }
 
 /// The next position a pattern would see, and where the cursor should end up.

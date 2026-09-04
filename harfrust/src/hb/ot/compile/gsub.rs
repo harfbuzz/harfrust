@@ -28,6 +28,7 @@ use crate::hb::ot_layout_gsubgpos::{
 };
 use crate::hb::ot_layout_gsubgpos::{WouldApply, WouldApplyContext};
 use crate::hb::ot_map::hb_ot_map_t;
+use crate::BufferFlags;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::tables::layout::{
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
@@ -160,6 +161,14 @@ pub fn at_multiple(
 /// Flags: **owes `merge_clusters` over the whole matched run.** The components
 /// become one glyph, so a caller may not break between the characters they
 /// came from.
+/// Cold half of the ligature filter: see [`at_ligature`].
+#[cold]
+#[inline(never)]
+fn report_no_ligature(ctx: &mut Apply, unsafe_to: usize) {
+    let idx = ctx.host.buffer.idx;
+    ctx.host.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to));
+}
+
 pub fn at_ligature(
     ctx: &mut Apply,
     _lookup: &CompiledLookup,
@@ -221,8 +230,14 @@ pub fn at_ligature(
     // into a concat hazard -- so the filter is invisible in the flags.
     if let Some(seconds) = sub.next.as_deref() {
         if !seconds.contains(second) {
-            let idx = ctx.host.buffer.idx;
-            ctx.host.buffer.unsafe_to_concat(Some(idx), Some(unsafe_to));
+            if ctx
+                .host
+                .buffer
+                .flags
+                .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
+            {
+                report_no_ligature(ctx, unsafe_to);
+            }
             return None;
         }
     }
