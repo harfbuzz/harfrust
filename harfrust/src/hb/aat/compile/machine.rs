@@ -60,10 +60,21 @@ where
             .map(|w| u16::from_be_bytes([w[0], w[1]]))
             .collect();
 
-        let stride = StateEntry::<T>::RAW_BYTE_LEN;
+        // How many entries there are is not stated anywhere, and the bytes
+        // after the entry table are not entries: a ligature machine follows
+        // its entries with actions, components and ligature glyphs, an
+        // insertion machine with the glyphs it inserts. Reading to the end of
+        // the subtable decodes all of that as state entries -- 304KiB of them
+        // on Lucida Grande, against a real entry table a fraction the size.
+        //
+        // The state array names every entry that can be reached, so the
+        // highest index in it is the last one worth having.
+        let reachable = rows.iter().copied().max().map_or(0, |top| top as usize + 1);
+        let stride = StateEntry::<T>::RAW_BYTE_LEN.max(1);
         let table = data.get(entries_at..)?;
         let entries: Vec<StateEntry<T>> = table
-            .chunks_exact(stride.max(1))
+            .chunks_exact(stride)
+            .take(reachable)
             .map_while(|record| StateEntry::<T>::read(FontData::new(record)).ok())
             .collect();
         if entries.is_empty() {

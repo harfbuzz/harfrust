@@ -38,3 +38,55 @@
 //! rebuilt.
 
 pub mod machine;
+
+#[cfg(all(test, feature = "std"))]
+mod heap_cost {
+    use crate::{FontRef, ShaperData};
+    use read_fonts::TableProvider;
+
+    /// What decoding the state machines costs, against the table they came
+    /// from.
+    #[test]
+    fn report() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        let mut fonts: Vec<_> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.extension()
+                    .is_some_and(|e| e == "ttf" || e == "ttc" || e == "otf")
+            })
+            .collect();
+        fonts.sort();
+        println!();
+        println!("{:<34} {:>10} {:>12}", "font", "morx KiB", "decoded KiB");
+        for path in fonts {
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            let Ok(font) = FontRef::from_index(&data, 0) else {
+                continue;
+            };
+            let Some(morx) = font
+                .table_data(read_fonts::types::Tag::new(b"morx"))
+                .map(|d| d.len())
+            else {
+                continue;
+            };
+            let shaper_data = ShaperData::new(&font);
+            let shaper = shaper_data.shaper(&font).build();
+            #[allow(clippy::cast_precision_loss)]
+            let kib = |n: usize| n as f64 / 1024.0;
+            println!(
+                "{:<34} {:>10.1} {:>12.1}",
+                path.file_name().unwrap().to_string_lossy(),
+                kib(morx),
+                kib(shaper.aat_tables.morph_heap_bytes()),
+            );
+        }
+        println!();
+    }
+}
