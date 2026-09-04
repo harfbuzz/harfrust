@@ -35,7 +35,20 @@
 //! needs each machine's *output* glyphs compiled too, so a buffer summary can
 //! stay a superset without being rebuilt.
 //!
-//! The module is kept for the one place a compiled form still looks worth
-//! having, which is not `morx` at all: `kern` and `kerx` probe two sparse
+//! **The kerning pair sets, flattened.** Simple kerning probes two sparse
 //! integer sets per adjacent pair, and a per-element probe is what a flat
-//! bitmap is for.
+//! bitmap is for -- but these sets are small enough that finding a page costs
+//! nothing, and flattening them measured 1.011, 0.996 and 0.999 on the three
+//! font and text pairings that have a `kern` table to use.
+//!
+//! # Why this does not repay what `GSUB` does
+//!
+//! A layout lookup stores what it knows in shapes that have to be *searched*:
+//! binary-searched coverage tables, ranged class definitions, chains of
+//! offsets. Compiling replaces a search with an index, and the same search
+//! runs for every glyph of every buffer the lookup is entered for.
+//!
+//! An AAT state table is already an index. The font stores the state array as
+//! a dense row-major grid and the class lookup behind a cache, so there is far
+//! less between the font and the answer to begin with, and what compiling
+//! removes is a byte-swap and a bounds check rather than a search.
