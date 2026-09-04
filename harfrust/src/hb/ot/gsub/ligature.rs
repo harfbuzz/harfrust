@@ -207,7 +207,7 @@ impl Apply for LigatureSubstFormat1<'_> {
     }
 }
 
-fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
+pub(crate) fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
     let mut seconds = hb_set_digest_t::new();
     let mut remaining_work = MAX_LIGATURE_CACHE_WORK;
     let ligature_sets = lig_subst.ligature_sets();
