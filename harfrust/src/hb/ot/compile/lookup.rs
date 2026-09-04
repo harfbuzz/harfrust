@@ -26,8 +26,6 @@
 //!
 //! The compile step also derives two things the font does not contain:
 //!
-//! * [`LengthEffect`] — whether applying can change the glyph count. Knowing it
-//!   statically is what lets substitution run in place with no output buffer.
 //! * The **pair key** — for a ligature lookup, the set of glyphs that can appear
 //!   as a *second* component. HarfBuzz filters on the first glyph, but that is
 //!   the non-discriminating half: Roboto's `ccmp` covers 72% of English text by
@@ -46,30 +44,6 @@ use read_fonts::{FontData, FontRead};
 
 use super::set::{scan_budget, ClassMap, Coverage, Digest, GlyphSet, Interner, DEFAULT_BUDGET};
 use super::Table;
-
-/// Whether applying a lookup can change the number of glyphs.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum LengthEffect {
-    /// 1 -> 1. Writes in place; positions never move.
-    Preserving,
-    /// n -> 1. Writes the result into the first slot and marks the rest dead.
-    Shrinking,
-    /// 1 -> n. Needs room, so it takes the rebuild path.
-    Growing,
-}
-
-impl LengthEffect {
-    /// The combined effect of a set of subtables, or of one subtable's
-    /// sequences.
-    pub fn join(self, other: Self) -> Self {
-        use LengthEffect::{Growing, Preserving, Shrinking};
-        match (self, other) {
-            (Growing, _) | (_, Growing) => Growing,
-            (Shrinking, _) | (_, Shrinking) => Shrinking,
-            _ => Preserving,
-        }
-    }
-}
 
 /// A big-endian `u16` array living in the font, addressed by byte offset from
 /// the start of the layout table.
@@ -267,16 +241,7 @@ pub fn dispatch_for(kind: &SubtableKind) -> ApplyFn {
     }
 }
 
-/// A context subtable's rule-set index.
-///
-/// One word per set, and nothing per rule. There was a per-rule index here
-/// too -- a byte apiece, saying what each rule's first input step demands --
-/// built, stored, accounted for, and never read. The set-level summary it was
-/// meant to refine already throws away half the rule sets a Nastaliq run
-/// enters; what the byte index would have saved is header parses inside the
-/// sets that survive, and no code was ever written to spend it. Removed rather
-/// than left waiting for that code, because a structure nothing reads is one
-/// nothing can be measured against.
+/// A context subtable's rule-set index: one word per set. See [`SetDigests`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuleIndex {
     /// One word per rule set. See [`SetDigests`].
@@ -394,14 +359,9 @@ pub enum SubtableKind {
         /// table. Ligature set offsets follow its six-byte header.
         offset: u32,
     },
-    /// Multiple substitution: one glyph becomes a sequence.
-    ///
-    /// The sequences stay in the font. `effect` is scanned at compile time
-    /// because the format only grows when some sequence has more than one
-    /// glyph — HarfBuzz special-cases a single-glyph sequence to substitute in
-    /// place, and an empty one to delete — so most of these never need the
-    /// rebuild path at all.
-    Multiple { offset: u32, effect: LengthEffect },
+    /// Multiple substitution: one glyph becomes a sequence, which stays in
+    /// the font.
+    Multiple { offset: u32 },
     /// Single positioning. One value record per covered glyph, or one shared
     /// by all of them, depending on the format.
     SinglePos {
@@ -474,19 +434,11 @@ pub enum SubtableKind {
     MarkTo {
         /// Offset of the subtable itself.
         ///
-        /// Unlike every other format, this one is applied straight from the
-        /// font rather than from the fields below -- see `gpos::at_mark_to` for
-        /// why. The rest is kept because it is what the shaper this came from
-        /// applies, and because dropping it would make the two copies diverge
-        /// for no gain.
+        /// The one format applied straight from the font rather than from
+        /// compiled fields -- see `gpos::at_mark_to`. What is compiled is the
+        /// outer gate: a mark either starts an attachment here or it does not,
+        /// and a run asks that of every glyph.
         offset: u32,
-        /// Coverage of what they attach to: bases, or other marks.
-        bases: Arc<Coverage>,
-        /// Offset of the mark array.
-        mark_array: u32,
-        /// Offset of the base or mark2 array.
-        base_array: u32,
-        class_count: u16,
         /// What the marks attach to.
         to: AttachTo,
     },
@@ -509,9 +461,8 @@ pub enum SubtableKind {
         /// What those offsets are relative to: the subtable itself.
         base: u32,
         rule_set_count: u16,
-        /// One word per rule set, and one byte per rule. Boxed together: they
-        /// are the widest thing any kind carries, and every subtable of every
-        /// format is as wide as the widest.
+        /// One word per rule set. Boxed because every subtable of every
+        /// format is as wide as the widest kind, and this is otherwise it.
         index: Box<RuleIndex>,
         /// Whether rules carry backtrack and lookahead sequences.
         chained: bool,
@@ -667,32 +618,6 @@ impl Subtable {
         self.next.as_deref()
     }
 
-    pub fn effect(&self) -> LengthEffect {
-        match &self.kind {
-            SubtableKind::SingleDelta { .. } | SubtableKind::SingleList { .. } => {
-                LengthEffect::Preserving
-            }
-            SubtableKind::Ligature { .. } => LengthEffect::Shrinking,
-            SubtableKind::Multiple { effect, .. } => *effect,
-            // Positioning never changes the glyph count.
-            SubtableKind::SinglePos { .. }
-            | SubtableKind::PairPos1 { .. }
-            | SubtableKind::PairPos2 { .. }
-            | SubtableKind::MarkTo { .. }
-            | SubtableKind::Cursive { .. }
-            | SubtableKind::Alternate { .. } => LengthEffect::Preserving,
-            // As with chain context, the effect is whatever the nested lookups
-            // do.
-            SubtableKind::Rules { .. } => LengthEffect::Preserving,
-            // The effect is whatever its nested lookups do; resolved by the
-            // program once every lookup is compiled.
-            SubtableKind::ChainCtx3 { .. } => LengthEffect::Preserving,
-            // One glyph in, one glyph out, and no nested lookups to change
-            // that.
-            SubtableKind::ReverseChain { .. } => LengthEffect::Preserving,
-        }
-    }
-
     /// Heap bytes this subtable owns.
     ///
     /// Excludes two things by design: whatever stayed in the font, and whatever
@@ -750,13 +675,11 @@ pub struct CompiledLookup {
     /// Tested, never indexed, so it carries no rank table.
     ///
     /// For a one-subtable lookup this holds the same glyphs as that subtable's
-    /// coverage, which looks like waste -- 20KiB on Amiri, a third of what its
-    /// lookups own beyond their subtables -- and is not. Dropping it and
-    /// scanning the coverage instead costs 14% on a line of English: a
+    /// coverage -- 20KiB of them on Amiri -- and is still worth keeping. A
     /// coverage has to answer *where* a glyph is, so the picker gives it a
-    /// shape that can, while a set only has to answer *whether*. The scan asks
-    /// the cheaper question far more often than the gate asks the dearer one,
-    /// so the two are worth keeping apart.
+    /// shape that can; a set only has to answer *whether*. The scan asks the
+    /// cheaper question far more often than the gate asks the dearer one, and
+    /// scanning the coverage instead costs 14% on a line of English.
     reach: GlyphSet,
     /// Three-word summary of `reach`, so a lookup that cannot touch a buffer is
     /// thrown away before the buffer is scanned at all.
@@ -792,9 +715,9 @@ impl CompiledLookup {
 
     /// Whether this lookup could apply at `glyph`.
     ///
-    /// The branch is on the subtable count, which cannot change while a lookup
-    /// is being scanned, so it costs a perfectly predicted test in place of the
-    /// second copy of a coverage this used to keep.
+    /// A lookup with one subtable has a reach which *is* that subtable's
+    /// coverage, so it asks the coverage and the union set is not consulted.
+    /// The branch is on the subtable count, which cannot change under a scan.
     #[inline]
     pub fn may_reach(&self, glyph: u32) -> bool {
         match &self.subtables[..] {
@@ -1405,14 +1328,6 @@ mod tests {
         )
     }
     #[test]
-    fn length_effect_joins_to_the_widest() {
-        use LengthEffect::*;
-        assert_eq!(Preserving.join(Preserving), Preserving);
-        assert_eq!(Preserving.join(Shrinking), Shrinking);
-        assert_eq!(Shrinking.join(Growing), Growing);
-    }
-
-    #[test]
     fn u16_array_reads_big_endian() {
         // Two bytes of padding, then [0x0102, 0x0304].
         let table = [0xff, 0xff, 0x01, 0x02, 0x03, 0x04];
@@ -1451,15 +1366,13 @@ mod tests {
     }
 
     #[test]
-    fn single_lookup_is_preserving_and_has_no_pair_key() {
-        assert_eq!(single(&[5, 6]).effect(), LengthEffect::Preserving);
+    fn single_lookup_has_no_pair_key() {
         let l = CompiledLookup::new(0, vec![single(&[5, 6])]);
         assert_eq!(l.pair_digest, Digest::FULL, "nothing to key on");
     }
 
     #[test]
-    fn ligature_lookup_is_shrinking_and_pair_keyed() {
-        assert_eq!(lig(&[1], &[2]).effect(), LengthEffect::Shrinking);
+    fn ligature_lookup_is_pair_keyed() {
         let l = CompiledLookup::new(0, vec![lig(&[1], &[2])]);
         assert_ne!(
             l.pair_digest,

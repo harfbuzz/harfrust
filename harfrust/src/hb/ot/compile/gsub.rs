@@ -81,7 +81,7 @@ pub fn at_single_list(
 }
 
 /// Multiple substitution: one glyph becomes a sequence, so this is the only
-/// format that can lengthen the buffer -- see [`super::lookup::LengthEffect`].
+/// format that can lengthen the buffer.
 ///
 /// Flags: nothing owed beyond what the splice already does. Every piece
 /// carries the input's cluster, so a caller cannot break between them, and
@@ -211,30 +211,22 @@ pub fn at_ligature(
         return None;
     }
 
-    // The pair key. This is the filter the whole format turns on: `ccmp` covers
+    // The pair key, which is the filter this format turns on: `ccmp` covers
     // 72% of English text by first glyph and ligates none of it, because what
     // has to follow is a combining mark.
     //
-    // This set is exact, where the filter it replaces is a three-word digest,
-    // and that difference is observable in exactly one place: a second glyph
-    // the digest lets through reaches the loop below, and the loop records a
-    // concat hazard. So we mark fewer positions unsafe-to-concat than this
-    // crate does -- 7 cases in 3169 of its own test corpus, and only when a
-    // caller has asked for those flags at all.
+    // Exact, where this crate's own filter is a three-word digest, and that
+    // difference is observable in one place. A second glyph the digest admits
+    // reaches the loop below, which records a concat hazard; an exact set
+    // rejects it here and records nothing. So this marks fewer positions
+    // unsafe-to-concat -- 7 cases in 3169 of the test corpus, and only for a
+    // caller that asked for those flags.
     //
-    // Left exact deliberately. The predicate is "could any ligature here start
-    // with this glyph", which is what the digest approximates and what this
-    // answers; the extra marks are the approximation showing through, not a
-    // hazard anyone identified. Two things support that reading: the digest is
-    // the *only* test in that path -- there is no exact check behind it, unlike
-    // every coverage probe -- and its value depends on whether the subtable
-    // happened to be given an external cache, since without one it is
-    // `full()`, which passes everything. Reproducing it would mean reproducing
-    // a caching artifact.
-    //
-    // Gating the shortcut on the flag was tried and is worse: it moves the
-    // count from 7 to 91 and in the over-marking direction, because skipping
-    // the shortcut is not the same as consulting their digest.
+    // Sound, because the second glyph is already determined when this rejects:
+    // appending text cannot change it, so no ligature can become possible, and
+    // the hazard the digest reports is one nothing could have acted on. It is
+    // a deliberate divergence all the same, and API output, so it is recorded
+    // here rather than hidden.
     if let Some(seconds) = sub.next.as_deref() {
         if !seconds.contains(second) {
             return None;

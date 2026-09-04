@@ -45,9 +45,9 @@ use read_fonts::FontData;
 /// first two input values without parsing it, skips ahead over runs of rules
 /// sharing a first value, and accumulates exactly which concat hazard to
 /// report -- and that last part is a function of *which* probes ran, so it is
-/// not something to reimplement next to a filter that changes them. Layering
-/// the per-set and per-rule summaries on top is the next step, and it has to
-/// answer for those flags rather than merely be faster.
+/// not something to reimplement next to a filter that changes them. The
+/// per-set summary is layered on top of it rather than replacing it, and
+/// answers for those flags.
 ///
 /// Flags: owed entirely by that walk, which reports a break hazard over a
 /// matched span and a concat hazard over the longest prefix any rule agreed

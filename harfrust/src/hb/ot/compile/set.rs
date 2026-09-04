@@ -492,9 +492,8 @@ impl Interner {
     /// Bytes held by the interning keys themselves.
     ///
     /// Separate from `heap_bytes` because it is not what the compiled form
-    /// costs to *use* -- it is what the compiler kept in order to recognise a
-    /// table it had already seen. Sixteen bytes an entry since the keys became
-    /// digests; it was the tables' own bytes before that.
+    /// costs to *use* -- it is what the compiler keeps in order to recognise a
+    /// table it has already seen. Sixteen bytes an entry.
     pub fn key_bytes(&self) -> usize {
         let (sets, coverages, classes) = self.len();
         (sets + coverages + classes) * 16
@@ -952,11 +951,9 @@ enum Pick {
 /// three glyphs spread across it. So the rule is relative -- take the fastest
 /// form costing no more than `SLACK` times the smallest -- with `budget` left
 /// as a floor under which everything is affordable, since a fixed cost that
-/// small is not worth reasoning about.
-///
-/// Measured: the flat 384-byte budget this replaces forced NotoSans's kern
-/// class definitions into binary search, and cost about fifteen percent of
-/// shaping throughput on Latin text to save memory nobody needed saved.
+/// small is not worth reasoning about. A flat budget instead of a relative one
+/// puts NotoSans's kern class definitions into binary search, which costs
+/// about fifteen percent of shaping throughput on Latin text.
 fn pick(cands: &[(Pick, u8, usize)], budget: usize, slack: usize) -> Pick {
     let smallest = cands.iter().map(|(_, _, b)| *b).min().unwrap_or(0);
     let ceiling = budget.max(smallest.saturating_mul(slack));
