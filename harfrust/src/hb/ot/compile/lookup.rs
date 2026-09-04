@@ -37,7 +37,7 @@ use super::Compiler;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use read_fonts::tables::gpos::Gpos;
 use read_fonts::tables::gsub::Gsub;
 use read_fonts::{FontData, FontRead};
@@ -1004,8 +1004,81 @@ impl Dispatch {
 /// font whether or not a plan ever reaches it -- 394 of them in NotoSans
 /// Devanagari, of which shaping Hindi touches 54. Behind a box the empty slot
 /// costs a pointer and the reached ones cost what they always did.
-pub type CompiledLookupSlot = OnceLock<Option<Box<CompiledLookup>>>;
+/// One lookup's slot: the compiled form once it exists, and the cheap summary
+/// that decides whether it ever should.
+///
+/// The two live together because the hot loop asks about both, in that order,
+/// for every lookup of every buffer. Kept in separate arrays they were two
+/// cache lines per lookup and the second one was paid on every buffer for
+/// every lookup the summary keeps declining -- which on Latin is most of them.
+#[derive(Default, Debug)]
+pub struct CompiledLookupSlot {
+    lookup: OnceLock<Option<Box<CompiledLookup>>>,
+    digest: AtomicDigest,
+}
 
+/// What [`Program::compiled`] found in a slot.
+pub enum Compiled<'a> {
+    /// Compiled already. `None` inside means it compiled to nothing, which is
+    /// a lookup that does nothing -- see [`Program::compile`].
+    Already(Option<&'a CompiledLookup>),
+    /// Not compiled yet, and the only state in which the cheap summary is
+    /// worth consulting.
+    NotYet,
+}
+
+impl CompiledLookupSlot {
+    #[inline]
+    fn get(&self) -> Option<&Option<Box<CompiledLookup>>> {
+        self.lookup.get()
+    }
+}
+
+/// A lookup's summary, as three words that can be written from any thread.
+///
+/// Not a `OnceLock`: one of those around a `Digest` is thirty-two bytes and
+/// there is one per lookup, which triples the array the pass indexes and costs
+/// more in cache misses than the summary saves. Three relaxed words are
+/// twenty-four with no state beside them, and need none -- every thread that
+/// builds this builds the same value, so a race writes the same bits twice.
+///
+/// All zero means "not built yet". A lookup that really summarises to nothing
+/// can never match anything, so it is summarised again each time and skipped
+/// each time, which costs nothing anyone will find.
+#[derive(Default, Debug)]
+pub struct AtomicDigest([AtomicU64; 3]);
+
+impl AtomicDigest {
+    #[inline]
+    fn get(&self) -> [u64; 3] {
+        [
+            self.0[0].load(Ordering::Relaxed),
+            self.0[1].load(Ordering::Relaxed),
+            self.0[2].load(Ordering::Relaxed),
+        ]
+    }
+
+    #[inline]
+    fn set(&self, words: &[u64; 3]) {
+        for (slot, word) in self.0.iter().zip(words) {
+            slot.store(*word, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Every compiled lookup of a layout table, addressable by lookup-list index.
+///
+/// Chain context recurses by index, so applying one lookup needs the whole set.
+/// Entries that could not be compiled are `None`, which the runtime treats as
+/// "does not apply" — wrong output is preferable to a panic only if it is loud,
+/// so callers check [`Program::missing`] to know what they are missing.
+/// One slot of a [`Program`], named so its size can be accounted for.
+///
+/// Boxed, and that is the whole reason this is a named type. A slot holding a
+/// `CompiledLookup` inline is 232 bytes, and there is one per lookup in the
+/// font whether or not a plan ever reaches it -- 394 of them in NotoSans
+/// Devanagari, of which shaping Hindi touches 54. Behind a box the empty slot
+/// costs a pointer and the reached ones cost what they always did.
 #[derive(Debug)]
 pub struct Program {
     /// One slot per lookup in the font, each compiled on first use.
@@ -1071,8 +1144,11 @@ impl Program {
         p.lookups = lookups
             .into_iter()
             .map(|l| {
-                let slot = OnceLock::new();
-                let _ = slot.set(l.map(Box::new));
+                let slot = CompiledLookupSlot::default();
+                let _ = slot.lookup.set(l.map(Box::new));
+                // Prebuilt lookups are never gated: nothing can be summarised
+                // from a font that was not read.
+                slot.digest.set(Digest::FULL.words());
                 slot
             })
             .collect();
@@ -1082,7 +1158,7 @@ impl Program {
     fn with_table(count: u16, pool: Arc<Interner>, table: Table, detail: super::Detail) -> Self {
         let compiler = Mutex::new(Compiler::with_detail(Arc::clone(&pool), detail));
         let mut lookups = Vec::new();
-        lookups.resize_with(usize::from(count), OnceLock::new);
+        lookups.resize_with(usize::from(count), CompiledLookupSlot::default);
         Self {
             lookups,
             pool,
@@ -1119,13 +1195,67 @@ impl Program {
     ///
     /// A lookup that fails to compile caches its failure, so a malformed
     /// subtable is diagnosed once rather than on every glyph.
+    /// The compiled lookup, if it has been compiled already.
+    ///
+    /// `None` means not yet, which is the only state in which the cheap
+    /// summary is worth consulting: once a lookup is compiled, it carries the
+    /// same summary and reading it costs nothing extra.
+    #[inline]
+    pub fn compiled(&self, index: u16) -> Compiled<'_> {
+        match self.lookups.get(index as usize).and_then(|s| s.get()) {
+            Some(compiled) => Compiled::Already(compiled.as_deref()),
+            None => Compiled::NotYet,
+        }
+    }
+
+    /// Whether this lookup could touch a buffer holding `seen`.
+    ///
+    /// Answered from the font rather than from the compiled form, so a lookup
+    /// that cannot is never compiled. See [`CompiledLookupSlot::digest`].
+    ///
+    /// The summary is built once and read on every buffer after that -- a
+    /// lookup this keeps declining is never compiled, so it is this that keeps
+    /// answering for it. Reading it has to be a load and three `and`s, which
+    /// is why building it lives out of line.
+    #[inline]
+    pub fn may_touch(&self, index: u16, data: &[u8], seen: &[u64; 3]) -> bool {
+        let Some(slot) = self.lookups.get(index as usize) else {
+            return false;
+        };
+        let mut words = slot.digest.get();
+        if words == [0; 3] {
+            words = self.build_digest(&slot.digest, index, data);
+        }
+        words[0] & seen[0] != 0 && words[1] & seen[1] != 0 && words[2] & seen[2] != 0
+    }
+
+    /// Summarise a lookup from the font. Once per lookup, near enough.
+    #[cold]
+    fn build_digest(&self, slot: &AtomicDigest, index: u16, data: &[u8]) -> [u64; 3] {
+        let data = FontData::new(data);
+        let built = match self.table {
+            Table::Gsub => Gsub::read(data)
+                .ok()
+                .and_then(|t| super::lookup_digest_gsub(&t, index)),
+            Table::Gpos => Gpos::read(data)
+                .ok()
+                .and_then(|t| super::lookup_digest_gpos(&t, index)),
+        };
+        // A lookup that cannot be summarised is one nothing can be ruled out
+        // about.
+        let words = *built.unwrap_or(Digest::FULL).words();
+        slot.set(&words);
+        words
+    }
+
     pub fn get(&self, index: u16, data: &[u8]) -> Option<&CompiledLookup> {
         let slot = self.lookups.get(index as usize)?;
         // The hit path: no lock, no font parsing, just a load.
         if let Some(compiled) = slot.get() {
             return compiled.as_deref();
         }
-        slot.get_or_init(|| self.compile(index, data).map(Box::new))
+        slot.lookup
+            .get_or_init(|| self.compile(index, data).map(Box::new))
             .as_deref()
     }
 

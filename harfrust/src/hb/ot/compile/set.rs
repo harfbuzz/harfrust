@@ -108,6 +108,36 @@ impl Digest {
         }
     }
 
+    /// Add every glyph from `first` to `last` inclusive.
+    ///
+    /// Without visiting them: a run long enough to cover every bit of one view
+    /// sets that view outright, and a shorter one sets the bits between its
+    /// ends. Coverage format 2 states its glyphs as runs, so a summary built
+    /// this way costs a handful of operations per run rather than one per
+    /// glyph -- which is what makes it cheap enough to build for a lookup that
+    /// is then not compiled at all.
+    pub fn insert_range(&mut self, first: u32, last: u32) {
+        for (word, shift) in self.words.iter_mut().zip(DIGEST_SHIFTS) {
+            let (lo, hi) = (first >> shift, last >> shift);
+            if hi.wrapping_sub(lo) >= 63 {
+                *word = u64::MAX;
+            } else {
+                let (lo, hi) = (lo & 63, hi & 63);
+                // A run that wraps within the view covers both ends of it.
+                *word |= if lo <= hi {
+                    let span = hi - lo;
+                    if span == 63 {
+                        u64::MAX
+                    } else {
+                        ((1u64 << (span + 1)) - 1) << lo
+                    }
+                } else {
+                    !0u64 << lo | ((1u64 << (hi + 1)) - 1)
+                };
+            }
+        }
+    }
+
     pub fn from_glyphs(glyphs: impl IntoIterator<Item = u32>) -> Self {
         let mut d = Self::EMPTY;
         for g in glyphs {
@@ -1457,5 +1487,44 @@ mod tests {
         a.union(&b);
         assert!(a.may_intersect(&b));
         assert!(a.may_intersect(&Digest::from_glyphs([10u32])));
+    }
+}
+
+#[cfg(test)]
+mod digest_ranges {
+    use super::Digest;
+
+    /// A range summary must hold every glyph the range holds. It may hold
+    /// more -- it is a summary -- but never less, or a lookup that could match
+    /// would be thrown away.
+    #[test]
+    fn a_range_holds_everything_in_it() {
+        for (first, last) in [
+            (0u32, 0u32),
+            (0, 1),
+            (5, 5),
+            (3, 70),
+            (64, 64),
+            (63, 65),
+            (100, 4000),
+            (0, 65535),
+            (500, 501),
+            (1, 62),
+        ] {
+            let mut range = Digest::EMPTY;
+            range.insert_range(first, last);
+            let mut one_at_a_time = Digest::EMPTY;
+            for g in first..=last {
+                one_at_a_time.insert(g);
+            }
+            // Every glyph in the range must still be admitted, which is
+            // what a summary of it promises.
+            for g in first..=last {
+                let mut one = Digest::EMPTY;
+                one.insert(g);
+                assert!(range.may_intersect(&one), "range {first}..={last} lost {g}");
+            }
+            assert!(range.may_intersect(&one_at_a_time));
+        }
     }
 }

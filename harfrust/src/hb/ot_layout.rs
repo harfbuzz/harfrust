@@ -176,14 +176,29 @@ pub fn apply_layout_table<T: LayoutTable>(
                 // the face.
                 #[cfg(feature = "compile-path")]
                 {
+                    use crate::hb::ot::compile::lookup::Compiled;
                     let face = ctx.face;
                     let program = match T::INDEX {
                         TableIndex::GSUB => &face.ot_tables.gsub_compiled,
                         TableIndex::GPOS => &face.ot_tables.gpos_compiled,
                     };
                     if let Some(data) = face.ot_tables.table_data(T::INDEX) {
-                        if let Some(compiled) = program.get(lookup_map.index, data) {
-                            let seen = *ctx.buffer.digest.masks();
+                        let seen = *ctx.buffer.digest.masks();
+                        // Already compiled: it carries its own summary, so
+                        // there is nothing cheaper to ask first. Not yet: ask
+                        // what it can start on *before* building it, from the
+                        // font -- most of what a first shape would compile, it
+                        // then skips.
+                        let compiled = if let Compiled::Already(compiled) =
+                            program.compiled(lookup_map.index)
+                        {
+                            compiled
+                        } else if program.may_touch(lookup_map.index, data, &seen) {
+                            program.get(lookup_map.index, data)
+                        } else {
+                            continue;
+                        };
+                        if let Some(compiled) = compiled {
                             if compiled.digest.may_intersect_raw(&seen)
                                 && compiled.pair_digest.may_intersect_raw(&seen)
                             {

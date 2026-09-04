@@ -87,7 +87,7 @@ use self::lookup::{
     AttachTo, CompiledLookup, Program, RuleIndex, SeqRecord, SetDigests, Subtable, SubtableKind,
     U16Array,
 };
-use self::set::{ClassMap, Coverage, GlyphSet, Interner};
+use self::set::{ClassMap, Coverage, Digest, GlyphSet, Interner};
 
 /// How much precomputation to keep alongside the compiled lookups.
 ///
@@ -2233,5 +2233,416 @@ mod interner_key {
             }
         }
         out
+    }
+}
+
+#[cfg(all(test, feature = "std", feature = "compile-path"))]
+mod first_shape {
+    use crate::{FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
+
+    /// How much of a plan one line needs, against how much of it gets compiled
+    /// to find out.
+    ///
+    /// A lookup is compiled the first time a pass reaches it, and the pass
+    /// reaches every lookup the plan lists -- the summary that would let it
+    /// skip one lives on the compiled form, so there is no way to decline
+    /// before paying. Whatever gap this shows is what a cheaper pre-gate would
+    /// save on a first shape.
+    #[test]
+    fn report() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
+        for (font_name, text_name) in [
+            ("Roboto-Regular.ttf", "en-thelittleprince.txt"),
+            ("Amiri-Regular.ttf", "fa-thelittleprince.txt"),
+            ("NotoNastaliqUrdu-Regular.ttf", "fa-words.txt"),
+            ("NotoSansDevanagari-Regular.ttf", "hi-words.txt"),
+        ] {
+            let font_path = format!("{dir}/{font_name}");
+            let text_path = format!("{}/benches/texts/{text_name}", env!("CARGO_MANIFEST_DIR"));
+            let (Ok(data), Ok(text)) = (
+                std::fs::read(&font_path),
+                std::fs::read_to_string(&text_path),
+            ) else {
+                continue;
+            };
+            let font = FontRef::new(&data).unwrap();
+            let shaper_data = ShaperData::new(&font);
+            let shaper = shaper_data.shaper(&font).build();
+            let count = |shaper: &crate::Shaper<'_>| -> usize {
+                let t = &shaper.ot_tables;
+                [&t.gsub_compiled, &t.gpos_compiled]
+                    .iter()
+                    .map(|p| (0..p.len() as u16).filter(|&i| p.is_compiled(i)).count())
+                    .sum()
+            };
+            let mut held = Some(UnicodeBuffer::new());
+            let mut after_one = 0;
+            for (i, line) in text
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .take(400)
+                .enumerate()
+            {
+                let mut b = held.take().unwrap();
+                b.push_str(line);
+                b.guess_segment_properties();
+                held = Some(shaper.shape(b, ShapeOptions::new()).clear());
+                if i == 0 {
+                    after_one = count(&shaper);
+                }
+            }
+            // Of the ones line 1 compiled, how many could it have declined --
+            // that is, how many does its own digest reject for that buffer?
+            let mut digest = crate::hb::set_digest::hb_set_digest_t::new();
+            let first_line = text.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+            let mut b = UnicodeBuffer::new();
+            b.push_str(first_line);
+            b.guess_segment_properties();
+            let shaped = shaper.shape(b, ShapeOptions::new());
+            for info in shaped.glyph_infos() {
+                digest.add(info.glyph_id);
+            }
+            let seen = *digest.masks();
+            let t = &shaper.ot_tables;
+            let mut compiled = 0;
+            let mut rejected = 0;
+            let mut by_pair = 0;
+            for (program, index) in [
+                (&t.gsub_compiled, crate::hb::ot_layout::TableIndex::GSUB),
+                (&t.gpos_compiled, crate::hb::ot_layout::TableIndex::GPOS),
+            ] {
+                let Some(bytes) = t.table_data(index) else {
+                    continue;
+                };
+                for i in 0..program.len() as u16 {
+                    if !program.is_compiled(i) {
+                        continue;
+                    }
+                    let Some(l) = program.get(i, bytes) else {
+                        continue;
+                    };
+                    compiled += 1;
+                    if !l.digest.may_intersect_raw(&seen) {
+                        rejected += 1;
+                    } else if !l.pair_digest.may_intersect_raw(&seen) {
+                        by_pair += 1;
+                    }
+                }
+            }
+            println!(
+                "{font_name:<32} {after_one:>4} by line 1, {:>4} by line 400; of                  {compiled}: {rejected} rejected on reach alone, {by_pair} more on the pair key",
+                count(&shaper)
+            );
+        }
+    }
+}
+
+/// A three-word summary of what a lookup can start on, without compiling it.
+///
+/// The compiled form carries the same summary, and the pass over a buffer uses
+/// it to skip a lookup that cannot touch it -- but by then the lookup has been
+/// compiled, because that is where the summary lives. On a first shape that is
+/// most of the work wasted: of the 25 lookups a line of English makes Roboto
+/// compile, 16 are then skipped for that line, and of Nastaliq's 108, 107.
+///
+/// This reads the same coverages and nothing else. No representation is
+/// chosen, nothing is interned, no class definitions or rule summaries are
+/// built, and a coverage stated as runs is summarised a run at a time. What it
+/// answers is exactly what [`CompiledLookup::digest`] answers, which a test
+/// pins.
+pub fn lookup_digest_gsub(gsub: &Gsub, index: u16) -> Option<Digest> {
+    let list = gsub.lookup_list().ok()?;
+    let lookup = list.lookups().get(index as usize).ok()?;
+    let mut digest = Digest::EMPTY;
+    match &lookup {
+        SubstitutionLookup::Single(l) => {
+            for st in l.subtables().iter().flatten() {
+                match st {
+                    SingleSubst::Format1(t) => cover(t.coverage(), &mut digest),
+                    SingleSubst::Format2(t) => cover(t.coverage(), &mut digest),
+                }
+            }
+        }
+        SubstitutionLookup::Ligature(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.coverage(), &mut digest);
+            }
+        }
+        SubstitutionLookup::Multiple(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.coverage(), &mut digest);
+            }
+        }
+        SubstitutionLookup::Alternate(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.coverage(), &mut digest);
+            }
+        }
+        SubstitutionLookup::Contextual(l) => {
+            for st in l.subtables().iter().flatten() {
+                context_cover(&st, &mut digest);
+            }
+        }
+        SubstitutionLookup::ChainContextual(l) => {
+            for st in l.subtables().iter().flatten() {
+                chain_context_cover(&st, &mut digest);
+            }
+        }
+        SubstitutionLookup::Reverse(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.coverage(), &mut digest);
+            }
+        }
+        SubstitutionLookup::Extension(l) => {
+            for st in l.subtables().iter().flatten() {
+                extension_cover(&st, &mut digest);
+            }
+        }
+    }
+    Some(digest)
+}
+
+/// The same for a positioning lookup.
+pub fn lookup_digest_gpos(gpos: &Gpos, index: u16) -> Option<Digest> {
+    let list = gpos.lookup_list().ok()?;
+    let lookup = list.lookups().get(index as usize).ok()?;
+    let mut digest = Digest::EMPTY;
+    match &lookup {
+        PositionLookup::Single(l) => {
+            for st in l.subtables().iter().flatten() {
+                match st {
+                    SinglePos::Format1(t) => cover(t.coverage(), &mut digest),
+                    SinglePos::Format2(t) => cover(t.coverage(), &mut digest),
+                }
+            }
+        }
+        PositionLookup::Pair(l) => {
+            for st in l.subtables().iter().flatten() {
+                match st {
+                    PairPos::Format1(t) => cover(t.coverage(), &mut digest),
+                    PairPos::Format2(t) => cover(t.coverage(), &mut digest),
+                }
+            }
+        }
+        PositionLookup::Cursive(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.coverage(), &mut digest);
+            }
+        }
+        PositionLookup::MarkToBase(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.mark_coverage(), &mut digest);
+            }
+        }
+        PositionLookup::MarkToMark(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.mark1_coverage(), &mut digest);
+            }
+        }
+        PositionLookup::MarkToLig(l) => {
+            for st in l.subtables().iter().flatten() {
+                cover(st.mark_coverage(), &mut digest);
+            }
+        }
+        PositionLookup::Contextual(l) => {
+            for st in l.subtables().iter().flatten() {
+                context_cover(&st, &mut digest);
+            }
+        }
+        PositionLookup::ChainContextual(l) => {
+            for st in l.subtables().iter().flatten() {
+                chain_context_cover(&st, &mut digest);
+            }
+        }
+        PositionLookup::Extension(l) => {
+            for st in l.subtables().iter().flatten() {
+                pos_extension_cover(&st, &mut digest);
+            }
+        }
+    }
+    Some(digest)
+}
+
+/// An extension names its real subtable through another offset; what it can
+/// start on is whatever that subtable can.
+fn extension_cover(ext: &ExtensionSubtable, digest: &mut Digest) {
+    match ext {
+        ExtensionSubtable::Single(e) => match e.extension() {
+            Ok(SingleSubst::Format1(t)) => cover(t.coverage(), digest),
+            Ok(SingleSubst::Format2(t)) => cover(t.coverage(), digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+        ExtensionSubtable::Ligature(e) => reach_of(e.extension(), digest, |t| t.coverage()),
+        ExtensionSubtable::Multiple(e) => reach_of(e.extension(), digest, |t| t.coverage()),
+        ExtensionSubtable::Alternate(e) => reach_of(e.extension(), digest, |t| t.coverage()),
+        ExtensionSubtable::Reverse(e) => reach_of(e.extension(), digest, |t| t.coverage()),
+        ExtensionSubtable::Contextual(e) => match e.extension() {
+            Ok(t) => context_cover(&t, digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+        ExtensionSubtable::ChainContextual(e) => match e.extension() {
+            Ok(t) => chain_context_cover(&t, digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+    }
+}
+
+/// The same for positioning, whose extensions name a different set of formats.
+fn pos_extension_cover(ext: &PosExtension, digest: &mut Digest) {
+    match ext {
+        PosExtension::Single(e) => match e.extension() {
+            Ok(SinglePos::Format1(t)) => cover(t.coverage(), digest),
+            Ok(SinglePos::Format2(t)) => cover(t.coverage(), digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+        PosExtension::Pair(e) => match e.extension() {
+            Ok(PairPos::Format1(t)) => cover(t.coverage(), digest),
+            Ok(PairPos::Format2(t)) => cover(t.coverage(), digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+        PosExtension::Cursive(e) => reach_of(e.extension(), digest, |t| t.coverage()),
+        PosExtension::MarkToBase(e) => reach_of(e.extension(), digest, |t| t.mark_coverage()),
+        PosExtension::MarkToMark(e) => reach_of(e.extension(), digest, |t| t.mark1_coverage()),
+        PosExtension::MarkToLig(e) => reach_of(e.extension(), digest, |t| t.mark_coverage()),
+        PosExtension::Contextual(e) => match e.extension() {
+            Ok(t) => context_cover(&t, digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+        PosExtension::ChainContextual(e) => match e.extension() {
+            Ok(t) => chain_context_cover(&t, digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+    }
+}
+
+/// Summarise whatever coverage a subtable is gated on.
+fn reach_of<T>(
+    subtable: Result<T, ReadError>,
+    digest: &mut Digest,
+    coverage: impl Fn(&T) -> Result<CoverageTable, ReadError>,
+) {
+    match subtable {
+        Ok(t) => cover(coverage(&t), digest),
+        Err(_) => *digest = Digest::FULL,
+    }
+}
+
+/// Summarise a coverage table, a run at a time where it states runs.
+fn cover(c: Result<CoverageTable, ReadError>, digest: &mut Digest) {
+    match c {
+        Ok(CoverageTable::Format1(t)) => {
+            for glyph in t.glyph_array() {
+                digest.insert(u32::from(glyph.get().to_u16()));
+            }
+        }
+        Ok(CoverageTable::Format2(t)) => {
+            for range in t.range_records() {
+                digest.insert_range(
+                    u32::from(range.start_glyph_id().to_u16()),
+                    u32::from(range.end_glyph_id().to_u16()),
+                );
+            }
+        }
+        // Unreadable, so nothing can be ruled out.
+        Err(_) => *digest = Digest::FULL,
+    }
+}
+
+/// What a sequence context can start on: its coverage, or for format 3 the
+/// first of its input coverages.
+fn context_cover(t: &SequenceContext, digest: &mut Digest) {
+    match t {
+        SequenceContext::Format1(t) => cover(t.coverage(), digest),
+        SequenceContext::Format2(t) => cover(t.coverage(), digest),
+        SequenceContext::Format3(t) => match t.coverages().get(0) {
+            Ok(c) => cover(Ok(c), digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+    }
+}
+
+fn chain_context_cover(t: &ChainedSequenceContext, digest: &mut Digest) {
+    match t {
+        ChainedSequenceContext::Format1(t) => cover(t.coverage(), digest),
+        ChainedSequenceContext::Format2(t) => cover(t.coverage(), digest),
+        ChainedSequenceContext::Format3(t) => match t.input_coverages().get(0) {
+            Ok(c) => cover(Ok(c), digest),
+            Err(_) => *digest = Digest::FULL,
+        },
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod cheap_digest {
+    use super::*;
+    use crate::FontRef;
+    use read_fonts::TableProvider;
+
+    /// The summary built without compiling has to be the one the compiled
+    /// form carries.
+    ///
+    /// It decides whether a lookup is compiled at all, so being tighter would
+    /// silently drop a lookup that could match. It is also the only reach test
+    /// the pass makes -- the compiled form's copy is not consulted -- which is
+    /// what keeps the two from costing twice, and which requires them to be
+    /// equal rather than merely comparable.
+    #[test]
+    fn it_is_the_summary_the_compiled_lookup_carries() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        let mut paths: Vec<_> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "ttf" || e == "otf"))
+            .collect();
+        paths.sort();
+        let mut checked = 0;
+        for path in paths {
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            let Ok(font) = FontRef::new(&data) else {
+                continue;
+            };
+            let (gsub, gpos) = (font.gsub().ok(), font.gpos().ok());
+            let (sub, pos) = compile_font(gsub.as_ref(), gpos.as_ref());
+            if let (Some(gsub), Some(bytes)) =
+                (&gsub, font.table_data(read_fonts::types::Tag::new(b"GSUB")))
+            {
+                for i in 0..sub.len() as u16 {
+                    let Some(compiled) = sub.get(i, bytes.as_bytes()) else {
+                        continue;
+                    };
+                    let cheap = lookup_digest_gsub(gsub, i).expect("readable lookup");
+                    assert_admits(&cheap, &compiled.digest, &path, "GSUB", i);
+                    checked += 1;
+                }
+            }
+            if let (Some(gpos), Some(bytes)) =
+                (&gpos, font.table_data(read_fonts::types::Tag::new(b"GPOS")))
+            {
+                for i in 0..pos.len() as u16 {
+                    let Some(compiled) = pos.get(i, bytes.as_bytes()) else {
+                        continue;
+                    };
+                    let cheap = lookup_digest_gpos(gpos, i).expect("readable lookup");
+                    assert_admits(&cheap, &compiled.digest, &path, "GPOS", i);
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 0, "no lookups checked");
+        println!("{checked} lookups summarise the same either way");
+    }
+
+    fn assert_admits(cheap: &Digest, exact: &Digest, path: &std::path::Path, table: &str, i: u16) {
+        assert_eq!(
+            cheap.words(),
+            exact.words(),
+            "{}: {table} {i} -- summarised differently with and without compiling",
+            path.file_name().unwrap().to_string_lossy()
+        );
     }
 }
