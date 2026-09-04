@@ -42,7 +42,6 @@ pub mod machine;
 #[cfg(all(test, feature = "std"))]
 mod heap_cost {
     use crate::{FontRef, ShaperData};
-    use read_fonts::TableProvider;
 
     /// What decoding the state machines costs, against the table they came
     /// from.
