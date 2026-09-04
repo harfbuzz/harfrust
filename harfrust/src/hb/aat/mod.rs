@@ -170,22 +170,6 @@ pub struct AatTables<'a> {
     pub ltag: Option<Ltag<'a>>,
 }
 
-impl AatTables<'_> {
-    /// What decoding this face's state machines cost. See the report in
-    /// [`compile`].
-    #[cfg(all(test, feature = "std"))]
-    pub(crate) fn morph_heap_bytes(&self) -> usize {
-        self.morx
-            .as_ref()
-            .map(|(_, caches, _)| caches)
-            .into_iter()
-            .chain(self.mort.as_ref().map(|(_, caches, _)| caches))
-            .flat_map(|caches| caches.iter())
-            .map(MorphSubtableCache::heap_bytes)
-            .sum()
-    }
-}
-
 use crate::algs::HB_CODEPOINT_ENCODE3 as encode3;
 
 /// Blocklist specific broken morx tables identified by the combination of

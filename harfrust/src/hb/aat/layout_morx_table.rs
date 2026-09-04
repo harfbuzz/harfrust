@@ -1,4 +1,3 @@
-use super::compile::machine::{MorxStates, States};
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use crate::hb::aat::layout_common::{
@@ -268,7 +267,7 @@ fn apply_table<'a>(
         match &subtable_cache.parts {
             MorphSubtableParts::Morx(parts) => {
                 if let Ok(kind) = morx::SubtableKind::from_parts(FontData::new(data), parts) {
-                    apply_morx_subtable(kind, &subtable_cache.machine, c);
+                    apply_morx_subtable(kind, c);
                 }
             }
             MorphSubtableParts::Mort(parts) => {
@@ -462,9 +461,9 @@ pub(crate) trait DriverContext<T> {
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
-fn drive<T, M, Ctx>(machine: &M, states: Option<&States<T>>, c: &mut Ctx, ac: &mut AatApplyContext)
+fn drive<T, M, Ctx>(machine: &M, c: &mut Ctx, ac: &mut AatApplyContext)
 where
-    T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug + Clone,
+    T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug,
     M: MorphStateTable<T>,
     Ctx: DriverContext<T>,
 {
@@ -526,15 +525,8 @@ where
             u16::from(aat::class::END_OF_TEXT)
         };
 
-        let entry = match states {
-            Some(states) => match states.entry(state, class) {
-                Some(entry) => entry.clone(),
-                None => break,
-            },
-            None => match machine.entry(state, class) {
-                Ok(entry) => entry,
-                Err(_) => break,
-            },
+        let Ok(entry) = machine.entry(state, class) else {
+            break;
         };
 
         let next_state = entry.new_state;
@@ -656,15 +648,11 @@ where
     }
 }
 
-fn apply_morx_subtable<'a>(
-    kind: morx::SubtableKind<'a>,
-    machine: &MorxStates,
-    ac: &mut AatApplyContext<'a>,
-) {
+fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     match kind {
         morx::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            drive(&table, machine.rearrangement(), &mut c, ac);
+            drive(&table, &mut c, ac);
         }
         morx::SubtableKind::Contextual(table) => {
             let mut c = ContextualCtx {
@@ -672,7 +660,7 @@ fn apply_morx_subtable<'a>(
                 mark: 0,
                 table: table.clone(),
             };
-            drive(&table.state_table, machine.contextual(), &mut c, ac);
+            drive(&table.state_table, &mut c, ac);
         }
         morx::SubtableKind::Ligature(table) => {
             let mut c = LigatureCtx {
@@ -680,7 +668,7 @@ fn apply_morx_subtable<'a>(
                 match_length: 0,
                 match_positions: [0; LIGATURE_MAX_MATCHES],
             };
-            drive(&table.state_table, machine.ligature(), &mut c, ac);
+            drive(&table.state_table, &mut c, ac);
         }
         morx::SubtableKind::NonContextual(ref lookup) => apply_noncontextual(lookup, ac),
         morx::SubtableKind::Insertion(table) => {
@@ -688,7 +676,7 @@ fn apply_morx_subtable<'a>(
                 mark: 0,
                 glyphs: table.glyphs,
             };
-            drive(&table.state_table, machine.insertion(), &mut c, ac);
+            drive(&table.state_table, &mut c, ac);
         }
     }
 }
@@ -697,7 +685,7 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
     match kind {
         mort::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            drive(&table, None, &mut c, ac);
+            drive(&table, &mut c, ac);
         }
         mort::SubtableKind::Contextual(table) => {
             let mut c = ContextualCtx {
@@ -705,7 +693,7 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
                 mark: 0,
                 table: table.clone(),
             };
-            drive(&table.state_table, None, &mut c, ac);
+            drive(&table.state_table, &mut c, ac);
         }
         mort::SubtableKind::Ligature(table) => {
             let mut c = LigatureCtx {
@@ -713,7 +701,7 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
                 match_length: 0,
                 match_positions: [0; LIGATURE_MAX_MATCHES],
             };
-            drive(&table.state_table, None, &mut c, ac);
+            drive(&table.state_table, &mut c, ac);
         }
         mort::SubtableKind::NonContextual(ref lookup) => apply_noncontextual(lookup, ac),
         mort::SubtableKind::Insertion(table) => {
@@ -721,7 +709,7 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
                 mark: 0,
                 glyphs: table.glyphs,
             };
-            drive(&table.state_table, None, &mut c, ac);
+            drive(&table.state_table, &mut c, ac);
         }
     }
 }
@@ -1418,24 +1406,12 @@ pub(crate) struct MorphSubtableCache {
     start_end_safe_to_break: u64,
     safe_to_break: SafeToBreakSubtable,
     glyph_set: U32Set,
-    /// This subtable's state machine, decoded. `MorxStates::None` for the
-    /// legacy `mort` tables and for anything that would not decode, which the
-    /// driver handles by reading the font as it always did.
-    machine: MorxStates,
     class_cache: ClassCache,
     /// Pre-resolved subtable layout, so per-application dispatch rebuilds
     /// the kind without re-reading headers. An unreadable subtable stores
     /// an invalid format, which makes from_parts fail like the full read
     /// did.
     parts: MorphSubtableParts,
-}
-
-impl MorphSubtableCache {
-    /// What decoding this subtable's machine cost.
-    #[cfg(all(test, feature = "std"))]
-    pub(crate) fn heap_bytes(&self) -> usize {
-        self.machine.heap_bytes()
-    }
 }
 
 fn accelerate_state_machine<T, M, Ctx>(
@@ -1500,9 +1476,7 @@ impl MorphSubtableCache {
         let mut start_end_safe_to_break = 0u64;
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut glyph_set = U32Set::default();
-        let mut machine = MorxStates::None;
         if let Ok(kind) = subtable.kind() {
-            machine = MorxStates::new(&kind, subtable.data());
             match &kind {
                 morx::SubtableKind::Rearrangement(table) => {
                     accelerate_state_machine::<_, _, RearrangementCtx>(
@@ -1562,7 +1536,6 @@ impl MorphSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
             glyph_set,
-            machine,
             class_cache: ClassCache::new(),
             parts: MorphSubtableParts::Morx(parts),
         }
@@ -1636,7 +1609,6 @@ impl MorphSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
             glyph_set,
-            machine: MorxStates::None,
             class_cache: ClassCache::new(),
             parts: MorphSubtableParts::Mort(parts),
         }
