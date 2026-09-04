@@ -355,29 +355,41 @@ impl Compiler {
             SubstitutionLookup::Single(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.single(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.single(&st, at));
                 }
             }
             SubstitutionLookup::Ligature(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.ligature(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.ligature(&st, at));
                 }
             }
             SubstitutionLookup::Multiple(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.multiple(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.multiple(&st, at));
                 }
             }
             SubstitutionLookup::Alternate(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    let t = st?;
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    let t = st;
                     subtables.push(Subtable::ranked(
                         self.coverage_or_empty(t.coverage()),
                         SubtableKind::Alternate { offset: at as u32 },
@@ -387,29 +399,49 @@ impl Compiler {
             SubstitutionLookup::Contextual(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.context(&st?, at, data)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.context(&st, at, data) {
+                        subtables.push(subtable);
+                    }
                 }
             }
             SubstitutionLookup::ChainContextual(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.chain_context(&st?, at, data)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.chain_context(&st, at, data) {
+                        subtables.push(subtable);
+                    }
                 }
             }
             SubstitutionLookup::Extension(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.extension(&st?, at, data)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.extension(&st, at, data) {
+                        subtables.push(subtable);
+                    }
                 }
             }
             SubstitutionLookup::Reverse(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.reverse_chain(&st?, at)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.reverse_chain(&st, at) {
+                        subtables.push(subtable);
+                    }
                 }
             }
         }
@@ -943,15 +975,21 @@ impl Compiler {
             PositionLookup::Single(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.single_pos(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.single_pos(&st, at));
                 }
             }
             PositionLookup::Pair(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.pair_pos(&st?, at, data));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.pair_pos(&st, at, data));
                 }
             }
             // Context lookups are the same machinery in either table: they
@@ -960,50 +998,77 @@ impl Compiler {
             PositionLookup::Contextual(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.context(&st?, at, data)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.context(&st, at, data) {
+                        subtables.push(subtable);
+                    }
                 }
             }
             PositionLookup::ChainContextual(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.chain_context(&st?, at, data)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.chain_context(&st, at, data) {
+                        subtables.push(subtable);
+                    }
                 }
             }
             PositionLookup::Cursive(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.cursive(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.cursive(&st, at));
                 }
             }
             PositionLookup::MarkToBase(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.mark_base(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.mark_base(&st, at));
                 }
             }
             PositionLookup::MarkToMark(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.mark_mark(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.mark_mark(&st, at));
                 }
             }
             PositionLookup::MarkToLig(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.mark_lig(&st?, at));
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    subtables.push(self.mark_lig(&st, at));
                 }
             }
             PositionLookup::Extension(l) => {
                 subtables.reserve(l.sub_table_count() as usize);
                 for (i, st) in l.subtables().iter().enumerate() {
-                    let at = lookup_offset + offset_at(l.subtable_offsets(), i)?;
-                    subtables.push(self.pos_extension(&st?, at, data)?);
+                    let (Ok(offset), Ok(st)) = (offset_at(l.subtable_offsets(), i), st) else {
+                        continue;
+                    };
+                    let at = lookup_offset + offset;
+                    if let Ok(subtable) = self.pos_extension(&st, at, data) {
+                        subtables.push(subtable);
+                    }
                 }
             }
         }

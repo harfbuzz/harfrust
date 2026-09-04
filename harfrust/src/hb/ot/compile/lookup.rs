@@ -1255,10 +1255,27 @@ impl Program {
         let data = FontData::new(data);
         let mut compiler = self.compiler.lock();
         self.scratch_held.store(true, Ordering::Relaxed);
-        match self.table {
+        let compiled = match self.table {
             Table::Gsub => compiler.gsub(&Gsub::read(data).ok()?, index).ok(),
             Table::Gpos => compiler.gpos(&Gpos::read(data).ok()?, index).ok(),
-        }
+        };
+        // A lookup left with no subtables is an empty slot, and an empty slot
+        // is a lookup that does nothing.
+        //
+        // That is the whole contract, and it is worth stating because the
+        // alternative -- falling back to reading the font for a lookup that
+        // would not compile -- is what this deliberately does not do. A
+        // subtable no reader can make sense of is one no reader can apply, so
+        // compiling drops it and keeps the rest of the lookup; if that leaves
+        // nothing, there is nothing to apply and nothing to fall back to. The
+        // shaper this came from reaches the same place by a different route,
+        // declining to sanitize a malformed subtable.
+        //
+        // The point is that every caller agrees. A nested lookup invoked by a
+        // context sees an empty slot and applies nothing; so does the pass
+        // over the buffer. There is no path on which one of them reads the
+        // font and the other does not.
+        compiled.filter(|lookup| !lookup.subtables.is_empty())
     }
 
     /// Drop the compiler's working buffers.
@@ -1350,6 +1367,65 @@ fn union_sets_in<'a>(sets: impl Iterator<Item = &'a GlyphSet>, scratch: &mut Vec
     scratch.sort_unstable();
     scratch.dedup();
     GlyphSet::build(scratch)
+}
+
+#[cfg(test)]
+mod malformed {
+    use super::*;
+
+    /// A GSUB whose only lookup has one subtable, at an offset past the end of
+    /// the table.
+    ///
+    /// Hand-built because the corpus has nothing like it: a font this broken
+    /// is what a fuzzer produces, not what a foundry ships.
+    fn gsub_with_bad_subtable_offset() -> Vec<u8> {
+        let mut d = Vec::new();
+        d.extend_from_slice(&0x0001_0000u32.to_be_bytes()); // version 1.0
+        d.extend_from_slice(&10u16.to_be_bytes()); // scriptList
+        d.extend_from_slice(&12u16.to_be_bytes()); // featureList
+        d.extend_from_slice(&14u16.to_be_bytes()); // lookupList
+        d.extend_from_slice(&0u16.to_be_bytes()); // empty script list
+        d.extend_from_slice(&0u16.to_be_bytes()); // empty feature list
+        d.extend_from_slice(&1u16.to_be_bytes()); // one lookup
+        d.extend_from_slice(&4u16.to_be_bytes()); // at +4 from the list
+        d.extend_from_slice(&1u16.to_be_bytes()); // type 1, single
+        d.extend_from_slice(&0u16.to_be_bytes()); // no flags
+        d.extend_from_slice(&1u16.to_be_bytes()); // one subtable
+        d.extend_from_slice(&0xF000u16.to_be_bytes()); // ...far past the end
+        d
+    }
+
+    /// The lookup compiles to an empty slot, and an empty slot is a lookup
+    /// that does nothing.
+    ///
+    /// The thing being pinned is that it does not instead become a lookup the
+    /// font gets read for. Every caller has to agree about a slot it cannot
+    /// fill -- the pass over the buffer and a context invoking it as a nested
+    /// lookup both see `None` and both apply nothing -- and the way to keep
+    /// them agreeing is for there to be no other path.
+    #[test]
+    fn a_subtable_that_cannot_be_read_leaves_an_empty_slot() {
+        let data = gsub_with_bad_subtable_offset();
+        Gsub::read(FontData::new(&data)).expect("only the subtable is malformed, not the header");
+        let program = Program::new(1, Arc::default());
+        assert!(
+            program.get(0, &data).is_none(),
+            "a lookup with no readable subtable must not compile"
+        );
+        assert_eq!(program.len(), 1, "the slot still exists, it is just empty");
+    }
+
+    /// The same, one level down: a lookup whose subtables are all unreadable
+    /// is empty however it is reached.
+    #[test]
+    fn an_empty_slot_is_empty_from_every_caller() {
+        let data = gsub_with_bad_subtable_offset();
+        let program = Program::new(1, Arc::default());
+        // Twice, because the first call fills the slot and the second reads
+        // what it filled -- the two paths through `get`.
+        assert!(program.get(0, &data).is_none());
+        assert!(program.get(0, &data).is_none());
+    }
 }
 
 #[cfg(test)]
