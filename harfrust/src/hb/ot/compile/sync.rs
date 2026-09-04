@@ -102,3 +102,65 @@ type Once<T> = std::sync::OnceLock<T>;
 type Inner<T> = spin::Mutex<T>;
 #[cfg(not(feature = "std"))]
 type Once<T> = spin::Once<T>;
+
+/// Three words, written once and read on every buffer after that.
+///
+/// Not a `OnceLock<[u64; 3]>`, which is the obvious way to say this: that is
+/// 32 bytes where this is 24, and it lives in a slot the shaping loop walks
+/// once per lookup per buffer. The eight bytes cost about five percent on
+/// short Latin lines, which is the whole margin the thing it gates earns.
+///
+/// The word at index 0 doubles as the written flag. A reader that sees it
+/// non-zero has, through the release/acquire pair, also seen the other two --
+/// without that, a reader could catch a half-written digest, find a zero in
+/// it, and conclude a lookup cannot match when it can. A digest that folds to
+/// all zeros reads as unwritten and is rebuilt, which is wasteful rather than
+/// wrong, and cannot happen for a lookup that covers any glyph at all.
+#[cfg(target_has_atomic = "64")]
+#[derive(Default, Debug)]
+pub struct DigestCell([core::sync::atomic::AtomicU64; 3]);
+
+#[cfg(target_has_atomic = "64")]
+impl DigestCell {
+    #[inline]
+    pub fn get(&self) -> Option<[u64; 3]> {
+        use core::sync::atomic::Ordering;
+        let first = self.0[0].load(Ordering::Acquire);
+        if first == 0 {
+            return None;
+        }
+        Some([
+            first,
+            self.0[1].load(Ordering::Relaxed),
+            self.0[2].load(Ordering::Relaxed),
+        ])
+    }
+
+    #[inline]
+    pub fn set(&self, words: &[u64; 3]) {
+        use core::sync::atomic::Ordering;
+        self.0[1].store(words[1], Ordering::Relaxed);
+        self.0[2].store(words[2], Ordering::Relaxed);
+        self.0[0].store(words[0], Ordering::Release);
+    }
+}
+
+/// The same, for a target with no 64-bit atomics -- `thumbv7em-none-eabihf`,
+/// which this crate builds for. Costs eight bytes more per lookup; a target
+/// that cannot do a 64-bit load is not the one that margin was measured on.
+#[cfg(not(target_has_atomic = "64"))]
+#[derive(Default, Debug)]
+pub struct DigestCell(OnceLock<[u64; 3]>);
+
+#[cfg(not(target_has_atomic = "64"))]
+impl DigestCell {
+    #[inline]
+    pub fn get(&self) -> Option<[u64; 3]> {
+        self.0.get().copied()
+    }
+
+    #[inline]
+    pub fn set(&self, words: &[u64; 3]) {
+        self.0.set(*words);
+    }
+}

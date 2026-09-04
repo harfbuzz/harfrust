@@ -32,12 +32,12 @@
 //!   first glyph and ligates none of it, because the second component is always
 //!   a combining mark. Filtering on the pair rejects all of it up front.
 
-use super::sync::{Mutex, OnceLock};
+use super::sync::{DigestCell, Mutex, OnceLock};
 use super::Compiler;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, Ordering};
 use read_fonts::tables::gpos::Gpos;
 use read_fonts::tables::gsub::Gsub;
 use read_fonts::{FontData, FontRead};
@@ -1014,7 +1014,8 @@ impl Dispatch {
 #[derive(Default, Debug)]
 pub struct CompiledLookupSlot {
     lookup: OnceLock<Option<Box<CompiledLookup>>>,
-    digest: AtomicDigest,
+    /// Three words, or nothing until the first buffer asks. See [`DigestCell`].
+    digest: DigestCell,
 }
 
 /// What [`Program::compiled`] found in a slot.
@@ -1031,38 +1032,6 @@ impl CompiledLookupSlot {
     #[inline]
     fn get(&self) -> Option<&Option<Box<CompiledLookup>>> {
         self.lookup.get()
-    }
-}
-
-/// A lookup's summary, as three words that can be written from any thread.
-///
-/// Not a `OnceLock`: one of those around a `Digest` is thirty-two bytes and
-/// there is one per lookup, which triples the array the pass indexes and costs
-/// more in cache misses than the summary saves. Three relaxed words are
-/// twenty-four with no state beside them, and need none -- every thread that
-/// builds this builds the same value, so a race writes the same bits twice.
-///
-/// All zero means "not built yet". A lookup that really summarises to nothing
-/// can never match anything, so it is summarised again each time and skipped
-/// each time, which costs nothing anyone will find.
-#[derive(Default, Debug)]
-pub struct AtomicDigest([AtomicU64; 3]);
-
-impl AtomicDigest {
-    #[inline]
-    fn get(&self) -> [u64; 3] {
-        [
-            self.0[0].load(Ordering::Relaxed),
-            self.0[1].load(Ordering::Relaxed),
-            self.0[2].load(Ordering::Relaxed),
-        ]
-    }
-
-    #[inline]
-    fn set(&self, words: &[u64; 3]) {
-        for (slot, word) in self.0.iter().zip(words) {
-            slot.store(*word, Ordering::Relaxed);
-        }
     }
 }
 
@@ -1222,16 +1191,17 @@ impl Program {
         let Some(slot) = self.lookups.get(index as usize) else {
             return false;
         };
-        let mut words = slot.digest.get();
-        if words == [0; 3] {
-            words = self.build_digest(&slot.digest, index, data);
-        }
+        let words = slot.digest.get().unwrap_or_else(|| {
+            let built = self.build_digest(index, data);
+            slot.digest.set(&built);
+            built
+        });
         words[0] & seen[0] != 0 && words[1] & seen[1] != 0 && words[2] & seen[2] != 0
     }
 
     /// Summarise a lookup from the font. Once per lookup, near enough.
     #[cold]
-    fn build_digest(&self, slot: &AtomicDigest, index: u16, data: &[u8]) -> [u64; 3] {
+    fn build_digest(&self, index: u16, data: &[u8]) -> [u64; 3] {
         let data = FontData::new(data);
         let built = match self.table {
             Table::Gsub => Gsub::read(data)
@@ -1243,9 +1213,7 @@ impl Program {
         };
         // A lookup that cannot be summarised is one nothing can be ruled out
         // about.
-        let words = *built.unwrap_or(Digest::FULL).words();
-        slot.set(&words);
-        words
+        *built.unwrap_or(Digest::FULL).words()
     }
 
     pub fn get(&self, index: u16, data: &[u8]) -> Option<&CompiledLookup> {
