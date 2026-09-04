@@ -11,6 +11,7 @@ use super::set_digest::hb_set_digest_t;
 use super::{hb_font_t, GlyphInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::unicode::{hb_unicode_funcs_t, GeneralCategory};
+use crate::BufferFlags;
 
 impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
@@ -171,7 +172,13 @@ pub fn apply_layout_table<T: LayoutTable>(
                     continue;
                 };
 
-                if lookup.digest().may_intersect(&ctx.buffer.digest) {
+                if lookup.digest().may_intersect(&ctx.buffer.digest)
+                    && (ctx
+                        .buffer
+                        .flags
+                        .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
+                        || lookup.digest_second().may_intersect(&ctx.buffer.digest))
+                {
                     ctx.lookup_index = lookup_map.index;
                     ctx.set_lookup_mask(lookup_map.mask);
                     ctx.auto_zwj = lookup_map.auto_zwj;
