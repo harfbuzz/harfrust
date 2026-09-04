@@ -747,6 +747,12 @@ pub(crate) struct ChainContextFormat2Cache {
     pub input: ClassDefInfo,
     pub lookahead: ClassDefInfo,
     pub coverage_cache: BinaryCache,
+    pub class_caches: Option<Box<ChainContextClassCaches>>,
+}
+
+pub(crate) struct ChainContextClassCaches {
+    pub input: MappingCache,
+    pub lookahead: MappingCache,
 }
 
 pub(crate) enum SubtableExternalCache {

@@ -1,12 +1,14 @@
-use super::{coverage_binary_cached, coverage_index, covered, glyph_class};
+use alloc::boxed::Box;
+
+use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
 use crate::hb::buffer::GlyphInfo;
 use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    may_skip_t, skipping_iterator_t, Apply, BinaryCache, ChainContextFormat2Cache,
-    ContextFormat2Cache, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
-    WouldApplyContext,
+    may_skip_t, skipping_iterator_t, Apply, BinaryCache, ChainContextClassCaches,
+    ChainContextFormat2Cache, ContextFormat2Cache, MappingCache, SubtableExternalCache,
+    SubtableExternalCacheMode, WouldApply, WouldApplyContext,
 };
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
@@ -360,18 +362,53 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
             glyph,
             &cache.coverage_cache,
         )?;
-        let index = cache.input.class(&offset_data, glyph) as usize;
+        let input_class = |gid| cache.input.class(&offset_data, gid);
+        let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
+        let class_caches = cache.class_caches.as_deref();
+        let index = class_caches.map_or_else(
+            || input_class(glyph),
+            |caches| glyph_class_cached(input_class, glyph, &caches.input),
+        ) as usize;
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules(
-            ctx,
-            set.offset_data(),
-            set.chained_class_seq_rule_offsets(),
-            (
-                |info, val| u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val,
-                |info, val| u32::from(cache.input.class(&offset_data, info.as_glyph())) == val,
-                |info, val| u32::from(cache.lookahead.class(&offset_data, info.as_glyph())) == val,
-            ),
-        )
+        if let Some(class_caches) = class_caches {
+            apply_chain_context_rules(
+                ctx,
+                set.offset_data(),
+                set.chained_class_seq_rule_offsets(),
+                (
+                    |info, val| {
+                        u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val
+                    },
+                    |info, val| {
+                        u32::from(glyph_class_cached(
+                            input_class,
+                            info.as_glyph(),
+                            &class_caches.input,
+                        )) == val
+                    },
+                    |info, val| {
+                        u32::from(glyph_class_cached(
+                            lookahead_class,
+                            info.as_glyph(),
+                            &class_caches.lookahead,
+                        )) == val
+                    },
+                ),
+            )
+        } else {
+            apply_chain_context_rules(
+                ctx,
+                set.offset_data(),
+                set.chained_class_seq_rule_offsets(),
+                (
+                    |info, val| {
+                        u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val
+                    },
+                    |info, val| u32::from(input_class(info.as_glyph())) == val,
+                    |info, val| u32::from(lookahead_class(info.as_glyph())) == val,
+                ),
+            )
+        }
     }
     fn apply_cached(
         &self,
@@ -413,7 +450,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 .map_or(0, |class_def| class_def.cost())
     }
 
-    fn external_cache_create(&self, _mode: SubtableExternalCacheMode) -> SubtableExternalCache {
+    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         let data = self.offset_data();
         SubtableExternalCache::ChainContextFormat2Cache(ChainContextFormat2Cache {
             coverage_cache: BinaryCache::new(),
@@ -425,6 +462,13 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 .unwrap_or_default(),
             lookahead: ClassDefInfo::new(&data, self.lookahead_class_def_offset().to_u32() as u16)
                 .unwrap_or_default(),
+            class_caches: match mode {
+                SubtableExternalCacheMode::Full => Some(Box::new(ChainContextClassCaches {
+                    input: MappingCache::new(),
+                    lookahead: MappingCache::new(),
+                })),
+                SubtableExternalCacheMode::Small | SubtableExternalCacheMode::None => None,
+            },
         })
     }
 }
