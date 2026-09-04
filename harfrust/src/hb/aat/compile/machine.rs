@@ -97,6 +97,7 @@ where
         self.entries.get(index as usize)
     }
 
+    #[cfg(all(test, feature = "std"))]
     pub fn heap_bytes(&self) -> usize {
         self.rows.len() * 2 + self.entries.len() * size_of::<StateEntry<T>>()
     }
@@ -165,6 +166,7 @@ impl MorxStates {
         }
     }
 
+    #[cfg(all(test, feature = "std"))]
     pub fn heap_bytes(&self) -> usize {
         match self {
             Self::None => 0,

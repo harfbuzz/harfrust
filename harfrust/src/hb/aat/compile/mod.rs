@@ -82,7 +82,6 @@ pub mod machine;
 #[cfg(all(test, feature = "std"))]
 mod heap_cost {
     use crate::{FontRef, ShaperData};
-    use read_fonts::TableProvider;
 
     /// What decoding the state machines costs, against the table they came
     /// from.
@@ -92,6 +91,7 @@ mod heap_cost {
     /// size of the `morx` table itself, and a font with a large one pays for
     /// it twice. That is the trade the timing pays for, and it is the number
     /// to look at before widening this to `kerx`.
+    #[allow(clippy::cast_precision_loss)]
     #[test]
     fn report() {
         let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/benches/fonts");
