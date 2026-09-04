@@ -28,12 +28,26 @@
 //!
 //! **A summary of which subtables a buffer can skip.** The exact glyph set the
 //! applying side intersects with the buffer is 8 to 20% of a run, so
-//! summarising it looks obvious. Four ways were tried, from 1.017 to 1.110.
-//! Most of those subtables answer *no*, and intersecting two sparse bitmaps
-//! answers no cheaply, since disjoint pages settle it without comparing bits.
-//! What would beat it is an O(1) rejection costing nothing to maintain, which
-//! needs each machine's *output* glyphs compiled too, so a buffer summary can
-//! stay a superset without being rebuilt.
+//! summarising it looks obvious, and on one font it is: Lucida Grande, whose
+//! `morx` is 396KiB of subtables that a line of English mostly misses, gains
+//! 3 to 5%. Every other pairing loses, and the mean is a loss however the
+//! summary is kept current:
+//!
+//! * exact, updated per written glyph: 1.017, and 11% worse on Geeza Pro,
+//!   because three `or`s inside the substitution loop grew it past what the
+//!   compiler would inline it into;
+//! * retaken after any subtable that ran: 1.039, a pass over the buffer per
+//!   subtable;
+//! * retaken only after one that wrote: 1.030;
+//! * unioned with what a machine could have written, three `or`s per subtable
+//!   and no pass at all: 1.012.
+//!
+//! The last is the right design and still does not pay. Disabling only the
+//! test, keeping everything that feeds it, measures 1.025 -- so the whole loss
+//! is in maintaining the summary, chiefly taking it once per apply, and the
+//! test itself is worth about 1.3%. What decides whether that is enough is how
+//! often a subtable is skipped, which is a property of the text rather than
+//! the font, and so is not something the compiler can decide.
 //!
 //! **The kerning pair sets, flattened.** Simple kerning probes two sparse
 //! integer sets per adjacent pair, and a per-element probe is what a flat
