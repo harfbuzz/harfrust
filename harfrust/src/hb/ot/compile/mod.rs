@@ -1637,7 +1637,7 @@ mod heap_cost {
             let Some(b) = bytes else { continue };
             for i in 0..program.len() as u16 {
                 let Some(l) = program.get(i, b) else { continue };
-                let vec = l.subtables.capacity() * size_of::<Subtable>();
+                let vec = l.subtables.len() * size_of::<Subtable>();
                 p.boxes += size_of::<CompiledLookup>();
                 p.subtable_vecs += vec;
                 p.owned += l.heap_bytes() - vec;
