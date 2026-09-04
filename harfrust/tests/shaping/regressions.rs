@@ -74,3 +74,35 @@ fn shaping_long_line_kern_does_not_overflow_glyph_data() {
 
     shaper.shape(buffer, ShapeOptions::new());
 }
+
+/// A ligature set that cannot possibly match reports an unsafe-to-concat
+/// hazard, whichever path reaches that conclusion.
+///
+/// `LigatureSet::apply` has two of them: a walk over the ligatures, and a fast
+/// path that first asks a digest whether any ligature takes this second glyph
+/// at all. The walk reports a hazard when a multi-component ligature wants a
+/// different second glyph; the digest was returning without reporting one, so
+/// the same font and the same text gave different flags depending on which
+/// path ran. These two fonts are where that showed.
+///
+/// HarfBuzz 14.1.0 -- and its main branch, which has not touched these files
+/// since -- reports no hazard here. Its own two paths disagree the same way,
+/// and the walk is the one that looks right, so this follows the walk.
+#[test]
+fn ligature_digest_reports_the_same_concat_hazard_as_the_walk() {
+    for font in [
+        "tests/fonts/aots/gsub4_1_multiple_ligatures_f1.otf",
+        "tests/fonts/aots/gsub4_1_multiple_ligatures_f2.otf",
+    ] {
+        assert_eq!(
+            crate::shape(
+                font,
+                "\u{0012}\u{0015}",
+                "--features=test --no-clusters --no-glyph-names --ned \
+                 --show-flags --unsafe-to-concat",
+            ),
+            "[18#2|21@1500,0#2]",
+            "{font}"
+        );
+    }
+}

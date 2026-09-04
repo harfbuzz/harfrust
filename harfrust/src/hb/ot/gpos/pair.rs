@@ -91,21 +91,16 @@ impl Apply for PairPosFormat1<'_> {
             Some(())
         };
 
-        let boring = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
-            finish(ctx, iter_index, has_record2)
-        };
-
+        // HarfBuzz reports a hazard here only when the record moved something.
+        // Format 2 reports one either way -- it has a `boring:` label for that
+        // case and this format does not.
         let success =
             |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
-                    finish(ctx, iter_index, has_record2)
-                } else {
-                    boring(ctx, iter_index, has_record2)
                 }
+                finish(ctx, iter_index, has_record2)
             };
 
         let mut buf_idx = iter.buf_idx;
@@ -158,6 +153,9 @@ impl Apply for PairPosFormat1<'_> {
                 return success(ctx, &mut buf_idx, worked1, worked2, has_record2);
             }
         }
+        // The same hazard the digest above reports, reached the long way.
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
         None
     }
 
