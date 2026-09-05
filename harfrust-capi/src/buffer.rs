@@ -17,6 +17,11 @@ use crate::common::{
 use crate::font::hr_font_t;
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
+// HarfBuzz buffers retain at most five context codepoints. Four bytes per
+// codepoint are enough to cover those without validating an arbitrarily long
+// prefix or suffix passed to hr_buffer_add_utf8.
+const MAX_CONTEXT_UTF8_BYTES: usize = 5 * 4;
+
 /// What a buffer currently holds.
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -453,10 +458,14 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     let decode = String::from_utf8_lossy;
 
     if start > 0 {
-        buffer.buffer.set_pre_context(&decode(&bytes[..start]));
+        let context = &bytes[..start];
+        let context = &context[context.len().saturating_sub(MAX_CONTEXT_UTF8_BYTES)..];
+        buffer.buffer.set_pre_context(&decode(context));
     }
     if end < bytes.len() {
-        buffer.buffer.set_post_context(&decode(&bytes[end..]));
+        let context = &bytes[end..];
+        let context = &context[..context.len().min(MAX_CONTEXT_UTF8_BYTES)];
+        buffer.buffer.set_post_context(&decode(context));
     }
     // Cluster values are offsets into the whole text, not into the item.
     //
