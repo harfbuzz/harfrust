@@ -55884,6 +55884,30 @@ fn unsafe_to_concat_002() {
 }
 
 #[test]
+fn unsafe_to_concat_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/c70495f304286cb87964400d03752ae5bc5622b9.ttf",
+            "\u{0041}",
+            "--features=ctxt --no-glyph-names --no-positions --no-clusters --show-flags --unsafe-to-concat",
+        ),
+        "[1#2]"
+    );
+}
+
+#[test]
+fn unsafe_to_concat_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/c70495f304286cb87964400d03752ae5bc5622b9.ttf",
+            "\u{0041}",
+            "--features=chne --no-glyph-names --no-positions --no-clusters --show-flags --unsafe-to-concat",
+        ),
+        "[1#2]"
+    );
+}
+
+#[test]
 fn use_indic3_001() {
     assert_eq!(
         shape(
