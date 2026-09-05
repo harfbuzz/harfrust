@@ -1988,6 +1988,30 @@ fn gsub4_1_multiple_ligatures_003() {
 }
 
 #[test]
+fn gsub4_1_multiple_ligatures_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/aots/gsub4_1_multiple_ligatures_f1.otf",
+            "\u{0012}\u{0015}",
+            "--features=test --no-clusters --no-glyph-names --no-positions --show-flags --unsafe-to-concat",
+        ),
+        "[18#2|21#2]"
+    );
+}
+
+#[test]
+fn gsub4_1_multiple_ligatures_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/aots/gsub4_1_multiple_ligatures_f2.otf",
+            "\u{0012}\u{0015}",
+            "--features=test --no-clusters --no-glyph-names --no-positions --show-flags --unsafe-to-concat",
+        ),
+        "[18#2|21#2]"
+    );
+}
+
+#[test]
 fn gsub4_1_multiple_ligsets_002() {
     assert_eq!(
         shape(

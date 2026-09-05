@@ -27,6 +27,18 @@ fn aat_morx_002() {
 }
 
 #[test]
+fn aat_morx_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f1d25b1f66fc4ef6d55b7c98f34b045b4adaa9d.ttf",
+            "\u{0041}",
+            "",
+        ),
+        "[A=0+639|B=0+626|C=0+596|E=0+556]"
+    );
+}
+
+#[test]
 fn aat_trak_001() {
     assert_eq!(
         shape(
@@ -48595,6 +48607,18 @@ fn indic_consonant_with_stacker_004() {
 }
 
 #[test]
+fn indic_consonant_with_stacker_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4fbf14f4f51c21480971aa9ea81c229660924caa.ttf",
+            "\u{1CF5}\u{0915}",
+            "",
+        ),
+        "[uni1CF50915=0+458]"
+    );
+}
+
+#[test]
 fn indic_decompose_001() {
     assert_eq!(
         shape(
@@ -52645,6 +52669,30 @@ fn mongolian_variation_selector_007() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
+            "\u{182D}\u{180F}",
+            "",
+        ),
+        "[uni182D.E8E0_g.isol=0+950|space=0+0]"
+    );
+}
+
+#[test]
+fn mongolian_variation_selector_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
+            "\u{182D}\u{1810}",
+            "",
+        ),
+        "[uni182D.E8E0_g.isol=0+950|.notdef=1+1200]"
+    );
+}
+
+#[test]
+fn mongolian_variation_selector_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
             "\u{182D}\u{180D}\u{200D}",
             "",
         ),
@@ -52653,7 +52701,7 @@ fn mongolian_variation_selector_007() {
 }
 
 #[test]
-fn mongolian_variation_selector_008() {
+fn mongolian_variation_selector_010() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52665,7 +52713,7 @@ fn mongolian_variation_selector_008() {
 }
 
 #[test]
-fn mongolian_variation_selector_009() {
+fn mongolian_variation_selector_011() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52677,7 +52725,7 @@ fn mongolian_variation_selector_009() {
 }
 
 #[test]
-fn mongolian_variation_selector_010() {
+fn mongolian_variation_selector_012() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52689,7 +52737,7 @@ fn mongolian_variation_selector_010() {
 }
 
 #[test]
-fn mongolian_variation_selector_011() {
+fn mongolian_variation_selector_013() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52701,7 +52749,7 @@ fn mongolian_variation_selector_011() {
 }
 
 #[test]
-fn mongolian_variation_selector_012() {
+fn mongolian_variation_selector_014() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52713,7 +52761,7 @@ fn mongolian_variation_selector_012() {
 }
 
 #[test]
-fn mongolian_variation_selector_013() {
+fn mongolian_variation_selector_015() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52725,7 +52773,7 @@ fn mongolian_variation_selector_013() {
 }
 
 #[test]
-fn mongolian_variation_selector_014() {
+fn mongolian_variation_selector_016() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52737,7 +52785,7 @@ fn mongolian_variation_selector_014() {
 }
 
 #[test]
-fn mongolian_variation_selector_015() {
+fn mongolian_variation_selector_017() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52749,7 +52797,7 @@ fn mongolian_variation_selector_015() {
 }
 
 #[test]
-fn mongolian_variation_selector_016() {
+fn mongolian_variation_selector_018() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52761,7 +52809,7 @@ fn mongolian_variation_selector_016() {
 }
 
 #[test]
-fn mongolian_variation_selector_017() {
+fn mongolian_variation_selector_019() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52773,7 +52821,7 @@ fn mongolian_variation_selector_017() {
 }
 
 #[test]
-fn mongolian_variation_selector_018() {
+fn mongolian_variation_selector_020() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -52785,7 +52833,7 @@ fn mongolian_variation_selector_018() {
 }
 
 #[test]
-fn mongolian_variation_selector_019() {
+fn mongolian_variation_selector_021() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4d4206e30b2dbf1c1ef492a8eae1c9e7829ebad8.ttf",
@@ -55820,6 +55868,18 @@ fn unsafe_to_concat_001() {
             "--show-flags --unsafe-to-concat",
         ),
         "[uni0628=1+993#2|uni0628=0+993#2]"
+    );
+}
+
+#[test]
+fn unsafe_to_concat_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/3113f846b81ea15c02e05a1c14fa65f9fd342143.otf",
+            "\u{0042}\u{0041}\u{0058}\u{0042}",
+            "--features=test --no-glyph-names --no-positions --no-clusters --show-flags --unsafe-to-concat",
+        ),
+        "[66|65#2|88#2|66]"
     );
 }
 

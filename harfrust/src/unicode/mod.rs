@@ -547,7 +547,7 @@ impl CharExt for Codepoint {
                 0x03 => ch == 0x034F,
                 0x06 => ch == 0x061C,
                 0x17 => (0x17B4..=0x17B5).contains(&ch),
-                0x18 => (0x180B..=0x180E).contains(&ch),
+                0x18 => (0x180B..=0x180F).contains(&ch),
                 0x20 => {
                     (0x200B..=0x200F).contains(&ch)
                         || (0x202A..=0x202E).contains(&ch)

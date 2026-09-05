@@ -16,6 +16,7 @@ IGNORE_TESTS = [
     "uniscribe.tests", # Irrelevant
     "synthetic.tests", # Not implemented
     "harfbust.tests", # We behave differently
+    "graphite2-clusters.tests", # Graphite shaping is not supported.
 ]
 
 # harfbuzz test cases that will be ignored.
