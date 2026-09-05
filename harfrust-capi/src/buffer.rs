@@ -1137,7 +1137,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     }
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
     let font = unsafe { object::or_empty(font.cast_const()) };
-    let Some(instance) = font.instance.as_deref() else {
+    let Some(instance) = font.instance() else {
         return 0;
     };
 
