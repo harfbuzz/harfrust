@@ -119,10 +119,8 @@ impl ApplyLigatureSet for LigatureSet<'_> {
                 // is this glyph, which is what the walk below turns into a
                 // concat hazard. `collect_seconds` gives up on a ligature with
                 // no components, so this digest never rejects when one exists.
-                if !ligatures.is_empty() {
-                    ctx.buffer
-                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
-                }
+                ctx.buffer
+                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
                 return None;
             }
             let mut unsafe_to_concat = false;

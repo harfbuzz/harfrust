@@ -97,12 +97,15 @@ fn pair_done(
     mut cursor: usize,
     moved: bool,
     has_record2: bool,
-    still_is_hazard: bool,
 ) -> Option<()> {
     let idx = ctx.host.buffer.idx;
     if moved {
         ctx.host.buffer.unsafe_to_break(Some(idx), Some(second + 1));
-    } else if still_is_hazard {
+    } else {
+        // A record found but worth nothing still read the second glyph to get
+        // here, so the first glyph's result depends on which glyph that is:
+        // editing it could select a record that does move something. The same
+        // hazard a missed search reports, by the same reasoning.
         ctx.host
             .buffer
             .unsafe_to_concat(Some(idx), Some(second + 1));
@@ -171,8 +174,7 @@ fn second_glyph(ctx: &mut Apply) -> Option<(usize, usize)> {
 /// It cannot change a flag: it rejects only where the search would have
 /// missed, and both report the same hazard.
 ///
-/// Flags: a found record reports one only when it moved something. See
-/// [`pair_done`] and [`pair_absent`].
+/// Flags: see [`pair_done`] and [`pair_absent`].
 pub fn at_pair1(
     ctx: &mut Apply,
     _lookup: &CompiledLookup,
@@ -225,15 +227,7 @@ pub fn at_pair1(
             core::cmp::Ordering::Less => lo = mid + 1,
             core::cmp::Ordering::Greater => hi = mid,
             core::cmp::Ordering::Equal => {
-                return apply_pair(
-                    ctx,
-                    second,
-                    cursor,
-                    at + 2,
-                    *first_format,
-                    *second_format,
-                    false,
-                );
+                return apply_pair(ctx, second, cursor, at + 2, *first_format, *second_format);
             }
         }
     }
@@ -284,12 +278,12 @@ pub fn at_pair2(
 
     if !rows.may_hold(c1, c2) {
         // Matched, moved nothing.
-        return pair_done(ctx, second, cursor, false, has_record2, true);
+        return pair_done(ctx, second, cursor, false, has_record2);
     }
 
     let pair = record_size(*first_format) + record_size(*second_format);
     let at = *matrix as usize + (c1 as usize * usize::from(*class2_count) + c2 as usize) * pair;
-    apply_pair(ctx, second, cursor, at, *first_format, *second_format, true)
+    apply_pair(ctx, second, cursor, at, *first_format, *second_format)
 }
 
 /// Apply a pair of value records, then settle the flags and the cursor.
@@ -305,7 +299,6 @@ fn apply_pair(
     at: usize,
     first_format: u16,
     second_format: u16,
-    still_is_hazard: bool,
 ) -> Option<()> {
     let data = FontData::new(ctx.table);
     let first = ValueFormat::from_bits_truncate(first_format);
@@ -323,14 +316,7 @@ fn apply_pair(
             second_fmt,
         ) == Some(true);
 
-    pair_done(
-        ctx,
-        second,
-        cursor,
-        moved1 || moved2,
-        has_record2,
-        still_is_hazard,
-    )
+    pair_done(ctx, second, cursor, moved1 || moved2, has_record2)
 }
 
 /// Cursive attachment: the exit anchor of one glyph meets the entry anchor of

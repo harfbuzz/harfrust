@@ -91,14 +91,16 @@ impl Apply for PairPosFormat1<'_> {
             Some(())
         };
 
-        // HarfBuzz reports a hazard here only when the record moved something.
-        // Format 2 reports one either way -- it has a `boring:` label for that
-        // case and this format does not.
         let success =
             |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
+                } else {
+                    // Even a zero-valued pair record is a concat hazard: changing
+                    // the second glyph can select a non-zero record for the first.
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                 }
                 finish(ctx, iter_index, has_record2)
             };

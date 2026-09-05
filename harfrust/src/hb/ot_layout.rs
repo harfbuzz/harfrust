@@ -199,8 +199,19 @@ pub fn apply_layout_table<T: LayoutTable>(
                             continue;
                         };
                         if let Some(compiled) = compiled {
+                            // The second-glyph digest is a filter on what may
+                            // *follow* a start, and skipping on it skips the
+                            // hazard the lookup would have reported for a
+                            // neighbour that does not match. So a caller that
+                            // asked for those flags gets the pass and a caller
+                            // that did not gets the speed, exactly as the
+                            // interpreted path decides it below.
+                            let wants_concat = ctx
+                                .buffer
+                                .flags
+                                .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT);
                             if compiled.digest.may_intersect_raw(&seen)
-                                && compiled.pair_digest.may_intersect_raw(&seen)
+                                && (wants_concat || compiled.pair_digest.may_intersect_raw(&seen))
                             {
                                 ctx.lookup_index = lookup_map.index;
                                 ctx.set_lookup_mask(lookup_map.mask);
