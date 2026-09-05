@@ -245,15 +245,20 @@ impl<'a> ShaperBuilder<'a> {
             feature_variations,
         );
         let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_ranges);
-        let font = FontKind::FontRef(FontRefData {
+        let font_data = FontRefData {
             font,
             glyph_metrics,
             charmap,
-        });
+        };
+        let glyph_metrics = font_data.glyph_metrics.clone();
+        let charmap = font_data.charmap.clone();
+        let font = FontKind::FontRef(font_data);
         hb_font_t {
             font,
             units_per_em,
             cmap_cache: &self.data.cmap_cache,
+            glyph_metrics,
+            charmap,
             ot_tables,
             aat_tables,
             apply_trak: self.data.apply_trak,
@@ -547,6 +552,8 @@ pub struct hb_font_t<'a> {
     pub(crate) font: FontKind<'a>,
     pub(crate) units_per_em: u16,
     pub(crate) cmap_cache: &'a cmap_cache_t,
+    pub(crate) glyph_metrics: GlyphMetrics<'a>,
+    pub(crate) charmap: Charmap<'a>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
     pub(crate) apply_trak: bool,
@@ -582,12 +589,16 @@ impl<'a> crate::Shaper<'a> {
             [feature_variations.gsub(), feature_variations.gpos()]
         };
         let tables = font.tables();
+        let glyph_metrics = GlyphMetrics::from_tables(&tables, &metrics);
+        let charmap = Charmap::from_tables(&tables);
         let ot_tables = OtTables::from_tables(&tables, &data.ot_cache, coords, feature_variations);
         let aat_tables = AatTables::from_tables(&tables, &data.aat_cache);
         Some(Self {
             font: FontKind::FontInstance(font, metrics),
             units_per_em: data.table_ranges.units_per_em,
             cmap_cache: &data.cmap_cache,
+            glyph_metrics,
+            charmap,
             ot_tables,
             aat_tables,
             apply_trak: data.apply_trak,
@@ -729,12 +740,7 @@ impl<'a> crate::Shaper<'a> {
     }
 
     pub(crate) fn glyph_metrics(&self) -> GlyphMetrics<'a> {
-        match &self.font {
-            FontKind::FontRef(data) => data.glyph_metrics.clone(),
-            FontKind::FontInstance(instance, metrics) => {
-                GlyphMetrics::from_tables(&instance.tables(), metrics)
-            }
-        }
+        self.glyph_metrics.clone()
     }
 
     pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {
