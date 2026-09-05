@@ -264,9 +264,9 @@ pub(crate) unsafe fn shaper_list_allows_ot(shaper_list: *const *const c_char) ->
 /// Returns the shapers this library provides, as a `NULL`-terminated array of
 /// names.
 #[no_mangle]
-pub extern "C" fn hr_shape_list_shapers() -> *const *const c_char {
+pub extern "C" fn hr_shape_list_shapers() -> *mut *const c_char {
     static SHAPERS: CStrArray<2> = CStrArray([c"ot".as_ptr(), ptr::null()]);
-    SHAPERS.0.as_ptr()
+    SHAPERS.0.as_ptr().cast_mut()
 }
 
 /// The major version of this library.
