@@ -4,7 +4,7 @@
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
 
-use harfrust_c::*;
+use crate::*;
 
 const TEXT: &str = "abc";
 
@@ -1240,7 +1240,7 @@ fn abort_case() {
 fn aborts(case: &str) -> bool {
     let exe = std::env::current_exe().expect("test binary path");
     let status = std::process::Command::new(exe)
-        .args(["abort_case", "--exact"])
+        .args(["capi_tests::abort_case", "--exact"])
         .env("HR_ABORT_CASE", case)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())

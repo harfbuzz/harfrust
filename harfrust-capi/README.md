@@ -67,9 +67,10 @@ python3 scripts/gen-hb-compat-header.py
 cargo build -p harfrust-capi --release
 ```
 
-This produces a static library, a shared library and a Rust `rlib`. The header
-is committed at [`include/hr.h`](include/hr.h) and is generated with
-[cbindgen](https://github.com/mozilla/cbindgen):
+This produces static and shared C libraries. A Rust `rlib` is deliberately not
+emitted alongside them, because that makes Cargo suppress release LTO for the
+C libraries. The header is committed at [`include/hr.h`](include/hr.h) and is
+generated with [cbindgen](https://github.com/mozilla/cbindgen):
 
 ```sh
 cbindgen --config harfrust-capi/cbindgen.toml \
