@@ -3008,7 +3008,7 @@ hr_bool_t hr_shape_full(struct hr_font_t *font,
  * Returns the shapers this library provides, as a `NULL`-terminated array of
  * names.
  */
-const char *const *hr_shape_list_shapers(void);
+const char **hr_shape_list_shapers(void);
 
 /**
  * Returns the version of the underlying HarfRust library.

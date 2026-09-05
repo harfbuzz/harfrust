@@ -4,6 +4,11 @@
 const HR_H: &str = include_str!("../include/hr.h");
 const HR_HB_H: &str = include_str!("../include/hr-hb.h");
 
+#[test]
+fn shape_list_shapers_matches_harfbuzz_signature() {
+    assert!(HR_H.contains("const char **hr_shape_list_shapers(void);"));
+}
+
 /// Strips C comments, so that prose mentioning a name does not count as
 /// declaring one.
 fn without_comments(source: &str) -> String {
