@@ -13,7 +13,7 @@ use harfrust::font::{BuiltinFontFuncs, FontFuncs};
 use harfrust::{GlyphExtents, GlyphId};
 
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_glyph_extents_t, hr_position_t};
-use crate::font::{hr_font_t, CallbackState};
+use crate::font::hr_font_t;
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// Maps a Unicode scalar value to a glyph. Returns false if there is none.
@@ -418,20 +418,20 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
 /// "not available" answer HarfBuzz's nil implementation gives — no glyph, a
 /// zero advance, a zero origin, no extents. HarfRust's own table-driven
 /// implementation is used only when a font has no funcs object at all.
-pub(crate) struct FontFuncsAdapter {
-    /// The snapshot owns a reference to the callbacks and to the font data,
-    /// so a callback that replaces either cannot free what is in use.
-    state: CallbackState,
+pub(crate) struct FontFuncsAdapter<'a> {
+    /// The C API does not support callbacks mutating or freeing their font, so
+    /// the font itself keeps these values alive for the duration of shaping.
+    state: &'a hr_font_t,
     font: *mut hr_font_t,
 }
 
-impl FontFuncsAdapter {
-    pub(crate) fn new(font: *mut hr_font_t, state: CallbackState) -> Self {
+impl<'a> FontFuncsAdapter<'a> {
+    pub(crate) fn new(font: *mut hr_font_t, state: &'a hr_font_t) -> Self {
         Self { state, font }
     }
 
     fn funcs(&self) -> Option<&hr_font_funcs_t> {
-        // SAFETY: `state` holds a reference for as long as this adapter lives.
+        // SAFETY: `state` owns the reference for as long as this adapter lives.
         unsafe { self.state.funcs.as_ref() }
     }
 
@@ -443,7 +443,7 @@ impl FontFuncsAdapter {
     }
 }
 
-impl FontFuncs for FontFuncsAdapter {
+impl FontFuncs for FontFuncsAdapter<'_> {
     fn nominal_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
         let cb = self.funcs()?.nominal_glyph.as_ref()?;
         let func = cb.func?;
