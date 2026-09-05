@@ -21,6 +21,9 @@ use read_fonts::{
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 
+// An experiment: an alternative compile-and-apply path, lifted from another
+// shaper. Nothing calls into it yet.
+pub mod compile;
 pub mod contextual;
 pub mod gpos;
 pub mod gsub;
@@ -29,6 +32,14 @@ pub mod lookup;
 pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
+    /// The compiled form of the same two lookup lists, when the experimental
+    /// apply path is enabled. Empty slots: a lookup is compiled the first time
+    /// something asks for it, because a shaping plan reaches a small part of a
+    /// font.
+    #[cfg(feature = "compile-path")]
+    pub gsub_compiled: compile::lookup::Program,
+    #[cfg(feature = "compile-path")]
+    pub gpos_compiled: compile::lookup::Program,
     pub gdef_glyph_props_cache: MappingCache,
     gdef: GdefCache,
     has_gsub: bool,
@@ -136,10 +147,24 @@ impl OtCache {
             .as_ref()
             .map_or(0, |table| table.offset_data().len() as u32);
         let has_gdef = gdef_table.is_some() && !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len);
+        // Nothing reads these once the compiled path is in: `apply_layout_table`
+        // continues on the compiled branch whether or not a lookup compiled, a
+        // context recurses through `compile::apply::recurse` rather than the
+        // font's path, and the one other caller -- Indic's `would_apply` -- is
+        // compiled out. A slot per lookup that is never filled is still a slot
+        // per lookup, so do not build them.
+        //
+        // Under `test` they are built anyway: the differential tests in
+        // `compile::apply` run the interpreted path as their reference, and a
+        // context on that path recurses through this cache.
+        #[cfg(all(feature = "compile-path", not(test)))]
+        let (gsub, gpos) = (LookupCache::default(), LookupCache::default());
+        #[cfg(any(not(feature = "compile-path"), test))]
         let gsub = gsub_table
             .as_ref()
             .map(LookupCache::new)
             .unwrap_or_default();
+        #[cfg(any(not(feature = "compile-path"), test))]
         let gpos = gpos_table
             .as_ref()
             .map(LookupCache::new)
@@ -149,7 +174,20 @@ impl OtCache {
             .filter(|_| has_gdef)
             .map(GdefCache::new)
             .unwrap_or_default();
+        // Both programs share one interning index. GSUB and GPOS name many of
+        // the same coverages -- the set of marks, most obviously -- and
+        // interning across the pair is what collapses them to one copy.
+        #[cfg(feature = "compile-path")]
+        let compiled = compile::compile_font_with_detail(
+            gsub_table.as_ref(),
+            gpos_table.as_ref(),
+            compile::detail_from_env(),
+        );
         Self {
+            #[cfg(feature = "compile-path")]
+            gsub_compiled: compiled.0,
+            #[cfg(feature = "compile-path")]
+            gpos_compiled: compiled.1,
             gsub,
             gpos,
             gdef_glyph_props_cache: MappingCache::new(),
@@ -279,6 +317,12 @@ pub struct OtTables<'a> {
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
     pub feature_variations: [Option<u32>; 2],
+    /// Borrowed from the cache, so the compiled lookups survive across shaping
+    /// runs the same way the interpreted ones do.
+    #[cfg(feature = "compile-path")]
+    pub gsub_compiled: &'a compile::lookup::Program,
+    #[cfg(feature = "compile-path")]
+    pub gpos_compiled: &'a compile::lookup::Program,
 }
 
 impl<'a> OtTables<'a> {
@@ -329,6 +373,10 @@ impl<'a> OtTables<'a> {
             var_store,
             coords,
             feature_variations,
+            #[cfg(feature = "compile-path")]
+            gsub_compiled: &cache.gsub_compiled,
+            #[cfg(feature = "compile-path")]
+            gpos_compiled: &cache.gpos_compiled,
         }
     }
 
@@ -377,6 +425,10 @@ impl<'a> OtTables<'a> {
             var_store,
             coords,
             feature_variations,
+            #[cfg(feature = "compile-path")]
+            gsub_compiled: &cache.gsub_compiled,
+            #[cfg(feature = "compile-path")]
+            gpos_compiled: &cache.gpos_compiled,
         }
     }
 

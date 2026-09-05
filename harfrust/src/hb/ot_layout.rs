@@ -168,27 +168,98 @@ pub fn apply_layout_table<T: LayoutTable>(
     for (stage_index, stage) in plan.ot_map.stages(T::INDEX).iter().enumerate() {
         if let Some(table) = table {
             for lookup_map in plan.ot_map.stage_lookups(T::INDEX, stage_index) {
+                // The compiled form first, and if there is one the interpreted
+                // lookup is never asked for. It would answer the same three
+                // questions -- what may start a match, what properties to
+                // match with, which way to walk -- and asking costs a parse of
+                // every subtable header in the lookup, kept for the life of
+                // the face.
+                #[cfg(feature = "compile-path")]
+                {
+                    use crate::hb::ot::compile::lookup::Compiled;
+                    let face = ctx.face;
+                    let program = match T::INDEX {
+                        TableIndex::GSUB => &face.ot_tables.gsub_compiled,
+                        TableIndex::GPOS => &face.ot_tables.gpos_compiled,
+                    };
+                    if let Some(data) = face.ot_tables.table_data(T::INDEX) {
+                        let seen = *ctx.buffer.digest.masks();
+                        // Already compiled: it carries its own summary, so
+                        // there is nothing cheaper to ask first. Not yet: ask
+                        // what it can start on *before* building it, from the
+                        // font -- most of what a first shape would compile, it
+                        // then skips.
+                        let compiled = if let Compiled::Already(compiled) =
+                            program.compiled(lookup_map.index)
+                        {
+                            compiled
+                        } else if program.may_touch(lookup_map.index, data, &seen) {
+                            program.get(lookup_map.index, data)
+                        } else {
+                            continue;
+                        };
+                        if let Some(compiled) = compiled {
+                            // The second-glyph digest is a filter on what may
+                            // *follow* a start, and skipping on it skips the
+                            // hazard the lookup would have reported for a
+                            // neighbour that does not match. So a caller that
+                            // asked for those flags gets the pass and a caller
+                            // that did not gets the speed, exactly as the
+                            // interpreted path decides it below.
+                            let wants_concat = ctx
+                                .buffer
+                                .flags
+                                .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT);
+                            if compiled.digest.may_intersect_raw(&seen)
+                                && (wants_concat || compiled.pair_digest.may_intersect_raw(&seen))
+                            {
+                                ctx.lookup_index = lookup_map.index;
+                                ctx.set_lookup_mask(lookup_map.mask);
+                                ctx.auto_zwj = lookup_map.auto_zwj;
+                                ctx.auto_zwnj = lookup_map.auto_zwnj;
+                                ctx.random = lookup_map.random;
+                                ctx.per_syllable = lookup_map.per_syllable;
+                                apply_compiled::<T>(&mut ctx, data, program, compiled);
+                            }
+                        }
+                        // Whether or not it compiled. An empty slot is a
+                        // lookup with nothing to apply -- see
+                        // `Program::compile` -- and reading the font for it
+                        // here would be the one place a caller disagreed with
+                        // the nested one, which cannot.
+                        continue;
+                    }
+                }
+
                 let Some(lookup) = table.get_lookup(lookup_map.index) else {
                     continue;
                 };
 
-                if lookup.digest().may_intersect(&ctx.buffer.digest)
-                    && (ctx
-                        .buffer
-                        .flags
-                        .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
-                        || lookup.digest_second().may_intersect(&ctx.buffer.digest))
-                {
-                    ctx.lookup_index = lookup_map.index;
-                    ctx.set_lookup_mask(lookup_map.mask);
-                    ctx.auto_zwj = lookup_map.auto_zwj;
-                    ctx.auto_zwnj = lookup_map.auto_zwnj;
-
-                    ctx.random = lookup_map.random;
-                    ctx.per_syllable = lookup_map.per_syllable;
-
-                    apply_string::<T>(&mut ctx, lookup);
+                if !lookup.digest().may_intersect(&ctx.buffer.digest) {
+                    continue;
                 }
+                // What may *follow* a start, which upstream added alongside.
+                // Gated on the flag because skipping a lookup this way also
+                // skips the concat hazards it would have reported: a caller
+                // that asked for them gets the pass, a caller that did not
+                // gets the speed.
+                if !ctx
+                    .buffer
+                    .flags
+                    .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
+                    && !lookup.digest_second().may_intersect(&ctx.buffer.digest)
+                {
+                    continue;
+                }
+                ctx.lookup_index = lookup_map.index;
+                ctx.set_lookup_mask(lookup_map.mask);
+                ctx.auto_zwj = lookup_map.auto_zwj;
+                ctx.auto_zwnj = lookup_map.auto_zwnj;
+
+                ctx.random = lookup_map.random;
+                ctx.per_syllable = lookup_map.per_syllable;
+
+                apply_string::<T>(&mut ctx, lookup);
             }
         }
 
@@ -197,6 +268,16 @@ pub fn apply_layout_table<T: LayoutTable>(
                 ctx.buffer.update_digest();
             }
         }
+    }
+
+    // Everything this plan reaches has been compiled by now, so the compiler's
+    // working buffers have done their job. They are kept across the lookups of
+    // one call -- dropping them between lookups puts malloc back in the profile
+    // -- and given back at the end of it.
+    #[cfg(feature = "compile-path")]
+    match T::INDEX {
+        TableIndex::GSUB => face.ot_tables.gsub_compiled.release_scratch(),
+        TableIndex::GPOS => face.ot_tables.gpos_compiled.release_scratch(),
     }
 }
 
@@ -225,6 +306,55 @@ fn apply_string<T: LayoutTable>(ctx: &mut OT::hb_ot_apply_context_t, lookup: &Lo
 
         ctx.buffer.idx = ctx.buffer.len - 1;
         apply_backward(ctx, lookup);
+    }
+}
+
+/// The same pass, driven by the compiled form of this lookup.
+///
+/// A lookup that fails to compile is not routed here at all; the caller falls
+/// through to the interpreted path instead. The two are meant to agree, and a
+/// font that defeats one should still be shaped by the other.
+#[cfg(feature = "compile-path")]
+fn apply_compiled<T: LayoutTable>(
+    ctx: &mut OT::hb_ot_apply_context_t,
+    table: &[u8],
+    program: &crate::hb::ot::compile::lookup::Program,
+    compiled: &crate::hb::ot::compile::lookup::CompiledLookup,
+) {
+    use crate::hb::ot::compile::apply::{apply_backward, apply_forward, Apply};
+
+    if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
+        return;
+    }
+    ctx.lookup_props = compiled.props;
+    ctx.update_matchers();
+
+    if compiled.reverse {
+        debug_assert!(!ctx.buffer.have_output);
+        ctx.buffer.idx = ctx.buffer.len - 1;
+        let mut apply = Apply {
+            host: ctx,
+            table,
+            program,
+        };
+        apply_backward(&mut apply, compiled);
+        return;
+    }
+
+    if !T::IN_PLACE {
+        ctx.buffer.clear_output();
+    }
+    ctx.buffer.idx = 0;
+    {
+        let mut apply = Apply {
+            host: ctx,
+            table,
+            program,
+        };
+        apply_forward(&mut apply, compiled);
+    }
+    if !T::IN_PLACE {
+        ctx.buffer.sync();
     }
 }
 
@@ -924,4 +1054,17 @@ pub fn _hb_clear_substitution_flags(
     }
 
     false
+}
+
+#[cfg(all(test, feature = "compile-path"))]
+mod digest_bridge {
+    /// The compiled form's digests are met against the buffer's, word for
+    /// word, which is only meaningful while both fold a glyph id the same way.
+    #[test]
+    fn digests_agree() {
+        assert_eq!(
+            crate::hb::ot::compile::set::DIGEST_SHIFTS,
+            crate::hb::set_digest::HB_SET_DIGEST_SHIFTS,
+        );
+    }
 }

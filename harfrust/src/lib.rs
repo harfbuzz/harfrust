@@ -29,6 +29,13 @@ pub use read_fonts::{
 #[cfg(feature = "experimental_font_api")]
 pub use hb::face::shape;
 
+/// Counters from the compiled apply path, for measurement builds.
+#[cfg(feature = "compile-stats")]
+#[doc(hidden)]
+pub fn _compile_stats() -> Vec<(&'static str, u64)> {
+    hb::ot::compile::apply::stats::all()
+}
+
 /// Font related types.
 pub mod font {
     pub use crate::hb::face::{

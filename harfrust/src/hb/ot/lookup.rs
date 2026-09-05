@@ -40,6 +40,9 @@ pub struct LookupData<'a> {
 }
 
 pub trait LookupHost<'a> {
+    /// Unused when the compiled path is on and nothing builds a
+    /// [`LookupCache`]; see `OtTables::new`.
+    #[allow(dead_code)]
     fn lookup_count(&self) -> u16;
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError>;
 }
@@ -103,10 +106,37 @@ mod cache {
     }
 
     impl LookupCache {
+        /// Not built when the compiled path is on -- see `OtTables::new`, which
+        /// leaves this cache empty because nothing on that path reads it.
+        #[allow(dead_code)]
         pub fn new<'a>(host: &impl LookupHost<'a>) -> Self {
             let mut lookups = Vec::new();
             lookups.resize_with(host.lookup_count() as usize, Default::default);
             Self { lookups }
+        }
+
+        // Accounting, not shaping: nothing on the hot path asks what a cache
+        // weighs. Kept out of `cfg(test)` so it stays available to anyone
+        // measuring, and because it is the counterpart of the compiled form's own
+        // `heap_bytes`.
+        #[allow(dead_code)]
+        /// Everything this cache owns: the slot vector, sized for every lookup
+        /// in the table whether or not one has been read yet, plus what each
+        /// filled slot holds.
+        pub fn heap_bytes(&self) -> usize {
+            self.lookups.capacity() * size_of::<OnceLock<Option<Box<LookupInfo>>>>()
+                + self
+                    .lookups
+                    .iter()
+                    .filter_map(|l| l.get()?.as_ref())
+                    .map(|l| size_of::<LookupInfo>() + l.heap_bytes())
+                    .sum::<usize>()
+        }
+
+        /// The slot if it has already been filled, without filling it.
+        #[allow(dead_code)]
+        pub fn get_if_present(&self, index: u16) -> Option<&LookupInfo> {
+            self.lookups.get(index as usize)?.get()?.as_deref()
         }
 
         pub fn get<'a>(&self, host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
@@ -149,6 +179,23 @@ mod cache {
 
         pub fn get<'a>(&self, _host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
             self.lookups.get(index as usize)?.as_ref()
+        }
+
+        // Accounting, not shaping: nothing on the hot path asks what a cache
+        // weighs. Kept out of `cfg(test)` so it stays available to anyone
+        // measuring, and because it is the counterpart of the compiled form's own
+        // `heap_bytes`.
+        #[allow(dead_code)]
+        /// See the `std` flavour. Every slot is filled here, since this one
+        /// builds eagerly.
+        pub fn heap_bytes(&self) -> usize {
+            self.lookups.capacity() * size_of::<Option<LookupInfo>>()
+                + self
+                    .lookups
+                    .iter()
+                    .flatten()
+                    .map(LookupInfo::heap_bytes)
+                    .sum::<usize>()
         }
     }
 }
@@ -259,6 +306,26 @@ impl LookupInfo {
     pub fn digest_second(&self) -> &hb_set_digest_t {
         &self.digest_second
     }
+
+    // Accounting, not shaping: nothing on the hot path asks what a cache
+    // weighs. Kept out of `cfg(test)` so it stays available to anyone
+    // measuring, and because it is the counterpart of the compiled form's own
+    // `heap_bytes`.
+    #[allow(dead_code)]
+    /// Bytes this lookup owns: the vector holding its subtables, and whatever
+    /// their external caches put behind a box.
+    ///
+    /// The subtable records themselves live in that vector, so their size --
+    /// which is dominated by the inline external-cache variants -- is counted
+    /// by its capacity rather than separately.
+    pub fn heap_bytes(&self) -> usize {
+        self.subtables.capacity() * size_of::<SubtableInfo>()
+            + self
+                .subtables
+                .iter()
+                .map(|s| s.external_cache.heap_bytes())
+                .sum::<usize>()
+    }
 }
 
 impl LookupInfo {
@@ -323,6 +390,10 @@ impl LookupInfo {
 }
 
 impl LookupInfo {
+    /// Only for a build without the compiled path: with it, the compiled
+    /// lookup answers this and the interpreted form is never built at all.
+    /// See `compile::gsub::would_apply`.
+    #[cfg_attr(feature = "compile-path", allow(dead_code))]
     pub fn would_apply(&self, face: &hb_font_t, ctx: &WouldApplyContext) -> Option<bool> {
         let glyph = ctx.glyphs[0];
         if !self.digest.may_have(glyph.into()) {

@@ -964,14 +964,30 @@ impl Buffer {
         self.have_separate_output = false;
     }
 
-    pub(crate) fn clear_positions(&mut self) {
+    /// Enters positions mode without touching position values. The caller
+    /// must fully initialize `pos[..len]` before anything reads it;
+    /// positions beyond `len` are never read (output bookkeeping gates on
+    /// `out_len`, and conversions expose only `pos[..len]`).
+    pub(crate) fn enter_positions_mode(&mut self) {
         self.have_output = false;
         self.have_positions = true;
 
         self.out_len = 0;
         self.have_separate_output = false;
+    }
+
+    pub(crate) fn clear_positions(&mut self) {
+        self.enter_positions_mode();
 
         for pos in &mut self.pos {
+            *pos = GlyphPosition::default();
+        }
+    }
+
+    /// Zeroes the in-use positions only; see `enter_positions_mode`.
+    pub(crate) fn zero_positions(&mut self) {
+        let len = self.len;
+        for pos in &mut self.pos[..len] {
             *pos = GlyphPosition::default();
         }
     }

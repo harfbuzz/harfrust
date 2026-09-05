@@ -153,6 +153,8 @@ impl<'a> GlyphMetrics<'a> {
         Some(advance)
     }
 
+    /// Fills the advance widths, writing every position field in full;
+    /// callers rely on this to skip the position-zeroing pass.
     pub(crate) fn populate_advance_widths(
         &self,
         infos: &[GlyphInfo],
@@ -161,13 +163,16 @@ impl<'a> GlyphMetrics<'a> {
         scale: Scale,
     ) {
         for (info, pos) in infos.iter().zip(pos.iter_mut()) {
-            pos.x_advance = self
-                .h_metrics
-                .get(info.glyph_id as usize)
-                .or_else(|| self.h_metrics.last())
-                .map(|metric| metric.advance() as i32)
-                .or_else(|| (info.glyph_id < self.num_glyphs).then_some(self.upem as i32 / 2))
-                .unwrap_or_default();
+            *pos = GlyphPosition {
+                x_advance: self
+                    .h_metrics
+                    .get(info.glyph_id as usize)
+                    .or_else(|| self.h_metrics.last())
+                    .map(|metric| metric.advance() as i32)
+                    .or_else(|| (info.glyph_id < self.num_glyphs).then_some(self.upem as i32 / 2))
+                    .unwrap_or_default(),
+                ..GlyphPosition::default()
+            };
         }
         if !coords.is_empty() {
             if let Some(hvar) = self.hvar.as_ref() {

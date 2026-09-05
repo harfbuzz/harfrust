@@ -6,13 +6,16 @@ use read_fonts::{
     FontData,
 };
 
-mod cursive;
+pub(super) mod cursive;
 mod mark;
 mod pair;
 mod single;
 
 #[allow(unused_assignments)]
-fn apply_value(
+/// Visible to the whole `ot` subtree so the compiled apply path in
+/// `ot::compile` can use it. Reimplementing it would mean reimplementing the
+/// variation-delta arithmetic, which is where the correctness is.
+pub(super) fn apply_value(
     ctx: &mut hb_ot_apply_context_t,
     idx: usize,
     data: &FontData,

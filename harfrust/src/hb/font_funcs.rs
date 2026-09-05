@@ -529,8 +529,15 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
         }
     }
 
+    /// Fills the advance widths, leaving every position field initialized;
+    /// callers rely on this to skip the position-zeroing pass.
     pub(crate) fn populate_advance_widths(&mut self, batch: AdvanceWidthBatch<'_>) {
         if let Some(funcs) = &mut self.funcs {
+            // Custom callbacks write only the advances and were written
+            // against zeroed positions; preserve that contract.
+            for pos in batch.positions.iter_mut() {
+                *pos = GlyphPosition::default();
+            }
             funcs.populate_advance_widths(&self.builtin, batch);
         } else {
             self.builtin.glyph_metrics().populate_advance_widths(

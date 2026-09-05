@@ -32,7 +32,7 @@ mod glyph_metrics;
 mod glyph_names;
 mod kerning;
 mod machine_cursor;
-mod ot;
+pub(crate) mod ot;
 mod ot_layout;
 mod ot_layout_common;
 mod ot_layout_gpos_table;

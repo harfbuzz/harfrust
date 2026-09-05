@@ -6,7 +6,7 @@ use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::hb_ot_apply_context_t;
 use crate::hb::ot_layout_gsubgpos::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    may_skip_t, skipping_iterator_t, Apply, BinaryCache, ChainContextClassCaches,
+    may_skip_t, recurse_host, skipping_iterator_t, Apply, BinaryCache, ChainContextClassCaches,
     ChainContextFormat2Cache, ContextFormat2Cache, MappingCache, RuleSetDigest,
     SubtableExternalCache, SubtableExternalCacheMode, WouldApply, WouldApplyContext,
 };
@@ -93,6 +93,7 @@ impl Apply for SequenceContextFormat1<'_> {
             set.offset_data(),
             set.seq_rule_offsets(),
             match_glyph,
+            &recurse_host,
             None,
             |_| 0,
         )
@@ -152,6 +153,7 @@ impl Apply for SequenceContextFormat2<'_> {
             set.offset_data(),
             set.class_seq_rule_offsets(),
             |info, value| u32::from(input_class(info.as_glyph())) == value,
+            &recurse_host,
             digest,
             |info| input_class(info.as_glyph()),
         )
@@ -181,6 +183,7 @@ impl Apply for SequenceContextFormat2<'_> {
             set.offset_data(),
             set.class_seq_rule_offsets(),
             |info, value| u32::from(get_class_cached(&input_class, info)) == value,
+            &recurse_host,
             digest,
             |info| get_class_cached(&input_class, info),
         )
@@ -240,7 +243,10 @@ impl Apply for SequenceContextFormat3<'_> {
                 ctx,
                 input_coverages.len() - 1,
                 match_end,
-                self.seq_lookup_records(),
+                self.seq_lookup_records()
+                    .iter()
+                    .map(|r| (r.sequence_index(), r.lookup_list_index())),
+                &recurse_host,
             );
             Some(())
         } else {
@@ -292,6 +298,7 @@ impl Apply for ChainedSequenceContextFormat1<'_> {
             set.offset_data(),
             set.chained_seq_rule_offsets(),
             (match_glyph, match_glyph, match_glyph),
+            &recurse_host,
             None,
             |_| 0,
         )
@@ -441,6 +448,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                         )) == val
                     },
                 ),
+                &recurse_host,
                 digest,
                 |info| glyph_class_cached(input_class, info.as_glyph(), &class_caches.input),
             )
@@ -456,6 +464,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                     |info, val| u32::from(input_class(info.as_glyph())) == val,
                     |info, val| u32::from(lookahead_class(info.as_glyph())) == val,
                 ),
+                &recurse_host,
                 digest,
                 |info| input_class(info.as_glyph()),
             )
@@ -490,6 +499,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 match_class_cached2(&input_class),
                 match_class_cached1(&lookahead_class),
             ),
+            &recurse_host,
             digest,
             |info| get_class_cached2(&input_class, info),
         )
@@ -621,7 +631,10 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
             ctx,
             input_coverages.len() - 1,
             match_end,
-            self.seq_lookup_records(),
+            self.seq_lookup_records()
+                .iter()
+                .map(|r| (r.sequence_index(), r.lookup_list_index())),
+            &recurse_host,
         );
 
         Some(())
@@ -682,6 +695,7 @@ impl<'a> ParsedRule<'a> {
         &self,
         ctx: &mut hb_ot_apply_context_t,
         match_func: &impl Fn(&mut GlyphInfo, u32) -> bool,
+        recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
     ) -> Option<()> {
         let inputs = self.input;
         let match_func = |info: &mut GlyphInfo, index| {
@@ -695,7 +709,15 @@ impl<'a> ParsedRule<'a> {
         if match_input(ctx, inputs.len() as _, match_func, &mut match_end, None) {
             ctx.buffer
                 .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
-            apply_lookup(ctx, inputs.len(), match_end, self.records);
+            apply_lookup(
+                ctx,
+                inputs.len(),
+                match_end,
+                self.records
+                    .iter()
+                    .map(|r| (r.sequence_index(), r.lookup_list_index())),
+                recurse,
+            );
             return Some(());
         }
         None
@@ -852,11 +874,15 @@ fn parse_chain_rule_at<'a>(
         .map(|d| ParsedRule::from_chain_rule_data(d).unwrap_or_default())
 }
 
-fn apply_context_rules(
+pub(crate) fn apply_context_rules(
     ctx: &mut hb_ot_apply_context_t,
     set_data: FontData<'_>,
     rule_offsets: &[BigEndian<Offset16>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
+    // Which lookup a record names is resolved by the caller, so a compiled
+    // context can invoke a compiled nested lookup rather than falling back
+    // to the font.
+    recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
     rule_set_digest: Option<RuleSetDigest>,
     first_value: impl Fn(&mut GlyphInfo) -> u16,
 ) -> Option<()> {
@@ -889,7 +915,7 @@ fn apply_context_rules(
                 let Some(rule) = parse_plain_rule_at(set_data, off) else {
                     continue;
                 };
-                if rule.apply(ctx, &match_func).is_some() {
+                if rule.apply(ctx, &match_func, recurse).is_some() {
                     return Some(());
                 }
             }
@@ -914,7 +940,7 @@ fn apply_context_rules(
             let Some(rule) = parse_plain_rule_at(set_data, off) else {
                 continue;
             };
-            if rule.input.len() <= 1 && rule.apply(ctx, &match_func).is_some() {
+            if rule.input.len() <= 1 && rule.apply(ctx, &match_func, recurse).is_some() {
                 return Some(());
             }
         }
@@ -932,7 +958,7 @@ fn apply_context_rules(
                 let Some(rule) = parse_plain_rule_at(set_data, off) else {
                     continue;
                 };
-                if rule.apply(ctx, &match_func).is_some() {
+                if rule.apply(ctx, &match_func, recurse).is_some() {
                     return Some(());
                 }
             }
@@ -956,7 +982,7 @@ fn apply_context_rules(
             {
                 if ParsedRule::from_rule_data(data)
                     .unwrap_or_default()
-                    .apply(ctx, &match_func)
+                    .apply(ctx, &match_func, recurse)
                     .is_some()
                 {
                     if let Some(unsafe_to) = unsafe_to {
@@ -1005,6 +1031,7 @@ fn apply_chain_with_sequences<
     ctx: &mut hb_ot_apply_context_t,
     rule: &ParsedRule<'_>,
     match_funcs: &(F1, F2, F3),
+    recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
 ) -> Option<()> {
     let input = rule.input;
     let f3 = |info: &mut GlyphInfo, index| {
@@ -1056,12 +1083,20 @@ fn apply_chain_with_sequences<
 
     ctx.buffer
         .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
-    apply_lookup(ctx, input.len(), match_end, rule.records);
+    apply_lookup(
+        ctx,
+        input.len(),
+        match_end,
+        rule.records
+            .iter()
+            .map(|r| (r.sequence_index(), r.lookup_list_index())),
+        recurse,
+    );
 
     Some(())
 }
 
-fn apply_chain_context_rules<
+pub(crate) fn apply_chain_context_rules<
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
@@ -1071,6 +1106,10 @@ fn apply_chain_context_rules<
     set_data: FontData<'_>,
     rule_offsets: &[BigEndian<Offset16>],
     match_funcs: (F1, F2, F3),
+    // Which lookup a record names is resolved by the caller, so a compiled
+    // context can invoke a compiled nested lookup rather than falling back
+    // to the font.
+    recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
     rule_set_digest: Option<RuleSetDigest>,
     first_input_value: F4,
 ) -> Option<()> {
@@ -1099,7 +1138,7 @@ fn apply_chain_context_rules<
                 let Some(rule) = parse_chain_rule_at(set_data, off) else {
                     continue;
                 };
-                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+                if apply_chain_with_sequences(ctx, &rule, &match_funcs, recurse).is_some() {
                     return Some(());
                 }
             }
@@ -1127,7 +1166,7 @@ fn apply_chain_context_rules<
             };
             if rule.input.len() <= 1
                 && rule.lookahead.is_empty()
-                && apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some()
+                && apply_chain_with_sequences(ctx, &rule, &match_funcs, recurse).is_some()
             {
                 return Some(());
             }
@@ -1146,7 +1185,7 @@ fn apply_chain_context_rules<
                 let Some(rule) = parse_chain_rule_at(set_data, off) else {
                     continue;
                 };
-                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+                if apply_chain_with_sequences(ctx, &rule, &match_funcs, recurse).is_some() {
                     return Some(());
                 }
             }
@@ -1166,7 +1205,7 @@ fn apply_chain_context_rules<
             // Unreadable rule header; the full parse treats it as an empty
             // rule, same as the parse-first code did.
             let rule = ParsedRule::from_chain_rule_data(data).unwrap_or_default();
-            if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+            if apply_chain_with_sequences(ctx, &rule, &match_funcs, recurse).is_some() {
                 if let Some(unsafe_to) = unsafe_to {
                     ctx.buffer
                         .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
@@ -1204,7 +1243,7 @@ fn apply_chain_context_rules<
             };
             if matched_second {
                 let rule = ParsedRule::from_chain_rule_data(data).unwrap_or_default();
-                if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+                if apply_chain_with_sequences(ctx, &rule, &match_funcs, recurse).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer
                             .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));

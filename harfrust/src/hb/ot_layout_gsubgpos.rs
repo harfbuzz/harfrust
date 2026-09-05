@@ -13,7 +13,6 @@ use crate::hb::ot::{ClassDefInfo, CoverageInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::unicode::GeneralCategory;
 use alloc::boxed::Box;
-use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
 pub(crate) type MatchPositions = smallvec::SmallVec<[u32; 8]>;
@@ -510,11 +509,30 @@ where
     }
 }
 
+/// Apply a context's nested lookups at the positions it matched.
+///
+/// `lookups` yields `(sequence_index, lookup_list_index)` rather than the
+/// font's own records, so a caller holding them in some other form -- the
+/// compiled path in `ot::compile` does -- can reuse this. There is nothing
+/// format-specific left in here: it is position renumbering around recursion,
+/// and getting it wrong is what the TODOs below are about.
+/// How a context invokes one of its nested lookups.
+///
+/// The font's own way is [`recurse_host`]. The compiled path in `ot::compile`
+/// supplies its own, so that a lookup reached through a context is applied the
+/// same way as one reached directly -- otherwise a context would be a hole
+/// through which everything fell back to this path, and on a script whose
+/// shaping is mostly contexts that would be nearly everything.
+pub(crate) fn recurse_host(ctx: &mut hb_ot_apply_context_t, index: u16) -> Option<()> {
+    ctx.recurse(index)
+}
+
 pub(crate) fn apply_lookup(
     ctx: &mut hb_ot_apply_context_t,
     input_len: usize,
     match_end: usize,
-    lookups: &[SequenceLookupRecord],
+    lookups: impl IntoIterator<Item = (u16, u16)>,
+    recurse: &impl Fn(&mut hb_ot_apply_context_t, u16) -> Option<()>,
 ) {
     let mut count = input_len + 1;
 
@@ -534,12 +552,12 @@ pub(crate) fn apply_lookup(
         backtrack_len as isize + match_end as isize - ctx.buffer.idx as isize
     };
 
-    for record in lookups {
+    for (sequence_index, lookup_list_index) in lookups {
         if !ctx.buffer.successful {
             break;
         }
 
-        let idx = usize::from(record.sequence_index.get());
+        let idx = usize::from(sequence_index);
         if idx >= count {
             continue;
         }
@@ -559,7 +577,7 @@ pub(crate) fn apply_lookup(
             break;
         }
 
-        if ctx.recurse(record.lookup_list_index.get()).is_none() {
+        if recurse(ctx, lookup_list_index).is_none() {
             continue;
         }
 
@@ -766,6 +784,12 @@ impl RuleSetDigest {
         Self(u64::MAX)
     }
 
+    /// From a summary built elsewhere over the same six-bit fold. The compiled
+    /// path keeps one word per rule set for exactly this question.
+    pub fn from_bits(bits: u64) -> Self {
+        Self(bits)
+    }
+
     pub fn add(&mut self, value: u16) {
         self.0 |= 1 << (value & 63);
     }
@@ -776,6 +800,46 @@ impl RuleSetDigest {
 
     pub fn may_have(self, value: u16) -> bool {
         self.0 & (1 << (value & 63)) != 0
+    }
+}
+
+impl SubtableExternalCache {
+    // Accounting, not shaping: nothing on the hot path asks what a cache
+    // weighs. Kept out of `cfg(test)` so it stays available to anyone
+    // measuring, and because it is the counterpart of the compiled form's own
+    // `heap_bytes`.
+    #[allow(dead_code)]
+    /// Bytes this holds *behind a box*.
+    ///
+    /// The unboxed variants live inside `SubtableInfo`, so their cost is
+    /// already in `size_of::<SubtableInfo>()` and counted by the vector that
+    /// holds them -- which is why the enum is as wide as its widest inline
+    /// variant, `ChainContextFormat2Cache` and its 256-byte binary cache.
+    /// Everything this cache owns beyond the enum itself: the box a variant
+    /// sits behind, and any slice hanging off it.
+    ///
+    /// The unboxed variants own their slices too, so they are not free either;
+    /// only `None` is. Counted so this can be weighed against the compiled
+    /// form's `heap_bytes`, which counts the same way.
+    pub(crate) fn heap_bytes(&self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::LigatureSubstFormat1Cache(_) => size_of::<LigatureSubstFormat1Cache>(),
+            Self::LigatureSubstFormat1SmallCache(_) => 0,
+            Self::PairPosFormat1Cache(c) => {
+                size_of::<PairPosFormat1Cache>() + size_of_val(&*c.pair_sets)
+            }
+            Self::PairPosFormat1SmallCache(c) => size_of_val(&*c.pair_sets),
+            Self::PairPosFormat2Cache(_) => size_of::<PairPosFormat2Cache>(),
+            Self::PairPosFormat2SmallCache(_) => 0,
+            Self::ContextFormat2Cache(c) => size_of_val(&*c.rule_sets),
+            Self::ChainContextFormat2Cache(c) => {
+                size_of_val(&*c.rule_sets)
+                    + c.class_caches
+                        .as_ref()
+                        .map_or(0, |_| size_of::<ChainContextClassCaches>())
+            }
+        }
     }
 }
 

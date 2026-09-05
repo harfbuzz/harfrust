@@ -430,7 +430,10 @@ impl OtShapeContext<'_, '_> {
 
     // hb_ot_position: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1094>
     fn position(&mut self) {
-        self.buffer.clear_positions();
+        // The horizontal advance fill writes every position wholesale, so
+        // positions mode is entered without the zeroing pass; the vertical
+        // path zeroes what it read-modify-writes.
+        self.buffer.enter_positions_mode();
 
         self.position_default();
         self.position_plan();
@@ -447,8 +450,10 @@ impl OtShapeContext<'_, '_> {
         let len = self.buffer.len;
 
         if self.buffer.direction.is_horizontal() {
+            // Initializes every position in full; no prior zeroing needed.
             self.glyph_h_advances();
         } else {
+            self.buffer.zero_positions();
             for (info, pos) in self.buffer.info[..len]
                 .iter()
                 .zip(&mut self.buffer.pos[..len])
@@ -851,13 +856,12 @@ fn ensure_native_direction(buffer: &mut Buffer) {
 }
 
 fn map_glyphs_fast(buffer: &mut Buffer) {
-    // Normalization process sets up normalizer_glyph_index(), we just copy it.
+    // Normalization process sets up normalizer_glyph_index(), we just copy
+    // it. Normalization always ends via sync() or never opens output, so
+    // out_info aliases info here and needs no separate pass.
+    debug_assert!(!buffer.have_separate_output);
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
-        info.glyph_id = info.normalizer_glyph_index();
-    }
-
-    for info in &mut buffer.out_info_mut()[..len] {
         info.glyph_id = info.normalizer_glyph_index();
     }
 }
