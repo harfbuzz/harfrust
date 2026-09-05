@@ -115,6 +115,12 @@ impl ApplyLigatureSet for LigatureSet<'_> {
         } else {
             // Fast path
             if !seconds.may_have(second.into()) {
+                // Every ligature here has a second component and none of them
+                // is this glyph, which is what the walk below turns into a
+                // concat hazard. `collect_seconds` gives up on a ligature with
+                // no components, so this digest never rejects when one exists.
+                ctx.buffer
+                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
                 return None;
             }
             let mut unsafe_to_concat = false;
@@ -207,7 +213,7 @@ impl Apply for LigatureSubstFormat1<'_> {
     }
 }
 
-fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
+pub(crate) fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
     let mut seconds = hb_set_digest_t::new();
     let mut remaining_work = MAX_LIGATURE_CACHE_WORK;
     let ligature_sets = lig_subst.ligature_sets();

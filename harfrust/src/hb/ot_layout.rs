@@ -7,9 +7,11 @@ use super::font_funcs::FontFuncsDispatch;
 use super::ot::lookup::LookupInfo;
 use super::ot_layout_gsubgpos::OT;
 use super::ot_shape_plan::hb_ot_shape_plan_t;
+use super::set_digest::hb_set_digest_t;
 use super::{hb_font_t, GlyphInfo};
 use crate::hb::ot_layout_gsubgpos::OT::check_glyph_property;
 use crate::unicode::{hb_unicode_funcs_t, GeneralCategory};
+use crate::BufferFlags;
 
 impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
@@ -82,11 +84,17 @@ pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
 
 // hb_ot_layout_kern
 
-pub fn _hb_ot_layout_set_glyph_props(face: &hb_font_t, buffer: &mut Buffer) {
+pub fn _hb_ot_layout_set_glyph_props<const SET_DIGEST: bool>(
+    face: &hb_font_t,
+    buffer: &mut Buffer,
+) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
+        if SET_DIGEST {
+            buffer.digest.add(info.glyph_id);
+        }
         info.set_glyph_props(face.ot_tables.glyph_props(info.as_glyph()));
         info.set_lig_props(0);
     }
@@ -139,7 +147,12 @@ pub trait LayoutTable {
 /// Called before substitution lookups are performed, to ensure that glyph
 /// class and other properties are set on the glyphs in the buffer.
 pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut Buffer) {
-    _hb_ot_layout_set_glyph_props(face, buffer);
+    _hb_ot_layout_set_glyph_props::<false>(face, buffer);
+}
+
+pub fn hb_ot_layout_substitute_start_with_digest(face: &hb_font_t, buffer: &mut Buffer) {
+    buffer.digest = hb_set_digest_t::new();
+    _hb_ot_layout_set_glyph_props::<true>(face, buffer);
 }
 
 /// Applies the lookups in the given GSUB or GPOS table.
@@ -159,7 +172,13 @@ pub fn apply_layout_table<T: LayoutTable>(
                     continue;
                 };
 
-                if lookup.digest().may_intersect(&ctx.buffer.digest) {
+                if lookup.digest().may_intersect(&ctx.buffer.digest)
+                    && (ctx
+                        .buffer
+                        .flags
+                        .contains(BufferFlags::PRODUCE_UNSAFE_TO_CONCAT)
+                        || lookup.digest_second().may_intersect(&ctx.buffer.digest))
+                {
                     ctx.lookup_index = lookup_map.index;
                     ctx.set_lookup_mask(lookup_map.mask);
                     ctx.auto_zwj = lookup_map.auto_zwj;

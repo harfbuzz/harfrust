@@ -322,8 +322,7 @@ impl OtShapeContext<'_, '_> {
     pub(crate) fn shape_internal(&mut self) {
         self.buffer.allocate_unicode_vars();
 
-        self.initialize_masks();
-        self.set_unicode_props();
+        self.set_unicode_props(self.plan.ot_map.get_global_mask());
         self.insert_dotted_circle();
 
         form_clusters(self.buffer);
@@ -405,13 +404,13 @@ impl OtShapeContext<'_, '_> {
 
     // hb_ot_substitute_plan: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L911>
     fn substitute_plan(&mut self) {
-        hb_ot_layout_substitute_start(self.face, self.buffer);
-
-        if self.plan.fallback_glyph_classes {
-            hb_synthesize_glyph_classes(self.buffer);
-        }
-
         if self.plan.apply_morx {
+            hb_ot_layout_substitute_start(self.face, self.buffer);
+
+            if self.plan.fallback_glyph_classes {
+                hb_synthesize_glyph_classes(self.buffer);
+            }
+
             aat::layout::substitute(self.plan, self.face, self.buffer, self.features);
             // The digest is only read by the OT lookup-apply loop; without
             // GPOS ahead, nothing consumes it.
@@ -419,7 +418,12 @@ impl OtShapeContext<'_, '_> {
                 self.buffer.update_digest();
             }
         } else {
-            self.buffer.update_digest();
+            hb_ot_layout_substitute_start_with_digest(self.face, self.buffer);
+
+            if self.plan.fallback_glyph_classes {
+                hb_synthesize_glyph_classes(self.buffer);
+            }
+
             ot_layout_gsub_table::substitute(self.plan, self.face, self.font_funcs, self.buffer);
         }
     }
@@ -541,12 +545,6 @@ impl OtShapeContext<'_, '_> {
         }
     }
 
-    // hb_ot_shape_initialize_masks: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L747>
-    fn initialize_masks(&mut self) {
-        let global_mask = self.plan.ot_map.get_global_mask();
-        self.buffer.reset_masks(global_mask);
-    }
-
     // hb_ot_shape_setup_masks: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L757>
     fn setup_masks(&mut self) {
         self.setup_masks_fraction();
@@ -637,7 +635,7 @@ impl OtShapeContext<'_, '_> {
     }
 
     // hb_set_unicode_props: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L471>
-    fn set_unicode_props(&mut self) {
+    fn set_unicode_props(&mut self, global_mask: hb_mask_t) {
         let buffer = &mut *self.buffer;
         // Implement enough of Unicode Graphemes here that shaping
         // in reverse-direction wouldn't break graphemes.  Namely,
@@ -652,6 +650,7 @@ impl OtShapeContext<'_, '_> {
         let mut i = 0;
         while i < len {
             let info = &mut buffer.info[i];
+            info.mask = global_mask;
             info.init_unicode_props(&mut buffer.scratch_flags);
 
             if info.glyph_id < 0x80 {
@@ -696,6 +695,7 @@ impl OtShapeContext<'_, '_> {
                 info.set_continuation(&mut buffer.scratch_flags);
                 if let Some(next) = buffer.info[..len].get_mut(i + 1) {
                     if next.as_codepoint().is_emoji_extended_pictographic() {
+                        next.mask = global_mask;
                         next.init_unicode_props(&mut buffer.scratch_flags);
                         next.set_continuation(&mut buffer.scratch_flags);
                         i += 1;
