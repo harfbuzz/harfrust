@@ -877,10 +877,10 @@ fn apply_context_rules(
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to = None;
-    let unsafe_to1;
+    let mut unsafe_to1 = 0;
     let mut unsafe_to2 = 0;
     let mut second = None;
-    let first = if skippy_iter.next(None) {
+    let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
@@ -908,15 +908,26 @@ fn apply_context_rules(
         }
         g1
     } else {
-        // Failed to match a next glyph. Only try applying rules that have no
-        // further impact.
+        let mut unsafe_to_concat = false;
         for off in rule_offsets {
             let Some(rule) = parse_plain_rule_at(set_data, off) else {
                 continue;
             };
-            if rule.input.len() <= 1 && rule.apply(ctx, &match_func).is_some() {
+            if !rule.input.is_empty() {
+                unsafe_to_concat = true;
+                continue;
+            }
+            if rule.apply(ctx, &match_func).is_some() {
+                if unsafe_to_concat {
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to1));
+                }
                 return Some(());
             }
+        }
+        if unsafe_to_concat {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to1));
         }
         return None;
     };
@@ -1087,10 +1098,10 @@ fn apply_chain_context_rules<
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to = None;
-    let unsafe_to1;
+    let mut unsafe_to1 = 0;
     let mut unsafe_to2 = 0;
     let mut second = None;
-    let first = if skippy_iter.next(None) {
+    let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
         if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
             // Can't use the fast path if eg. the next char is a default-ignorable
@@ -1119,18 +1130,26 @@ fn apply_chain_context_rules<
         }
         g1
     } else {
-        // Failed to match a next glyph. Only try applying rules that have no
-        // further impact.
+        let mut unsafe_to_concat = false;
         for off in rule_offsets {
             let Some(rule) = parse_chain_rule_at(set_data, off) else {
                 continue;
             };
-            if rule.input.len() <= 1
-                && rule.lookahead.is_empty()
-                && apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some()
-            {
+            if !rule.input.is_empty() || !rule.lookahead.is_empty() {
+                unsafe_to_concat = true;
+                continue;
+            }
+            if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
+                if unsafe_to_concat {
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to1));
+                }
                 return Some(());
             }
+        }
+        if unsafe_to_concat {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to1));
         }
         return None;
     };
