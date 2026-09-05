@@ -47,3 +47,11 @@ pub use font_funcs::*;
 pub use object::{hr_destroy_func_t, hr_user_data_key_t};
 pub use shape::*;
 pub use shape_plan::*;
+
+#[cfg(test)]
+#[path = "../tests/capi.rs"]
+mod capi_tests;
+
+#[cfg(test)]
+#[path = "../tests/headers.rs"]
+mod header_tests;

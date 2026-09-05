@@ -1,5 +1,6 @@
 [package]
 name = "harfrust-capi"
+autotests = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,7 +17,9 @@ read-fonts.workspace = true
 
 [lib]
 name = "harfrust_c"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Combining an rlib with these outputs makes Cargo suppress release LTO for
+# the C libraries. Unit tests still get their own Rust test artifact.
+crate-type = ["staticlib", "cdylib"]
 bench = false
 
 [lints]
