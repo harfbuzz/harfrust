@@ -422,6 +422,18 @@ fn item_range(total: usize, item_offset: c_uint, item_length: c_int) -> (usize, 
     (start, end)
 }
 
+/// Appends decoded UTF-8 in one allocation, adjusting the relative cluster
+/// values produced by `Buffer::push_str` to HarfBuzz's absolute offsets.
+fn append_utf8(buffer: &mut Buffer, text: &str, cluster_offset: c_uint) {
+    let old_len = buffer.len();
+    buffer.push_str(text);
+    if cluster_offset != 0 {
+        for info in &mut buffer.glyph_infos_mut()[old_len..] {
+            info.cluster = info.cluster.wrapping_add(cluster_offset);
+        }
+    }
+}
+
 /// Appends UTF-8 text to a buffer.
 ///
 /// Only `text[item_offset .. item_offset + item_length]` is added; the text
@@ -474,16 +486,8 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     // find the ill-formed sequences and then again to yield the characters.
     let item = &bytes[start..end];
     match core::str::from_utf8(item) {
-        Ok(text) => {
-            for (offset, ch) in text.char_indices() {
-                buffer.buffer.push(ch as u32, (start + offset) as c_uint);
-            }
-        }
-        Err(_) => {
-            for (offset, ch) in decode(item).char_indices() {
-                buffer.buffer.push(ch as u32, (start + offset) as c_uint);
-            }
-        }
+        Ok(text) => append_utf8(&mut buffer.buffer, text, start as c_uint),
+        Err(_) => append_utf8(&mut buffer.buffer, &decode(item), start as c_uint),
     }
 }
 
