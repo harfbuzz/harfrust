@@ -91,21 +91,18 @@ impl Apply for PairPosFormat1<'_> {
             Some(())
         };
 
-        let boring = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
-            finish(ctx, iter_index, has_record2)
-        };
-
         let success =
             |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
-                    finish(ctx, iter_index, has_record2)
                 } else {
-                    boring(ctx, iter_index, has_record2)
+                    // Even a zero-valued pair record is a concat hazard: changing
+                    // the second glyph can select a non-zero record for the first.
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
                 }
+                finish(ctx, iter_index, has_record2)
             };
 
         let mut buf_idx = iter.buf_idx;
@@ -158,6 +155,9 @@ impl Apply for PairPosFormat1<'_> {
                 return success(ctx, &mut buf_idx, worked1, worked2, has_record2);
             }
         }
+        // The same hazard the digest above reports, reached the long way.
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
         None
     }
 
