@@ -3,6 +3,7 @@
 
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
+use std::sync::Mutex;
 
 use crate::*;
 
@@ -544,6 +545,7 @@ fn serializing_a_shaped_buffer_writes_text() {
 /// The font bytes a table callback reads from, handed over as user data.
 struct TableSource {
     data: Vec<u8>,
+    requested: Mutex<Vec<hr_tag_t>>,
 }
 
 unsafe extern "C" fn reference_table(
@@ -553,6 +555,7 @@ unsafe extern "C" fn reference_table(
 ) -> *mut hr_blob_t {
     unsafe {
         let source = &*user_data.cast::<TableSource>();
+        source.requested.lock().unwrap().push(tag);
         // Reuse a blob-backed face purely to look the table up.
         let blob = hr_blob_create(
             source.data.as_ptr().cast::<c_char>(),
@@ -597,7 +600,10 @@ fn table_callback_face_shapes_like_a_blob_face() {
         };
 
         // ... then through a face built from table callbacks.
-        let source = Box::into_raw(Box::new(TableSource { data: data.clone() }));
+        let source = Box::into_raw(Box::new(TableSource {
+            data: data.clone(),
+            requested: Mutex::new(Vec::new()),
+        }));
         let face = hr_face_create_for_tables(
             Some(reference_table),
             source.cast::<c_void>(),
@@ -606,6 +612,11 @@ fn table_callback_face_shapes_like_a_blob_face() {
         assert_eq!(hr_face_get_upem(face), PLAIN_UPEM);
 
         let font = hr_font_create(face);
+        let requested = (*source).requested.lock().unwrap();
+        assert!(!requested.contains(&hr_tag_from_string(c"cmap".as_ptr(), -1)));
+        assert!(!requested.contains(&hr_tag_from_string(c"glyf".as_ptr(), -1)));
+        drop(requested);
+
         let buffer = buffer_with_text(TEXT);
         hr_shape(font, buffer, ptr::null(), 0);
         assert_eq!(glyph_ids(buffer), expected);
@@ -613,6 +624,37 @@ fn table_callback_face_shapes_like_a_blob_face() {
         hr_buffer_destroy(buffer);
         hr_font_destroy(font);
         // Freeing the face runs `destroy_table_source`.
+        hr_face_destroy(face);
+    }
+}
+
+#[test]
+fn custom_font_funcs_do_not_load_builtin_font_tables() {
+    let source = Box::into_raw(Box::new(TableSource {
+        data: font_data(),
+        requested: Mutex::new(Vec::new()),
+    }));
+    unsafe {
+        let face = hr_face_create_for_tables(
+            Some(reference_table),
+            source.cast::<c_void>(),
+            Some(destroy_table_source),
+        );
+        let font = hr_font_create(face);
+        let funcs = hr_font_funcs_create();
+        hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
+
+        let buffer = buffer_with_text(TEXT);
+        hr_shape(font, buffer, ptr::null(), 0);
+
+        let requested = (*source).requested.lock().unwrap();
+        assert!(!requested.contains(&hr_tag_from_string(c"cmap".as_ptr(), -1)));
+        assert!(!requested.contains(&hr_tag_from_string(c"glyf".as_ptr(), -1)));
+        drop(requested);
+
+        hr_buffer_destroy(buffer);
+        hr_font_funcs_destroy(funcs);
+        hr_font_destroy(font);
         hr_face_destroy(face);
     }
 }

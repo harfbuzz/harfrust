@@ -6,6 +6,7 @@ use read_fonts::types::F2Dot14;
 use read_fonts::types::GlyphId;
 
 use crate::hb::charmap::Charmap;
+use crate::hb::face::FontKind;
 use crate::hb::face::Scale;
 use crate::hb::glyph_metrics::GlyphMetrics;
 
@@ -204,11 +205,17 @@ impl<'a> IntoIterator for NominalGlyphBatch<'a> {
 /// Default implementations backed by font tables.
 pub struct BuiltinFontFuncs<'a> {
     face: &'a hb_font_t<'a>,
+    glyph_metrics: core::cell::OnceCell<GlyphMetrics<'a>>,
+    charmap: core::cell::OnceCell<Charmap<'a>>,
 }
 
 impl<'a> BuiltinFontFuncs<'a> {
     pub(crate) fn new(face: &'a hb_font_t<'a>) -> Self {
-        Self { face }
+        Self {
+            face,
+            glyph_metrics: core::cell::OnceCell::new(),
+            charmap: core::cell::OnceCell::new(),
+        }
     }
 
     fn coords(&self) -> &[F2Dot14] {
@@ -216,11 +223,25 @@ impl<'a> BuiltinFontFuncs<'a> {
     }
 
     fn charmap(&self) -> &Charmap<'a> {
-        &self.face.charmap
+        if let Some(charmap) = &self.face.charmap {
+            return charmap;
+        }
+        self.charmap.get_or_init(|| match &self.face.font {
+            FontKind::FontRef(font) => font.charmap.clone(),
+            FontKind::FontInstance(instance, _) => Charmap::from_tables(&instance.tables()),
+        })
     }
 
     fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
-        &self.face.glyph_metrics
+        if let Some(metrics) = &self.face.glyph_metrics {
+            return metrics;
+        }
+        self.glyph_metrics.get_or_init(|| match &self.face.font {
+            FontKind::FontRef(font) => font.glyph_metrics.clone(),
+            FontKind::FontInstance(instance, metrics) => {
+                GlyphMetrics::from_tables(&instance.tables(), metrics)
+            }
+        })
     }
 
     /// Maps a Unicode scalar value to a nominal glyph.

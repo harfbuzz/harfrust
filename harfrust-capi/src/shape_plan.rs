@@ -512,7 +512,7 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         font_ref.face() == plan_ref.face,
         "shape plan was built for a different face than this font"
     );
-    let Some(instance) = font_ref.instance.as_deref() else {
+    let Some(instance) = font_ref.instance() else {
         return false.into();
     };
     // ... and against one variation of it.

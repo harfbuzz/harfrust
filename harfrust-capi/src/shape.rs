@@ -49,7 +49,7 @@ pub(crate) fn shape_with_plan(
     let Some(font_ref) = (unsafe { font.as_ref() }) else {
         return false.into();
     };
-    let Some(shaper) = font_ref.shaper.as_ref() else {
+    let Some(shaper) = font_ref.shaper() else {
         return false.into();
     };
     let has_funcs = !font_ref.funcs.is_null();
@@ -144,10 +144,10 @@ pub unsafe extern "C" fn hr_shape_full(
     let Some(font_ref) = (unsafe { font.as_ref() }) else {
         return false.into();
     };
-    let Some(instance) = font_ref.instance.as_deref() else {
+    let Some(instance) = font_ref.instance() else {
         return false.into();
     };
-    let Some(shaper) = font_ref.shaper.as_ref() else {
+    let Some(shaper) = font_ref.shaper() else {
         return false.into();
     };
     // The plan cache lives on the face, which outlives the font.

@@ -37,16 +37,62 @@ impl Drop for FontData {
     }
 }
 
+/// A prepared shaper and the stable allocation it borrows.
+///
+/// Keeping these in one private owner makes replacing the instance drop the
+/// shaper first. The explicit `Drop` preserves that invariant if the fields
+/// are ever reordered.
+struct PreparedFont {
+    shaper: Option<Shaper<'static>>,
+    builtin_shaper: Option<OnceLock<Shaper<'static>>>,
+    instance: Box<FontInstance>,
+}
+
+impl PreparedFont {
+    fn new(instance: FontInstance) -> Self {
+        let instance = Box::new(instance);
+        let shaper = Shaper::from_font_instance(&instance).map(|shaper| {
+            // SAFETY: the shaper borrows the allocation owned by `instance`,
+            // which is stable across moving the Box. `Drop` clears the shaper
+            // before that allocation is released.
+            unsafe { core::mem::transmute::<Shaper<'_>, Shaper<'static>>(shaper) }
+        });
+        Self {
+            shaper,
+            builtin_shaper: Some(OnceLock::new()),
+            instance,
+        }
+    }
+
+    fn shaper(&self, preload_builtin_data: bool) -> Option<&Shaper<'static>> {
+        let shaper = self.shaper.as_ref()?;
+        if !preload_builtin_data {
+            return Some(shaper);
+        }
+        let cache = self.builtin_shaper.as_ref()?;
+        Some(cache.get_or_init(|| {
+            let mut shaper = shaper.clone();
+            shaper.preload_builtin_font_data();
+            shaper
+        }))
+    }
+}
+
+impl Drop for PreparedFont {
+    fn drop(&mut self) {
+        self.shaper = None;
+        self.builtin_shaper = None;
+    }
+}
+
 /// A font: a face with a scale, an optional point size, and variation
 /// settings applied.
 pub struct hr_font_t {
     header: ObjectHeader,
     /// Owned reference to the face this font draws from.
     face: *mut hr_face_t,
-    /// Prepared view of `instance`. This must be dropped before `instance`.
-    pub(crate) shaper: Option<Shaper<'static>>,
     /// `None` only for the immortal empty font.
-    pub(crate) instance: Option<Arc<FontInstance>>,
+    prepared: Option<PreparedFont>,
     pub(crate) x_scale: c_int,
     pub(crate) y_scale: c_int,
     pub(crate) ptem: f32,
@@ -67,33 +113,33 @@ impl hr_font_t {
         self.face
     }
 
+    pub(crate) fn instance(&self) -> Option<&FontInstance> {
+        self.prepared.as_ref().map(|prepared| &*prepared.instance)
+    }
+
+    pub(crate) fn shaper(&self) -> Option<&Shaper<'static>> {
+        self.prepared
+            .as_ref()
+            .and_then(|prepared| prepared.shaper(self.funcs.is_null()))
+    }
+
     /// Rebuilds the font instance after a change to variation settings, and
     /// refreshes the normalized coordinate mirror.
     fn set_instance(&mut self, instance: FontInstance) {
-        self.coords = instance
+        let coords = instance
             .normalized_coords()
             .iter()
             .map(|coord| c_int::from(coord.to_bits()))
             .collect();
-        let instance = Arc::new(instance);
-        let shaper = Shaper::from_font_instance(&instance).map(|shaper| {
-            // SAFETY: the shaper borrows the allocation owned by `instance`,
-            // which is stable across moving the Arc. `self.shaper` is always
-            // cleared before `self.instance` is replaced or dropped.
-            unsafe { core::mem::transmute::<Shaper<'_>, Shaper<'static>>(shaper) }
-        });
-
-        self.shaper = None;
-        self.instance = Some(instance);
-        self.shaper = shaper;
+        let prepared = PreparedFont::new(instance);
+        self.coords = coords;
+        self.prepared = Some(prepared);
     }
 }
 
 impl Drop for hr_font_t {
     fn drop(&mut self) {
-        // Keep the self-referential pair's destruction order explicit.
-        self.shaper = None;
-        self.instance = None;
+        self.prepared = None;
         // SAFETY: this font owns one reference to each of these.
         unsafe {
             object::destroy(self.funcs);
@@ -116,8 +162,7 @@ impl Object for hr_font_t {
                 Empty::new(hr_font_t {
                     header: ObjectHeader::immortal(),
                     face: hr_face_t::empty(),
-                    shaper: None,
-                    instance: None,
+                    prepared: None,
                     x_scale: 0,
                     y_scale: 0,
                     ptem: 0.0,
@@ -158,8 +203,7 @@ pub unsafe extern "C" fn hr_font_create(face: *mut hr_face_t) -> *mut hr_font_t 
     let mut this = hr_font_t {
         header: ObjectHeader::new(),
         face: owned_face,
-        shaper: None,
-        instance: None,
+        prepared: None,
         x_scale: upem,
         y_scale: upem,
         ptem: 0.0,
@@ -186,14 +230,13 @@ pub unsafe extern "C" fn hr_font_create_sub_font(parent: *mut hr_font_t) -> *mut
     let Some(parent_ref) = (unsafe { parent.as_ref() }) else {
         return hr_font_t::empty();
     };
-    let Some(instance) = parent_ref.instance.as_deref() else {
+    let Some(instance) = parent_ref.instance() else {
         return hr_font_t::empty();
     };
     let mut this = hr_font_t {
         header: ObjectHeader::new(),
         face: unsafe { object::reference(parent_ref.face) },
-        shaper: None,
-        instance: None,
+        prepared: None,
         x_scale: parent_ref.x_scale,
         y_scale: parent_ref.y_scale,
         ptem: parent_ref.ptem,
@@ -388,7 +431,7 @@ pub unsafe extern "C" fn hr_font_set_variations(
     let Some(font) = (unsafe { object::as_mutable(font) }) else {
         return;
     };
-    let Some(instance) = font.instance.as_deref() else {
+    let Some(instance) = font.instance() else {
         return;
     };
     let settings: Vec<FontVariation> = if variations.is_null() || variations_length == 0 {
@@ -426,7 +469,7 @@ pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
     let Some(font) = (unsafe { object::as_mutable(font) }) else {
         return;
     };
-    let Some(instance) = font.instance.as_deref() else {
+    let Some(instance) = font.instance() else {
         return;
     };
     let settings: Vec<NormalizedCoord> = if coords.is_null() || coords_length == 0 {
@@ -477,7 +520,7 @@ pub unsafe extern "C" fn hr_font_set_var_named_instance(font: *mut hr_font_t, in
     let Some(font) = (unsafe { object::as_mutable(font) }) else {
         return;
     };
-    let Some(current) = font.instance.as_deref() else {
+    let Some(current) = font.instance() else {
         return;
     };
     let rebuilt = FontInstance::builder(current.font())
@@ -548,8 +591,7 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
 ) -> hr_bool_t {
     let font = unsafe { object::or_empty(font.cast_const()) };
     let found = font
-        .instance
-        .as_ref()
+        .instance()
         .and_then(|instance| instance.font().tables().cmap().ok())
         .and_then(|cmap| cmap.map_codepoint(unicode));
     let Some(found) = found else {
@@ -582,8 +624,7 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
 
     let font_ref = unsafe { object::or_empty(font.cast_const()) };
     let Some(cmap) = font_ref
-        .instance
-        .as_ref()
+        .instance()
         .and_then(|instance| instance.font().tables().cmap().ok())
     else {
         return false.into();
