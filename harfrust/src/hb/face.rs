@@ -468,7 +468,7 @@ pub fn shape(
     }
     let mut buffer = buffer.0;
     // As above, this signature cannot report a failure.
-    if let Err(err) = hb_font.shape_buffer(&mut buffer, options) {
+    if let Err(err) = hb_font.shape_buffer_inner(&mut buffer, options) {
         panic!("{err}");
     }
     GlyphBuffer(buffer)
@@ -514,7 +514,7 @@ impl Buffer {
                 options = options.scale(Some((ppem * 65536.0) as i32));
             }
         }
-        hb_font.shape_buffer(self, options)
+        hb_font.shape_buffer_inner(self, options)
     }
 }
 
@@ -553,6 +553,16 @@ pub struct hb_font_t<'a> {
 }
 
 impl<'a> crate::Shaper<'a> {
+    /// Builds a shaper for the font instance, reusing the instance's cached
+    /// shaping data.
+    ///
+    /// The shaper borrows the instance; callers that shape repeatedly can
+    /// build it once and reuse it across calls.
+    #[cfg(feature = "experimental_font_api")]
+    pub fn from_font_instance(font: &'a crate::font::FontInstance) -> Option<Self> {
+        Self::from_font(font)
+    }
+
     pub(crate) fn from_font(font: &'a crate::font::FontInstance) -> Option<Self> {
         let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
             Box::new(ShaperData::from_font(font))
@@ -611,13 +621,32 @@ impl<'a> crate::Shaper<'a> {
         let mut buffer = buffer.0;
         // This signature cannot report a failure, and every way shaping can
         // fail is a programming error, so panic.
-        if let Err(err) = self.shape_buffer(&mut buffer, options) {
+        if let Err(err) = self.shape_buffer_inner(&mut buffer, options) {
             panic!("{err}");
         }
         GlyphBuffer(buffer)
     }
 
-    pub(crate) fn shape_buffer(
+    /// Shapes a buffer in place using this prepared shaper.
+    ///
+    /// On success the buffer holds [`BufferContentType::Glyphs`]. If a plan
+    /// is supplied through [`ShapeOptions::plan`] it must have been built for
+    /// this buffer's direction and script.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ShapeError`] when the buffer has already been shaped, has
+    /// no direction and no plan, or does not match the supplied plan.
+    #[cfg(feature = "experimental_font_api")]
+    pub fn shape_buffer(
+        &self,
+        buffer: &mut Buffer,
+        options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
+        self.shape_buffer_inner(buffer, options)
+    }
+
+    fn shape_buffer_inner(
         &self,
         buffer: &mut Buffer,
         options: ShapeOptions<'_>,
