@@ -7,7 +7,9 @@ pub mod map;
 
 use crate::hb::aat::layout_common::SafeToBreakAccel;
 use crate::hb::aat::layout_kerx_table::KerxSubtableCache;
-use crate::hb::aat::layout_morx_table::{MorphSubtableCache, MorphSubtableDescriptor};
+use crate::hb::aat::layout_morx_table::{
+    CachedMorxSubtable, MorphSubtableCache, MorphSubtableDescriptor,
+};
 use crate::hb::kerning::KernSubtableCache;
 use crate::hb::ot::OtCache;
 use crate::hb::tables::TableRanges;
@@ -156,6 +158,7 @@ pub struct AatTables<'a> {
         &'a [MorphSubtableCache],
         &'a [MorphSubtableDescriptor],
     )>,
+    pub(crate) cached_morx: Vec<Option<CachedMorxSubtable<'a>>>,
     pub mort: Option<(
         Mort<'a>,
         &'a [MorphSubtableCache],
@@ -185,16 +188,25 @@ fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
 impl<'a> AatTables<'a> {
     pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
         let morx = if cache.has_morx {
-            table_ranges.morx.resolve_table(font).map(|table| {
-                (
-                    table,
-                    cache.morx.as_slice(),
-                    cache.morx_descriptors.as_slice(),
-                )
-            })
+            table_ranges
+                .morx
+                .resolve_table(font)
+                .map(|table: Morx<'a>| {
+                    (
+                        table,
+                        cache.morx.as_slice(),
+                        cache.morx_descriptors.as_slice(),
+                    )
+                })
         } else {
             None
         };
+        let cached_morx = morx
+            .as_ref()
+            .map(|(table, caches, descriptors)| {
+                CachedMorxSubtable::resolve_all(table.offset_data().as_bytes(), caches, descriptors)
+            })
+            .unwrap_or_default();
         let mort = if cache.has_mort {
             table_ranges.mort.resolve_table(font).map(|table| {
                 (
@@ -235,6 +247,7 @@ impl<'a> AatTables<'a> {
         Self {
             safe_to_break: Some(&cache.safe_to_break),
             morx,
+            cached_morx,
             mort,
             ankr,
             kern,
@@ -257,6 +270,12 @@ impl<'a> AatTables<'a> {
                     cache.morx_descriptors.as_slice(),
                 )
             });
+        let cached_morx = morx
+            .as_ref()
+            .map(|(table, caches, descriptors)| {
+                CachedMorxSubtable::resolve_all(table.offset_data().as_bytes(), caches, descriptors)
+            })
+            .unwrap_or_default();
         let mort = cache
             .has_mort_from_tables
             .then(|| font.mort().ok())
@@ -285,6 +304,7 @@ impl<'a> AatTables<'a> {
         Self {
             safe_to_break: Some(&cache.safe_to_break),
             morx,
+            cached_morx,
             mort,
             ankr,
             kern,

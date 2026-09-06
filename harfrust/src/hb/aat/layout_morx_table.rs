@@ -12,7 +12,7 @@ use alloc::{vec, vec::Vec};
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
-use read_fonts::{FontData, ReadError};
+use read_fonts::{FontData, FontRead, ReadError};
 
 trait MorphChain {
     fn default_flags(&self) -> u32;
@@ -180,6 +180,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             morx.offset_data().as_bytes(),
             subtable_caches,
             descriptors,
+            Some(&c.face.aat_tables.cached_morx),
         )?;
     } else {
         let (mort, subtable_caches, descriptors) = c.face.aat_tables.mort.as_ref()?;
@@ -190,6 +191,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             mort.offset_data().as_bytes(),
             subtable_caches,
             descriptors,
+            None,
         )?;
     }
 
@@ -203,6 +205,7 @@ fn apply_table<'a>(
     table_bytes: &'a [u8],
     subtable_caches: &'a [MorphSubtableCache],
     descriptors: &'a [MorphSubtableDescriptor],
+    cached_subtables: Option<&'a [Option<CachedMorxSubtable<'a>>]>,
 ) -> Option<()> {
     let mut last_chain_index = u32::MAX;
     let mut chain_flags = None;
@@ -259,6 +262,14 @@ fn apply_table<'a>(
 
         if reverse != c.buffer_is_reversed {
             c.reverse_buffer();
+        }
+
+        if let Some(kind) = cached_subtables
+            .and_then(|subtables| subtables.get(subtable_idx))
+            .and_then(Option::as_ref)
+        {
+            kind.apply(c);
+            continue;
         }
 
         let Some(data) = table_bytes.get(desc.data_start as usize..desc.data_end as usize) else {
@@ -917,6 +928,57 @@ impl ContextualActions<morx::ContextualEntryData> for morx::ContextualSubtable<'
     }
 }
 
+/// A covariant view of a contextual subtable.
+///
+/// The generated `ContextualSubtable` contains an `ArrayOfOffsets` whose
+/// target type repeats its lifetime, making the whole view invariant. Storing
+/// it in `AatTables` would make `hb_font_t` invariant too. Keep the equivalent
+/// lookup-array data directly so the prepared shaper remains covariant.
+#[derive(Clone)]
+pub(crate) struct CachedMorxContextual<'a> {
+    state_table: ExtendedStateTable<'a, morx::ContextualEntryData>,
+    lookups_data: FontData<'a>,
+}
+
+impl CachedMorxContextual<'_> {
+    fn replacement(&self, index: u16, glyph: GlyphId16) -> Option<GlyphId16> {
+        let offset = usize::from(index).checked_mul(u32::RAW_BYTE_LEN)?;
+        let lookup_offset = self.lookups_data.read_at::<u32>(offset).ok()? as usize;
+        let lookup_data = self.lookups_data.split_off(lookup_offset)?;
+        aat::LookupU16::read(lookup_data)
+            .ok()?
+            .value(glyph.to_u16())
+            .ok()
+            .map(GlyphId16::new)
+    }
+}
+
+impl ContextualActions<morx::ContextualEntryData> for CachedMorxContextual<'_> {
+    fn mark_action(payload: &morx::ContextualEntryData) -> bool {
+        payload.mark_index.get() != 0xFFFF
+    }
+
+    fn current_action(payload: &morx::ContextualEntryData) -> bool {
+        payload.current_index.get() != 0xFFFF
+    }
+
+    fn mark_replacement(
+        &self,
+        payload: &morx::ContextualEntryData,
+        glyph: GlyphId16,
+    ) -> Option<GlyphId16> {
+        self.replacement(payload.mark_index.get(), glyph)
+    }
+
+    fn current_replacement(
+        &self,
+        payload: &morx::ContextualEntryData,
+        glyph: GlyphId16,
+    ) -> Option<GlyphId16> {
+        self.replacement(payload.current_index.get(), glyph)
+    }
+}
+
 impl ContextualActions<mort::ContextualEntryData> for mort::ContextualSubtable<'_> {
     fn mark_action(payload: &mort::ContextualEntryData) -> bool {
         payload.mark_offset.get() != 0
@@ -1400,6 +1462,77 @@ pub(crate) struct MorphSubtableDescriptor {
 enum MorphSubtableParts {
     Morx(morx::SubtableParts),
     Mort(mort::SubtableParts),
+}
+
+/// A resolved `morx` subtable view cached on the prepared shaper.
+///
+/// These views only borrow font bytes. Unlike a compiled state machine they
+/// do not copy table data.
+#[derive(Clone)]
+pub(crate) enum CachedMorxSubtable<'a> {
+    Rearrangement(ExtendedStateTable<'a>),
+    Contextual(CachedMorxContextual<'a>),
+    Ligature(morx::LigatureSubtable<'a>),
+    NonContextual(aat::LookupU16<'a>),
+    Insertion(morx::InsertionSubtable<'a>),
+}
+
+impl<'a> CachedMorxSubtable<'a> {
+    pub(crate) fn resolve_all(
+        table_bytes: &'a [u8],
+        caches: &[MorphSubtableCache],
+        descriptors: &[MorphSubtableDescriptor],
+    ) -> Vec<Option<Self>> {
+        caches
+            .iter()
+            .zip(descriptors)
+            .map(|(cache, desc)| {
+                let data = table_bytes.get(desc.data_start as usize..desc.data_end as usize)?;
+                let MorphSubtableParts::Morx(parts) = &cache.parts else {
+                    return None;
+                };
+                match morx::SubtableKind::from_parts(FontData::new(data), parts).ok()? {
+                    morx::SubtableKind::Rearrangement(table) => Some(Self::Rearrangement(table)),
+                    morx::SubtableKind::Contextual(table) => {
+                        let lookups_data =
+                            FontData::new(data).split_off(parts.extra[0] as usize)?;
+                        Some(Self::Contextual(CachedMorxContextual {
+                            state_table: table.state_table,
+                            lookups_data,
+                        }))
+                    }
+                    morx::SubtableKind::Ligature(table) => Some(Self::Ligature(table)),
+                    morx::SubtableKind::NonContextual(table) => Some(Self::NonContextual(table)),
+                    morx::SubtableKind::Insertion(table) => Some(Self::Insertion(table)),
+                }
+            })
+            .collect()
+    }
+
+    fn apply(&self, ac: &mut AatApplyContext<'a>) {
+        match self {
+            Self::Rearrangement(table) => {
+                apply_morx_subtable(morx::SubtableKind::Rearrangement(table.clone()), ac);
+            }
+            Self::Contextual(table) => {
+                let mut c = ContextualCtx {
+                    mark_set: false,
+                    mark: 0,
+                    table: table.clone(),
+                };
+                drive(&table.state_table, &mut c, ac);
+            }
+            Self::Ligature(table) => {
+                apply_morx_subtable(morx::SubtableKind::Ligature(table.clone()), ac);
+            }
+            Self::NonContextual(table) => {
+                apply_morx_subtable(morx::SubtableKind::NonContextual(table.clone()), ac);
+            }
+            Self::Insertion(table) => {
+                apply_morx_subtable(morx::SubtableKind::Insertion(table.clone()), ac);
+            }
+        }
+    }
 }
 
 pub(crate) struct MorphSubtableCache {
