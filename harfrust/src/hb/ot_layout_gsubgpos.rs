@@ -309,6 +309,37 @@ impl matcher_t {
     }
 }
 
+#[inline(always)]
+fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
+    matcher: &matcher_t,
+    info: &mut GlyphInfo,
+    face: &hb_font_t,
+    lookup_props: u32,
+    glyph_data: u32,
+    match_func: Option<&F>,
+    syllable: u8,
+) -> match_t {
+    let skip = matcher.may_skip(info, face, lookup_props);
+
+    if skip == may_skip_t::SKIP_YES {
+        return match_t::SKIP;
+    }
+
+    let _match = matcher.may_match(info, glyph_data, match_func, syllable);
+
+    if _match == may_match_t::MATCH_YES
+        || (_match == may_match_t::MATCH_MAYBE && skip == may_skip_t::SKIP_NO)
+    {
+        return match_t::MATCH;
+    }
+
+    if skip == may_skip_t::SKIP_NO {
+        return match_t::NOT_MATCH;
+    }
+
+    match_t::SKIP
+}
+
 // In harfbuzz, skipping iterator works quite differently than it works here. In harfbuzz,
 // hb_ot_apply_context contains a skipping iterator that itself contains references to font
 // and buffer, meaning that we multiple borrows issue. Due to ownership rules in Rust,
@@ -332,11 +363,6 @@ impl<'f, 'c> skipping_iterator_t<'f, 'c, fn(&mut GlyphInfo, u32) -> bool> {
     pub fn new(ctx: &'c mut hb_ot_apply_context_t<'f>, context_match: bool) -> Self {
         Self::with_match_fn(ctx, context_match, None)
     }
-}
-
-pub(crate) enum MatchSource {
-    Info,
-    OutInfo,
 }
 
 impl<'f, 'c, F> skipping_iterator_t<'f, 'c, F>
@@ -400,7 +426,7 @@ where
         while self.buf_idx < stop {
             self.buf_idx += 1;
 
-            match self.match_at(self.buf_idx, MatchSource::Info) {
+            match self.match_at(self.buf_idx) {
                 match_t::MATCH => {
                     self.advance_glyph_data();
                     return true;
@@ -426,11 +452,21 @@ where
     #[inline]
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
         let stop: usize = 0;
+        let start = self.buf_idx;
+        let out_info = &mut self.buffer.out_info_mut()[..start];
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
 
-            match self.match_at(self.buf_idx, MatchSource::OutInfo) {
+            match match_info(
+                self.matcher,
+                &mut out_info[self.buf_idx],
+                self.face,
+                self.lookup_props,
+                self.glyph_data,
+                self.match_func.as_ref(),
+                self.syllable,
+            ) {
                 match_t::MATCH => {
                     self.advance_glyph_data();
                     return true;
@@ -478,35 +514,17 @@ where
     }
 
     #[inline]
-    pub fn match_at(&mut self, idx: usize, source: MatchSource) -> match_t {
-        let info = match source {
-            MatchSource::Info => &mut self.buffer.info[idx],
-            MatchSource::OutInfo => &mut self.buffer.out_info_mut()[idx],
-        };
-        let skip = self.matcher.may_skip(info, self.face, self.lookup_props);
-
-        if skip == may_skip_t::SKIP_YES {
-            return match_t::SKIP;
-        }
-
-        let _match = self.matcher.may_match(
+    pub fn match_at(&mut self, idx: usize) -> match_t {
+        let info = &mut self.buffer.info[idx];
+        match_info(
+            self.matcher,
             info,
+            self.face,
+            self.lookup_props,
             self.glyph_data,
             self.match_func.as_ref(),
             self.syllable,
-        );
-
-        if _match == may_match_t::MATCH_YES
-            || (_match == may_match_t::MATCH_MAYBE && skip == may_skip_t::SKIP_NO)
-        {
-            return match_t::MATCH;
-        }
-
-        if skip == may_skip_t::SKIP_NO {
-            return match_t::NOT_MATCH;
-        }
-
-        match_t::SKIP
+        )
     }
 }
 
