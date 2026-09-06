@@ -17,10 +17,7 @@ use crate::common::{
 use crate::font::hr_font_t;
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
-// HarfBuzz buffers retain at most five context codepoints. Four bytes per
-// codepoint are enough to cover those without validating an arbitrarily long
-// prefix or suffix passed to hr_buffer_add_utf8.
-const MAX_CONTEXT_UTF8_BYTES: usize = 5 * 4;
+const MAX_CONTEXT_CODEPOINTS: usize = 5;
 
 /// What a buffer currently holds.
 #[repr(C)]
@@ -434,6 +431,97 @@ fn append_utf8(buffer: &mut Buffer, text: &str, cluster_offset: c_uint) {
     }
 }
 
+// Decode just one codepoint at a time so context past HarfBuzz's five-codepoint
+// limit is never scanned. Like hb_utf8_t::next, consume one byte per error.
+fn next_utf8(bytes: &[u8], index: &mut usize) -> u32 {
+    let first = bytes[*index];
+    *index += 1;
+    if first <= 0x7F {
+        return first.into();
+    }
+
+    let continuation = |byte: u8| (byte & 0xC0) == 0x80;
+    if (0xC2..=0xDF).contains(&first) {
+        if *index < bytes.len() && continuation(bytes[*index]) {
+            let codepoint = (u32::from(first & 0x1F) << 6) | u32::from(bytes[*index] & 0x3F);
+            *index += 1;
+            return codepoint;
+        }
+    } else if (0xE0..=0xEF).contains(&first) {
+        if *index + 1 < bytes.len()
+            && continuation(bytes[*index])
+            && continuation(bytes[*index + 1])
+        {
+            let codepoint = (u32::from(first & 0x0F) << 12)
+                | (u32::from(bytes[*index] & 0x3F) << 6)
+                | u32::from(bytes[*index + 1] & 0x3F);
+            if codepoint >= 0x800 && !(0xD800..=0xDFFF).contains(&codepoint) {
+                *index += 2;
+                return codepoint;
+            }
+        }
+    } else if (0xF0..=0xF4).contains(&first)
+        && *index + 2 < bytes.len()
+        && continuation(bytes[*index])
+        && continuation(bytes[*index + 1])
+        && continuation(bytes[*index + 2])
+    {
+        let codepoint = (u32::from(first & 0x07) << 18)
+            | (u32::from(bytes[*index] & 0x3F) << 12)
+            | (u32::from(bytes[*index + 1] & 0x3F) << 6)
+            | u32::from(bytes[*index + 2] & 0x3F);
+        if (0x10000..=0x10_FFFF).contains(&codepoint) {
+            *index += 3;
+            return codepoint;
+        }
+    }
+
+    char::REPLACEMENT_CHARACTER.into()
+}
+
+fn decode_pre_context_utf8(bytes: &[u8], codepoints: &mut [u32; MAX_CONTEXT_CODEPOINTS]) -> usize {
+    let mut start = bytes.len();
+    let mut len = 0;
+    while start > 0 && len < codepoints.len() {
+        let end = start;
+        start -= 1;
+        while start > 0 && bytes[start] & 0xC0 == 0x80 && end - start < 4 {
+            start -= 1;
+        }
+
+        let mut next = start;
+        let codepoint = next_utf8(&bytes[..end], &mut next);
+        if next != end {
+            start = end - 1;
+        }
+        codepoints[len] = codepoint;
+        len += 1;
+    }
+    len
+}
+
+fn decode_post_context_utf8(bytes: &[u8], codepoints: &mut [u32; MAX_CONTEXT_CODEPOINTS]) -> usize {
+    let mut index = 0;
+    let mut len = 0;
+    while index < bytes.len() && len < codepoints.len() {
+        codepoints[len] = next_utf8(bytes, &mut index);
+        len += 1;
+    }
+    len
+}
+
+fn set_pre_context_utf8(buffer: &mut Buffer, bytes: &[u8]) {
+    let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+    let len = decode_pre_context_utf8(bytes, &mut codepoints);
+    buffer.set_pre_context_codepoints(&codepoints[..len]);
+}
+
+fn set_post_context_utf8(buffer: &mut Buffer, bytes: &[u8]) {
+    let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+    let len = decode_post_context_utf8(bytes, &mut codepoints);
+    buffer.set_post_context_codepoints(&codepoints[..len]);
+}
+
 /// Appends UTF-8 text to a buffer.
 ///
 /// Only `text[item_offset .. item_offset + item_length]` is added; the text
@@ -470,14 +558,10 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     let decode = String::from_utf8_lossy;
 
     if start > 0 {
-        let context = &bytes[..start];
-        let context = &context[context.len().saturating_sub(MAX_CONTEXT_UTF8_BYTES)..];
-        buffer.buffer.set_pre_context(&decode(context));
+        set_pre_context_utf8(&mut buffer.buffer, &bytes[..start]);
     }
     if end < bytes.len() {
-        let context = &bytes[end..];
-        let context = &context[..context.len().min(MAX_CONTEXT_UTF8_BYTES)];
-        buffer.buffer.set_post_context(&decode(context));
+        set_post_context_utf8(&mut buffer.buffer, &bytes[end..]);
     }
     // Cluster values are offsets into the whole text, not into the item.
     //
@@ -1167,4 +1251,59 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     unsafe { write_c_string(&text, buf, buf_size) };
     write_consumed(text.len().min(buf_size.saturating_sub(1) as usize) as c_uint);
     (end - start) as c_uint
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const REPLACEMENT: u32 = char::REPLACEMENT_CHARACTER as u32;
+
+    #[test]
+    fn decodes_bounded_utf8_context() {
+        let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+        let text = "!a¢€𐍈z";
+
+        let len = decode_pre_context_utf8(text.as_bytes(), &mut codepoints);
+        assert_eq!(
+            &codepoints[..len],
+            &['z' as u32, '𐍈' as u32, '€' as u32, '¢' as u32, 'a' as u32]
+        );
+
+        let len = decode_post_context_utf8(text.as_bytes(), &mut codepoints);
+        assert_eq!(
+            &codepoints[..len],
+            &['!' as u32, 'a' as u32, '¢' as u32, '€' as u32, '𐍈' as u32]
+        );
+    }
+
+    #[test]
+    fn replaces_each_ill_formed_context_byte() {
+        let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+        let text = [0xC0, 0x80, 0xE2, 0x82, b'a', 0xF0, 0x9F];
+
+        let len = decode_pre_context_utf8(&text, &mut codepoints);
+        assert_eq!(
+            &codepoints[..len],
+            &[
+                REPLACEMENT,
+                REPLACEMENT,
+                'a' as u32,
+                REPLACEMENT,
+                REPLACEMENT,
+            ]
+        );
+
+        let len = decode_post_context_utf8(&text, &mut codepoints);
+        assert_eq!(
+            &codepoints[..len],
+            &[
+                REPLACEMENT,
+                REPLACEMENT,
+                REPLACEMENT,
+                REPLACEMENT,
+                'a' as u32,
+            ]
+        );
+    }
 }
