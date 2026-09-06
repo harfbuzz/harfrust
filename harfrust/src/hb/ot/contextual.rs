@@ -1072,6 +1072,8 @@ fn apply_chain_with_sequences<
     Some(())
 }
 
+// Keep this large generic matcher out of the format-specific dispatchers.
+#[inline(never)]
 fn apply_chain_context_rules<
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
