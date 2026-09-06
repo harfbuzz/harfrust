@@ -223,6 +223,9 @@ impl<'a> BuiltinFontFuncs<'a> {
     }
 
     fn charmap(&self) -> &Charmap<'a> {
+        if let Some(charmap) = &self.face.charmap {
+            return charmap;
+        }
         self.charmap.get_or_init(|| match &self.face.font {
             FontKind::FontRef(font) => font.charmap.clone(),
             FontKind::FontInstance(instance, _) => Charmap::from_tables(&instance.tables()),
@@ -230,6 +233,9 @@ impl<'a> BuiltinFontFuncs<'a> {
     }
 
     fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
+        if let Some(metrics) = &self.face.glyph_metrics {
+            return metrics;
+        }
         self.glyph_metrics.get_or_init(|| match &self.face.font {
             FontKind::FontRef(font) => font.glyph_metrics.clone(),
             FontKind::FontInstance(instance, metrics) => {

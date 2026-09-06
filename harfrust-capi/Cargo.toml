@@ -1,0 +1,26 @@
+[package]
+name = "harfrust-capi"
+autotests = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "C API for the HarfRust text shaping library, mirroring HarfBuzz's shaping API."
+repository.workspace = true
+license.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+harfrust = { workspace = true, features = ["std", "experimental_font_api"] }
+read-fonts.workspace = true
+
+[lib]
+name = "harfrust_c"
+# Combining an rlib with these outputs makes Cargo suppress release LTO for
+# the C libraries. Unit tests still get their own Rust test artifact.
+crate-type = ["staticlib", "cdylib"]
+bench = false
+
+[lints]
+workspace = true
