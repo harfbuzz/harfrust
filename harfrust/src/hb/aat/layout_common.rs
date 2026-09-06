@@ -185,6 +185,7 @@ impl<'a> AatApplyContext<'a> {
         self.buffer.replace_glyph(DELETED_GLYPH);
     }
 
+    #[inline(always)]
     pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
         self.buffer.info[i].glyph_id = glyph;
         if glyph == DELETED_GLYPH {
