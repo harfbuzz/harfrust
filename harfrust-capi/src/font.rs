@@ -563,6 +563,14 @@ pub unsafe extern "C" fn hr_font_set_funcs(
         return;
     };
     let previous = font.funcs;
+    // No callbacks is not the same as never having set any: HarfBuzz reads
+    // NULL as its empty funcs, which answer nothing, where a font that was
+    // never given callbacks reads its own tables.
+    let ffuncs = if ffuncs.is_null() {
+        hr_font_funcs_t::empty()
+    } else {
+        ffuncs
+    };
     font.funcs = unsafe { object::reference(ffuncs) };
     unsafe { object::destroy(previous) };
     // Dropping the old data runs its destroy callback, unless a sub-font still

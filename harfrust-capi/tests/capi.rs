@@ -986,7 +986,10 @@ fn unset_callbacks_report_nothing_available() {
             hr_font_funcs_destroy(ffuncs);
         });
 
-        // Clearing the funcs object restores the built-in behaviour.
+        // Asking for no callbacks is itself an answer, and not a way back
+        // to the built-in ones: HarfBuzz reads NULL as its empty funcs
+        // object, which reports nothing available. A font that was never
+        // given callbacks is the one that reads its own tables.
         with_font(|_, font| {
             let ffuncs = hr_font_funcs_create();
             hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
@@ -994,10 +997,18 @@ fn unset_callbacks_report_nothing_available() {
 
             let buffer = buffer_with_text(TEXT);
             hr_shape(font, buffer, ptr::null(), 0);
-            assert!(glyph_ids(buffer).iter().all(|&id| id != 0));
+            assert!(glyph_ids(buffer).iter().all(|&id| id == 0));
 
             hr_buffer_destroy(buffer);
             hr_font_funcs_destroy(ffuncs);
+        });
+
+        // Which leaves the untouched font reading its own tables.
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            assert!(glyph_ids(buffer).iter().all(|&id| id != 0));
+            hr_buffer_destroy(buffer);
         });
     }
 }
