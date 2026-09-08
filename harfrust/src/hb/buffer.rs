@@ -2741,6 +2741,26 @@ pub trait SerializerFont {
     fn glyph_metrics(&self) -> GlyphMetrics<'_>;
 }
 
+/// Stands in for a font when a buffer is serialized without one, as
+/// HarfBuzz's empty font does: glyphs serialize by number rather than by
+/// name, and nothing has extents.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct EmptySerializerFont;
+
+impl SerializerFont for EmptySerializerFont {
+    fn coords(&self) -> &[F2Dot14] {
+        &[]
+    }
+
+    fn glyph_names(&self) -> GlyphNames<'_> {
+        GlyphNames::None
+    }
+
+    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        GlyphMetrics::default()
+    }
+}
+
 impl SerializerFont for crate::Shaper<'_> {
     fn coords(&self) -> &[F2Dot14] {
         self.coords()

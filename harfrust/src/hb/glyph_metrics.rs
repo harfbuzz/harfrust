@@ -21,7 +21,7 @@ use read_fonts::{
     FontRef, TableProvider,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GlyphMetrics<'a> {
     _hmtx: Option<Hmtx<'a>>,
     h_metrics: &'a [LongMetric],

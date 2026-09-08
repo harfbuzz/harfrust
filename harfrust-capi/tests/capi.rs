@@ -329,6 +329,104 @@ fn buffer_properties_round_trip() {
 }
 
 #[test]
+fn serializing_writes_whole_items_or_none() {
+    unsafe {
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_buffer_guess_segment_properties(buffer);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let count = hr_buffer_get_length(buffer);
+
+            let mut full = [0i8; 256];
+            let mut consumed = 0;
+            let items = hr_buffer_serialize_glyphs(
+                buffer,
+                0,
+                count,
+                full.as_mut_ptr(),
+                full.len() as c_uint,
+                &mut consumed,
+                font,
+                hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
+            );
+            assert_eq!(items, count);
+            let whole = std::ffi::CStr::from_ptr(full.as_ptr()).to_str().unwrap();
+            assert_eq!(consumed as usize, whole.len());
+
+            // Every destination size: an item is written only when all of it
+            // fits, and what is reported written is exactly what is there.
+            for size in 0..=whole.len() + 2 {
+                let mut dest = [0x7fi8; 256];
+                let mut consumed = 0;
+                let items = hr_buffer_serialize_glyphs(
+                    buffer,
+                    0,
+                    count,
+                    dest.as_mut_ptr(),
+                    size as c_uint,
+                    &mut consumed,
+                    font,
+                    hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                    HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
+                );
+                if size == 0 {
+                    assert_eq!((items, consumed), (0, 0));
+                    continue;
+                }
+                let written = std::ffi::CStr::from_ptr(dest.as_ptr()).to_str().unwrap();
+                assert_eq!(written.len(), consumed as usize, "size {size}");
+                // Whatever was written is a prefix of the whole, and never
+                // half of an item.
+                assert!(whole.starts_with(written), "size {size}: {written:?}");
+                assert_eq!(
+                    items as usize,
+                    written.matches('|').count() + usize::from(!written.is_empty()),
+                    "size {size}: {written:?}"
+                );
+                assert!(
+                    (consumed as usize) < size,
+                    "size {size} left no room to terminate"
+                );
+            }
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
+fn serializing_without_a_font_numbers_the_glyphs() {
+    unsafe {
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_buffer_guess_segment_properties(buffer);
+            hr_shape(font, buffer, ptr::null(), 0);
+
+            // HarfBuzz substitutes its empty font for NULL, which knows no
+            // glyph names, so the glyphs come back numbered rather than not
+            // at all.
+            let mut dest = [0i8; 256];
+            let mut consumed = 0;
+            let items = hr_buffer_serialize_glyphs(
+                buffer,
+                0,
+                hr_buffer_get_length(buffer),
+                dest.as_mut_ptr(),
+                dest.len() as c_uint,
+                &mut consumed,
+                ptr::null_mut(),
+                hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
+            );
+            assert_eq!(items, hr_buffer_get_length(buffer));
+            let text = std::ffi::CStr::from_ptr(dest.as_ptr()).to_str().unwrap();
+            assert!(text.starts_with("[gid"), "{text:?}");
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
 fn appending_carries_everything_the_glyphs_came_with() {
     unsafe {
         with_font(|_, font| {

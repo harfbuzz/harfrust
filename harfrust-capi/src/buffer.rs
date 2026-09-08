@@ -5,8 +5,8 @@ use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 
 use harfrust::{
-    Buffer, BufferClusterLevel, BufferContentType, BufferFlags, Direction, GlyphInfo,
-    GlyphPosition, SerializeFlags,
+    Buffer, BufferClusterLevel, BufferContentType, BufferFlags, Direction, EmptySerializerFont,
+    GlyphInfo, GlyphPosition, SerializeFlags,
 };
 
 use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
@@ -1319,22 +1319,19 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     }
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
     let font = unsafe { object::or_empty(font.cast_const()) };
-    let Some(instance) = font.instance() else {
-        return 0;
-    };
 
     let infos = buffer.buffer.glyph_infos();
     let start = (start as usize).min(infos.len());
     let end = (end as usize).clamp(start, infos.len());
+    // Nothing to write, but the destination is still terminated.
     if start == end {
+        unsafe { write_c_string("", buf, buf_size) };
         return 0;
     }
 
     let flags = SerializeFlags::from_bits_truncate((flags & 0xFF) as u8);
-    let text = if start == 0 && end == infos.len() {
-        buffer.buffer.serialize(instance, flags)
-    } else {
-        // Serialize a copy holding just the requested range.
+    // Serialize from a copy when only part of the buffer was asked for.
+    let slice = (start != 0 || end != infos.len()).then(|| {
         let mut slice = Buffer::new();
         slice.push_glyph_infos(&infos[start..end]);
         let positions = buffer.buffer.glyph_positions();
@@ -1343,12 +1340,65 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
                 .glyph_positions_mut()
                 .copy_from_slice(&positions[start..end]);
         }
-        slice.serialize(instance, flags)
+        slice
+    });
+    let source = slice.as_ref().unwrap_or(&buffer.buffer);
+    // A caller with no font still gets its glyphs, by number: that is what
+    // HarfBuzz's empty font, which it substitutes for NULL, reports.
+    let mut text = match font.instance() {
+        Some(instance) => source.serialize(instance, flags),
+        None => source.serialize(&EmptySerializerFont, flags),
     };
+    // The opening bracket belongs to the buffer, not to the range: a range
+    // starting partway through opens with a separator instead, so that
+    // serializing a buffer in several pieces concatenates into one list.
+    if start != 0 {
+        text.replace_range(0..1, "|");
+    }
 
-    unsafe { write_c_string(&text, buf, buf_size) };
-    write_consumed(text.len().min(buf_size.saturating_sub(1) as usize) as c_uint);
-    (end - start) as c_uint
+    // Whole items only. HarfBuzz writes an item when the whole of it fits
+    // and stops otherwise, so a truncated item never reaches the caller and
+    // the count reports what was actually written -- callers serialize in
+    // several passes on the strength of that.
+    let count = end - start;
+    let capacity = buf_size as usize;
+    // Each item after the first begins at its separator, and the last one
+    // runs to the end of the text.
+    // Position zero opens the list rather than dividing it, whichever
+    // character stands there.
+    let item_starts: Vec<usize> = core::iter::once(0)
+        .chain(
+            text.match_indices('|')
+                .map(|(at, _)| at)
+                .filter(|&at| at != 0),
+        )
+        .collect();
+    let prefix = |items: usize| -> usize {
+        if items >= count {
+            text.len()
+        } else {
+            item_starts[items]
+        }
+    };
+    let mut written = if item_starts.len() == count {
+        (0..=count).rev().find(|&items| prefix(items) < capacity)
+    } else {
+        // A glyph name holding a separator would throw the count off; write
+        // all or nothing rather than split an item on a guess.
+        (text.len() < capacity).then_some(count)
+    }
+    .unwrap_or(0);
+    if written == 0 {
+        // Zero items written is zero bytes: the caller is told to make room
+        // rather than handed the start of an item.
+        unsafe { write_c_string("", buf, buf_size) };
+        return 0;
+    }
+    written = written.min(count);
+    let bytes = prefix(written);
+    unsafe { write_c_string(&text[..bytes], buf, buf_size) };
+    write_consumed(bytes as c_uint);
+    written as c_uint
 }
 
 #[cfg(test)]
