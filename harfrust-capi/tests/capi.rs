@@ -1462,6 +1462,110 @@ fn shape_full_reports_only_whether_a_shaper_ran() {
     }
 }
 
+static NULL_FUNC_DROPS: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" fn count_null_func_drop(_user_data: *mut c_void) {
+    NULL_FUNC_DROPS.fetch_add(1, Ordering::SeqCst);
+}
+
+#[test]
+fn clearing_a_callback_still_releases_its_user_data() {
+    unsafe {
+        let ffuncs = hr_font_funcs_create();
+        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        // A setter owns the data it is handed whether or not there is a
+        // callback to keep it, so clearing one has to release it. Otherwise
+        // the caller cannot tell which calls took ownership.
+        hr_font_funcs_set_nominal_glyph_func(
+            ffuncs,
+            None,
+            ptr::dangling_mut(),
+            Some(count_null_func_drop),
+        );
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        hr_font_funcs_destroy(ffuncs);
+    }
+}
+
+#[test]
+fn clearing_user_data_removes_the_key() {
+    unsafe {
+        with_font(|face, _| {
+            static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+            let value = ptr::dangling_mut::<c_void>();
+            assert_ne!(
+                hr_face_set_user_data(face, &raw const KEY, value, None, 1),
+                0
+            );
+
+            // Neither data nor a destructor removes the entry outright.
+            assert_ne!(
+                hr_face_set_user_data(face, &raw const KEY, ptr::null_mut(), None, 1),
+                0
+            );
+            assert!(hr_face_get_user_data(face, &raw const KEY).is_null());
+
+            // Which is observable: setting without `replace` succeeds only
+            // when nothing holds the key.
+            assert_ne!(
+                hr_face_set_user_data(face, &raw const KEY, value, None, 0),
+                0
+            );
+            assert_eq!(hr_face_get_user_data(face, &raw const KEY), value);
+            assert_ne!(
+                hr_face_set_user_data(face, &raw const KEY, ptr::null_mut(), None, 1),
+                0
+            );
+        });
+    }
+}
+
+static REENTRANT_KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+static REENTRANT_OTHER: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+static REENTRANT_FACE: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" fn reenter_on_drop(_user_data: *mut c_void) {
+    let face = REENTRANT_FACE.load(Ordering::SeqCst) as *mut hr_face_t;
+    unsafe {
+        hr_face_set_user_data(
+            face,
+            &raw const REENTRANT_OTHER,
+            ptr::dangling_mut(),
+            None,
+            1,
+        );
+    }
+}
+
+#[test]
+fn a_destructor_may_set_user_data_on_the_same_object() {
+    // The destructor is the caller's code and may come back into the API, so
+    // it must not run while the object's user data is locked. Run on a worker
+    // so that a regression fails the test instead of hanging the suite.
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        unsafe {
+            with_font(|face, _| {
+                REENTRANT_FACE.store(face as usize, Ordering::SeqCst);
+                hr_face_set_user_data(
+                    face,
+                    &raw const REENTRANT_KEY,
+                    ptr::dangling_mut(),
+                    Some(reenter_on_drop),
+                    1,
+                );
+                // Replacing runs the destructor above, which re-enters.
+                hr_face_set_user_data(face, &raw const REENTRANT_KEY, ptr::dangling_mut(), None, 1);
+            });
+        }
+        let _ = tx.send(());
+    });
+    assert!(
+        rx.recv_timeout(std::time::Duration::from_secs(30)).is_ok(),
+        "a destructor that set user data deadlocked"
+    );
+}
+
 #[test]
 fn plans_carry_user_data_and_refcounts() {
     unsafe {

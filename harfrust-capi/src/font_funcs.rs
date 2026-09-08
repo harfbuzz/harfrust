@@ -88,6 +88,33 @@ impl<F> Drop for Callback<F> {
     }
 }
 
+/// Pairs a callback with the data it was given, or releases that data when
+/// there is no callback to own it.
+///
+/// Every setter takes ownership of `user_data`, including the ones clearing a
+/// callback: HarfBuzz runs the destructor either way, and a caller that had
+/// to know which calls take ownership could not free anything safely.
+fn callback_taking<F>(
+    func: Option<F>,
+    user_data: *mut c_void,
+    destroy: hr_destroy_func_t,
+) -> Option<Callback<Option<F>>> {
+    match func {
+        Some(func) => Some(Callback {
+            func: Some(func),
+            user_data,
+            destroy,
+        }),
+        None => {
+            if let Some(destroy) = destroy {
+                // SAFETY: `destroy` was supplied alongside `user_data`.
+                unsafe { destroy(user_data) };
+            }
+            None
+        }
+    }
+}
+
 /// A set of font callbacks.
 #[derive(Default)]
 pub struct hr_font_funcs_t {
@@ -237,11 +264,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
         }
         return;
     };
-    ffuncs.nominal_glyph = func.map(|func| Callback {
-        func: Some(func),
-        user_data,
-        destroy,
-    });
+    ffuncs.nominal_glyph = callback_taking(func, user_data, destroy);
 }
 
 /// Sets the callback mapping a Unicode scalar value and variation selector
@@ -271,11 +294,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
         }
         return;
     };
-    ffuncs.variation_glyph = func.map(|func| Callback {
-        func: Some(func),
-        user_data,
-        destroy,
-    });
+    ffuncs.variation_glyph = callback_taking(func, user_data, destroy);
 }
 
 /// Sets the callback returning a glyph's horizontal advance.
@@ -304,11 +323,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
         }
         return;
     };
-    ffuncs.h_advance = func.map(|func| Callback {
-        func: Some(func),
-        user_data,
-        destroy,
-    });
+    ffuncs.h_advance = callback_taking(func, user_data, destroy);
 }
 
 /// Sets the callback returning a glyph's vertical advance.
@@ -337,11 +352,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
         }
         return;
     };
-    ffuncs.v_advance = func.map(|func| Callback {
-        func: Some(func),
-        user_data,
-        destroy,
-    });
+    ffuncs.v_advance = callback_taking(func, user_data, destroy);
 }
 
 /// Sets the callback returning a glyph's vertical origin.
@@ -370,11 +381,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
         }
         return;
     };
-    ffuncs.v_origin = func.map(|func| Callback {
-        func: Some(func),
-        user_data,
-        destroy,
-    });
+    ffuncs.v_origin = callback_taking(func, user_data, destroy);
 }
 
 /// Sets the callback returning a glyph's ink extents.
@@ -403,11 +410,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
         }
         return;
     };
-    ffuncs.extents = func.map(|func| Callback {
-        func: Some(func),
-        user_data,
-        destroy,
-    });
+    ffuncs.extents = callback_taking(func, user_data, destroy);
 }
 
 /// Bridges a [`hr_font_funcs_t`] into HarfRust's [`FontFuncs`] trait for the

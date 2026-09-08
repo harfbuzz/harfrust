@@ -196,27 +196,50 @@ pub unsafe fn set_user_data<T: Object>(
     if header.is_immortal() || key.is_null() {
         return false;
     }
-    let Ok(mut items) = header.user_data.write() else {
-        return false;
-    };
-    if let Some(slot) = items.iter_mut().find(|item| item.key == key) {
-        if !replace {
+    // Whatever this displaces is dropped once the lock is released, because
+    // dropping runs the caller's destructor, and HarfBuzz permits that to
+    // come back in here. Releasing it under the lock would deadlock.
+    let mut displaced = None;
+    let stored = {
+        let Ok(mut items) = header.user_data.write() else {
             return false;
-        }
-        // Dropping the old item runs its destroy callback.
-        *slot = UserDataItem {
-            key,
-            data,
-            destroy: destroy_func,
         };
-        return true;
-    }
-    items.push(UserDataItem {
-        key,
-        data,
-        destroy: destroy_func,
-    });
-    true
+        // Neither data nor a destructor means the entry goes away, rather
+        // than staying behind to answer with NULL: HarfBuzz removes the key,
+        // and a key left in place could never be set again without `replace`.
+        let clearing = data.is_null() && destroy_func.is_none();
+        match items.iter().position(|item| item.key == key) {
+            Some(_) if !replace => false,
+            Some(at) if clearing => {
+                displaced = Some(items.remove(at));
+                true
+            }
+            Some(at) => {
+                displaced = Some(core::mem::replace(
+                    &mut items[at],
+                    UserDataItem {
+                        key,
+                        data,
+                        destroy: destroy_func,
+                    },
+                ));
+                true
+            }
+            // Clearing a key that is not there has nothing to do, but is not
+            // a failure.
+            None if clearing && replace => true,
+            None => {
+                items.push(UserDataItem {
+                    key,
+                    data,
+                    destroy: destroy_func,
+                });
+                true
+            }
+        }
+    };
+    drop(displaced);
+    stored
 }
 
 /// Retrieves user data previously attached with [`set_user_data`].
