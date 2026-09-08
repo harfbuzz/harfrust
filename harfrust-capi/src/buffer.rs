@@ -744,8 +744,11 @@ pub unsafe extern "C" fn hr_buffer_set_script(buffer: *mut hr_buffer_t, script: 
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
-    if let Some(script) = script_to_rust(script) {
-        buffer.buffer.set_script(script);
+    // `HR_SCRIPT_INVALID` is how a caller says "no script", not a script to
+    // ignore: setting it has to clear whatever was there.
+    match script_to_rust(script) {
+        Some(script) => buffer.buffer.set_script(script),
+        None => buffer.buffer.unset_script(),
     }
 }
 
@@ -756,11 +759,15 @@ pub unsafe extern "C" fn hr_buffer_set_script(buffer: *mut hr_buffer_t, script: 
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_script(buffer: *mut hr_buffer_t) -> hr_script_t {
-    script_from_rust(
-        unsafe { object::or_empty(buffer.cast_const()) }
-            .buffer
-            .script(),
-    )
+    match unsafe { object::or_empty(buffer.cast_const()) }
+        .buffer
+        .script_if_set()
+    {
+        Some(script) => script_from_rust(script),
+        // A buffer that was never given a script reports none, rather than
+        // the `Zzzz` that stands for a script known to be unknown.
+        None => crate::common::HR_SCRIPT_INVALID,
+    }
 }
 
 /// Sets a buffer's language.
@@ -774,8 +781,10 @@ pub unsafe extern "C" fn hr_buffer_set_language(buffer: *mut hr_buffer_t, langua
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
-    if let Some(language) = unsafe { language_to_rust(language) } {
-        buffer.buffer.set_language(language);
+    // As with the script, `NULL` clears rather than does nothing.
+    match unsafe { language_to_rust(language) } {
+        Some(language) => buffer.buffer.set_language(language),
+        None => buffer.buffer.unset_language(),
     }
 }
 
@@ -1063,13 +1072,18 @@ pub unsafe extern "C" fn hr_buffer_set_segment_properties(
     }) else {
         return;
     };
+    // Every property is assigned, including the absent ones: this overwrites
+    // what the buffer held rather than filling in around it, so that a reused
+    // buffer cannot keep a script or language from its last life.
     let (direction, script, language) = props.to_rust();
     buffer.buffer.set_direction(direction);
-    if let Some(script) = script {
-        buffer.buffer.set_script(script);
+    match script {
+        Some(script) => buffer.buffer.set_script(script),
+        None => buffer.buffer.unset_script(),
     }
-    if let Some(language) = language {
-        buffer.buffer.set_language(language);
+    match language {
+        Some(language) => buffer.buffer.set_language(language),
+        None => buffer.buffer.unset_language(),
     }
 }
 

@@ -2028,6 +2028,23 @@ impl Buffer {
         self.script = Some(script);
     }
 
+    /// Returns the buffer's script, or `None` if none has been set.
+    ///
+    /// [`Buffer::script`] reports an unset script as `Zzzz`, which is also a
+    /// script a caller can set; this tells the two apart, as HarfBuzz's
+    /// `HB_SCRIPT_INVALID` does.
+    #[inline]
+    pub fn script_if_set(&self) -> Option<Script> {
+        self.script
+    }
+
+    /// Clears the buffer's script, leaving it as it was before any
+    /// [`Buffer::set_script`].
+    #[inline]
+    pub fn unset_script(&mut self) {
+        self.script = None;
+    }
+
     /// Returns the buffer's language.
     #[inline]
     pub fn language(&self) -> Option<Language> {
@@ -2038,6 +2055,13 @@ impl Buffer {
     #[inline]
     pub fn set_language(&mut self, language: Language) {
         self.language = Some(language);
+    }
+
+    /// Clears the buffer's language, leaving it as it was before any
+    /// [`Buffer::set_language`].
+    #[inline]
+    pub fn unset_language(&mut self) {
+        self.language = None;
     }
 
     /// Returns the buffer's flags.
