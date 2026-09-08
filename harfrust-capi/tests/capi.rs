@@ -1770,6 +1770,40 @@ fn a_destructor_may_set_user_data_on_the_same_object() {
 }
 
 #[test]
+fn a_plan_keeps_the_coordinates_the_font_would_have_kept() {
+    unsafe {
+        with_font(|face, font| {
+            // An all-zero vector names the default instance, which is what a
+            // font with no coordinates set already is. The two spell the same
+            // instance, so a plan built with one has to run against the other
+            // rather than reporting a mismatch.
+            let props = latin_props();
+            let coords = [0i32];
+            let plan = hr_shape_plan_create2(
+                face,
+                ptr::from_ref(&props),
+                ptr::null(),
+                0,
+                coords.as_ptr(),
+                1,
+                ptr::null(),
+            );
+            assert_ne!(plan, hr_shape_plan_get_empty());
+
+            let buffer = buffer_with_text(TEXT);
+            hr_buffer_set_segment_properties(buffer, ptr::from_ref(&props));
+            assert_ne!(
+                hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0),
+                0,
+                "a plan for the default instance should run against a font at it"
+            );
+            hr_buffer_destroy(buffer);
+            hr_shape_plan_destroy(plan);
+        });
+    }
+}
+
+#[test]
 fn plans_carry_user_data_and_refcounts() {
     unsafe {
         with_font(|face, _| {

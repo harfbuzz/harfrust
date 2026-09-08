@@ -231,7 +231,10 @@ unsafe fn create_plan(
         header: ObjectHeader::new(),
         face: unsafe { object::reference(face) },
         plan: Some(plan),
-        coords: coords.to_vec(),
+        // The instance's own reading of the coordinates, not the caller's:
+        // a font pads, truncates and drops an all-zero vector, so two
+        // arrays that name the same instance must compare equal here.
+        coords: instance.normalized_coords().to_vec(),
     })
 }
 
@@ -515,11 +518,13 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     let Some(instance) = font_ref.instance() else {
         return false.into();
     };
-    // ... and against one variation of it.
-    assert!(
-        instance.normalized_coords() == plan_ref.coords.as_slice(),
-        "shape plan was built for different variation settings than this font"
-    );
+    // ... and against one variation of it. HarfBuzz does not check this,
+    // and shapes with the font's settings whatever the plan was built for.
+    // Refusing says so and is recoverable; aborting the host process over
+    // something a caller can reasonably get wrong is not.
+    if instance.normalized_coords() != plan_ref.coords.as_slice() {
+        return false.into();
+    }
     // Take a share of the plan, so that a callback destroying it during
     // shaping cannot pull it out from under the call.
     let plan = Arc::clone(plan);
