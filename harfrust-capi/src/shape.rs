@@ -102,8 +102,10 @@ pub unsafe extern "C" fn hr_shape(
 
 /// Shapes a buffer, selecting from a list of shaper names.
 ///
-/// This library has a single shaper, so `shaper_list` is honoured only to the
-/// extent of failing when it names shapers that are all unavailable.
+/// This library has a single shaper, named "ot", so `shaper_list` is honoured
+/// only to the extent of failing when it does not name it. An empty list
+/// names no available shaper and so fails too, as it does in HarfBuzz;
+/// `NULL` asks for no particular shaper and always succeeds.
 ///
 /// Returns false only when no shaper could be run: `shaper_list` names none
 /// that this library provides, or there is nothing to shape with. Shaping
@@ -203,6 +205,9 @@ pub unsafe extern "C" fn hr_shape_full(
 
 /// Returns whether `shaper_list` permits this library's shaper.
 ///
+/// `NULL` permits it; any list, including an empty one, permits it only by
+/// naming "ot".
+///
 /// # Safety
 ///
 /// `shaper_list` must be `NULL` or a `NULL`-terminated array of
@@ -214,13 +219,11 @@ pub(crate) unsafe fn shaper_list_allows_ot(shaper_list: *const *const c_char) ->
     // Walk the caller's pointer rather than a reference to its first element,
     // whose provenance would not cover the rest of the array.
     let mut entry = shaper_list;
-    let mut saw_any = false;
     loop {
         let name = unsafe { *entry };
         if name.is_null() {
             break;
         }
-        saw_any = true;
         if let Ok(name) = unsafe { core::ffi::CStr::from_ptr(name) }.to_str() {
             if name == "ot" {
                 return true;
@@ -228,8 +231,10 @@ pub(crate) unsafe fn shaper_list_allows_ot(shaper_list: *const *const c_char) ->
         }
         entry = unsafe { entry.add(1) };
     }
-    // An empty list places no restriction; a list without "ot" rules us out.
-    !saw_any
+    // A list that named shapers, none of them ours, rules us out -- and so
+    // does one that named none at all, which HarfBuzz reads as naming no
+    // available shaper rather than as placing no restriction.
+    false
 }
 
 /// Returns the shapers this library provides, as a `NULL`-terminated array of
