@@ -284,8 +284,10 @@ fn ill_formed_text_replaces_one_byte_at_a_time() {
         let bad = [0xE2u8, 0x82, b'a'];
         hr_buffer_add_utf8(buffer, bad.as_ptr().cast(), 3, 0, -1);
         let mut len = 0;
-        let infos =
-            std::slice::from_raw_parts(hr_buffer_get_glyph_infos(buffer, &mut len), len as usize);
+        let infos = std::slice::from_raw_parts(
+            hr_buffer_get_glyph_infos(buffer, &raw mut len),
+            len as usize,
+        );
         let seen: Vec<(u32, u32)> = infos.iter().map(|i| (i.codepoint, i.cluster)).collect();
         const FFFD: u32 = 0xFFFD;
         assert_eq!(seen, [(FFFD, 0), (FFFD, 1), (u32::from(b'a'), 2)]);
@@ -294,11 +296,13 @@ fn ill_formed_text_replaces_one_byte_at_a_time() {
         // UTF-32 carries values that are not characters at all; only
         // add_codepoints promises to pass those through untouched.
         let buffer = hr_buffer_create();
-        let items = [0x41u32, 0xD800, 0x110000, 0x42];
+        let items = [0x41u32, 0xD800, 0x0011_0000, 0x42];
         hr_buffer_add_utf32(buffer, items.as_ptr(), 4, 0, -1);
         let mut len = 0;
-        let infos =
-            std::slice::from_raw_parts(hr_buffer_get_glyph_infos(buffer, &mut len), len as usize);
+        let infos = std::slice::from_raw_parts(
+            hr_buffer_get_glyph_infos(buffer, &raw mut len),
+            len as usize,
+        );
         let seen: Vec<(u32, u32)> = infos.iter().map(|i| (i.codepoint, i.cluster)).collect();
         assert_eq!(seen, [(0x41, 0), (FFFD, 1), (FFFD, 2), (0x42, 3)]);
         hr_buffer_destroy(buffer);
@@ -376,7 +380,7 @@ fn serializing_writes_whole_items_or_none() {
                 count,
                 full.as_mut_ptr(),
                 full.len() as c_uint,
-                &mut consumed,
+                &raw mut consumed,
                 font,
                 hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                 HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
@@ -396,7 +400,7 @@ fn serializing_writes_whole_items_or_none() {
                     count,
                     dest.as_mut_ptr(),
                     size as c_uint,
-                    &mut consumed,
+                    &raw mut consumed,
                     font,
                     hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                     HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
@@ -444,7 +448,7 @@ fn serializing_without_a_font_numbers_the_glyphs() {
                 hr_buffer_get_length(buffer),
                 dest.as_mut_ptr(),
                 dest.len() as c_uint,
-                &mut consumed,
+                &raw mut consumed,
                 ptr::null_mut(),
                 hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                 HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
@@ -467,7 +471,7 @@ fn appending_carries_everything_the_glyphs_came_with() {
 
             let mut len = 0;
             let source_positions = std::slice::from_raw_parts(
-                hr_buffer_get_glyph_positions(source, &mut len),
+                hr_buffer_get_glyph_positions(source, &raw mut len),
                 len as usize,
             );
             let source_advances: Vec<i32> = source_positions.iter().map(|p| p.x_advance).collect();
@@ -491,7 +495,7 @@ fn appending_carries_everything_the_glyphs_came_with() {
 
             let mut dest_len = 0;
             let dest_positions = std::slice::from_raw_parts(
-                hr_buffer_get_glyph_positions(dest, &mut dest_len),
+                hr_buffer_get_glyph_positions(dest, &raw mut dest_len),
                 dest_len as usize,
             );
             let dest_advances: Vec<i32> = dest_positions.iter().map(|p| p.x_advance).collect();

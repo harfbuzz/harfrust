@@ -566,22 +566,21 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     // outright is faster than the lossy decoder, which walks the bytes once to
     // find the ill-formed sequences and then again to yield the characters.
     let item = &bytes[start..end];
-    match core::str::from_utf8(item) {
+    if let Ok(text) = core::str::from_utf8(item) {
         // Well-formed text, which is the whole point: this is the hottest
         // call in the API and it should not allocate.
-        Ok(text) => append_utf8(&mut buffer.buffer, text, start as c_uint),
+        append_utf8(&mut buffer.buffer, text, start as c_uint);
+    } else {
         // Ill-formed text goes one codepoint at a time, so that each bad
         // byte becomes its own replacement carrying its own offset, as
         // `hb_utf8_t::next` does. Decoding it lossily instead would fold a
         // run of bad bytes into a single replacement and number the clusters
         // against the replacement text rather than the caller's.
-        Err(_) => {
-            let mut index = 0;
-            while index < item.len() {
-                let cluster = start + index;
-                let codepoint = next_utf8(item, &mut index);
-                buffer.buffer.push(codepoint, cluster as c_uint);
-            }
+        let mut index = 0;
+        while index < item.len() {
+            let cluster = start + index;
+            let codepoint = next_utf8(item, &mut index);
+            buffer.buffer.push(codepoint, cluster as c_uint);
         }
     }
 }

@@ -99,20 +99,18 @@ fn callback_taking<F>(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) -> Option<Callback<Option<F>>> {
-    match func {
-        Some(func) => Some(Callback {
-            func: Some(func),
-            user_data,
-            destroy,
-        }),
-        None => {
-            if let Some(destroy) = destroy {
-                // SAFETY: `destroy` was supplied alongside `user_data`.
-                unsafe { destroy(user_data) };
-            }
-            None
+    if func.is_none() {
+        if let Some(destroy) = destroy {
+            // SAFETY: `destroy` was supplied alongside `user_data`.
+            unsafe { destroy(user_data) };
         }
+        return None;
     }
+    Some(Callback {
+        func,
+        user_data,
+        destroy,
+    })
 }
 
 /// A set of font callbacks.
