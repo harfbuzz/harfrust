@@ -329,6 +329,80 @@ fn buffer_properties_round_trip() {
 }
 
 #[test]
+fn appending_carries_everything_the_glyphs_came_with() {
+    unsafe {
+        with_font(|_, font| {
+            let source = buffer_with_text(TEXT);
+            hr_buffer_guess_segment_properties(source);
+            hr_shape(font, source, ptr::null(), 0);
+
+            let mut len = 0;
+            let source_positions = std::slice::from_raw_parts(
+                hr_buffer_get_glyph_positions(source, &mut len),
+                len as usize,
+            );
+            let source_advances: Vec<i32> = source_positions.iter().map(|p| p.x_advance).collect();
+            assert!(source_advances.iter().any(|a| *a != 0));
+
+            // A destination told nothing at all takes the source's kind and
+            // properties, and the glyphs arrive with their positions.
+            let dest = hr_buffer_create();
+            hr_buffer_append(dest, source, 0, u32::MAX);
+
+            assert_eq!(hr_buffer_get_length(dest), len);
+            assert_eq!(
+                hr_buffer_get_content_type(dest),
+                hr_buffer_get_content_type(source)
+            );
+            assert_eq!(
+                hr_buffer_get_direction(dest),
+                hr_buffer_get_direction(source)
+            );
+            assert_eq!(hr_buffer_get_script(dest), hr_buffer_get_script(source));
+
+            let mut dest_len = 0;
+            let dest_positions = std::slice::from_raw_parts(
+                hr_buffer_get_glyph_positions(dest, &mut dest_len),
+                dest_len as usize,
+            );
+            let dest_advances: Vec<i32> = dest_positions.iter().map(|p| p.x_advance).collect();
+            assert_eq!(dest_advances, source_advances);
+
+            hr_buffer_destroy(dest);
+            hr_buffer_destroy(source);
+        });
+    }
+}
+
+#[test]
+fn appending_a_range_carries_its_surroundings() {
+    unsafe {
+        with_font(|_, font| {
+            // Appending the middle of some text leaves the rest of it as
+            // context, so the piece shapes as it did in place.
+            let source = buffer_with_text("abcde");
+            hr_buffer_guess_segment_properties(source);
+
+            let dest = hr_buffer_create();
+            hr_buffer_append(dest, source, 1, 3);
+            hr_shape(font, dest, ptr::null(), 0);
+            let appended = glyph_ids(dest);
+
+            // The same two characters given the same surroundings directly.
+            let direct = hr_buffer_create();
+            hr_buffer_add_utf8(direct, c"abcde".as_ptr(), -1, 1, 2);
+            hr_buffer_guess_segment_properties(direct);
+            hr_shape(font, direct, ptr::null(), 0);
+            assert_eq!(appended, glyph_ids(direct));
+
+            hr_buffer_destroy(direct);
+            hr_buffer_destroy(dest);
+            hr_buffer_destroy(source);
+        });
+    }
+}
+
+#[test]
 fn buffer_properties_round_trip_being_unset() {
     unsafe {
         let buffer = hr_buffer_create();

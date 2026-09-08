@@ -5,8 +5,8 @@ use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 
 use harfrust::{
-    Buffer, BufferClusterLevel, BufferContentType, BufferFlags, GlyphInfo, GlyphPosition,
-    SerializeFlags,
+    Buffer, BufferClusterLevel, BufferContentType, BufferFlags, Direction, GlyphInfo,
+    GlyphPosition, SerializeFlags,
 };
 
 use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
@@ -663,13 +663,97 @@ pub unsafe extern "C" fn hr_buffer_append(
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
-    let infos = source.buffer.glyph_infos();
-    let start = (start as usize).min(infos.len());
-    let end = (end as usize).clamp(start, infos.len());
+    let source_len = source.buffer.glyph_infos().len();
+    let start = (start as usize).min(source_len);
+    let end = (end as usize).clamp(start, source_len);
     if start == end {
         return;
     }
-    buffer.buffer.push_glyph_infos(&infos[start..end]);
+
+    let orig_len = buffer.buffer.glyph_infos().len();
+    // A destination with nothing in it takes the source's kind; one that
+    // already holds glyphs is required to agree with the source already.
+    if orig_len == 0 {
+        buffer.buffer.set_content_type(source.buffer.content_type());
+    }
+
+    // Properties the destination has none of its own come from the source,
+    // as `hr_segment_properties_overlay` does.
+    if buffer.buffer.direction() == Direction::Invalid {
+        buffer.buffer.set_direction(source.buffer.direction());
+    }
+    if buffer.buffer.script_if_set().is_none() {
+        if let Some(script) = source.buffer.script_if_set() {
+            buffer.buffer.set_script(script);
+        }
+    }
+    if buffer.buffer.language().is_none() {
+        if let Some(language) = source.buffer.language() {
+            buffer.buffer.set_language(language);
+        }
+    }
+
+    if !buffer
+        .buffer
+        .push_glyph_infos(&source.buffer.glyph_infos()[start..end])
+    {
+        return;
+    }
+
+    // Positions travel with the glyphs they belong to. Appending to a
+    // destination that has them but from a source that does not would
+    // otherwise leave whatever the allocation happened to hold.
+    let source_positions = source.buffer.glyph_positions();
+    if !source_positions.is_empty() {
+        buffer.buffer.glyph_positions_mut()[orig_len..]
+            .copy_from_slice(&source_positions[start..end]);
+    } else if !buffer.buffer.glyph_positions().is_empty() {
+        buffer.buffer.glyph_positions_mut()[orig_len..].fill(GlyphPosition::default());
+    }
+
+    // Text carries its surroundings: what the copied range had around it in
+    // the source, and then whatever the source itself had around that.
+    if source.buffer.content_type() == Some(BufferContentType::Unicode) {
+        let infos = source.buffer.glyph_infos();
+        let pre = source.buffer.pre_context_codepoints();
+        if orig_len == 0 && (start > 0 || !pre.is_empty()) {
+            let mut context = [0; MAX_CONTEXT_CODEPOINTS];
+            let mut len = 0;
+            let mut at = start;
+            // Pre-context runs backwards from the start of the range.
+            while at > 0 && len < context.len() {
+                at -= 1;
+                context[len] = infos[at].glyph_id;
+                len += 1;
+            }
+            for &codepoint in pre {
+                if len == context.len() {
+                    break;
+                }
+                context[len] = codepoint;
+                len += 1;
+            }
+            buffer.buffer.set_pre_context_codepoints(&context[..len]);
+        }
+
+        let mut context = [0; MAX_CONTEXT_CODEPOINTS];
+        let mut len = 0;
+        for &info in &infos[end..] {
+            if len == context.len() {
+                break;
+            }
+            context[len] = info.glyph_id;
+            len += 1;
+        }
+        for &codepoint in source.buffer.post_context_codepoints() {
+            if len == context.len() {
+                break;
+            }
+            context[len] = codepoint;
+            len += 1;
+        }
+        buffer.buffer.set_post_context_codepoints(&context[..len]);
+    }
 }
 
 /// Returns what a buffer currently holds.

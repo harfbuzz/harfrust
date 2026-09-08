@@ -1839,6 +1839,19 @@ impl Buffer {
         }
     }
 
+    /// Returns the pre-context, in the reverse order
+    /// [`Buffer::set_pre_context_codepoints`] takes it.
+    #[inline]
+    pub fn pre_context_codepoints(&self) -> &[u32] {
+        &self.context[0][..self.context_len[0]]
+    }
+
+    /// Returns the post-context.
+    #[inline]
+    pub fn post_context_codepoints(&self) -> &[u32] {
+        &self.context[1][..self.context_len[1]]
+    }
+
     pub(crate) fn next_syllable(&self, mut start: usize) -> usize {
         if start >= self.len {
             return start;
