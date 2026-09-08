@@ -275,6 +275,37 @@ fn buffer_tracks_its_content_type() {
 }
 
 #[test]
+fn ill_formed_text_replaces_one_byte_at_a_time() {
+    unsafe {
+        // A truncated three-byte sequence followed by an ASCII byte. Each
+        // byte that cannot begin a character is its own replacement, keeping
+        // its own offset, rather than a run of them collapsing into one.
+        let buffer = hr_buffer_create();
+        let bad = [0xE2u8, 0x82, b'a'];
+        hr_buffer_add_utf8(buffer, bad.as_ptr().cast(), 3, 0, -1);
+        let mut len = 0;
+        let infos =
+            std::slice::from_raw_parts(hr_buffer_get_glyph_infos(buffer, &mut len), len as usize);
+        let seen: Vec<(u32, u32)> = infos.iter().map(|i| (i.codepoint, i.cluster)).collect();
+        const FFFD: u32 = 0xFFFD;
+        assert_eq!(seen, [(FFFD, 0), (FFFD, 1), (u32::from(b'a'), 2)]);
+        hr_buffer_destroy(buffer);
+
+        // UTF-32 carries values that are not characters at all; only
+        // add_codepoints promises to pass those through untouched.
+        let buffer = hr_buffer_create();
+        let items = [0x41u32, 0xD800, 0x110000, 0x42];
+        hr_buffer_add_utf32(buffer, items.as_ptr(), 4, 0, -1);
+        let mut len = 0;
+        let infos =
+            std::slice::from_raw_parts(hr_buffer_get_glyph_infos(buffer, &mut len), len as usize);
+        let seen: Vec<(u32, u32)> = infos.iter().map(|i| (i.codepoint, i.cluster)).collect();
+        assert_eq!(seen, [(0x41, 0), (FFFD, 1), (FFFD, 2), (0x42, 3)]);
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
 fn buffer_exposes_codepoints_before_shaping() {
     unsafe {
         let buffer = buffer_with_text(TEXT);

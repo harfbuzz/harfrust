@@ -553,9 +553,6 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
         unsafe { core::slice::from_raw_parts(text.cast::<u8>(), text_length as usize) }
     };
     let (start, end) = item_range(bytes.len(), item_offset, item_length);
-    // Borrowed for well-formed text, which is the whole point: this is the
-    // hottest call in the API and it should not allocate.
-    let decode = String::from_utf8_lossy;
 
     if start > 0 {
         set_pre_context_utf8(&mut buffer.buffer, &bytes[..start]);
@@ -570,8 +567,22 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     // find the ill-formed sequences and then again to yield the characters.
     let item = &bytes[start..end];
     match core::str::from_utf8(item) {
+        // Well-formed text, which is the whole point: this is the hottest
+        // call in the API and it should not allocate.
         Ok(text) => append_utf8(&mut buffer.buffer, text, start as c_uint),
-        Err(_) => append_utf8(&mut buffer.buffer, &decode(item), start as c_uint),
+        // Ill-formed text goes one codepoint at a time, so that each bad
+        // byte becomes its own replacement carrying its own offset, as
+        // `hb_utf8_t::next` does. Decoding it lossily instead would fold a
+        // run of bad bytes into a single replacement and number the clusters
+        // against the replacement text rather than the caller's.
+        Err(_) => {
+            let mut index = 0;
+            while index < item.len() {
+                let cluster = start + index;
+                let codepoint = next_utf8(item, &mut index);
+                buffer.buffer.push(codepoint, cluster as c_uint);
+            }
+        }
     }
 }
 
@@ -611,16 +622,26 @@ pub unsafe extern "C" fn hr_buffer_add_utf32(
     let items = unsafe { core::slice::from_raw_parts(text, len) };
     let (start, end) = item_range(len, item_offset, item_length);
 
+    // Surrogates and values past the last plane are not characters, and
+    // stand in for themselves no better than any other unreadable input:
+    // HarfBuzz replaces them here, and only leaves them alone in
+    // `add_codepoints`, which promises no validation at all.
+    let scalar = |codepoint: u32| match char::from_u32(codepoint) {
+        Some(_) => codepoint,
+        None => char::REPLACEMENT_CHARACTER as u32,
+    };
     if start > 0 {
-        buffer
-            .buffer
-            .set_pre_context_codepoints(&items[..start].iter().copied().rev().collect::<Vec<_>>());
+        let pre: Vec<u32> = items[..start].iter().rev().map(|&c| scalar(c)).collect();
+        buffer.buffer.set_pre_context_codepoints(&pre);
     }
     if end < len {
-        buffer.buffer.set_post_context_codepoints(&items[end..]);
+        let post: Vec<u32> = items[end..].iter().map(|&c| scalar(c)).collect();
+        buffer.buffer.set_post_context_codepoints(&post);
     }
     for (index, &codepoint) in items[start..end].iter().enumerate() {
-        buffer.buffer.push(codepoint, (start + index) as c_uint);
+        buffer
+            .buffer
+            .push(scalar(codepoint), (start + index) as c_uint);
     }
 }
 
