@@ -329,6 +329,67 @@ fn buffer_properties_round_trip() {
 }
 
 #[test]
+fn buffer_properties_round_trip_being_unset() {
+    unsafe {
+        let buffer = hr_buffer_create();
+        // A buffer that was never told a script has none, which is not the
+        // same as the `Zzzz` standing for a script known to be unknown.
+        assert_eq!(hr_buffer_get_script(buffer), HR_SCRIPT_INVALID);
+        assert!(hr_buffer_get_language(buffer).is_null());
+
+        // Setting the absent value clears whatever was there.
+        hr_buffer_set_script(buffer, HR_SCRIPT_ARABIC);
+        hr_buffer_set_script(buffer, HR_SCRIPT_INVALID);
+        assert_eq!(hr_buffer_get_script(buffer), HR_SCRIPT_INVALID);
+
+        hr_buffer_set_language(buffer, hr_language_from_string(c"en".as_ptr(), -1));
+        hr_buffer_set_language(buffer, ptr::null());
+        assert!(hr_buffer_get_language(buffer).is_null());
+
+        // Whole-property assignment overwrites rather than fills in, so a
+        // reused buffer cannot keep anything from its last life.
+        hr_buffer_set_script(buffer, HR_SCRIPT_ARABIC);
+        hr_buffer_set_language(buffer, hr_language_from_string(c"ar".as_ptr(), -1));
+        let blank = hr_segment_properties_t {
+            direction: HR_DIRECTION_LTR,
+            script: HR_SCRIPT_INVALID,
+            language: ptr::null(),
+            reserved1: ptr::null_mut(),
+            reserved2: ptr::null_mut(),
+        };
+        hr_buffer_set_segment_properties(buffer, ptr::from_ref(&blank));
+        assert_eq!(hr_buffer_get_script(buffer), HR_SCRIPT_INVALID);
+        assert!(hr_buffer_get_language(buffer).is_null());
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn an_empty_shaper_list_names_no_available_shaper() {
+    unsafe {
+        with_font(|face, font| {
+            // A list of no names asks for no shaper this library has, which
+            // is a failure rather than the free rein that `NULL` gives.
+            let empty = [ptr::null()];
+            let buffer = buffer_with_text(TEXT);
+            assert_eq!(
+                hr_shape_full(font, buffer, ptr::null(), 0, empty.as_ptr()),
+                0
+            );
+
+            let props = latin_props();
+            let plan =
+                hr_shape_plan_create(face, ptr::from_ref(&props), ptr::null(), 0, empty.as_ptr());
+            assert_eq!(plan, hr_shape_plan_get_empty());
+
+            // `NULL` still means no restriction.
+            assert_ne!(hr_shape_full(font, buffer, ptr::null(), 0, ptr::null()), 0);
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
 fn flags_combine_and_round_trip() {
     unsafe {
         let buffer = hr_buffer_create();
