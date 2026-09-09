@@ -2029,52 +2029,31 @@ impl Buffer {
         self.direction = direction;
     }
 
-    /// Returns the buffer's ISO 15924 script.
-    #[inline]
-    pub fn script(&self) -> Script {
-        self.script.unwrap_or(script::UNKNOWN)
-    }
-
-    /// Sets the buffer's script from an ISO 15924 tag.
-    #[inline]
-    pub fn set_script(&mut self, script: Script) {
-        self.script = Some(script);
-    }
-
-    /// Returns the buffer's script, or `None` if none has been set.
+    /// Returns the buffer's ISO 15924 script, or `None` if it has none.
     ///
-    /// [`Buffer::script`] reports an unset script as `Zzzz`, which is also a
-    /// script a caller can set; this tells the two apart, as HarfBuzz's
-    /// `HB_SCRIPT_INVALID` does.
+    /// A buffer with no script is not one whose script is `Zzzz`: that is a
+    /// script a caller can ask for, meaning known to be unknown.
     #[inline]
-    pub fn script_if_set(&self) -> Option<Script> {
+    pub fn script(&self) -> Option<Script> {
         self.script
     }
 
-    /// Clears the buffer's script, leaving it as it was before any
-    /// [`Buffer::set_script`].
+    /// Sets the buffer's script from an ISO 15924 tag, or clears it.
     #[inline]
-    pub fn unset_script(&mut self) {
-        self.script = None;
+    pub fn set_script(&mut self, script: Option<Script>) {
+        self.script = script;
     }
 
-    /// Returns the buffer's language.
+    /// Returns the buffer's language, or `None` if it has none.
     #[inline]
-    pub fn language(&self) -> Option<Language> {
-        self.language.clone()
+    pub fn language(&self) -> Option<&Language> {
+        self.language.as_ref()
     }
 
-    /// Sets the buffer's language.
+    /// Sets the buffer's language, or clears it.
     #[inline]
-    pub fn set_language(&mut self, language: Language) {
-        self.language = Some(language);
-    }
-
-    /// Clears the buffer's language, leaving it as it was before any
-    /// [`Buffer::set_language`].
-    #[inline]
-    pub fn unset_language(&mut self) {
-        self.language = None;
+    pub fn set_language(&mut self, language: Option<Language>) {
+        self.language = language;
     }
 
     /// Returns the buffer's flags.

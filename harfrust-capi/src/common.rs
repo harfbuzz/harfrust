@@ -631,7 +631,7 @@ pub extern "C" fn hr_script_get_horizontal_direction(script: hr_script_t) -> hr_
     // `guess_segment_properties` derives the direction from the script, which
     // is exactly what this needs and keeps the two in step.
     let mut buffer = harfrust::Buffer::new();
-    buffer.set_script(script);
+    buffer.set_script(Some(script));
     buffer.guess_segment_properties();
     direction_from_rust(buffer.direction())
 }
@@ -655,10 +655,10 @@ pub type hr_language_t = *const hr_language_impl_t;
 /// write lock is for.
 static LANGUAGES: RwLock<Vec<&'static hr_language_impl_t>> = RwLock::new(Vec::new());
 
-fn intern_language(lang: Language) -> hr_language_t {
+fn intern_language(lang: &Language) -> hr_language_t {
     // The common path: already interned, so only a read lock is needed.
     if let Ok(languages) = LANGUAGES.read() {
-        if let Some(found) = languages.iter().find(|entry| entry.lang == lang) {
+        if let Some(found) = languages.iter().find(|entry| entry.lang == *lang) {
             return *found as hr_language_t;
         }
     }
@@ -667,13 +667,13 @@ fn intern_language(lang: Language) -> hr_language_t {
         return core::ptr::null();
     };
     // Another thread may have interned it between the two locks.
-    if let Some(found) = languages.iter().find(|entry| entry.lang == lang) {
+    if let Some(found) = languages.iter().find(|entry| entry.lang == *lang) {
         return *found as hr_language_t;
     }
     let mut name = lang.as_bytes().to_vec();
     name.push(0);
     let entry: &'static hr_language_impl_t = Box::leak(Box::new(hr_language_impl_t {
-        lang,
+        lang: lang.clone(),
         name: name.into_boxed_slice(),
     }));
     languages.push(entry);
@@ -687,7 +687,7 @@ pub(crate) unsafe fn language_to_rust(language: hr_language_t) -> Option<Languag
     unsafe { language.as_ref() }.map(|entry| entry.lang.clone())
 }
 
-pub(crate) fn language_from_rust(language: Option<Language>) -> hr_language_t {
+pub(crate) fn language_from_rust(language: Option<&Language>) -> hr_language_t {
     language.map_or(core::ptr::null(), intern_language)
 }
 
@@ -704,7 +704,9 @@ pub unsafe extern "C" fn hr_language_from_string(str_: *const c_char, len: c_int
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return core::ptr::null();
     };
-    Language::new(s).map_or(core::ptr::null(), intern_language)
+    Language::new(s)
+        .as_ref()
+        .map_or(core::ptr::null(), intern_language)
 }
 
 /// Returns a language's tag as a NUL-terminated string, or `NULL` when the
@@ -739,7 +741,7 @@ pub extern "C" fn hr_language_get_default() -> hr_language_t {
             .unwrap_or_else(|| Language::new("und").expect("a valid language tag"))
     });
     // Interning is idempotent, so this is the same pointer every time.
-    intern_language(language.clone())
+    intern_language(language)
 }
 
 /// Returns whether `language` is the same as, or a more specific form of,

@@ -269,9 +269,7 @@ pub unsafe extern "C" fn hr_buffer_create_similar(src: *mut hr_buffer_t) -> *mut
     };
     dst.buffer.set_direction(src.buffer.direction());
     dst.buffer.set_script(src.buffer.script());
-    if let Some(language) = src.buffer.language() {
-        dst.buffer.set_language(language);
-    }
+    dst.buffer.set_language(src.buffer.language().cloned());
     dst.buffer.set_flags(src.buffer.flags());
     dst.buffer.set_cluster_level(src.buffer.cluster_level());
     dst.buffer.set_invisible_glyph(src.buffer.invisible_glyph());
@@ -702,15 +700,13 @@ pub unsafe extern "C" fn hr_buffer_append(
     if buffer.buffer.direction() == Direction::Invalid {
         buffer.buffer.set_direction(source.buffer.direction());
     }
-    if buffer.buffer.script_if_set().is_none() {
-        if let Some(script) = source.buffer.script_if_set() {
-            buffer.buffer.set_script(script);
-        }
+    if buffer.buffer.script().is_none() {
+        buffer.buffer.set_script(source.buffer.script());
     }
     if buffer.buffer.language().is_none() {
-        if let Some(language) = source.buffer.language() {
-            buffer.buffer.set_language(language);
-        }
+        buffer
+            .buffer
+            .set_language(source.buffer.language().cloned());
     }
 
     if !buffer
@@ -850,10 +846,7 @@ pub unsafe extern "C" fn hr_buffer_set_script(buffer: *mut hr_buffer_t, script: 
     };
     // `HR_SCRIPT_INVALID` is how a caller says "no script", not a script to
     // ignore: setting it has to clear whatever was there.
-    match script_to_rust(script) {
-        Some(script) => buffer.buffer.set_script(script),
-        None => buffer.buffer.unset_script(),
-    }
+    buffer.buffer.set_script(script_to_rust(script));
 }
 
 /// Returns a buffer's script.
@@ -863,15 +856,12 @@ pub unsafe extern "C" fn hr_buffer_set_script(buffer: *mut hr_buffer_t, script: 
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_script(buffer: *mut hr_buffer_t) -> hr_script_t {
-    match unsafe { object::or_empty(buffer.cast_const()) }
+    // A buffer that was never given a script reports none, rather than the
+    // `Zzzz` that stands for a script known to be unknown.
+    unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
-        .script_if_set()
-    {
-        Some(script) => script_from_rust(script),
-        // A buffer that was never given a script reports none, rather than
-        // the `Zzzz` that stands for a script known to be unknown.
-        None => crate::common::HR_SCRIPT_INVALID,
-    }
+        .script()
+        .map_or(crate::common::HR_SCRIPT_INVALID, script_from_rust)
 }
 
 /// Sets a buffer's language.
@@ -886,10 +876,9 @@ pub unsafe extern "C" fn hr_buffer_set_language(buffer: *mut hr_buffer_t, langua
         return;
     };
     // As with the script, `NULL` clears rather than does nothing.
-    match unsafe { language_to_rust(language) } {
-        Some(language) => buffer.buffer.set_language(language),
-        None => buffer.buffer.unset_language(),
-    }
+    buffer
+        .buffer
+        .set_language(unsafe { language_to_rust(language) });
 }
 
 /// Returns a buffer's language, or `NULL` if it has none.
@@ -1153,7 +1142,10 @@ pub unsafe extern "C" fn hr_buffer_get_segment_properties(
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
     *out = crate::shape_plan::hr_segment_properties_t {
         direction: direction_from_rust(buffer.buffer.direction()),
-        script: script_from_rust(buffer.buffer.script()),
+        script: buffer
+            .buffer
+            .script()
+            .map_or(crate::common::HR_SCRIPT_INVALID, script_from_rust),
         language: language_from_rust(buffer.buffer.language()),
         reserved1: core::ptr::null_mut(),
         reserved2: core::ptr::null_mut(),
@@ -1181,14 +1173,8 @@ pub unsafe extern "C" fn hr_buffer_set_segment_properties(
     // buffer cannot keep a script or language from its last life.
     let (direction, script, language) = props.to_rust();
     buffer.buffer.set_direction(direction);
-    match script {
-        Some(script) => buffer.buffer.set_script(script),
-        None => buffer.buffer.unset_script(),
-    }
-    match language {
-        Some(language) => buffer.buffer.set_language(language),
-        None => buffer.buffer.unset_language(),
-    }
+    buffer.buffer.set_script(script);
+    buffer.buffer.set_language(language);
 }
 
 /// Fills in whichever of direction, script and language are still unset, by

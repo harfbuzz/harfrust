@@ -169,7 +169,7 @@ pub unsafe extern "C" fn hr_shape_full(
             face.plans.get(
                 instance,
                 buffer_ref.buffer.direction(),
-                Some(buffer_ref.buffer.script()),
+                buffer_ref.buffer.script(),
                 buffer_ref.buffer.language(),
                 &features,
             )

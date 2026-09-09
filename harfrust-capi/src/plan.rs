@@ -101,7 +101,7 @@ impl PlanCache {
         instance: &FontInstance,
         direction: Direction,
         script: Option<Script>,
-        language: Option<Language>,
+        language: Option<&Language>,
         features: &[Feature],
     ) -> &Arc<ShapePlan> {
         let variations = instance.feature_variations();
@@ -112,29 +112,23 @@ impl PlanCache {
         // case once a face is warm -- builds nothing at all.
         let mut link = &self.head;
         while let Some(node) = link.get() {
-            if node.key.matches(
-                direction,
-                script,
-                language.as_ref(),
-                features,
-                feature_variations,
-            ) {
+            if node
+                .key
+                .matches(direction, script, language, features, feature_variations)
+            {
                 return &node.plan;
             }
             link = &node.next;
         }
 
-        let plan = Arc::new(build(
-            instance,
-            direction,
-            script,
-            language.as_ref(),
-            features,
-        ));
+        let plan = Arc::new(build(instance, direction, script, language, features));
+        // Only a plan the cache keeps needs a language of its own; a hit,
+        // which is the common case once a face is warm, borrows the
+        // caller's.
         let key = PlanKey {
             direction,
             script,
-            language,
+            language: language.cloned(),
             feature_variations,
             features: features.to_vec(),
         };

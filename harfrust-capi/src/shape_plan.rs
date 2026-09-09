@@ -215,7 +215,7 @@ unsafe fn create_plan(
     let plan = if cached {
         face_ref
             .plans
-            .get(&instance, direction, script, language, &features)
+            .get(&instance, direction, script, language.as_ref(), &features)
             .clone()
     } else {
         Arc::new(ShapePlan::new(
@@ -469,7 +469,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
         script: inner
             .script()
             .map_or(crate::common::HR_SCRIPT_INVALID, script_from_rust),
-        language: language_from_rust(inner.language().cloned()),
+        language: language_from_rust(inner.language()),
         reserved1: core::ptr::null_mut(),
         reserved2: core::ptr::null_mut(),
     };
@@ -556,9 +556,8 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
 /// HarfRust compares a plan's script against the buffer's with an unset script
 /// standing in for `Zzzz`, so this normalizes the same way.
 fn plan_matches_buffer(plan: &ShapePlan, buffer: &harfrust::Buffer) -> bool {
-    let plan_script = plan.script().unwrap_or(harfrust::script::UNKNOWN);
-    let buffer_script = buffer.script();
+    let unset = harfrust::script::UNKNOWN;
     plan.direction() == buffer.direction()
-        && plan_script == buffer_script
-        && plan.language() == buffer.language().as_ref()
+        && plan.script().unwrap_or(unset) == buffer.script().unwrap_or(unset)
+        && plan.language() == buffer.language()
 }
