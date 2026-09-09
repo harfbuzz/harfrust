@@ -1034,6 +1034,68 @@ fn the_glyph_getters_ask_the_installed_callbacks() {
     }
 }
 
+static OT_FUNCS_DATA_DROPS: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "C" fn count_ot_funcs_data_drop(_user_data: *mut c_void) {
+    OT_FUNCS_DATA_DROPS.fetch_add(1, Ordering::SeqCst);
+}
+
+#[test]
+fn the_built_in_callbacks_can_be_asked_for_again() {
+    unsafe {
+        with_font(|_, font| {
+            let builtin = glyph_ids({
+                let buffer = buffer_with_text(TEXT);
+                hr_shape(font, buffer, ptr::null(), 0);
+                buffer
+            });
+            assert!(builtin.iter().all(|&id| id != 0));
+
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(always_glyph_777),
+                ptr::null_mut(),
+                None,
+            );
+            OT_FUNCS_DATA_DROPS.store(0, Ordering::SeqCst);
+            hr_font_set_funcs(
+                font,
+                ffuncs,
+                ptr::dangling_mut(),
+                Some(count_ot_funcs_data_drop),
+            );
+            hr_font_funcs_destroy(ffuncs);
+
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            assert!(glyph_ids(buffer).iter().all(|&id| id == 777));
+            hr_buffer_destroy(buffer);
+
+            // Asking for no callbacks answers nothing; this is the way back
+            // to the ones the font started with.
+            hr_ot_font_set_funcs(font);
+            assert_eq!(
+                OT_FUNCS_DATA_DROPS.load(Ordering::SeqCst),
+                1,
+                "the replaced callbacks' data should be released"
+            );
+
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            assert_eq!(glyph_ids(buffer), builtin);
+            hr_buffer_destroy(buffer);
+
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_ne!(glyph, 777);
+        });
+    }
+}
+
 #[test]
 fn unset_callbacks_report_nothing_available() {
     unsafe {

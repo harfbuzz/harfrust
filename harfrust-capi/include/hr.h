@@ -2700,7 +2700,9 @@ void hr_font_set_var_named_instance(struct hr_font_t *font, unsigned int instanc
  *
  * The font takes a reference to `ffuncs` and takes ownership of `font_data`,
  * releasing it through `destroy` when the callbacks are replaced or the font
- * is freed. Pass `NULL` for `ffuncs` to go back to the built-in callbacks.
+ * is freed. Passing `NULL` for `ffuncs` asks for no callbacks at all, which
+ * answers nothing; [`hr_ot_font_set_funcs`] is the way back to the built-in
+ * ones.
  *
  * As in HarfBuzz, an installed funcs object is authoritative: it is not
  * blended with the built-in callbacks, and any callback it leaves unset
@@ -2721,6 +2723,23 @@ void hr_font_set_funcs(struct hr_font_t *font,
                        struct hr_font_funcs_t *ffuncs,
                        void *font_data,
                        hr_destroy_func_t destroy);
+
+/**
+ * Installs the built-in callbacks, which read the font's own tables.
+ *
+ * A font starts out answering this way, and this puts it back after
+ * [`hr_font_set_funcs`] has installed others. HarfBuzz spells it
+ * `hb_ot_font_set_funcs`, and it is the only way back there too: asking
+ * `hr_font_set_funcs` for no callbacks means no callbacks, not these.
+ *
+ * Any data the replaced callbacks were given is released, as it is when they
+ * are replaced by other callbacks.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font.
+ */
+void hr_ot_font_set_funcs(struct hr_font_t *font);
 
 /**
  * Maps a Unicode scalar value to a glyph, returning false if the font has

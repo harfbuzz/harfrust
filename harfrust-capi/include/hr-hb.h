@@ -191,6 +191,7 @@
 #define hb_language_to_string                            hr_language_to_string
 #define hb_mask_t                                        hr_mask_t
 #define hb_memory_mode_t                                 hr_memory_mode_t
+#define hb_ot_font_set_funcs                             hr_ot_font_set_funcs
 #define hb_position_t                                    hr_position_t
 #define hb_reference_table_func_t                        hr_reference_table_func_t
 #define hb_script_from_iso15924_tag                      hr_script_from_iso15924_tag
