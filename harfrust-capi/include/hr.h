@@ -2726,8 +2726,9 @@ void hr_font_set_funcs(struct hr_font_t *font,
  * Maps a Unicode scalar value to a glyph, returning false if the font has
  * none.
  *
- * This consults the font's `cmap` directly and does not run the callbacks set
- * by [`hr_font_set_funcs`].
+ * Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+ * font while shaping. Only a font that was never given any reads the font's
+ * own `cmap`.
  *
  * # Safety
  *
@@ -2742,8 +2743,9 @@ hr_bool_t hr_font_get_nominal_glyph(struct hr_font_t *font,
  * Maps a Unicode scalar value and variation selector to a glyph, returning
  * false if the font has none.
  *
- * This consults the font's `cmap` directly and does not run the callbacks set
- * by [`hr_font_set_funcs`].
+ * Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+ * font while shaping. Only a font that was never given any reads the font's
+ * own `cmap`.
  *
  * # Safety
  *
@@ -2974,8 +2976,10 @@ void hr_shape(struct hr_font_t *font,
 /**
  * Shapes a buffer, selecting from a list of shaper names.
  *
- * This library has a single shaper, so `shaper_list` is honoured only to the
- * extent of failing when it names shapers that are all unavailable.
+ * This library has a single shaper, named "ot", so `shaper_list` is honoured
+ * only to the extent of failing when it does not name it. An empty list
+ * names no available shaper and so fails too, as it does in HarfBuzz;
+ * `NULL` asks for no particular shaper and always succeeds.
  *
  * Returns false only when no shaper could be run: `shaper_list` names none
  * that this library provides, or there is nothing to shape with. Shaping
@@ -3081,8 +3085,9 @@ struct hr_shape_plan_t *hr_shape_plan_create(struct hr_face_t *face,
  * Builds a plan for a particular variation of a variable font.
  *
  * Coordinates are 2.14 fixed point values in axis order, as
- * `hr_font_get_var_coords_normalized` reports them. A plan built this way must
- * only be executed with a font set to the same coordinates.
+ * `hr_font_get_var_coords_normalized` reports them. They choose the variation
+ * the plan is built for; executing it against a font set to another shapes
+ * with the font's, as it does in HarfBuzz.
  *
  * # Safety
  *

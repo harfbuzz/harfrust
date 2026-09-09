@@ -584,8 +584,9 @@ pub unsafe extern "C" fn hr_font_set_funcs(
 /// Maps a Unicode scalar value to a glyph, returning false if the font has
 /// none.
 ///
-/// This consults the font's `cmap` directly and does not run the callbacks set
-/// by [`hr_font_set_funcs`].
+/// Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+/// font while shaping. Only a font that was never given any reads the font's
+/// own `cmap`.
 ///
 /// # Safety
 ///
@@ -597,16 +598,27 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     unicode: hr_codepoint_t,
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
-    let font = unsafe { object::or_empty(font.cast_const()) };
-    let found = font
-        .instance()
-        .and_then(|instance| instance.font().tables().cmap().ok())
-        .and_then(|cmap| cmap.map_codepoint(unicode));
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    // The glyph is reported as not found before anything is asked, so a
+    // caller that ignores the return value reads 0 rather than whatever it
+    // happened to pass in. HarfBuzz writes it the same way.
+    if let Some(out) = unsafe { glyph.as_mut() } {
+        *out = 0;
+    }
+    let found = if state.funcs.is_null() {
+        state
+            .instance()
+            .and_then(|instance| instance.font().tables().cmap().ok())
+            .and_then(|cmap| cmap.map_codepoint(unicode))
+            .map(|glyph| glyph.to_u32())
+    } else {
+        crate::font_funcs::FontFuncsAdapter::new(font, state).call_nominal_glyph(unicode)
+    };
     let Some(found) = found else {
         return false.into();
     };
     if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = found.to_u32();
+        *out = found;
     }
     true.into()
 }
@@ -614,8 +626,9 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
 /// Maps a Unicode scalar value and variation selector to a glyph, returning
 /// false if the font has none.
 ///
-/// This consults the font's `cmap` directly and does not run the callbacks set
-/// by [`hr_font_set_funcs`].
+/// Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+/// font while shaping. Only a font that was never given any reads the font's
+/// own `cmap`.
 ///
 /// # Safety
 ///
@@ -630,27 +643,33 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
 ) -> hr_bool_t {
     use read_fonts::tables::cmap::MapVariant;
 
-    let font_ref = unsafe { object::or_empty(font.cast_const()) };
-    let Some(cmap) = font_ref
-        .instance()
-        .and_then(|instance| instance.font().tables().cmap().ok())
-    else {
-        return false.into();
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    // As in `hr_font_get_nominal_glyph`, not found until it is.
+    if let Some(out) = unsafe { glyph.as_mut() } {
+        *out = 0;
+    }
+    let found = if state.funcs.is_null() {
+        state
+            .instance()
+            .and_then(|instance| instance.font().tables().cmap().ok())
+            .and_then(|cmap| {
+                let (_, uvs) = cmap.uvs_subtable()?;
+                uvs.map_variant(unicode, variation_selector)
+                    .and_then(|variant| match variant {
+                        MapVariant::UseDefault => cmap.map_codepoint(unicode),
+                        MapVariant::Variant(gid) => Some(gid),
+                    })
+            })
+            .map(|glyph| glyph.to_u32())
+    } else {
+        crate::font_funcs::FontFuncsAdapter::new(font, state)
+            .call_variation_glyph(unicode, variation_selector)
     };
-    let Some((_, uvs)) = cmap.uvs_subtable() else {
-        return false.into();
-    };
-    let found = uvs
-        .map_variant(unicode, variation_selector)
-        .and_then(|variant| match variant {
-            MapVariant::UseDefault => cmap.map_codepoint(unicode),
-            MapVariant::Variant(gid) => Some(gid),
-        });
     let Some(found) = found else {
         return false.into();
     };
     if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = found.to_u32();
+        *out = found;
     }
     true.into()
 }

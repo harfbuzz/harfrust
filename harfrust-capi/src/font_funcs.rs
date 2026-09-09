@@ -442,10 +442,13 @@ impl<'a> FontFuncsAdapter<'a> {
             .as_ref()
             .map_or(ptr::null_mut(), |data| data.data)
     }
-}
 
-impl FontFuncs for FontFuncsAdapter<'_> {
-    fn nominal_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+    /// What the installed nominal-glyph callback answers, or `None` when
+    /// there is no such callback to ask.
+    ///
+    /// Shaping and the public getters both go through here, so that a font
+    /// answers the same whichever of them is asking.
+    pub(crate) fn call_nominal_glyph(&self, c: u32) -> Option<hr_codepoint_t> {
         let cb = self.funcs()?.nominal_glyph.as_ref()?;
         let func = cb.func?;
         let mut glyph: hr_codepoint_t = 0;
@@ -459,10 +462,12 @@ impl FontFuncs for FontFuncsAdapter<'_> {
                 cb.user_data,
             )
         };
-        (found != 0).then(|| GlyphId::from(glyph))
+        (found != 0).then_some(glyph)
     }
 
-    fn variant_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32, vs: u32) -> Option<GlyphId> {
+    /// As [`FontFuncsAdapter::call_nominal_glyph`], for a variation
+    /// selector.
+    pub(crate) fn call_variation_glyph(&self, c: u32, vs: u32) -> Option<hr_codepoint_t> {
         let cb = self.funcs()?.variation_glyph.as_ref()?;
         let func = cb.func?;
         let mut glyph: hr_codepoint_t = 0;
@@ -477,7 +482,17 @@ impl FontFuncs for FontFuncsAdapter<'_> {
                 cb.user_data,
             )
         };
-        (found != 0).then(|| GlyphId::from(glyph))
+        (found != 0).then_some(glyph)
+    }
+}
+
+impl FontFuncs for FontFuncsAdapter<'_> {
+    fn nominal_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+        self.call_nominal_glyph(c).map(GlyphId::from)
+    }
+
+    fn variant_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32, vs: u32) -> Option<GlyphId> {
+        self.call_variation_glyph(c, vs).map(GlyphId::from)
     }
 
     fn advance_width(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {

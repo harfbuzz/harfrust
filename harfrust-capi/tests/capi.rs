@@ -966,6 +966,74 @@ fn font_funcs_override_advances() {
     }
 }
 
+unsafe extern "C" fn always_glyph_777(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    _unicode: hr_codepoint_t,
+    glyph: *mut hr_codepoint_t,
+    _user_data: *mut c_void,
+) -> hr_bool_t {
+    unsafe { *glyph = 777 };
+    1
+}
+
+#[test]
+fn the_glyph_getters_ask_the_installed_callbacks() {
+    unsafe {
+        with_font(|_, font| {
+            // A font answers the same whichever way it is asked: the getter
+            // and shaping both go through the callbacks that were installed.
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(always_glyph_777),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(ffuncs);
+
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 777);
+
+            let buffer = buffer_with_text("a");
+            hr_shape(font, buffer, ptr::null(), 0);
+            assert_eq!(glyph_ids(buffer), [777]);
+            hr_buffer_destroy(buffer);
+        });
+
+        // With no callback to answer, the getter reports nothing found and
+        // leaves the glyph at zero rather than at whatever it was handed.
+        with_font(|_, font| {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(ffuncs);
+
+            let mut glyph: hr_codepoint_t = 12345;
+            assert_eq!(
+                hr_font_get_nominal_glyph(font, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 0);
+        });
+
+        // A font never given callbacks reads its own cmap.
+        with_font(|_, font| {
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_ne!(glyph, 0);
+            assert_ne!(glyph, 777);
+        });
+    }
+}
+
 #[test]
 fn unset_callbacks_report_nothing_available() {
     unsafe {
@@ -1816,7 +1884,7 @@ fn a_plan_runs_whatever_variation_the_font_is_at() {
         // with no coordinates set already is: the same variation spelled two
         // ways, and nothing to object to.
         with_font(|face, font| {
-            assert_eq!(execute(face, font, &[0]).0 != 0, true);
+            assert_ne!(execute(face, font, &[0]).0, 0);
         });
 
         // And a plan built for one variation still runs against a font at
