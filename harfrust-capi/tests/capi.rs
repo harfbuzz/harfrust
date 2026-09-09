@@ -1785,35 +1785,49 @@ fn a_destructor_may_set_user_data_on_the_same_object() {
 }
 
 #[test]
-fn a_plan_keeps_the_coordinates_the_font_would_have_kept() {
+fn a_plan_runs_whatever_variation_the_font_is_at() {
     unsafe {
-        with_font(|face, font| {
-            // An all-zero vector names the default instance, which is what a
-            // font with no coordinates set already is. The two spell the same
-            // instance, so a plan built with one has to run against the other
-            // rather than reporting a mismatch.
-            let props = latin_props();
-            let coords = [0i32];
+        let props = latin_props();
+        let execute = |face: *mut hr_face_t, font: *mut hr_font_t, coords: &[i32]| {
             let plan = hr_shape_plan_create2(
                 face,
                 ptr::from_ref(&props),
                 ptr::null(),
                 0,
-                coords.as_ptr(),
-                1,
+                if coords.is_empty() {
+                    ptr::null()
+                } else {
+                    coords.as_ptr()
+                },
+                coords.len() as c_uint,
                 ptr::null(),
             );
             assert_ne!(plan, hr_shape_plan_get_empty());
-
             let buffer = buffer_with_text(TEXT);
             hr_buffer_set_segment_properties(buffer, ptr::from_ref(&props));
-            assert_ne!(
-                hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0),
-                0,
-                "a plan for the default instance should run against a font at it"
-            );
+            let ran = hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0);
+            let glyphs = hr_buffer_get_length(buffer);
             hr_buffer_destroy(buffer);
             hr_shape_plan_destroy(plan);
+            (ran, glyphs)
+        };
+
+        // An all-zero vector names the default instance, which is what a font
+        // with no coordinates set already is: the same variation spelled two
+        // ways, and nothing to object to.
+        with_font(|face, font| {
+            assert_eq!(execute(face, font, &[0]).0 != 0, true);
+        });
+
+        // And a plan built for one variation still runs against a font at
+        // another. HarfBuzz does not compare them: the font's settings are
+        // the ones shaping uses.
+        with_named_font(VARIABLE_FONT, |face, font| {
+            let coords = [8000i32];
+            hr_font_set_var_coords_normalized(font, coords.as_ptr(), 1);
+            let (ran, glyphs) = execute(face, font, &[]);
+            assert_ne!(ran, 0, "a plan for another variation should still run");
+            assert!(glyphs > 0);
         });
     }
 }

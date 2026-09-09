@@ -122,9 +122,6 @@ pub struct hr_shape_plan_t {
     face: *mut hr_face_t,
     /// `None` only for the immortal empty plan.
     pub(crate) plan: Option<Arc<ShapePlan>>,
-    /// The coordinates the plan was built for, so `execute` can check that the
-    /// font it is handed selects the same variation of the font.
-    coords: Vec<NormalizedCoord>,
 }
 
 impl Drop for hr_shape_plan_t {
@@ -148,7 +145,6 @@ impl Object for hr_shape_plan_t {
                     header: ObjectHeader::immortal(),
                     face: hr_face_t::empty(),
                     plan: None,
-                    coords: Vec::new(),
                 })
             })
             .get()
@@ -231,10 +227,6 @@ unsafe fn create_plan(
         header: ObjectHeader::new(),
         face: unsafe { object::reference(face) },
         plan: Some(plan),
-        // The instance's own reading of the coordinates, not the caller's:
-        // a font pads, truncates and drops an all-zero vector, so two
-        // arrays that name the same instance must compare equal here.
-        coords: instance.normalized_coords().to_vec(),
     })
 }
 
@@ -273,8 +265,9 @@ pub unsafe extern "C" fn hr_shape_plan_create(
 /// Builds a plan for a particular variation of a variable font.
 ///
 /// Coordinates are 2.14 fixed point values in axis order, as
-/// `hr_font_get_var_coords_normalized` reports them. A plan built this way must
-/// only be executed with a font set to the same coordinates.
+/// `hr_font_get_var_coords_normalized` reports them. They choose the variation
+/// the plan is built for; executing it against a font set to another shapes
+/// with the font's, as it does in HarfBuzz.
 ///
 /// # Safety
 ///
@@ -515,14 +508,11 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         font_ref.face() == plan_ref.face,
         "shape plan was built for a different face than this font"
     );
-    let Some(instance) = font_ref.instance() else {
-        return false.into();
-    };
-    // ... and against one variation of it. HarfBuzz does not check this,
-    // and shapes with the font's settings whatever the plan was built for.
-    // Refusing says so and is recoverable; aborting the host process over
-    // something a caller can reasonably get wrong is not.
-    if instance.normalized_coords() != plan_ref.coords.as_slice() {
+    // The variation the plan was built for is not checked against the
+    // font's, as HarfBuzz does not check it either: the font's settings are
+    // the ones shaping uses, and a plan built for another variation of the
+    // same face still applies to it.
+    if font_ref.instance().is_none() {
         return false.into();
     }
     // Take a share of the plan, so that a callback destroying it during
