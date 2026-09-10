@@ -476,12 +476,14 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 /// # Aborts
 ///
 /// Using a plan that does not apply aborts the process, as HarfBuzz's
-/// assertions do: the plan must have been built over the same face, for the
-/// same variation settings, and for the direction, script and language the
-/// buffer carries. These are programming errors rather than conditions to
-/// recover from, and shaping through a mismatched plan yields a wrong answer
-/// rather than a slow one. Use `hr_shape` if you would rather have a plan
-/// chosen for you.
+/// assertions do: the plan must have been built over the same face, and for
+/// the direction, script and language the buffer carries. These are
+/// programming errors rather than conditions to recover from, and shaping
+/// through a mismatched plan yields a wrong answer rather than a slow one.
+/// Use `hr_shape` if you would rather have a plan chosen for you.
+///
+/// Variation settings are not among them: HarfBuzz does not compare those,
+/// and shapes with the font's whatever the plan was built for.
 ///
 /// # Safety
 ///

@@ -363,6 +363,157 @@ fn buffer_properties_round_trip() {
     }
 }
 
+/// Serializes with the given flags and hands back what was written.
+unsafe fn serialize(
+    buffer: *mut hr_buffer_t,
+    start: c_uint,
+    end: c_uint,
+    font: *mut hr_font_t,
+    flags: hr_buffer_serialize_flags_t,
+) -> (c_uint, String) {
+    let mut dest = [0i8; 512];
+    let mut consumed = 0;
+    let items = unsafe {
+        hr_buffer_serialize_glyphs(
+            buffer,
+            start,
+            end,
+            dest.as_mut_ptr(),
+            dest.len() as c_uint,
+            &raw mut consumed,
+            font,
+            hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+            flags,
+        )
+    };
+    let text = unsafe { std::ffi::CStr::from_ptr(dest.as_ptr()) }
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(consumed as usize, text.len());
+    (items, text)
+}
+
+/// A buffer of glyphs that was never shaped, and so has no positions.
+unsafe fn glyph_buffer(gids: &[hr_codepoint_t]) -> *mut hr_buffer_t {
+    unsafe {
+        let buffer = hr_buffer_create();
+        hr_buffer_add_codepoints(buffer, gids.as_ptr(), gids.len() as c_int, 0, -1);
+        hr_buffer_set_content_type(
+            buffer,
+            hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_GLYPHS,
+        );
+        buffer
+    }
+}
+
+#[test]
+fn serializing_a_buffer_without_positions_reports_its_glyphs() {
+    unsafe {
+        with_font(|_, font| {
+            // Having no positions is not the same as having zero ones: the
+            // glyphs are still there to report, without the `+0` that would
+            // claim an advance nobody worked out.
+            // Numbered rather than named, so the expected text does not
+            // depend on what this font calls its first two glyphs.
+            let numbers = HR_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES;
+            let buffer = glyph_buffer(&[1, 2]);
+            let (items, text) = serialize(buffer, 0, 2, font, numbers);
+            assert_eq!((items, text.as_str()), (2, "[1=0|2=1]"));
+
+            // The range path used to run off the end of an empty string here.
+            let (items, text) = serialize(buffer, 1, 2, font, numbers);
+            assert_eq!((items, text.as_str()), (1, "|2=1]"));
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
+fn serializing_a_range_counts_from_the_start_of_the_buffer() {
+    unsafe {
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+
+            // With advances suppressed each glyph reports the pen position it
+            // sits at, which counts from the start of the buffer even when
+            // only the tail of it is asked for.
+            let (_, whole) = serialize(
+                buffer,
+                0,
+                hr_buffer_get_length(buffer),
+                font,
+                HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES,
+            );
+            let (_, tail) = serialize(
+                buffer,
+                1,
+                hr_buffer_get_length(buffer),
+                font,
+                HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES,
+            );
+            // The tail of the whole listing is exactly the tail on its own.
+            let from = whole.find('|').expect("more than one glyph");
+            assert_eq!(tail, whole[from..]);
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
+fn extents_that_cannot_be_worked_out_are_left_out() {
+    unsafe {
+        // Nothing can say what a glyph's extents are without a font, so the
+        // field is absent rather than zero.
+        let buffer = glyph_buffer(&[1]);
+        let (items, text) = serialize(
+            buffer,
+            0,
+            1,
+            ptr::null_mut(),
+            HR_BUFFER_SERIALIZE_FLAG_GLYPH_EXTENTS,
+        );
+        assert_eq!((items, text.as_str()), (1, "[gid1=0]"));
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn adding_codepoints_checks_nothing() {
+    unsafe {
+        let items = [0x41u32, 0xD800, 0x0011_0000, 0x42];
+
+        // `add_utf32` replaces what are not characters ...
+        let buffer = hr_buffer_create();
+        hr_buffer_add_utf32(buffer, items.as_ptr(), 4, 0, -1);
+        const FFFD: u32 = 0xFFFD;
+        assert_eq!(glyph_ids(buffer), [0x41, FFFD, FFFD, 0x42]);
+        hr_buffer_destroy(buffer);
+
+        // ... and `add_codepoints` is the counterpart that does not, for
+        // callers that have already checked, or that mean it.
+        let buffer = hr_buffer_create();
+        hr_buffer_add_codepoints(buffer, items.as_ptr(), 4, 0, -1);
+        assert_eq!(glyph_ids(buffer), items);
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn guessing_settles_on_a_language() {
+    unsafe {
+        // HarfBuzz fills in the language the process is running under, which
+        // language-specific shaping then follows.
+        let buffer = hr_buffer_create();
+        hr_buffer_add_utf8(buffer, c"abc".as_ptr(), -1, 0, -1);
+        assert!(hr_buffer_get_language(buffer).is_null());
+        hr_buffer_guess_segment_properties(buffer);
+        assert_eq!(hr_buffer_get_language(buffer), hr_language_get_default());
+        hr_buffer_destroy(buffer);
+    }
+}
+
 #[test]
 fn serializing_writes_whole_items_or_none() {
     unsafe {
@@ -1457,7 +1608,9 @@ fn latin_props() -> hr_segment_properties_t {
     hr_segment_properties_t {
         direction: HR_DIRECTION_LTR,
         script: HR_SCRIPT_LATIN,
-        language: ptr::null(),
+        // What a buffer carries once its properties have been guessed, so
+        // that a plan built from these applies to one.
+        language: hr_language_get_default(),
         reserved1: ptr::null_mut(),
         reserved2: ptr::null_mut(),
     }
@@ -1645,7 +1798,8 @@ unsafe fn run_abort_case(case: &str) {
                 });
             });
         },
-        // A plan built for one variation, used with a font at another.
+        // A plan built for one variation, used with a font at another, which
+        // shapes rather than aborting.
         "coords" => unsafe {
             with_named_font(VARIABLE_FONT, |face, font| {
                 let props = latin_props();
@@ -1684,8 +1838,15 @@ fn abort_case() {
         return;
     };
     unsafe { run_abort_case(&case) };
-    unreachable!("case {case} should have aborted");
+    // The call returned. Say so with a status of its own rather than
+    // panicking, which the parent could not tell from the abort it is
+    // looking for.
+    std::process::exit(RETURNED);
 }
+
+/// What the child exits with when the case it ran returned rather than
+/// stopping the process.
+const RETURNED: i32 = 99;
 
 /// Re-runs `abort_case` in a child process and reports whether it died.
 fn aborts(case: &str) -> bool {
@@ -1697,7 +1858,10 @@ fn aborts(case: &str) -> bool {
         .stderr(std::process::Stdio::null())
         .status()
         .expect("failed to run the child process");
-    !status.success()
+    // Anything but a clean return, and the child says which of those it was:
+    // without that, a case that quietly returned would read as an abort and
+    // the test would pass whatever the API did.
+    status.code() != Some(RETURNED) && !status.success()
 }
 
 #[test]
@@ -1705,9 +1869,12 @@ fn a_plan_that_does_not_apply_aborts() {
     // Matching HarfBuzz, where these are assertions rather than errors.
     assert!(aborts("props"), "mismatched segment properties must abort");
     assert!(aborts("face"), "a plan for another face must abort");
+    // Variation settings are the exception, and this is what proves the check
+    // above can tell the difference: HarfBuzz does not compare them, so a
+    // plan built for another variation runs rather than stopping the process.
     assert!(
-        aborts("coords"),
-        "a plan for other variation settings must abort"
+        !aborts("coords"),
+        "a plan for other variation settings must not abort"
     );
 }
 

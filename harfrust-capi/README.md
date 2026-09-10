@@ -143,15 +143,19 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 - **Misusing the shaping calls aborts,** as HarfBuzz's assertions do, rather
   than being reported. `hr_shape` and `hr_shape_full` abort when handed a
   buffer that already holds glyphs or a font with nothing to shape with, and
-  `hr_shape_plan_execute` aborts on a plan built for another face, other
-  variation settings, or properties the buffer does not carry. HarfBuzz
-  compiles its assertions out with `NDEBUG`; these are always on, because
-  `hr_shape` returns nothing and could not otherwise report them at all.
+  `hr_shape_plan_execute` aborts on a plan built for another face, or for
+  properties the buffer does not carry. HarfBuzz compiles its assertions out
+  with `NDEBUG`; these are always on, because `hr_shape` returns nothing and
+  could not otherwise report them at all. Variation settings are not among
+  them: HarfBuzz does not compare those, and shapes with the font's whatever
+  the plan was built for.
 
-  Running past the length, operation or nesting limits is not in that set.
-  Pathological input can provoke it, so `hr_shape_full` returns false and
-  `hr_shape` carries on, exactly as HarfBuzz does. `hr_buffer_allocation_successful`
-  reports the same condition.
+  Running past the length, operation or nesting limits is not in that set
+  either, and does not fail the call. HarfBuzz's shapers report success
+  whatever became of the buffer, so `hr_shape_full` returns true and
+  `hr_shape` carries on; `hr_buffer_allocation_successful` is what reports
+  the condition. `hr_shape_full` returns false only when no shaper could be
+  run at all.
 
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.
