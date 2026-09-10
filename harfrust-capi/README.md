@@ -1,4 +1,4 @@
-# harfrust-capi
+# harfrust_capi
 
 A C API for [HarfRust](https://github.com/harfbuzz/harfrust), mirroring the
 shaping half of HarfBuzz's API with an `hr_` prefix in place of `hb_`.
@@ -64,7 +64,7 @@ python3 scripts/gen-hb-compat-header.py
 ## Building
 
 ```sh
-cargo build -p harfrust-capi --release
+cargo build -p harfrust_capi --release
 ```
 
 This produces static and shared C libraries. A Rust `rlib` is deliberately not
@@ -74,7 +74,7 @@ generated with [cbindgen](https://github.com/mozilla/cbindgen):
 
 ```sh
 cbindgen --config harfrust-capi/cbindgen.toml \
-         --crate harfrust-capi \
+         --crate harfrust_capi \
          --output harfrust-capi/include/hr.h
 ```
 

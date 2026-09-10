@@ -1,5 +1,5 @@
 [package]
-name = "harfrust-capi"
+name = "harfrust_capi"
 autotests = false
 version.workspace = true
 edition.workspace = true
