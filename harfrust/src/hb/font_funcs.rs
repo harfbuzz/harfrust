@@ -246,12 +246,19 @@ impl<'a> BuiltinFontFuncs<'a> {
 
     /// Maps a Unicode scalar value to a nominal glyph.
     pub fn nominal_glyph(&self, c: u32) -> Option<GlyphId> {
-        self.charmap().map(c)
+        // A cmap entry pointing at .notdef says the font has no glyph for
+        // the character, rather than that its glyph is .notdef. HarfBuzz
+        // reads it the same way, and the difference shows once a caller
+        // asks for a not-found glyph of its own.
+        self.charmap().map(c).filter(|glyph| glyph.to_u32() != 0)
     }
 
     /// Maps a Unicode scalar value and variation selector to a glyph.
     pub fn variant_glyph(&self, c: u32, vs: u32) -> Option<GlyphId> {
-        self.charmap().map_variant(c, vs)
+        // As in `nominal_glyph`: .notdef is not a glyph the font has.
+        self.charmap()
+            .map_variant(c, vs)
+            .filter(|glyph| glyph.to_u32() != 0)
     }
 
     /// Returns the horizontal advance for a glyph.

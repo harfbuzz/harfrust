@@ -222,18 +222,27 @@ impl<'a> GlyphMetrics<'a> {
         Some(bearing)
     }
 
+    /// The vertical advance before any variation is applied, or `None` when
+    /// the face carries no vertical metrics to read one from.
+    ///
+    /// As with the horizontal advance, past the last glyph the face has
+    /// there is no advance to give.
+    fn plain_advance_height(&self, gid: GlyphId) -> Option<i32> {
+        let vmtx = self.vmtx.as_ref()?;
+        if gid.to_u32() >= self.num_glyphs {
+            return Some(0);
+        }
+        Some(vmtx.advance(gid)? as i32)
+    }
+
     pub(crate) fn advance_height(
         &self,
         gid: impl Into<GlyphId>,
         coords: &[F2Dot14],
     ) -> Option<i32> {
         let gid = gid.into();
-        let Some(mut advance) = self
-            .vmtx
-            .as_ref()
-            .and_then(|vmtx| vmtx.advance(gid))
-            .map(|advance| advance as i32)
-        else {
+        let Some(mut advance) = self.plain_advance_height(gid) else {
+            // No vertical metrics at all: every glyph is as tall as the face.
             return Some(self.ascent as i32 - self.descent as i32);
         };
         if !coords.is_empty() {

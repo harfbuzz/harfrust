@@ -96,6 +96,37 @@ pub(crate) fn legacy_symbol_font_page(os2: Option<&Os2<'_>>) -> u16 {
         & 0xFF00
 }
 
+/// Where a face's horizontal ascender and descender come from.
+///
+/// The typographic metrics in `OS/2` are the ones to use only when the face
+/// says so, through the `USE_TYPO_METRICS` bit; otherwise `hhea` carries
+/// them. Reading `OS/2` whenever it is present, which is nearly always,
+/// gives a different answer for most faces. HarfBuzz reads them this way,
+/// and takes the ascender as positive and the descender as negative
+/// whichever way the face stores them.
+fn horizontal_metrics(
+    os2: Option<&Os2>,
+    hhea: Option<&read_fonts::tables::hhea::Hhea>,
+    upem: u16,
+) -> (i16, i16) {
+    let typo = os2.filter(|os2| {
+        os2.fs_selection()
+            .contains(read_fonts::tables::os2::SelectionFlags::USE_TYPO_METRICS)
+    });
+    let (ascent, descent) = match (typo, hhea) {
+        (Some(os2), _) => (os2.s_typo_ascender(), os2.s_typo_descender()),
+        (None, Some(hhea)) => (hhea.ascender().to_i16(), hhea.descender().to_i16()),
+        // Neither table says, so the face is guessed at: HarfBuzz puts the
+        // ascender four fifths of the way up the em and the descender the
+        // rest of the way down.
+        (None, None) => {
+            let ascent = (i32::from(upem) * 4 / 5) as i16;
+            (ascent, ascent.saturating_sub(upem as i16))
+        }
+    };
+    (ascent.saturating_abs(), -descent.saturating_abs())
+}
+
 impl TableRanges {
     pub fn new(font: &FontRef) -> Self {
         let num_glyphs = font
@@ -107,13 +138,7 @@ impl TableRanges {
         });
         let os2 = font.os2().ok();
         let hhea = font.hhea().ok();
-        let (ascent, descent) = if let Some(os2) = &os2 {
-            (os2.s_typo_ascender(), os2.s_typo_descender())
-        } else if let Some(hhea) = &hhea {
-            (hhea.ascender().to_i16(), hhea.descender().to_i16())
-        } else {
-            (0, 0) // TODO
-        };
+        let (ascent, descent) = horizontal_metrics(os2.as_ref(), hhea.as_ref(), units_per_em);
         let num_h_metrics = hhea
             .map(|hhea| hhea.number_of_h_metrics())
             .unwrap_or_default();
@@ -208,13 +233,7 @@ impl TableRanges {
         });
         let os2 = font.os2().ok();
         let hhea = font.hhea().ok();
-        let (ascent, descent) = if let Some(os2) = &os2 {
-            (os2.s_typo_ascender(), os2.s_typo_descender())
-        } else if let Some(hhea) = &hhea {
-            (hhea.ascender().to_i16(), hhea.descender().to_i16())
-        } else {
-            (0, 0) // TODO
-        };
+        let (ascent, descent) = horizontal_metrics(os2.as_ref(), hhea.as_ref(), units_per_em);
         let num_h_metrics = hhea
             .map(|hhea| hhea.number_of_h_metrics())
             .unwrap_or_default();
