@@ -684,6 +684,276 @@ fn appending_a_range_carries_its_surroundings() {
 }
 
 #[test]
+fn an_unknown_serialization_format_survives_the_round_trip() {
+    unsafe {
+        // The format is a tag, and a caller may hold one this library does
+        // not know: it comes back as itself rather than collapsing, and asks
+        // for nothing when handed back.
+        let unknown = hr_buffer_serialize_format_from_string(c"FOO ".as_ptr(), -1);
+        assert_eq!(unknown, 0x464F_4F00);
+        assert!(hr_buffer_serialize_format_to_string(unknown).is_null());
+
+        assert_eq!(
+            hr_buffer_serialize_format_from_string(c"text".as_ptr(), -1),
+            HR_BUFFER_SERIALIZE_FORMAT_TEXT
+        );
+
+        // Handing it back asks for a format that does not exist, which
+        // serializes nothing rather than misbehaving.
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let mut dest = [0i8; 64];
+            let mut consumed = 0;
+            let items = hr_buffer_serialize_glyphs(
+                buffer,
+                0,
+                hr_buffer_get_length(buffer),
+                dest.as_mut_ptr(),
+                dest.len() as c_uint,
+                &raw mut consumed,
+                font,
+                unknown,
+                HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
+            );
+            assert_eq!((items, consumed), (0, 0));
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
+fn a_sub_font_follows_its_parent() {
+    unsafe {
+        with_font(|_, font| {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(always_glyph_777),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(ffuncs);
+
+            let sub = hr_font_create_sub_font(font);
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(sub, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 777);
+
+            // Callbacks installed on the parent after the child was made are
+            // the child's callbacks too: it asks, rather than having copied.
+            let replacement = hr_font_funcs_create();
+            hr_font_set_funcs(font, replacement, ptr::null_mut(), None);
+            hr_font_funcs_destroy(replacement);
+            glyph = 1;
+            assert_eq!(
+                hr_font_get_nominal_glyph(sub, u32::from(b'a'), &raw mut glyph),
+                0,
+                "the child should see that the parent now answers nothing"
+            );
+            assert_eq!(glyph, 0);
+
+            hr_font_destroy(sub);
+        });
+    }
+}
+
+#[test]
+fn context_belongs_to_the_text_it_was_added_with() {
+    unsafe {
+        // Text added to a buffer that already holds some brings no
+        // pre-context with it: the first call's surroundings stand.
+        let buffer = hr_buffer_create();
+        hr_buffer_add_utf8(buffer, c"abcdef".as_ptr(), -1, 2, 2);
+        hr_buffer_add_utf8(buffer, c"abcdef".as_ptr(), -1, 4, 2);
+        assert_eq!(hr_buffer_get_length(buffer), 4);
+        hr_buffer_destroy(buffer);
+
+        // Emptying by length empties what described the contents too.
+        let buffer = hr_buffer_create();
+        hr_buffer_add_utf8(buffer, c"abcdef".as_ptr(), -1, 0, 3);
+        assert_eq!(
+            hr_buffer_get_content_type(buffer),
+            HR_BUFFER_CONTENT_TYPE_UNICODE
+        );
+        assert_ne!(hr_buffer_set_length(buffer, 0), 0);
+        assert_eq!(
+            hr_buffer_get_content_type(buffer),
+            HR_BUFFER_CONTENT_TYPE_INVALID
+        );
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn a_buffer_like_another_copies_how_it_is_set_up() {
+    unsafe {
+        let src = hr_buffer_create();
+        hr_buffer_set_direction(src, HR_DIRECTION_RTL);
+        hr_buffer_set_script(src, HR_SCRIPT_ARABIC);
+        hr_buffer_set_cluster_level(src, HR_BUFFER_CLUSTER_LEVEL_CHARACTERS);
+        hr_buffer_set_flags(src, HR_BUFFER_FLAG_BOT);
+
+        // How it is configured, and not what it says about the text.
+        let like = hr_buffer_create_similar(src);
+        assert_eq!(
+            hr_buffer_get_cluster_level(like),
+            HR_BUFFER_CLUSTER_LEVEL_CHARACTERS
+        );
+        assert_eq!(hr_buffer_get_flags(like), HR_BUFFER_FLAG_BOT);
+        assert_eq!(hr_buffer_get_direction(like), HR_DIRECTION_INVALID);
+        assert_eq!(hr_buffer_get_script(like), HR_SCRIPT_INVALID);
+
+        // And clearing the contents leaves the configuration alone.
+        hr_buffer_set_not_found_variation_selector_glyph(src, 7);
+        hr_buffer_clear_contents(src);
+        assert_eq!(
+            hr_buffer_get_cluster_level(src),
+            HR_BUFFER_CLUSTER_LEVEL_CHARACTERS
+        );
+        assert_eq!(hr_buffer_get_not_found_variation_selector_glyph(src), 7);
+
+        // A variation selector nothing resolves is spelled with the
+        // codepoint that is not one, which is also the default.
+        let fresh = hr_buffer_create();
+        assert_eq!(
+            hr_buffer_get_not_found_variation_selector_glyph(fresh),
+            HR_CODEPOINT_INVALID
+        );
+        hr_buffer_destroy(fresh);
+        hr_buffer_destroy(like);
+        hr_buffer_destroy(src);
+    }
+}
+
+#[test]
+fn properties_compare_and_overlay_as_a_whole() {
+    unsafe {
+        let mut a = latin_props();
+        let mut b = latin_props();
+        a.reserved1 = ptr::dangling_mut();
+        assert_eq!(
+            hr_segment_properties_equal(ptr::from_ref(&a), ptr::from_ref(&b)),
+            0,
+            "the reserved fields are part of the comparison"
+        );
+
+        // Overlaying stops where the two describe the text differently.
+        let mut dest = hr_segment_properties_t {
+            direction: HR_DIRECTION_LTR,
+            script: HR_SCRIPT_INVALID,
+            language: ptr::null(),
+            reserved1: ptr::null_mut(),
+            reserved2: ptr::null_mut(),
+        };
+        b.direction = HR_DIRECTION_RTL;
+        b.script = HR_SCRIPT_ARABIC;
+        hr_segment_properties_overlay(ptr::from_mut(&mut dest), ptr::from_ref(&b));
+        assert_eq!(dest.script, HR_SCRIPT_INVALID);
+        assert!(dest.language.is_null());
+    }
+}
+
+#[test]
+fn nothing_to_shape_is_nothing_to_fail_at() {
+    unsafe {
+        with_font(|_, font| {
+            // Even asking for a shaper that does not exist: HarfBuzz answers
+            // an empty buffer before it looks at anything else.
+            let buffer = hr_buffer_create();
+            hr_buffer_guess_segment_properties(buffer);
+            let absent = [c"graphite2".as_ptr(), ptr::null()];
+            assert_ne!(
+                hr_shape_full(font, buffer, ptr::null(), 0, absent.as_ptr()),
+                0
+            );
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
+fn a_blob_of_nothing_is_still_a_blob() {
+    unsafe {
+        // Zero length is not a failure, and the blob holds the caller's data
+        // until it is destroyed.
+        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        let storage = [0i8; 1];
+        let blob = hr_blob_create_or_fail(
+            storage.as_ptr(),
+            0,
+            HR_MEMORY_MODE_READONLY,
+            ptr::dangling_mut(),
+            Some(count_null_func_drop),
+        );
+        assert!(!blob.is_null());
+        assert_eq!(hr_blob_get_length(blob), 0);
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 0);
+        hr_blob_destroy(blob);
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+
+        // A length that cannot be represented is the one that fails.
+        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        let refused = hr_blob_create_or_fail(
+            storage.as_ptr(),
+            1 << 31,
+            HR_MEMORY_MODE_READONLY,
+            ptr::dangling_mut(),
+            Some(count_null_func_drop),
+        );
+        assert!(refused.is_null());
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn a_failed_parse_describes_nothing() {
+    unsafe {
+        let mut feature = hr_feature_t {
+            tag: 0xABAB_ABAB,
+            value: 9,
+            start: 9,
+            end: 9,
+        };
+        assert_eq!(
+            hr_feature_from_string(c"!!! not a feature".as_ptr(), -1, &raw mut feature),
+            0
+        );
+        assert_eq!(
+            (feature.tag, feature.value, feature.start, feature.end),
+            (0, 0, 0, 0)
+        );
+
+        let mut variation = hr_variation_t {
+            tag: 0xABAB_ABAB,
+            value: 9.0,
+        };
+        assert_eq!(
+            hr_variation_from_string(c"!!!".as_ptr(), -1, &raw mut variation),
+            0
+        );
+        assert_eq!(variation.tag, 0);
+
+        // A range of one character is written as that character.
+        let mut one = hr_feature_t::default();
+        assert_ne!(
+            hr_feature_from_string(c"liga[5]".as_ptr(), -1, &raw mut one),
+            0
+        );
+        let mut text = [0i8; 64];
+        hr_feature_to_string(ptr::from_ref(&one), text.as_mut_ptr(), text.len() as c_uint);
+        assert_eq!(
+            std::ffi::CStr::from_ptr(text.as_ptr()).to_str().unwrap(),
+            "liga[5]"
+        );
+    }
+}
+
+#[test]
 fn buffer_properties_round_trip_being_unset() {
     unsafe {
         let buffer = hr_buffer_create();
@@ -1503,9 +1773,15 @@ fn languages_are_interned() {
         let name = core::ffi::CStr::from_ptr(hr_language_to_string(a));
         assert_eq!(name.to_str().unwrap(), "en-us");
 
+        // The second argument is the more specific of the two: "en-US" is a
+        // kind of "en", and not the other way about.
         let en = hr_language_from_string(c"en".as_ptr(), -1);
-        assert_ne!(hr_language_matches(a, en), 0);
-        assert_eq!(hr_language_matches(en, a), 0);
+        assert_ne!(hr_language_matches(en, a), 0);
+        assert_eq!(hr_language_matches(a, en), 0);
+
+        // A locale's codeset and modifier are not part of the language.
+        let locale = hr_language_from_string(c"en_US.utf8".as_ptr(), -1);
+        assert_eq!(locale, a);
     }
 }
 

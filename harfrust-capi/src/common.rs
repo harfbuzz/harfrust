@@ -16,6 +16,10 @@ pub type hr_bool_t = c_int;
 /// A Unicode scalar value.
 pub type hr_codepoint_t = u32;
 
+/// A codepoint that is not one, which stands for the absence of a glyph or a
+/// character wherever one is expected.
+pub const HR_CODEPOINT_INVALID: hr_codepoint_t = u32::MAX;
+
 /// A position, in whatever units the configured font scale implies.
 pub type hr_position_t = i32;
 
@@ -704,9 +708,27 @@ pub unsafe extern "C" fn hr_language_from_string(str_: *const c_char, len: c_int
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return core::ptr::null();
     };
-    Language::new(s)
+    Language::new(canonical_language(s))
         .as_ref()
         .map_or(core::ptr::null(), intern_language)
+}
+
+/// A language tag as HarfBuzz keeps it: lower-cased, with underscores read as
+/// subtag separators, and ending at the first character that can be neither.
+///
+/// This is what drops the codeset and modifier a locale carries, so that
+/// "en_US.utf8" and "en-us" are the same language.
+fn canonical_language(tag: &str) -> String {
+    let mut out = String::with_capacity(tag.len());
+    for byte in tag.bytes() {
+        match byte {
+            b'a'..=b'z' | b'0'..=b'9' => out.push(byte as char),
+            b'A'..=b'Z' => out.push(byte.to_ascii_lowercase() as char),
+            b'-' | b'_' => out.push('-'),
+            _ => break,
+        }
+    }
+    out
 }
 
 /// Returns a language's tag as a NUL-terminated string, or `NULL` when the
@@ -768,16 +790,18 @@ pub unsafe extern "C" fn hr_language_matches(
         return false.into();
     };
     let (lang, spec) = (language.lang.as_bytes(), specific.lang.as_bytes());
-    if spec.is_empty() {
+    if lang.is_empty() {
         return true.into();
     }
-    // A match requires a prefix ending on a subtag boundary.
-    (lang.len() > spec.len() && lang.starts_with(spec) && lang[spec.len()] == b'-').into()
+    // `specific` is the more specific of the two: it matches when it is
+    // `language` with more subtags on the end, which is the direction
+    // HarfBuzz reads these in.
+    (spec.len() > lang.len() && spec.starts_with(lang) && spec[lang.len()] == b'-').into()
 }
 
 /// A feature tag with the value to apply and the range to apply it over.
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Debug)]
 pub struct hr_feature_t {
     /// The feature's OpenType tag.
     pub tag: hr_tag_t,
@@ -825,6 +849,11 @@ pub unsafe extern "C" fn hr_feature_from_string(
     len: c_int,
     feature: *mut hr_feature_t,
 ) -> hr_bool_t {
+    // Nothing parsed is nothing described: the destination says so rather
+    // than keeping whatever the caller happened to leave in it.
+    if let Some(out) = unsafe { feature.as_mut() } {
+        *out = hr_feature_t::default();
+    }
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };
@@ -862,9 +891,13 @@ pub unsafe extern "C" fn hr_feature_to_string(
         if feature.start != HR_FEATURE_GLOBAL_START {
             s.push_str(&feature.start.to_string());
         }
-        s.push(':');
-        if feature.end != HR_FEATURE_GLOBAL_END {
-            s.push_str(&feature.end.to_string());
+        // A range covering one character is written as that one character,
+        // which is also how it reads back.
+        if feature.end != feature.start.saturating_add(1) {
+            s.push(':');
+            if feature.end != HR_FEATURE_GLOBAL_END {
+                s.push_str(&feature.end.to_string());
+            }
         }
         s.push(']');
     }
@@ -877,7 +910,7 @@ pub unsafe extern "C" fn hr_feature_to_string(
 
 /// A variation axis tag and the value to set it to, in user space.
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Debug)]
 pub struct hr_variation_t {
     /// The axis's OpenType tag.
     pub tag: hr_tag_t,
@@ -916,6 +949,11 @@ pub unsafe extern "C" fn hr_variation_from_string(
     len: c_int,
     variation: *mut hr_variation_t,
 ) -> hr_bool_t {
+    // Nothing parsed is nothing described: the destination says so rather
+    // than keeping whatever the caller happened to leave in it.
+    if let Some(out) = unsafe { variation.as_mut() } {
+        *out = hr_variation_t::default();
+    }
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };

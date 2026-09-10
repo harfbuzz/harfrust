@@ -599,6 +599,12 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
 #define HR_BUFFER_SERIALIZE_FLAG_DEFINED 63
 
 /**
+ * A codepoint that is not one, which stands for the absence of a glyph or a
+ * character wherever one is expected.
+ */
+#define HR_CODEPOINT_INVALID UINT32_MAX
+
+/**
  * The tag matching no script, language or feature.
  */
 #define HR_TAG_NONE 0

@@ -12,7 +12,7 @@ use harfrust::{
 use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
 use crate::common::{
     hr_bool_t, hr_codepoint_t, hr_language_t, hr_mask_t, hr_position_t, hr_script_t, hr_tag_t,
-    language_from_rust, language_to_rust, script_from_rust, script_to_rust,
+    language_from_rust, language_to_rust, script_from_rust, script_to_rust, HR_CODEPOINT_INVALID,
 };
 use crate::font::hr_font_t;
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
@@ -261,9 +261,9 @@ pub unsafe extern "C" fn hr_buffer_create_similar(src: *mut hr_buffer_t) -> *mut
     let (Some(src), Some(dst)) = (unsafe { src.as_ref() }, unsafe { created.as_mut() }) else {
         return created;
     };
-    dst.buffer.set_direction(src.buffer.direction());
-    dst.buffer.set_script(src.buffer.script());
-    dst.buffer.set_language(src.buffer.language().cloned());
+    // How the source is configured, and not what it is holding or what it
+    // says about the text: HarfBuzz leaves the direction, script and language
+    // for the new buffer to be told or to guess.
     dst.buffer.set_flags(src.buffer.flags());
     dst.buffer.set_cluster_level(src.buffer.cluster_level());
     dst.buffer.set_invisible_glyph(src.buffer.invisible_glyph());
@@ -394,6 +394,9 @@ pub unsafe extern "C" fn hr_buffer_add(
 ) {
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.push(codepoint, cluster);
+        // Whatever followed the text before now follows something else, and
+        // the caller has said nothing about what: HarfBuzz drops it here.
+        buffer.buffer.set_post_context_codepoints(&[]);
     }
 }
 
@@ -546,12 +549,16 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     };
     let (start, end) = item_range(bytes.len(), item_offset, item_length);
 
-    if start > 0 {
+    // What comes before the item is context only for a buffer that holds
+    // nothing yet: a caller may set the context in one call and add the text
+    // in the next, and text added after that has its own surroundings.
+    if buffer.buffer.is_empty() && start > 0 {
         set_pre_context_utf8(&mut buffer.buffer, &bytes[..start]);
     }
-    if end < bytes.len() {
-        set_post_context_utf8(&mut buffer.buffer, &bytes[end..]);
-    }
+    // What comes after is rebuilt every time, so that context left from an
+    // earlier call cannot outlive the text it followed. An item running to
+    // the end of the text has nothing after it, and says so.
+    set_post_context_utf8(&mut buffer.buffer, &bytes[end..]);
     // Cluster values are offsets into the whole text, not into the item.
     //
     // Well-formed text is the overwhelmingly common case, and validating it
@@ -647,14 +654,14 @@ unsafe fn add_utf32_items(
         None if validate => char::REPLACEMENT_CHARACTER as u32,
         None => codepoint,
     };
-    if start > 0 {
+    // As in `hr_buffer_add_utf8`: what precedes the item is context only for
+    // a buffer holding nothing yet, and what follows it is rebuilt each time.
+    if buffer.buffer.is_empty() && start > 0 {
         let pre: Vec<u32> = items[..start].iter().rev().map(|&c| scalar(c)).collect();
         buffer.buffer.set_pre_context_codepoints(&pre);
     }
-    if end < len {
-        let post: Vec<u32> = items[end..].iter().map(|&c| scalar(c)).collect();
-        buffer.buffer.set_post_context_codepoints(&post);
-    }
+    let post: Vec<u32> = items[end..].iter().map(|&c| scalar(c)).collect();
+    buffer.buffer.set_post_context_codepoints(&post);
     for (index, &codepoint) in items[start..end].iter().enumerate() {
         buffer
             .buffer
@@ -726,17 +733,21 @@ pub unsafe extern "C" fn hr_buffer_append(
     }
 
     // Properties the destination has none of its own come from the source,
-    // as `hr_segment_properties_overlay` does.
+    // as `hr_segment_properties_overlay` does -- and stop where the two
+    // describe the text differently, since the rest of what the source says
+    // is then about other text.
     if buffer.buffer.direction() == Direction::Invalid {
         buffer.buffer.set_direction(source.buffer.direction());
     }
-    if buffer.buffer.script().is_none() {
-        buffer.buffer.set_script(source.buffer.script());
-    }
-    if buffer.buffer.language().is_none() {
-        buffer
-            .buffer
-            .set_language(source.buffer.language().cloned());
+    if buffer.buffer.direction() == source.buffer.direction() {
+        if buffer.buffer.script().is_none() {
+            buffer.buffer.set_script(source.buffer.script());
+        }
+        if buffer.buffer.script() == source.buffer.script() && buffer.buffer.language().is_none() {
+            buffer
+                .buffer
+                .set_language(source.buffer.language().cloned());
+        }
     }
 
     if !buffer
@@ -1010,7 +1021,18 @@ pub unsafe extern "C" fn hr_buffer_set_length(
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
-    buffer.buffer.set_length(length as usize).into()
+    if !buffer.buffer.set_length(length as usize) {
+        return false.into();
+    }
+    // A buffer with nothing in it holds nothing of what came before it
+    // either, and is no longer a buffer of anything in particular.
+    if length == 0 {
+        buffer.buffer.set_content_type(None);
+        buffer.buffer.set_pre_context_codepoints(&[]);
+    }
+    // The text that followed does not follow this.
+    buffer.buffer.set_post_context_codepoints(&[]);
+    true.into()
 }
 
 /// Returns a buffer's items, writing their count to `length`.
@@ -1136,7 +1158,11 @@ pub unsafe extern "C" fn hr_buffer_set_not_found_variation_selector_glyph(
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer
             .buffer
-            .set_not_found_variation_selector_glyph(Some(glyph));
+            // The codepoint that is not one asks for nothing to be
+            // substituted, rather than for that glyph.
+            .set_not_found_variation_selector_glyph(
+                (glyph != HR_CODEPOINT_INVALID).then_some(glyph),
+            );
     }
 }
 
@@ -1152,7 +1178,9 @@ pub unsafe extern "C" fn hr_buffer_get_not_found_variation_selector_glyph(
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .not_found_variation_selector_glyph()
-        .unwrap_or(0)
+        // Nothing set means nothing is substituted, which HarfBuzz spells
+        // with the codepoint that is not one.
+        .unwrap_or(HR_CODEPOINT_INVALID)
 }
 
 /// Writes a buffer's direction, script and language into `props`.

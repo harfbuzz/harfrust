@@ -70,7 +70,14 @@ pub unsafe extern "C" fn hr_segment_properties_equal(
     let (Some(a), Some(b)) = (unsafe { a.as_ref() }, unsafe { b.as_ref() }) else {
         return core::ptr::eq(a, b).into();
     };
-    (a.direction == b.direction && a.script == b.script && a.language == b.language).into()
+    // Including the reserved fields, which a caller may be using to tell two
+    // otherwise identical property sets apart.
+    (a.direction == b.direction
+        && a.script == b.script
+        && a.language == b.language
+        && a.reserved1 == b.reserved1
+        && a.reserved2 == b.reserved2)
+        .into()
 }
 
 /// Returns a hash of a set of segment properties.
@@ -104,11 +111,20 @@ pub unsafe extern "C" fn hr_segment_properties_overlay(
     let (Some(p), Some(src)) = (unsafe { p.as_mut() }, unsafe { src.as_ref() }) else {
         return;
     };
+    // Each property is filled in only while the two still agree on everything
+    // before it: text the source describes differently is not text these
+    // properties describe, so the rest of it says nothing about this.
     if p.direction == HR_DIRECTION_INVALID {
         p.direction = src.direction;
     }
+    if p.direction != src.direction {
+        return;
+    }
     if p.script == crate::common::HR_SCRIPT_INVALID {
         p.script = src.script;
+    }
+    if p.script != src.script {
+        return;
     }
     if p.language.is_null() {
         p.language = src.language;

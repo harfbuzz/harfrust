@@ -478,7 +478,9 @@ macro_rules! resolve {
                         font,
                         data: state.callback_data(),
                         callback,
-                        scale: adapter.scale_from(state),
+                        // The scale the answer comes back in, which is the
+                        // answering font's own.
+                        scale: (state.x_scale, state.y_scale),
                     };
                 }
             }
@@ -511,21 +513,6 @@ fn rescale(value: i32, from: i32, into: i32) -> i32 {
 impl<'a> FontFuncsAdapter<'a> {
     pub(crate) fn new(font: *mut hr_font_t, state: &'a hr_font_t) -> Self {
         Self { state, font }
-    }
-
-    fn funcs(&self) -> Option<&hr_font_funcs_t> {
-        // SAFETY: `state` owns the reference for as long as this adapter lives.
-        unsafe { self.state.funcs.as_ref() }
-    }
-
-    fn font_data(&self) -> *mut c_void {
-        self.state.callback_data()
-    }
-
-    /// How much larger this font is than `ancestor`, which is what a distance
-    /// coming back from the ancestor's callbacks has to be multiplied by.
-    fn scale_from(&self, ancestor: &hr_font_t) -> (i32, i32) {
-        (ancestor.x_scale, ancestor.y_scale)
     }
 
     /// What the installed nominal-glyph callback answers, or `None` when

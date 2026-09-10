@@ -774,8 +774,10 @@ impl Buffer {
 
         self.serial = 0;
         self.scratch_flags = HB_BUFFER_SCRATCH_FLAG_DEFAULT;
-        self.cluster_level = HB_BUFFER_CLUSTER_LEVEL_DEFAULT;
-        self.not_found_variation_selector = None;
+        // How the buffer is configured -- its flags, cluster level, invisible
+        // glyph and variation-selector fallback -- outlives its contents, as
+        // it does in `hb_buffer_clear_contents`. `Buffer::reset` is what puts
+        // those back.
     }
 
     #[inline]

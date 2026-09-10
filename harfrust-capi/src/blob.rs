@@ -183,25 +183,33 @@ unsafe fn blob_from_raw(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) -> Option<FontBlob> {
-    if data.is_null() || length == 0 {
-        // Release the caller's data; an empty blob owns nothing.
+    // A length that cannot be represented is the one thing HarfBuzz refuses
+    // outright, handing the data back as it does so.
+    if length >= 1 << 31 {
         if let Some(destroy) = destroy {
             unsafe { destroy(user_data) };
         }
         return None;
     }
+    let empty = data.is_null() || length == 0;
     if mode == HR_MEMORY_MODE_DUPLICATE {
-        // SAFETY: the caller guarantees `length` readable bytes at `data`.
-        let copy =
-            unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length as usize) }.to_vec();
+        let copy = if empty {
+            Vec::new()
+        } else {
+            // SAFETY: the caller guarantees `length` readable bytes at `data`.
+            unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length as usize) }.to_vec()
+        };
+        // The copy is this blob's own, so the caller's data is released now.
         if let Some(destroy) = destroy {
             unsafe { destroy(user_data) };
         }
         return Some(FontBlob::from(copy));
     }
+    // A blob of nothing is still a blob, and still holds the caller's data
+    // until it is destroyed: HarfBuzz fails only on a length it cannot take.
     let bytes = ForeignBytes {
         data: data.cast::<u8>(),
-        len: length as usize,
+        len: if empty { 0 } else { length as usize },
         user_data,
         destroy,
     };

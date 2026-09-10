@@ -135,12 +135,17 @@ pub unsafe extern "C" fn hr_shape_full(
     num_features: c_uint,
     shaper_list: *const *const c_char,
 ) -> hr_bool_t {
-    if !unsafe { shaper_list_allows_ot(shaper_list) } {
-        return false.into();
-    }
     let Some(buffer_ref) = (unsafe { buffer.as_mut() }) else {
         return false.into();
     };
+    // Nothing to shape is nothing to fail at, whatever else was asked for:
+    // HarfBuzz answers an empty buffer before it looks at anything else.
+    if buffer_ref.buffer.is_empty() {
+        return true.into();
+    }
+    if !unsafe { shaper_list_allows_ot(shaper_list) } {
+        return false.into();
+    }
     let features = unsafe { collect_features(features, num_features) };
 
     let Some(font_ref) = (unsafe { font.as_ref() }) else {

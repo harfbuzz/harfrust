@@ -206,6 +206,15 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) -> *mut hr_face_t {
+    // Nothing to call is nothing to build a face from, and the data was
+    // handed over to be released either way.
+    if reference_table_func.is_none() {
+        if let Some(destroy) = destroy {
+            // SAFETY: `destroy` was supplied alongside `user_data`.
+            unsafe { destroy(user_data) };
+        }
+        return hr_face_t::empty();
+    }
     let state = Arc::new(TableFunc {
         func: reference_table_func,
         user_data,
@@ -349,9 +358,15 @@ pub unsafe extern "C" fn hr_face_get_glyph_count(face: *mut hr_face_t) -> c_uint
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_reference_blob(face: *mut hr_face_t) -> *mut hr_blob_t {
     let face = unsafe { object::or_empty(face.cast_const()) };
-    match face.source {
-        FaceSource::Blob(blob) => unsafe { object::reference(blob) },
-        FaceSource::Empty | FaceSource::Function(_) => hr_blob_t::empty(),
+    match &face.source {
+        FaceSource::Blob(blob) => unsafe { object::reference(*blob) },
+        FaceSource::Empty => hr_blob_t::empty(),
+        // The whole font is what the none tag asks a table callback for,
+        // which is how a face built from one hands its bytes back.
+        FaceSource::Function(state) => match state.call(tag_to_rust(crate::common::HR_TAG_NONE)) {
+            Some(data) => hr_blob_t::new(data),
+            None => hr_blob_t::empty(),
+        },
     }
 }
 
@@ -371,6 +386,11 @@ pub unsafe extern "C" fn hr_face_reference_table(
     tag: hr_tag_t,
 ) -> *mut hr_blob_t {
     let face_ref = unsafe { object::or_empty(face.cast_const()) };
+    // The none tag names the whole font rather than a table in it, and is
+    // `hr_face_reference_blob`'s business; there is no table to look up here.
+    if tag == crate::common::HR_TAG_NONE {
+        return hr_blob_t::empty();
+    }
     match &face_ref.source {
         FaceSource::Empty => hr_blob_t::empty(),
         FaceSource::Function(state) => match state.call(tag_to_rust(tag)) {
