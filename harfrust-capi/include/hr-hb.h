@@ -83,7 +83,6 @@
 #define hb_buffer_pre_allocate                           hr_buffer_pre_allocate
 #define hb_buffer_reference                              hr_buffer_reference
 #define hb_buffer_reset                                  hr_buffer_reset
-#define hb_buffer_reset_clusters                         hr_buffer_reset_clusters
 #define hb_buffer_reverse                                hr_buffer_reverse
 #define hb_buffer_reverse_clusters                       hr_buffer_reverse_clusters
 #define hb_buffer_reverse_range                          hr_buffer_reverse_range
@@ -108,12 +107,6 @@
 #define hb_codepoint_t                                   hr_codepoint_t
 #define hb_destroy_func_t                                hr_destroy_func_t
 #define hb_direction_from_string                         hr_direction_from_string
-#define hb_direction_is_backward                         hr_direction_is_backward
-#define hb_direction_is_forward                          hr_direction_is_forward
-#define hb_direction_is_horizontal                       hr_direction_is_horizontal
-#define hb_direction_is_valid                            hr_direction_is_valid
-#define hb_direction_is_vertical                         hr_direction_is_vertical
-#define hb_direction_reverse                             hr_direction_reverse
 #define hb_direction_t                                   hr_direction_t
 #define hb_direction_to_string                           hr_direction_to_string
 #define hb_face_create                                   hr_face_create
@@ -213,7 +206,6 @@
 #define hb_shape_plan_destroy                            hr_shape_plan_destroy
 #define hb_shape_plan_execute                            hr_shape_plan_execute
 #define hb_shape_plan_get_empty                          hr_shape_plan_get_empty
-#define hb_shape_plan_get_segment_properties             hr_shape_plan_get_segment_properties
 #define hb_shape_plan_get_shaper                         hr_shape_plan_get_shaper
 #define hb_shape_plan_get_user_data                      hr_shape_plan_get_user_data
 #define hb_shape_plan_reference                          hr_shape_plan_reference

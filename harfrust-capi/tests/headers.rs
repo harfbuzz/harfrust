@@ -66,10 +66,25 @@ fn declared_names(source: &str) -> Vec<String> {
     names
 }
 
+/// Names this library has and HarfBuzz does not, which the compatibility
+/// header deliberately leaves out: a HarfBuzz spelling for them would be one
+/// HarfBuzz does not answer to. Kept in step with the generator's own list.
+const HARFRUST_ONLY: &[&str] = &[
+    "hr_buffer_reset_clusters",
+    "hr_direction_is_backward",
+    "hr_direction_is_forward",
+    "hr_direction_is_horizontal",
+    "hr_direction_is_valid",
+    "hr_direction_is_vertical",
+    "hr_direction_reverse",
+    "hr_shape_plan_get_segment_properties",
+];
+
 #[test]
 fn the_compatibility_header_covers_every_name() {
     let missing: Vec<String> = declared_names(HR_H)
         .into_iter()
+        .filter(|name| !HARFRUST_ONLY.contains(&name.as_str()))
         .filter(|name| {
             let hb = match (name.strip_prefix("hr_"), name.strip_prefix("HR_")) {
                 (Some(rest), _) => format!("hb_{rest}"),
