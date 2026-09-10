@@ -106,14 +106,24 @@ impl hr_face_t {
         self.font.as_ref()
     }
 
-    fn upem(&self) -> c_uint {
+    pub(crate) fn upem(&self) -> c_uint {
         self.font
             .as_ref()
             .and_then(|font| font.tables().head().ok())
             .map_or(1000, |head| c_uint::from(head.units_per_em()))
     }
 
-    fn glyph_count(&self) -> c_uint {
+    /// How far above the baseline the face says its text reaches, in design
+    /// units. This is what a vertical origin is guessed from when nothing
+    /// else says where a glyph hangs from.
+    pub(crate) fn ascender(&self) -> i32 {
+        self.font
+            .as_ref()
+            .and_then(|font| font.tables().hhea().ok())
+            .map_or(0, |hhea| i32::from(hhea.ascender().to_i16()))
+    }
+
+    pub(crate) fn glyph_count(&self) -> c_uint {
         self.font
             .as_ref()
             .and_then(|font| font.tables().maxp().ok())

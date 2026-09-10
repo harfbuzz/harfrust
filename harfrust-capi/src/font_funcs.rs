@@ -584,6 +584,91 @@ impl<'a> FontFuncsAdapter<'a> {
         (found != 0).then_some(Answer::Value(glyph))
     }
 
+    /// How far a glyph advances horizontally, through whichever callback
+    /// answers. There is always an answer: a chain carrying callbacks that do
+    /// not cover this reports one em, as HarfBuzz's nil implementation does.
+    pub(crate) fn call_h_advance(&self, glyph: u32) -> Answer<i32> {
+        let (font, data, cb, scale) = match resolve!(self, h_advance) {
+            Resolved::Builtin => return Answer::Builtin,
+            // Nothing answers, so every glyph is as wide as the font is
+            // tall. HarfBuzz's own answer, and not zero.
+            Resolved::Missing => return Answer::Value(self.state.x_scale),
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
+        };
+        let Some(func) = cb.func else {
+            return Answer::Value(0);
+        };
+        // SAFETY: the callback was registered by the caller for this purpose.
+        let advance = unsafe { func(font, data, glyph, cb.user_data) };
+        Answer::Value(rescale(advance, scale.0, self.state.x_scale))
+    }
+
+    /// As [`FontFuncsAdapter::call_h_advance`], downwards.
+    pub(crate) fn call_v_advance(&self, glyph: u32) -> Answer<i32> {
+        let (font, data, cb, scale) = match resolve!(self, v_advance) {
+            Resolved::Builtin => return Answer::Builtin,
+            Resolved::Missing => return Answer::Value(-self.state.y_scale),
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
+        };
+        let Some(func) = cb.func else {
+            return Answer::Value(0);
+        };
+        // SAFETY: as above.
+        let advance = unsafe { func(font, data, glyph, cb.user_data) };
+        Answer::Value(rescale(advance, scale.1, self.state.y_scale))
+    }
+
+    /// Where a glyph hangs from when text runs vertically, through whichever
+    /// callback answers.
+    ///
+    /// The inner `None` is HarfBuzz's nil answer: no origin available, which
+    /// shaping reads as the origin being nowhere and the public getter
+    /// reports as false.
+    pub(crate) fn call_v_origin(&self, glyph: u32) -> Answer<Option<(i32, i32)>> {
+        let (font, data, cb, scale) = match resolve!(self, v_origin) {
+            Resolved::Builtin => return Answer::Builtin,
+            Resolved::Missing => return Answer::Value(None),
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
+        };
+        let Some(func) = cb.func else {
+            return Answer::Value(None);
+        };
+        let (mut x, mut y) = (0, 0);
+        // SAFETY: as above.
+        let found = unsafe {
+            func(
+                font,
+                data,
+                glyph,
+                ptr::from_mut(&mut x),
+                ptr::from_mut(&mut y),
+                cb.user_data,
+            )
+        };
+        if found == 0 {
+            return Answer::Value(None);
+        }
+        Answer::Value(Some((
+            rescale(x, scale.0, self.state.x_scale),
+            rescale(y, scale.1, self.state.y_scale),
+        )))
+    }
+
     /// What a glyph's extents are, through whichever callback answers.
     pub(crate) fn call_extents(&self, glyph: u32) -> Option<Answer<hr_glyph_extents_t>> {
         let (font, data, cb, scale) = match resolve!(self, extents) {
@@ -627,79 +712,25 @@ impl FontFuncs for FontFuncsAdapter<'_> {
     }
 
     fn advance_width(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
-        let (font, data, cb, scale) = match resolve!(self, h_advance) {
-            Resolved::Builtin => return builtin.advance_width(glyph),
-            // Nothing answers, so every glyph is as wide as the font is
-            // tall. HarfBuzz's own answer, and not zero.
-            Resolved::Missing => return self.state.x_scale,
-            Resolved::Found {
-                font,
-                data,
-                callback,
-                scale,
-            } => (font, data, callback, scale),
-        };
-        let Some(func) = cb.func else {
-            return 0;
-        };
-        // SAFETY: as above.
-        let advance = unsafe { func(font, data, glyph.to_u32(), cb.user_data) };
-        rescale(advance, scale.0, self.state.x_scale)
+        match self.call_h_advance(glyph.to_u32()) {
+            Answer::Builtin => builtin.advance_width(glyph),
+            Answer::Value(advance) => advance,
+        }
     }
 
     fn advance_height(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
-        let (font, data, cb, scale) = match resolve!(self, v_advance) {
-            Resolved::Builtin => return builtin.advance_height(glyph),
-            // As above, downwards.
-            Resolved::Missing => return -self.state.y_scale,
-            Resolved::Found {
-                font,
-                data,
-                callback,
-                scale,
-            } => (font, data, callback, scale),
-        };
-        let Some(func) = cb.func else {
-            return 0;
-        };
-        // SAFETY: as above.
-        let advance = unsafe { func(font, data, glyph.to_u32(), cb.user_data) };
-        rescale(advance, scale.1, self.state.y_scale)
+        match self.call_v_advance(glyph.to_u32()) {
+            Answer::Builtin => builtin.advance_height(glyph),
+            Answer::Value(advance) => advance,
+        }
     }
 
     fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
-        let (font, data, cb, scale) = match resolve!(self, v_origin) {
-            Resolved::Builtin => return builtin.vertical_origin(glyph),
-            Resolved::Missing => return (0, 0),
-            Resolved::Found {
-                font,
-                data,
-                callback,
-                scale,
-            } => (font, data, callback, scale),
-        };
-        let Some(func) = cb.func else {
-            return (0, 0);
-        };
-        let (mut x, mut y) = (0, 0);
-        // SAFETY: as above.
-        let found = unsafe {
-            func(
-                font,
-                data,
-                glyph.to_u32(),
-                ptr::from_mut(&mut x),
-                ptr::from_mut(&mut y),
-                cb.user_data,
-            )
-        };
-        if found == 0 {
-            return (0, 0);
+        match self.call_v_origin(glyph.to_u32()) {
+            Answer::Builtin => builtin.vertical_origin(glyph),
+            // Nowhere in particular is the origin shaping uses.
+            Answer::Value(origin) => origin.unwrap_or((0, 0)),
         }
-        (
-            rescale(x, scale.0, self.state.x_scale),
-            rescale(y, scale.1, self.state.y_scale),
-        )
     }
 
     fn extents(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {

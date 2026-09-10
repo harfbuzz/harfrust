@@ -1,7 +1,7 @@
 //! Fonts: a face together with a size and variation settings. Mirrors the
 //! shaping-relevant half of HarfBuzz's `hb-font.h`.
 
-use core::ffi::{c_int, c_uint, c_void};
+use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{FontInstance, FontVariation, NormalizedCoord};
@@ -9,7 +9,7 @@ use harfrust::Shaper;
 use read_fonts::TableProvider;
 
 use crate::common::hr_glyph_extents_t;
-use crate::common::{hr_bool_t, hr_codepoint_t, hr_variation_t};
+use crate::common::{hr_bool_t, hr_codepoint_t, hr_direction_t, hr_position_t, hr_variation_t};
 use crate::face::hr_face_t;
 use crate::font_funcs::{hr_font_funcs_t, Answer};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
@@ -168,12 +168,109 @@ impl hr_font_t {
             .shaper(true)?
             .builtin_font_funcs()
             .extents(harfrust::GlyphId::from(glyph))?;
+        // The tables answer in design units; everything a font reports is in
+        // the units its scale asks for.
+        let extents = self.scale().scale_extents(extents);
         Some(hr_glyph_extents_t {
             x_bearing: extents.x_bearing,
             y_bearing: extents.y_bearing,
             width: extents.width,
             height: extents.height,
         })
+    }
+
+    /// This face's design units, which everything the tables say is in.
+    pub(crate) fn upem(&self) -> c_int {
+        // SAFETY: a font owns its reference to its face.
+        unsafe { self.face.as_ref() }.map_or(1000, |face| face.upem() as c_int)
+    }
+
+    /// How this font's own numbers become the numbers it reports.
+    ///
+    /// The same conversion shaping applies, so that asking about one glyph
+    /// and shaping a run of them cannot disagree.
+    pub(crate) fn scale(&self) -> harfrust::Scale {
+        harfrust::Scale::new(Some((self.x_scale, self.y_scale)), self.upem())
+    }
+
+    /// How far the font's own tables advance a glyph, in reported units.
+    pub(crate) fn builtin_h_advance(&self, glyph: hr_codepoint_t) -> i32 {
+        let Some(shaper) = self.prepared.as_ref().and_then(|p| p.shaper(true)) else {
+            return 0;
+        };
+        self.scale().scale_x(
+            shaper
+                .builtin_font_funcs()
+                .advance_width(harfrust::GlyphId::from(glyph)),
+        )
+    }
+
+    /// As [`hr_font_t::builtin_h_advance`], downwards.
+    pub(crate) fn builtin_v_advance(&self, glyph: hr_codepoint_t) -> i32 {
+        let Some(shaper) = self.prepared.as_ref().and_then(|p| p.shaper(true)) else {
+            return 0;
+        };
+        self.scale().scale_y(
+            shaper
+                .builtin_font_funcs()
+                .advance_height(harfrust::GlyphId::from(glyph)),
+        )
+    }
+
+    /// Where the font's own tables hang a glyph from, in reported units.
+    pub(crate) fn builtin_v_origin(&self, glyph: hr_codepoint_t) -> Option<(i32, i32)> {
+        let shaper = self.prepared.as_ref()?.shaper(true)?;
+        let (x, y) = shaper
+            .builtin_font_funcs()
+            .vertical_origin(harfrust::GlyphId::from(glyph));
+        let scale = self.scale();
+        Some((scale.scale_x(x), scale.scale_y(y)))
+    }
+
+    /// How far a glyph advances, through whichever callback answers.
+    pub(crate) fn glyph_h_advance(&self, font: *mut hr_font_t, glyph: hr_codepoint_t) -> i32 {
+        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_h_advance(glyph) {
+            Answer::Builtin => self.builtin_h_advance(glyph),
+            Answer::Value(advance) => advance,
+        }
+    }
+
+    /// As [`hr_font_t::glyph_h_advance`], downwards.
+    pub(crate) fn glyph_v_advance(&self, font: *mut hr_font_t, glyph: hr_codepoint_t) -> i32 {
+        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_v_advance(glyph) {
+            Answer::Builtin => self.builtin_v_advance(glyph),
+            Answer::Value(advance) => advance,
+        }
+    }
+
+    /// Where a glyph hangs from, through whichever callback answers.
+    pub(crate) fn glyph_v_origin(
+        &self,
+        font: *mut hr_font_t,
+        glyph: hr_codepoint_t,
+    ) -> Option<(i32, i32)> {
+        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_v_origin(glyph) {
+            Answer::Builtin => self.builtin_v_origin(glyph),
+            Answer::Value(origin) => origin,
+        }
+    }
+
+    /// The name the face gives a glyph, if it names it at all.
+    pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<&str> {
+        let shaper = self.prepared.as_ref()?.shaper(true)?;
+        shaper.glyph_names().get(glyph)
+    }
+
+    /// How far above the baseline this face's text reaches, in design units.
+    pub(crate) fn ascender(&self) -> i32 {
+        // SAFETY: a font owns its reference to its face.
+        unsafe { self.face.as_ref() }.map_or(0, |face| face.ascender())
+    }
+
+    /// How many glyphs the face has, which bounds a search over their names.
+    pub(crate) fn glyph_count(&self) -> hr_codepoint_t {
+        // SAFETY: a font owns its reference to its face.
+        unsafe { self.face.as_ref() }.map_or(0, |face| face.glyph_count())
     }
 
     /// A glyph's extents, from whichever callback answers, or from the font's
@@ -784,4 +881,592 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
         *out = found;
     }
     true.into()
+}
+
+/// Maps a Unicode scalar value to a glyph, with or without a variation
+/// selector, returning false if the font has none.
+///
+/// A variation selector of zero asks for the plain mapping. A selector the
+/// font has no glyph for falls back to the plain mapping, which is what
+/// HarfBuzz does.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph(
+    font: *mut hr_font_t,
+    unicode: hr_codepoint_t,
+    variation_selector: hr_codepoint_t,
+    glyph: *mut hr_codepoint_t,
+) -> hr_bool_t {
+    if variation_selector != 0 {
+        // SAFETY: the caller's guarantees carry through.
+        let found =
+            unsafe { hr_font_get_variation_glyph(font, unicode, variation_selector, glyph) };
+        if found != 0 {
+            return found;
+        }
+    }
+    // SAFETY: as above.
+    unsafe { hr_font_get_nominal_glyph(font, unicode, glyph) }
+}
+
+/// How far a glyph advances when text runs horizontally.
+///
+/// Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+/// font while shaping. Only a font that was never given any reads the font's
+/// own `hmtx`. The answer is in the units [`hr_font_set_scale`] asks for.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_h_advance(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+) -> hr_position_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    state.glyph_h_advance(font, glyph)
+}
+
+/// As [`hr_font_get_glyph_h_advance`], for text running vertically.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_v_advance(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+) -> hr_position_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    state.glyph_v_advance(font, glyph)
+}
+
+/// Fills in horizontal advances for a run of glyphs.
+///
+/// The glyphs and the advances are each read and written every `stride`
+/// bytes, so a caller can walk its own structures rather than pack arrays.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font. `first_glyph` must be `NULL` or
+/// point at `count` glyphs `glyph_stride` bytes apart, and `first_advance`
+/// must be `NULL` or point at `count` writable advances `advance_stride`
+/// bytes apart.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_h_advances(
+    font: *mut hr_font_t,
+    count: c_uint,
+    first_glyph: *const hr_codepoint_t,
+    glyph_stride: c_uint,
+    first_advance: *mut hr_position_t,
+    advance_stride: c_uint,
+) {
+    // SAFETY: the caller's guarantees carry through.
+    unsafe {
+        advances(
+            font,
+            count,
+            first_glyph,
+            glyph_stride,
+            first_advance,
+            advance_stride,
+            true,
+        );
+    }
+}
+
+/// As [`hr_font_get_glyph_h_advances`], for text running vertically.
+///
+/// # Safety
+///
+/// As [`hr_font_get_glyph_h_advances`].
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_v_advances(
+    font: *mut hr_font_t,
+    count: c_uint,
+    first_glyph: *const hr_codepoint_t,
+    glyph_stride: c_uint,
+    first_advance: *mut hr_position_t,
+    advance_stride: c_uint,
+) {
+    // SAFETY: the caller's guarantees carry through.
+    unsafe {
+        advances(
+            font,
+            count,
+            first_glyph,
+            glyph_stride,
+            first_advance,
+            advance_stride,
+            false,
+        );
+    }
+}
+
+/// The walk both advance runs share.
+///
+/// # Safety
+///
+/// As [`hr_font_get_glyph_h_advances`].
+unsafe fn advances(
+    font: *mut hr_font_t,
+    count: c_uint,
+    first_glyph: *const hr_codepoint_t,
+    glyph_stride: c_uint,
+    first_advance: *mut hr_position_t,
+    advance_stride: c_uint,
+    horizontal: bool,
+) {
+    if first_glyph.is_null() || first_advance.is_null() {
+        return;
+    }
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    let mut glyph = first_glyph.cast::<u8>();
+    let mut advance = first_advance.cast::<u8>();
+    for _ in 0..count {
+        // A stride can land anywhere, so nothing here assumes alignment.
+        // SAFETY: the caller guarantees `count` glyphs a stride apart.
+        let id = unsafe { glyph.cast::<hr_codepoint_t>().read_unaligned() };
+        let value = if horizontal {
+            state.glyph_h_advance(font, id)
+        } else {
+            state.glyph_v_advance(font, id)
+        };
+        // SAFETY: as above, and the advances are writable.
+        unsafe { advance.cast::<hr_position_t>().write_unaligned(value) };
+        // SAFETY: a stride past the end is only formed, never read, on the
+        // last turn, and the caller's run is that long.
+        glyph = unsafe { glyph.add(glyph_stride as usize) };
+        advance = unsafe { advance.add(advance_stride as usize) };
+    }
+}
+
+/// Where a glyph hangs from when text runs horizontally.
+///
+/// Always the glyph's own origin, so this reports `0, 0` and true, which is
+/// what HarfBuzz answers for a font reading its own tables.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+) -> hr_bool_t {
+    let _ = (font, glyph);
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = 0;
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = 0;
+    }
+    true.into()
+}
+
+/// Where a glyph hangs from when text runs vertically, returning false when
+/// nothing can say.
+///
+/// Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+/// font while shaping. Only a font that was never given any reads the font's
+/// own `VORG` and `vmtx`.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_v_origin(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+) -> hr_bool_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    // Nowhere until somewhere, so a caller ignoring the return value reads
+    // zeroes rather than whatever it passed in.
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = 0;
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = 0;
+    }
+    let Some((origin_x, origin_y)) = state.glyph_v_origin(font, glyph) else {
+        return false.into();
+    };
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = origin_x;
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = origin_y;
+    }
+    true.into()
+}
+
+/// A glyph's ink extents, returning false when the font cannot say.
+///
+/// Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+/// font while shaping. Only a font that was never given any reads the font's
+/// own outlines. The answer is in the units [`hr_font_set_scale`] asks for.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_extents(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    extents: *mut hr_glyph_extents_t,
+) -> hr_bool_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    // Nothing until something, as above.
+    if let Some(out) = unsafe { extents.as_mut() } {
+        *out = hr_glyph_extents_t::default();
+    }
+    let Some(found) = state.glyph_extents(font, glyph) else {
+        return false.into();
+    };
+    if let Some(out) = unsafe { extents.as_mut() } {
+        *out = found;
+    }
+    true.into()
+}
+
+/// How far a glyph advances in the given direction: horizontally into `x`,
+/// vertically into `y`, and zero into the other.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_advance_for_direction(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    direction: hr_direction_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+) {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    let (dx, dy) = if crate::common::hr_direction_is_horizontal(direction) != 0 {
+        (state.glyph_h_advance(font, glyph), 0)
+    } else {
+        (0, state.glyph_v_advance(font, glyph))
+    };
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = dx;
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = dy;
+    }
+}
+
+/// As [`hr_font_get_glyph_advance_for_direction`], for a run of glyphs.
+///
+/// # Safety
+///
+/// As [`hr_font_get_glyph_h_advances`].
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_advances_for_direction(
+    font: *mut hr_font_t,
+    direction: hr_direction_t,
+    count: c_uint,
+    first_glyph: *const hr_codepoint_t,
+    glyph_stride: c_uint,
+    first_advance: *mut hr_position_t,
+    advance_stride: c_uint,
+) {
+    let horizontal = crate::common::hr_direction_is_horizontal(direction) != 0;
+    // SAFETY: the caller's guarantees carry through.
+    unsafe {
+        advances(
+            font,
+            count,
+            first_glyph,
+            glyph_stride,
+            first_advance,
+            advance_stride,
+            horizontal,
+        );
+    }
+}
+
+/// The origin every direction-relative call is measured from.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
+unsafe fn origin_for_direction(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    direction: hr_direction_t,
+) -> (hr_position_t, hr_position_t) {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    if crate::common::hr_direction_is_horizontal(direction) != 0 {
+        // A glyph's horizontal origin is its own, and nothing is guessed for
+        // it from the vertical one.
+        return (0, 0);
+    }
+    if let Some(origin) = state.glyph_v_origin(font, glyph) {
+        return origin;
+    }
+    // Nothing says where it hangs from vertically, so HarfBuzz guesses from
+    // the horizontal origin: the middle of the advance, at the ascender.
+    let x = state.glyph_h_advance(font, glyph) / 2;
+    let y = state.scale().scale_y(state.ascender());
+    (x, y)
+}
+
+/// Where a glyph hangs from in the given direction.
+///
+/// A font that cannot say where a glyph hangs from vertically has one guessed
+/// for it from the horizontal origin, as HarfBuzz does.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_origin_for_direction(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    direction: hr_direction_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+) {
+    let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = origin_x;
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = origin_y;
+    }
+}
+
+/// Moves a point from the glyph's own origin to the direction's origin.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// readable and writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_add_glyph_origin_for_direction(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    direction: hr_direction_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+) {
+    let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = out.saturating_add(origin_x);
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = out.saturating_add(origin_y);
+    }
+}
+
+/// Moves a point from the direction's origin back to the glyph's own.
+///
+/// # Safety
+///
+/// As [`hr_font_add_glyph_origin_for_direction`].
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_subtract_glyph_origin_for_direction(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    direction: hr_direction_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+) {
+    let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
+    if let Some(out) = unsafe { x.as_mut() } {
+        *out = out.saturating_sub(origin_x);
+    }
+    if let Some(out) = unsafe { y.as_mut() } {
+        *out = out.saturating_sub(origin_y);
+    }
+}
+
+/// A glyph's ink extents, measured from the direction's origin rather than
+/// from the glyph's own.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+/// writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_extents_for_origin(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    direction: hr_direction_t,
+    extents: *mut hr_glyph_extents_t,
+) -> hr_bool_t {
+    // SAFETY: the caller's guarantees carry through.
+    let found = unsafe { hr_font_get_glyph_extents(font, glyph, extents) };
+    if found == 0 {
+        return found;
+    }
+    let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
+    if let Some(out) = unsafe { extents.as_mut() } {
+        out.x_bearing = out.x_bearing.saturating_sub(origin_x);
+        out.y_bearing = out.y_bearing.saturating_sub(origin_y);
+    }
+    true.into()
+}
+
+/// Writes as much of `bytes` as fits, always NUL-terminated.
+///
+/// # Safety
+///
+/// `out` must point at `size` writable bytes, and `size` must not be zero.
+unsafe fn write_cstr(bytes: &[u8], out: *mut c_char, size: c_uint) {
+    let take = bytes.len().min(size as usize - 1);
+    // SAFETY: `take` is within both the source and the caller's buffer.
+    unsafe {
+        core::ptr::copy_nonoverlapping(bytes.as_ptr().cast::<c_char>(), out, take);
+        *out.add(take) = 0;
+    }
+}
+
+/// The name the face gives a glyph, returning false when it names none.
+///
+/// The name is written NUL-terminated, truncated to fit.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and `name` must be `NULL` or point
+/// at `size` writable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_name(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    name: *mut c_char,
+    size: c_uint,
+) -> hr_bool_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    if size != 0 {
+        if let Some(out) = unsafe { name.as_mut() } {
+            *out = 0;
+        }
+    }
+    let Some(found) = state.glyph_name(glyph) else {
+        return false.into();
+    };
+    if name.is_null() || size == 0 {
+        // Nowhere to put it, but the face does name the glyph.
+        return true.into();
+    }
+    // SAFETY: the caller guarantees `size` writable bytes.
+    unsafe { write_cstr(found.as_bytes(), name, size) };
+    true.into()
+}
+
+/// The glyph a face gives a name to, returning false when it names none such.
+///
+/// A length of -1 means the name is NUL-terminated.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, `name` must be `NULL` or readable
+/// for its length, and `glyph` must be `NULL` or writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_from_name(
+    font: *mut hr_font_t,
+    name: *const c_char,
+    len: c_int,
+    glyph: *mut hr_codepoint_t,
+) -> hr_bool_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    if let Some(out) = unsafe { glyph.as_mut() } {
+        *out = 0;
+    }
+    let Some(wanted) = (unsafe { crate::common::str_from_raw(name, len) }) else {
+        return false.into();
+    };
+    // A face carries no index from names back to glyphs, so this is the walk
+    // HarfBuzz's own default does.
+    for candidate in 0..state.glyph_count() {
+        if state.glyph_name(candidate) == Some(wanted) {
+            if let Some(out) = unsafe { glyph.as_mut() } {
+                *out = candidate;
+            }
+            return true.into();
+        }
+    }
+    false.into()
+}
+
+/// The name a glyph goes by, falling back to `gidNNN` when the face names it
+/// nothing.
+///
+/// # Safety
+///
+/// As [`hr_font_get_glyph_name`].
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_glyph_to_string(
+    font: *mut hr_font_t,
+    glyph: hr_codepoint_t,
+    s: *mut c_char,
+    size: c_uint,
+) {
+    // SAFETY: the caller's guarantees carry through.
+    if unsafe { hr_font_get_glyph_name(font, glyph, s, size) } != 0 {
+        return;
+    }
+    if s.is_null() || size == 0 {
+        return;
+    }
+    let text = format!("gid{glyph}");
+    // SAFETY: as above.
+    unsafe { write_cstr(text.as_bytes(), s, size) };
+}
+
+/// The glyph a string names: by the face's own names, by glyph number, by
+/// `gidNNN`, or by `uniXXXX`.
+///
+/// # Safety
+///
+/// As [`hr_font_get_glyph_from_name`].
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_glyph_from_string(
+    font: *mut hr_font_t,
+    s: *const c_char,
+    len: c_int,
+    glyph: *mut hr_codepoint_t,
+) -> hr_bool_t {
+    // SAFETY: the caller's guarantees carry through.
+    if unsafe { hr_font_get_glyph_from_name(font, s, len, glyph) } != 0 {
+        return true.into();
+    }
+    let Some(text) = (unsafe { crate::common::str_from_raw(s, len) }) else {
+        return false.into();
+    };
+    let parsed = text
+        .parse::<hr_codepoint_t>()
+        .ok()
+        .or_else(|| text.strip_prefix("gid")?.parse::<hr_codepoint_t>().ok());
+    if let Some(found) = parsed {
+        if let Some(out) = unsafe { glyph.as_mut() } {
+            *out = found;
+        }
+        return true.into();
+    }
+    // `uniXXXX` names a character, and the font says which glyph that is.
+    let Some(unicode) = text
+        .strip_prefix("uni")
+        .and_then(|hex| hr_codepoint_t::from_str_radix(hex, 16).ok())
+    else {
+        return false.into();
+    };
+    // SAFETY: as above.
+    unsafe { hr_font_get_nominal_glyph(font, unicode, glyph) }
 }

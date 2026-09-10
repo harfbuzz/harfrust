@@ -346,6 +346,28 @@ typedef struct hr_blob_t *(*hr_reference_table_func_t)(struct hr_face_t *face,
                                                        void *user_data);
 
 /**
+ * The ink extents of a glyph, in the font's scaled units.
+ */
+typedef struct hr_glyph_extents_t {
+  /**
+   * Horizontal bearing from the glyph origin to the left of the ink box.
+   */
+  hr_position_t x_bearing;
+  /**
+   * Vertical bearing from the glyph origin to the top of the ink box.
+   */
+  hr_position_t y_bearing;
+  /**
+   * Width of the ink box.
+   */
+  hr_position_t width;
+  /**
+   * Height of the ink box, measured downwards.
+   */
+  hr_position_t height;
+} hr_glyph_extents_t;
+
+/**
  * Maps a Unicode scalar value to a glyph. Returns false if there is none.
  */
 typedef hr_bool_t (*hr_font_get_nominal_glyph_func_t)(struct hr_font_t *font,
@@ -381,28 +403,6 @@ typedef hr_bool_t (*hr_font_get_glyph_origin_func_t)(struct hr_font_t *font,
                                                      hr_position_t *x,
                                                      hr_position_t *y,
                                                      void *user_data);
-
-/**
- * The ink extents of a glyph, in the font's scaled units.
- */
-typedef struct hr_glyph_extents_t {
-  /**
-   * Horizontal bearing from the glyph origin to the left of the ink box.
-   */
-  hr_position_t x_bearing;
-  /**
-   * Vertical bearing from the glyph origin to the top of the ink box.
-   */
-  hr_position_t y_bearing;
-  /**
-   * Width of the ink box.
-   */
-  hr_position_t width;
-  /**
-   * Height of the ink box, measured downwards.
-   */
-  hr_position_t height;
-} hr_glyph_extents_t;
 
 /**
  * Returns a glyph's ink extents.
@@ -2815,6 +2815,274 @@ hr_bool_t hr_font_get_variation_glyph(struct hr_font_t *font,
                                       hr_codepoint_t unicode,
                                       hr_codepoint_t variation_selector,
                                       hr_codepoint_t *glyph);
+
+/**
+ * Maps a Unicode scalar value to a glyph, with or without a variation
+ * selector, returning false if the font has none.
+ *
+ * A variation selector of zero asks for the plain mapping. A selector the
+ * font has no glyph for falls back to the plain mapping, which is what
+ * HarfBuzz does.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+ * writable.
+ */
+hr_bool_t hr_font_get_glyph(struct hr_font_t *font,
+                            hr_codepoint_t unicode,
+                            hr_codepoint_t variation_selector,
+                            hr_codepoint_t *glyph);
+
+/**
+ * How far a glyph advances when text runs horizontally.
+ *
+ * Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+ * font while shaping. Only a font that was never given any reads the font's
+ * own `hmtx`. The answer is in the units [`hr_font_set_scale`] asks for.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font.
+ */
+hr_position_t hr_font_get_glyph_h_advance(struct hr_font_t *font, hr_codepoint_t glyph);
+
+/**
+ * As [`hr_font_get_glyph_h_advance`], for text running vertically.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font.
+ */
+hr_position_t hr_font_get_glyph_v_advance(struct hr_font_t *font, hr_codepoint_t glyph);
+
+/**
+ * Fills in horizontal advances for a run of glyphs.
+ *
+ * The glyphs and the advances are each read and written every `stride`
+ * bytes, so a caller can walk its own structures rather than pack arrays.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font. `first_glyph` must be `NULL` or
+ * point at `count` glyphs `glyph_stride` bytes apart, and `first_advance`
+ * must be `NULL` or point at `count` writable advances `advance_stride`
+ * bytes apart.
+ */
+void hr_font_get_glyph_h_advances(struct hr_font_t *font,
+                                  unsigned int count,
+                                  const hr_codepoint_t *first_glyph,
+                                  unsigned int glyph_stride,
+                                  hr_position_t *first_advance,
+                                  unsigned int advance_stride);
+
+/**
+ * As [`hr_font_get_glyph_h_advances`], for text running vertically.
+ *
+ * # Safety
+ *
+ * As [`hr_font_get_glyph_h_advances`].
+ */
+void hr_font_get_glyph_v_advances(struct hr_font_t *font,
+                                  unsigned int count,
+                                  const hr_codepoint_t *first_glyph,
+                                  unsigned int glyph_stride,
+                                  hr_position_t *first_advance,
+                                  unsigned int advance_stride);
+
+/**
+ * Where a glyph hangs from when text runs horizontally.
+ *
+ * Always the glyph's own origin, so this reports `0, 0` and true, which is
+ * what HarfBuzz answers for a font reading its own tables.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * writable.
+ */
+hr_bool_t hr_font_get_glyph_h_origin(struct hr_font_t *font,
+                                     hr_codepoint_t glyph,
+                                     hr_position_t *x,
+                                     hr_position_t *y);
+
+/**
+ * Where a glyph hangs from when text runs vertically, returning false when
+ * nothing can say.
+ *
+ * Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+ * font while shaping. Only a font that was never given any reads the font's
+ * own `VORG` and `vmtx`.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * writable.
+ */
+hr_bool_t hr_font_get_glyph_v_origin(struct hr_font_t *font,
+                                     hr_codepoint_t glyph,
+                                     hr_position_t *x,
+                                     hr_position_t *y);
+
+/**
+ * A glyph's ink extents, returning false when the font cannot say.
+ *
+ * Callbacks set by [`hr_font_set_funcs`] answer this, as they answer for the
+ * font while shaping. Only a font that was never given any reads the font's
+ * own outlines. The answer is in the units [`hr_font_set_scale`] asks for.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+ * writable.
+ */
+hr_bool_t hr_font_get_glyph_extents(struct hr_font_t *font,
+                                    hr_codepoint_t glyph,
+                                    struct hr_glyph_extents_t *extents);
+
+/**
+ * How far a glyph advances in the given direction: horizontally into `x`,
+ * vertically into `y`, and zero into the other.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * writable.
+ */
+void hr_font_get_glyph_advance_for_direction(struct hr_font_t *font,
+                                             hr_codepoint_t glyph,
+                                             hr_direction_t direction,
+                                             hr_position_t *x,
+                                             hr_position_t *y);
+
+/**
+ * As [`hr_font_get_glyph_advance_for_direction`], for a run of glyphs.
+ *
+ * # Safety
+ *
+ * As [`hr_font_get_glyph_h_advances`].
+ */
+void hr_font_get_glyph_advances_for_direction(struct hr_font_t *font,
+                                              hr_direction_t direction,
+                                              unsigned int count,
+                                              const hr_codepoint_t *first_glyph,
+                                              unsigned int glyph_stride,
+                                              hr_position_t *first_advance,
+                                              unsigned int advance_stride);
+
+/**
+ * Where a glyph hangs from in the given direction.
+ *
+ * A font that cannot say where a glyph hangs from vertically has one guessed
+ * for it from the horizontal origin, as HarfBuzz does.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * writable.
+ */
+void hr_font_get_glyph_origin_for_direction(struct hr_font_t *font,
+                                            hr_codepoint_t glyph,
+                                            hr_direction_t direction,
+                                            hr_position_t *x,
+                                            hr_position_t *y);
+
+/**
+ * Moves a point from the glyph's own origin to the direction's origin.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * readable and writable.
+ */
+void hr_font_add_glyph_origin_for_direction(struct hr_font_t *font,
+                                            hr_codepoint_t glyph,
+                                            hr_direction_t direction,
+                                            hr_position_t *x,
+                                            hr_position_t *y);
+
+/**
+ * Moves a point from the direction's origin back to the glyph's own.
+ *
+ * # Safety
+ *
+ * As [`hr_font_add_glyph_origin_for_direction`].
+ */
+void hr_font_subtract_glyph_origin_for_direction(struct hr_font_t *font,
+                                                 hr_codepoint_t glyph,
+                                                 hr_direction_t direction,
+                                                 hr_position_t *x,
+                                                 hr_position_t *y);
+
+/**
+ * A glyph's ink extents, measured from the direction's origin rather than
+ * from the glyph's own.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+ * writable.
+ */
+hr_bool_t hr_font_get_glyph_extents_for_origin(struct hr_font_t *font,
+                                               hr_codepoint_t glyph,
+                                               hr_direction_t direction,
+                                               struct hr_glyph_extents_t *extents);
+
+/**
+ * The name the face gives a glyph, returning false when it names none.
+ *
+ * The name is written NUL-terminated, truncated to fit.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, and `name` must be `NULL` or point
+ * at `size` writable bytes.
+ */
+hr_bool_t hr_font_get_glyph_name(struct hr_font_t *font,
+                                 hr_codepoint_t glyph,
+                                 char *name,
+                                 unsigned int size);
+
+/**
+ * The glyph a face gives a name to, returning false when it names none such.
+ *
+ * A length of -1 means the name is NUL-terminated.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font, `name` must be `NULL` or readable
+ * for its length, and `glyph` must be `NULL` or writable.
+ */
+hr_bool_t hr_font_get_glyph_from_name(struct hr_font_t *font,
+                                      const char *name,
+                                      int len,
+                                      hr_codepoint_t *glyph);
+
+/**
+ * The name a glyph goes by, falling back to `gidNNN` when the face names it
+ * nothing.
+ *
+ * # Safety
+ *
+ * As [`hr_font_get_glyph_name`].
+ */
+void hr_font_glyph_to_string(struct hr_font_t *font,
+                             hr_codepoint_t glyph,
+                             char *s,
+                             unsigned int size);
+
+/**
+ * The glyph a string names: by the face's own names, by glyph number, by
+ * `gidNNN`, or by `uniXXXX`.
+ *
+ * # Safety
+ *
+ * As [`hr_font_get_glyph_from_name`].
+ */
+hr_bool_t hr_font_glyph_from_string(struct hr_font_t *font,
+                                    const char *s,
+                                    int len,
+                                    hr_codepoint_t *glyph);
 
 /**
  * Creates an empty set of font callbacks.

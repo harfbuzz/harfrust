@@ -346,7 +346,15 @@ impl<'a> ShapeOptions<'a> {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct Scale {
+/// How font units become the units a caller asked for.
+///
+/// Shaping applies this to everything it reports, from
+/// [`ShapeOptions::scale`]. A caller asking a font about one glyph rather
+/// than about a run needs the same conversion, and needs it to be the same
+/// one, so it is spelled once here -- down to the rounding, which follows
+/// HarfBuzz's.
+#[derive(Debug)]
+pub struct Scale {
     x_mult: i64,
     y_mult: i64,
     x_multf: f32,
@@ -367,7 +375,9 @@ impl Default for Scale {
 // Various conversions between f32 and i32
 #[allow(clippy::cast_precision_loss)]
 impl Scale {
-    pub(crate) fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
+    /// The conversion from `upem` font units into `scale`, or the identity
+    /// when there is no scale to apply or the face has no units to convert.
+    pub fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
         let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
             // When scale is not configured, or upem is zero, return results
             // in font units.
@@ -383,13 +393,15 @@ impl Scale {
         }
     }
 
+    /// A horizontal distance in font units, in the units asked for.
     #[inline(always)]
-    pub(crate) fn scale_x(&self, x: i32) -> i32 {
+    pub fn scale_x(&self, x: i32) -> i32 {
         Self::scale_by_mult(x, self.x_mult)
     }
 
+    /// A vertical distance in font units, in the units asked for.
     #[inline(always)]
-    pub(crate) fn scale_y(&self, y: i32) -> i32 {
+    pub fn scale_y(&self, y: i32) -> i32 {
         Self::scale_by_mult(y, self.y_mult)
     }
 
@@ -409,7 +421,7 @@ impl Scale {
     /// floor the origin corners and ceil the far corners before deriving the
     /// final width/height.
     /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
-    pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
+    pub fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
         let x2 = (i64::from(extents.x_bearing) + i64::from(extents.width)) as f32 * self.x_multf;
@@ -748,7 +760,9 @@ impl<'a> crate::Shaper<'a> {
         Ok(())
     }
 
-    pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
+    /// The names the face gives its glyphs, from `post` or from the CFF
+    /// charset, or nothing when it names none.
+    pub fn glyph_names(&self) -> GlyphNames<'a> {
         GlyphNames::new(&self.font)
     }
 

@@ -2801,3 +2801,236 @@ fn interning_a_language_from_several_threads_agrees() {
     assert!(all.iter().all(|value| *value == all[0]));
     assert_ne!(all[0], 0);
 }
+
+#[test]
+fn a_glyph_can_be_asked_what_a_callback_could_answer_for() {
+    // Every callback a caller can install is one a caller can also ask, and
+    // the two go through the same place.
+    unsafe {
+        with_font(|face, font| {
+            let upem = hr_face_get_upem(face) as c_int;
+            let mut glyph = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, 'a' as u32, ptr::addr_of_mut!(glyph)),
+                0
+            );
+
+            let advance = hr_font_get_glyph_h_advance(font, glyph);
+            assert!(advance > 0);
+            assert!(hr_font_get_glyph_v_advance(font, glyph) < 0);
+
+            let (mut x, mut y) = (7, 7);
+            // A glyph's horizontal origin is its own.
+            assert_ne!(
+                hr_font_get_glyph_h_origin(font, glyph, ptr::addr_of_mut!(x), ptr::addr_of_mut!(y)),
+                0
+            );
+            assert_eq!((x, y), (0, 0));
+
+            let mut extents = hr_glyph_extents_t::default();
+            assert_ne!(
+                hr_font_get_glyph_extents(font, glyph, ptr::addr_of_mut!(extents)),
+                0
+            );
+            assert!(extents.width > 0);
+
+            // At twice the size, everything the font reports doubles.
+            hr_font_set_scale(font, upem * 2, upem * 2);
+            assert_eq!(hr_font_get_glyph_h_advance(font, glyph), advance * 2);
+            let mut bigger = hr_glyph_extents_t::default();
+            assert_ne!(
+                hr_font_get_glyph_extents(font, glyph, ptr::addr_of_mut!(bigger)),
+                0
+            );
+            assert!(bigger.width >= extents.width * 2 - 2);
+            assert!(bigger.width <= extents.width * 2 + 2);
+            hr_font_set_scale(font, upem, upem);
+        });
+    }
+}
+
+#[test]
+fn advances_run_over_a_caller_s_own_layout() {
+    unsafe {
+        with_font(|_, font| {
+            // Glyphs and advances read and written a stride apart, so a
+            // caller can walk its own structures rather than pack arrays.
+            #[repr(C)]
+            struct Slot {
+                glyph: hr_codepoint_t,
+                padding: u32,
+            }
+            let mut slots = [
+                Slot {
+                    glyph: 0,
+                    padding: 0,
+                },
+                Slot {
+                    glyph: 0,
+                    padding: 0,
+                },
+            ];
+            for (slot, c) in slots.iter_mut().zip(['a', 'b']) {
+                assert_ne!(
+                    hr_font_get_nominal_glyph(font, c as u32, ptr::addr_of_mut!(slot.glyph)),
+                    0
+                );
+            }
+            let mut advances = [0i32; 2];
+            hr_font_get_glyph_h_advances(
+                font,
+                2,
+                ptr::addr_of!(slots[0].glyph),
+                size_of::<Slot>() as c_uint,
+                advances.as_mut_ptr(),
+                size_of::<i32>() as c_uint,
+            );
+            for (slot, advance) in slots.iter().zip(advances) {
+                assert_eq!(advance, hr_font_get_glyph_h_advance(font, slot.glyph));
+            }
+        });
+    }
+}
+
+#[test]
+fn advances_and_origins_follow_the_direction_asked_for() {
+    unsafe {
+        with_font(|_, font| {
+            let mut glyph = 0;
+            hr_font_get_nominal_glyph(font, 'a' as u32, ptr::addr_of_mut!(glyph));
+
+            let (mut x, mut y) = (0, 0);
+            hr_font_get_glyph_advance_for_direction(
+                font,
+                glyph,
+                HR_DIRECTION_LTR,
+                ptr::addr_of_mut!(x),
+                ptr::addr_of_mut!(y),
+            );
+            assert_eq!(x, hr_font_get_glyph_h_advance(font, glyph));
+            assert_eq!(y, 0);
+
+            hr_font_get_glyph_advance_for_direction(
+                font,
+                glyph,
+                HR_DIRECTION_TTB,
+                ptr::addr_of_mut!(x),
+                ptr::addr_of_mut!(y),
+            );
+            assert_eq!(x, 0);
+            assert_eq!(y, hr_font_get_glyph_v_advance(font, glyph));
+
+            // Adding an origin and taking it away again gets back where it
+            // started, whichever way the text runs.
+            for direction in [HR_DIRECTION_LTR, HR_DIRECTION_TTB] {
+                let (mut px, mut py) = (100, 200);
+                hr_font_add_glyph_origin_for_direction(
+                    font,
+                    glyph,
+                    direction,
+                    ptr::addr_of_mut!(px),
+                    ptr::addr_of_mut!(py),
+                );
+                hr_font_subtract_glyph_origin_for_direction(
+                    font,
+                    glyph,
+                    direction,
+                    ptr::addr_of_mut!(px),
+                    ptr::addr_of_mut!(py),
+                );
+                assert_eq!((px, py), (100, 200));
+            }
+        });
+    }
+}
+
+#[test]
+fn glyphs_go_by_name_and_come_back_from_one() {
+    unsafe {
+        with_font(|_, font| {
+            let mut glyph = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, 'a' as u32, ptr::addr_of_mut!(glyph)),
+                0
+            );
+
+            let mut name = [0 as c_char; 64];
+            assert_ne!(
+                hr_font_get_glyph_name(font, glyph, name.as_mut_ptr(), name.len() as c_uint),
+                0
+            );
+            let mut back = 0;
+            assert_ne!(
+                hr_font_get_glyph_from_name(font, name.as_ptr(), -1, ptr::addr_of_mut!(back)),
+                0
+            );
+            assert_eq!(back, glyph);
+
+            // A glyph the face names nothing still goes by a name.
+            let mut text = [0 as c_char; 64];
+            hr_font_glyph_to_string(font, 60_000, text.as_mut_ptr(), text.len() as c_uint);
+            let printed = std::ffi::CStr::from_ptr(text.as_ptr()).to_str().unwrap();
+            assert_eq!(printed, "gid60000");
+
+            // And the names a string can be read as.
+            for (spelling, expected) in [
+                (c"gid60000".as_ptr(), 60_000),
+                (c"41".as_ptr(), 41),
+                (c"uni0061".as_ptr(), glyph),
+            ] {
+                let mut parsed = 0;
+                assert_ne!(
+                    hr_font_glyph_from_string(font, spelling, -1, ptr::addr_of_mut!(parsed)),
+                    0
+                );
+                assert_eq!(parsed, expected);
+            }
+        });
+    }
+}
+
+#[test]
+fn a_variation_selector_the_font_lacks_falls_back_to_the_plain_glyph() {
+    unsafe {
+        with_font(|_, font| {
+            let mut plain = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, 'a' as u32, ptr::addr_of_mut!(plain)),
+                0
+            );
+            let mut combined = 0;
+            assert_ne!(
+                hr_font_get_glyph(font, 'a' as u32, 0xFE00, ptr::addr_of_mut!(combined)),
+                0
+            );
+            assert_eq!(combined, plain);
+            // And with no selector at all it is the plain mapping.
+            let mut none = 0;
+            assert_ne!(
+                hr_font_get_glyph(font, 'a' as u32, 0, ptr::addr_of_mut!(none)),
+                0
+            );
+            assert_eq!(none, plain);
+        });
+    }
+}
+
+#[test]
+fn nothing_is_advanced_past_the_last_glyph_the_face_has() {
+    unsafe {
+        with_font(|face, font| {
+            let count = hr_face_get_glyph_count(face);
+            assert!(count > 0);
+            assert!(hr_font_get_glyph_h_advance(font, count - 1) > 0);
+            // A malformed cmap can point at a glyph the face does not have,
+            // and there is no advance to give for one.
+            assert_eq!(hr_font_get_glyph_h_advance(font, count), 0);
+            // A face carrying no vertical metrics gives every glyph the same
+            // fallback instead, in range or not, as HarfBuzz does.
+            assert_eq!(
+                hr_font_get_glyph_v_advance(font, count),
+                hr_font_get_glyph_v_advance(font, 0)
+            );
+        });
+    }
+}

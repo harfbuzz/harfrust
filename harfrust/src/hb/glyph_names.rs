@@ -6,14 +6,19 @@ use read_fonts::{
 
 use crate::hb::face::FontKind;
 
+/// The names a face gives its glyphs.
 #[derive(Clone)]
 pub enum GlyphNames<'a> {
+    /// The face names no glyphs.
     None,
+    /// Names from the CFF charset.
     Cff(Cff<'a>, Charset<'a>),
+    /// Names from the `post` table.
     Post(Post<'a>),
 }
 
 impl<'a> GlyphNames<'a> {
+    /// The names in a font, from whichever table carries them.
     pub fn new(font: &FontKind<'a>) -> Self {
         match font {
             FontKind::FontRef(font) => Self::from_tables(&font.font),
@@ -35,7 +40,11 @@ impl<'a> GlyphNames<'a> {
         }
     }
 
-    pub fn get(&self, glyph_id: u32) -> Option<&str> {
+    /// The name of one glyph, or `None` when the face does not name it.
+    ///
+    /// The name borrows from the face rather than from this lookup, so it
+    /// can be held after the lookup is done with.
+    pub fn get(&self, glyph_id: u32) -> Option<&'a str> {
         let name = match self {
             Self::Cff(cff, charset) => {
                 let sid = charset.string_id(glyph_id.into()).ok()?;
