@@ -54,86 +54,6 @@
 #define HR_VERSION_MICRO 3
 
 /**
- * How clusters are merged during shaping.
- */
-typedef enum hr_buffer_cluster_level_t {
-  /**
-   * Merge clusters by grapheme, keeping cluster values monotonic.
-   */
-  HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES = 0,
-  /**
-   * Merge clusters by character, keeping cluster values monotonic.
-   */
-  HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS = 1,
-  /**
-   * Do not merge clusters, and do not keep cluster values monotonic.
-   */
-  HR_BUFFER_CLUSTER_LEVEL_CHARACTERS = 2,
-  /**
-   * Merge clusters by grapheme without keeping cluster values monotonic.
-   */
-  HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES = 3,
-} hr_buffer_cluster_level_t;
-
-/**
- * What a buffer currently holds.
- */
-typedef enum hr_buffer_content_type_t {
-  /**
-   * Nothing, or contents that have been cleared.
-   */
-  HR_BUFFER_CONTENT_TYPE_INVALID = 0,
-  /**
-   * Input characters, ready to be shaped.
-   */
-  HR_BUFFER_CONTENT_TYPE_UNICODE = 1,
-  /**
-   * The glyphs shaping produced.
-   */
-  HR_BUFFER_CONTENT_TYPE_GLYPHS = 2,
-} hr_buffer_content_type_t;
-
-/**
- * The format `hr_buffer_serialize_glyphs` writes.
- */
-typedef enum hr_buffer_serialize_format_t {
-  /**
-   * A human-readable one-line form.
-   */
-  HR_BUFFER_SERIALIZE_FORMAT_TEXT = 1413830740,
-  /**
-   * JSON. Not supported by this library.
-   */
-  HR_BUFFER_SERIALIZE_FORMAT_JSON = 1246973774,
-  /**
-   * An unrecognised format.
-   */
-  HR_BUFFER_SERIALIZE_FORMAT_INVALID = 0,
-} hr_buffer_serialize_format_t;
-
-/**
- * How a blob relates to the memory it was created over.
- */
-typedef enum hr_memory_mode_t {
-  /**
-   * Copy the data. The caller keeps ownership of the original buffer.
-   */
-  HR_MEMORY_MODE_DUPLICATE = 0,
-  /**
-   * Use the data in place. It must outlive the blob and never change.
-   */
-  HR_MEMORY_MODE_READONLY = 1,
-  /**
-   * Use the data in place. Treated as read-only by this library.
-   */
-  HR_MEMORY_MODE_WRITABLE = 2,
-  /**
-   * Use the data in place. Treated as read-only by this library.
-   */
-  HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE = 3,
-} hr_memory_mode_t;
-
-/**
  * Binary data with a lifetime.
  */
 typedef struct hr_blob_t hr_blob_t;
@@ -173,6 +93,15 @@ typedef struct hr_language_impl_t hr_language_impl_t;
 typedef struct hr_shape_plan_t hr_shape_plan_t;
 
 /**
+ * How a blob relates to the memory it was created over.
+ *
+ * An integer typedef rather than an enumeration. A value arriving from C need
+ * not be one of the ones named here, and a Rust enumeration holding an
+ * unnamed value is undefined behaviour rather than merely wrong.
+ */
+typedef int hr_memory_mode_t;
+
+/**
  * Callback invoked to release a `user_data` value.
  */
 typedef void (*hr_destroy_func_t)(void *user_data);
@@ -198,6 +127,15 @@ typedef struct hr_user_data_key_t {
  * A Unicode scalar value.
  */
 typedef uint32_t hr_codepoint_t;
+
+/**
+ * What a buffer currently holds.
+ *
+ * An integer typedef rather than an enumeration. A value arriving from C need
+ * not be one of the ones named here, and a Rust enumeration holding an
+ * unnamed value is undefined behaviour rather than merely wrong.
+ */
+typedef int hr_buffer_content_type_t;
 
 /**
  * The direction in which text is set.
@@ -234,6 +172,15 @@ typedef const struct hr_language_impl_t *hr_language_t;
  * than an enumeration.
  */
 typedef uint32_t hr_buffer_flags_t;
+
+/**
+ * How clusters are merged during shaping.
+ *
+ * An integer typedef rather than an enumeration. A value arriving from C need
+ * not be one of the ones named here, and a Rust enumeration holding an
+ * unnamed value is undefined behaviour rather than merely wrong.
+ */
+typedef int hr_buffer_cluster_level_t;
 
 /**
  * A mask of feature bits applied to an item in a buffer.
@@ -333,6 +280,16 @@ typedef struct hr_segment_properties_t {
    */
   void *reserved2;
 } hr_segment_properties_t;
+
+/**
+ * The format `hr_buffer_serialize_glyphs` writes.
+ *
+ * A tag, and so an integer typedef: `hr_buffer_serialize_format_from_string`
+ * hands back whatever was asked for, named here or not, and a Rust
+ * enumeration holding an unnamed value is undefined behaviour rather than
+ * merely wrong.
+ */
+typedef hr_tag_t hr_buffer_serialize_format_t;
 
 /**
  * Flags controlling what `hr_buffer_serialize_glyphs` includes.
@@ -457,6 +414,41 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
                                                       void *user_data);
 
 /**
+ * Copy the data. The caller keeps ownership of the original buffer.
+ */
+#define HR_MEMORY_MODE_DUPLICATE 0
+
+/**
+ * Use the data in place. It must outlive the blob and never change.
+ */
+#define HR_MEMORY_MODE_READONLY 1
+
+/**
+ * Use the data in place. Treated as read-only by this library.
+ */
+#define HR_MEMORY_MODE_WRITABLE 2
+
+/**
+ * Use the data in place. Treated as read-only by this library.
+ */
+#define HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE 3
+
+/**
+ * Nothing, or contents that have been cleared.
+ */
+#define HR_BUFFER_CONTENT_TYPE_INVALID 0
+
+/**
+ * Input characters, ready to be shaped.
+ */
+#define HR_BUFFER_CONTENT_TYPE_UNICODE 1
+
+/**
+ * The glyphs shaping produced.
+ */
+#define HR_BUFFER_CONTENT_TYPE_GLYPHS 2
+
+/**
  * No flags set.
  */
 #define HR_BUFFER_FLAG_DEFAULT 0
@@ -507,6 +499,31 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
 #define HR_BUFFER_FLAG_DEFINED 255
 
 /**
+ * Merge clusters by grapheme, keeping cluster values monotonic.
+ */
+#define HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES 0
+
+/**
+ * Merge clusters by character, keeping cluster values monotonic.
+ */
+#define HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS 1
+
+/**
+ * Do not merge clusters, and do not keep cluster values monotonic.
+ */
+#define HR_BUFFER_CLUSTER_LEVEL_CHARACTERS 2
+
+/**
+ * Merge clusters by grapheme without keeping cluster values monotonic.
+ */
+#define HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES 3
+
+/**
+ * What a buffer starts out with.
+ */
+#define HR_BUFFER_CLUSTER_LEVEL_DEFAULT HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES
+
+/**
  * Breaking the text at this cluster requires reshaping both sides.
  */
 #define HR_GLYPH_FLAG_UNSAFE_TO_BREAK 1
@@ -525,6 +542,21 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
  * Every flag defined above.
  */
 #define HR_GLYPH_FLAG_DEFINED 7
+
+/**
+ * A human-readable one-line form.
+ */
+#define HR_BUFFER_SERIALIZE_FORMAT_TEXT 1413830740
+
+/**
+ * JSON. Not supported by this library.
+ */
+#define HR_BUFFER_SERIALIZE_FORMAT_JSON 1246973774
+
+/**
+ * An unrecognised format.
+ */
+#define HR_BUFFER_SERIALIZE_FORMAT_INVALID 0
 
 /**
  * Include everything.
@@ -1516,7 +1548,7 @@ extern "C" {
  */
 struct hr_blob_t *hr_blob_create(const char *data,
                                  unsigned int length,
-                                 enum hr_memory_mode_t mode,
+                                 hr_memory_mode_t mode,
                                  void *user_data,
                                  hr_destroy_func_t destroy);
 
@@ -1529,7 +1561,7 @@ struct hr_blob_t *hr_blob_create(const char *data,
  */
 struct hr_blob_t *hr_blob_create_or_fail(const char *data,
                                          unsigned int length,
-                                         enum hr_memory_mode_t mode,
+                                         hr_memory_mode_t mode,
                                          void *user_data,
                                          hr_destroy_func_t destroy);
 
@@ -1851,7 +1883,7 @@ void hr_buffer_append(struct hr_buffer_t *buffer,
  *
  * `buffer` must be `NULL` or a live buffer.
  */
-enum hr_buffer_content_type_t hr_buffer_get_content_type(struct hr_buffer_t *buffer);
+hr_buffer_content_type_t hr_buffer_get_content_type(struct hr_buffer_t *buffer);
 
 /**
  * Relabels what a buffer holds, without clearing it.
@@ -1860,8 +1892,7 @@ enum hr_buffer_content_type_t hr_buffer_get_content_type(struct hr_buffer_t *buf
  *
  * `buffer` must be `NULL` or a live buffer.
  */
-void hr_buffer_set_content_type(struct hr_buffer_t *buffer,
-                                enum hr_buffer_content_type_t content_type);
+void hr_buffer_set_content_type(struct hr_buffer_t *buffer, hr_buffer_content_type_t content_type);
 
 /**
  * Sets a buffer's text direction.
@@ -1944,7 +1975,7 @@ hr_buffer_flags_t hr_buffer_get_flags(struct hr_buffer_t *buffer);
  * `buffer` must be `NULL` or a live buffer.
  */
 void hr_buffer_set_cluster_level(struct hr_buffer_t *buffer,
-                                 enum hr_buffer_cluster_level_t cluster_level);
+                                 hr_buffer_cluster_level_t cluster_level);
 
 /**
  * Returns a buffer's cluster level.
@@ -1953,7 +1984,7 @@ void hr_buffer_set_cluster_level(struct hr_buffer_t *buffer,
  *
  * `buffer` must be `NULL` or a live buffer.
  */
-enum hr_buffer_cluster_level_t hr_buffer_get_cluster_level(struct hr_buffer_t *buffer);
+hr_buffer_cluster_level_t hr_buffer_get_cluster_level(struct hr_buffer_t *buffer);
 
 /**
  * Returns the number of items in a buffer.
@@ -2130,12 +2161,12 @@ void hr_buffer_reset_clusters(struct hr_buffer_t *buffer);
  *
  * See `hr_tag_from_string`.
  */
-enum hr_buffer_serialize_format_t hr_buffer_serialize_format_from_string(const char *str_, int len);
+hr_buffer_serialize_format_t hr_buffer_serialize_format_from_string(const char *str_, int len);
 
 /**
  * Returns the name of a serialization format, or `NULL` if it is invalid.
  */
-const char *hr_buffer_serialize_format_to_string(enum hr_buffer_serialize_format_t format);
+const char *hr_buffer_serialize_format_to_string(hr_buffer_serialize_format_t format);
 
 /**
  * Returns the serialization formats this library supports, as a
@@ -2148,7 +2179,7 @@ const char *const *hr_buffer_serialize_list_formats(void);
  *
  * Returns the number of items serialized, writing the number of bytes used to
  * `buf_consumed`. Only
- * [`hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT`] is
+ * [`HR_BUFFER_SERIALIZE_FORMAT_TEXT`] is
  * supported; any other format serializes nothing.
  *
  * # Safety
@@ -2163,7 +2194,7 @@ unsigned int hr_buffer_serialize_glyphs(struct hr_buffer_t *buffer,
                                         unsigned int buf_size,
                                         unsigned int *buf_consumed,
                                         struct hr_font_t *font,
-                                        enum hr_buffer_serialize_format_t format,
+                                        hr_buffer_serialize_format_t format,
                                         hr_buffer_serialize_flags_t flags);
 
 /**
@@ -2854,8 +2885,9 @@ hr_bool_t hr_font_funcs_is_immutable(struct hr_font_funcs_t *ffuncs);
  *
  * Takes ownership of `user_data`, releasing it through `destroy` when the
  * callback is replaced or the funcs object is freed. Passing a `NULL` callback
- * clears any previously set one, after which it reports nothing available
- * rather than falling back to HarfRust's own implementation. Setting a
+ * clears any previously set one, after which the parent font answers, or
+ * nothing does: no glyph, no extents, and an advance of the font's own
+ * scale, which is what HarfBuzz answers with. Setting a
  * callback on an immutable object is ignored, and releases `user_data`
  * immediately.
  *
@@ -2875,8 +2907,9 @@ void hr_font_funcs_set_nominal_glyph_func(struct hr_font_funcs_t *ffuncs,
  *
  * Takes ownership of `user_data`, releasing it through `destroy` when the
  * callback is replaced or the funcs object is freed. Passing a `NULL` callback
- * clears any previously set one, after which it reports nothing available
- * rather than falling back to HarfRust's own implementation. Setting a
+ * clears any previously set one, after which the parent font answers, or
+ * nothing does: no glyph, no extents, and an advance of the font's own
+ * scale, which is what HarfBuzz answers with. Setting a
  * callback on an immutable object is ignored, and releases `user_data`
  * immediately.
  *
@@ -2895,8 +2928,9 @@ void hr_font_funcs_set_variation_glyph_func(struct hr_font_funcs_t *ffuncs,
  *
  * Takes ownership of `user_data`, releasing it through `destroy` when the
  * callback is replaced or the funcs object is freed. Passing a `NULL` callback
- * clears any previously set one, after which it reports nothing available
- * rather than falling back to HarfRust's own implementation. Setting a
+ * clears any previously set one, after which the parent font answers, or
+ * nothing does: no glyph, no extents, and an advance of the font's own
+ * scale, which is what HarfBuzz answers with. Setting a
  * callback on an immutable object is ignored, and releases `user_data`
  * immediately.
  *
@@ -2915,8 +2949,9 @@ void hr_font_funcs_set_glyph_h_advance_func(struct hr_font_funcs_t *ffuncs,
  *
  * Takes ownership of `user_data`, releasing it through `destroy` when the
  * callback is replaced or the funcs object is freed. Passing a `NULL` callback
- * clears any previously set one, after which it reports nothing available
- * rather than falling back to HarfRust's own implementation. Setting a
+ * clears any previously set one, after which the parent font answers, or
+ * nothing does: no glyph, no extents, and an advance of the font's own
+ * scale, which is what HarfBuzz answers with. Setting a
  * callback on an immutable object is ignored, and releases `user_data`
  * immediately.
  *
@@ -2935,8 +2970,9 @@ void hr_font_funcs_set_glyph_v_advance_func(struct hr_font_funcs_t *ffuncs,
  *
  * Takes ownership of `user_data`, releasing it through `destroy` when the
  * callback is replaced or the funcs object is freed. Passing a `NULL` callback
- * clears any previously set one, after which it reports nothing available
- * rather than falling back to HarfRust's own implementation. Setting a
+ * clears any previously set one, after which the parent font answers, or
+ * nothing does: no glyph, no extents, and an advance of the font's own
+ * scale, which is what HarfBuzz answers with. Setting a
  * callback on an immutable object is ignored, and releases `user_data`
  * immediately.
  *
@@ -2955,8 +2991,9 @@ void hr_font_funcs_set_glyph_v_origin_func(struct hr_font_funcs_t *ffuncs,
  *
  * Takes ownership of `user_data`, releasing it through `destroy` when the
  * callback is replaced or the funcs object is freed. Passing a `NULL` callback
- * clears any previously set one, after which it reports nothing available
- * rather than falling back to HarfRust's own implementation. Setting a
+ * clears any previously set one, after which the parent font answers, or
+ * nothing does: no glyph, no extents, and an advance of the font's own
+ * scale, which is what HarfBuzz answers with. Setting a
  * callback on an immutable object is ignored, and releases `user_data`
  * immediately.
  *

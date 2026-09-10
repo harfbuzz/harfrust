@@ -8,9 +8,10 @@ use harfrust::font::{FontInstance, FontVariation, NormalizedCoord};
 use harfrust::Shaper;
 use read_fonts::TableProvider;
 
+use crate::common::hr_glyph_extents_t;
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_variation_t};
 use crate::face::hr_face_t;
-use crate::font_funcs::hr_font_funcs_t;
+use crate::font_funcs::{hr_font_funcs_t, Answer};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// The `font_data` a caller attached along with a set of callbacks.
@@ -104,11 +105,95 @@ pub struct hr_font_t {
     pub(crate) funcs: *mut hr_font_funcs_t,
     pub(crate) font_data: Option<Arc<FontData>>,
     /// Owned reference to the parent, for fonts made by
-    /// [`hr_font_create_sub_font`].
-    parent: *mut hr_font_t,
+    /// [`hr_font_create_sub_font`]. Callbacks this font does not carry are
+    /// answered by the parent, so this is walked on every dispatch.
+    pub(crate) parent: *mut hr_font_t,
 }
 
 impl hr_font_t {
+    /// Whether this font, or any it descends from, carries callbacks.
+    ///
+    /// A sub-font answers with its parent's callbacks, so the adapter has to
+    /// be installed for it even when it carries none of its own.
+    pub(crate) fn has_callbacks(&self) -> bool {
+        let mut font = self;
+        loop {
+            if !font.funcs.is_null() {
+                return true;
+            }
+            // SAFETY: each font owns its reference to its parent.
+            match unsafe { font.parent.as_ref() } {
+                Some(parent) => font = parent,
+                None => return false,
+            }
+        }
+    }
+
+    /// The glyph the font's own tables give for a character.
+    ///
+    /// This goes through the same charmap shaping uses, which knows about the
+    /// legacy cmap subtables -- Macintosh Roman, and the Windows symbol
+    /// encoding's private-use pages -- so that a glyph shaping can find is one
+    /// this reports.
+    pub(crate) fn builtin_nominal_glyph(&self, unicode: u32) -> Option<hr_codepoint_t> {
+        self.prepared
+            .as_ref()?
+            .shaper(true)?
+            .builtin_font_funcs()
+            .nominal_glyph(unicode)
+            .map(|glyph| glyph.to_u32())
+    }
+
+    /// As [`hr_font_t::builtin_nominal_glyph`], for a variation selector.
+    pub(crate) fn builtin_variation_glyph(
+        &self,
+        unicode: u32,
+        variation_selector: u32,
+    ) -> Option<hr_codepoint_t> {
+        self.prepared
+            .as_ref()?
+            .shaper(true)?
+            .builtin_font_funcs()
+            .variant_glyph(unicode, variation_selector)
+            .map(|glyph| glyph.to_u32())
+    }
+
+    /// What the font's own tables say a glyph's extents are.
+    pub(crate) fn builtin_extents(&self, glyph: hr_codepoint_t) -> Option<hr_glyph_extents_t> {
+        let extents = self
+            .prepared
+            .as_ref()?
+            .shaper(true)?
+            .builtin_font_funcs()
+            .extents(harfrust::GlyphId::from(glyph))?;
+        Some(hr_glyph_extents_t {
+            x_bearing: extents.x_bearing,
+            y_bearing: extents.y_bearing,
+            width: extents.width,
+            height: extents.height,
+        })
+    }
+
+    /// A glyph's extents, from whichever callback answers, or from the font's
+    /// own tables when none is installed. `None` when nothing can say.
+    pub(crate) fn glyph_extents(
+        &self,
+        font: *mut hr_font_t,
+        glyph: hr_codepoint_t,
+    ) -> Option<hr_glyph_extents_t> {
+        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_extents(glyph)? {
+            Answer::Builtin => self.builtin_extents(glyph),
+            Answer::Value(extents) => Some(extents),
+        }
+    }
+
+    /// The data this font's own callbacks were given.
+    pub(crate) fn callback_data(&self) -> *mut c_void {
+        self.font_data
+            .as_ref()
+            .map_or(core::ptr::null_mut(), |data| data.data)
+    }
+
     pub(crate) fn face(&self) -> *mut hr_face_t {
         self.face
     }
@@ -241,10 +326,12 @@ pub unsafe extern "C" fn hr_font_create_sub_font(parent: *mut hr_font_t) -> *mut
         y_scale: parent_ref.y_scale,
         ptem: parent_ref.ptem,
         coords: Vec::new(),
-        funcs: unsafe { object::reference(parent_ref.funcs) },
-        // Shared, so that replacing the parent's callbacks does not release
-        // data this font is still using.
-        font_data: parent_ref.font_data.clone(),
+        // Nothing of its own: a sub-font answers with whatever its parent
+        // answers with at the time it is asked, so that callbacks installed
+        // on the parent afterwards are its callbacks too. Copying them here
+        // would freeze the parent as it was.
+        funcs: core::ptr::null_mut(),
+        font_data: None,
         parent: unsafe { object::reference(parent) },
     };
     this.set_instance(
@@ -633,15 +720,15 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     if let Some(out) = unsafe { glyph.as_mut() } {
         *out = 0;
     }
-    let found = if state.funcs.is_null() {
-        state
-            .instance()
-            .and_then(|instance| instance.font().tables().cmap().ok())
-            .and_then(|cmap| cmap.map_codepoint(unicode))
-            .map(|glyph| glyph.to_u32())
-    } else {
-        crate::font_funcs::FontFuncsAdapter::new(font, state).call_nominal_glyph(unicode)
-    };
+    let found =
+        match crate::font_funcs::FontFuncsAdapter::new(font, state).call_nominal_glyph(unicode) {
+            // Callbacks are installed somewhere in the chain, and none of them
+            // answer for this.
+            None => None,
+            Some(Answer::Value(glyph)) => Some(glyph),
+            // Nobody carries callbacks, so the font's own tables answer.
+            Some(Answer::Builtin) => state.builtin_nominal_glyph(unicode),
+        };
     let Some(found) = found else {
         return false.into();
     };
@@ -669,29 +756,17 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
     variation_selector: hr_codepoint_t,
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
-    use read_fonts::tables::cmap::MapVariant;
-
     let state = unsafe { object::or_empty(font.cast_const()) };
     // As in `hr_font_get_nominal_glyph`, not found until it is.
     if let Some(out) = unsafe { glyph.as_mut() } {
         *out = 0;
     }
-    let found = if state.funcs.is_null() {
-        state
-            .instance()
-            .and_then(|instance| instance.font().tables().cmap().ok())
-            .and_then(|cmap| {
-                let (_, uvs) = cmap.uvs_subtable()?;
-                uvs.map_variant(unicode, variation_selector)
-                    .and_then(|variant| match variant {
-                        MapVariant::UseDefault => cmap.map_codepoint(unicode),
-                        MapVariant::Variant(gid) => Some(gid),
-                    })
-            })
-            .map(|glyph| glyph.to_u32())
-    } else {
-        crate::font_funcs::FontFuncsAdapter::new(font, state)
-            .call_variation_glyph(unicode, variation_selector)
+    let found = match crate::font_funcs::FontFuncsAdapter::new(font, state)
+        .call_variation_glyph(unicode, variation_selector)
+    {
+        None => None,
+        Some(Answer::Value(glyph)) => Some(glyph),
+        Some(Answer::Builtin) => state.builtin_variation_glyph(unicode, variation_selector),
     };
     let Some(found) = found else {
         return false.into();

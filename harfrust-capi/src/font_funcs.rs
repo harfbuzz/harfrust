@@ -240,8 +240,9 @@ pub unsafe extern "C" fn hr_font_funcs_is_immutable(ffuncs: *mut hr_font_funcs_t
 ///
 /// Takes ownership of `user_data`, releasing it through `destroy` when the
 /// callback is replaced or the funcs object is freed. Passing a `NULL` callback
-/// clears any previously set one, after which it reports nothing available
-/// rather than falling back to HarfRust's own implementation. Setting a
+/// clears any previously set one, after which the parent font answers, or
+/// nothing does: no glyph, no extents, and an advance of the font's own
+/// scale, which is what HarfBuzz answers with. Setting a
 /// callback on an immutable object is ignored, and releases `user_data`
 /// immediately.
 ///
@@ -270,8 +271,9 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
 ///
 /// Takes ownership of `user_data`, releasing it through `destroy` when the
 /// callback is replaced or the funcs object is freed. Passing a `NULL` callback
-/// clears any previously set one, after which it reports nothing available
-/// rather than falling back to HarfRust's own implementation. Setting a
+/// clears any previously set one, after which the parent font answers, or
+/// nothing does: no glyph, no extents, and an advance of the font's own
+/// scale, which is what HarfBuzz answers with. Setting a
 /// callback on an immutable object is ignored, and releases `user_data`
 /// immediately.
 ///
@@ -299,8 +301,9 @@ pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
 ///
 /// Takes ownership of `user_data`, releasing it through `destroy` when the
 /// callback is replaced or the funcs object is freed. Passing a `NULL` callback
-/// clears any previously set one, after which it reports nothing available
-/// rather than falling back to HarfRust's own implementation. Setting a
+/// clears any previously set one, after which the parent font answers, or
+/// nothing does: no glyph, no extents, and an advance of the font's own
+/// scale, which is what HarfBuzz answers with. Setting a
 /// callback on an immutable object is ignored, and releases `user_data`
 /// immediately.
 ///
@@ -328,8 +331,9 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
 ///
 /// Takes ownership of `user_data`, releasing it through `destroy` when the
 /// callback is replaced or the funcs object is freed. Passing a `NULL` callback
-/// clears any previously set one, after which it reports nothing available
-/// rather than falling back to HarfRust's own implementation. Setting a
+/// clears any previously set one, after which the parent font answers, or
+/// nothing does: no glyph, no extents, and an advance of the font's own
+/// scale, which is what HarfBuzz answers with. Setting a
 /// callback on an immutable object is ignored, and releases `user_data`
 /// immediately.
 ///
@@ -357,8 +361,9 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
 ///
 /// Takes ownership of `user_data`, releasing it through `destroy` when the
 /// callback is replaced or the funcs object is freed. Passing a `NULL` callback
-/// clears any previously set one, after which it reports nothing available
-/// rather than falling back to HarfRust's own implementation. Setting a
+/// clears any previously set one, after which the parent font answers, or
+/// nothing does: no glyph, no extents, and an advance of the font's own
+/// scale, which is what HarfBuzz answers with. Setting a
 /// callback on an immutable object is ignored, and releases `user_data`
 /// immediately.
 ///
@@ -386,8 +391,9 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
 ///
 /// Takes ownership of `user_data`, releasing it through `destroy` when the
 /// callback is replaced or the funcs object is freed. Passing a `NULL` callback
-/// clears any previously set one, after which it reports nothing available
-/// rather than falling back to HarfRust's own implementation. Setting a
+/// clears any previously set one, after which the parent font answers, or
+/// nothing does: no glyph, no extents, and an advance of the font's own
+/// scale, which is what HarfBuzz answers with. Setting a
 /// callback on an immutable object is ignored, and releases `user_data`
 /// immediately.
 ///
@@ -426,6 +432,82 @@ pub(crate) struct FontFuncsAdapter<'a> {
     font: *mut hr_font_t,
 }
 
+/// What came back: either a value, or the fact that nobody in the chain
+/// carries callbacks and the font's own tables should answer.
+pub(crate) enum Answer<T> {
+    Builtin,
+    Value(T),
+}
+
+/// Where a callback was found, and what it expects to be handed.
+enum Resolved<'c, F> {
+    /// No font in the chain carries callbacks, so the font's own tables
+    /// answer.
+    Builtin,
+    /// Callbacks were installed somewhere, and none of them answer for this.
+    Missing,
+    Found {
+        font: *mut hr_font_t,
+        data: *mut c_void,
+        callback: &'c Callback<F>,
+        /// The scale the answer will be in, against this font's own.
+        scale: (i32, i32),
+    },
+}
+
+/// Finds the nearest font in the chain whose callbacks answer for one field.
+///
+/// A funcs object that does not carry the callback delegates to the parent,
+/// as HarfBuzz's do, and so does a font carrying no callbacks at all. A chain
+/// with none anywhere falls to the built-in implementation, while one that
+/// has callbacks but not this one reports nothing available.
+macro_rules! resolve {
+    ($adapter:expr, $field:ident) => {{
+        // Reborrowed, so that a caller holding `&mut self` keeps it.
+        let adapter: &FontFuncsAdapter<'_> = &*$adapter;
+        let mut font = adapter.font;
+        let mut state: &hr_font_t = adapter.state;
+        let mut installed = false;
+        loop {
+            // SAFETY: each font owns its reference to its callbacks and to
+            // its parent, and outlives this adapter.
+            if let Some(funcs) = unsafe { state.funcs.as_ref() } {
+                installed = true;
+                if let Some(callback) = funcs.$field.as_ref() {
+                    break Resolved::Found {
+                        font,
+                        data: state.callback_data(),
+                        callback,
+                        scale: adapter.scale_from(state),
+                    };
+                }
+            }
+            match unsafe { state.parent.as_ref() } {
+                Some(parent) => {
+                    font = state.parent;
+                    state = parent;
+                }
+                None => {
+                    break if installed {
+                        Resolved::Missing
+                    } else {
+                        Resolved::Builtin
+                    }
+                }
+            }
+        }
+    }};
+}
+
+/// Rescales a distance answered in `from` units into `into` units, which is
+/// what a parent's answer needs when the sub-font asking is a different size.
+fn rescale(value: i32, from: i32, into: i32) -> i32 {
+    if from == into || from == 0 {
+        return value;
+    }
+    ((i64::from(value) * i64::from(into)) / i64::from(from)) as i32
+}
+
 impl<'a> FontFuncsAdapter<'a> {
     pub(crate) fn new(font: *mut hr_font_t, state: &'a hr_font_t) -> Self {
         Self { state, font }
@@ -437,10 +519,13 @@ impl<'a> FontFuncsAdapter<'a> {
     }
 
     fn font_data(&self) -> *mut c_void {
-        self.state
-            .font_data
-            .as_ref()
-            .map_or(ptr::null_mut(), |data| data.data)
+        self.state.callback_data()
+    }
+
+    /// How much larger this font is than `ancestor`, which is what a distance
+    /// coming back from the ancestor's callbacks has to be multiplied by.
+    fn scale_from(&self, ancestor: &hr_font_t) -> (i32, i32) {
+        (ancestor.x_scale, ancestor.y_scale)
     }
 
     /// What the installed nominal-glyph callback answers, or `None` when
@@ -448,78 +533,137 @@ impl<'a> FontFuncsAdapter<'a> {
     ///
     /// Shaping and the public getters both go through here, so that a font
     /// answers the same whichever of them is asking.
-    pub(crate) fn call_nominal_glyph(&self, c: u32) -> Option<hr_codepoint_t> {
-        let cb = self.funcs()?.nominal_glyph.as_ref()?;
+    pub(crate) fn call_nominal_glyph(&self, c: u32) -> Option<Answer<hr_codepoint_t>> {
+        let (font, data, cb) = match resolve!(self, nominal_glyph) {
+            Resolved::Builtin => return Some(Answer::Builtin),
+            Resolved::Missing => return None,
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                ..
+            } => (font, data, callback),
+        };
         let func = cb.func?;
         let mut glyph: hr_codepoint_t = 0;
         // SAFETY: the callback was registered by the caller for this purpose.
-        let found = unsafe {
-            func(
-                self.font,
-                self.font_data(),
-                c,
-                ptr::from_mut(&mut glyph),
-                cb.user_data,
-            )
-        };
-        (found != 0).then_some(glyph)
+        let found = unsafe { func(font, data, c, ptr::from_mut(&mut glyph), cb.user_data) };
+        (found != 0).then_some(Answer::Value(glyph))
     }
 
     /// As [`FontFuncsAdapter::call_nominal_glyph`], for a variation
     /// selector.
-    pub(crate) fn call_variation_glyph(&self, c: u32, vs: u32) -> Option<hr_codepoint_t> {
-        let cb = self.funcs()?.variation_glyph.as_ref()?;
+    pub(crate) fn call_variation_glyph(&self, c: u32, vs: u32) -> Option<Answer<hr_codepoint_t>> {
+        let (font, data, cb) = match resolve!(self, variation_glyph) {
+            Resolved::Builtin => return Some(Answer::Builtin),
+            Resolved::Missing => return None,
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                ..
+            } => (font, data, callback),
+        };
         let func = cb.func?;
         let mut glyph: hr_codepoint_t = 0;
         // SAFETY: as above.
-        let found = unsafe {
-            func(
-                self.font,
-                self.font_data(),
-                c,
-                vs,
-                ptr::from_mut(&mut glyph),
-                cb.user_data,
-            )
+        let found = unsafe { func(font, data, c, vs, ptr::from_mut(&mut glyph), cb.user_data) };
+        (found != 0).then_some(Answer::Value(glyph))
+    }
+
+    /// What a glyph's extents are, through whichever callback answers.
+    pub(crate) fn call_extents(&self, glyph: u32) -> Option<Answer<hr_glyph_extents_t>> {
+        let (font, data, cb, scale) = match resolve!(self, extents) {
+            Resolved::Builtin => return Some(Answer::Builtin),
+            Resolved::Missing => return None,
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
         };
-        (found != 0).then_some(glyph)
+        let func = cb.func?;
+        let mut extents = hr_glyph_extents_t::default();
+        // SAFETY: as above.
+        let found = unsafe { func(font, data, glyph, ptr::from_mut(&mut extents), cb.user_data) };
+        if found == 0 {
+            return None;
+        }
+        extents.x_bearing = rescale(extents.x_bearing, scale.0, self.state.x_scale);
+        extents.width = rescale(extents.width, scale.0, self.state.x_scale);
+        extents.y_bearing = rescale(extents.y_bearing, scale.1, self.state.y_scale);
+        extents.height = rescale(extents.height, scale.1, self.state.y_scale);
+        Some(Answer::Value(extents))
     }
 }
 
 impl FontFuncs for FontFuncsAdapter<'_> {
-    fn nominal_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
-        self.call_nominal_glyph(c).map(GlyphId::from)
+    fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+        match self.call_nominal_glyph(c)? {
+            Answer::Builtin => builtin.nominal_glyph(c),
+            Answer::Value(glyph) => Some(GlyphId::from(glyph)),
+        }
     }
 
-    fn variant_glyph(&mut self, _builtin: &BuiltinFontFuncs, c: u32, vs: u32) -> Option<GlyphId> {
-        self.call_variation_glyph(c, vs).map(GlyphId::from)
+    fn variant_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32, vs: u32) -> Option<GlyphId> {
+        match self.call_variation_glyph(c, vs)? {
+            Answer::Builtin => builtin.variant_glyph(c, vs),
+            Answer::Value(glyph) => Some(GlyphId::from(glyph)),
+        }
     }
 
-    fn advance_width(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
-        let Some(cb) = self.funcs().and_then(|f| f.h_advance.as_ref()) else {
-            return 0;
+    fn advance_width(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
+        let (font, data, cb, scale) = match resolve!(self, h_advance) {
+            Resolved::Builtin => return builtin.advance_width(glyph),
+            // Nothing answers, so every glyph is as wide as the font is
+            // tall. HarfBuzz's own answer, and not zero.
+            Resolved::Missing => return self.state.x_scale,
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
         };
         let Some(func) = cb.func else {
             return 0;
         };
         // SAFETY: as above.
-        unsafe { func(self.font, self.font_data(), glyph.to_u32(), cb.user_data) }
+        let advance = unsafe { func(font, data, glyph.to_u32(), cb.user_data) };
+        rescale(advance, scale.0, self.state.x_scale)
     }
 
-    fn advance_height(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
-        let Some(cb) = self.funcs().and_then(|f| f.v_advance.as_ref()) else {
-            return 0;
+    fn advance_height(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
+        let (font, data, cb, scale) = match resolve!(self, v_advance) {
+            Resolved::Builtin => return builtin.advance_height(glyph),
+            // As above, downwards.
+            Resolved::Missing => return -self.state.y_scale,
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
         };
         let Some(func) = cb.func else {
             return 0;
         };
         // SAFETY: as above.
-        unsafe { func(self.font, self.font_data(), glyph.to_u32(), cb.user_data) }
+        let advance = unsafe { func(font, data, glyph.to_u32(), cb.user_data) };
+        rescale(advance, scale.1, self.state.y_scale)
     }
 
-    fn vertical_origin(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
-        let Some(cb) = self.funcs().and_then(|f| f.v_origin.as_ref()) else {
-            return (0, 0);
+    fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
+        let (font, data, cb, scale) = match resolve!(self, v_origin) {
+            Resolved::Builtin => return builtin.vertical_origin(glyph),
+            Resolved::Missing => return (0, 0),
+            Resolved::Found {
+                font,
+                data,
+                callback,
+                scale,
+            } => (font, data, callback, scale),
         };
         let Some(func) = cb.func else {
             return (0, 0);
@@ -528,8 +672,8 @@ impl FontFuncs for FontFuncsAdapter<'_> {
         // SAFETY: as above.
         let found = unsafe {
             func(
-                self.font,
-                self.font_data(),
+                font,
+                data,
                 glyph.to_u32(),
                 ptr::from_mut(&mut x),
                 ptr::from_mut(&mut y),
@@ -539,28 +683,21 @@ impl FontFuncs for FontFuncsAdapter<'_> {
         if found == 0 {
             return (0, 0);
         }
-        (x, y)
+        (
+            rescale(x, scale.0, self.state.x_scale),
+            rescale(y, scale.1, self.state.y_scale),
+        )
     }
 
-    fn extents(&mut self, _builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {
-        let cb = self.funcs()?.extents.as_ref()?;
-        let func = cb.func?;
-        let mut extents = hr_glyph_extents_t::default();
-        // SAFETY: as above.
-        let found = unsafe {
-            func(
-                self.font,
-                self.font_data(),
-                glyph.to_u32(),
-                ptr::from_mut(&mut extents),
-                cb.user_data,
-            )
-        };
-        (found != 0).then_some(GlyphExtents {
-            x_bearing: extents.x_bearing,
-            y_bearing: extents.y_bearing,
-            width: extents.width,
-            height: extents.height,
-        })
+    fn extents(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {
+        match self.call_extents(glyph.to_u32())? {
+            Answer::Builtin => builtin.extents(glyph),
+            Answer::Value(extents) => Some(GlyphExtents {
+                x_bearing: extents.x_bearing,
+                y_bearing: extents.y_bearing,
+                width: extents.width,
+                height: extents.height,
+            }),
+        }
     }
 }

@@ -399,6 +399,18 @@ pub trait FontFuncs {
     }
 }
 
+impl<'a> hb_font_t<'a> {
+    /// The callbacks that read the font's own tables, which shaping falls
+    /// back on when nothing else answers.
+    ///
+    /// These know about the legacy cmap subtables -- Macintosh Roman, and the
+    /// Windows symbol encoding's private-use pages -- so a caller looking a
+    /// glyph up outside shaping finds the same one shaping would.
+    pub fn builtin_font_funcs(&'a self) -> BuiltinFontFuncs<'a> {
+        BuiltinFontFuncs::new(self)
+    }
+}
+
 pub(crate) struct FontFuncsDispatch<'a, 'u> {
     builtin: BuiltinFontFuncs<'a>,
     scale: Scale,

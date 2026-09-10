@@ -52,7 +52,7 @@ pub(crate) fn shape_with_plan(
     let Some(shaper) = font_ref.shaper() else {
         return false.into();
     };
-    let has_funcs = !font_ref.funcs.is_null();
+    let has_funcs = font_ref.has_callbacks();
     let mut adapter = FontFuncsAdapter::new(font, font_ref);
 
     guard(|| {
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn hr_shape_full(
     };
     // The plan cache lives on the face, which outlives the font.
     let face = font_ref.face();
-    let has_funcs = !font_ref.funcs.is_null();
+    let has_funcs = font_ref.has_callbacks();
     let mut adapter = FontFuncsAdapter::new(font, font_ref);
 
     let outcome = guard(|| {

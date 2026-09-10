@@ -11,7 +11,7 @@ use harfrust::{
 
 use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
 use crate::common::{
-    hr_bool_t, hr_codepoint_t, hr_language_t, hr_mask_t, hr_position_t, hr_script_t,
+    hr_bool_t, hr_codepoint_t, hr_language_t, hr_mask_t, hr_position_t, hr_script_t, hr_tag_t,
     language_from_rust, language_to_rust, script_from_rust, script_to_rust,
 };
 use crate::font::hr_font_t;
@@ -20,16 +20,18 @@ use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, 
 const MAX_CONTEXT_CODEPOINTS: usize = 5;
 
 /// What a buffer currently holds.
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum hr_buffer_content_type_t {
-    /// Nothing, or contents that have been cleared.
-    HR_BUFFER_CONTENT_TYPE_INVALID = 0,
-    /// Input characters, ready to be shaped.
-    HR_BUFFER_CONTENT_TYPE_UNICODE = 1,
-    /// The glyphs shaping produced.
-    HR_BUFFER_CONTENT_TYPE_GLYPHS = 2,
-}
+///
+/// An integer typedef rather than an enumeration. A value arriving from C need
+/// not be one of the ones named here, and a Rust enumeration holding an
+/// unnamed value is undefined behaviour rather than merely wrong.
+pub type hr_buffer_content_type_t = c_int;
+
+/// Nothing, or contents that have been cleared.
+pub const HR_BUFFER_CONTENT_TYPE_INVALID: hr_buffer_content_type_t = 0;
+/// Input characters, ready to be shaped.
+pub const HR_BUFFER_CONTENT_TYPE_UNICODE: hr_buffer_content_type_t = 1;
+/// The glyphs shaping produced.
+pub const HR_BUFFER_CONTENT_TYPE_GLYPHS: hr_buffer_content_type_t = 2;
 
 /// Flags controlling how a buffer is shaped.
 ///
@@ -59,18 +61,23 @@ pub const HR_BUFFER_FLAG_PRODUCE_SAFE_TO_INSERT_TATWEEL: hr_buffer_flags_t = 0x0
 pub const HR_BUFFER_FLAG_DEFINED: hr_buffer_flags_t = 0x0000_00FF;
 
 /// How clusters are merged during shaping.
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum hr_buffer_cluster_level_t {
-    /// Merge clusters by grapheme, keeping cluster values monotonic.
-    HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES = 0,
-    /// Merge clusters by character, keeping cluster values monotonic.
-    HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS = 1,
-    /// Do not merge clusters, and do not keep cluster values monotonic.
-    HR_BUFFER_CLUSTER_LEVEL_CHARACTERS = 2,
-    /// Merge clusters by grapheme without keeping cluster values monotonic.
-    HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES = 3,
-}
+///
+/// An integer typedef rather than an enumeration. A value arriving from C need
+/// not be one of the ones named here, and a Rust enumeration holding an
+/// unnamed value is undefined behaviour rather than merely wrong.
+pub type hr_buffer_cluster_level_t = c_int;
+
+/// Merge clusters by grapheme, keeping cluster values monotonic.
+pub const HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES: hr_buffer_cluster_level_t = 0;
+/// Merge clusters by character, keeping cluster values monotonic.
+pub const HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS: hr_buffer_cluster_level_t = 1;
+/// Do not merge clusters, and do not keep cluster values monotonic.
+pub const HR_BUFFER_CLUSTER_LEVEL_CHARACTERS: hr_buffer_cluster_level_t = 2;
+/// Merge clusters by grapheme without keeping cluster values monotonic.
+pub const HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES: hr_buffer_cluster_level_t = 3;
+/// What a buffer starts out with.
+pub const HR_BUFFER_CLUSTER_LEVEL_DEFAULT: hr_buffer_cluster_level_t =
+    HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES;
 
 /// Flags attached to an individual glyph by shaping.
 ///
@@ -88,16 +95,19 @@ pub const HR_GLYPH_FLAG_SAFE_TO_INSERT_TATWEEL: hr_glyph_flags_t = 0x0000_0004;
 pub const HR_GLYPH_FLAG_DEFINED: hr_glyph_flags_t = 0x0000_0007;
 
 /// The format `hr_buffer_serialize_glyphs` writes.
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum hr_buffer_serialize_format_t {
-    /// A human-readable one-line form.
-    HR_BUFFER_SERIALIZE_FORMAT_TEXT = 0x5445_5854,
-    /// JSON. Not supported by this library.
-    HR_BUFFER_SERIALIZE_FORMAT_JSON = 0x4A53_4F4E,
-    /// An unrecognised format.
-    HR_BUFFER_SERIALIZE_FORMAT_INVALID = 0x0000_0000,
-}
+///
+/// A tag, and so an integer typedef: `hr_buffer_serialize_format_from_string`
+/// hands back whatever was asked for, named here or not, and a Rust
+/// enumeration holding an unnamed value is undefined behaviour rather than
+/// merely wrong.
+pub type hr_buffer_serialize_format_t = hr_tag_t;
+
+/// A human-readable one-line form.
+pub const HR_BUFFER_SERIALIZE_FORMAT_TEXT: hr_buffer_serialize_format_t = 0x5445_5854;
+/// JSON. Not supported by this library.
+pub const HR_BUFFER_SERIALIZE_FORMAT_JSON: hr_buffer_serialize_format_t = 0x4A53_4F4E;
+/// An unrecognised format.
+pub const HR_BUFFER_SERIALIZE_FORMAT_INVALID: hr_buffer_serialize_format_t = 0x0000_0000;
 
 /// Flags controlling what `hr_buffer_serialize_glyphs` includes.
 ///
@@ -195,55 +205,39 @@ impl Object for hr_buffer_t {
 
 fn content_type_to_rust(value: hr_buffer_content_type_t) -> Option<BufferContentType> {
     match value {
-        hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_INVALID => None,
-        hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_UNICODE => {
-            Some(BufferContentType::Unicode)
-        }
-        hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_GLYPHS => Some(BufferContentType::Glyphs),
+        HR_BUFFER_CONTENT_TYPE_INVALID => None,
+        HR_BUFFER_CONTENT_TYPE_UNICODE => Some(BufferContentType::Unicode),
+        HR_BUFFER_CONTENT_TYPE_GLYPHS => Some(BufferContentType::Glyphs),
+        // A value naming none of these says as little as the invalid one.
+        _ => None,
     }
 }
 
 fn content_type_from_rust(value: Option<BufferContentType>) -> hr_buffer_content_type_t {
     match value {
-        None => hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_INVALID,
-        Some(BufferContentType::Unicode) => {
-            hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_UNICODE
-        }
-        Some(BufferContentType::Glyphs) => hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_GLYPHS,
+        None => HR_BUFFER_CONTENT_TYPE_INVALID,
+        Some(BufferContentType::Unicode) => HR_BUFFER_CONTENT_TYPE_UNICODE,
+        Some(BufferContentType::Glyphs) => HR_BUFFER_CONTENT_TYPE_GLYPHS,
     }
 }
 
 fn cluster_level_to_rust(value: hr_buffer_cluster_level_t) -> BufferClusterLevel {
     match value {
-        hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES => {
-            BufferClusterLevel::MonotoneGraphemes
-        }
-        hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS => {
-            BufferClusterLevel::MonotoneCharacters
-        }
-        hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_CHARACTERS => {
-            BufferClusterLevel::Characters
-        }
-        hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES => {
-            BufferClusterLevel::Graphemes
-        }
+        HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES => BufferClusterLevel::MonotoneGraphemes,
+        HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS => BufferClusterLevel::MonotoneCharacters,
+        HR_BUFFER_CLUSTER_LEVEL_CHARACTERS => BufferClusterLevel::Characters,
+        HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES => BufferClusterLevel::Graphemes,
+        // A value naming none of these leaves the buffer as it starts.
+        _ => BufferClusterLevel::MonotoneGraphemes,
     }
 }
 
 fn cluster_level_from_rust(value: BufferClusterLevel) -> hr_buffer_cluster_level_t {
     match value {
-        BufferClusterLevel::MonotoneGraphemes => {
-            hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES
-        }
-        BufferClusterLevel::MonotoneCharacters => {
-            hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS
-        }
-        BufferClusterLevel::Characters => {
-            hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_CHARACTERS
-        }
-        BufferClusterLevel::Graphemes => {
-            hr_buffer_cluster_level_t::HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES
-        }
+        BufferClusterLevel::MonotoneGraphemes => HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
+        BufferClusterLevel::MonotoneCharacters => HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
+        BufferClusterLevel::Characters => HR_BUFFER_CLUSTER_LEVEL_CHARACTERS,
+        BufferClusterLevel::Graphemes => HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
     }
 }
 
@@ -1304,14 +1298,11 @@ pub unsafe extern "C" fn hr_buffer_serialize_format_from_string(
     str_: *const c_char,
     len: c_int,
 ) -> hr_buffer_serialize_format_t {
-    let Some(s) = (unsafe { crate::common::str_from_raw(str_, len) }) else {
-        return hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_INVALID;
-    };
-    match s.to_ascii_lowercase().as_str() {
-        "text" => hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
-        "json" => hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_JSON,
-        _ => hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_INVALID,
-    }
+    // The name as a tag, upper-cased by clearing the bit that separates the
+    // cases. A name this library does not know still comes back as itself,
+    // as it does in HarfBuzz, rather than collapsing to the invalid format:
+    // it is the caller's value to hold and hand back.
+    unsafe { crate::common::hr_tag_from_string(str_, len) & !0x2020_2020 }
 }
 
 /// Returns the name of a serialization format, or `NULL` if it is invalid.
@@ -1320,11 +1311,10 @@ pub extern "C" fn hr_buffer_serialize_format_to_string(
     format: hr_buffer_serialize_format_t,
 ) -> *const c_char {
     let name: &[u8] = match format {
-        hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT => b"text\0",
-        hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_JSON => b"json\0",
-        hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_INVALID => {
-            return core::ptr::null()
-        }
+        HR_BUFFER_SERIALIZE_FORMAT_TEXT => b"text\0",
+        HR_BUFFER_SERIALIZE_FORMAT_JSON => b"json\0",
+        // Including the invalid format, which names nothing.
+        _ => return core::ptr::null(),
     };
     name.as_ptr().cast::<c_char>()
 }
@@ -1341,7 +1331,7 @@ pub extern "C" fn hr_buffer_serialize_list_formats() -> *const *const c_char {
 ///
 /// Returns the number of items serialized, writing the number of bytes used to
 /// `buf_consumed`. Only
-/// [`hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT`] is
+/// [`HR_BUFFER_SERIALIZE_FORMAT_TEXT`] is
 /// supported; any other format serializes nothing.
 ///
 /// # Safety
@@ -1368,10 +1358,13 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     };
     write_consumed(0);
 
-    if format != hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT {
+    if format != HR_BUFFER_SERIALIZE_FORMAT_TEXT {
         return 0;
     }
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
+    // Kept as passed as well: callbacks are handed the font they were
+    // installed on.
+    let font_ptr = font;
     let font = unsafe { object::or_empty(font.cast_const()) };
 
     let infos = buffer.buffer.glyph_infos();
@@ -1391,11 +1384,11 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     if positions.is_empty() {
         flags |= SerializeFlags::NO_POSITIONS;
     }
-    // Nothing can say what a glyph's extents are without a font. HarfBuzz
-    // leaves the field out when it cannot answer, rather than answering zero.
-    if font.instance().is_none() {
-        flags &= !SerializeFlags::GLYPH_EXTENTS;
-    }
+    // Extents are worked out here rather than by the serializer, which reads
+    // the font's tables and so would not see callbacks the caller installed.
+    // HarfBuzz asks the font, and leaves the field out when nothing answers.
+    let wants_extents = flags.contains(SerializeFlags::GLYPH_EXTENTS);
+    flags &= !SerializeFlags::GLYPH_EXTENTS;
 
     // With advances suppressed, each item reports the pen position it sits
     // at, which counts from the start of the buffer and not from the start of
@@ -1452,6 +1445,17 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
         let mut chunk = String::with_capacity(item.len() + 2);
         chunk.push(if start + at == 0 { '[' } else { '|' });
         chunk.push_str(item);
+        // Last in an item, after everything the serializer writes.
+        if wants_extents {
+            if let Some(extents) = font.glyph_extents(font_ptr, info.glyph_id) {
+                use core::fmt::Write;
+                let _ = write!(
+                    chunk,
+                    "<{},{},{},{}>",
+                    extents.x_bearing, extents.y_bearing, extents.width, extents.height
+                );
+            }
+        }
         if start + at == end - 1 {
             chunk.push(']');
         }

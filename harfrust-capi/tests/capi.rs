@@ -38,7 +38,7 @@ unsafe fn blob_over(data: &[u8]) -> *mut hr_blob_t {
         hr_blob_create(
             data.as_ptr().cast::<c_char>(),
             data.len() as c_uint,
-            hr_memory_mode_t::HR_MEMORY_MODE_READONLY,
+            HR_MEMORY_MODE_READONLY,
             ptr::null_mut(),
             None,
         )
@@ -113,7 +113,7 @@ fn blob_duplicate_mode_copies() {
             hr_blob_create(
                 scratch.as_ptr().cast::<c_char>(),
                 scratch.len() as c_uint,
-                hr_memory_mode_t::HR_MEMORY_MODE_DUPLICATE,
+                HR_MEMORY_MODE_DUPLICATE,
                 ptr::null_mut(),
                 None,
             )
@@ -258,17 +258,17 @@ fn buffer_tracks_its_content_type() {
         let buffer = hr_buffer_create();
         assert_eq!(
             hr_buffer_get_content_type(buffer),
-            hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_INVALID
+            HR_BUFFER_CONTENT_TYPE_INVALID
         );
         hr_buffer_add(buffer, 'x' as u32, 0);
         assert_eq!(
             hr_buffer_get_content_type(buffer),
-            hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_UNICODE
+            HR_BUFFER_CONTENT_TYPE_UNICODE
         );
         hr_buffer_clear_contents(buffer);
         assert_eq!(
             hr_buffer_get_content_type(buffer),
-            hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_INVALID
+            HR_BUFFER_CONTENT_TYPE_INVALID
         );
         hr_buffer_destroy(buffer);
     }
@@ -382,7 +382,7 @@ unsafe fn serialize(
             dest.len() as c_uint,
             &raw mut consumed,
             font,
-            hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+            HR_BUFFER_SERIALIZE_FORMAT_TEXT,
             flags,
         )
     };
@@ -399,10 +399,7 @@ unsafe fn glyph_buffer(gids: &[hr_codepoint_t]) -> *mut hr_buffer_t {
     unsafe {
         let buffer = hr_buffer_create();
         hr_buffer_add_codepoints(buffer, gids.as_ptr(), gids.len() as c_int, 0, -1);
-        hr_buffer_set_content_type(
-            buffer,
-            hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_GLYPHS,
-        );
+        hr_buffer_set_content_type(buffer, HR_BUFFER_CONTENT_TYPE_GLYPHS);
         buffer
     }
 }
@@ -533,7 +530,7 @@ fn serializing_writes_whole_items_or_none() {
                 full.len() as c_uint,
                 &raw mut consumed,
                 font,
-                hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                 HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
             );
             assert_eq!(items, count);
@@ -553,7 +550,7 @@ fn serializing_writes_whole_items_or_none() {
                     size as c_uint,
                     &raw mut consumed,
                     font,
-                    hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                    HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                     HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
                 );
                 if size == 0 {
@@ -601,7 +598,7 @@ fn serializing_without_a_font_numbers_the_glyphs() {
                 dest.len() as c_uint,
                 &raw mut consumed,
                 ptr::null_mut(),
-                hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                 HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
             );
             assert_eq!(items, hr_buffer_get_length(buffer));
@@ -815,7 +812,7 @@ fn shaping_produces_positioned_glyphs() {
 
             assert_eq!(
                 hr_buffer_get_content_type(buffer),
-                hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_GLYPHS
+                HR_BUFFER_CONTENT_TYPE_GLYPHS
             );
             assert_ne!(hr_buffer_has_positions(buffer), 0);
 
@@ -943,7 +940,7 @@ fn serializing_a_shaped_buffer_writes_text() {
                 buf.len() as c_uint,
                 &raw mut consumed,
                 font,
-                hr_buffer_serialize_format_t::HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                HR_BUFFER_SERIALIZE_FORMAT_TEXT,
                 HR_BUFFER_SERIALIZE_FLAG_DEFAULT,
             );
             // No GSUB, so two characters serialize as two glyphs.
@@ -979,7 +976,7 @@ unsafe extern "C" fn reference_table(
         let blob = hr_blob_create(
             source.data.as_ptr().cast::<c_char>(),
             source.data.len() as c_uint,
-            hr_memory_mode_t::HR_MEMORY_MODE_READONLY,
+            HR_MEMORY_MODE_READONLY,
             ptr::null_mut(),
             None,
         );
@@ -1262,8 +1259,12 @@ fn unset_callbacks_report_nothing_available() {
             let mut len: c_uint = 0;
             let positions = hr_buffer_get_glyph_positions(buffer, &raw mut len);
             assert!(len > 0);
+            // An advance nobody answers for is the font's own scale, which is
+            // what HarfBuzz answers with rather than nothing at all.
+            let mut x_scale = 0;
+            hr_font_get_scale(font, &raw mut x_scale, ptr::null_mut());
             for i in 0..len as usize {
-                assert_eq!((*positions.add(i)).x_advance, 0);
+                assert_eq!((*positions.add(i)).x_advance, x_scale);
             }
             assert!(glyph_ids(buffer).iter().all(|&id| id == 0));
 
@@ -1325,20 +1326,17 @@ fn font_data_outlives_every_font_sharing_it() {
                 Some(count_shared_drop),
             );
 
-            // A sub-font shares the parent's font data.
+            // A sub-font holds no data of its own; it asks its parent every
+            // time, so it is never left holding what the parent has replaced.
             let sub = hr_font_create_sub_font(font);
             assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 0);
 
-            // Replacing the parent's callbacks must not release data the
-            // sub-font is still holding.
+            // Which means replacing the parent's callbacks releases the data
+            // they were given there and then, live sub-font or not, as it
+            // does in HarfBuzz.
             hr_font_set_funcs(font, ffuncs, ptr::dangling_mut::<c_void>(), None);
-            assert_eq!(
-                SHARED_DROPS.load(Ordering::SeqCst),
-                0,
-                "font data released while a sub-font still shares it"
-            );
+            assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 1);
 
-            // It goes only once the last font holding it is gone.
             hr_font_destroy(sub);
             assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 1);
 
@@ -1696,7 +1694,7 @@ fn a_plan_shapes_the_same_as_hr_shape() {
             assert_eq!(glyph_ids(buffer), expected);
             assert_eq!(
                 hr_buffer_get_content_type(buffer),
-                hr_buffer_content_type_t::HR_BUFFER_CONTENT_TYPE_GLYPHS
+                HR_BUFFER_CONTENT_TYPE_GLYPHS
             );
 
             hr_buffer_destroy(buffer);
