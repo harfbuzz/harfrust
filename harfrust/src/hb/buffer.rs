@@ -774,8 +774,10 @@ impl Buffer {
 
         self.serial = 0;
         self.scratch_flags = HB_BUFFER_SCRATCH_FLAG_DEFAULT;
-        self.cluster_level = HB_BUFFER_CLUSTER_LEVEL_DEFAULT;
-        self.not_found_variation_selector = None;
+        // How the buffer is configured -- its flags, cluster level, invisible
+        // glyph and variation-selector fallback -- outlives its contents, as
+        // it does in `hb_buffer_clear_contents`. `Buffer::reset` is what puts
+        // those back.
     }
 
     #[inline]
@@ -1839,6 +1841,19 @@ impl Buffer {
         }
     }
 
+    /// Returns the pre-context, in the reverse order
+    /// [`Buffer::set_pre_context_codepoints`] takes it.
+    #[inline]
+    pub fn pre_context_codepoints(&self) -> &[u32] {
+        &self.context[0][..self.context_len[0]]
+    }
+
+    /// Returns the post-context.
+    #[inline]
+    pub fn post_context_codepoints(&self) -> &[u32] {
+        &self.context[1][..self.context_len[1]]
+    }
+
     pub(crate) fn next_syllable(&self, mut start: usize) -> usize {
         if start >= self.len {
             return start;
@@ -2016,28 +2031,31 @@ impl Buffer {
         self.direction = direction;
     }
 
-    /// Returns the buffer's ISO 15924 script.
+    /// Returns the buffer's ISO 15924 script, or `None` if it has none.
+    ///
+    /// A buffer with no script is not one whose script is `Zzzz`: that is a
+    /// script a caller can ask for, meaning known to be unknown.
     #[inline]
-    pub fn script(&self) -> Script {
-        self.script.unwrap_or(script::UNKNOWN)
+    pub fn script(&self) -> Option<Script> {
+        self.script
     }
 
-    /// Sets the buffer's script from an ISO 15924 tag.
+    /// Sets the buffer's script from an ISO 15924 tag, or clears it.
     #[inline]
-    pub fn set_script(&mut self, script: Script) {
-        self.script = Some(script);
+    pub fn set_script(&mut self, script: Option<Script>) {
+        self.script = script;
     }
 
-    /// Returns the buffer's language.
+    /// Returns the buffer's language, or `None` if it has none.
     #[inline]
-    pub fn language(&self) -> Option<Language> {
-        self.language.clone()
+    pub fn language(&self) -> Option<&Language> {
+        self.language.as_ref()
     }
 
-    /// Sets the buffer's language.
+    /// Sets the buffer's language, or clears it.
     #[inline]
-    pub fn set_language(&mut self, language: Language) {
-        self.language = Some(language);
+    pub fn set_language(&mut self, language: Option<Language>) {
+        self.language = language;
     }
 
     /// Returns the buffer's flags.
@@ -2702,6 +2720,26 @@ pub trait SerializerFont {
     fn coords(&self) -> &[F2Dot14];
     fn glyph_names(&self) -> GlyphNames<'_>;
     fn glyph_metrics(&self) -> GlyphMetrics<'_>;
+}
+
+/// Stands in for a font when a buffer is serialized without one, as
+/// HarfBuzz's empty font does: glyphs serialize by number rather than by
+/// name, and nothing has extents.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct EmptySerializerFont;
+
+impl SerializerFont for EmptySerializerFont {
+    fn coords(&self) -> &[F2Dot14] {
+        &[]
+    }
+
+    fn glyph_names(&self) -> GlyphNames<'_> {
+        GlyphNames::None
+    }
+
+    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        GlyphMetrics::default()
+    }
 }
 
 impl SerializerFont for crate::Shaper<'_> {

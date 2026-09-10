@@ -33,6 +33,10 @@ IGNORE_TEST_CASES = [
     # https://github.com/harfbuzz/harfrust/pull/52
     "vertical_015",
     "vertical_017",
+    # Same gap: a variable font's glyf extents are what the vertical origin
+    # falls back on, and HarfRust has none once coordinates are set.
+    "vertical_009",
+    "vertical_010",
 ]
 
 

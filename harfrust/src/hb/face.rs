@@ -245,15 +245,20 @@ impl<'a> ShaperBuilder<'a> {
             feature_variations,
         );
         let aat_tables = AatTables::new(&font, &self.data.aat_cache, &self.data.table_ranges);
-        let font = FontKind::FontRef(FontRefData {
+        let font_data = FontRefData {
             font,
             glyph_metrics,
             charmap,
-        });
+        };
+        let glyph_metrics = Some(font_data.glyph_metrics.clone());
+        let charmap = Some(font_data.charmap.clone());
+        let font = FontKind::FontRef(font_data);
         hb_font_t {
             font,
             units_per_em,
             cmap_cache: &self.data.cmap_cache,
+            glyph_metrics,
+            charmap,
             ot_tables,
             aat_tables,
             apply_trak: self.data.apply_trak,
@@ -341,7 +346,15 @@ impl<'a> ShapeOptions<'a> {
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct Scale {
+/// How font units become the units a caller asked for.
+///
+/// Shaping applies this to everything it reports, from
+/// [`ShapeOptions::scale`]. A caller asking a font about one glyph rather
+/// than about a run needs the same conversion, and needs it to be the same
+/// one, so it is spelled once here -- down to the rounding, which follows
+/// HarfBuzz's.
+#[derive(Debug)]
+pub struct Scale {
     x_mult: i64,
     y_mult: i64,
     x_multf: f32,
@@ -362,7 +375,9 @@ impl Default for Scale {
 // Various conversions between f32 and i32
 #[allow(clippy::cast_precision_loss)]
 impl Scale {
-    pub(crate) fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
+    /// The conversion from `upem` font units into `scale`, or the identity
+    /// when there is no scale to apply or the face has no units to convert.
+    pub fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
         let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
             // When scale is not configured, or upem is zero, return results
             // in font units.
@@ -378,13 +393,15 @@ impl Scale {
         }
     }
 
+    /// A horizontal distance in font units, in the units asked for.
     #[inline(always)]
-    pub(crate) fn scale_x(&self, x: i32) -> i32 {
+    pub fn scale_x(&self, x: i32) -> i32 {
         Self::scale_by_mult(x, self.x_mult)
     }
 
+    /// A vertical distance in font units, in the units asked for.
     #[inline(always)]
-    pub(crate) fn scale_y(&self, y: i32) -> i32 {
+    pub fn scale_y(&self, y: i32) -> i32 {
         Self::scale_by_mult(y, self.y_mult)
     }
 
@@ -404,7 +421,7 @@ impl Scale {
     /// floor the origin corners and ceil the far corners before deriving the
     /// final width/height.
     /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
-    pub(crate) fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
+    pub fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
         let x2 = (i64::from(extents.x_bearing) + i64::from(extents.width)) as f32 * self.x_multf;
@@ -468,7 +485,7 @@ pub fn shape(
     }
     let mut buffer = buffer.0;
     // As above, this signature cannot report a failure.
-    if let Err(err) = hb_font.shape_buffer(&mut buffer, options) {
+    if let Err(err) = hb_font.shape_buffer_inner(&mut buffer, options) {
         panic!("{err}");
     }
     GlyphBuffer(buffer)
@@ -514,7 +531,7 @@ impl Buffer {
                 options = options.scale(Some((ppem * 65536.0) as i32));
             }
         }
-        hb_font.shape_buffer(self, options)
+        hb_font.shape_buffer_inner(self, options)
     }
 }
 
@@ -547,12 +564,39 @@ pub struct hb_font_t<'a> {
     pub(crate) font: FontKind<'a>,
     pub(crate) units_per_em: u16,
     pub(crate) cmap_cache: &'a cmap_cache_t,
+    pub(crate) glyph_metrics: Option<GlyphMetrics<'a>>,
+    pub(crate) charmap: Option<Charmap<'a>>,
     pub(crate) ot_tables: OtTables<'a>,
     pub(crate) aat_tables: AatTables<'a>,
     pub(crate) apply_trak: bool,
 }
 
 impl<'a> crate::Shaper<'a> {
+    /// Builds a shaper for the font instance, reusing the instance's cached
+    /// shaping data.
+    ///
+    /// The shaper borrows the instance; callers that shape repeatedly can
+    /// build it once and reuse it across calls.
+    #[cfg(feature = "experimental_font_api")]
+    pub fn from_font_instance(font: &'a crate::font::FontInstance) -> Option<Self> {
+        Self::from_font(font)
+    }
+
+    /// Preloads the table views used by the built-in font functions.
+    ///
+    /// This is an internal hook for bridges that cache a prepared shaper and
+    /// know that shaping will use the built-in functions.
+    #[doc(hidden)]
+    #[cfg(feature = "experimental_font_api")]
+    pub fn preload_builtin_font_data(&mut self) {
+        let FontKind::FontInstance(instance, metrics) = &self.font else {
+            return;
+        };
+        let tables = instance.tables();
+        self.glyph_metrics = Some(GlyphMetrics::from_tables(&tables, metrics));
+        self.charmap = Some(Charmap::from_tables(&tables));
+    }
+
     pub(crate) fn from_font(font: &'a crate::font::FontInstance) -> Option<Self> {
         let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
             Box::new(ShaperData::from_font(font))
@@ -578,6 +622,8 @@ impl<'a> crate::Shaper<'a> {
             font: FontKind::FontInstance(font, metrics),
             units_per_em: data.table_ranges.units_per_em,
             cmap_cache: &data.cmap_cache,
+            glyph_metrics: None,
+            charmap: None,
             ot_tables,
             aat_tables,
             apply_trak: data.apply_trak,
@@ -611,13 +657,32 @@ impl<'a> crate::Shaper<'a> {
         let mut buffer = buffer.0;
         // This signature cannot report a failure, and every way shaping can
         // fail is a programming error, so panic.
-        if let Err(err) = self.shape_buffer(&mut buffer, options) {
+        if let Err(err) = self.shape_buffer_inner(&mut buffer, options) {
             panic!("{err}");
         }
         GlyphBuffer(buffer)
     }
 
-    pub(crate) fn shape_buffer(
+    /// Shapes a buffer in place using this prepared shaper.
+    ///
+    /// On success the buffer holds [`BufferContentType::Glyphs`]. If a plan
+    /// is supplied through [`ShapeOptions::plan`] it must have been built for
+    /// this buffer's direction and script.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ShapeError`] when the buffer has already been shaped, has
+    /// no direction and no plan, or does not match the supplied plan.
+    #[cfg(feature = "experimental_font_api")]
+    pub fn shape_buffer(
+        &self,
+        buffer: &mut Buffer,
+        options: ShapeOptions<'_>,
+    ) -> Result<(), ShapeError> {
+        self.shape_buffer_inner(buffer, options)
+    }
+
+    fn shape_buffer_inner(
         &self,
         buffer: &mut Buffer,
         options: ShapeOptions<'_>,
@@ -695,11 +760,16 @@ impl<'a> crate::Shaper<'a> {
         Ok(())
     }
 
-    pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
+    /// The names the face gives its glyphs, from `post` or from the CFF
+    /// charset, or nothing when it names none.
+    pub fn glyph_names(&self) -> GlyphNames<'a> {
         GlyphNames::new(&self.font)
     }
 
     pub(crate) fn glyph_metrics(&self) -> GlyphMetrics<'a> {
+        if let Some(metrics) = &self.glyph_metrics {
+            return metrics.clone();
+        }
         match &self.font {
             FontKind::FontRef(data) => data.glyph_metrics.clone(),
             FontKind::FontInstance(instance, metrics) => {

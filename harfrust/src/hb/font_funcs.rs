@@ -223,6 +223,9 @@ impl<'a> BuiltinFontFuncs<'a> {
     }
 
     fn charmap(&self) -> &Charmap<'a> {
+        if let Some(charmap) = &self.face.charmap {
+            return charmap;
+        }
         self.charmap.get_or_init(|| match &self.face.font {
             FontKind::FontRef(font) => font.charmap.clone(),
             FontKind::FontInstance(instance, _) => Charmap::from_tables(&instance.tables()),
@@ -230,6 +233,9 @@ impl<'a> BuiltinFontFuncs<'a> {
     }
 
     fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
+        if let Some(metrics) = &self.face.glyph_metrics {
+            return metrics;
+        }
         self.glyph_metrics.get_or_init(|| match &self.face.font {
             FontKind::FontRef(font) => font.glyph_metrics.clone(),
             FontKind::FontInstance(instance, metrics) => {
@@ -240,12 +246,19 @@ impl<'a> BuiltinFontFuncs<'a> {
 
     /// Maps a Unicode scalar value to a nominal glyph.
     pub fn nominal_glyph(&self, c: u32) -> Option<GlyphId> {
-        self.charmap().map(c)
+        // A cmap entry pointing at .notdef says the font has no glyph for
+        // the character, rather than that its glyph is .notdef. HarfBuzz
+        // reads it the same way, and the difference shows once a caller
+        // asks for a not-found glyph of its own.
+        self.charmap().map(c).filter(|glyph| glyph.to_u32() != 0)
     }
 
     /// Maps a Unicode scalar value and variation selector to a glyph.
     pub fn variant_glyph(&self, c: u32, vs: u32) -> Option<GlyphId> {
-        self.charmap().map_variant(c, vs)
+        // As in `nominal_glyph`: .notdef is not a glyph the font has.
+        self.charmap()
+            .map_variant(c, vs)
+            .filter(|glyph| glyph.to_u32() != 0)
     }
 
     /// Returns the horizontal advance for a glyph.
@@ -390,6 +403,18 @@ pub trait FontFuncs {
     /// on what values this method should return.
     fn extents(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {
         builtin.extents(glyph)
+    }
+}
+
+impl<'a> hb_font_t<'a> {
+    /// The callbacks that read the font's own tables, which shaping falls
+    /// back on when nothing else answers.
+    ///
+    /// These know about the legacy cmap subtables -- Macintosh Roman, and the
+    /// Windows symbol encoding's private-use pages -- so a caller looking a
+    /// glyph up outside shaping finds the same one shaping would.
+    pub fn builtin_font_funcs(&'a self) -> BuiltinFontFuncs<'a> {
+        BuiltinFontFuncs::new(self)
     }
 }
 

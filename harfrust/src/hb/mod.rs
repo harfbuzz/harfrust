@@ -29,7 +29,7 @@ pub mod common;
 pub mod face;
 mod font_funcs;
 mod glyph_metrics;
-mod glyph_names;
+pub(crate) mod glyph_names;
 mod kerning;
 mod machine_cursor;
 mod ot;

@@ -401,13 +401,13 @@ fn reverse_and_reverse_clusters() {
 fn properties_round_trip() {
     let mut buffer = Buffer::new();
     buffer.set_direction(Direction::RightToLeft);
-    buffer.set_script(harfrust::script::ARABIC);
-    buffer.set_language(harfrust::Language::new("ar").unwrap());
+    buffer.set_script(Some(harfrust::script::ARABIC));
+    buffer.set_language(harfrust::Language::new("ar"));
     buffer.set_invisible_glyph(Some(harfrust::GlyphId::new(3)));
     buffer.set_not_found_variation_selector_glyph(Some(7));
 
     assert_eq!(buffer.direction(), Direction::RightToLeft);
-    assert_eq!(buffer.script(), harfrust::script::ARABIC);
+    assert_eq!(buffer.script(), Some(harfrust::script::ARABIC));
     assert_eq!(buffer.language().unwrap().as_str(), "ar");
     assert_eq!(buffer.invisible_glyph(), Some(harfrust::GlyphId::new(3)));
     assert_eq!(buffer.not_found_variation_selector_glyph(), Some(7));
