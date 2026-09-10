@@ -158,6 +158,25 @@ pub extern "C" fn hr_font_funcs_create() -> *mut hr_font_funcs_t {
     })
 }
 
+/// The callbacks that read the font's own tables, as an object a font can
+/// carry.
+///
+/// A font holding this reads its own tables; a font holding nothing at all
+/// asks its parent, and one holding a funcs object answers from that. Without
+/// a third thing to hold, `hr_ot_font_set_funcs` on a sub-font could not be
+/// told from a sub-font that had never been given callbacks.
+pub(crate) fn builtin_funcs() -> *mut hr_font_funcs_t {
+    static BUILTIN_FONT_FUNCS: OnceLock<Empty<hr_font_funcs_t>> = OnceLock::new();
+    BUILTIN_FONT_FUNCS
+        .get_or_init(|| {
+            Empty::new(hr_font_funcs_t {
+                header: ObjectHeader::immortal(),
+                ..Default::default()
+            })
+        })
+        .get()
+}
+
 /// Returns the immortal empty set of font callbacks.
 #[no_mangle]
 pub extern "C" fn hr_font_funcs_get_empty() -> *mut hr_font_funcs_t {
@@ -467,12 +486,16 @@ macro_rules! resolve {
         let adapter: &FontFuncsAdapter<'_> = &*$adapter;
         let mut font = adapter.font;
         let mut state: &hr_font_t = adapter.state;
-        let mut installed = false;
         loop {
+            // A font reading its own tables answers here, and nothing above
+            // it is asked: that is what installing the built-in callbacks on
+            // a sub-font means.
+            if state.funcs == crate::font_funcs::builtin_funcs() {
+                break Resolved::Builtin;
+            }
             // SAFETY: each font owns its reference to its callbacks and to
             // its parent, and outlives this adapter.
             if let Some(funcs) = unsafe { state.funcs.as_ref() } {
-                installed = true;
                 if let Some(callback) = funcs.$field.as_ref() {
                     break Resolved::Found {
                         font,
@@ -489,11 +512,14 @@ macro_rules! resolve {
                     font = state.parent;
                     state = parent;
                 }
+                // Nothing above to ask. A font with callbacks that do not
+                // cover this reports nothing available, as HarfBuzz's empty
+                // font does; one carrying none at all reads its own tables.
                 None => {
-                    break if installed {
-                        Resolved::Missing
-                    } else {
+                    break if state.funcs.is_null() {
                         Resolved::Builtin
+                    } else {
+                        Resolved::Missing
                     }
                 }
             }

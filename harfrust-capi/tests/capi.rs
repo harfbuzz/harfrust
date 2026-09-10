@@ -722,6 +722,136 @@ fn an_unknown_serialization_format_survives_the_round_trip() {
     }
 }
 
+unsafe extern "C" fn advance_of_42(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    _glyph: hr_codepoint_t,
+    _user_data: *mut c_void,
+) -> hr_position_t {
+    42
+}
+
+#[test]
+fn a_partial_sub_font_leaves_the_rest_to_its_parent() {
+    unsafe {
+        with_font(|_, font| {
+            // Callbacks the child does not carry are the parent's business,
+            // and a parent carrying none of its own reads its tables.
+            let sub = hr_font_create_sub_font(font);
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_glyph_h_advance_func(
+                ffuncs,
+                Some(advance_of_42),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(sub, ffuncs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(ffuncs);
+
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(sub, u32::from(b'a'), &raw mut glyph),
+                0,
+                "a glyph the parent can find is one the child can find"
+            );
+            assert_ne!(glyph, 0);
+            hr_font_destroy(sub);
+        });
+
+        // And a sub-font told to read the tables itself stops asking its
+        // parent, which carrying nothing could not have said.
+        with_font(|_, font| {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(always_glyph_777),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(ffuncs);
+
+            let sub = hr_font_create_sub_font(font);
+            let mut glyph: hr_codepoint_t = 0;
+            hr_font_get_nominal_glyph(sub, u32::from(b'a'), &raw mut glyph);
+            assert_eq!(glyph, 777);
+
+            hr_ot_font_set_funcs(sub);
+            glyph = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(sub, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_ne!(glyph, 777);
+            hr_font_destroy(sub);
+        });
+    }
+}
+
+#[test]
+fn overlaying_properties_onto_themselves_is_allowed() {
+    unsafe {
+        // Nothing says the two have to be different structs.
+        let mut props = latin_props();
+        hr_segment_properties_overlay(ptr::from_mut(&mut props), ptr::from_ref(&props));
+        assert_eq!(props.direction, HR_DIRECTION_LTR);
+        assert_eq!(props.script, HR_SCRIPT_LATIN);
+    }
+}
+
+#[test]
+fn a_length_of_nothing_means_what_each_creator_says() {
+    unsafe {
+        let storage = [0i8; 1];
+
+        // `hr_blob_create` hands back the blob that holds nothing, so the
+        // caller's data goes now: nothing will be left to release it.
+        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        let created = hr_blob_create(
+            storage.as_ptr(),
+            0,
+            HR_MEMORY_MODE_READONLY,
+            ptr::dangling_mut(),
+            Some(count_null_func_drop),
+        );
+        assert_eq!(created, hr_blob_get_empty());
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        hr_blob_destroy(created);
+
+        // `hr_blob_create_or_fail` makes one that can hold it.
+        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        let or_fail = hr_blob_create_or_fail(
+            storage.as_ptr(),
+            0,
+            HR_MEMORY_MODE_READONLY,
+            ptr::dangling_mut(),
+            Some(count_null_func_drop),
+        );
+        assert!(!or_fail.is_null());
+        assert_ne!(or_fail, hr_blob_get_empty());
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 0);
+        hr_blob_destroy(or_fail);
+        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+    }
+}
+
+#[test]
+fn an_empty_buffer_executes_any_plan() {
+    unsafe {
+        with_font(|_, font| {
+            // Including the empty one, which can shape nothing: there is
+            // nothing to shape.
+            let buffer = hr_buffer_create();
+            hr_buffer_guess_segment_properties(buffer);
+            assert_ne!(
+                hr_shape_plan_execute(hr_shape_plan_get_empty(), font, buffer, ptr::null(), 0),
+                0
+            );
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
 #[test]
 fn a_sub_font_follows_its_parent() {
     unsafe {

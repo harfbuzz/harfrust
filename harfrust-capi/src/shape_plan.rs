@@ -108,9 +108,16 @@ pub unsafe extern "C" fn hr_segment_properties_overlay(
     p: *mut hr_segment_properties_t,
     src: *const hr_segment_properties_t,
 ) {
-    let (Some(p), Some(src)) = (unsafe { p.as_mut() }, unsafe { src.as_ref() }) else {
+    if p.is_null() || src.is_null() {
         return;
-    };
+    }
+    // Read before the destination is borrowed: nothing stops a caller from
+    // passing the same properties as both, which HarfBuzz allows and which
+    // holding a shared and an exclusive reference to at once would not be.
+    // SAFETY: checked non-null above, and the caller guarantees readable.
+    let src = unsafe { core::ptr::read(src) };
+    // SAFETY: as above, and the caller guarantees `p` is writable.
+    let p = unsafe { &mut *p };
     // Each property is filled in only while the two still agree on everything
     // before it: text the source describes differently is not text these
     // properties describe, so the rest of it says nothing about this.
@@ -513,6 +520,12 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     features: *const hr_feature_t,
     num_features: c_uint,
 ) -> hr_bool_t {
+    // Nothing to shape is nothing to fail at, whatever plan was handed over
+    // and whatever it was built for: HarfBuzz answers an empty buffer before
+    // it looks at anything else, the empty plan included.
+    if unsafe { buffer.as_ref() }.is_some_and(|buffer| buffer.buffer.is_empty()) {
+        return true.into();
+    }
     let (Some(plan_ref), Some(font_ref)) =
         (unsafe { shape_plan.as_ref() }, unsafe { font.as_ref() })
     else {

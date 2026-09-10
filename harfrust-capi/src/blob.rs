@@ -146,6 +146,17 @@ pub unsafe extern "C" fn hr_blob_create(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) -> *mut hr_blob_t {
+    // Nothing to hold is the shared empty blob, which holds nothing at all
+    // and so cannot hold the caller's data either: that is released now
+    // rather than kept for a blob that is never destroyed. Asking for a blob
+    // of nothing that can be is what `hr_blob_create_or_fail` is for.
+    if length == 0 {
+        if let Some(destroy) = destroy {
+            // SAFETY: `destroy` was supplied alongside `user_data`.
+            unsafe { destroy(user_data) };
+        }
+        return hr_blob_t::empty();
+    }
     let blob = unsafe { blob_from_raw(data, length, mode, user_data, destroy) };
     match blob {
         Some(blob) => hr_blob_t::new(blob),

@@ -118,7 +118,9 @@ impl hr_font_t {
     pub(crate) fn has_callbacks(&self) -> bool {
         let mut font = self;
         loop {
-            if !font.funcs.is_null() {
+            // The built-in callbacks are what shaping does anyway, so a chain
+            // carrying only those needs nothing installed over it.
+            if !font.funcs.is_null() && font.funcs != crate::font_funcs::builtin_funcs() {
                 return true;
             }
             // SAFETY: each font owns its reference to its parent.
@@ -689,9 +691,9 @@ pub unsafe extern "C" fn hr_ot_font_set_funcs(font: *mut hr_font_t) {
         return;
     };
     let previous = font.funcs;
-    // Reading the font's own tables is what carrying no funcs object means
-    // here; there is no object to install for it.
-    font.funcs = core::ptr::null_mut();
+    // Said outright, rather than by carrying nothing: a sub-font carrying
+    // nothing asks its parent, and this is a font that does not.
+    font.funcs = unsafe { object::reference(crate::font_funcs::builtin_funcs()) };
     unsafe { object::destroy(previous) };
     font.font_data = None;
 }
