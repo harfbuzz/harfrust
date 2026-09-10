@@ -1,14 +1,14 @@
 /* Shapes a string with a font and prints the resulting glyphs.
  *
- * Build against the static library, after `cargo build -p harfrust-capi
+ * Build against the static library, after `cargo build -p harfrust_capi
  * --release`:
  *
- *   cc -I harfrust-capi/include harfrust-capi/examples/shape.c \
+ *   cc -I harfrust_capi/include harfrust_capi/examples/shape.c \
  *      target/release/libharfrust_c.a -lm -o shape
  *
  * On Windows, with MSVC:
  *
- *   cl /I harfrust-capi\include harfrust-capi\examples\shape.c ^
+ *   cl /I harfrust_capi\include harfrust_capi\examples\shape.c ^
  *      target\release\harfrust_c.lib ws2_32.lib userenv.lib ntdll.lib
  *
  * Then:

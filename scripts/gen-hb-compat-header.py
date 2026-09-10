@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates harfrust-capi/include/hr-hb.h from harfrust-capi/include/hr.h.
+"""Generates harfrust_capi/include/hr-hb.h from harfrust_capi/include/hr.h.
 
 The generated header maps every HarfBuzz name onto its HarfRust counterpart,
 so that C code written against HarfBuzz's shaping API can be built against
@@ -16,8 +16,8 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOURCE = os.path.join(ROOT, "harfrust-capi", "include", "hr.h")
-TARGET = os.path.join(ROOT, "harfrust-capi", "include", "hr-hb.h")
+SOURCE = os.path.join(ROOT, "harfrust_capi", "include", "hr.h")
+TARGET = os.path.join(ROOT, "harfrust_capi", "include", "hr-hb.h")
 
 # Comments hold prose that happens to mention `hr_` names; only declarations
 # should contribute mappings.

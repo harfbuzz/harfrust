@@ -2,9 +2,9 @@
  *
  * Regenerate with:
  *
- *   cbindgen --config harfrust-capi/cbindgen.toml \
+ *   cbindgen --config harfrust_capi/cbindgen.toml \
  *            --crate harfrust_capi \
- *            --output harfrust-capi/include/hr.h
+ *            --output harfrust_capi/include/hr.h
  *
  * This is the C API for HarfRust, mirroring the shaping half of HarfBuzz's
  * API with an `hr_` prefix in place of `hb_`. Enumerators, flag values and

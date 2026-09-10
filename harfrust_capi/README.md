@@ -73,9 +73,9 @@ C libraries. The header is committed at [`include/hr.h`](include/hr.h) and is
 generated with [cbindgen](https://github.com/mozilla/cbindgen):
 
 ```sh
-cbindgen --config harfrust-capi/cbindgen.toml \
+cbindgen --config harfrust_capi/cbindgen.toml \
          --crate harfrust_capi \
-         --output harfrust-capi/include/hr.h
+         --output harfrust_capi/include/hr.h
 ```
 
 Regenerate it after changing any `pub extern "C"` item.

@@ -3,7 +3,7 @@
  * Nothing here mentions HarfRust. Including <hr-hb.h> in place of <hb.h> is
  * the only change needed to build HarfBuzz shaping code against this library.
  *
- *   cc -I harfrust-capi/include harfrust-capi/examples/hb-compat.c \
+ *   cc -I harfrust_capi/include harfrust_capi/examples/hb-compat.c \
  *      target/release/libharfrust_c.a -lm -o hb-compat
  *   ./hb-compat font.ttf "Hello, world!"
  */
