@@ -606,26 +606,52 @@ pub unsafe extern "C" fn hr_buffer_add_utf32(
     if text.is_null() {
         return;
     }
-    let len = if text_length < 0 {
-        let mut len = 0usize;
-        // SAFETY: the caller guarantees a zero terminator.
-        while unsafe { *text.add(len) } != 0 {
-            len += 1;
-        }
-        len
-    } else {
-        text_length as usize
-    };
+    let len = unsafe { utf32_len(text, text_length) };
+    unsafe { add_utf32_items(buffer, text, len, item_offset, item_length, true) };
+}
+
+/// How many 32-bit items `text` holds, counting to the zero terminator when
+/// the caller did not say.
+///
+/// # Safety
+///
+/// `text` must hold `text_length` readable entries, or be zero terminated.
+unsafe fn utf32_len(text: *const hr_codepoint_t, text_length: c_int) -> usize {
+    if text_length >= 0 {
+        return text_length as usize;
+    }
+    let mut len = 0usize;
+    // SAFETY: the caller guarantees a zero terminator.
+    while unsafe { *text.add(len) } != 0 {
+        len += 1;
+    }
+    len
+}
+
+/// Appends 32-bit items, replacing the ones that are not characters only when
+/// asked to.
+///
+/// # Safety
+///
+/// `text` must point to `len` readable entries.
+unsafe fn add_utf32_items(
+    buffer: &mut hr_buffer_t,
+    text: *const hr_codepoint_t,
+    len: usize,
+    item_offset: c_uint,
+    item_length: c_int,
+    validate: bool,
+) {
     let items = unsafe { core::slice::from_raw_parts(text, len) };
     let (start, end) = item_range(len, item_offset, item_length);
 
-    // Surrogates and values past the last plane are not characters, and
-    // stand in for themselves no better than any other unreadable input:
-    // HarfBuzz replaces them here, and only leaves them alone in
+    // Surrogates and values past the last plane are not characters. HarfBuzz
+    // replaces them in `add_utf32` and passes them through in
     // `add_codepoints`, which promises no validation at all.
     let scalar = |codepoint: u32| match char::from_u32(codepoint) {
         Some(_) => codepoint,
-        None => char::REPLACEMENT_CHARACTER as u32,
+        None if validate => char::REPLACEMENT_CHARACTER as u32,
+        None => codepoint,
     };
     if start > 0 {
         let pre: Vec<u32> = items[..start].iter().rev().map(|&c| scalar(c)).collect();
@@ -642,9 +668,12 @@ pub unsafe extern "C" fn hr_buffer_add_utf32(
     }
 }
 
-/// Appends codepoints to a buffer.
+/// Appends codepoints to a buffer, whatever they are.
 ///
-/// Identical to [`hr_buffer_add_utf32`]; both are provided to match HarfBuzz.
+/// As [`hr_buffer_add_utf32`], except that nothing is checked: surrogates and
+/// values past the last plane reach the buffer as themselves rather than as
+/// replacement characters. This is the non-validating counterpart HarfBuzz
+/// provides for callers that have already checked, or that mean it.
 ///
 /// # Safety
 ///
@@ -657,7 +686,14 @@ pub unsafe extern "C" fn hr_buffer_add_codepoints(
     item_offset: c_uint,
     item_length: c_int,
 ) {
-    unsafe { hr_buffer_add_utf32(buffer, text, text_length, item_offset, item_length) };
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
+        return;
+    };
+    if text.is_null() {
+        return;
+    }
+    let len = unsafe { utf32_len(text, text_length) };
+    unsafe { add_utf32_items(buffer, text, len, item_offset, item_length, false) };
 }
 
 /// Appends a range of one buffer's items to another.
@@ -1186,7 +1222,19 @@ pub unsafe extern "C" fn hr_buffer_set_segment_properties(
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_guess_segment_properties(buffer: *mut hr_buffer_t) {
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
-        buffer.buffer.guess_segment_properties();
+        guess_segment_properties(&mut buffer.buffer);
+    }
+}
+
+/// Fills in the direction, script and language a buffer is missing.
+///
+/// The language is the one the process is running under, which HarfBuzz also
+/// settles on here: harfrust leaves it alone, having no business reading the
+/// environment, but the C API answers for HarfBuzz's behaviour.
+pub(crate) fn guess_segment_properties(buffer: &mut Buffer) {
+    buffer.guess_segment_properties();
+    if buffer.language().is_none() {
+        buffer.set_language(Some(crate::common::default_language()));
     }
 }
 
@@ -1335,75 +1383,95 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
         return 0;
     }
 
-    let flags = SerializeFlags::from_bits_truncate((flags & 0xFF) as u8);
-    // Serialize from a copy when only part of the buffer was asked for.
-    let slice = (start != 0 || end != infos.len()).then(|| {
-        let mut slice = Buffer::new();
-        slice.push_glyph_infos(&infos[start..end]);
-        let positions = buffer.buffer.glyph_positions();
-        if !positions.is_empty() {
-            slice
-                .glyph_positions_mut()
-                .copy_from_slice(&positions[start..end]);
-        }
-        slice
-    });
-    let source = slice.as_ref().unwrap_or(&buffer.buffer);
-    // A caller with no font still gets its glyphs, by number: that is what
-    // HarfBuzz's empty font, which it substitutes for NULL, reports.
-    let mut text = match font.instance() {
-        Some(instance) => source.serialize(instance, flags),
-        None => source.serialize(&EmptySerializerFont, flags),
-    };
-    // The opening bracket belongs to the buffer, not to the range: a range
-    // starting partway through opens with a separator instead, so that
-    // serializing a buffer in several pieces concatenates into one list.
-    if start != 0 {
-        text.replace_range(0..1, "|");
+    let mut flags = SerializeFlags::from_bits_truncate((flags & 0xFF) as u8);
+    let positions = buffer.buffer.glyph_positions();
+    // A buffer that was never given positions has none to report, which is
+    // not the same as having zero ones: HarfBuzz turns the request off rather
+    // than printing `+0` for every glyph.
+    if positions.is_empty() {
+        flags |= SerializeFlags::NO_POSITIONS;
+    }
+    // Nothing can say what a glyph's extents are without a font. HarfBuzz
+    // leaves the field out when it cannot answer, rather than answering zero.
+    if font.instance().is_none() {
+        flags &= !SerializeFlags::GLYPH_EXTENTS;
     }
 
-    // Whole items only. HarfBuzz writes an item when the whole of it fits
-    // and stops otherwise, so a truncated item never reaches the caller and
-    // the count reports what was actually written -- callers serialize in
-    // several passes on the strength of that.
-    let count = end - start;
-    let capacity = buf_size as usize;
-    // Each item after the first begins at its separator, and the last one
-    // runs to the end of the text.
-    // Position zero opens the list rather than dividing it, whichever
-    // character stands there.
-    let item_starts: Vec<usize> = core::iter::once(0)
-        .chain(
-            text.match_indices('|')
-                .map(|(at, _)| at)
-                .filter(|&at| at != 0),
-        )
-        .collect();
-    let prefix = |items: usize| -> usize {
-        if items >= count {
-            text.len()
-        } else {
-            item_starts[items]
+    // With advances suppressed, each item reports the pen position it sits
+    // at, which counts from the start of the buffer and not from the start of
+    // the range. Carried as an offset on every item, since the serializer
+    // accumulates within whatever it is given.
+    let mut pen = (0i32, 0i32);
+    if flags.contains(SerializeFlags::NO_ADVANCES) && !positions.is_empty() {
+        for position in &positions[..start] {
+            pen.0 = pen.0.saturating_add(position.x_advance);
+            pen.1 = pen.1.saturating_add(position.y_advance);
         }
-    };
-    let mut written = if item_starts.len() == count {
-        (0..=count).rev().find(|&items| prefix(items) < capacity)
-    } else {
-        // A glyph name holding a separator would throw the count off; write
-        // all or nothing rather than split an item on a guess.
-        (text.len() < capacity).then_some(count)
     }
-    .unwrap_or(0);
-    if written == 0 {
-        // Zero items written is zero bytes: the caller is told to make room
-        // rather than handed the start of an item.
-        unsafe { write_c_string("", buf, buf_size) };
-        return 0;
+
+    // One item at a time, so that the boundaries are where the items are
+    // rather than wherever a separator happens to appear in the text. An
+    // item is written when the whole of it fits and the count reports what
+    // was written, which is what lets a caller serialize in several passes.
+    let capacity = buf_size as usize;
+    let mut out = String::new();
+    let mut written = 0;
+    let mut single = Buffer::new();
+    for (at, info) in infos[start..end].iter().enumerate() {
+        single.clear();
+        single.push_glyph_infos(core::slice::from_ref(info));
+        if !positions.is_empty() {
+            let mut position = positions[start + at];
+            // The serializer starts its own pen at zero for every item, so
+            // the running total rides along in the offsets.
+            position.x_offset = position.x_offset.saturating_add(pen.0);
+            position.y_offset = position.y_offset.saturating_add(pen.1);
+            single.glyph_positions_mut()[0] = position;
+        } else {
+            // Give the serializer the positions it reads even though the
+            // flags above keep them out of the output.
+            single.glyph_positions_mut();
+        }
+
+        // Rebuilt per item: the flags are consumed by each call.
+        let item_flags = SerializeFlags::from_bits_truncate(flags.bits());
+        let item = match font.instance() {
+            Some(instance) => single.serialize(instance, item_flags),
+            // A caller with no font still gets its glyphs, by number: that
+            // is what HarfBuzz's empty font, substituted for NULL, reports.
+            None => single.serialize(&EmptySerializerFont, item_flags),
+        };
+        // One item serializes as a list of one; the brackets belong to the
+        // list, and which one opens this item depends on where in the buffer
+        // it sits, so that pieces serialized separately concatenate.
+        let item = item
+            .strip_prefix('[')
+            .and_then(|item| item.strip_suffix(']'))
+            .unwrap_or(&item);
+
+        let mut chunk = String::with_capacity(item.len() + 2);
+        chunk.push(if start + at == 0 { '[' } else { '|' });
+        chunk.push_str(item);
+        if start + at == end - 1 {
+            chunk.push(']');
+        }
+        // Room for the item and the terminator, or the caller is told to
+        // make more rather than handed the start of an item.
+        if out.len() + chunk.len() >= capacity {
+            break;
+        }
+        out.push_str(&chunk);
+        written += 1;
+
+        if flags.contains(SerializeFlags::NO_ADVANCES) && !positions.is_empty() {
+            let position = positions[start + at];
+            pen.0 = pen.0.saturating_add(position.x_advance);
+            pen.1 = pen.1.saturating_add(position.y_advance);
+        }
     }
-    written = written.min(count);
-    let bytes = prefix(written);
-    unsafe { write_c_string(&text[..bytes], buf, buf_size) };
-    write_consumed(bytes as c_uint);
+
+    unsafe { write_c_string(&out, buf, buf_size) };
+    write_consumed(out.len() as c_uint);
     written as c_uint
 }
 

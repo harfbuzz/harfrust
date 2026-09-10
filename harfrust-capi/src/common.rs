@@ -724,6 +724,11 @@ pub unsafe extern "C" fn hr_language_to_string(language: hr_language_t) -> *cons
 /// Returns the process's default language, taken from the environment.
 #[no_mangle]
 pub extern "C" fn hr_language_get_default() -> hr_language_t {
+    intern_language(&default_language())
+}
+
+/// The language the process is running under, worked out once.
+pub(crate) fn default_language() -> Language {
     // Worked out once and never changed, so this wants a `OnceLock` rather
     // than a lock that is taken on every call.
     static DEFAULT: OnceLock<Language> = OnceLock::new();
@@ -740,8 +745,7 @@ pub extern "C" fn hr_language_get_default() -> hr_language_t {
             .or_else(|| Language::new("x-hbot"))
             .unwrap_or_else(|| Language::new("und").expect("a valid language tag"))
     });
-    // Interning is idempotent, so this is the same pointer every time.
-    intern_language(language)
+    language.clone()
 }
 
 /// Returns whether `language` is the same as, or a more specific form of,

@@ -161,7 +161,7 @@ pub unsafe extern "C" fn hr_shape_full(
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
         // so fill in whatever the caller left out rather than failing.
         if buffer_ref.buffer.direction() == Direction::Invalid {
-            buffer_ref.buffer.guess_segment_properties();
+            crate::buffer::guess_segment_properties(&mut buffer_ref.buffer);
         }
 
         // Reuse a plan from the face's cache, as HarfBuzz's `hb_shape` does.

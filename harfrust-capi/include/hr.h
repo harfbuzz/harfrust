@@ -1815,9 +1815,12 @@ void hr_buffer_add_utf32(struct hr_buffer_t *buffer,
                          int item_length);
 
 /**
- * Appends codepoints to a buffer.
+ * Appends codepoints to a buffer, whatever they are.
  *
- * Identical to [`hr_buffer_add_utf32`]; both are provided to match HarfBuzz.
+ * As [`hr_buffer_add_utf32`], except that nothing is checked: surrogates and
+ * values past the last plane reach the buffer as themselves rather than as
+ * replacement characters. This is the non-validating counterpart HarfBuzz
+ * provides for callers that have already checked, or that mean it.
  *
  * # Safety
  *
@@ -3231,12 +3234,14 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
  * # Aborts
  *
  * Using a plan that does not apply aborts the process, as HarfBuzz's
- * assertions do: the plan must have been built over the same face, for the
- * same variation settings, and for the direction, script and language the
- * buffer carries. These are programming errors rather than conditions to
- * recover from, and shaping through a mismatched plan yields a wrong answer
- * rather than a slow one. Use `hr_shape` if you would rather have a plan
- * chosen for you.
+ * assertions do: the plan must have been built over the same face, and for
+ * the direction, script and language the buffer carries. These are
+ * programming errors rather than conditions to recover from, and shaping
+ * through a mismatched plan yields a wrong answer rather than a slow one.
+ * Use `hr_shape` if you would rather have a plan chosen for you.
+ *
+ * Variation settings are not among them: HarfBuzz does not compare those,
+ * and shapes with the font's whatever the plan was built for.
  *
  * # Safety
  *
