@@ -789,6 +789,74 @@ fn a_partial_sub_font_leaves_the_rest_to_its_parent() {
 }
 
 #[test]
+fn no_name_names_no_tag() {
+    unsafe {
+        // Padding nothing out to four spaces would make a tag of it, and
+        // then a script and a language of their own.
+        assert_eq!(hr_tag_from_string(c"".as_ptr(), -1), HR_TAG_NONE);
+        assert_eq!(hr_script_from_string(c"".as_ptr(), -1), HR_SCRIPT_INVALID);
+        assert_eq!(
+            hr_tag_from_string(c"ab".as_ptr(), -1),
+            hr_tag_from_string(c"ab  ".as_ptr(), -1)
+        );
+
+        // Text runs left to right unless its script says otherwise, and a
+        // script that is not one does not say otherwise.
+        assert_eq!(
+            hr_script_get_horizontal_direction(HR_SCRIPT_INVALID),
+            HR_DIRECTION_LTR
+        );
+        assert_eq!(
+            hr_script_get_horizontal_direction(HR_SCRIPT_ARABIC),
+            HR_DIRECTION_RTL
+        );
+
+        // Reversing is the bit flip that separates each pair.
+        assert_eq!(hr_direction_reverse(HR_DIRECTION_LTR), HR_DIRECTION_RTL);
+        assert_eq!(hr_direction_reverse(HR_DIRECTION_TTB), HR_DIRECTION_BTT);
+        assert_eq!(
+            hr_direction_reverse(hr_direction_reverse(HR_DIRECTION_INVALID)),
+            HR_DIRECTION_INVALID
+        );
+    }
+}
+
+#[test]
+fn a_sub_blob_fixes_what_it_is_part_of() {
+    unsafe {
+        let storage = *b"0123456789";
+        let blob = hr_blob_create(
+            storage.as_ptr().cast(),
+            storage.len() as c_uint,
+            HR_MEMORY_MODE_READONLY,
+            ptr::null_mut(),
+            None,
+        );
+        assert_eq!(hr_blob_is_immutable(blob), 0);
+        let sub = hr_blob_create_sub_blob(blob, 3, 4);
+        assert_eq!(hr_blob_get_length(sub), 4);
+        // The part cannot outlive its parent being what it was.
+        assert_ne!(hr_blob_is_immutable(blob), 0);
+        hr_blob_destroy(sub);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn every_font_has_a_parent_to_stop_at() {
+    unsafe {
+        with_font(|_, font| {
+            // A font made from a face answers with the font that is empty,
+            // rather than with nothing, so walking up the chain terminates.
+            assert_eq!(hr_font_get_parent(font), hr_font_get_empty());
+            let sub = hr_font_create_sub_font(font);
+            assert_eq!(hr_font_get_parent(sub), font);
+            hr_font_destroy(sub);
+        });
+    }
+}
+
+#[test]
 fn overlaying_properties_onto_themselves_is_allowed() {
     unsafe {
         // Nothing says the two have to be different structs.

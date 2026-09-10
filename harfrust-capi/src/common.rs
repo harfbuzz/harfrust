@@ -98,6 +98,12 @@ pub unsafe extern "C" fn hr_tag_from_string(str_: *const c_char, len: c_int) -> 
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return HR_TAG_NONE;
     };
+    // No name names no tag. Padding nothing out to four spaces would make a
+    // tag of it, which then reads back as a script and a language of their
+    // own rather than as the absence of one.
+    if s.is_empty() {
+        return HR_TAG_NONE;
+    }
     tag_from_rust(tag_from_str(s))
 }
 
@@ -219,13 +225,10 @@ pub extern "C" fn hr_direction_is_valid(direction: hr_direction_t) -> hr_bool_t 
 /// Returns the direction running opposite to the given one.
 #[no_mangle]
 pub extern "C" fn hr_direction_reverse(direction: hr_direction_t) -> hr_direction_t {
-    match direction {
-        HR_DIRECTION_LTR => HR_DIRECTION_RTL,
-        HR_DIRECTION_RTL => HR_DIRECTION_LTR,
-        HR_DIRECTION_TTB => HR_DIRECTION_BTT,
-        HR_DIRECTION_BTT => HR_DIRECTION_TTB,
-        other => other,
-    }
+    // The low bit is the one that separates each pair, so flipping it is the
+    // whole operation -- which is how HarfBuzz spells it, down to leaving a
+    // direction that is not one as something else that is not one.
+    direction ^ 1
 }
 
 /// An ISO 15924 script, held as its four byte tag.
@@ -614,10 +617,10 @@ pub extern "C" fn hr_script_from_iso15924_tag(tag: hr_tag_t) -> hr_script_t {
 /// See [`str_from_raw`].
 #[no_mangle]
 pub unsafe extern "C" fn hr_script_from_string(str_: *const c_char, len: c_int) -> hr_script_t {
-    let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
-        return HR_SCRIPT_INVALID;
-    };
-    Script::from_str(s).map_or(HR_SCRIPT_INVALID, script_from_rust)
+    // The name as a tag, and then the script that tag names: the two steps
+    // HarfBuzz takes, so that a name which is no tag is no script either
+    // rather than the `Zzzz` standing for a script known to be unknown.
+    hr_script_from_iso15924_tag(unsafe { hr_tag_from_string(str_, len) })
 }
 
 /// Returns a script's ISO 15924 tag.
@@ -629,15 +632,22 @@ pub extern "C" fn hr_script_to_iso15924_tag(script: hr_script_t) -> hr_tag_t {
 /// Returns the direction text in this script is usually set in.
 #[no_mangle]
 pub extern "C" fn hr_script_get_horizontal_direction(script: hr_script_t) -> hr_direction_t {
+    // Text runs left to right unless its script is one of the ones that does
+    // not, which is the answer HarfBuzz gives for a script it has never heard
+    // of, and for one that is not a script at all.
     let Some(script) = script_to_rust(script) else {
-        return HR_DIRECTION_INVALID;
+        return HR_DIRECTION_LTR;
     };
     // `guess_segment_properties` derives the direction from the script, which
     // is exactly what this needs and keeps the two in step.
     let mut buffer = harfrust::Buffer::new();
     buffer.set_script(Some(script));
     buffer.guess_segment_properties();
-    direction_from_rust(buffer.direction())
+    let direction = direction_from_rust(buffer.direction());
+    if direction == HR_DIRECTION_INVALID {
+        return HR_DIRECTION_LTR;
+    }
+    direction
 }
 
 /// An interned language tag.

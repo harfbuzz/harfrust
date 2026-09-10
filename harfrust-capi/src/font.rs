@@ -437,7 +437,14 @@ pub unsafe extern "C" fn hr_font_get_face(font: *mut hr_font_t) -> *mut hr_face_
 /// `font` must be `NULL` or a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_parent(font: *mut hr_font_t) -> *mut hr_font_t {
-    unsafe { object::or_empty(font.cast_const()) }.parent
+    let parent = unsafe { object::or_empty(font.cast_const()) }.parent;
+    // A font made from a face has no parent of its own, and answers with the
+    // font that is empty rather than with nothing: a caller walking up the
+    // chain has something to stop at.
+    if parent.is_null() {
+        return hr_font_t::empty();
+    }
+    parent
 }
 
 /// Sets a font's scale.

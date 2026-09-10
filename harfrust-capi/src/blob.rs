@@ -280,9 +280,13 @@ pub unsafe extern "C" fn hr_blob_create_sub_blob(
     offset: c_uint,
     length: c_uint,
 ) -> *mut hr_blob_t {
-    let Some(parent) = (unsafe { parent.as_ref() }) else {
+    let Some(parent_ref) = (unsafe { parent.as_ref() }) else {
         return hr_blob_t::empty();
     };
+    // The part cannot outlive what it is a part of being what it was, so the
+    // parent is fixed as it stands, as `hr_blob_make_immutable` would.
+    unsafe { hr_blob_make_immutable(parent) };
+    let parent = parent_ref;
     let total = parent.bytes().len();
     let start = (offset as usize).min(total);
     let end = start.saturating_add(length as usize).min(total);
