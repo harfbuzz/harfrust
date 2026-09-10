@@ -1,6 +1,6 @@
 //! Binary data with a lifetime, mirroring HarfBuzz's `hb-blob.h`.
 
-use core::ffi::{c_char, c_uint, c_void};
+use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::FontBlob;
@@ -9,18 +9,20 @@ use crate::common::hr_bool_t;
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// How a blob relates to the memory it was created over.
-#[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum hr_memory_mode_t {
-    /// Copy the data. The caller keeps ownership of the original buffer.
-    HR_MEMORY_MODE_DUPLICATE = 0,
-    /// Use the data in place. It must outlive the blob and never change.
-    HR_MEMORY_MODE_READONLY = 1,
-    /// Use the data in place. Treated as read-only by this library.
-    HR_MEMORY_MODE_WRITABLE = 2,
-    /// Use the data in place. Treated as read-only by this library.
-    HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE = 3,
-}
+///
+/// An integer typedef rather than an enumeration. A value arriving from C need
+/// not be one of the ones named here, and a Rust enumeration holding an
+/// unnamed value is undefined behaviour rather than merely wrong.
+pub type hr_memory_mode_t = c_int;
+
+/// Copy the data. The caller keeps ownership of the original buffer.
+pub const HR_MEMORY_MODE_DUPLICATE: hr_memory_mode_t = 0;
+/// Use the data in place. It must outlive the blob and never change.
+pub const HR_MEMORY_MODE_READONLY: hr_memory_mode_t = 1;
+/// Use the data in place. Treated as read-only by this library.
+pub const HR_MEMORY_MODE_WRITABLE: hr_memory_mode_t = 2;
+/// Use the data in place. Treated as read-only by this library.
+pub const HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE: hr_memory_mode_t = 3;
 
 /// Bytes owned by the caller, released through a destroy callback.
 struct ForeignBytes {
@@ -188,7 +190,7 @@ unsafe fn blob_from_raw(
         }
         return None;
     }
-    if mode == hr_memory_mode_t::HR_MEMORY_MODE_DUPLICATE {
+    if mode == HR_MEMORY_MODE_DUPLICATE {
         // SAFETY: the caller guarantees `length` readable bytes at `data`.
         let copy =
             unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length as usize) }.to_vec();
