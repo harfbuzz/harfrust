@@ -23,7 +23,7 @@ use read_fonts::{
 
 #[derive(Clone, Default)]
 pub struct GlyphMetrics<'a> {
-    _hmtx: Option<Hmtx<'a>>,
+    hmtx: Option<Hmtx<'a>>,
     h_metrics: &'a [LongMetric],
     hvar: Option<Hvar<'a>>,
     vmtx: Option<Vmtx<'a>>,
@@ -78,7 +78,7 @@ impl<'a> GlyphMetrics<'a> {
         let ascent = table_ranges.ascent;
         let descent = table_ranges.descent;
         Self {
-            _hmtx: hmtx,
+            hmtx,
             h_metrics,
             hvar,
             vmtx,
@@ -113,7 +113,7 @@ impl<'a> GlyphMetrics<'a> {
         };
         let mvar = font.mvar().ok();
         Self {
-            _hmtx: hmtx,
+            hmtx,
             h_metrics,
             hvar,
             vmtx,
@@ -128,16 +128,28 @@ impl<'a> GlyphMetrics<'a> {
         }
     }
 
-    pub(crate) fn advance_width(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
-        let gid = gid.into();
-        let Some(mut advance) = self
-            .h_metrics
+    /// The horizontal advance before any variation is applied.
+    ///
+    /// A face with no horizontal metrics gives every glyph the same default,
+    /// and past the last glyph the face has there is no advance to give --
+    /// which is what a malformed cmap pointing beyond the glyph count asks
+    /// for. HarfBuzz answers both the same way.
+    fn plain_advance_width(&self, gid: GlyphId) -> i32 {
+        if self.h_metrics.is_empty() {
+            return self.upem as i32 / 2;
+        }
+        if gid.to_u32() >= self.num_glyphs {
+            return 0;
+        }
+        self.h_metrics
             .get(gid.to_u32() as usize)
             .or_else(|| self.h_metrics.last())
-            .map(|metric| metric.advance() as i32)
-        else {
-            return (gid.to_u32() < self.num_glyphs).then_some(self.upem as i32 / 2);
-        };
+            .map_or(0, |metric| metric.advance() as i32)
+    }
+
+    pub(crate) fn advance_width(&self, gid: impl Into<GlyphId>, coords: &[F2Dot14]) -> Option<i32> {
+        let gid = gid.into();
+        let mut advance = self.plain_advance_width(gid);
         if !coords.is_empty() {
             if let Some(hvar) = self.hvar.as_ref() {
                 advance = advance.saturating_add(
@@ -161,13 +173,7 @@ impl<'a> GlyphMetrics<'a> {
         scale: Scale,
     ) {
         for (info, pos) in infos.iter().zip(pos.iter_mut()) {
-            pos.x_advance = self
-                .h_metrics
-                .get(info.glyph_id as usize)
-                .or_else(|| self.h_metrics.last())
-                .map(|metric| metric.advance() as i32)
-                .or_else(|| (info.glyph_id < self.num_glyphs).then_some(self.upem as i32 / 2))
-                .unwrap_or_default();
+            pos.x_advance = self.plain_advance_width(GlyphId::from(info.glyph_id));
         }
         if !coords.is_empty() {
             if let Some(hvar) = self.hvar.as_ref() {
@@ -199,7 +205,7 @@ impl<'a> GlyphMetrics<'a> {
         coords: &[F2Dot14],
     ) -> Option<i32> {
         let gid = gid.into();
-        let mut bearing = if let Some(hmtx) = self._hmtx.as_ref() {
+        let mut bearing = if let Some(hmtx) = self.hmtx.as_ref() {
             hmtx.side_bearing(gid).unwrap_or_default() as i32
         } else {
             let extents = self.bounds(gid, coords)?;
@@ -365,11 +371,24 @@ impl<'a> GlyphMetrics<'a> {
         if !coords.is_empty() {
             return None; // TODO https://github.com/harfbuzz/harfrust/pull/52#issuecomment-2878117808
         }
+        let (x_min, x_max) = (glyph.x_min() as i32, glyph.x_max() as i32);
+        let (y_min, y_max) = (glyph.y_min() as i32, glyph.y_max() as i32);
+        // Undocumented rasterizer behaviour, which HarfBuzz matches: the glyph
+        // is shifted left by (lsb - xMin), so the left edge of the ink sits at
+        // the left side bearing rather than at the box the glyph carries. A
+        // face whose hmtx does not reach this glyph keeps the box's own edge.
+        let x_bearing = self
+            .hmtx
+            .as_ref()
+            .and_then(|hmtx| hmtx.side_bearing(gid))
+            .map_or_else(|| x_min.min(x_max), |lsb| lsb as i32);
+        // The box is not assumed to be the right way round: a face may store
+        // it either way, and the extents are the same either way.
         Some(GlyphExtents {
-            x_bearing: glyph.x_min() as i32,
-            y_bearing: glyph.y_max() as i32,
-            width: glyph.x_max() as i32 - glyph.x_min() as i32,
-            height: glyph.y_min() as i32 - glyph.y_max() as i32,
+            x_bearing,
+            y_bearing: y_min.max(y_max),
+            width: x_min.max(x_max) - x_min.min(x_max),
+            height: y_min.min(y_max) - y_min.max(y_max),
         })
     }
 

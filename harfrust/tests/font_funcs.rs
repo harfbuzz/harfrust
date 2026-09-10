@@ -495,3 +495,38 @@ fn font_funcs_extents_override_is_used() {
         .iter()
         .any(|pos| pos.x_offset != 0 || pos.y_offset != 0));
 }
+
+#[test]
+fn no_advance_past_the_last_glyph_the_face_has() {
+    // A malformed cmap can point shaping at a glyph the face does not have.
+    // HarfBuzz answers no advance for one, rather than repeating the last
+    // advance it does have.
+    with_test_shaper(|shaper| {
+        let builtin = shaper.builtin_font_funcs();
+        assert!(builtin.advance_width(GlyphId::from(1u32)) > 0);
+        assert_eq!(builtin.advance_width(GlyphId::from(60_000u32)), 0);
+    });
+}
+
+#[test]
+fn glyph_extents_start_at_the_side_bearing() {
+    // Undocumented rasterizer behaviour that HarfBuzz matches: the glyph is
+    // shifted left by (lsb - xMin), so the ink starts at the left side
+    // bearing and not at the bounding box the glyph carries. In this face
+    // the two differ: the box starts at 258 and the bearing at 0.
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fonts")
+        .join("in-house")
+        .join("ffa0f5d2d9025486d8469d8b1fdd983e7632499b.ttf");
+    with_test_shaper_from_path(path, |shaper| {
+        let extents = shaper
+            .builtin_font_funcs()
+            .extents(GlyphId::from(6u32))
+            .expect("the face has this glyph");
+        assert_eq!(extents.x_bearing, 0);
+        assert_eq!(extents.y_bearing, 1505);
+        assert_eq!(extents.width, 752);
+        assert_eq!(extents.height, -264);
+    });
+}
