@@ -339,6 +339,11 @@ pub fn hb_ot_shape_complex_categorize(
         | script::TAI_YO
         | script::TOLONG_SIKI
 
+        // Unicode-18.0 additions
+        | script::JURCHEN
+        | script::PROTO_CUNEIFORM
+        | script::SEAL
+
         => {
             // If the designer designed the font for the 'DFLT' script,
             // (or we ended up arbitrarily pick 'latn'), use the default shaper.

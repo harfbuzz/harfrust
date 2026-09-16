@@ -357,6 +357,7 @@
 #define HB_SCRIPT_INSCRIPTIONAL_PARTHIAN              HR_SCRIPT_INSCRIPTIONAL_PARTHIAN
 #define HB_SCRIPT_INVALID                             HR_SCRIPT_INVALID
 #define HB_SCRIPT_JAVANESE                            HR_SCRIPT_JAVANESE
+#define HB_SCRIPT_JURCHEN                             HR_SCRIPT_JURCHEN
 #define HB_SCRIPT_KAITHI                              HR_SCRIPT_KAITHI
 #define HB_SCRIPT_KANNADA                             HR_SCRIPT_KANNADA
 #define HB_SCRIPT_KATAKANA                            HR_SCRIPT_KATAKANA
@@ -425,11 +426,13 @@
 #define HB_SCRIPT_PAU_CIN_HAU                         HR_SCRIPT_PAU_CIN_HAU
 #define HB_SCRIPT_PHAGS_PA                            HR_SCRIPT_PHAGS_PA
 #define HB_SCRIPT_PHOENICIAN                          HR_SCRIPT_PHOENICIAN
+#define HB_SCRIPT_PROTO_CUNEIFORM                     HR_SCRIPT_PROTO_CUNEIFORM
 #define HB_SCRIPT_PSALTER_PAHLAVI                     HR_SCRIPT_PSALTER_PAHLAVI
 #define HB_SCRIPT_REJANG                              HR_SCRIPT_REJANG
 #define HB_SCRIPT_RUNIC                               HR_SCRIPT_RUNIC
 #define HB_SCRIPT_SAMARITAN                           HR_SCRIPT_SAMARITAN
 #define HB_SCRIPT_SAURASHTRA                          HR_SCRIPT_SAURASHTRA
+#define HB_SCRIPT_SEAL                                HR_SCRIPT_SEAL
 #define HB_SCRIPT_SHARADA                             HR_SCRIPT_SHARADA
 #define HB_SCRIPT_SHAVIAN                             HR_SCRIPT_SHAVIAN
 #define HB_SCRIPT_SIDDHAM                             HR_SCRIPT_SIDDHAM

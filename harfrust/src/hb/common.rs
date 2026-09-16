@@ -588,6 +588,10 @@ pub mod script {
     pub const SIDETIC: Script = Script::from_bytes(b"Sidt");
     pub const TAI_YO: Script = Script::from_bytes(b"Tayo");
     pub const TOLONG_SIKI: Script = Script::from_bytes(b"Tols");
+    // Since 18.0
+    pub const JURCHEN: Script = Script::from_bytes(b"Jurc");
+    pub const PROTO_CUNEIFORM: Script = Script::from_bytes(b"Pcun");
+    pub const SEAL: Script = Script::from_bytes(b"Seal");
 
     pub const MATH: Script = Script::from_bytes(b"Zmth");
 

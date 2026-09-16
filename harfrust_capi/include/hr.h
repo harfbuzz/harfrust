@@ -1525,6 +1525,21 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
 #define HR_SCRIPT_TOLONG_SIKI 1416588403
 
 /**
+ * The Jurchen script (`Jurc`).
+ */
+#define HR_SCRIPT_JURCHEN 1249210979
+
+/**
+ * The Proto-Cuneiform script (`Pcun`).
+ */
+#define HR_SCRIPT_PROTO_CUNEIFORM 1348695406
+
+/**
+ * The Seal script (`Seal`).
+ */
+#define HR_SCRIPT_SEAL 1399153004
+
+/**
  * The Math script (`Zmth`).
  */
 #define HR_SCRIPT_MATH 1517122664
