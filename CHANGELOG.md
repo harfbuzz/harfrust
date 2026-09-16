@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
+- Support hexadecimal OpenType language and script overrides in `x-hbot-`
+  and `x-hbsc-` private-use subtags, such as `x-hbot-4d4f4e54` for `MONT`.
 - Add a unified `Buffer` type, matching HarfBuzz's `hb_buffer_t`. It carries a
   `BufferContentType` describing whether it holds input characters or shaped
   glyphs, and is shaped in place with `Buffer::shape`. `UnicodeBuffer` and
