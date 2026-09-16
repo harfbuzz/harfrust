@@ -105,20 +105,35 @@ fn parse_private_use_subtag(
         None => return false,
     };
 
-    let mut tag = SmallVec::<[u8; 4]>::new();
-    for c in private_use_subtag.iter().take(4) {
-        if c.is_ascii_alphanumeric() {
-            tag.push((normalize)(c));
-        } else {
-            break;
+    let mut tag = if let Some(hex) = private_use_subtag.strip_prefix(b"-") {
+        // Hexadecimal tags encode four bytes without case normalization.
+        let Some(hex) = hex.get(..8) else {
+            return false;
+        };
+        let mut value = 0;
+        for &c in hex {
+            let Some(digit) = char::from(c).to_digit(16) else {
+                return false;
+            };
+            value = (value << 4) | digit;
         }
-    }
+        hb_tag_t::from_u32(value)
+    } else {
+        let mut tag = SmallVec::<[u8; 4]>::new();
+        for c in private_use_subtag.iter().take(4) {
+            if c.is_ascii_alphanumeric() {
+                tag.push((normalize)(c));
+            } else {
+                break;
+            }
+        }
 
-    if tag.is_empty() {
-        return false;
-    }
+        if tag.is_empty() {
+            return false;
+        }
 
-    let mut tag = hb_tag_t::from_bytes_lossy(tag.as_slice());
+        hb_tag_t::from_bytes_lossy(tag.as_slice())
+    };
 
     // Some bits magic from HarfBuzz...
     if tag.as_u32() & 0xDFDF_DFDF == hb_tag_t::default_script().as_u32() {
@@ -712,6 +727,44 @@ mod tests {
     test_tags!(tag_full_en_fonnapa, None, "en-fonnapa", &[], &[b"APPH"]);
     test_tags!(tag_full_x_hbot1234_hbsc5678, None, "x-hbot1234-hbsc5678", &[b"5678"], &[b"1234"]);
     test_tags!(tag_full_x_hbsc5678_hbot1234, None, "x-hbsc5678-hbot1234", &[b"5678"], &[b"1234"]);
+    test_tags!(tag_hex_mont, Some(script::MYANMAR), "x-hbot-4d4f4e54", &[b"mym2", b"mymr"], &[b"MONT"]);
+    test_tags!(tag_hex_uppercase, None, "X-HBOT-4D4F4E54", &[], &[b"MONT"]);
+    test_tags!(tag_hex_language_override, None, "my-x-hbot-4d4f4e54-zxc", &[], &[b"MONT"]);
+    test_tags!(tag_hex_script_override, Some(script::LATIN), "en-x-hbsc-64657633", &[b"dev3"], &[b"ENG"]);
+    test_tags!(tag_hex_language_and_script, None, "x-hbot-4d4f4e54-hbsc-6d796d32", &[b"mym2"], &[b"MONT"]);
+    test_tags!(tag_hex_script_and_language, None, "x-hbsc-6d796d32-hbot-4d4f4e54", &[b"mym2"], &[b"MONT"]);
+    test_tags!(tag_hex_preserves_case_and_punctuation, None, "x-hbot-41686121-hbsc-41686121", &[b"Aha!"], &[b"Aha!"]);
+    test_tags!(tag_hex_preserves_spaces, None, "x-hbot-41424320-hbsc-79692020", &[b"yi  "], &[b"ABC "]);
+    test_tags!(tag_hex_preserves_arbitrary_bytes, None, "x-hbot-00ff80ab-hbsc-00ff80ab", &[b"\x00\xff\x80\xab"], &[b"\x00\xff\x80\xab"]);
+    test_tags!(tag_hex_preserves_zero, None, "x-hbot-00000000-hbsc-00000000", &[b"\0\0\0\0"], &[b"\0\0\0\0"]);
+    test_tags!(tag_hex_default_uppercase, None, "x-hbot-44464c54-hbsc-44464c54", &[b"dflt"], &[b"dflt"]);
+    test_tags!(tag_hex_default_lowercase, None, "x-hbot-64666c74-hbsc-64666c74", &[b"DFLT"], &[b"DFLT"]);
+    test_tags!(tag_hex_ignores_trailing_digits, None, "x-hbot-326c6f6e67-hbsc-326c6f6e67", &[b"2lon"], &[b"2lon"]);
+    test_tags!(tag_hex_first_override, None, "fa-x-hbot-41686121-hbotabc-zxc", &[], &[b"Aha!"]);
+    test_tags!(tag_text_first_override, None, "fa-x-hbotabc-hbot-41686121-zxc", &[], &[b"ABC"]);
+    test_tags!(tag_text_mont, None, "x-hbotmont", &[], &[b"MONT"]);
+
+    #[test]
+    fn tag_hex_invalid() {
+        for hex in [
+            "", "1", "1a", "414243", "4142432", "1a2b3c4x", "4d4f-4e54",
+            "+d4f4e54", "-d4f4e54", "4d4f4e5\u{e9}",
+        ] {
+            let language = alloc::format!("en-x-hbot-{hex}-hbsc-{hex}");
+            let (scripts, languages) = tags_from_script_and_language(
+                Some(script::LATIN), Language::new(&language).as_ref(),
+            );
+            assert_eq!(scripts.as_slice(), &[hb_tag_t::new(b"latn")], "{language}");
+            assert_eq!(languages.as_slice(), &[hb_tag_t::new(b"ENG ")], "{language}");
+
+            let language = alloc::format!("x-hbot-{hex}-hbsc-{hex}");
+            let (scripts, languages) =
+                tags_from_script_and_language(None, Language::new(&language).as_ref());
+            assert!(scripts.is_empty(), "{language}");
+            assert!(languages.is_empty(), "{language}");
+        }
+    }
+
     test_tags!(tag_full_ml, Some(script::MALAYALAM), "ml", &[b"mlm3", b"mlm2", b"mlym"], &[b"MAL", b"MLR"]);
     test_tags!(tag_full_xyz, None, "xyz", &[], &[b"XYZ"]);
     test_tags!(tag_full_xy, None, "xy", &[], &[]);
