@@ -1949,6 +1949,16 @@ fn scripts_match_harfbuzz_values() {
     // HB_SCRIPT_LATIN is HB_TAG('L','a','t','n').
     assert_eq!(HR_SCRIPT_LATIN, 0x4C61_746E);
     assert_eq!(HR_SCRIPT_ARABIC, 0x4172_6162);
+    for (tag, script) in [
+        (b"Jurc", HR_SCRIPT_JURCHEN),
+        (b"Pcun", HR_SCRIPT_PROTO_CUNEIFORM),
+        (b"Seal", HR_SCRIPT_SEAL),
+    ] {
+        assert_eq!(script, u32::from_be_bytes(*tag));
+        assert_eq!(hr_script_from_iso15924_tag(script), script);
+        assert_eq!(hr_script_to_iso15924_tag(script), script);
+        assert_eq!(hr_script_get_horizontal_direction(script), HR_DIRECTION_LTR);
+    }
     unsafe {
         assert_eq!(hr_script_from_string(c"Latn".as_ptr(), -1), HR_SCRIPT_LATIN);
         assert_eq!(

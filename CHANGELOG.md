@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
+- Update the built-in Unicode data to 18.0. Add Jurchen, Proto-Cuneiform, and
+  Seal script constants to the Rust and C APIs and route them through USE.
 - Support hexadecimal OpenType language and script overrides in `x-hbot-`
   and `x-hbsc-` private-use subtags, such as `x-hbot-4d4f4e54` for `MONT`.
 - Add a unified `Buffer` type, matching HarfBuzz's `hb_buffer_t`. It carries a

@@ -896,6 +896,30 @@ mod builtin {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(feature = "icu"))]
+    #[test]
+    fn unicode_18_scripts() {
+        use super::GeneralCategory as Gc;
+        use crate::script;
+
+        for (range, script, category) in [
+            (
+                0x125A8..=0x1264B,
+                script::PROTO_CUNEIFORM,
+                Gc::LETTER_NUMBER,
+            ),
+            (0x18E00..=0x19191, script::JURCHEN, Gc::OTHER_LETTER),
+            (0x191A0..=0x191D2, script::JURCHEN, Gc::OTHER_LETTER),
+            (0x3D000..=0x3FC3F, script::SEAL, Gc::OTHER_LETTER),
+        ] {
+            for cp in range {
+                assert_eq!(super::script_for(cp), script, "U+{cp:04X}");
+                assert_eq!(super::general_category_for(cp), category, "U+{cp:04X}");
+                assert_eq!(super::combining_class_for(cp), 0, "U+{cp:04X}");
+            }
+        }
+    }
+
     #[test]
     fn general_category_ranges() {
         use super::GeneralCategory as Gc;

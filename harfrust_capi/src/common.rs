@@ -591,6 +591,12 @@ pub const HR_SCRIPT_SIDETIC: hr_script_t = 0x5369_6474;
 pub const HR_SCRIPT_TAI_YO: hr_script_t = 0x5461_796F;
 /// The Tolong Siki script (`Tols`).
 pub const HR_SCRIPT_TOLONG_SIKI: hr_script_t = 0x546F_6C73;
+/// The Jurchen script (`Jurc`).
+pub const HR_SCRIPT_JURCHEN: hr_script_t = 0x4A75_7263;
+/// The Proto-Cuneiform script (`Pcun`).
+pub const HR_SCRIPT_PROTO_CUNEIFORM: hr_script_t = 0x5063_756E;
+/// The Seal script (`Seal`).
+pub const HR_SCRIPT_SEAL: hr_script_t = 0x5365_616C;
 /// The Math script (`Zmth`).
 pub const HR_SCRIPT_MATH: hr_script_t = 0x5A6D_7468;
 /// The Myanmar Zawgyi script (`Qaag`).
