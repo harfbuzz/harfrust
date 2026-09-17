@@ -76,7 +76,7 @@ trait TrackDataExt {
 
 impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
     fn get_tracking(&self, offset_data: FontData, ptem: f32, track: f32) -> f32 {
-        let Ok(sizes) = self.size_table(offset_data) else {
+        let Some(sizes) = self.size_table(offset_data) else {
             return 0.0;
         };
 
@@ -90,7 +90,7 @@ impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
         }
 
         let get_value = |entry: &TrackTableEntry| {
-            let Ok(values) = entry.per_size_values(offset_data, sizes.len() as u16) else {
+            let Some(values) = entry.per_size_values(offset_data, sizes.len() as u16) else {
                 return 0.0;
             };
             entry.get_value(ptem, sizes, values)

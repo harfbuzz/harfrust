@@ -468,7 +468,7 @@ impl Scale {
 pub fn shape(
     font: &crate::font::FontInstance,
     buffer: UnicodeBuffer,
-    mut options: ShapeOptions<'_>,
+    options: ShapeOptions<'_>,
 ) -> GlyphBuffer {
     let hb_font = hb_font_t::from_font(font);
     let Some(hb_font) = hb_font.as_ref() else {
@@ -476,13 +476,6 @@ pub fn shape(
         buffer.clear();
         return GlyphBuffer(buffer.0);
     };
-    // If the user didn't request an explicit scale but the font instance
-    // has a size, set the scale to that size with 16 fractional bits.
-    if options.scale.is_none() {
-        if let Some(ppem) = font.size() {
-            options = options.scale(Some((ppem * 65536.0) as i32));
-        }
-    }
     let mut buffer = buffer.0;
     // As above, this signature cannot report a failure.
     if let Err(err) = hb_font.shape_buffer_inner(&mut buffer, options) {
@@ -518,19 +511,12 @@ impl Buffer {
     pub fn shape(
         &mut self,
         font: &crate::font::FontInstance,
-        mut options: ShapeOptions<'_>,
+        options: ShapeOptions<'_>,
     ) -> Result<(), ShapeError> {
         let hb_font = hb_font_t::from_font(font);
         let Some(hb_font) = hb_font.as_ref() else {
             return Err(ShapeError::UnusableFont);
         };
-        // If the user didn't request an explicit scale but the font instance
-        // has a size, set the scale to that size with 16 fractional bits.
-        if options.scale.is_none() {
-            if let Some(ppem) = font.size() {
-                options = options.scale(Some((ppem * 65536.0) as i32));
-            }
-        }
         hb_font.shape_buffer_inner(self, options)
     }
 }

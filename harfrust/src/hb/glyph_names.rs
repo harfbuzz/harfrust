@@ -30,7 +30,7 @@ impl<'a> GlyphNames<'a> {
         if let Some((cff, charset)) = font
             .cff()
             .ok()
-            .and_then(|cff| Some((cff.clone(), cff.charset(0).ok()??)))
+            .and_then(|cff| Some((cff.clone(), cff.charset(0)?)))
         {
             Self::Cff(cff, charset)
         } else if let Ok(post) = font.post() {
@@ -47,7 +47,7 @@ impl<'a> GlyphNames<'a> {
     pub fn get(&self, glyph_id: u32) -> Option<&'a str> {
         let name = match self {
             Self::Cff(cff, charset) => {
-                let sid = charset.string_id(glyph_id.into()).ok()?;
+                let sid = charset.string_id(glyph_id.into())?;
                 core::str::from_utf8(cff.string(sid)?).ok()
             }
             Self::Post(post) => {
