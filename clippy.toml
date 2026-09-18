@@ -1,2 +1,3 @@
 allow-unwrap-in-tests = true
 avoid-breaking-exported-api = false
+allowed-duplicate-crates = ["syn", "synstructure"]
