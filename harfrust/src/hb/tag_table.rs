@@ -1713,6 +1713,11 @@ pub fn tags_from_complex_language(language: &str, tags: &mut smallvec::SmallVec<
         tags.push(Tag::new(b"IPPH")); // Phonetic transcription—IPA conventions
         return true;
     }
+    if subtag_matches(language, "-fonupa") {
+        // Undetermined; Uralic Phonetic Alphabet
+        tags.push(Tag::new(b"UPPH")); // Uralic Phonetic Alphabet
+        return true;
+    }
     if subtag_matches(language, "-geok") {
         // Undetermined; Khutsuri (Asomtavruli and Nuskhuri)
         tags.push(Tag::new(b"KGE ")); // Khutsuri Georgian

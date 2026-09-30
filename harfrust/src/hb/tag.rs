@@ -638,6 +638,10 @@ mod tests {
     test_tag_from_language!(tag_from_language_chr_fonnapa, "APPH", "chr-fonnapa");
     test_tag_from_language!(tag_from_language_APPH, "APPH", "und-fonnapa");
 
+    /* Uralic Phonetic Alphabet */
+    test_tag_from_language!(tag_from_language_fi_fonupa, "UPPH", "fi-fonupa");
+    test_tag_from_language!(tag_from_language_UPPH, "UPPH", "und-fonupa");
+
     /* Khutsuri Georgian */
     test_tag_from_language!(tag_from_language_ka_geok, "KGE", "ka-Geok");
     test_tag_from_language!(tag_from_language_KGE, "KGE", "und-Geok");
@@ -725,6 +729,8 @@ mod tests {
     test_tags!(tag_full_en_latin, Some(script::LATIN), "en", &[b"latn"], &[b"ENG"]);
     test_tags!(tag_full_und_fonnapa, None, "und-fonnapa", &[], &[b"APPH"]);
     test_tags!(tag_full_en_fonnapa, None, "en-fonnapa", &[], &[b"APPH"]);
+    test_tags!(tag_full_und_fonupa, None, "und-fonupa", &[], &[b"UPPH"]);
+    test_tags!(tag_full_fi_fonupa, None, "fi-fonupa", &[], &[b"UPPH"]);
     test_tags!(tag_full_x_hbot1234_hbsc5678, None, "x-hbot1234-hbsc5678", &[b"5678"], &[b"1234"]);
     test_tags!(tag_full_x_hbsc5678_hbot1234, None, "x-hbsc5678-hbot1234", &[b"5678"], &[b"1234"]);
     test_tags!(tag_hex_mont, Some(script::MYANMAR), "x-hbot-4d4f4e54", &[b"mym2", b"mymr"], &[b"MONT"]);
