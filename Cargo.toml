@@ -23,8 +23,11 @@ inherits = "release"
 
 [workspace.dependencies]
 harfrust = { version = "0.13.3", path = "./harfrust", default-features = false }
-read-fonts = { version = "0.43.3", default-features = false, features = ["experimental_font_api"] }
+read-fonts = { version = "0.44.0", default-features = false, features = ["experimental_font_api"] }
 once_cell = { version = "1.21.4", default-features = false, features = ["alloc", "race"] }
+# These yoke deps can be removed when MSRV is increased to 1.87+
+yoke = { version = "=0.8.2", features = ["derive"] }
+yoke-derive = "=0.8.2"
 
 [workspace.lints.rust]
 unused_qualifications = "warn"

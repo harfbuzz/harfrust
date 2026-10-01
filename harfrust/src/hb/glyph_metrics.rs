@@ -152,11 +152,8 @@ impl<'a> GlyphMetrics<'a> {
         let mut advance = self.plain_advance_width(gid);
         if !coords.is_empty() {
             if let Some(hvar) = self.hvar.as_ref() {
-                advance = advance.saturating_add(
-                    hvar.advance_width_delta(gid, coords)
-                        .unwrap_or_default()
-                        .to_i32(),
-                );
+                advance = advance
+                    .saturating_add(hvar.advance_delta(gid, coords).unwrap_or_default().to_i32());
             } else if let Some(deltas) = self.phantom_deltas(gid, coords) {
                 advance = advance
                     .saturating_add(deltas[1].x.to_i32().saturating_sub(deltas[0].x.to_i32()));
@@ -179,7 +176,7 @@ impl<'a> GlyphMetrics<'a> {
             if let Some(hvar) = self.hvar.as_ref() {
                 for (info, pos) in infos.iter().zip(pos.iter_mut()) {
                     pos.x_advance = pos.x_advance.saturating_add(
-                        hvar.advance_width_delta(info.as_glyph(), coords)
+                        hvar.advance_delta(info.as_glyph(), coords)
                             .unwrap_or_default()
                             .to_i32(),
                     );
@@ -247,11 +244,8 @@ impl<'a> GlyphMetrics<'a> {
         };
         if !coords.is_empty() {
             if let Some(vvar) = self.vvar.as_ref() {
-                advance = advance.saturating_add(
-                    vvar.advance_height_delta(gid, coords)
-                        .unwrap_or_default()
-                        .to_i32(),
-                );
+                advance = advance
+                    .saturating_add(vvar.advance_delta(gid, coords).unwrap_or_default().to_i32());
             } else if let Some(deltas) = self.phantom_deltas(gid, coords) {
                 advance = advance
                     .saturating_add(deltas[3].y.to_i32().saturating_sub(deltas[2].y.to_i32()));
@@ -285,8 +279,11 @@ impl<'a> GlyphMetrics<'a> {
             let mut origin = vorg.vertical_origin_y(gid) as i32;
             if !coords.is_empty() {
                 if let Some(vvar) = self.vvar.as_ref() {
-                    origin = origin
-                        .saturating_add(vvar.v_org_delta(gid, coords).unwrap_or_default().to_i32());
+                    origin = origin.saturating_add(
+                        vvar.v_origin_y_delta(gid, coords)
+                            .unwrap_or_default()
+                            .to_i32(),
+                    );
                 }
             }
             origin
@@ -301,9 +298,13 @@ impl<'a> GlyphMetrics<'a> {
                 }
                 if origin.is_some() && !coords.is_empty() {
                     if let Some(vvar) = self.vvar.as_ref() {
-                        origin = Some(origin.unwrap().saturating_add(
-                            vvar.v_org_delta(gid, coords).unwrap_or_default().to_i32(),
-                        ));
+                        origin = Some(
+                            origin.unwrap().saturating_add(
+                                vvar.v_origin_y_delta(gid, coords)
+                                    .unwrap_or_default()
+                                    .to_i32(),
+                            ),
+                        );
                     }
                 }
                 origin
