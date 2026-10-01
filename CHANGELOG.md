@@ -26,6 +26,9 @@ This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/
 - Leave a GPOS mark unattached when it is more than 32767 glyphs from its base,
   as HarfBuzz does, instead of storing a truncated `attach_chain` that
   mispositioned the mark.
+- Fix `would_apply` for format 3 (coverage-based) contextual lookups, which
+  never matched, so the Indic shaper missed features built from them. Noto Sans
+  Bengali's ra-phala (e.g. গ্র) came out as consonant, visible hasant and ra.
 
 ## [0.13.3] - 2026-08-25
 
