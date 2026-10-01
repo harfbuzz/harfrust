@@ -39,18 +39,6 @@ fn bugs_003() {
 }
 
 #[test]
-fn bugs_004() {
-    assert_eq!(
-        shape(
-            "tests/fonts/rb_custom/NotoSansBengali.subset1.ttf",
-            "\u{0997}\u{09CD}\u{09B0}\u{09B9}\u{09A3}",
-            "",
-        ),
-        "[gid10=0+695|gid16=0@-667,-35+0|gid5=3+534|gid2=4+620]"
-    );
-}
-
-#[test]
 fn colr_001() {
     assert_eq!(
         shape(

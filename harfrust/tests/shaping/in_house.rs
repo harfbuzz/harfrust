@@ -1796,6 +1796,18 @@ fn context_matching_007() {
 }
 
 #[test]
+fn context_matching_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/165281ca0c268390f24200a0e73d399ae750c735.ttf",
+            "\u{0997}\u{09CD}\u{09B0}\u{09B9}\u{09A3}",
+            "",
+        ),
+        "[gid10=0+695|gid16=0@-667,-35+0|gid5=3+534|gid2=4+620]"
+    );
+}
+
+#[test]
 fn cursive_positioning_001() {
     assert_eq!(
         shape(
