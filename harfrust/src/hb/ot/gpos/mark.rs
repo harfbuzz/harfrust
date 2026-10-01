@@ -73,6 +73,13 @@ impl MarkArrayExt for MarkArray<'_> {
         let base_offset = resolve_cross_offset(&ctx.buffer.pos, glyph_pos, ctx.buffer.direction);
         let horizontal = ctx.buffer.direction.is_horizontal();
         let idx = ctx.buffer.idx;
+        // If the distance to the base does not fit in the i16 chain field,
+        // leave the mark unattached. Matches HarfBuzz.
+        let Ok(chain) = i16::try_from(glyph_pos as isize - idx as isize) else {
+            ctx.buffer.cur_pos_mut().set_attach_chain(0);
+            ctx.buffer.idx += 1;
+            return Some(());
+        };
         let pos = ctx.buffer.cur_pos_mut();
         pos.x_offset = x_offset;
         pos.y_offset = y_offset;
@@ -82,7 +89,7 @@ impl MarkArrayExt for MarkArray<'_> {
             pos.x_offset = pos.x_offset.saturating_add(base_offset);
         }
         pos.set_attach_type(attach_type::MARK);
-        pos.set_attach_chain((glyph_pos as isize - idx as isize) as i16);
+        pos.set_attach_chain(chain);
 
         ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         ctx.buffer.idx += 1;

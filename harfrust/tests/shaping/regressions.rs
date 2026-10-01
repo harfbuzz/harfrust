@@ -75,6 +75,24 @@ fn shaping_long_line_kern_does_not_overflow_glyph_data() {
     shaper.shape(buffer, ShapeOptions::new());
 }
 
+/// A mark more than `i16::MAX` glyphs after its base cannot store that
+/// distance in its attachment chain. HarfBuzz leaves such a mark unattached
+/// instead of storing a truncated chain.
+#[test]
+fn mark_too_far_from_its_base_is_left_unattached() {
+    let mut text = String::from("x");
+    text.extend(std::iter::repeat_n('\u{0301}', 32_769));
+    let output = crate::shape(
+        "tests/fonts/rb_custom/BungeeTint-Regular.ttf",
+        &text,
+        "--features=-mkmk --no-glyph-names --no-clusters",
+    );
+    let glyphs: Vec<&str> = output.trim_matches(['[', ']']).split('|').collect();
+    assert_eq!(glyphs.len(), 32_770);
+    assert_eq!(glyphs[32_768], "975@-369,0+0");
+    assert_eq!(glyphs[32_769], "975+0");
+}
+
 /// A zero-valued PairPosFormat1 record is still a concat hazard. In the test
 /// font, changing `X` to `V` selects another record and changes `A`'s advance.
 #[test]
