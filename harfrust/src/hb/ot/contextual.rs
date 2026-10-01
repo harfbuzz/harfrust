@@ -207,10 +207,15 @@ impl Apply for SequenceContextFormat2<'_> {
 
 impl WouldApply for SequenceContextFormat3<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        // Unlike formats 1 and 2, the coverage array includes the first
+        // glyph, so the sequence is as long as the array and glyph `i` is
+        // matched against coverage `i` (as in HarfBuzz and
+        // ChainedSequenceContextFormat3 below).
         let coverages = self.coverages();
-        ctx.glyphs.len() == coverages.len() + 1
+        ctx.glyphs.len() == coverages.len()
             && coverages
                 .iter()
+                .skip(1)
                 .enumerate()
                 .all(|(i, coverage)| covered(coverage, ctx.glyphs[i + 1]))
     }
