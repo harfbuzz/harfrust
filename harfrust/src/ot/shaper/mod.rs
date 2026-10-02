@@ -24,12 +24,12 @@ pub(crate) mod use_table;
 pub(crate) mod vowel_constraints;
 
 use crate::buffer::*;
-use crate::shape::normalize::*;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
-use crate::shape::*;
+use crate::normalize::*;
+use crate::plan::ShapePlan;
 use crate::tag::TagExt;
 use crate::unicode::Codepoint;
+use crate::ShaperFont;
+use crate::*;
 use crate::{Direction, Script, Tag};
 use alloc::boxed::Box;
 use core::any::Any;

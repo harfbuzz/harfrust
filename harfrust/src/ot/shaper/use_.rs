@@ -4,9 +4,9 @@ use super::*;
 use crate::algs::*;
 use crate::ot::layout::*;
 use crate::ot::map::*;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::{CharExt, Codepoint};
+use crate::ShaperFont;
 use crate::{GlyphInfo, Mask, Script, Tag};
 use alloc::boxed::Box;
 

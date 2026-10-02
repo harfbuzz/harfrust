@@ -11,10 +11,10 @@ use crate::ot::apply::WouldApplyContext;
 use crate::ot::layout::*;
 use crate::ot::map::*;
 use crate::ot::OtData;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::GeneralCategory;
 use crate::unicode::{CharExt, Codepoint};
+use crate::ShaperFont;
 use crate::{GlyphInfo, Mask, Script, Tag};
 
 pub const INDIC_SHAPER: OtShaper = OtShaper {
@@ -618,7 +618,7 @@ fn update_consonant_positions(
     }
 
     if let Some(virama) = virama_glyph {
-        let ot = font.layout.ot;
+        let ot = font.layout().ot;
         for info in buffer.info_slice_mut() {
             if info.indic_position() == position::POS_BASE_C {
                 let consonant = info.as_glyph();
@@ -733,7 +733,7 @@ fn initial_reordering_consonant_syllable(
     end: usize,
     buffer: &mut Buffer,
 ) {
-    let ot = font.layout.ot;
+    let ot = font.layout().ot;
     // https://github.com/harfbuzz/harfbuzz/issues/435#issuecomment-335560167
     // For compatibility with legacy usage in Kannada,
     // Ra+h+ZWJ must behave like Ra+ZWJ+h...

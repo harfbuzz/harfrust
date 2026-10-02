@@ -1,10 +1,10 @@
 use super::*;
+use crate::normalize::NormalizationMode;
 use crate::ot::layout::*;
-use crate::shape::normalize::NormalizationMode;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::GeneralCategory;
 use crate::Script;
+use crate::ShaperFont;
 
 pub const THAI_SHAPER: OtShaper = OtShaper {
     collect_features: None,

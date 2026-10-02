@@ -40,17 +40,17 @@ struct ShapePlanCache {
 impl ShapePlanCache {
     fn get(
         &mut self,
-        shaper: &harfrust::Shaper,
-        buffer: &harfrust::UnicodeBuffer,
+        instance: &harfrust::font::FontInstance,
+        buffer: &harfrust::Buffer,
     ) -> &harfrust::ShapePlan {
-        let key = harfrust::ShapePlanKey::new(Some(buffer.script()), buffer.direction());
+        let key = harfrust::ShapePlanKey::new(instance, buffer.script(), buffer.direction());
         if let Some(plan_idx) = self.plans.iter().position(|plan| key.matches(plan)) {
             &self.plans[plan_idx]
         } else {
             self.plans.push(harfrust::ShapePlan::new(
-                shaper,
+                instance,
                 buffer.direction(),
-                Some(buffer.script()),
+                buffer.script(),
                 None,
                 &[],
             ));
@@ -76,22 +76,23 @@ fn bench(c: &mut Criterion) {
         test_name.push('/');
         test_name.push_str(&text_path.file_name().unwrap().to_string_lossy());
         group.bench_function(&(test_name.clone() + "/hr"), |b| {
-            let font = harfrust::FontRef::from_index(&font_data, 0).unwrap();
-            let state = HrTestState::new(&font);
-            let shaper = state.shaper();
+            let font = harfrust::font::Font::new(font_data.clone(), 0).unwrap();
+            let instance = harfrust::font::FontInstance::builder(&font).build();
+            let shaping_font = harfrust::ShaperFont::new(&instance);
             let mut plan_cache = ShapePlanCache::default();
-            let mut shared_buffer = Some(harfrust::UnicodeBuffer::new());
+            let mut buffer = harfrust::Buffer::new();
             b.iter(|| {
                 for line in &lines {
-                    let mut buffer = shared_buffer.take().unwrap();
+                    buffer.clear();
                     buffer.push_str(line);
                     buffer.guess_segment_properties();
-                    let plan = plan_cache.get(&shaper, &buffer);
-                    shared_buffer = Some(
-                        shaper
-                            .shape(buffer, harfrust::ShapeOptions::new().plan(Some(plan)))
-                            .clear(),
-                    );
+                    let plan = plan_cache.get(&instance, &buffer);
+                    harfrust::shape(
+                        &shaping_font,
+                        &mut buffer,
+                        harfrust::ShapeOptions::new().plan(Some(plan)),
+                    )
+                    .unwrap();
                 }
             });
         });
@@ -123,27 +124,3 @@ criterion_group! {
     targets = bench
 }
 criterion_main!(benches);
-
-struct HrTestState<'a> {
-    font: &'a harfrust::FontRef<'a>,
-    data: harfrust::ShaperData,
-    _instance: Option<harfrust::ShaperInstance>,
-}
-
-impl<'a> HrTestState<'a> {
-    fn new(font: &'a harfrust::FontRef<'a>) -> Self {
-        let data = harfrust::ShaperData::new(font);
-        Self {
-            font,
-            data,
-            _instance: None,
-        }
-    }
-
-    fn shaper(&self) -> harfrust::Shaper<'_> {
-        self.data
-            .shaper(self.font)
-            .instance(self._instance.as_ref())
-            .build()
-    }
-}

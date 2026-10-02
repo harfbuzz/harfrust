@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use harfrust::{
     font::{Advances, FontFuncs},
-    FontRef, ShapeOptions, ShaperData, ShaperFont, UnicodeBuffer,
+    Buffer, ShaperFont,
 };
 use read_fonts::types::GlyphId;
 
@@ -16,24 +16,24 @@ fn test_font_path() -> PathBuf {
         .join("OpenSans.subset1.ttf")
 }
 
-fn with_test_shaper<T>(f: impl FnOnce(&harfrust::Shaper) -> T) -> T {
+fn with_test_shaper<T>(f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(test_font_path()).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
 
-fn with_test_shaper_from_path<T>(font_path: PathBuf, f: impl FnOnce(&harfrust::Shaper) -> T) -> T {
+fn with_test_shaper_from_path<T>(font_path: PathBuf, f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(font_path).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
 
-fn buffer_with_text(text: &str) -> UnicodeBuffer {
-    let mut buffer = UnicodeBuffer::new();
+fn buffer_with_text(text: &str) -> Buffer {
+    let mut buffer = Buffer::new();
     buffer.push_str(text);
     buffer.guess_segment_properties();
     buffer
@@ -51,6 +51,36 @@ fn assert_positions_scaled(
         assert!((scaled.x_offset - baseline.x_offset * factor).abs() <= 1);
         assert!((scaled.y_offset - baseline.y_offset * factor).abs() <= 1);
     }
+}
+
+#[derive(Default)]
+struct TestOptions<'a> {
+    scale: Option<i32>,
+    funcs: Option<&'a dyn FontFuncs>,
+}
+
+impl<'a> TestOptions<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn scale(mut self, scale: Option<i32>) -> Self {
+        self.scale = scale;
+        self
+    }
+    fn font_funcs(mut self, funcs: Option<&'a dyn FontFuncs>) -> Self {
+        self.funcs = funcs;
+        self
+    }
+}
+
+fn shape_test(shaper: &ShaperFont<'_, '_>, mut buffer: Buffer, options: TestOptions<'_>) -> Buffer {
+    let mut font = ShaperFont::new(shaper);
+    if let Some(scale) = options.scale {
+        font.set_scale(scale);
+    }
+    font.set_font_funcs(options.funcs);
+    harfrust::shape(&font, &mut buffer, harfrust::ShapeOptions::new()).unwrap();
+    buffer
 }
 
 #[test]
@@ -74,9 +104,10 @@ fn font_funcs_batch_advance_override_is_used_with_scale() {
     };
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new()
+            TestOptions::new()
                 .scale(Some(shaper.units_per_em() * 2))
                 .font_funcs(Some(&funcs)),
         )
@@ -103,9 +134,10 @@ fn font_funcs_advance_width_override_is_not_scaled() {
     let funcs = AdvanceFuncs;
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new()
+            TestOptions::new()
                 .scale(Some(shaper.units_per_em() * 2))
                 .font_funcs(Some(&funcs)),
         )
@@ -131,10 +163,11 @@ fn aat_kern_scale_doubles_advances_and_offsets() {
     // both advances and any x-offsets must be doubled at 2× scale.
     let (baseline, scaled) = with_test_shaper_from_path(aat_kern_font_path(), |shaper| {
         let text = "\u{0131}\u{0054}\u{0075}\u{0054}\u{0075}\u{0054}\u{0131}";
-        let baseline = shaper.shape(buffer_with_text(text), ShapeOptions::new());
-        let scaled = shaper.shape(
+        let baseline = shape_test(shaper, buffer_with_text(text), TestOptions::new());
+        let scaled = shape_test(
+            shaper,
             buffer_with_text(text),
-            ShapeOptions::new().scale(Some(shaper.units_per_em() * 2)),
+            TestOptions::new().scale(Some(shaper.units_per_em() * 2)),
         );
         (baseline, scaled)
     });
@@ -147,10 +180,11 @@ fn aat_kern_scale_doubles_advances_and_offsets() {
 fn aat_kern_negative_scale_flips_advances() {
     let (baseline, scaled) = with_test_shaper_from_path(aat_kern_font_path(), |shaper| {
         let text = "\u{0131}\u{0054}\u{0075}\u{0054}\u{0075}\u{0054}\u{0131}";
-        let baseline = shaper.shape(buffer_with_text(text), ShapeOptions::new());
-        let scaled = shaper.shape(
+        let baseline = shape_test(shaper, buffer_with_text(text), TestOptions::new());
+        let scaled = shape_test(
+            shaper,
             buffer_with_text(text),
-            ShapeOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
+            TestOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
         );
         (baseline, scaled)
     });
@@ -176,10 +210,11 @@ fn shape_scale_doubles_positioned_output() {
 
     let (baseline, scaled) = with_test_shaper_from_path(font_path, |shaper| {
         let text = "x\u{0301}AVX\u{0301}";
-        let baseline = shaper.shape(buffer_with_text(text), ShapeOptions::new());
-        let scaled = shaper.shape(
+        let baseline = shape_test(shaper, buffer_with_text(text), TestOptions::new());
+        let scaled = shape_test(
+            shaper,
             buffer_with_text(text),
-            ShapeOptions::new().scale(Some(shaper.units_per_em() * 2)),
+            TestOptions::new().scale(Some(shaper.units_per_em() * 2)),
         );
         (baseline, scaled)
     });
@@ -204,10 +239,11 @@ fn shape_scale_doubles_positioned_output() {
 fn shape_negative_scale_flips_and_doubles_advances() {
     let (baseline, scaled) = with_test_shaper(|shaper| {
         let text = "abc";
-        let baseline = shaper.shape(buffer_with_text(text), ShapeOptions::new());
-        let scaled = shaper.shape(
+        let baseline = shape_test(shaper, buffer_with_text(text), TestOptions::new());
+        let scaled = shape_test(
+            shaper,
             buffer_with_text(text),
-            ShapeOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
+            TestOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
         );
         (baseline, scaled)
     });

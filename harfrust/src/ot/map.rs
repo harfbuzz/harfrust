@@ -5,9 +5,9 @@ use core::ops::Range;
 use super::buffer::{Buffer, GlyphFlags};
 use super::layout::LayoutTableKind;
 use super::{tag, Language, Mask, Script, Tag};
-use crate::shape::plan::ShapePlan;
-use crate::shape::{LayoutData, ShaperFont};
+use crate::plan::ShapePlan;
 use crate::tag::TagExt;
+use crate::{LayoutData, ShaperFont};
 
 // TODO: Remove once MSRV is 1.80+
 use core::mem::{size_of, size_of_val};

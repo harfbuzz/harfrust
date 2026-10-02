@@ -3,8 +3,8 @@ use super::syllabic::*;
 use super::*;
 use crate::ot::map::*;
 use crate::ot::shaper::indic::category::OT_VPre;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
+use crate::ShaperFont;
 use crate::{GlyphInfo, Tag};
 
 pub const MYANMAR_SHAPER: OtShaper = OtShaper {

@@ -1,4 +1,4 @@
-use super::font::GlyphExtents;
+use crate::GlyphExtents;
 
 // libm used for f32::floor() and f32::ceil()
 #[cfg(not(feature = "std"))]
@@ -9,7 +9,7 @@ use core_maths::CoreFloat as _;
 /// How font units become the units a caller asked for.
 ///
 /// Shaping applies this to everything it reports, from
-/// [`super::ShapeOptions::scale`] or [`super::ShaperFont::set_scale`].
+/// [`crate::ShaperFont::set_scale`].
 /// A caller asking a font about one glyph rather
 /// than about a run needs the same conversion, and needs it to be the same
 /// one, so it is spelled once here -- down to the rounding, which follows

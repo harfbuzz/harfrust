@@ -1,4 +1,3 @@
-use crate::feature::{HB_FEATURE_GLOBAL_END, HB_FEATURE_GLOBAL_START};
 use crate::Feature;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -43,8 +42,8 @@ impl Default for AatMapBuilder {
     fn default() -> Self {
         Self {
             language: None,
-            range_first: HB_FEATURE_GLOBAL_START as usize,
-            range_last: HB_FEATURE_GLOBAL_END as usize,
+            range_first: Feature::GLOBAL_START as usize,
+            range_last: Feature::GLOBAL_END as usize,
             current_features: Vec::default(),
             features: Vec::default(),
         }
@@ -205,7 +204,7 @@ impl AatMapBuilder {
 
         for chain_flags in &mut m.chain_flags {
             if let Some(last) = chain_flags.last_mut() {
-                last.cluster_last = HB_FEATURE_GLOBAL_END;
+                last.cluster_last = Feature::GLOBAL_END;
             }
         }
     }

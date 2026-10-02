@@ -2,9 +2,9 @@ use super::indic::category;
 use super::syllabic::*;
 use super::*;
 use crate::ot::map::*;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::{CharExt, Codepoint};
+use crate::ShaperFont;
 use crate::{GlyphInfo, Mask, Tag};
 use alloc::boxed::Box;
 

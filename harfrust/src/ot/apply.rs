@@ -8,9 +8,9 @@ use super::lookup_flags;
 use super::set_digest::SetDigest;
 use super::Mask;
 use super::OtData;
-use crate::face::Scale;
 use crate::ot::{ClassDefInfo, CoverageInfo};
 use crate::unicode::GeneralCategory;
+use crate::Scale;
 use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
@@ -897,7 +897,7 @@ pub fn check_glyph_property(ot: &OtData, info: &GlyphInfo, match_props: u32) -> 
 
 pub struct ApplyContext<'a> {
     pub table_index: LayoutTableKind,
-    pub layout: crate::shape::LayoutData<'a>,
+    pub layout: crate::LayoutData<'a>,
     pub scale: Scale,
     pub buffer: &'a mut Buffer,
     lookup_mask: Mask,
@@ -921,7 +921,7 @@ pub struct ApplyContext<'a> {
 impl<'a> ApplyContext<'a> {
     pub fn new(
         table_index: LayoutTableKind,
-        layout: crate::shape::LayoutData<'a>,
+        layout: crate::LayoutData<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
     ) -> Self {

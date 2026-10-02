@@ -5,8 +5,8 @@ use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 
 use harfrust::{
-    Buffer, BufferFlags, ClusterLevel, ContentType, Direction, EmptySerializerFont, GlyphInfo,
-    GlyphPosition, SerializeFlags,
+    Buffer, BufferFlags, ClusterLevel, ContentType, Direction, GlyphInfo, GlyphPosition,
+    SerializeFlags,
 };
 
 use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
@@ -1435,6 +1435,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     // item is written when the whole of it fits and the count reports what
     // was written, which is what lets a caller serialize in several passes.
     let capacity = buf_size as usize;
+    let serializer_font = font.shaper().cloned();
     let mut out = String::new();
     let mut written = 0;
     let mut single = Buffer::new();
@@ -1456,12 +1457,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
 
         // Rebuilt per item: the flags are consumed by each call.
         let item_flags = SerializeFlags::from_bits_truncate(flags.bits());
-        let item = match font.instance() {
-            Some(instance) => single.serialize(instance, item_flags),
-            // A caller with no font still gets its glyphs, by number: that
-            // is what HarfBuzz's empty font, substituted for NULL, reports.
-            None => single.serialize(&EmptySerializerFont, item_flags),
-        };
+        let item = single.serialize(serializer_font.as_ref(), item_flags);
         // One item serializes as a list of one; the brackets belong to the
         // list, and which one opens this item depends on where in the buffer
         // it sits, so that pieces serialized separately concatenate.

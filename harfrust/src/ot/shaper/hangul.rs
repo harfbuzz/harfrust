@@ -1,13 +1,13 @@
 use alloc::boxed::Box;
 
 use super::*;
+use crate::normalize::NormalizationMode;
 use crate::ot::map::*;
-use crate::shape::normalize::NormalizationMode;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::Codepoint;
 use crate::BufferFlags;
 use crate::Mask;
+use crate::ShaperFont;
 
 const LJMO: u8 = 1;
 const VJMO: u8 = 2;

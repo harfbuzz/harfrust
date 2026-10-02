@@ -1,10 +1,10 @@
 use super::*;
+use crate::normalize::NormalizationMode;
 use crate::ot::map::*;
-use crate::shape::normalize::NormalizationMode;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::*;
 use crate::Direction;
+use crate::ShaperFont;
 use crate::{GlyphInfo, Mask, Script, Tag};
 use alloc::boxed::Box;
 

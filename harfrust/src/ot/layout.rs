@@ -10,10 +10,10 @@ use crate::aat::AatData;
 use crate::ot::apply::check_glyph_property;
 use crate::ot::lookup::LookupInfo;
 use crate::ot::OtData;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::unicode::{space_fallback, GeneralCategory};
 use crate::BufferFlags;
+use crate::ShaperFont;
 
 impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
@@ -161,7 +161,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     buffer: &mut Buffer,
     table: Option<&T>,
 ) {
-    let mut ctx = ApplyContext::new(T::KIND, font.layout, font.scale, buffer);
+    let mut ctx = ApplyContext::new(T::KIND, font.layout(), font.scale, buffer);
 
     for (stage_index, stage) in plan.ot_map.stages(T::KIND).iter().enumerate() {
         if let Some(table) = table {

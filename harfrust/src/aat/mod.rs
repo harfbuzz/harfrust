@@ -11,14 +11,13 @@ use crate::aat::kern::KernSubtableCache;
 use crate::aat::kerx::KerxSubtableCache;
 use crate::aat::morx::{MorphSubtableCache, MorphSubtableDescriptor};
 use crate::ot::OtCache;
-use crate::tables::TableRanges;
 use alloc::vec::Vec;
 use read_fonts::{
     tables::{
         ankr::Ankr, feat::Feat, kern::Kern, kerx::Kerx, ltag::Ltag, mort::Mort, morx::Morx,
         trak::Trak,
     },
-    FontRef, TableProvider,
+    TableProvider,
 };
 
 #[derive(Default)]
@@ -184,67 +183,17 @@ fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
 }
 
 impl<'a> AatData<'a> {
-    pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
-        let morx = if cache.has_morx {
-            table_ranges.morx.resolve_table(font).map(|table| {
-                (
-                    table,
-                    cache.morx.as_slice(),
-                    cache.morx_descriptors.as_slice(),
-                )
-            })
-        } else {
-            None
-        };
-        let mort = if cache.has_mort {
-            table_ranges.mort.resolve_table(font).map(|table| {
-                (
-                    table,
-                    cache.mort.as_slice(),
-                    cache.mort_descriptors.as_slice(),
-                )
-            })
-        } else {
-            None
-        };
-        let ankr = cache
-            .has_ankr
-            .then(|| table_ranges.ankr.resolve_table(font))
-            .flatten();
-        let kern = cache
-            .has_kern
-            .then(|| table_ranges.kern.resolve_table(font))
-            .flatten()
-            .map(|table| (table, cache.kern.as_slice()));
-        let kerx = cache
-            .has_kerx
-            .then(|| table_ranges.kerx.resolve_table(font))
-            .flatten()
-            .map(|table| (table, cache.kerx.as_slice()));
-        let trak = cache
-            .has_trak
-            .then(|| table_ranges.trak.resolve_table(font))
-            .flatten();
-        let feat = cache
-            .has_feat
-            .then(|| table_ranges.feat.resolve_table(font))
-            .flatten();
-        let ltag = cache
-            .has_ltag
-            .then(|| table_ranges.ltag.resolve_table(font))
-            .flatten();
-        Self {
-            safe_to_break: Some(&cache.safe_to_break),
-            morx,
-            mort,
-            ankr,
-            kern,
-            kerx,
-            trak,
-            feat,
-            ltag,
-        }
-    }
+    pub(crate) const EMPTY: Self = Self {
+        safe_to_break: None,
+        morx: None,
+        mort: None,
+        ankr: None,
+        kern: None,
+        kerx: None,
+        trak: None,
+        feat: None,
+        ltag: None,
+    };
 
     pub fn from_tables(font: &impl TableProvider<'a>, cache: &'a AatCache) -> Self {
         let morx = cache

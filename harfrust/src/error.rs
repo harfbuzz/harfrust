@@ -1,6 +1,6 @@
 use crate::{Direction, Script};
 
-/// The reason a call to [`crate::Buffer::shape`] could not produce glyphs.
+/// The reason a call to [`crate::shape`] could not produce glyphs.
 ///
 /// Each of these is a misuse of the API. Running out of room is not among
 /// them: pathological input can provoke it, so it is reported through
@@ -22,11 +22,6 @@ pub enum ShapeError {
     /// infer one from the contents, or set it with
     /// [`set_direction`](crate::Buffer::set_direction).
     DirectionUnset,
-
-    /// The font holds nothing that can be shaped with.
-    ///
-    /// The buffer is left untouched.
-    UnusableFont,
 
     /// The buffer's direction is not the one the supplied plan was built for.
     DirectionMismatch {
@@ -50,7 +45,6 @@ impl core::fmt::Display for ShapeError {
         match self {
             Self::AlreadyShaped => fmt.write_str("buffer already holds shaped glyphs"),
             Self::DirectionUnset => fmt.write_str("buffer has no direction set"),
-            Self::UnusableFont => fmt.write_str("font has nothing to shape with"),
             Self::DirectionMismatch { plan, buffer } => write!(
                 fmt,
                 "buffer direction does not match plan direction: {buffer:?} != {plan:?}"

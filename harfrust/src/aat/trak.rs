@@ -7,8 +7,8 @@ use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
 
-use crate::shape::LayoutData;
-use crate::{buffer::Buffer, face::Scale, shape::plan::ShapePlan};
+use crate::LayoutData;
+use crate::{buffer::Buffer, plan::ShapePlan, Scale};
 
 pub fn apply(
     _plan: &ShapePlan,

@@ -11,7 +11,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-harfrust = { workspace = true, features = ["std", "experimental_font_api"] }
+harfrust = { workspace = true, features = ["std"] }
 clap = { version = "4", features = ["derive"] }
 
 [[bin]]

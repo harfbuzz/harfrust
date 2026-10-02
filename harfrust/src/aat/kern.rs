@@ -13,14 +13,14 @@ use crate::aat::common::{
 };
 use crate::aat::kerx::SimpleKerning;
 use crate::buffer::*;
-use crate::face::Scale;
 use crate::ot::apply::{ApplyContext, SkippingIterator};
 use crate::ot::gpos::attach_type;
 use crate::ot::layout::LayoutTableKind;
 use crate::ot::lookup_flags;
-use crate::shape::plan::ShapePlan;
-use crate::shape::LayoutData;
+use crate::plan::ShapePlan;
+use crate::LayoutData;
 use crate::Mask;
+use crate::Scale;
 use crate::U32Set;
 
 pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &ClassCache) -> u8 {

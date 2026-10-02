@@ -1,8 +1,8 @@
 use crate::buffer::*;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::BufferFlags;
 use crate::GlyphInfo;
+use crate::ShaperFont;
 
 pub fn insert_dotted_circles(
     font: &ShaperFont<'_, '_>,

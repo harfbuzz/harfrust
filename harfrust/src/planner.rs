@@ -4,7 +4,7 @@ use crate::aat::map::*;
 use crate::ot::layout::*;
 use crate::ot::map::*;
 use crate::ot::shaper::*;
-use crate::shape::font::LayoutData;
+use crate::shaper_font::LayoutData;
 use crate::{Direction, Feature, Language, Script, Tag};
 
 use super::plan::ShapePlan;

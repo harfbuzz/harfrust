@@ -1,9 +1,9 @@
 use super::plan::ShapePlan;
 use crate::buffer::*;
 use crate::ot::shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
-use crate::shape::NominalGlyphs;
-use crate::shape::ShaperFont;
 use crate::unicode::{space_fallback, CharExt, Codepoint};
+use crate::NominalGlyphs;
+use crate::ShaperFont;
 use read_fonts::types::GlyphId;
 
 impl GlyphInfo {

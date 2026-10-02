@@ -1,304 +1,265 @@
+/// An owned glyph name stored without allocation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GlyphName {
+    buf: [u8; 64],
+    len: u8,
+}
+
+impl GlyphName {
+    pub(crate) fn new(name: &str) -> Option<Self> {
+        if name.is_empty() {
+            return None;
+        }
+        let mut len = name.len().min(64);
+        while !name.is_char_boundary(len) {
+            len -= 1;
+        }
+        let mut buf = [0; 64];
+        buf[..len].copy_from_slice(&name.as_bytes()[..len]);
+        Some(Self {
+            buf,
+            len: len as u8,
+        })
+    }
+
+    /// Returns the glyph name as a string.
+    pub fn as_str(&self) -> &str {
+        core::str::from_utf8(&self.buf[..self.len as usize]).unwrap_or_default()
+    }
+
+    /// Returns the glyph name as bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.buf[..self.len as usize]
+    }
+}
+
+impl core::fmt::Display for GlyphName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 use read_fonts::ps::cff::charset::Charset;
 use read_fonts::tables::{
     cff::Cff,
-    cmap::{Cmap, Cmap14, CmapSubtable, MapVariant},
+    cmap::{Cmap14, CmapSubtable, MapVariant},
     glyf::Glyf,
     gvar::Gvar,
     hmtx::{Hmtx, LongMetric},
     hvar::Hvar,
     loca::Loca,
     mvar::Mvar,
+    os2::Os2,
     post::Post,
     vmtx::Vmtx,
     vorg::Vorg,
     vvar::Vvar,
 };
 use read_fonts::types::{BoundingBox, F2Dot14, Fixed, GlyphId, Point};
-use read_fonts::{FontRef, TableProvider};
-use smallvec::SmallVec;
+use read_fonts::TableProvider;
 
-use crate::aat::AatData;
-use crate::face::{BasicFontMetrics, FontKind, Scale, Shaper};
-use crate::ot::{LayoutTable, OtData};
-use crate::shape::font::LayoutCache;
-use crate::tables::{legacy_symbol_font_page, SelectedCmapSubtable, TableRanges};
-use crate::{GlyphExtents, GlyphInfo, GlyphPosition, Tag};
-use crate::{NormalizedCoord, ShapePlanKey, Variation};
+use crate::shaper_font::CharmapCache;
+use crate::{GlyphExtents, GlyphInfo, GlyphPosition, Scale, Tag};
 
-pub(crate) struct LegacyFont<'a> {
-    pub(crate) glyph_metrics: &'a GlyphMetrics<'a>,
-    pub(crate) charmap: &'a Charmap<'a>,
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct BasicFontMetrics {
+    pub units_per_em: u16,
+    pub num_glyphs: u32,
+    pub ascent: i16,
+    pub descent: i16,
 }
 
-/// Data required for shaping with a single font.
-pub struct ShaperData {
-    table_ranges: TableRanges,
-    cache: LayoutCache,
-}
-
-impl ShaperData {
-    /// Creates new cached shaper data for the given font.
-    pub fn new(font: &FontRef) -> Self {
-        let apply_trak = font.trak().is_ok() && font.stat().is_ok();
-        let cache = LayoutCache::new(font, apply_trak);
-        let table_ranges = TableRanges::new(font);
+impl BasicFontMetrics {
+    pub(crate) fn new<'a>(tables: &impl TableProvider<'a>) -> Self {
+        let units_per_em = tables
+            .head()
+            .map(|head| head.units_per_em())
+            .unwrap_or(1000);
+        let num_glyphs = tables
+            .maxp()
+            .map(|maxp| maxp.num_glyphs() as u32)
+            .unwrap_or_default();
+        let os2 = tables.os2().ok();
+        let hhea = tables.hhea().ok();
+        let (ascent, descent) = horizontal_metrics(os2.as_ref(), hhea.as_ref(), units_per_em);
         Self {
-            table_ranges,
-            cache,
-        }
-    }
-
-    /// Returns a builder for constructing a new shaper with the given
-    /// font.
-    pub fn shaper<'a>(&'a self, font: &FontRef<'a>) -> ShaperBuilder<'a> {
-        ShaperBuilder {
-            data: self,
-            font: font.clone(),
-            instance: None,
-        }
-    }
-}
-
-// Maximum number of coordinates to store inline before spilling to the
-// heap.
-//
-// Any value between 5 and 11 yields a SmallVec footprint of 32 bytes.
-const MAX_INLINE_COORDS: usize = 11;
-
-/// An instance of a variable font.
-#[derive(Clone, Default, Debug)]
-pub struct ShaperInstance {
-    coords: SmallVec<[F2Dot14; MAX_INLINE_COORDS]>,
-    pub(crate) feature_variations: [Option<u32>; 2],
-    // TODO: this is a good place to hang variation specific caches
-}
-
-impl ShaperInstance {
-    /// Creates a new shaper instance for the given font from the specified
-    /// list of variation settings.
-    ///
-    /// The setting values are in user space and the order is insignificant.
-    pub fn from_variations<V>(font: &FontRef, variations: V) -> Self
-    where
-        V: IntoIterator,
-        V::Item: Into<Variation>,
-    {
-        let mut this = Self::default();
-        this.set_variations(font, variations);
-        this
-    }
-
-    /// Creates a new shaper instance for the given font from the specified
-    /// set of normalized coordinates.
-    ///
-    /// The sequence of coordinates is expected to be in axis order.
-    pub fn from_coords(font: &FontRef, coords: impl IntoIterator<Item = NormalizedCoord>) -> Self {
-        let mut this = Self::default();
-        this.set_coords(font, coords);
-        this
-    }
-
-    /// Creates a new shaper instance for the given font using the variation
-    /// position from the named instance at the specified index.
-    pub fn from_named_instance(font: &FontRef, index: usize) -> Self {
-        let mut this = Self::default();
-        this.set_named_instance(font, index);
-        this
-    }
-
-    /// Returns the underlying set of normalized coordinates.
-    pub fn coords(&self) -> &[F2Dot14] {
-        &self.coords
-    }
-
-    /// Resets the instance for the given font and variation settings.
-    pub fn set_variations<V>(&mut self, font: &FontRef, variations: V)
-    where
-        V: IntoIterator,
-        V::Item: Into<Variation>,
-    {
-        self.coords.clear();
-        if let Ok(fvar) = font.fvar() {
-            self.coords
-                .resize(fvar.axis_count() as usize, F2Dot14::ZERO);
-            fvar.user_to_normalized(
-                font.avar().ok().as_ref(),
-                variations
-                    .into_iter()
-                    .map(Into::into)
-                    .map(|var| (var.tag, Fixed::from_f64(var.value as _))),
-                self.coords.as_mut_slice(),
-            );
-            self.check_default();
-            self.set_feature_variations(font);
-        }
-    }
-
-    /// Resets the instance for the given font and normalized coordinates.
-    pub fn set_coords(&mut self, font: &FontRef, coords: impl IntoIterator<Item = F2Dot14>) {
-        self.coords.clear();
-        if let Ok(fvar) = font.fvar() {
-            let count = fvar.axis_count() as usize;
-            self.coords.reserve(count);
-            self.coords.extend(coords.into_iter().take(count));
-            self.check_default();
-            self.set_feature_variations(font);
-        }
-    }
-
-    /// Resets the instance for the given font using the variation
-    /// position from the named instance at the specified index.
-    pub fn set_named_instance(&mut self, font: &FontRef, index: usize) {
-        self.coords.clear();
-        if let Ok(fvar) = font.fvar() {
-            if let Ok((axes, instance)) = fvar
-                .axis_instance_arrays()
-                .and_then(|arrays| Ok((arrays.axes(), arrays.instances().get(index)?)))
-            {
-                self.set_variations(
-                    font,
-                    axes.iter()
-                        .zip(instance.coordinates)
-                        .map(|(axis, coord)| (axis.axis_tag(), coord.get().to_f32())),
-                );
-            }
-        }
-    }
-
-    fn set_feature_variations(&mut self, font: &FontRef) {
-        self.feature_variations = [None; 2];
-        if self.coords.is_empty() {
-            return;
-        }
-        self.feature_variations[0] = font
-            .gsub()
-            .ok()
-            .and_then(|t| LayoutTable::Gsub(t).feature_variation_index(&self.coords));
-        self.feature_variations[1] = font
-            .gpos()
-            .ok()
-            .and_then(|t| LayoutTable::Gpos(t).feature_variation_index(&self.coords));
-    }
-
-    fn check_default(&mut self) {
-        if self.coords.iter().all(|coord| *coord == F2Dot14::ZERO) {
-            self.coords.clear();
-        }
-    }
-}
-
-/// Builder type for constructing a [`Shaper`](crate::Shaper).
-pub struct ShaperBuilder<'a> {
-    data: &'a ShaperData,
-    font: FontRef<'a>,
-    instance: Option<&'a ShaperInstance>,
-}
-
-impl<'a> ShaperBuilder<'a> {
-    /// Sets an optional instance for the shaper.
-    ///
-    /// This defines the variable font configuration.
-    pub fn instance(mut self, instance: Option<&'a ShaperInstance>) -> Self {
-        self.instance = instance;
-        self
-    }
-
-    /// Builds the shaper with the current configuration.
-    pub fn build(self) -> Shaper<'a> {
-        let font = self.font;
-        let units_per_em = self.data.table_ranges.units_per_em;
-        let charmap = Charmap::new(&font, &self.data.table_ranges);
-        let glyph_metrics = GlyphMetrics::new(&font, &self.data.table_ranges);
-        let (coords, feature_variations) = self
-            .instance
-            .map(|instance| (instance.coords(), instance.feature_variations))
-            .unwrap_or_default();
-        let ot_data = OtData::new(
-            &font,
-            &self.data.cache.ot,
-            &self.data.table_ranges,
-            coords,
-            feature_variations,
-        );
-        let aat_data = AatData::new(&font, &self.data.cache.aat, &self.data.table_ranges);
-        let font_data = FontRefData {
-            font,
-            glyph_metrics,
-            charmap,
-        };
-        let glyph_metrics = Some(font_data.glyph_metrics.clone());
-        let charmap = Some(font_data.charmap.clone());
-        let font = FontKind::FontRef(font_data);
-        Shaper {
-            font,
             units_per_em,
-            cmap_cache: &self.data.cache.cmap,
-            glyph_metrics,
-            charmap,
-            ot_data,
-            aat_data,
-            apply_trak: self.data.cache.apply_trak,
+            num_glyphs,
+            ascent,
+            descent,
         }
     }
 }
 
-#[derive(Clone)]
-pub struct FontRefData<'a> {
-    pub(crate) font: FontRef<'a>,
-    pub(crate) glyph_metrics: GlyphMetrics<'a>,
-    pub(crate) charmap: Charmap<'a>,
+#[derive(Copy, Clone)]
+pub(crate) struct SelectedCmapSubtable {
+    pub is_mac_roman: bool,
+    pub is_symbol: bool,
+    pub symbol_font_page: u16,
 }
 
-impl ShapePlanKey<'_> {
-    /// Sets the instance to use for this shape plan key.
-    pub fn instance(mut self, instance: Option<&ShaperInstance>) -> Self {
-        self.feature_variations = instance
-            .map(|instance| instance.feature_variations)
+pub(crate) fn legacy_symbol_font_page(os2: Option<&Os2<'_>>) -> u16 {
+    let Some(os2) = os2.filter(|os2| os2.version() == 0) else {
+        return 0;
+    };
+    os2.offset_data()
+        .read_at::<u16>(os2.fs_selection_byte_range().start)
+        .unwrap_or_default()
+        & 0xFF00
+}
+
+/// Selects horizontal ascender and descender as HarfBuzz does for legacy metrics.
+fn horizontal_metrics(
+    os2: Option<&Os2>,
+    hhea: Option<&read_fonts::tables::hhea::Hhea>,
+    upem: u16,
+) -> (i16, i16) {
+    let typo = os2.filter(|os2| {
+        os2.fs_selection()
+            .contains(read_fonts::tables::os2::SelectionFlags::USE_TYPO_METRICS)
+    });
+    let (ascent, descent) = match (typo, hhea) {
+        (Some(os2), _) => (os2.s_typo_ascender(), os2.s_typo_descender()),
+        (None, Some(hhea)) => (hhea.ascender().to_i16(), hhea.descender().to_i16()),
+        (None, None) => {
+            let ascent = (i32::from(upem) * 4 / 5) as i16;
+            (ascent, ascent.saturating_sub(upem as i16))
+        }
+    };
+    (ascent.saturating_abs(), -descent.saturating_abs())
+}
+
+#[cfg(feature = "std")]
+type Lazy<T> = std::sync::OnceLock<T>;
+#[cfg(not(feature = "std"))]
+type Lazy<T> = core::cell::OnceCell<T>;
+
+#[derive(Clone)]
+struct InstanceFont<'a> {
+    font: &'a crate::font::FontInstance,
+    basic_metrics: BasicFontMetrics,
+    glyph_metrics: Lazy<GlyphMetrics<'a>>,
+    charmap: Lazy<Charmap<'a>>,
+}
+
+/// Default implementations backed by font tables.
+#[derive(Clone)]
+pub(crate) struct BuiltinFontFuncs<'a> {
+    source: InstanceFont<'a>,
+    coords: &'a [F2Dot14],
+    units_per_em: u16,
+    cmap_cache: Option<&'a CharmapCache>,
+}
+
+impl<'a> BuiltinFontFuncs<'a> {
+    pub(crate) fn from_font(
+        font: &'a crate::font::FontInstance,
+        basic_metrics: BasicFontMetrics,
+        coords: &'a [F2Dot14],
+        units_per_em: u16,
+        cmap_cache: Option<&'a CharmapCache>,
+    ) -> Self {
+        Self {
+            source: InstanceFont {
+                font,
+                basic_metrics,
+                glyph_metrics: Lazy::new(),
+                charmap: Lazy::new(),
+            },
+            coords,
+            units_per_em,
+            cmap_cache,
+        }
+    }
+
+    pub(crate) fn coords(&self) -> &[F2Dot14] {
+        self.coords
+    }
+
+    fn charmap(&self) -> &Charmap<'a> {
+        self.source
+            .charmap
+            .get_or_init(|| Charmap::from_tables(&self.source.font.tables()))
+    }
+
+    pub(crate) fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
+        self.source.glyph_metrics.get_or_init(|| {
+            GlyphMetrics::from_tables(&self.source.font.tables(), &self.source.basic_metrics)
+        })
+    }
+
+    pub(crate) fn cmap_cache(&self) -> Option<&CharmapCache> {
+        self.cmap_cache
+    }
+
+    pub(crate) fn preload(&self) {
+        let _ = self.charmap();
+        let _ = self.glyph_metrics();
+    }
+
+    pub(crate) fn glyph_names(&self) -> GlyphNames<'a> {
+        GlyphNames::from_tables(&self.source.font.tables())
+    }
+
+    /// Maps a Unicode scalar value to a nominal glyph.
+    pub fn nominal_glyph(&self, c: u32) -> Option<GlyphId> {
+        // A cmap entry pointing at .notdef says the font has no glyph for
+        // the character, rather than that its glyph is .notdef. HarfBuzz
+        // reads it the same way, and the difference shows once a caller
+        // asks for a not-found glyph of its own.
+        self.charmap().map(c).filter(|glyph| glyph.to_u32() != 0)
+    }
+
+    /// Maps a Unicode scalar value and variation selector to a glyph.
+    pub fn variant_glyph(&self, c: u32, vs: u32) -> Option<GlyphId> {
+        // As in `nominal_glyph`: .notdef is not a glyph the font has.
+        self.charmap()
+            .map_variant(c, vs)
+            .filter(|glyph| glyph.to_u32() != 0)
+    }
+
+    /// Returns the horizontal advance for a glyph.
+    pub fn advance_width(&self, glyph: GlyphId) -> i32 {
+        self.glyph_metrics()
+            .advance_width(glyph, self.coords())
+            .unwrap_or_default()
+    }
+
+    /// Returns the vertical advance for a glyph.
+    pub fn advance_height(&self, glyph: GlyphId) -> i32 {
+        self.glyph_metrics()
+            .advance_height(glyph, self.coords())
+            .unwrap_or(self.units_per_em as i32)
+            .saturating_neg()
+    }
+
+    /// Returns the vertical origin for a glyph.
+    pub fn vertical_origin(&self, glyph: GlyphId) -> (i32, i32) {
+        let v_origin_y = self
+            .glyph_metrics()
+            .v_origin(glyph, self.coords())
             .unwrap_or_default();
-        self
+        (self.advance_width(glyph) / 2, v_origin_y)
+    }
+
+    /// Returns extents for a glyph if available.
+    pub fn extents(&self, glyph: GlyphId) -> Option<GlyphExtents> {
+        self.glyph_metrics().extents(glyph, self.coords())
     }
 }
 
 #[derive(Clone)]
-pub struct Charmap<'a> {
+pub(crate) struct Charmap<'a> {
     subtable: Option<(SelectedCmapSubtable, CmapSubtable<'a>)>,
     vs_subtable: Option<Cmap14<'a>>,
 }
 
 impl<'a> Charmap<'a> {
-    pub fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
-        if let Some(cmap) = table_ranges.cmap.resolve_table::<Cmap>(font) {
-            let data = cmap.offset_data();
-            let records = cmap.encoding_records();
-            let subtable = table_ranges
-                .cmap_subtable
-                .and_then(|s| Some((s, records.get(s.index as usize)?.subtable(data).ok()?)));
-            let vs_subtable = table_ranges
-                .cmap_vs_subtable
-                .and_then(|index| records.get(index as usize))
-                .and_then(|rec| rec.subtable(data).ok())
-                .and_then(|subtable| match subtable {
-                    CmapSubtable::Format14(table) => Some(table),
-                    _ => None,
-                });
-            Self {
-                subtable,
-                vs_subtable,
-            }
-        } else {
-            Self {
-                subtable: None,
-                vs_subtable: None,
-            }
-        }
-    }
-
-    pub fn from_tables(font: &impl TableProvider<'a>) -> Self {
+    pub(crate) fn from_tables(font: &impl TableProvider<'a>) -> Self {
         if let Ok(cmap) = font.cmap() {
-            let subtable = if let Some((index, record, subtable)) = cmap.best_subtable() {
+            let subtable = if let Some((_, record, subtable)) = cmap.best_subtable() {
                 Some((
                     SelectedCmapSubtable {
-                        index,
                         is_mac_roman: record.is_mac_roman(),
                         is_symbol: record.is_symbol(),
                         symbol_font_page: legacy_symbol_font_page(font.os2().ok().as_ref()),
@@ -320,7 +281,7 @@ impl<'a> Charmap<'a> {
         }
     }
 
-    pub fn map(&self, mut c: u32) -> Option<GlyphId> {
+    pub(crate) fn map(&self, mut c: u32) -> Option<GlyphId> {
         let subtable = self.subtable.as_ref()?;
         if subtable.0.is_mac_roman && c > 0x7F {
             c = unicode_to_macroman(c);
@@ -340,7 +301,7 @@ impl<'a> Charmap<'a> {
         result
     }
 
-    pub fn map_variant(&self, c: u32, vs: u32) -> Option<GlyphId> {
+    pub(crate) fn map_variant(&self, c: u32, vs: u32) -> Option<GlyphId> {
         let subtable = self.vs_subtable.as_ref()?;
         match subtable.map_variant(c, vs)? {
             MapVariant::UseDefault => self.map(c),
@@ -392,41 +353,28 @@ fn unicode_to_macroman(c: u32) -> u32 {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
+    use read_fonts::FontRef;
 
     #[test]
     fn maps_legacy_arabic_symbol_fonts() {
-        let simplified = FontRef::new(include_bytes!(
-            "../../tests/fonts/in-house/SimpArabicTest.ttf"
-        ))
-        .unwrap();
-        let simplified_ranges = TableRanges::new(&simplified);
+        let simplified =
+            FontRef::new(include_bytes!("../tests/fonts/in-house/SimpArabicTest.ttf")).unwrap();
         assert_eq!(
-            simplified_ranges.cmap_subtable.unwrap().symbol_font_page,
-            0xB200
-        );
-        assert_eq!(
-            Charmap::new(&simplified, &simplified_ranges).map(0x0627),
+            Charmap::from_tables(&simplified).map(0x0627),
             Some(GlyphId::new(45))
         );
 
-        let traditional = FontRef::new(include_bytes!(
-            "../../tests/fonts/in-house/TradArabicTest.ttf"
-        ))
-        .unwrap();
-        let traditional_ranges = TableRanges::new(&traditional);
+        let traditional =
+            FontRef::new(include_bytes!("../tests/fonts/in-house/TradArabicTest.ttf")).unwrap();
         assert_eq!(
-            traditional_ranges.cmap_subtable.unwrap().symbol_font_page,
-            0xB300
-        );
-        assert_eq!(
-            Charmap::new(&traditional, &traditional_ranges).map(0x0627),
+            Charmap::from_tables(&traditional).map(0x0627),
             Some(GlyphId::new(65))
         );
     }
 }
 
 #[derive(Clone, Default)]
-pub struct GlyphMetrics<'a> {
+pub(crate) struct GlyphMetrics<'a> {
     hmtx: Option<Hmtx<'a>>,
     h_metrics: &'a [LongMetric],
     hvar: Option<Hvar<'a>>,
@@ -449,54 +397,6 @@ struct GlyfTables<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    pub(crate) fn new(font: &FontRef<'a>, table_ranges: &TableRanges) -> Self {
-        let num_glyphs = table_ranges.num_glyphs;
-        let upem = table_ranges.units_per_em;
-        let hmtx = table_ranges
-            .hmtx
-            .resolve_data(font)
-            .and_then(|data| Hmtx::read(data, table_ranges.num_h_metrics).ok());
-        let h_metrics = hmtx
-            .as_ref()
-            .map(|hmtx| hmtx.h_metrics())
-            .unwrap_or_default();
-        let hvar = table_ranges.hvar.resolve_table(font);
-        let vmtx = table_ranges
-            .vmtx
-            .resolve_data(font)
-            .and_then(|data| Vmtx::read(data, table_ranges.num_v_metrics).ok());
-        let vvar = table_ranges.vvar.resolve_table(font);
-        let vorg = table_ranges.vorg.resolve_table(font);
-        let loca = table_ranges
-            .loca
-            .resolve_data(font)
-            .and_then(|data| Loca::read(data, table_ranges.loca_long).ok());
-        let glyf = table_ranges.glyf.resolve_table(font);
-        let glyf = if let Some((loca, glyf)) = loca.zip(glyf) {
-            let gvar = table_ranges.gvar.resolve_table(font);
-            Some(GlyfTables { loca, glyf, gvar })
-        } else {
-            None
-        };
-        let mvar = table_ranges.mvar.resolve_table(font);
-        let ascent = table_ranges.ascent;
-        let descent = table_ranges.descent;
-        Self {
-            hmtx,
-            h_metrics,
-            hvar,
-            vmtx,
-            vvar,
-            vorg,
-            glyf,
-            mvar,
-            num_glyphs,
-            upem,
-            ascent,
-            descent,
-        }
-    }
-
     pub(crate) fn from_tables(font: &impl TableProvider<'a>, metrics: &BasicFontMetrics) -> Self {
         let hmtx = font.hmtx().ok();
         let h_metrics = hmtx
@@ -815,7 +715,7 @@ impl<'a> GlyphMetrics<'a> {
 
 /// The names a face gives its glyphs.
 #[derive(Clone)]
-pub enum GlyphNames<'a> {
+pub(crate) enum GlyphNames<'a> {
     /// The face names no glyphs.
     None,
     /// Names from the CFF charset.
@@ -825,14 +725,6 @@ pub enum GlyphNames<'a> {
 }
 
 impl<'a> GlyphNames<'a> {
-    /// The names in a font, from whichever table carries them.
-    pub fn new(font: &FontKind<'a>) -> Self {
-        match font {
-            FontKind::FontRef(font) => Self::from_tables(&font.font),
-            FontKind::FontInstance(instance, _) => Self::from_tables(&instance.tables()),
-        }
-    }
-
     pub(crate) fn from_tables(font: &impl TableProvider<'a>) -> Self {
         if let Some((cff, charset)) = font
             .cff()
@@ -851,7 +743,7 @@ impl<'a> GlyphNames<'a> {
     ///
     /// The name borrows from the face rather than from this lookup, so it
     /// can be held after the lookup is done with.
-    pub fn get(&self, glyph_id: u32) -> Option<&'a str> {
+    pub(crate) fn get(&self, glyph_id: u32) -> Option<&'a str> {
         let name = match self {
             Self::Cff(cff, charset) => {
                 let sid = charset.string_id(glyph_id.into()).ok()?;

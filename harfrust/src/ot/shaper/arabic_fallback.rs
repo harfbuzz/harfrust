@@ -4,8 +4,8 @@ use crate::ot::apply::ApplyContext;
 use crate::ot::layout::{apply_synthesized_subst_lookup, LayoutTableKind};
 use crate::ot::lookup::LookupInfo;
 use crate::ot::lookup_flags;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
+use crate::ShaperFont;
 use crate::{Mask, Tag};
 use alloc::vec::Vec;
 
@@ -211,7 +211,7 @@ impl FallbackPlan {
     }
 
     pub(crate) fn apply(&self, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
-        let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout, font.scale, buffer);
+        let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout(), font.scale, buffer);
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
             apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);

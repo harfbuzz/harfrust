@@ -4,7 +4,7 @@ use core::ffi::{c_char, c_uint};
 use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use harfrust::{Direction, Feature, ShapeOptions};
+use harfrust::{shape, Direction, Feature, ShapeOptions};
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
@@ -56,17 +56,16 @@ pub(crate) fn shape_with_plan(
     let adapter = FontFuncsAdapter::new(font, font_ref);
 
     guard(|| {
-        let mut options = ShapeOptions::new()
-            .scale_separate(Some((font_ref.x_scale, font_ref.y_scale)))
-            .features(features)
-            .plan(Some(plan));
+        let mut shaping_font = (*shaper).clone();
+        shaping_font.set_scale_separate(font_ref.x_scale, font_ref.y_scale);
+        if has_funcs {
+            shaping_font.set_font_funcs(Some(&adapter));
+        }
+        let mut options = ShapeOptions::new().features(features).plan(Some(plan));
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
-        if has_funcs {
-            options = options.font_funcs(Some(&adapter));
-        }
-        shaper.shape_buffer(&mut buffer_ref.buffer, options)
+        shape(&shaping_font, &mut buffer_ref.buffer, options)
     })
     .is_some_and(|result| result.is_ok())
     .into()
@@ -180,17 +179,18 @@ pub unsafe extern "C" fn hr_shape_full(
             )
         });
 
+        let mut shaping_font = (*shaper).clone();
+        shaping_font.set_scale_separate(font_ref.x_scale, font_ref.y_scale);
+        if has_funcs {
+            shaping_font.set_font_funcs(Some(&adapter));
+        }
         let mut options = ShapeOptions::new()
-            .scale_separate(Some((font_ref.x_scale, font_ref.y_scale)))
             .features(&features)
             .plan(plan.map(|plan| &**plan));
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
-        if has_funcs {
-            options = options.font_funcs(Some(&adapter));
-        }
-        shaper.shape_buffer(&mut buffer_ref.buffer, options)
+        shape(&shaping_font, &mut buffer_ref.buffer, options)
     });
 
     match outcome {

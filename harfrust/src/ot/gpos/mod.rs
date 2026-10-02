@@ -8,12 +8,12 @@ mod value;
 
 use crate::buffer::*;
 use crate::ot::layout::*;
-use crate::shape::plan::ShapePlan;
-use crate::shape::ShaperFont;
+use crate::plan::ShapePlan;
 use crate::Direction;
+use crate::ShaperFont;
 
 pub fn position(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
-    let table = font.layout.ot.gpos.clone();
+    let table = font.layout().ot.gpos.clone();
     apply_layout_table(plan, font, buffer, table.as_ref());
 }
 

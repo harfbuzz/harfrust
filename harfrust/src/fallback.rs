@@ -2,9 +2,9 @@ use read_fonts::types::GlyphId;
 
 use super::plan::ShapePlan;
 use crate::buffer::{Buffer, GlyphPosition};
-use crate::shape::{GlyphExtents, Scale, ShaperFont};
 use crate::unicode::*;
 use crate::Direction;
+use crate::{GlyphExtents, Scale, ShaperFont};
 
 struct FallbackShapeContext<'a, 'x, 'c, 'd> {
     plan: &'a ShapePlan,
@@ -424,7 +424,7 @@ pub fn position_marks<'a, 'x>(
 ) {
     let mut ctx = FallbackShapeContext {
         plan,
-        units_per_em: font.layout.units_per_em,
+        units_per_em: font.layout().units_per_em,
         scale: font.scale,
         buffer,
         adjust_offsets_when_zeroing,
@@ -455,7 +455,7 @@ pub fn fallback_kern(_: &ShapePlan, _: &mut Buffer) {
 pub fn fallback_spaces(shaping_font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     use crate::unicode::space_fallback as t;
 
-    let layout = shaping_font.layout;
+    let layout = shaping_font.layout();
     let scale = shaping_font.scale;
     let font = shaping_font;
     let len = buffer.len;

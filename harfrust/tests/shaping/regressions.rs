@@ -1,6 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use harfrust::{FontRef, ShapeOptions, ShaperData, UnicodeBuffer};
+use harfrust::{
+    font::{Font, FontInstance},
+    shape, Buffer, ShapeOptions, ShaperFont,
+};
 
 fn font_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -16,20 +19,21 @@ fn font_path(name: &str) -> PathBuf {
 #[test]
 fn issue_384_overly_long_grapheme_cluster_gpos_does_not_overflow() {
     let font_data = fs::read(font_path("TestGPOSThree.ttf")).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
+    let shaping_font = shaper;
 
     let mut text = String::with_capacity(35_002);
     text.push('e');
     text.extend(std::iter::repeat_n('\u{0301}', 35_000));
     text.push('X');
 
-    let mut buffer = UnicodeBuffer::new();
+    let mut buffer = Buffer::new();
     buffer.push_str(&text);
     buffer.guess_segment_properties();
 
-    shaper.shape(buffer, ShapeOptions::new());
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
 }
 
 // Uses `Calculator-Regular.ttf` (no GPOS table) to verify fallback mark positioning.
@@ -39,28 +43,31 @@ fn issue_384_overly_long_grapheme_cluster_gpos_does_not_overflow() {
 fn issue_384_overly_long_grapheme_cluster_fallback_does_not_overflow() {
     let font_data =
         fs::read(font_path("Calculator-Regular.ttf")).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
+    let mut shaping_font = shaper;
 
     let mut text = String::with_capacity(5002);
     text.push('e');
     text.extend(std::iter::repeat_n('\u{0301}', 5000));
     text.push('X');
 
-    let mut buffer = UnicodeBuffer::new();
+    let mut buffer = Buffer::new();
     buffer.push_str(&text);
     buffer.guess_segment_properties();
 
-    shaper.shape(buffer, ShapeOptions::new().scale(Some(10_000_000)));
+    shaping_font.set_scale(10_000_000);
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
 }
 
 #[test]
 fn shaping_long_line_kern_does_not_overflow_glyph_data() {
     let font_data = fs::read(font_path("TestKERNOne.otf")).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
+    let shaping_font = shaper;
 
     let mut text = String::with_capacity(70_000);
     for _ in 0..35_000 {
@@ -68,11 +75,11 @@ fn shaping_long_line_kern_does_not_overflow_glyph_data() {
         text.push('T');
     }
 
-    let mut buffer = UnicodeBuffer::new();
+    let mut buffer = Buffer::new();
     buffer.push_str(&text);
     buffer.guess_segment_properties();
 
-    shaper.shape(buffer, ShapeOptions::new());
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
 }
 
 /// A mark more than `i16::MAX` glyphs after its base cannot store that

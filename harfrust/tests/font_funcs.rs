@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use harfrust::{
     font::{Advances, FontFuncs},
-    Direction, FontRef, ShapeOptions, ShaperData, ShaperFont, UnicodeBuffer,
+    Buffer, Direction, ShaperFont,
 };
 use read_fonts::types::GlyphId;
 
@@ -16,26 +16,48 @@ fn test_font_path() -> PathBuf {
         .join("OpenSans.subset1.ttf")
 }
 
-fn with_test_shaper<T>(f: impl FnOnce(&harfrust::Shaper) -> T) -> T {
+fn with_test_shaper<T>(f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(test_font_path()).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
 
-fn with_test_shaper_from_path<T>(font_path: PathBuf, f: impl FnOnce(&harfrust::Shaper) -> T) -> T {
+fn with_test_shaper_from_path<T>(font_path: PathBuf, f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(font_path).expect("failed to read test font");
-    let font = FontRef::new(&font_data).expect("failed to parse test font");
-    let data = ShaperData::new(&font);
-    let shaper = data.shaper(&font).build();
+    let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
 
-fn buffer_with_text(text: &str) -> UnicodeBuffer {
-    let mut buffer = UnicodeBuffer::new();
+fn buffer_with_text(text: &str) -> Buffer {
+    let mut buffer = Buffer::new();
     buffer.push_str(text);
     buffer.guess_segment_properties();
+    buffer
+}
+
+#[derive(Default)]
+struct TestOptions<'a> {
+    funcs: Option<&'a dyn FontFuncs>,
+}
+
+impl<'a> TestOptions<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn font_funcs(mut self, funcs: Option<&'a dyn FontFuncs>) -> Self {
+        self.funcs = funcs;
+        self
+    }
+}
+
+fn shape_test(shaper: &ShaperFont<'_, '_>, mut buffer: Buffer, options: TestOptions<'_>) -> Buffer {
+    let mut font = ShaperFont::new(shaper);
+    font.set_font_funcs(options.funcs);
+    harfrust::shape(&font, &mut buffer, harfrust::ShapeOptions::new()).unwrap();
     buffer
 }
 
@@ -65,7 +87,7 @@ fn shape_font_allows_cross_query_callbacks() {
         let funcs = CrossQuery {
             extents_calls: Cell::new(0),
         };
-        let mut font = ShaperFont::from_shaper(shaper);
+        let mut font = ShaperFont::new(shaper);
         let glyph = GlyphId::new(1);
         let default_advance = font.default_h_advance(glyph);
         font.set_scale(shaper.units_per_em() * 2);
@@ -94,9 +116,10 @@ fn font_funcs_nominal_override_is_used() {
     };
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -123,10 +146,11 @@ fn font_funcs_default_fallback_is_available() {
     };
 
     let (baseline, with_funcs) = with_test_shaper(|shaper| {
-        let baseline = shaper.shape(buffer_with_text("abc"), ShapeOptions::new());
-        let with_funcs = shaper.shape(
+        let baseline = shape_test(shaper, buffer_with_text("abc"), TestOptions::new());
+        let with_funcs = shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         );
         (baseline, with_funcs)
     });
@@ -180,13 +204,15 @@ fn font_funcs_nominal_override_bypasses_cmap_cache() {
             .join("rb_custom")
             .join("PT_Sans-Caption-Web-Regular.ttf"),
         |shaper| {
-            let first = shaper.shape(
+            let first = shape_test(
+                shaper,
                 buffer_with_text("abc"),
-                ShapeOptions::new().font_funcs(Some(&maps_abc)),
+                TestOptions::new().font_funcs(Some(&maps_abc)),
             );
-            let second = shaper.shape(
+            let second = shape_test(
+                shaper,
                 buffer_with_text("abc"),
-                ShapeOptions::new().font_funcs(Some(&maps_a)),
+                TestOptions::new().font_funcs(Some(&maps_a)),
             );
             (first, second)
         },
@@ -230,9 +256,10 @@ fn arabic_win1256_fallback_is_applied() {
 
     let funcs = Win1256Funcs;
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("لم"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -267,9 +294,10 @@ fn font_funcs_batch_advance_override_is_used() {
     };
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -300,9 +328,10 @@ fn font_funcs_batch_advance_uses_single_glyph_override_by_default() {
     };
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -337,9 +366,10 @@ fn font_funcs_batch_hb_raw_view_is_available() {
     };
 
     let _ = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -363,14 +393,14 @@ fn font_funcs_vertical_origin_override_is_used() {
         v_origin_calls: Cell::new(0),
     };
 
-    let mut buffer = UnicodeBuffer::new();
+    let mut buffer = Buffer::new();
     buffer.push_str("abc");
     buffer.set_direction(Direction::TopToBottom);
     buffer.guess_segment_properties();
     buffer.set_direction(Direction::TopToBottom);
 
     let _ = with_test_shaper(|shaper| {
-        shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&funcs)))
+        shape_test(shaper, buffer, TestOptions::new().font_funcs(Some(&funcs)))
     });
 
     assert!(funcs.v_origin_calls.get() >= 2);
@@ -393,9 +423,10 @@ fn font_funcs_batch_advance_not_called_for_empty_buffer() {
     };
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text(""),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -421,9 +452,10 @@ fn font_funcs_variant_glyph_override_is_used() {
     };
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(
+        shape_test(
+            shaper,
             buffer_with_text("a\u{FE0F}"),
-            ShapeOptions::new().font_funcs(Some(&funcs)),
+            TestOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -457,9 +489,10 @@ fn font_funcs_advance_width_override_is_used() {
             .join("in-house")
             .join("d9b8bc10985f24796826c29f7ccba3d0ae11ec02.ttf"),
         |shaper| {
-            shaper.shape(
+            shape_test(
+                shaper,
                 buffer_with_text("\u{0718}\u{070F}\u{0718}\u{0718}\u{002E}"),
-                ShapeOptions::new().font_funcs(Some(&funcs)),
+                TestOptions::new().font_funcs(Some(&funcs)),
             )
         },
     );
@@ -490,13 +523,13 @@ fn font_funcs_advance_height_override_is_used() {
         advance_height_calls: Cell::new(0),
     };
 
-    let mut buffer = UnicodeBuffer::new();
+    let mut buffer = Buffer::new();
     buffer.push_str("abc");
     buffer.set_direction(Direction::TopToBottom);
     buffer.guess_segment_properties();
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&funcs)))
+        shape_test(shaper, buffer, TestOptions::new().font_funcs(Some(&funcs)))
     });
 
     assert!(funcs.advance_height_calls.get() >= 2);
@@ -538,9 +571,10 @@ fn font_funcs_extents_override_is_used() {
             .join("in-house")
             .join("8228d035fcd65d62ec9728fb34f42c63be93a5d3.ttf"),
         |shaper| {
-            shaper.shape(
+            shape_test(
+                shaper,
                 buffer_with_text("x\u{0301}X\u{0301}"),
-                ShapeOptions::new().font_funcs(Some(&funcs)),
+                TestOptions::new().font_funcs(Some(&funcs)),
             )
         },
     );
@@ -559,9 +593,8 @@ fn no_advance_past_the_last_glyph_the_face_has() {
     // HarfBuzz answers no advance for one, rather than repeating the last
     // advance it does have.
     with_test_shaper(|shaper| {
-        let builtin = shaper.builtin_font_funcs();
-        assert!(builtin.advance_width(GlyphId::from(1u32)) > 0);
-        assert_eq!(builtin.advance_width(GlyphId::from(60_000u32)), 0);
+        assert!(shaper.default_h_advance(GlyphId::from(1u32)) > 0);
+        assert_eq!(shaper.default_h_advance(GlyphId::from(60_000u32)), 0);
     });
 }
 
@@ -578,8 +611,7 @@ fn glyph_extents_start_at_the_side_bearing() {
         .join("ffa0f5d2d9025486d8469d8b1fdd983e7632499b.ttf");
     with_test_shaper_from_path(path, |shaper| {
         let extents = shaper
-            .builtin_font_funcs()
-            .extents(GlyphId::from(6u32))
+            .default_glyph_extents(GlyphId::from(6u32))
             .expect("the face has this glyph");
         assert_eq!(extents.x_bearing, 0);
         assert_eq!(extents.y_bearing, 1505);

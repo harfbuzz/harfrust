@@ -5,7 +5,7 @@ use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{FontInstance, FontVariation, NormalizedCoord};
-use harfrust::Shaper;
+use harfrust::{GlyphName, ShaperFont};
 use read_fonts::TableProvider;
 
 use crate::common::hr_glyph_extents_t;
@@ -38,25 +38,26 @@ impl Drop for FontData {
     }
 }
 
-/// A prepared shaper and the stable allocation it borrows.
+/// A prepared font view and the stable allocation it borrows.
 ///
 /// Keeping these in one private owner makes replacing the instance drop the
-/// shaper first. The explicit `Drop` preserves that invariant if the fields
+/// font view first. The explicit `Drop` preserves that invariant if the fields
 /// are ever reordered.
 struct PreparedFont {
-    shaper: Option<Shaper<'static>>,
-    builtin_shaper: Option<OnceLock<Shaper<'static>>>,
+    shaper: Option<ShaperFont<'static, 'static>>,
+    builtin_shaper: Option<OnceLock<ShaperFont<'static, 'static>>>,
     instance: Box<FontInstance>,
 }
 
 impl PreparedFont {
     fn new(instance: FontInstance) -> Self {
         let instance = Box::new(instance);
-        let shaper = Shaper::from_font_instance(&instance).map(|shaper| {
-            // SAFETY: the shaper borrows the allocation owned by `instance`,
-            // which is stable across moving the Box. `Drop` clears the shaper
-            // before that allocation is released.
-            unsafe { core::mem::transmute::<Shaper<'_>, Shaper<'static>>(shaper) }
+        let shaper = ShaperFont::new(&instance);
+        // SAFETY: the prepared font borrows the allocation owned by `instance`,
+        // which is stable across moving the Box. `Drop` clears the borrow
+        // before that allocation is released.
+        let shaper = Some(unsafe {
+            core::mem::transmute::<ShaperFont<'_, '_>, ShaperFont<'static, 'static>>(shaper)
         });
         Self {
             shaper,
@@ -65,14 +66,14 @@ impl PreparedFont {
         }
     }
 
-    fn shaper(&self, preload_builtin_data: bool) -> Option<&Shaper<'static>> {
+    fn shaper(&self, preload_builtin_data: bool) -> Option<&ShaperFont<'static, 'static>> {
         let shaper = self.shaper.as_ref()?;
         if !preload_builtin_data {
             return Some(shaper);
         }
         let cache = self.builtin_shaper.as_ref()?;
         Some(cache.get_or_init(|| {
-            let mut shaper = shaper.clone();
+            let shaper = (*shaper).clone();
             shaper.preload_builtin_font_data();
             shaper
         }))
@@ -141,8 +142,7 @@ impl hr_font_t {
         self.prepared
             .as_ref()?
             .shaper(true)?
-            .builtin_font_funcs()
-            .nominal_glyph(unicode)
+            .default_nominal_glyph(unicode)
             .map(|glyph| glyph.to_u32())
     }
 
@@ -155,22 +155,15 @@ impl hr_font_t {
         self.prepared
             .as_ref()?
             .shaper(true)?
-            .builtin_font_funcs()
-            .variant_glyph(unicode, variation_selector)
+            .default_variant_glyph(unicode, variation_selector)
             .map(|glyph| glyph.to_u32())
     }
 
     /// What the font's own tables say a glyph's extents are.
     pub(crate) fn builtin_extents(&self, glyph: hr_codepoint_t) -> Option<hr_glyph_extents_t> {
         let extents = self
-            .prepared
-            .as_ref()?
-            .shaper(true)?
-            .builtin_font_funcs()
-            .extents(harfrust::GlyphId::from(glyph))?;
-        // The tables answer in design units; everything a font reports is in
-        // the units its scale asks for.
-        let extents = self.scale().scale_extents(extents);
+            .builtin_shaping_font()?
+            .default_glyph_extents(harfrust::GlyphId::from(glyph))?;
         Some(hr_glyph_extents_t {
             x_bearing: extents.x_bearing,
             y_bearing: extents.y_bearing,
@@ -193,38 +186,34 @@ impl hr_font_t {
         harfrust::Scale::new(Some((self.x_scale, self.y_scale)), self.upem())
     }
 
+    fn builtin_shaping_font(&self) -> Option<ShaperFont<'static, 'static>> {
+        let mut font = (*self.prepared.as_ref()?.shaper(true)?).clone();
+        font.set_scale_separate(self.x_scale, self.y_scale);
+        Some(font)
+    }
+
     /// How far the font's own tables advance a glyph, in reported units.
     pub(crate) fn builtin_h_advance(&self, glyph: hr_codepoint_t) -> i32 {
-        let Some(shaper) = self.prepared.as_ref().and_then(|p| p.shaper(true)) else {
+        let Some(font) = self.builtin_shaping_font() else {
             return 0;
         };
-        self.scale().scale_x(
-            shaper
-                .builtin_font_funcs()
-                .advance_width(harfrust::GlyphId::from(glyph)),
-        )
+        font.default_h_advance(harfrust::GlyphId::from(glyph))
     }
 
     /// As [`hr_font_t::builtin_h_advance`], downwards.
     pub(crate) fn builtin_v_advance(&self, glyph: hr_codepoint_t) -> i32 {
-        let Some(shaper) = self.prepared.as_ref().and_then(|p| p.shaper(true)) else {
+        let Some(font) = self.builtin_shaping_font() else {
             return 0;
         };
-        self.scale().scale_y(
-            shaper
-                .builtin_font_funcs()
-                .advance_height(harfrust::GlyphId::from(glyph)),
-        )
+        font.default_v_advance(harfrust::GlyphId::from(glyph))
     }
 
     /// Where the font's own tables hang a glyph from, in reported units.
     pub(crate) fn builtin_v_origin(&self, glyph: hr_codepoint_t) -> Option<(i32, i32)> {
-        let shaper = self.prepared.as_ref()?.shaper(true)?;
-        let (x, y) = shaper
-            .builtin_font_funcs()
-            .vertical_origin(harfrust::GlyphId::from(glyph));
-        let scale = self.scale();
-        Some((scale.scale_x(x), scale.scale_y(y)))
+        Some(
+            self.builtin_shaping_font()?
+                .default_v_origin(harfrust::GlyphId::from(glyph)),
+        )
     }
 
     /// How far a glyph advances, through whichever callback answers.
@@ -256,9 +245,9 @@ impl hr_font_t {
     }
 
     /// The name the face gives a glyph, if it names it at all.
-    pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<&str> {
+    pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<GlyphName> {
         let shaper = self.prepared.as_ref()?.shaper(true)?;
-        shaper.glyph_names().get(glyph)
+        shaper.glyph_name(glyph.into())
     }
 
     /// How far above the baseline this face's text reaches, in design units.
@@ -301,7 +290,7 @@ impl hr_font_t {
         self.prepared.as_ref().map(|prepared| &*prepared.instance)
     }
 
-    pub(crate) fn shaper(&self) -> Option<&Shaper<'static>> {
+    pub(crate) fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
         self.prepared
             .as_ref()
             .and_then(|prepared| prepared.shaper(self.funcs.is_null()))
@@ -1395,7 +1384,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     // A face carries no index from names back to glyphs, so this is the walk
     // HarfBuzz's own default does.
     for candidate in 0..state.glyph_count() {
-        if state.glyph_name(candidate) == Some(wanted) {
+        if state
+            .glyph_name(candidate)
+            .is_some_and(|name| name.as_str() == wanted)
+        {
             if let Some(out) = unsafe { glyph.as_mut() } {
                 *out = candidate;
             }

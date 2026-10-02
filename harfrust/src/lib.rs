@@ -37,15 +37,21 @@ mod buffer;
 mod aat;
 mod cache;
 mod direction;
-mod face;
+mod error;
+pub(crate) mod fallback;
 mod feature;
-mod font_funcs;
+pub(crate) mod font_support;
 mod language;
+pub(crate) mod normalize;
+mod options;
 pub(crate) mod ot;
+mod plan;
+pub(crate) mod planner;
+mod scale;
 mod script;
 pub(crate) mod set_digest;
 mod shape;
-mod tables;
+mod shaper_font;
 mod tag;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
@@ -61,45 +67,37 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
 
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 
-pub use read_fonts::{
-    types::{GlyphId, Tag},
-    FontRef,
-};
+pub use read_fonts::types::{GlyphId, Tag};
 
-#[cfg(feature = "experimental_font_api")]
-pub use face::shape;
+pub use error::ShapeError;
+pub use font_support::GlyphName;
+pub use options::ShapeOptions;
+pub use plan::{ShapePlan, ShapePlanKey};
+pub(crate) use planner::ShapePlanner;
+pub use scale::Scale;
+pub use shape::shape;
+pub(crate) use shaper_font::LayoutData;
+pub(crate) use shaper_font::{Advances, NominalGlyphs};
+pub use shaper_font::{GlyphExtents, ShaperFont};
 
 /// Font related types.
 pub mod font {
-    pub use crate::face::{
-        Advances, BuiltinFontFuncs, FontFuncs, NominalGlyphs, RawAdvances, RawNominalGlyphs,
+    pub use crate::shaper_font::{
+        Advances, FontFuncs, NominalGlyphs, RawAdvances, RawNominalGlyphs,
     };
     pub use crate::ShaperFont;
 
     // Import the whole read-fonts "model" module as our font representation.
 
-    #[cfg(feature = "experimental_font_api")]
     pub use read_fonts::model::*;
-
-    #[cfg(not(feature = "experimental_font_api"))]
-    pub(crate) use read_fonts::model::*;
 }
 
-pub use buffer::{
-    Buffer, ContentType, EmptySerializerFont, GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition,
-    UnicodeBuffer, WrongContentType,
-};
+pub use buffer::{Buffer, ContentType, GlyphFlags, GlyphInfo, GlyphPosition};
 pub use direction::Direction;
-pub use face::{GlyphExtents, Scale, Shaper};
 pub use feature::Feature;
 pub use language::Language;
 pub use script::Script;
-pub use shape::font_ref::GlyphNames;
-pub use shape::font_ref::{ShaperBuilder, ShaperData, ShaperInstance};
-pub use shape::{ShapeError, ShapeOptions, ShaperFont};
 pub use variation::Variation;
-
-pub use shape::plan::{ShapePlan, ShapePlanKey};
 
 /// Type alias for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;

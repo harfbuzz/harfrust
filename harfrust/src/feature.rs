@@ -4,34 +4,38 @@ use core::{
     str::FromStr,
 };
 
-pub const HB_FEATURE_GLOBAL_START: u32 = 0;
-pub const HB_FEATURE_GLOBAL_END: u32 = u32::MAX;
-
-/// A feature tag with an accompanying range specifying on which subslice of
-/// `shape`s input it should be applied.
+/// A feature tag with an accompanying range.
 #[repr(C)]
-#[allow(missing_docs)]
 #[derive(Clone, Copy, PartialEq, Hash, Debug)]
 pub struct Feature {
+    /// OpenType feature tag.
     pub tag: Tag,
+    /// Value assigned to the feature, usually `0` to disable or `1` to enable it.
     pub value: u32,
+    /// First cluster index to which the feature applies.
     pub start: u32,
+    /// Upper cluster index of the feature's range.
     pub end: u32,
 }
 
 impl Feature {
+    /// Start index for a feature that applies to the whole buffer.
+    pub const GLOBAL_START: u32 = 0;
+    /// End index for a feature that applies to the whole buffer.
+    pub const GLOBAL_END: u32 = u32::MAX;
+
     /// Create a new `Feature` struct.
     pub fn new(tag: Tag, value: u32, range: impl RangeBounds<usize>) -> Feature {
-        let max = u32::MAX as usize;
+        let max = Self::GLOBAL_END as usize;
         let start = match range.start_bound() {
             Bound::Included(&included) => included.min(max) as u32,
             Bound::Excluded(&excluded) => excluded.min(max - 1) as u32 + 1,
-            Bound::Unbounded => 0,
+            Bound::Unbounded => Self::GLOBAL_START,
         };
         let end = match range.end_bound() {
             Bound::Included(&included) => included.min(max) as u32,
             Bound::Excluded(&excluded) => excluded.saturating_sub(1).min(max) as u32,
-            Bound::Unbounded => max as u32,
+            Bound::Unbounded => Self::GLOBAL_END,
         };
 
         Feature {
@@ -43,7 +47,7 @@ impl Feature {
     }
 
     pub(crate) fn is_global(&self) -> bool {
-        self.start == 0 && self.end == u32::MAX
+        self.start == Self::GLOBAL_START && self.end == Self::GLOBAL_END
     }
 }
 
@@ -111,10 +115,10 @@ impl FromStr for Feature {
                     p.advance(1);
                     p.consume_i32().unwrap_or(-1) as u32 // negative value overflow is ok
                 } else {
-                    if start_opt.is_some() && start != u32::MAX {
+                    if start_opt.is_some() && start != Feature::GLOBAL_END {
                         start + 1
                     } else {
-                        u32::MAX
+                        Feature::GLOBAL_END
                     }
                 };
 
@@ -122,7 +126,7 @@ impl FromStr for Feature {
 
                 (start, end)
             } else {
-                (0, u32::MAX)
+                (Feature::GLOBAL_START, Feature::GLOBAL_END)
             };
 
             // Parse postfix.

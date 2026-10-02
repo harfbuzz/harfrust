@@ -1,33 +1,43 @@
-mod error;
-pub(crate) mod fallback;
-mod font;
-pub(crate) mod font_ref;
-mod fonts;
-pub(crate) mod normalize;
-mod options;
-pub mod plan;
-pub(crate) mod planner;
-mod scale;
+/// Shapes Unicode content in place using the configured font.
+///
+/// A supplied plan must match the buffer's direction and script. On success,
+/// the buffer contains glyphs.
+pub fn shape(
+    font: &ShaperFont<'_, '_>,
+    buffer: &mut Buffer,
+    options: ShapeOptions<'_>,
+) -> Result<(), ShapeError> {
+    if buffer.content_type == Some(ContentType::Glyphs) {
+        return Err(ShapeError::AlreadyShaped);
+    }
+    if let Some(plan) = options.plan {
+        shape_with_font(plan, font, buffer, options.features, options.point_size)
+    } else {
+        if buffer.direction == Direction::Invalid {
+            return Err(ShapeError::DirectionUnset);
+        }
+        let plan = ShapePlan::from_layout(
+            font.layout(),
+            buffer.direction,
+            buffer.script,
+            buffer.language.as_ref(),
+            options.features,
+        );
+        shape_with_font(&plan, font, buffer, options.features, options.point_size)
+    }
+}
 
-pub use error::ShapeError;
-pub use font::ShaperFont;
-pub use font::{Advances, GlyphExtents, NominalGlyphs};
-pub(crate) use font::{LayoutCache, LayoutData};
-pub(crate) use fonts::CharmapCache;
-pub use options::ShapeOptions;
-pub(crate) use planner::ShapePlanner;
-pub use scale::Scale;
-
-use self::plan::ShapePlan;
 use crate::aat;
-use crate::aat::map::*;
 use crate::buffer::GlyphFlags;
 use crate::buffer::*;
 use crate::ot::gpos;
 use crate::ot::layout::*;
 use crate::ot::shaper::*;
 use crate::ot::*;
+use crate::plan::ShapePlan;
 use crate::unicode::{CharExt, GeneralCategory};
+use crate::{fallback, normalize};
+use crate::{Advances, ShapeError, ShapeOptions, ShaperFont};
 use crate::{BufferFlags, ContentType, Direction, Feature, Mask, Script};
 
 /// Runs a compiled plan using prepared layout data and effective font queries.
@@ -172,20 +182,20 @@ impl OtShapeContext<'_, '_, '_> {
     // hb_ot_substitute_plan: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L911>
     fn substitute_plan(&mut self) {
         if self.plan.apply_morx {
-            substitute_start(self.font.layout.ot, self.buffer);
+            substitute_start(self.font.layout().ot, self.buffer);
 
             if self.plan.fallback_glyph_classes {
                 synthesize_glyph_classes(self.buffer);
             }
 
-            aat::layout::substitute(self.plan, self.font.layout, self.buffer, self.features);
+            aat::layout::substitute(self.plan, self.font.layout(), self.buffer, self.features);
             // The digest is only read by the OT lookup-apply loop; without
             // GPOS ahead, nothing consumes it.
             if self.plan.apply_gpos {
                 self.buffer.update_digest();
             }
         } else {
-            substitute_start_with_digest(self.font.layout.ot, self.buffer);
+            substitute_start_with_digest(self.font.layout().ot, self.buffer);
 
             if self.plan.fallback_glyph_classes {
                 synthesize_glyph_classes(self.buffer);
@@ -279,7 +289,7 @@ impl OtShapeContext<'_, '_, '_> {
     // ShapePlan::position <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L271>
     fn position_by_plan(&mut self) {
         let plan = self.plan;
-        let layout = self.font.layout;
+        let layout = self.font.layout();
         let buffer = &mut *self.buffer;
         if plan.apply_gpos {
             gpos::position(plan, self.font, buffer);

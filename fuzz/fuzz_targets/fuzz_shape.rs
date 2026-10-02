@@ -4,7 +4,10 @@ mod helpers;
 
 use libfuzzer_sys::fuzz_target;
 
-use harfrust::{NormalizedCoord, ShapeOptions, ShaperData, ShaperInstance, UnicodeBuffer};
+use harfrust::{
+    font::{Font, FontInstance},
+    shape, Buffer, NormalizedCoord, ShapeOptions, ShaperFont,
+};
 use read_fonts::TableProvider;
 
 /// Fixed text used for the first shaping pass, matching hb-shape-fuzzer.cc.
@@ -35,49 +38,44 @@ fn extract_coords(data: &[u8], axis_count: usize) -> Vec<NormalizedCoord> {
 }
 
 fuzz_target!(|data: &[u8]| {
-    let Ok(font) = helpers::select_font(data) else {
+    let Ok((font_ref, index)) = helpers::select_font(data) else {
         return;
     };
 
-    let axis_count = font.fvar().map_or(0, |fvar| fvar.axis_count() as usize);
+    let axis_count = font_ref.fvar().map_or(0, |fvar| fvar.axis_count() as usize);
     let coords = extract_coords(data, axis_count);
-
-    let instance = if coords.is_empty() {
-        None
-    } else {
-        Some(ShaperInstance::from_coords(&font, coords))
+    let Ok(font) = Font::new(data.to_vec(), index) else {
+        return;
     };
-
-    let shaper_data = ShaperData::new(&font);
-    let shaper = shaper_data
-        .shaper(&font)
-        .instance(instance.as_ref())
+    let instance = FontInstance::builder(&font)
+        .normalized_coords(coords)
         .build();
+    let shaping_font = ShaperFont::new(&instance);
 
     // Pass 1: fixed UTF-8 text with auto-detected segment properties.
     {
-        let mut buffer = UnicodeBuffer::new();
+        let mut buffer = Buffer::new();
         buffer.push_str(FIXED_TEXT);
         buffer.guess_segment_properties();
-        let _ = shaper.shape(buffer, ShapeOptions::new());
+        let _ = shape(&shaping_font, &mut buffer, ShapeOptions::new());
     }
 
     // Pass 2: last 64 bytes of input reinterpreted as 16 UTF-32 codepoints,
     // matching hb-shape-fuzzer.cc's second hb_buffer_add_utf32 pass.
     {
         let tail = &data[data.len().saturating_sub(64)..];
-        let mut buffer = UnicodeBuffer::new();
+        let mut buffer = Buffer::new();
         for chunk in tail.chunks(4) {
             if chunk.len() == 4 {
                 let cp = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                 if let Some(c) = char::from_u32(cp) {
-                    buffer.add(c, 0);
+                    buffer.push(c as u32, 0);
                 }
             }
         }
         if !buffer.is_empty() {
             buffer.guess_segment_properties();
-            let _ = shaper.shape(buffer, ShapeOptions::new());
+            let _ = shape(&shaping_font, &mut buffer, ShapeOptions::new());
         }
     }
 });

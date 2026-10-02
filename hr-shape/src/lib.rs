@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use clap::Parser;
 use harfrust::{
     font::{Font, FontInstance},
-    shape as shape_impl, BufferFlags, ClusterLevel, Direction, Feature, Language, Script,
-    SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey, UnicodeBuffer, Variation,
+    shape as shape_impl, Buffer, BufferFlags, ClusterLevel, Direction, Feature, Language, Script,
+    SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey, ShaperFont, Variation,
 };
 
 #[derive(Default)]
@@ -21,13 +21,13 @@ impl ShapePlanCache {
     fn get<'a>(
         &'a mut self,
         instance: &FontInstance,
-        buffer: &UnicodeBuffer,
+        buffer: &Buffer,
         script: Option<Script>,
         features: &[Feature],
     ) -> &'a ShapePlan {
         let language = buffer.language();
-        let key = ShapePlanKey::new(script, buffer.direction())
-            .language(language.as_ref())
+        let key = ShapePlanKey::new(instance, script, buffer.direction())
+            .language(language)
             .features(features);
 
         if let Some(index) = self.plans.iter().position(|plan| key.matches(plan)) {
@@ -38,7 +38,7 @@ impl ShapePlanCache {
             instance,
             buffer.direction(),
             script,
-            language.as_ref(),
+            language,
             features,
         ));
         self.plans.last().unwrap()
@@ -336,6 +336,9 @@ pub fn render(mut args: Args) -> Result<String, String> {
             .build(),
         None => instance_builder.variations(variations).build(),
     };
+    let shaper = Some(ShaperFont::new(&instance))
+        .ok_or_else(|| "Error: font cannot be shaped.".to_string())?;
+    let shaping_font = shaper;
 
     let pre_context = args
         .unicodes_before
@@ -396,7 +399,7 @@ pub fn render(mut args: Args) -> Result<String, String> {
     let language = args.language;
     let features = &args.features;
     let mut shape_plan_cache = ShapePlanCache::default();
-    let mut reusable_buffer = Some(UnicodeBuffer::new());
+    let mut reusable_buffer = Buffer::new();
 
     let text = if let Some(ref path) = args.text_file {
         if path == &PathBuf::from("-") {
@@ -450,23 +453,19 @@ pub fn render(mut args: Args) -> Result<String, String> {
         }
 
         let glyph_buffer = {
-            let mut result = None;
             for _ in 0..args.num_iterations {
-                let mut buffer = result
-                    .take()
-                    .map(|glyphs: harfrust::GlyphBuffer| glyphs.clear())
-                    .or_else(|| reusable_buffer.take())
-                    .unwrap_or_default();
+                let buffer = &mut reusable_buffer;
+                buffer.clear();
                 buffer.push_str(text);
 
                 if let Some(d) = args.direction {
                     buffer.set_direction(d);
                 }
                 if let Some(ref lang) = language {
-                    buffer.set_language(lang.clone());
+                    buffer.set_language(Some(lang.clone()));
                 }
                 if let Some(script) = args.script {
-                    buffer.set_script(script);
+                    buffer.set_script(Some(script));
                 }
 
                 buffer.set_cluster_level(args.cluster_level);
@@ -474,7 +473,7 @@ pub fn render(mut args: Args) -> Result<String, String> {
                     buffer.reset_clusters();
                 }
                 if let Some(g) = args.not_found_variation_selector_glyph {
-                    buffer.set_not_found_variation_selector_glyph(g);
+                    buffer.set_not_found_variation_selector_glyph(Some(g));
                 }
 
                 buffer.set_flags(buf_flags);
@@ -490,16 +489,17 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 let script = resolved_script(args.script, &buffer);
                 let plan = shape_plan_cache.get(&instance, &buffer, script, features);
-                result = Some(shape_impl(
-                    &instance,
+                shape_impl(
+                    &shaping_font,
                     buffer,
                     ShapeOptions::new()
                         .plan(Some(plan))
                         .point_size(args.font_ptem)
                         .features(features),
-                ));
+                )
+                .map_err(|e| format!("Error: {e}"))?;
             }
-            result.unwrap()
+            &reusable_buffer
         };
 
         if args.show_line_num {
@@ -509,12 +509,14 @@ pub fn render(mut args: Args) -> Result<String, String> {
             write!(
                 output,
                 "{}",
-                glyph_buffer.serialize(&instance, SerializeFlags::from_bits_truncate(format_flags))
+                glyph_buffer.serialize(
+                    Some(&shaping_font),
+                    SerializeFlags::from_bits_truncate(format_flags)
+                )
             )
             .unwrap();
         }
         writeln!(output).unwrap();
-        reusable_buffer = Some(glyph_buffer.clear());
     }
 
     String::from_utf8(output).map_err(|e| format!("Error: invalid UTF-8 output: {e}"))
@@ -593,11 +595,8 @@ fn parse_output_format(s: &str) -> Result<String, String> {
     }
 }
 
-fn resolved_script(explicit_script: Option<Script>, buffer: &UnicodeBuffer) -> Option<Script> {
-    explicit_script.or_else(|| {
-        let script = buffer.script();
-        (script != Script::UNKNOWN).then_some(script)
-    })
+fn resolved_script(explicit_script: Option<Script>, buffer: &Buffer) -> Option<Script> {
+    explicit_script.or_else(|| buffer.script())
 }
 
 fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
@@ -638,7 +637,7 @@ mod tests {
 
     #[test]
     fn emoji_only_buffer_preserves_unset_script() {
-        let mut buffer = UnicodeBuffer::new();
+        let mut buffer = Buffer::new();
         buffer.push_str("\u{1F469}\u{1F3FD}\u{200D}\u{1F91D}");
         buffer.guess_segment_properties();
 

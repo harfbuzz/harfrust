@@ -1,11 +1,11 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
 use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
-use crate::face::Scale;
 use crate::ot::apply::MappingCache;
-use crate::shape::plan::ShapePlan;
-use crate::shape::LayoutData;
+use crate::plan::ShapePlan;
+use crate::LayoutData;
 use crate::Mask;
+use crate::Scale;
 use crate::U32Set;
 use alloc::vec::Vec;
 use read_fonts::tables::aat::*;
@@ -692,7 +692,7 @@ impl CollectGlyphs for Lookup10<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Direction, FontRef, ShapePlan, ShaperData, UnicodeBuffer};
+    use crate::{Buffer, Direction, ShapePlan, ShaperFont};
     use core::mem::size_of;
 
     #[test]
@@ -734,23 +734,18 @@ mod tests {
     #[test]
     fn output_deleted_glyph_at_end_of_text_marks_output() {
         let font_data = include_bytes!("../../tests/fonts/text-rendering-tests/TestMORXOne.ttf");
-        let font = FontRef::new(font_data).unwrap();
-        let shaper_data = ShaperData::new(&font);
-        let shaper = shaper_data.shaper(&font).build();
-        let plan = ShapePlan::new(&shaper, Direction::LeftToRight, None, None, &[]);
+        let source = crate::font::Font::new(font_data.to_vec(), 0).unwrap();
+        let font = crate::font::FontInstance::builder(&source).build();
+        let shaper_font = ShaperFont::new(&font);
+        let plan = ShapePlan::new(&font, Direction::LeftToRight, None, None, &[]);
 
-        let mut unicode_buffer = UnicodeBuffer::new();
-        unicode_buffer.add('A', 0);
-        let mut buffer = unicode_buffer.0;
+        let mut buffer = Buffer::new();
+        buffer.push('A' as u32, 0);
         buffer.clear_output();
         buffer.next_glyph();
 
-        let mut context = AatApplyContext::new(
-            &plan,
-            LayoutData::from_shaper(&shaper),
-            Scale::default(),
-            &mut buffer,
-        );
+        let mut context =
+            AatApplyContext::new(&plan, shaper_font.layout(), Scale::default(), &mut buffer);
         context.output_glyph(DELETED_GLYPH);
 
         assert_eq!(context.buffer.out_len, 2);
