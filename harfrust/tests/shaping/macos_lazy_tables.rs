@@ -1,5 +1,5 @@
 use harfrust::{
-    shape, Buffer, SerializeFlags, ShapeOptions, ShaperFont, {Font, TableFunction},
+    shape, Buffer, SerializeFlags, ShapeOptions, ShaperFont, font::{Font, TableFunction},
 };
 use objc2_core_foundation::{self as cf, CFData, CFRetained};
 use objc2_core_text as ct;
