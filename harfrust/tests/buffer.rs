@@ -4,11 +4,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use harfrust::{
-    font::{Font, FontInstance},
-    shape, Buffer, ContentType, Direction, ShapeError, ShapeOptions, ShaperFont,
+    font::Font, shape, Buffer, ContentType, Direction, ShapeError, ShapeOptions, ShaperFont,
 };
 
-fn test_instance() -> FontInstance {
+fn test_instance() -> Font {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fonts")
@@ -16,11 +15,11 @@ fn test_instance() -> FontInstance {
         .join("OpenSans.subset1.ttf");
     let data = fs::read(path).expect("failed to read test font");
     let font = Font::new(data, 0).expect("failed to parse test font");
-    FontInstance::builder(&font).build()
+    font.instance_builder().build()
 }
 
 fn shape_with_instance(
-    instance: &FontInstance,
+    instance: &Font,
     buffer: &mut Buffer,
     options: ShapeOptions<'_>,
 ) -> Result<(), ShapeError> {
@@ -111,7 +110,7 @@ fn corrupted_shaping_data_uses_empty_layout_without_failing() {
         .join("tests/fonts/rb_custom/OpenSans.subset1.ttf");
     let data = fs::read(path).unwrap();
     let font = Font::new(data, 0).unwrap();
-    let instance = FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     harfrust::font::_font_interop::_get_or_init_shaping_data(&font, || Box::new(42_u32));
 
     let shaping_font = ShaperFont::new(&instance);

@@ -40,11 +40,11 @@ mod direction;
 mod error;
 pub(crate) mod fallback;
 mod feature;
-pub(crate) mod font_support;
 mod language;
 pub(crate) mod normalize;
 mod options;
 pub(crate) mod ot;
+mod parse_setting;
 mod plan;
 pub(crate) mod planner;
 mod scale;
@@ -56,7 +56,6 @@ mod tag;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
-mod variation;
 
 type Mask = u32;
 
@@ -67,40 +66,40 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
 
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 
-pub use read_fonts::types::{GlyphId, Tag};
-
 pub use error::ShapeError;
-pub use font_support::GlyphName;
 pub use options::ShapeOptions;
+#[doc(hidden)]
+pub use parse_setting::ParseSetting;
 pub use plan::{ShapePlan, ShapePlanKey};
 pub(crate) use planner::ShapePlanner;
 pub use scale::Scale;
 pub use shape::shape;
 pub(crate) use shaper_font::LayoutData;
-pub(crate) use shaper_font::{Advances, NominalGlyphs};
-pub use shaper_font::{GlyphExtents, ShaperFont};
-
-/// Font related types.
-pub mod font {
-    pub use crate::shaper_font::{
-        Advances, FontFuncs, NominalGlyphs, RawAdvances, RawNominalGlyphs,
-    };
-    pub use crate::ShaperFont;
-
-    // Import the whole read-fonts "model" module as our font representation.
-
-    pub use read_fonts::model::*;
-}
 
 pub use buffer::{Buffer, ContentType, GlyphFlags, GlyphInfo, GlyphPosition};
 pub use direction::Direction;
 pub use feature::Feature;
 pub use language::Language;
 pub use script::Script;
-pub use variation::Variation;
+pub use shaper_font::{
+    Advances, FontFuncs, GlyphExtents, NominalGlyphs, RawAdvances, RawNominalGlyphs, ShaperFont,
+};
 
-/// Type alias for a normalized variation coordinate.
-pub type NormalizedCoord = read_fonts::types::F2Dot14;
+/// Representation of a font.
+pub mod font {
+    pub use read_fonts::model::*;
+}
+
+#[doc(inline)]
+pub use font::Font;
+
+pub use read_fonts::types::{GlyphId, Tag};
+
+// /// An OpenType tag.
+// pub type Tag = read_fonts::types::Tag;
+
+// /// A 32-bit glyph identifier.
+// pub type GlyphId = read_fonts::types::GlyphId;
 
 bitflags::bitflags! {
     /// Flags for buffers.
@@ -170,7 +169,7 @@ impl Default for ClusterLevel {
 }
 
 bitflags::bitflags! {
-    /// Flags used for serialization with a `BufferSerializer`.
+    /// Flags used for serializing a buffer.
     #[derive(Default)]
     pub struct SerializeFlags: u8 {
         /// Do not serialize glyph cluster.

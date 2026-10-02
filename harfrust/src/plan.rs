@@ -7,8 +7,7 @@ use crate::ot::shaper::OtShaper;
 
 use crate::ot::map::*;
 use crate::LayoutData;
-use crate::{Direction, Feature, Language, Mask, Script};
-use crate::{ShapePlanner, ShaperFont};
+use crate::{font::Font, Direction, Feature, Language, Mask, Script, ShapePlanner, ShaperFont};
 
 /// A reusable plan for shaping a text buffer.
 pub struct ShapePlan {
@@ -48,7 +47,7 @@ pub struct ShapePlan {
 impl ShapePlan {
     /// Builds a plan for the given font and segment properties.
     pub fn new(
-        font: &crate::font::FontInstance,
+        font: &Font,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
@@ -112,17 +111,13 @@ pub struct ShapePlanKey<'a> {
 
 impl<'a> ShapePlanKey<'a> {
     /// Creates a new shape plan key with the given script and direction.
-    pub fn new(
-        font: &crate::font::FontInstance,
-        script: Option<Script>,
-        direction: Direction,
-    ) -> Self {
+    pub fn new(font: &Font, script: Option<Script>, direction: Direction) -> Self {
         let variations = font.feature_variations();
         Self {
             script,
             direction,
             language: None,
-            feature_variations: [variations.gsub(), variations.gpos()],
+            feature_variations: [variations.gsub, variations.gpos],
             features: &[],
         }
     }

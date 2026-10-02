@@ -7,9 +7,9 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use harfrust::{
-    font::{Font, FontInstance},
-    shape as shape_impl, Buffer, BufferFlags, ClusterLevel, Direction, Feature, Language, Script,
-    SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey, ShaperFont, Variation,
+    font::Font, font::Variation, shape as shape_impl, Buffer, BufferFlags, ClusterLevel, Direction,
+    Feature, Language, ParseSetting, Script, SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey,
+    ShaperFont,
 };
 
 #[derive(Default)]
@@ -20,7 +20,7 @@ struct ShapePlanCache {
 impl ShapePlanCache {
     fn get<'a>(
         &'a mut self,
-        instance: &FontInstance,
+        instance: &Font,
         buffer: &Buffer,
         script: Option<Script>,
         features: &[Feature],
@@ -68,8 +68,12 @@ pub struct Args {
     #[arg(long)]
     font_ptem: Option<f32>,
 
+    /// Set the font scale on both axes
+    #[arg(long)]
+    font_size: Option<i32>,
+
     /// Comma-separated list of font variations
-    #[arg(long, value_delimiter = ',')]
+    #[arg(long, value_delimiter = ',', value_parser = Variation::parse_setting)]
     variations: Vec<Variation>,
 
     /// Set named-instance index
@@ -326,19 +330,20 @@ pub fn render(mut args: Args) -> Result<String, String> {
     let font_data = std::fs::read(&font_path)
         .map_err(|e| format!("Error: cannot read '{}': {e}", font_path.display()))?;
     let font = Font::new(font_data, args.face_index)
-        .map_err(|_| format!("Error: face index {} not found.", args.face_index))?;
+        .ok_or_else(|| format!("Error: face index {} not found.", args.face_index))?;
 
     let variations = args.variations.iter().map(|v| (v.tag, v.value));
-    let instance_builder = FontInstance::builder(&font);
+    let instance_builder = font.instance_builder();
     let instance = match args.named_instance {
         Some(idx) => instance_builder
             .named_instance_with_overrides(idx, variations)
             .build(),
         None => instance_builder.variations(variations).build(),
     };
-    let shaper = Some(ShaperFont::new(&instance))
-        .ok_or_else(|| "Error: font cannot be shaped.".to_string())?;
-    let shaping_font = shaper;
+    let mut shaping_font = ShaperFont::new(&instance);
+    if let Some(size) = args.font_size {
+        shaping_font.set_scale(size);
+    }
 
     let pre_context = args
         .unicodes_before

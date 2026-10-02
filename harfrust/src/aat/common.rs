@@ -735,7 +735,7 @@ mod tests {
     fn output_deleted_glyph_at_end_of_text_marks_output() {
         let font_data = include_bytes!("../../tests/fonts/text-rendering-tests/TestMORXOne.ttf");
         let source = crate::font::Font::new(font_data.to_vec(), 0).unwrap();
-        let font = crate::font::FontInstance::builder(&source).build();
+        let font = source.instance_builder().build();
         let shaper_font = ShaperFont::new(&font);
         let plan = ShapePlan::new(&font, Direction::LeftToRight, None, None, &[]);
 

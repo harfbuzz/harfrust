@@ -5,8 +5,8 @@ mod helpers;
 use libfuzzer_sys::fuzz_target;
 
 use harfrust::{
-    font::{Font, FontInstance},
-    shape, Buffer, NormalizedCoord, ShapeOptions, ShaperFont,
+    font::{Font, NormalizedCoord},
+    shape, Buffer, ShapeOptions, ShaperFont,
 };
 use read_fonts::TableProvider;
 
@@ -44,12 +44,10 @@ fuzz_target!(|data: &[u8]| {
 
     let axis_count = font_ref.fvar().map_or(0, |fvar| fvar.axis_count() as usize);
     let coords = extract_coords(data, axis_count);
-    let Ok(font) = Font::new(data.to_vec(), index) else {
+    let Some(font) = Font::new(data.to_vec(), index) else {
         return;
     };
-    let instance = FontInstance::builder(&font)
-        .normalized_coords(coords)
-        .build();
+    let instance = font.instance_builder().normalized_coords(coords).build();
     let shaping_font = ShaperFont::new(&instance);
 
     // Pass 1: fixed UTF-8 text with auto-detected segment properties.

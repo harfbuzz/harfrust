@@ -510,7 +510,7 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
             let end = i;
             while i != 0 && arabic_action::is_stch(buffer.info[i - 1].arabic_shaping_action()) {
                 i -= 1;
-                let width = font.h_advance(buffer.info[i].as_glyph());
+                let width = font.glyph_h_advance(buffer.info[i].as_glyph());
 
                 if buffer.info[i].arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
@@ -562,7 +562,7 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
                 for k in (start + 1..=end).rev() {
-                    let width = font.h_advance(buffer.info[k - 1].as_glyph());
+                    let width = font.glyph_h_advance(buffer.info[k - 1].as_glyph());
 
                     let mut repeat = 1;
                     if buffer.info[k - 1].arabic_shaping_action()

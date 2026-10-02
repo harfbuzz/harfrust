@@ -9,7 +9,7 @@ use core::ffi::c_void;
 use core::ptr;
 use std::sync::OnceLock;
 
-use harfrust::font::FontFuncs;
+use harfrust::FontFuncs;
 use harfrust::ShaperFont;
 use harfrust::{GlyphExtents, GlyphId};
 
@@ -705,30 +705,30 @@ impl FontFuncs for FontFuncsAdapter<'_> {
         }
     }
 
-    fn variant_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {
+    fn variation_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {
         match self.call_variation_glyph(c, vs)? {
-            Answer::Builtin => font.default_variant_glyph(c, vs),
+            Answer::Builtin => font.default_variation_glyph(c, vs),
             Answer::Value(glyph) => Some(GlyphId::from(glyph)),
         }
     }
 
-    fn h_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
+    fn glyph_h_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
         match self.call_h_advance(glyph.to_u32()) {
-            Answer::Builtin => font.default_h_advance(glyph),
+            Answer::Builtin => font.default_glyph_h_advance(glyph),
             Answer::Value(advance) => advance,
         }
     }
 
-    fn v_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
+    fn glyph_v_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
         match self.call_v_advance(glyph.to_u32()) {
-            Answer::Builtin => font.default_v_advance(glyph),
+            Answer::Builtin => font.default_glyph_v_advance(glyph),
             Answer::Value(advance) => advance,
         }
     }
 
-    fn v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+    fn glyph_v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
         match self.call_v_origin(glyph.to_u32()) {
-            Answer::Builtin => font.default_v_origin(glyph),
+            Answer::Builtin => font.default_glyph_v_origin(glyph),
             // Nowhere in particular is the origin shaping uses.
             Answer::Value(origin) => origin.unwrap_or((0, 0)),
         }

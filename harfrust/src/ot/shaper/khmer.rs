@@ -289,7 +289,6 @@ fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint
     if a.general_category().is_mark() {
         return None;
     }
-
     unicode::compose(a, b)
 }
 

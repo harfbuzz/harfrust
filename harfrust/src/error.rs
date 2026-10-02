@@ -1,17 +1,17 @@
 use crate::{Direction, Script};
 
-/// The reason a call to [`crate::shape`] could not produce glyphs.
+/// The reason a call to [`shape`](crate::shape) could not produce glyphs.
 ///
 /// Each of these is a misuse of the API. Running out of room is not among
 /// them: pathological input can provoke it, so it is reported through
-/// [`crate::Buffer::allocation_successful`] rather than as a failure to shape.
+/// [`Buffer::allocation_successful`](crate::Buffer::allocation_successful) rather than as a failure to shape.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[non_exhaustive]
 pub enum ShapeError {
     /// The buffer already holds the glyphs from an earlier call.
     ///
     /// To shape the same contents again, set the content type back to
-    /// [`crate::ContentType::Unicode`] with
+    /// [`ContentType::Unicode`](crate::ContentType::Unicode) with
     /// [`set_content_type`](crate::Buffer::set_content_type); to shape something else,
     /// clear the buffer and fill it afresh.
     AlreadyShaped,

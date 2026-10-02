@@ -8,9 +8,11 @@ use read_fonts::TableProvider;
 use crate::aat::{AatCache, AatData, EMPTY_AAT_DATA};
 use crate::buffer::{Buffer, GlyphInfo, GlyphPosition};
 use crate::cache::Cache;
-use crate::font_support::{BasicFontMetrics, BuiltinFontFuncs, GlyphName};
+use crate::font::Font;
 use crate::ot::{OtCache, OtData, EMPTY_OT_DATA};
 use crate::scale::Scale;
+use core::cell::OnceCell;
+use read_fonts::model::{charmap::Charmap, metrics::ScaledGlyphMetrics, name::GlyphName};
 
 pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
 
@@ -30,7 +32,7 @@ pub struct GlyphExtents {
     pub height: i32,
 }
 
-/// Safe batch view for glyph id and horizontal advance updates.
+/// Safe batch view for advance updates.
 pub struct Advances<'a> {
     pub(crate) infos: &'a [GlyphInfo],
     pub(crate) positions: &'a mut [GlyphPosition],
@@ -88,7 +90,7 @@ impl<'a> IntoIterator for Advances<'a> {
 /// Glyph ids must be written for consecutive codepoints starting at the
 /// first entry; mapping stops at the first codepoint the font has no
 /// glyph for, and the number of glyphs written is returned from
-/// [`crate::font::FontFuncs::nominal_glyphs`].
+/// [`FontFuncs::nominal_glyphs`](crate::FontFuncs::nominal_glyphs).
 pub struct NominalGlyphs<'a> {
     pub(crate) infos: &'a mut [GlyphInfo],
 }
@@ -234,9 +236,11 @@ pub(crate) struct LayoutCache {
 }
 
 impl LayoutCache {
-    pub(crate) fn new<'a>(font: &impl TableProvider<'a>, apply_trak: bool) -> Self {
-        let ot = OtCache::new(font);
-        let aat = AatCache::new(font, &ot);
+    pub(crate) fn new(font: &Font) -> Self {
+        let tables = font.tables();
+        let ot = OtCache::new(&tables);
+        let aat = AatCache::new(&tables, &ot);
+        let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
         Self {
             ot,
             aat,
@@ -246,30 +250,14 @@ impl LayoutCache {
     }
 }
 
-struct FontCache {
-    layout: LayoutCache,
-    metrics: BasicFontMetrics,
-}
-
-impl FontCache {
-    fn new(font: &crate::font::Font) -> Self {
-        let tables = font.tables();
-        let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
-        Self {
-            layout: LayoutCache::new(&tables, apply_trak),
-            metrics: BasicFontMetrics::new(&tables),
-        }
-    }
-}
-
 /// Returns cached layout data, or `None` if the read-fonts interop slot
 /// contains an unexpected type.
-fn font_cache(font: &crate::font::FontInstance) -> Option<(&LayoutCache, BasicFontMetrics)> {
+fn layout_cache(font: &Font) -> Option<&LayoutCache> {
     let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
-        Box::new(FontCache::new(font.font()))
+        Box::new(LayoutCache::new(font))
     });
-    let cache = data.downcast_ref::<FontCache>()?;
-    Some((&cache.layout, cache.metrics))
+    let cache = data.downcast_ref::<LayoutCache>()?;
+    Some(cache)
 }
 
 /// Prepared, read-only data for one font and variation position.
@@ -288,18 +276,21 @@ pub(crate) struct LayoutData<'a> {
 /// Dereferences to the underlying font for direct font queries.
 #[derive(Clone)]
 pub struct ShaperFont<'a, 'f> {
-    font: &'a crate::font::FontInstance,
+    font: &'a Font,
     ot: OtData<'a>,
     aat: AatData<'a>,
     units_per_em: u16,
     apply_trak: bool,
-    builtin: BuiltinFontFuncs<'a>,
+    charmap: Charmap<'a>,
+    glyph_metrics: OnceCell<ScaledGlyphMetrics<'a, 'static, Scale>>,
+    cmap_cache: Option<&'a CharmapCache>,
+    symbol_font_page: OnceCell<u16>,
     pub(crate) scale: Scale,
     funcs: Option<&'f dyn FontFuncs>,
 }
 
 impl Deref for ShaperFont<'_, '_> {
-    type Target = crate::font::FontInstance;
+    type Target = Font;
 
     fn deref(&self) -> &Self::Target {
         self.font
@@ -308,20 +299,16 @@ impl Deref for ShaperFont<'_, '_> {
 
 impl<'a, 'f> ShaperFont<'a, 'f> {
     /// Prepares a font for shaping, reusing its cached layout data.
-    pub fn new(font: &'a crate::font::FontInstance) -> Self {
-        let cached = font_cache(font);
-        let metrics = cached.map_or_else(
-            || BasicFontMetrics::new(&font.tables()),
-            |(_, metrics)| metrics,
-        );
-        let (ot, aat, apply_trak, cmap_cache) = if let Some((cache, _)) = cached {
+    pub fn new(font: &'a Font) -> Self {
+        let cached = layout_cache(font);
+        let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
             let tables = font.tables();
             let coords = font.normalized_coords();
             let feature_variations = if coords.is_empty() {
                 [None; 2]
             } else {
                 let variations = font.feature_variations();
-                [variations.gsub(), variations.gpos()]
+                [variations.gsub, variations.gpos]
             };
             (
                 OtData::from_tables(&tables, &cache.ot, coords, feature_variations),
@@ -332,26 +319,17 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         } else {
             (EMPTY_OT_DATA.clone(), EMPTY_AAT_DATA.clone(), false, None)
         };
-        let scale = font
-            .size()
-            .map(|ppem| {
-                let value = (ppem * 65536.0) as i32;
-                Scale::new(Some((value, value)), metrics.units_per_em as i32)
-            })
-            .unwrap_or_default();
+        let scale = Scale::default();
         Self {
             font,
             ot,
             aat,
-            units_per_em: metrics.units_per_em,
+            units_per_em: font.units_per_em(),
             apply_trak,
-            builtin: BuiltinFontFuncs::from_font(
-                font,
-                metrics,
-                font.normalized_coords(),
-                metrics.units_per_em,
-                cmap_cache,
-            ),
+            charmap: font.charmap(),
+            glyph_metrics: OnceCell::new(),
+            cmap_cache,
+            symbol_font_page: OnceCell::new(),
             scale,
             funcs: None,
         }
@@ -372,14 +350,15 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     }
 
     /// Returns the currently active normalized coordinates.
-    pub fn coords(&self) -> &[read_fonts::types::F2Dot14] {
+    pub fn normalized_coords(&self) -> &[crate::font::NormalizedCoord] {
         self.font.normalized_coords()
     }
 
-    /// Preloads the built-in charmap and glyph metrics for repeated queries.
+    /// Preloads the font's selected Unicode mapping for repeated queries.
     #[doc(hidden)]
     pub fn preload_builtin_font_data(&self) {
-        self.builtin.preload();
+        let _ = self.charmap.has_unicode();
+        let _ = self.glyph_metrics();
     }
 
     /// Sets the same scale on both axes.
@@ -396,6 +375,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     /// Sets independent horizontal and vertical scales.
     pub fn set_scale_separate(&mut self, x_scale: i32, y_scale: i32) {
         self.scale = Scale::new(Some((x_scale, y_scale)), self.units_per_em as i32);
+        self.glyph_metrics.take();
     }
 
     /// Returns a new shaping font with independent horizontal and vertical scales applied.
@@ -422,7 +402,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Returns the name stored for a glyph in the font, if any.
     pub fn glyph_name(&self, glyph: GlyphId) -> Option<GlyphName> {
-        GlyphName::new(self.builtin.glyph_names().get(glyph.to_u32())?)
+        self.font.glyph_name(glyph)
     }
 
     /// Maps a character through the configured callbacks.
@@ -435,14 +415,10 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Maps a character using the font's own charmap.
     pub fn default_nominal_glyph(&self, codepoint: u32) -> Option<GlyphId> {
-        if let Some(gid) = self
-            .builtin
-            .cmap_cache()
-            .and_then(|cache| cache.get(codepoint))
-        {
+        if let Some(gid) = self.cmap_cache().and_then(|cache| cache.get(codepoint)) {
             Some(gid.into())
-        } else if let Some(gid) = self.builtin.nominal_glyph(codepoint) {
-            if let Some(cache) = self.builtin.cmap_cache() {
+        } else if let Some(gid) = self.map_unicode(codepoint) {
+            if let Some(cache) = self.cmap_cache() {
                 cache.set(codepoint, gid.to_u32());
             }
             Some(gid)
@@ -478,73 +454,86 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     }
 
     /// Maps a character and variation selector through the configured callbacks.
-    pub fn variant_glyph(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
+    pub fn variation_glyph(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
         self.funcs.map_or_else(
-            || self.default_variant_glyph(codepoint, selector),
-            |f| f.variant_glyph(self, codepoint, selector),
+            || self.default_variation_glyph(codepoint, selector),
+            |f| f.variation_glyph(self, codepoint, selector),
         )
     }
 
     /// Maps a variation sequence using the font's own charmap.
-    pub fn default_variant_glyph(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
-        self.builtin.variant_glyph(codepoint, selector)
+    pub fn default_variation_glyph(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
+        self.charmap.map_unicode_variant(codepoint, selector)
     }
 
     /// Returns the effective horizontal advance.
-    pub fn h_advance(&self, glyph: GlyphId) -> i32 {
+    pub fn glyph_h_advance(&self, glyph: GlyphId) -> i32 {
         self.funcs.map_or_else(
-            || self.default_h_advance(glyph),
-            |f| f.h_advance(self, glyph),
+            || self.default_glyph_h_advance(glyph),
+            |f| f.glyph_h_advance(self, glyph),
         )
     }
 
     /// Returns the scaled horizontal advance from the font's own tables.
-    pub fn default_h_advance(&self, glyph: GlyphId) -> i32 {
-        self.scale.scale_x(self.builtin.advance_width(glyph))
+    pub fn default_glyph_h_advance(&self, glyph: GlyphId) -> i32 {
+        self.glyph_metrics().h_advance(glyph)
     }
 
     /// Writes effective horizontal advances for a batch of glyphs.
-    pub fn h_advances(&self, advances: Advances<'_>) {
+    pub fn glyph_h_advances(&self, advances: Advances<'_>) {
         if let Some(funcs) = self.funcs {
-            funcs.h_advances(self, advances);
+            funcs.glyph_h_advances(self, advances);
         } else {
-            self.default_h_advances(advances);
+            self.default_glyph_h_advances(advances);
         }
     }
 
     /// Writes scaled horizontal advances from the font's own tables.
-    pub fn default_h_advances(&self, advances: Advances<'_>) {
-        self.builtin.glyph_metrics().populate_advance_widths(
-            advances.infos,
-            advances.positions,
-            self.builtin.coords(),
-            self.scale,
-        );
+    pub fn default_glyph_h_advances(&self, advances: Advances<'_>) {
+        self.glyph_metrics()
+            .h_advance_batched(|advance| advance, advances.into_iter());
     }
 
     /// Returns the effective vertical advance.
-    pub fn v_advance(&self, glyph: GlyphId) -> i32 {
+    pub fn glyph_v_advance(&self, glyph: GlyphId) -> i32 {
         self.funcs.map_or_else(
-            || self.default_v_advance(glyph),
-            |f| f.v_advance(self, glyph),
+            || self.default_glyph_v_advance(glyph),
+            |f| f.glyph_v_advance(self, glyph),
         )
     }
 
     /// Returns the scaled vertical advance from the font's own tables.
-    pub fn default_v_advance(&self, glyph: GlyphId) -> i32 {
-        self.scale.scale_y(self.builtin.advance_height(glyph))
+    pub fn default_glyph_v_advance(&self, glyph: GlyphId) -> i32 {
+        self.glyph_metrics().v_advance(glyph).saturating_neg()
     }
 
     /// Returns the effective vertical origin.
-    pub fn v_origin(&self, glyph: GlyphId) -> (i32, i32) {
-        self.funcs
-            .map_or_else(|| self.default_v_origin(glyph), |f| f.v_origin(self, glyph))
+    pub fn glyph_v_origin(&self, glyph: GlyphId) -> (i32, i32) {
+        self.funcs.map_or_else(
+            || self.default_glyph_v_origin(glyph),
+            |f| f.glyph_v_origin(self, glyph),
+        )
     }
 
     /// Returns the scaled vertical origin from the font's own tables.
-    pub fn default_v_origin(&self, glyph: GlyphId) -> (i32, i32) {
-        let (x, y) = self.builtin.vertical_origin(glyph);
-        (self.scale.scale_x(x), self.scale.scale_y(y))
+    pub fn default_glyph_v_origin(&self, glyph: GlyphId) -> (i32, i32) {
+        let y = if self.funcs.is_some() {
+            let extents = |glyph| {
+                self.glyph_extents(glyph)
+                    .map(|extents| read_fonts::model::metrics::GlyphExtents {
+                        x_bearing: extents.x_bearing,
+                        y_bearing: extents.y_bearing,
+                        width: extents.width,
+                        height: extents.height.saturating_neg(),
+                    })
+            };
+            (*self.glyph_metrics())
+                .with_glyph_extents(Some(&extents))
+                .v_origin_y(glyph)
+        } else {
+            self.glyph_metrics().v_origin_y(glyph)
+        };
+        (self.glyph_h_advance(glyph) / 2, y)
     }
 
     /// Returns the effective glyph extents.
@@ -557,10 +546,69 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Returns the scaled glyph extents from the font's own tables.
     pub fn default_glyph_extents(&self, glyph: GlyphId) -> Option<GlyphExtents> {
-        self.builtin
+        self.glyph_metrics()
             .extents(glyph)
-            .map(|e| self.scale.scale_extents(e))
+            .map(|extents| GlyphExtents {
+                x_bearing: extents.x_bearing,
+                y_bearing: extents.y_bearing,
+                width: extents.width,
+                height: extents.height.saturating_neg(),
+            })
     }
+
+    fn cmap_cache(&self) -> Option<&CharmapCache> {
+        self.cmap_cache
+    }
+
+    fn symbol_font_page(&self) -> u16 {
+        *self.symbol_font_page.get_or_init(|| {
+            if self.charmap.unicode_is_symbol() {
+                legacy_symbol_font_page(self.font.tables().os2().ok().as_ref())
+            } else {
+                0
+            }
+        })
+    }
+
+    fn glyph_metrics(&self) -> &ScaledGlyphMetrics<'a, 'static, Scale> {
+        self.glyph_metrics
+            .get_or_init(|| self.font.glyph_metrics().scaled(self.scale))
+    }
+
+    fn map_unicode(&self, codepoint: u32) -> Option<GlyphId> {
+        self.charmap.map_unicode(codepoint).or_else(|| {
+            let mapped = match self.symbol_font_page() {
+                0xB200 => arabic_pua_map(codepoint, true),
+                0xB300 => arabic_pua_map(codepoint, false),
+                _ => 0,
+            };
+            (mapped != 0)
+                .then(|| self.charmap.map_unicode(mapped))
+                .flatten()
+        })
+    }
+}
+
+fn legacy_symbol_font_page(os2: Option<&read_fonts::tables::os2::Os2<'_>>) -> u16 {
+    let Some(os2) = os2.filter(|os2| os2.version() == 0) else {
+        return 0;
+    };
+    os2.offset_data()
+        .read_at::<u16>(os2.fs_selection_byte_range().start)
+        .unwrap_or_default()
+        & 0xFF00
+}
+
+fn arabic_pua_map(codepoint: u32, simplified: bool) -> u32 {
+    let Ok(codepoint) = usize::try_from(codepoint) else {
+        return 0;
+    };
+    let mapped = if simplified {
+        crate::ot::shaper::arabic_pua::arabic_pua_simp_map(codepoint)
+    } else {
+        crate::ot::shaper::arabic_pua::arabic_pua_trad_map(codepoint)
+    };
+    u32::from(mapped)
 }
 
 /// Customizable font callback surface.
@@ -598,25 +646,25 @@ pub trait FontFuncs {
     }
 
     /// Variation-selector mapping callback.
-    fn variant_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {
-        font.default_variant_glyph(c, vs)
+    fn variation_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {
+        font.default_variation_glyph(c, vs)
     }
 
     /// Horizontal advance callback.
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what value this method should return.
-    fn h_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
-        font.default_h_advance(glyph)
+    fn glyph_h_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
+        font.default_glyph_h_advance(glyph)
     }
 
     /// Batch horizontal-advance callback.
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what value this method should return.
-    fn h_advances(&self, font: &ShaperFont, advances: Advances<'_>) {
+    fn glyph_h_advances(&self, font: &ShaperFont, advances: Advances<'_>) {
         for (glyph, advance) in advances {
-            *advance = self.h_advance(font, glyph);
+            *advance = self.glyph_h_advance(font, glyph);
         }
     }
 
@@ -624,8 +672,8 @@ pub trait FontFuncs {
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what value this method should return.
-    fn v_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
-        font.default_v_advance(glyph)
+    fn glyph_v_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
+        font.default_glyph_v_advance(glyph)
     }
 
     /// Vertical origin callback.
@@ -634,8 +682,8 @@ pub trait FontFuncs {
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what values this method should return.
-    fn v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
-        font.default_v_origin(glyph)
+    fn glyph_v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+        font.default_glyph_v_origin(glyph)
     }
 
     /// Glyph extents callback.
@@ -651,33 +699,30 @@ pub trait FontFuncs {
 mod tests {
     use super::*;
     use crate::{aat::AatData, ot::OtData, Tag};
-    use core::cell::Cell;
-    use read_fonts::{FontData, FontRef, TableProvider};
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    use read_fonts::{FontRef, TableProvider};
 
-    struct CountingProvider<'a> {
-        font: FontRef<'a>,
-        loads: Cell<usize>,
-    }
-
-    impl<'a> TableProvider<'a> for CountingProvider<'a> {
-        fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
-            self.loads.set(self.loads.get() + 1);
-            self.font.data_for_tag(tag)
-        }
-    }
+    use alloc::sync::Arc;
+    use read_fonts::model::{Blob, TableFunction};
 
     #[test]
     fn cached_table_disposition_skips_missing_tables() {
-        let font = FontRef::new(include_bytes!("../benches/fonts/Roboto-Regular.ttf")).unwrap();
-        let provider = CountingProvider {
-            font,
-            loads: Cell::new(0),
-        };
-        let cache = LayoutCache::new(&provider, false);
+        let source = FontRef::new(include_bytes!("../benches/fonts/Roboto-Regular.ttf")).unwrap();
+        let loads = Arc::new(AtomicUsize::new(0));
+        let load_count = loads.clone();
+        let tables = TableFunction::new(Arc::new(move |tag| {
+            load_count.fetch_add(1, Ordering::Relaxed);
+            source
+                .data_for_tag(tag)
+                .map(|data| Blob::from(data.as_bytes().to_vec()))
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        let cache = LayoutCache::new(&font);
 
-        provider.loads.set(0);
-        let ot_data = OtData::from_tables(&provider, &cache.ot, &[], [None; 2]);
-        let aat_data = AatData::from_tables(&provider, &cache.aat);
+        loads.store(0, Ordering::Relaxed);
+        let tables = font.tables();
+        let ot_data = OtData::from_tables(&tables, &cache.ot, &[], [None; 2]);
+        let aat_data = AatData::from_tables(&tables, &cache.aat);
 
         assert!(ot_data.gsub.is_some());
         assert!(ot_data.gpos.is_some());
@@ -690,7 +735,61 @@ mod tests {
         assert!(aat_data.trak.is_none());
         assert!(aat_data.feat.is_none());
         assert!(aat_data.ltag.is_none());
-        assert_eq!(provider.loads.get(), 3);
+        // The layout cache has already loaded these tables through Font.
+        assert_eq!(loads.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn charmap_and_glyph_metrics_load_on_first_query() {
+        let source = FontRef::new(include_bytes!("../benches/fonts/Roboto-Regular.ttf")).unwrap();
+        let cmap_loads = Arc::new(AtomicUsize::new(0));
+        let hmtx_loads = Arc::new(AtomicUsize::new(0));
+        let cmap_count = cmap_loads.clone();
+        let hmtx_count = hmtx_loads.clone();
+        let tables = TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"cmap") {
+                cmap_count.fetch_add(1, Ordering::Relaxed);
+            } else if tag == Tag::new(b"hmtx") {
+                hmtx_count.fetch_add(1, Ordering::Relaxed);
+            }
+            source
+                .data_for_tag(tag)
+                .map(|data| Blob::from(data.as_bytes().to_vec()))
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        let shaper = ShaperFont::new(&font);
+        assert_eq!(cmap_loads.load(Ordering::Relaxed), 0);
+        assert_eq!(hmtx_loads.load(Ordering::Relaxed), 0);
+
+        assert!(shaper.default_nominal_glyph('A' as u32).is_some());
+        assert_eq!(cmap_loads.load(Ordering::Relaxed), 1);
+        assert_eq!(hmtx_loads.load(Ordering::Relaxed), 0);
+
+        let _ = shaper.default_glyph_h_advance(GlyphId::new(1));
+        assert_eq!(hmtx_loads.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn maps_legacy_arabic_symbol_fonts() {
+        let simplified = Font::new(
+            include_bytes!("../tests/fonts/in-house/SimpArabicTest.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            ShaperFont::new(&simplified).default_nominal_glyph(0x0627),
+            Some(GlyphId::new(45))
+        );
+
+        let traditional = Font::new(
+            include_bytes!("../tests/fonts/in-house/TradArabicTest.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        assert_eq!(
+            ShaperFont::new(&traditional).default_nominal_glyph(0x0627),
+            Some(GlyphId::new(65))
+        );
     }
 
     #[test]

@@ -40,7 +40,7 @@ struct ShapePlanCache {
 impl ShapePlanCache {
     fn get(
         &mut self,
-        instance: &harfrust::font::FontInstance,
+        instance: &harfrust::font::Font,
         buffer: &harfrust::Buffer,
     ) -> &harfrust::ShapePlan {
         let key = harfrust::ShapePlanKey::new(instance, buffer.script(), buffer.direction());
@@ -77,7 +77,7 @@ fn bench(c: &mut Criterion) {
         test_name.push_str(&text_path.file_name().unwrap().to_string_lossy());
         group.bench_function(&(test_name.clone() + "/hr"), |b| {
             let font = harfrust::font::Font::new(font_data.clone(), 0).unwrap();
-            let instance = harfrust::font::FontInstance::builder(&font).build();
+            let instance = font.instance_builder().build();
             let shaping_font = harfrust::ShaperFont::new(&instance);
             let mut plan_cache = ShapePlanCache::default();
             let mut buffer = harfrust::Buffer::new();

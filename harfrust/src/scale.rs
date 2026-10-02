@@ -1,4 +1,5 @@
 use crate::GlyphExtents;
+use read_fonts::types::{BoundingBox, F48Dot16};
 
 // libm used for f32::floor() and f32::ceil()
 #[cfg(not(feature = "std"))]
@@ -9,7 +10,7 @@ use core_maths::CoreFloat as _;
 /// How font units become the units a caller asked for.
 ///
 /// Shaping applies this to everything it reports, from
-/// [`crate::ShaperFont::set_scale`].
+/// [`ShaperFont::set_scale`](crate::ShaperFont::set_scale).
 /// A caller asking a font about one glyph rather
 /// than about a run needs the same conversion, and needs it to be the same
 /// one, so it is spelled once here -- down to the rounding, which follows
@@ -110,5 +111,62 @@ impl Scale {
     #[inline(always)]
     fn scale_by_mult(value: i32, mult: i64) -> i32 {
         ((i64::from(value) * mult + 32768) >> 16) as i32
+    }
+}
+
+impl read_fonts::model::metrics::Scale for Scale {
+    type Value = i32;
+
+    fn add(a: i32, b: i32) -> i32 {
+        a.saturating_add(b)
+    }
+
+    fn sub(a: i32, b: i32) -> i32 {
+        a.saturating_sub(b)
+    }
+
+    fn half(value: i32) -> i32 {
+        value / 2
+    }
+
+    fn scale_x(&self, value: F48Dot16) -> i32 {
+        if value.to_bits().trailing_zeros() >= 16 {
+            self.scale_x(value.to_i32())
+        } else {
+            self.scale_x_f(value.to_f32())
+        }
+    }
+
+    fn scale_y(&self, value: F48Dot16) -> i32 {
+        if value.to_bits().trailing_zeros() >= 16 {
+            self.scale_y(value.to_i32())
+        } else {
+            self.scale_y_f(value.to_f32())
+        }
+    }
+
+    fn scale_glyph_extents(
+        &self,
+        extents: read_fonts::model::metrics::GlyphExtents<F48Dot16>,
+    ) -> read_fonts::model::metrics::GlyphExtents<i32> {
+        let left = (extents.x_bearing.to_f32() * self.x_multf).floor();
+        let top = (extents.y_bearing.to_f32() * self.y_multf).floor();
+        let right = ((extents.x_bearing + extents.width).to_f32() * self.x_multf).ceil();
+        let bottom = ((extents.y_bearing - extents.height).to_f32() * self.y_multf).ceil();
+        read_fonts::model::metrics::GlyphExtents {
+            x_bearing: left as i32,
+            y_bearing: top as i32,
+            width: (f64::from(right) - f64::from(left)) as i32,
+            height: (f64::from(top) - f64::from(bottom)) as i32,
+        }
+    }
+
+    fn scale_rect(&self, bounds: BoundingBox<F48Dot16>) -> BoundingBox<i32> {
+        BoundingBox {
+            x_min: self.scale_x_f(bounds.x_min.to_f32()),
+            y_min: self.scale_y_f(bounds.y_min.to_f32()),
+            x_max: self.scale_x_f(bounds.x_max.to_f32()),
+            y_max: self.scale_y_f(bounds.y_max.to_f32()),
+        }
     }
 }

@@ -67,7 +67,7 @@ pub(super) fn apply(
                         let outer = data.read_at::<u16>(rec_offset).ok()?;
                         let inner = data.read_at::<u16>(rec_offset + 2).ok()?;
                         value = vs
-                            .compute_float_delta(DeltaSetIndex { outer, inner }, coords)
+                            .compute_delta(DeltaSetIndex { outer, inner }, coords)
                             .unwrap_or_default()
                             .to_f64() as f32;
                         worked |= value != 0.0;

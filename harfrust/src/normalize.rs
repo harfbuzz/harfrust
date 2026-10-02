@@ -31,7 +31,7 @@ impl NormalizeContext<'_, '_, '_, '_> {
     }
 
     fn variation_glyph(&mut self, codepoint: u32, selector: u32) -> Option<GlyphId> {
-        self.font.variant_glyph(codepoint, selector)
+        self.font.variation_glyph(codepoint, selector)
     }
 
     fn set_current_glyph(&mut self) {

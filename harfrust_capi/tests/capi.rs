@@ -871,35 +871,37 @@ fn overlaying_properties_onto_themselves_is_allowed() {
 fn a_length_of_nothing_means_what_each_creator_says() {
     unsafe {
         let storage = [0i8; 1];
+        let drops = AtomicUsize::new(0);
+        let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
 
         // `hr_blob_create` hands back the blob that holds nothing, so the
         // caller's data goes now: nothing will be left to release it.
-        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        drops.store(0, Ordering::SeqCst);
         let created = hr_blob_create(
             storage.as_ptr(),
             0,
             HR_MEMORY_MODE_READONLY,
-            ptr::dangling_mut(),
-            Some(count_null_func_drop),
+            user_data,
+            Some(count_drop),
         );
         assert_eq!(created, hr_blob_get_empty());
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
         hr_blob_destroy(created);
 
         // `hr_blob_create_or_fail` makes one that can hold it.
-        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        drops.store(0, Ordering::SeqCst);
         let or_fail = hr_blob_create_or_fail(
             storage.as_ptr(),
             0,
             HR_MEMORY_MODE_READONLY,
-            ptr::dangling_mut(),
-            Some(count_null_func_drop),
+            user_data,
+            Some(count_drop),
         );
         assert!(!or_fail.is_null());
         assert_ne!(or_fail, hr_blob_get_empty());
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 0);
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
         hr_blob_destroy(or_fail);
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
     }
 }
 
@@ -1079,32 +1081,33 @@ fn a_blob_of_nothing_is_still_a_blob() {
     unsafe {
         // Zero length is not a failure, and the blob holds the caller's data
         // until it is destroyed.
-        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        let drops = AtomicUsize::new(0);
+        let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
         let storage = [0i8; 1];
         let blob = hr_blob_create_or_fail(
             storage.as_ptr(),
             0,
             HR_MEMORY_MODE_READONLY,
-            ptr::dangling_mut(),
-            Some(count_null_func_drop),
+            user_data,
+            Some(count_drop),
         );
         assert!(!blob.is_null());
         assert_eq!(hr_blob_get_length(blob), 0);
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 0);
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
         hr_blob_destroy(blob);
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
 
         // A length that cannot be represented is the one that fails.
-        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        drops.store(0, Ordering::SeqCst);
         let refused = hr_blob_create_or_fail(
             storage.as_ptr(),
             1 << 31,
             HR_MEMORY_MODE_READONLY,
-            ptr::dangling_mut(),
-            Some(count_null_func_drop),
+            user_data,
+            Some(count_drop),
         );
         assert!(refused.is_null());
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
     }
 }
 
@@ -1650,15 +1653,11 @@ fn the_glyph_getters_ask_the_installed_callbacks() {
     }
 }
 
-static OT_FUNCS_DATA_DROPS: AtomicUsize = AtomicUsize::new(0);
-
-unsafe extern "C" fn count_ot_funcs_data_drop(_user_data: *mut c_void) {
-    OT_FUNCS_DATA_DROPS.fetch_add(1, Ordering::SeqCst);
-}
-
 #[test]
 fn the_built_in_callbacks_can_be_asked_for_again() {
     unsafe {
+        let drops = AtomicUsize::new(0);
+        let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
         with_font(|_, font| {
             let builtin = glyph_ids({
                 let buffer = buffer_with_text(TEXT);
@@ -1674,13 +1673,7 @@ fn the_built_in_callbacks_can_be_asked_for_again() {
                 ptr::null_mut(),
                 None,
             );
-            OT_FUNCS_DATA_DROPS.store(0, Ordering::SeqCst);
-            hr_font_set_funcs(
-                font,
-                ffuncs,
-                ptr::dangling_mut(),
-                Some(count_ot_funcs_data_drop),
-            );
+            hr_font_set_funcs(font, ffuncs, user_data, Some(count_drop));
             hr_font_funcs_destroy(ffuncs);
 
             let buffer = buffer_with_text(TEXT);
@@ -1692,7 +1685,7 @@ fn the_built_in_callbacks_can_be_asked_for_again() {
             // to the ones the font started with.
             hr_ot_font_set_funcs(font);
             assert_eq!(
-                OT_FUNCS_DATA_DROPS.load(Ordering::SeqCst),
+                drops.load(Ordering::SeqCst),
                 1,
                 "the replaced callbacks' data should be released"
             );
@@ -1771,42 +1764,28 @@ fn unset_callbacks_report_nothing_available() {
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-static SHARED_DROPS: AtomicUsize = AtomicUsize::new(0);
-static REPLACED_DROPS: AtomicUsize = AtomicUsize::new(0);
-
-unsafe extern "C" fn count_shared_drop(_user_data: *mut c_void) {
-    SHARED_DROPS.fetch_add(1, Ordering::SeqCst);
-}
-
-unsafe extern "C" fn count_replaced_drop(_user_data: *mut c_void) {
-    REPLACED_DROPS.fetch_add(1, Ordering::SeqCst);
-}
-
 #[test]
 fn font_data_outlives_every_font_sharing_it() {
     unsafe {
+        let drops = AtomicUsize::new(0);
+        let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
         with_font(|_, font| {
             let ffuncs = hr_font_funcs_create();
-            hr_font_set_funcs(
-                font,
-                ffuncs,
-                ptr::dangling_mut::<c_void>(),
-                Some(count_shared_drop),
-            );
+            hr_font_set_funcs(font, ffuncs, user_data, Some(count_drop));
 
             // A sub-font holds no data of its own; it asks its parent every
             // time, so it is never left holding what the parent has replaced.
             let sub = hr_font_create_sub_font(font);
-            assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 0);
+            assert_eq!(drops.load(Ordering::SeqCst), 0);
 
             // Which means replacing the parent's callbacks releases the data
             // they were given there and then, live sub-font or not, as it
             // does in HarfBuzz.
             hr_font_set_funcs(font, ffuncs, ptr::dangling_mut::<c_void>(), None);
-            assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 1);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
 
             hr_font_destroy(sub);
-            assert_eq!(SHARED_DROPS.load(Ordering::SeqCst), 1);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
 
             hr_font_funcs_destroy(ffuncs);
         });
@@ -1816,24 +1795,21 @@ fn font_data_outlives_every_font_sharing_it() {
 #[test]
 fn font_data_is_released_once_when_replaced() {
     unsafe {
+        let drops = AtomicUsize::new(0);
+        let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
         with_font(|_, font| {
             let ffuncs = hr_font_funcs_create();
-            hr_font_set_funcs(
-                font,
-                ffuncs,
-                ptr::dangling_mut::<c_void>(),
-                Some(count_replaced_drop),
-            );
-            assert_eq!(REPLACED_DROPS.load(Ordering::SeqCst), 0);
+            hr_font_set_funcs(font, ffuncs, user_data, Some(count_drop));
+            assert_eq!(drops.load(Ordering::SeqCst), 0);
 
             // With nothing else sharing it, replacing releases it at once.
             hr_font_set_funcs(font, ffuncs, ptr::dangling_mut::<c_void>(), None);
-            assert_eq!(REPLACED_DROPS.load(Ordering::SeqCst), 1);
+            assert_eq!(drops.load(Ordering::SeqCst), 1);
 
             hr_font_funcs_destroy(ffuncs);
         });
         // And not again when the font itself goes.
-        assert_eq!(REPLACED_DROPS.load(Ordering::SeqCst), 1);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
     }
 }
 
@@ -2459,27 +2435,22 @@ fn shape_full_reports_only_whether_a_shaper_ran() {
     }
 }
 
-static NULL_FUNC_DROPS: AtomicUsize = AtomicUsize::new(0);
-
-unsafe extern "C" fn count_null_func_drop(_user_data: *mut c_void) {
-    NULL_FUNC_DROPS.fetch_add(1, Ordering::SeqCst);
+unsafe extern "C" fn count_drop(user_data: *mut c_void) {
+    let drops = unsafe { &*user_data.cast::<AtomicUsize>() };
+    drops.fetch_add(1, Ordering::SeqCst);
 }
 
 #[test]
 fn clearing_a_callback_still_releases_its_user_data() {
     unsafe {
         let ffuncs = hr_font_funcs_create();
-        NULL_FUNC_DROPS.store(0, Ordering::SeqCst);
+        let drops = AtomicUsize::new(0);
+        let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
         // A setter owns the data it is handed whether or not there is a
         // callback to keep it, so clearing one has to release it. Otherwise
         // the caller cannot tell which calls took ownership.
-        hr_font_funcs_set_nominal_glyph_func(
-            ffuncs,
-            None,
-            ptr::dangling_mut(),
-            Some(count_null_func_drop),
-        );
-        assert_eq!(NULL_FUNC_DROPS.load(Ordering::SeqCst), 1);
+        hr_font_funcs_set_nominal_glyph_func(ffuncs, None, user_data, Some(count_drop));
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
         hr_font_funcs_destroy(ffuncs);
     }
 }
@@ -2519,10 +2490,8 @@ fn clearing_user_data_removes_the_key() {
 
 static REENTRANT_KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
 static REENTRANT_OTHER: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
-static REENTRANT_FACE: AtomicUsize = AtomicUsize::new(0);
-
-unsafe extern "C" fn reenter_on_drop(_user_data: *mut c_void) {
-    let face = REENTRANT_FACE.load(Ordering::SeqCst) as *mut hr_face_t;
+unsafe extern "C" fn reenter_on_drop(user_data: *mut c_void) {
+    let face = user_data.cast::<hr_face_t>();
     unsafe {
         hr_face_set_user_data(
             face,
@@ -2543,11 +2512,10 @@ fn a_destructor_may_set_user_data_on_the_same_object() {
     std::thread::spawn(move || {
         unsafe {
             with_font(|face, _| {
-                REENTRANT_FACE.store(face as usize, Ordering::SeqCst);
                 hr_face_set_user_data(
                     face,
                     &raw const REENTRANT_KEY,
-                    ptr::dangling_mut(),
+                    face.cast(),
                     Some(reenter_on_drop),
                     1,
                 );

@@ -3,7 +3,7 @@
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
-use harfrust::font::FontBlob;
+use harfrust::font::Blob;
 
 use crate::common::hr_bool_t;
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
@@ -59,7 +59,7 @@ impl Drop for ForeignBytes {
 
 /// A slice of another blob, keeping the parent's data alive.
 struct SubBytes {
-    parent: FontBlob,
+    parent: Blob,
     start: usize,
     end: usize,
 }
@@ -76,11 +76,11 @@ impl AsRef<[u8]> for SubBytes {
 /// Binary data with a lifetime.
 pub struct hr_blob_t {
     header: ObjectHeader,
-    pub(crate) blob: FontBlob,
+    pub(crate) blob: Blob,
 }
 
 impl hr_blob_t {
-    pub(crate) fn new(blob: FontBlob) -> *mut Self {
+    pub(crate) fn new(blob: Blob) -> *mut Self {
         object::create(hr_blob_t {
             header: ObjectHeader::new(),
             blob,
@@ -92,7 +92,7 @@ impl hr_blob_t {
     }
 
     /// Creates a blob over a range of `parent`, sharing its storage.
-    pub(crate) fn sub(parent: &FontBlob, start: usize, end: usize) -> *mut Self {
+    pub(crate) fn sub(parent: &Blob, start: usize, end: usize) -> *mut Self {
         if start >= end || end > parent.as_ref().len() {
             return Self::empty();
         }
@@ -101,7 +101,7 @@ impl hr_blob_t {
             start,
             end,
         };
-        Self::new(FontBlob::Shared(
+        Self::new(Blob::Shared(
             Arc::new(sub) as Arc<dyn AsRef<[u8]> + Send + Sync>
         ))
     }
@@ -119,7 +119,7 @@ impl Object for hr_blob_t {
             .get_or_init(|| {
                 Empty::new(hr_blob_t {
                     header: ObjectHeader::immortal(),
-                    blob: FontBlob::Static(&[]),
+                    blob: Blob::Static(&[]),
                 })
             })
             .get()
@@ -193,7 +193,7 @@ unsafe fn blob_from_raw(
     mode: hr_memory_mode_t,
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
-) -> Option<FontBlob> {
+) -> Option<Blob> {
     // A length that cannot be represented is the one thing HarfBuzz refuses
     // outright, handing the data back as it does so.
     if length >= 1 << 31 {
@@ -214,7 +214,7 @@ unsafe fn blob_from_raw(
         if let Some(destroy) = destroy {
             unsafe { destroy(user_data) };
         }
-        return Some(FontBlob::from(copy));
+        return Some(Blob::from(copy));
     }
     // A blob of nothing is still a blob, and still holds the caller's data
     // until it is destroyed: HarfBuzz fails only on a length it cannot take.
@@ -224,7 +224,7 @@ unsafe fn blob_from_raw(
         user_data,
         destroy,
     };
-    Some(FontBlob::Shared(
+    Some(Blob::Shared(
         Arc::new(bytes) as Arc<dyn AsRef<[u8]> + Send + Sync>
     ))
 }
@@ -262,7 +262,7 @@ pub unsafe extern "C" fn hr_blob_create_from_file_or_fail(
         return core::ptr::null_mut();
     };
     match std::fs::read(path) {
-        Ok(data) => hr_blob_t::new(FontBlob::from(data)),
+        Ok(data) => hr_blob_t::new(Blob::from(data)),
         Err(_) => core::ptr::null_mut(),
     }
 }
@@ -298,7 +298,7 @@ pub unsafe extern "C" fn hr_blob_create_sub_blob(
         start,
         end,
     };
-    hr_blob_t::new(FontBlob::Shared(
+    hr_blob_t::new(Blob::Shared(
         Arc::new(sub) as Arc<dyn AsRef<[u8]> + Send + Sync>
     ))
 }
@@ -319,7 +319,7 @@ pub unsafe extern "C" fn hr_blob_copy_writable_or_fail(blob: *mut hr_blob_t) -> 
     if bytes.is_empty() {
         return core::ptr::null_mut();
     }
-    hr_blob_t::new(FontBlob::from(bytes.to_vec()))
+    hr_blob_t::new(Blob::from(bytes.to_vec()))
 }
 
 /// Returns the immortal empty blob.
