@@ -1,13 +1,13 @@
 use crate::tables::{legacy_symbol_font_page, SelectedCmapSubtable, TableRanges};
 
-use super::cache::hb_cache_t;
+use super::cache::Cache;
 use read_fonts::{
     tables::cmap::{Cmap, Cmap14, CmapSubtable, MapVariant},
     types::GlyphId,
     FontRef, TableProvider,
 };
 
-pub type cache_t = hb_cache_t<21, 19, 256, 32>;
+pub type CharmapCache = Cache<21, 19, 256, 32>;
 
 #[derive(Clone)]
 pub struct Charmap<'a> {
@@ -104,9 +104,9 @@ fn arabic_pua_map(c: u32, simplified: bool) -> u32 {
         return 0;
     };
     let mapped = if simplified {
-        super::ot::shaper::arabic_pua::_hb_arabic_pua_simp_map(c)
+        super::ot::shaper::arabic_pua::arabic_pua_simp_map(c)
     } else {
-        super::ot::shaper::arabic_pua::_hb_arabic_pua_trad_map(c)
+        super::ot::shaper::arabic_pua::arabic_pua_trad_map(c)
     };
     u32::from(mapped)
 }

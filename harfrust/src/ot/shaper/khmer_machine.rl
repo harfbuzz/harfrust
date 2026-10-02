@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, hb_buffer_t};
+use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
 
 %%{
   machine khmer_syllable_machine;
@@ -21,7 +21,7 @@ use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, hb_buffer_t};
   write data;
 }%%
 
-// IMPORTANT: Before updating any values here, make sure to read the comment in `ot_category_t`.
+// IMPORTANT: Before updating any values here, make sure to read the comment in `category`.
 %%{
 
 # We use category H for spec category Coeng
@@ -77,7 +77,7 @@ pub enum SyllableType {
     NonKhmerCluster,
 }
 
-pub fn find_syllables_khmer(buffer: &mut hb_buffer_t) {
+pub fn find_syllables_khmer(buffer: &mut Buffer) {
     let mut cs = 0;
     let mut ts = 0;
     let mut te = 0;
@@ -106,7 +106,7 @@ fn found_syllable(
     end: usize,
     syllable_serial: &mut u8,
     kind: SyllableType,
-    buffer: &mut hb_buffer_t,
+    buffer: &mut Buffer,
 ) {
     for i in start..end {
         buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);

@@ -24,7 +24,7 @@
 use crate::unicode::Codepoint;
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_emoji_u8: [u8; 624]=
+pub(crate) static emoji_u8: [u8; 624]=
 [
     1,  0,  0,  0, 50,  4,  5,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -69,28 +69,28 @@ pub(crate) static _hb_emoji_u8: [u8; 624]=
 
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast)]
 #[inline(always)]
-fn _hb_emoji_b4 (a: &[u8], i: usize) -> u8
+fn emoji_b4 (a: &[u8], i: usize) -> u8
 {
   (a[i>>1]>>((i&1)<<2))&15
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast)]
 #[inline(always)]
-fn _hb_emoji_b1 (a: &[u8], i: usize) -> u8
+fn emoji_b1 (a: &[u8], i: usize) -> u8
 {
   (a[i>>3]>>((i&7)<<0))&1
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_emoji_is_Extended_Pictographic_u8 (u: usize) -> u8
+pub(crate) fn emoji_is_extended_pictographic_u8 (u: usize) -> u8
 {
   /* packtab: [2^4,2^4,2^6] */
-  if u<131070usize { (_hb_emoji_b1(&_hb_emoji_u8[224usize..],(((_hb_emoji_u8[64usize+((((_hb_emoji_b4(&_hb_emoji_u8,(((((u)>>6))>>4) as usize) as usize)) as usize)<<4) as usize+((((u)>>6))&15) as usize) as usize]) as usize)<<6) as usize+((u)&63) as usize)) as u8 } else { 0 }
+  if u<131070usize { (emoji_b1(&emoji_u8[224usize..],(((emoji_u8[64usize+((((emoji_b4(&emoji_u8,(((((u)>>6))>>4) as usize) as usize)) as usize)<<4) as usize+((((u)>>6))&15) as usize) as usize]) as usize)<<6) as usize+((u)&63) as usize)) as u8 } else { 0 }
 }
 
 #[inline]
 pub(crate) fn is_Extended_Pictographic (u: Codepoint) -> bool
 {
-  _hb_emoji_is_Extended_Pictographic_u8 (u as usize) != 0
+  emoji_is_extended_pictographic_u8 (u as usize) != 0
 }
 
 

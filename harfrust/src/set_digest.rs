@@ -1,26 +1,26 @@
 use read_fonts::tables::layout::CoverageTable;
 
-type mask_t = u64;
+type DigestMask = u64;
 
 const HB_SET_DIGEST_SHIFTS: [u32; 3] = [4, 0, 6];
 const N: usize = HB_SET_DIGEST_SHIFTS.len();
-const MASK_BITS: u32 = mask_t::BITS;
+const MASK_BITS: u32 = DigestMask::BITS;
 const MB1: u32 = MASK_BITS - 1;
-const ONE: mask_t = 1;
-const ALL: mask_t = mask_t::MAX;
+const ONE: DigestMask = 1;
+const ALL: DigestMask = DigestMask::MAX;
 
 #[derive(Clone, Debug)]
-pub struct hb_set_digest_t {
-    masks: [mask_t; N],
+pub struct SetDigest {
+    masks: [DigestMask; N],
 }
 
-impl Default for hb_set_digest_t {
+impl Default for SetDigest {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl hb_set_digest_t {
+impl SetDigest {
     pub fn new() -> Self {
         Self { masks: [0; N] }
     }
@@ -61,8 +61,8 @@ impl hb_set_digest_t {
     }
 
     pub fn add_range(&mut self, a: u32, b: u32) -> bool {
-        let a = a as mask_t;
-        let b = b as mask_t;
+        let a = a as DigestMask;
+        let b = b as DigestMask;
 
         if self.masks.iter().all(|&m| m == ALL) {
             return false;
@@ -70,13 +70,13 @@ impl hb_set_digest_t {
 
         let mut changed = false;
         for i in 0..N {
-            let shift = HB_SET_DIGEST_SHIFTS[i] as mask_t;
-            if (b >> shift).wrapping_sub(a >> shift) >= MB1 as mask_t {
+            let shift = HB_SET_DIGEST_SHIFTS[i] as DigestMask;
+            if (b >> shift).wrapping_sub(a >> shift) >= MB1 as DigestMask {
                 self.masks[i] = ALL;
             } else {
-                let ma = ONE << ((a >> shift) & MB1 as mask_t);
-                let mb = ONE << ((b >> shift) & MB1 as mask_t);
-                self.masks[i] |= mb + mb.wrapping_sub(ma) - mask_t::from(mb < ma);
+                let ma = ONE << ((a >> shift) & MB1 as DigestMask);
+                let mb = ONE << ((b >> shift) & MB1 as DigestMask);
+                self.masks[i] |= mb + mb.wrapping_sub(ma) - DigestMask::from(mb < ma);
                 changed = true;
             }
         }
@@ -125,14 +125,14 @@ mod tests {
 
     #[test]
     fn test_single() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         set.add(2);
         assert!(set.may_have(2));
     }
 
     #[test]
     fn test_multiple_1() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         set.add(2);
         set.add(10);
         set.add(300);
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_multiple_2() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         set.add(245);
         set.add(1060);
         set.add(300);
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_range_1() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         set.add_range(10, 12);
         assert!(set.may_have(10));
         assert!(set.may_have(11));
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_range_2() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         set.add_range(20, 15);
         set.add_range(15, 20);
         for gid in 15..=20 {
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_range_3() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         for i in 170..=239 {
             set.add(i);
         }
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_complex() {
-        let mut set = hb_set_digest_t::new();
+        let mut set = SetDigest::new();
         set.add_range(5670, 5675);
         set.add(3);
         set.add(8769);
@@ -204,8 +204,8 @@ mod tests {
 
     #[test]
     fn test_intersect() {
-        let mut a = hb_set_digest_t::new();
-        let mut b = hb_set_digest_t::new();
+        let mut a = SetDigest::new();
+        let mut b = SetDigest::new();
 
         a.add(123);
         b.add(456);

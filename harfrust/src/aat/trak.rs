@@ -7,11 +7,11 @@ use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
 
-use crate::{buffer::Buffer, face::Scale, hb_font_t, ot::shape::plan::hb_ot_shape_plan_t};
+use crate::{buffer::Buffer, face::Scale, ot::shape::plan::ShapePlan, Shaper};
 
 pub fn apply(
-    _plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
+    _plan: &ShapePlan,
+    face: &Shaper,
     scale: Scale,
     point_size: Option<f32>,
     buffer: &mut Buffer,

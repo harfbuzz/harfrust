@@ -2,12 +2,12 @@ use alloc::{boxed::Box, vec::Vec};
 
 use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
 use crate::buffer::GlyphInfo;
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
+use crate::ot::gsubgpos::ApplyContext;
 use crate::ot::gsubgpos::{
-    apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    may_skip_t, skipping_iterator_t, Apply, BinaryCache, ChainContextClassCaches,
-    ChainContextFormat2Cache, ContextFormat2Cache, MappingCache, RuleSetDigest,
-    SubtableExternalCache, SubtableExternalCacheMode, WouldApply, WouldApplyContext,
+    apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead, Apply,
+    BinaryCache, ChainContextClassCaches, ChainContextFormat2Cache, ContextFormat2Cache,
+    MappingCache, MaySkip, RuleSetDigest, SkippingIterator, SubtableExternalCache,
+    SubtableExternalCacheMode, WouldApply, WouldApplyContext,
 };
 use crate::ot::{ClassDefInfo, CoverageInfo};
 use read_fonts::tables::gsub::ClassDef;
@@ -84,7 +84,7 @@ impl WouldApply for SequenceContextFormat1<'_> {
 }
 
 impl Apply for SequenceContextFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.seq_rule_sets().get(index)?.ok()?;
@@ -130,7 +130,7 @@ impl WouldApply for SequenceContextFormat2<'_> {
 impl Apply for SequenceContextFormat2<'_> {
     fn apply_with_external_cache(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
@@ -159,7 +159,7 @@ impl Apply for SequenceContextFormat2<'_> {
 
     fn apply_cached(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
@@ -222,7 +222,7 @@ impl WouldApply for SequenceContextFormat3<'_> {
 }
 
 impl Apply for SequenceContextFormat3<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let input_coverages = self.coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
@@ -288,7 +288,7 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
 }
 
 impl Apply for ChainedSequenceContextFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
@@ -400,7 +400,7 @@ fn match_class_cached2<'a>(
 impl Apply for ChainedSequenceContextFormat2<'_> {
     fn apply_with_external_cache(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
@@ -468,7 +468,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
     }
     fn apply_cached(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
@@ -551,7 +551,7 @@ impl WouldApply for ChainedSequenceContextFormat3<'_> {
 }
 
 impl Apply for ChainedSequenceContextFormat3<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
 
         let input_coverages = self.input_coverages();
@@ -685,7 +685,7 @@ impl<'a> ParsedRule<'a> {
     /// [`apply_chain_with_sequences`] instead.
     fn apply(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         match_func: &impl Fn(&mut GlyphInfo, u32) -> bool,
     ) -> Option<()> {
         let inputs = self.input;
@@ -858,7 +858,7 @@ fn parse_chain_rule_at<'a>(
 }
 
 fn apply_context_rules(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     set_data: FontData<'_>,
     rule_offsets: &[BigEndian<Offset16>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
@@ -878,7 +878,7 @@ fn apply_context_rules(
     // default-ignorables and such.
     //
     // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
-    let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
+    let mut skippy_iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to = None;
@@ -887,7 +887,7 @@ fn apply_context_rules(
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -941,7 +941,7 @@ fn apply_context_rules(
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1018,7 +1018,7 @@ fn apply_chain_with_sequences<
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
 >(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     rule: &ParsedRule<'_>,
     match_funcs: &(F1, F2, F3),
 ) -> Option<()> {
@@ -1085,7 +1085,7 @@ fn apply_chain_context_rules<
     F3: Fn(&mut GlyphInfo, u32) -> bool,
     F4: Fn(&mut GlyphInfo) -> u16,
 >(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     set_data: FontData<'_>,
     rule_offsets: &[BigEndian<Offset16>],
     match_funcs: (F1, F2, F3),
@@ -1101,7 +1101,7 @@ fn apply_chain_context_rules<
     // default-ignorables and such.
     //
     // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
-    let mut skippy_iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
+    let mut skippy_iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
     skippy_iter.reset(skippy_iter.buffer.idx);
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to = None;
@@ -1110,7 +1110,7 @@ fn apply_chain_context_rules<
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != may_skip_t::SKIP_NO {
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1165,7 +1165,7 @@ fn apply_chain_context_rules<
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != may_skip_t::SKIP_NO {
+        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {

@@ -2,7 +2,7 @@ pub(crate) mod fallback;
 pub(crate) mod normalize;
 pub mod plan;
 
-use self::plan::hb_ot_shape_plan_t;
+use self::plan::ShapePlan;
 use crate::aat;
 use crate::aat::map::*;
 use crate::buffer::GlyphFlags;
@@ -15,43 +15,43 @@ use crate::ot::shaper::*;
 use crate::ot::*;
 use crate::unicode::{CharExt, GeneralCategory};
 use crate::BufferFlags;
-use crate::{hb_font_t, hb_tag_t};
 use crate::{Direction, Feature, Language, Script};
+use crate::{Shaper, Tag};
 use core::ptr;
 
-pub struct hb_ot_shape_planner_t<'a> {
-    pub face: &'a hb_font_t<'a>,
+pub struct ShapePlanner<'a> {
+    pub face: &'a Shaper<'a>,
     pub direction: Direction,
     pub script: Option<Script>,
     pub language: Option<Language>,
-    pub ot_map: hb_ot_map_builder_t<'a>,
+    pub ot_map: OtMapBuilder<'a>,
     pub aat_map: AatMapBuilder,
     pub apply_morx: bool,
     pub script_zero_marks: bool,
     pub script_fallback_position: bool,
-    pub shaper: &'static hb_ot_shaper_t,
+    pub shaper: &'static OtShaper,
 }
 
-impl<'a> hb_ot_shape_planner_t<'a> {
+impl<'a> ShapePlanner<'a> {
     pub fn new(
-        face: &'a hb_font_t<'a>,
+        face: &'a Shaper<'a>,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
     ) -> Self {
-        let ot_map = hb_ot_map_builder_t::new(face, script, language);
+        let ot_map = OtMapBuilder::new(face, script, language);
         let aat_map = AatMapBuilder::new(language);
 
         let mut shaper = match script {
-            Some(script) => hb_ot_shape_complex_categorize(
+            Some(script) => categorize(
                 script,
                 direction,
-                ot_map.chosen_script(TableIndex::GSUB),
+                ot_map.chosen_script(LayoutTableKind::Gsub),
             ),
             None => &DEFAULT_SHAPER,
         };
 
-        let script_zero_marks = shaper.zero_width_marks != HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE;
+        let script_zero_marks = shaper.zero_width_marks != ZeroWidthMarks::None;
         let script_fallback_position = shaper.fallback_position;
 
         // https://github.com/harfbuzz/harfbuzz/issues/2124
@@ -63,7 +63,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             shaper = &DUMBER_SHAPER;
         }
 
-        hb_ot_shape_planner_t {
+        ShapePlanner {
             face,
             direction,
             script,
@@ -78,69 +78,69 @@ impl<'a> hb_ot_shape_planner_t<'a> {
     }
 
     pub fn collect_features(&mut self, user_features: &[Feature]) {
-        static COMMON_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
-            (hb_tag_t::new(b"abvm"), F_GLOBAL),
-            (hb_tag_t::new(b"blwm"), F_GLOBAL),
-            (hb_tag_t::new(b"ccmp"), F_GLOBAL),
-            (hb_tag_t::new(b"locl"), F_GLOBAL),
-            (hb_tag_t::new(b"mark"), F_GLOBAL_MANUAL_JOINERS),
-            (hb_tag_t::new(b"mkmk"), F_GLOBAL_MANUAL_JOINERS),
-            (hb_tag_t::new(b"rlig"), F_GLOBAL),
+        static COMMON_FEATURES: &[(Tag, MapFeatureFlags)] = &[
+            (Tag::new(b"abvm"), F_GLOBAL),
+            (Tag::new(b"blwm"), F_GLOBAL),
+            (Tag::new(b"ccmp"), F_GLOBAL),
+            (Tag::new(b"locl"), F_GLOBAL),
+            (Tag::new(b"mark"), F_GLOBAL_MANUAL_JOINERS),
+            (Tag::new(b"mkmk"), F_GLOBAL_MANUAL_JOINERS),
+            (Tag::new(b"rlig"), F_GLOBAL),
         ];
 
-        static HORIZONTAL_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
-            (hb_tag_t::new(b"calt"), F_GLOBAL),
-            (hb_tag_t::new(b"clig"), F_GLOBAL),
-            (hb_tag_t::new(b"curs"), F_GLOBAL),
-            (hb_tag_t::new(b"dist"), F_GLOBAL),
-            (hb_tag_t::new(b"kern"), F_GLOBAL_HAS_FALLBACK),
-            (hb_tag_t::new(b"liga"), F_GLOBAL),
-            (hb_tag_t::new(b"rclt"), F_GLOBAL),
+        static HORIZONTAL_FEATURES: &[(Tag, MapFeatureFlags)] = &[
+            (Tag::new(b"calt"), F_GLOBAL),
+            (Tag::new(b"clig"), F_GLOBAL),
+            (Tag::new(b"curs"), F_GLOBAL),
+            (Tag::new(b"dist"), F_GLOBAL),
+            (Tag::new(b"kern"), F_GLOBAL_HAS_FALLBACK),
+            (Tag::new(b"liga"), F_GLOBAL),
+            (Tag::new(b"rclt"), F_GLOBAL),
         ];
 
         let empty = F_NONE;
         self.ot_map.is_simple = true;
 
-        self.ot_map.enable_feature(hb_tag_t::new(b"rvrn"), empty, 1);
+        self.ot_map.enable_feature(Tag::new(b"rvrn"), empty, 1);
         self.ot_map.add_gsub_pause(None);
 
         match self.direction {
             Direction::LeftToRight => {
-                self.ot_map.enable_feature(hb_tag_t::new(b"ltra"), empty, 1);
-                self.ot_map.enable_feature(hb_tag_t::new(b"ltrm"), empty, 1);
+                self.ot_map.enable_feature(Tag::new(b"ltra"), empty, 1);
+                self.ot_map.enable_feature(Tag::new(b"ltrm"), empty, 1);
             }
             Direction::RightToLeft => {
-                self.ot_map.enable_feature(hb_tag_t::new(b"rtla"), empty, 1);
-                self.ot_map.add_feature(hb_tag_t::new(b"rtlm"), empty, 1);
+                self.ot_map.enable_feature(Tag::new(b"rtla"), empty, 1);
+                self.ot_map.add_feature(Tag::new(b"rtlm"), empty, 1);
             }
             _ => {}
         }
 
         // Automatic fractions.
-        self.ot_map.add_feature(hb_tag_t::new(b"frac"), empty, 1);
-        self.ot_map.add_feature(hb_tag_t::new(b"numr"), empty, 1);
-        self.ot_map.add_feature(hb_tag_t::new(b"dnom"), empty, 1);
+        self.ot_map.add_feature(Tag::new(b"frac"), empty, 1);
+        self.ot_map.add_feature(Tag::new(b"numr"), empty, 1);
+        self.ot_map.add_feature(Tag::new(b"dnom"), empty, 1);
 
         // Random!
         self.ot_map
-            .enable_feature(hb_tag_t::new(b"rand"), F_RANDOM, hb_ot_map_t::MAX_VALUE);
+            .enable_feature(Tag::new(b"rand"), F_RANDOM, OtMap::MAX_VALUE);
 
         // Tracking.  We enable dummy feature here just to allow disabling
         // AAT 'trak' table using features.
         // https://github.com/harfbuzz/harfbuzz/issues/1303
         self.ot_map
-            .enable_feature(hb_tag_t::new(b"trak"), F_HAS_FALLBACK, 1);
+            .enable_feature(Tag::new(b"trak"), F_HAS_FALLBACK, 1);
 
-        self.ot_map.enable_feature(hb_tag_t::new(b"Harf"), empty, 1); // Considered required.
-        self.ot_map.enable_feature(hb_tag_t::new(b"HARF"), empty, 1); // Considered discretionary.
+        self.ot_map.enable_feature(Tag::new(b"Harf"), empty, 1); // Considered required.
+        self.ot_map.enable_feature(Tag::new(b"HARF"), empty, 1); // Considered discretionary.
 
         if let Some(func) = self.shaper.collect_features {
             self.ot_map.is_simple = false;
             func(self);
         }
 
-        self.ot_map.enable_feature(hb_tag_t::new(b"Buzz"), empty, 1); // Considered required.
-        self.ot_map.enable_feature(hb_tag_t::new(b"BUZZ"), empty, 1); // Considered discretionary.
+        self.ot_map.enable_feature(Tag::new(b"Buzz"), empty, 1); // Considered required.
+        self.ot_map.enable_feature(Tag::new(b"BUZZ"), empty, 1); // Considered discretionary.
 
         for &(tag, flags) in COMMON_FEATURES {
             self.ot_map.add_feature(tag, flags, 1);
@@ -160,7 +160,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
             // See various bugs referenced from:
             // https://github.com/harfbuzz/harfbuzz/issues/63
             self.ot_map
-                .enable_feature(hb_tag_t::new(b"vert"), F_GLOBAL_SEARCH, 1);
+                .enable_feature(Tag::new(b"vert"), F_GLOBAL_SEARCH, 1);
         }
 
         if !user_features.is_empty() {
@@ -177,38 +177,38 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         }
     }
 
-    pub fn compile(mut self, features: &[Feature]) -> hb_ot_shape_plan_t {
+    pub fn compile(mut self, features: &[Feature]) -> ShapePlan {
         let ot_map = self.ot_map.compile();
         let mut aat_map = AatMap::default();
         if self.apply_morx {
             self.aat_map.compile(self.face, &mut aat_map);
         }
 
-        let frac_mask = ot_map.get_1_mask(hb_tag_t::new(b"frac"));
-        let numr_mask = ot_map.get_1_mask(hb_tag_t::new(b"numr"));
-        let dnom_mask = ot_map.get_1_mask(hb_tag_t::new(b"dnom"));
+        let frac_mask = ot_map.get_1_mask(Tag::new(b"frac"));
+        let numr_mask = ot_map.get_1_mask(Tag::new(b"numr"));
+        let dnom_mask = ot_map.get_1_mask(Tag::new(b"dnom"));
         let has_frac = frac_mask != 0 || (numr_mask != 0 && dnom_mask != 0);
 
-        let rtlm_mask = ot_map.get_1_mask(hb_tag_t::new(b"rtlm"));
-        let has_vert = ot_map.get_1_mask(hb_tag_t::new(b"vert")) != 0;
+        let rtlm_mask = ot_map.get_1_mask(Tag::new(b"rtlm"));
+        let has_vert = ot_map.get_1_mask(Tag::new(b"vert")) != 0;
 
         let horizontal = self.direction.is_horizontal();
         let kern_tag = if horizontal {
-            hb_tag_t::new(b"kern")
+            Tag::new(b"kern")
         } else {
-            hb_tag_t::new(b"vkrn")
+            Tag::new(b"vkrn")
         };
         let kern_mask = ot_map.get_mask(kern_tag).0;
         let requested_kerning = kern_mask != 0;
 
         let has_gpos_kern = ot_map
-            .get_feature_index(TableIndex::GPOS, kern_tag)
+            .get_feature_index(LayoutTableKind::Gpos, kern_tag)
             .is_some();
         let disable_gpos = self.shaper.gpos_tag.is_some()
-            && self.shaper.gpos_tag != ot_map.chosen_script(TableIndex::GPOS);
+            && self.shaper.gpos_tag != ot_map.chosen_script(LayoutTableKind::Gpos);
 
         // Decide who provides glyph classes. GDEF or Unicode.
-        let fallback_glyph_classes = !hb_ot_layout_has_glyph_classes(self.face);
+        let fallback_glyph_classes = !has_glyph_classes(self.face);
 
         // Decide who does substitutions. GSUB, morx, or fallback.
         let apply_morx = self.apply_morx;
@@ -233,7 +233,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         if !apply_kerx && (!has_gpos_kern || !apply_gpos) {
             if has_kerx {
                 apply_kerx = true;
-            } else if hb_ot_layout_has_kerning(self.face) {
+            } else if has_kerning(self.face) {
                 apply_kern = self.script_fallback_position;
             }
         }
@@ -241,13 +241,12 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         let apply_fallback_kern = !(apply_gpos || apply_kerx || apply_kern);
         let zero_marks = self.script_zero_marks
             && !apply_kerx
-            && (!apply_kern || !hb_ot_layout_has_machine_kerning(self.face));
+            && (!apply_kern || !has_machine_kerning(self.face));
 
-        let has_gpos_mark = ot_map.get_1_mask(hb_tag_t::new(b"mark")) != 0;
+        let has_gpos_mark = ot_map.get_1_mask(Tag::new(b"mark")) != 0;
 
-        let mut adjust_mark_positioning_when_zeroing = !apply_gpos
-            && !apply_kerx
-            && (!apply_kern || !hb_ot_layout_has_cross_kerning(self.face));
+        let mut adjust_mark_positioning_when_zeroing =
+            !apply_gpos && !apply_kerx && (!apply_kern || !has_cross_kerning(self.face));
 
         let fallback_mark_positioning =
             adjust_mark_positioning_when_zeroing && self.script_fallback_position;
@@ -263,7 +262,7 @@ impl<'a> hb_ot_shape_planner_t<'a> {
         // https://github.com/googlefonts/fontations/issues/1492
         let apply_trak = self.face.apply_trak;
 
-        let mut plan = hb_ot_shape_plan_t {
+        let mut plan = ShapePlan {
             direction: self.direction,
             script: self.script,
             language: self.language,
@@ -303,8 +302,8 @@ impl<'a> hb_ot_shape_planner_t<'a> {
 
 // hb_ot_shape_context_t: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L450>
 pub(crate) struct OtShapeContext<'a, 'u> {
-    pub plan: &'a hb_ot_shape_plan_t,
-    pub face: &'a hb_font_t<'a>,
+    pub plan: &'a ShapePlan,
+    pub face: &'a Shaper<'a>,
     pub buffer: &'a mut Buffer,
     pub features: &'a [Feature],
     // Transient stuff
@@ -382,17 +381,13 @@ impl OtShapeContext<'_, '_> {
         self.buffer
             .allocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
 
-        normalize::_hb_ot_shape_normalize(self.plan, self.buffer, self.face, self.font_funcs);
+        normalize::normalize(self.plan, self.buffer, self.face, self.font_funcs);
 
         self.setup_masks();
 
         // This is unfortunate to go here, but necessary...
         if self.plan.fallback_mark_positioning {
-            fallback::_hb_ot_shape_fallback_mark_position_recategorize_marks(
-                self.plan,
-                self.face,
-                self.buffer,
-            );
+            fallback::recategorize_marks(self.plan, self.face, self.buffer);
         }
 
         map_glyphs_fast(self.buffer);
@@ -404,10 +399,10 @@ impl OtShapeContext<'_, '_> {
     // hb_ot_substitute_plan: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L911>
     fn substitute_plan(&mut self) {
         if self.plan.apply_morx {
-            hb_ot_layout_substitute_start(self.face, self.buffer);
+            substitute_start(self.face, self.buffer);
 
             if self.plan.fallback_glyph_classes {
-                hb_synthesize_glyph_classes(self.buffer);
+                synthesize_glyph_classes(self.buffer);
             }
 
             aat::layout::substitute(self.plan, self.face, self.buffer, self.features);
@@ -417,10 +412,10 @@ impl OtShapeContext<'_, '_> {
                 self.buffer.update_digest();
             }
         } else {
-            hb_ot_layout_substitute_start_with_digest(self.face, self.buffer);
+            substitute_start_with_digest(self.face, self.buffer);
 
             if self.plan.fallback_glyph_classes {
-                hb_synthesize_glyph_classes(self.buffer);
+                synthesize_glyph_classes(self.buffer);
             }
 
             gsub::substitute(self.plan, self.face, self.font_funcs, self.buffer);
@@ -461,12 +456,7 @@ impl OtShapeContext<'_, '_> {
         }
 
         if self.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK != 0 {
-            fallback::_hb_ot_shape_fallback_spaces(
-                self.plan,
-                self.face,
-                self.buffer,
-                self.font_funcs,
-            );
+            fallback::fallback_spaces(self.plan, self.face, self.buffer, self.font_funcs);
         }
     }
 
@@ -487,17 +477,14 @@ impl OtShapeContext<'_, '_> {
 
         gpos::position_start(self.face, self.buffer);
 
-        if self.plan.zero_marks
-            && self.plan.shaper.zero_width_marks == HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY
+        if self.plan.zero_marks && self.plan.shaper.zero_width_marks == ZeroWidthMarks::ByGdefEarly
         {
             zero_mark_widths_by_gdef(self.buffer, adjust_offsets_when_zeroing);
         }
 
         self.position_by_plan();
 
-        if self.plan.zero_marks
-            && self.plan.shaper.zero_width_marks == HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE
-        {
+        if self.plan.zero_marks && self.plan.shaper.zero_width_marks == ZeroWidthMarks::ByGdefLate {
             zero_mark_widths_by_gdef(self.buffer, adjust_offsets_when_zeroing);
         }
 
@@ -517,7 +504,7 @@ impl OtShapeContext<'_, '_> {
         }
     }
 
-    // hb_ot_shape_plan_t::position <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L271>
+    // ShapePlan::position <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L271>
     fn position_by_plan(&mut self) {
         let plan = self.plan;
         let face = self.face;
@@ -528,9 +515,9 @@ impl OtShapeContext<'_, '_> {
             aat::layout::position(plan, face, *self.font_funcs.scale(), buffer);
         }
         if plan.apply_kern {
-            aat::kern::hb_ot_layout_kern(plan, face, *self.font_funcs.scale(), buffer);
+            aat::kern::apply(plan, face, *self.font_funcs.scale(), buffer);
         } else if plan.apply_fallback_kern {
-            fallback::_hb_ot_shape_fallback_kern(plan, face, buffer);
+            fallback::fallback_kern(plan, face, buffer);
         }
 
         if plan.apply_trak {
@@ -634,7 +621,7 @@ impl OtShapeContext<'_, '_> {
     }
 
     // hb_set_unicode_props: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L471>
-    fn set_unicode_props(&mut self, global_mask: hb_mask_t) {
+    fn set_unicode_props(&mut self, global_mask: Mask) {
         let buffer = &mut *self.buffer;
         // Implement enough of Unicode Graphemes here that shaping
         // in reverse-direction wouldn't break graphemes.  Namely,
@@ -844,7 +831,7 @@ fn ensure_native_direction(buffer: &mut Buffer) {
     if (dir.is_horizontal() && dir != hor && hor != Direction::Invalid)
         || (dir.is_vertical() && dir != Direction::TopToBottom)
     {
-        _hb_ot_layout_reverse_graphemes(buffer);
+        reverse_graphemes(buffer);
         buffer.direction = buffer.direction.reverse();
     }
 }
@@ -861,7 +848,7 @@ fn map_glyphs_fast(buffer: &mut Buffer) {
     }
 }
 
-fn hb_synthesize_glyph_classes(buffer: &mut Buffer) {
+fn synthesize_glyph_classes(buffer: &mut Buffer) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         // Never mark default-ignorables as marks.

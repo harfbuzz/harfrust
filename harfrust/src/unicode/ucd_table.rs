@@ -14,10 +14,10 @@ pub(crate) mod ucd {
 
 use crate::algs::{HB_CODEPOINT_ENCODE3, HB_CODEPOINT_ENCODE3_11_7_14};
 use crate::common::script;
-use crate::common::Script as hb_script_t;
+use crate::common::Script as Script;
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_ucd_sc_map: [hb_script_t; 179]=
+pub(crate) static ucd_sc_map: [Script; 179]=
 [
                    script::COMMON,              script::INHERITED,
                   script::UNKNOWN,                 script::ARABIC,
@@ -111,7 +111,7 @@ pub(crate) static _hb_ucd_sc_map: [hb_script_t; 179]=
                      script::SEAL,
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_ucd_dm1_p0_map: [u16; 825]=
+pub(crate) static ucd_dm1_p0_map: [u16; 825]=
 [
    0x003B, 0x004B, 0x0060, 0x00B4, 0x00B7, 0x00C5, 0x02B9, 0x0300,
    0x0301, 0x0313, 0x0385, 0x0386, 0x0388, 0x0389, 0x038A, 0x038C,
@@ -219,7 +219,7 @@ pub(crate) static _hb_ucd_dm1_p0_map: [u16; 825]=
    0x9F9C,
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_ucd_dm1_p2_map: [u16; 110]=
+pub(crate) static ucd_dm1_p2_map: [u16; 110]=
 [
    0x0122, 0x051C, 0x0525, 0x054B, 0x063A, 0x0804, 0x08DE, 0x0A2C,
    0x0B63, 0x14E4, 0x16A8, 0x16EA, 0x19C8, 0x1B18, 0x1D0B, 0x1DE4,
@@ -237,7 +237,7 @@ pub(crate) static _hb_ucd_dm1_p2_map: [u16; 110]=
    0xA0CE, 0xA105, 0xA20E, 0xA291, 0xA392, 0xA600,
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_ucd_dm2_u32_map: [u32; 638]=
+pub(crate) static ucd_dm2_u32_map: [u32; 638]=
 [
   HB_CODEPOINT_ENCODE3_11_7_14 (0x003C, 0x0338, 0x226E),HB_CODEPOINT_ENCODE3_11_7_14 (0x003D, 0x0338, 0x2260),
   HB_CODEPOINT_ENCODE3_11_7_14 (0x003E, 0x0338, 0x226F),HB_CODEPOINT_ENCODE3_11_7_14 (0x0041, 0x0300, 0x00C0),
@@ -560,7 +560,7 @@ pub(crate) static _hb_ucd_dm2_u32_map: [u32; 638]=
   HB_CODEPOINT_ENCODE3_11_7_14 (0x04E8, 0x0308, 0x04EA),HB_CODEPOINT_ENCODE3_11_7_14 (0x04E9, 0x0308, 0x04EB),
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_ucd_dm2_u64_map: [u64; 408]=
+pub(crate) static ucd_dm2_u64_map: [u64; 408]=
 [
      HB_CODEPOINT_ENCODE3 (0x05D0, 0x05B7, 0x0000),   HB_CODEPOINT_ENCODE3 (0x05D0, 0x05B8, 0x0000),
      HB_CODEPOINT_ENCODE3 (0x05D0, 0x05BC, 0x0000),   HB_CODEPOINT_ENCODE3 (0x05D1, 0x05BC, 0x0000),
@@ -769,7 +769,7 @@ pub(crate) static _hb_ucd_dm2_u64_map: [u64; 408]=
 ];
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason)]
-static _hb_ucd_u8: [u8; 19991]=
+static ucd_u8: [u8; 19991]=
 [
     5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
    21, 22, 23, 24, 25, 26, 27, 28, 29, 30,  2,  2,  2,  2,  2,  2,
@@ -2023,7 +2023,7 @@ static _hb_ucd_u8: [u8; 19991]=
     0,  0,  0,  0,  0,  0,  0,
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason)]
-static _hb_ucd_u16: [u16; 11240]=
+static ucd_u16: [u16; 11240]=
 [
      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -2730,7 +2730,7 @@ static _hb_ucd_u16: [u16; 11240]=
    817, 818, 819, 820, 821, 935,   0,   0,
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason)]
-static _hb_ucd_palette: [i32; 39]=
+static ucd_palette: [i32; 39]=
 [
    -112883,   -2527,   -2250,   -2108,   -2106,   -2104,   -2016,   -1923,
      -1918,   -1914,   -1824,   -1316,    -138,     -16,      -8,      -7,
@@ -2741,44 +2741,44 @@ static _hb_ucd_palette: [i32; 39]=
 
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_ucd_gc (u: usize) -> u8
+pub(crate) fn ucd_gc (u: usize) -> u8
 {
   /* packtab: [2^8,2^5,2^3,2^1] */
-  if u<1114110usize { (_hb_ucd_u8[7944usize+((((_hb_ucd_u8[2176usize+(((_hb_ucd_u16[(((_hb_ucd_u8[(((((((u)>>1))>>3))>>5) as usize) as usize]) as usize)<<5) as usize+((((((u)>>1))>>3))&31) as usize]) as usize) as usize+((((u)>>1))&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize]) as u8 } else { 2 }
+  if u<1114110usize { (ucd_u8[7944usize+((((ucd_u8[2176usize+(((ucd_u16[(((ucd_u8[(((((((u)>>1))>>3))>>5) as usize) as usize]) as usize)<<5) as usize+((((((u)>>1))>>3))&31) as usize]) as usize) as usize+((((u)>>1))&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize]) as u8 } else { 2 }
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_ucd_ccc (u: usize) -> u8
+pub(crate) fn ucd_ccc (u: usize) -> u8
 {
   /* packtab: [2^8,2^4,2^3,2^2] */
-  if u<125259usize { (_hb_ucd_u8[10432usize+((((_hb_ucd_u8[9308usize+((((_hb_ucd_u8[8577usize+((((_hb_ucd_u8[8332usize+((((((((u)>>2))>>3))>>4) as usize) as usize) as usize]) as usize)<<4) as usize+((((((u)>>2))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize) as usize]) as u8 } else { 0 }
+  if u<125259usize { (ucd_u8[10432usize+((((ucd_u8[9308usize+((((ucd_u8[8577usize+((((ucd_u8[8332usize+((((((((u)>>2))>>3))>>4) as usize) as usize) as usize]) as usize)<<4) as usize+((((((u)>>2))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize)<<2) as usize+((u)&3) as usize) as usize]) as u8 } else { 0 }
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast)]
 #[inline(always)]
-fn _hb_ucd_b4 (a: &[u8], i: usize) -> u8
+fn ucd_b4 (a: &[u8], i: usize) -> u8
 {
   (a[i>>1]>>((i&1)<<2))&15
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_ucd_bmg (u: usize) -> i32
+pub(crate) fn ucd_bmg (u: usize) -> i32
 {
   /* packtab: [2^4,2^4,2^3,2^2] palette[39] */
-  if u<121617usize { (_hb_ucd_palette[(_hb_ucd_u8[11624usize+(((_hb_ucd_u8[11272usize+((((_hb_ucd_u8[11071usize+((((_hb_ucd_b4(&_hb_ucd_u8[10952usize..],(((((((u)>>2))>>3))>>4) as usize) as usize)) as usize)<<4) as usize+((((((u)>>2))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize) as usize+((u)&3) as usize) as usize]) as usize]) as i32 } else { 0 }
+  if u<121617usize { (ucd_palette[(ucd_u8[11624usize+(((ucd_u8[11272usize+((((ucd_u8[11071usize+((((ucd_b4(&ucd_u8[10952usize..],(((((((u)>>2))>>3))>>4) as usize) as usize)) as usize)<<4) as usize+((((((u)>>2))>>3))&15) as usize) as usize]) as usize)<<3) as usize+((((u)>>2))&7) as usize) as usize]) as usize) as usize+((u)&3) as usize) as usize]) as usize]) as i32 } else { 0 }
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_ucd_sc (u: usize) -> u8
+pub(crate) fn ucd_sc (u: usize) -> u8
 {
   /* packtab: [2^8,2^4,2^3,2^3] */
-  if u<918000usize { (_hb_ucd_u8[12721usize+(((_hb_ucd_u16[4520usize+(((_hb_ucd_u16[3392usize+((((_hb_ucd_u8[11824usize+((((((((u)>>3))>>3))>>4) as usize) as usize) as usize]) as usize)<<4) as usize+((((((u)>>3))>>3))&15) as usize) as usize]) as usize) as usize+((((u)>>3))&7) as usize) as usize]) as usize) as usize+((u)&7) as usize) as usize]) as u8 } else { 2 }
+  if u<918000usize { (ucd_u8[12721usize+(((ucd_u16[4520usize+(((ucd_u16[3392usize+((((ucd_u8[11824usize+((((((((u)>>3))>>3))>>4) as usize) as usize) as usize]) as usize)<<4) as usize+((((((u)>>3))>>3))&15) as usize) as usize]) as usize) as usize+((((u)>>3))&7) as usize) as usize]) as usize) as usize+((u)&7) as usize) as usize]) as u8 } else { 2 }
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_ucd_dm (u: usize) -> u16
+pub(crate) fn ucd_dm (u: usize) -> u16
 {
   /* packtab: [2^8,2^5,2^4] */
-  if u<195102usize { (_hb_ucd_u16[7816usize+((((_hb_ucd_u8[19095usize+((((_hb_ucd_u8[18713usize+((((((u)>>4))>>5) as usize) as usize) as usize]) as usize)<<5) as usize+((((u)>>4))&31) as usize) as usize]) as usize)<<4) as usize+((u)&15) as usize) as usize]) as u16 } else { 0 }
+  if u<195102usize { (ucd_u16[7816usize+((((ucd_u8[19095usize+((((ucd_u8[18713usize+((((((u)>>4))>>5) as usize) as usize) as usize]) as usize)<<5) as usize+((((u)>>4))&31) as usize) as usize]) as usize)<<4) as usize+((u)&15) as usize) as usize]) as u16 } else { 0 }
 }
 
 }

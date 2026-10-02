@@ -1,6 +1,6 @@
 use crate::buffer::*;
 use crate::font_funcs::FontFuncsDispatch;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
 use crate::BufferFlags;
 use crate::GlyphInfo;
 
@@ -74,7 +74,7 @@ pub fn insert_dotted_circles(
 }
 
 pub(crate) fn syllabic_clear_var(
-    _: &hb_ot_shape_plan_t,
+    _: &ShapePlan,
     _: &mut FontFuncsDispatch,
     buffer: &mut Buffer,
 ) -> bool {

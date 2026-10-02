@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use super::layout::*;
-use crate::{hb_font_t, hb_mask_t, hb_tag_t, Language};
+use crate::{Language, Mask, Shaper, Tag};
 
 /// HB: hb_aat_map_t
 ///
@@ -21,7 +21,7 @@ pub struct AatMap {
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L38>
 #[derive(Copy, Clone)]
 pub struct RangeFlags {
-    pub flags: hb_mask_t,
+    pub flags: Mask,
     pub cluster_first: u32,
     pub cluster_last: u32, // end - 1
 }
@@ -58,10 +58,10 @@ impl AatMapBuilder {
         }
     }
 
-    pub fn add_feature(&mut self, face: &hb_font_t, feature: &Feature) -> Option<()> {
+    pub fn add_feature(&mut self, face: &Shaper, feature: &Feature) -> Option<()> {
         let feat = face.aat_tables.feat.as_ref()?;
 
-        if feature.tag == hb_tag_t::new(b"aalt") {
+        if feature.tag == Tag::new(b"aalt") {
             let exposes_feature = feat
                 .find(FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16)
                 .is_some_and(|f| f.n_settings() != 0);
@@ -126,7 +126,7 @@ impl AatMapBuilder {
         Some(())
     }
 
-    pub fn compile(&mut self, face: &hb_font_t, m: &mut AatMap) {
+    pub fn compile(&mut self, face: &Shaper, m: &mut AatMap) {
         // Compute active features per range, and compile each.
         let mut feature_events = vec![];
         for feature in &self.features {
@@ -210,7 +210,7 @@ impl AatMapBuilder {
     }
 }
 
-/// HB: hb_aat_map_builder_t::feature_info_t
+/// HB: hb_aat_map_builder_t::FeatureInfo
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L63>
 #[derive(Copy, Clone, PartialEq, Eq, Default)]

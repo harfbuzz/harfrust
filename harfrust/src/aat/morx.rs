@@ -7,7 +7,7 @@ use crate::aat::common::{
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::tag::lang_matches;
 use crate::U32Set;
-use crate::{hb_font_t, GlyphInfo, Language};
+use crate::{GlyphInfo, Language, Shaper};
 use alloc::{vec, vec::Vec};
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
@@ -54,7 +54,7 @@ impl MorphChain for mort::Chain<'_> {
 }
 
 // Chain::compile_flags in harfbuzz
-pub fn compile_flags(face: &hb_font_t, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
+pub fn compile_flags(face: &Shaper, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
     let has_feature = |kind: u16, setting: u16| {
         builder
             .current_features

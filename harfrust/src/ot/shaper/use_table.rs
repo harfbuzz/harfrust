@@ -55,7 +55,7 @@ use super::use_::category::*;
 
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static hb_use_u8: [u8; 3359]=
+pub(crate) static use_u8: [u8; 3359]=
 [
      33,    3,    0,    0,    0,    4,    0,   80,  118,  128,    9,   10,   11,  192,  208,   14,
       0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
@@ -269,7 +269,7 @@ pub(crate) static hb_use_u8: [u8; 3359]=
       J,   HR,    G,    G,   HM,    G,    O, MPre, MPre, MPst,VMAbv, MBlw, VBlw,    O, VBlw,
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static hb_use_u16: [u16; 864]=
+pub(crate) static use_u16: [u16; 864]=
 [
      0,   0,   0,   0,   0,   0,   0,   0,   8,   8,   8,   8,   8,   8,   8,   8,
     16,  16,  16,  16,  16,  16,  16,  16,  24,  24,  24,  24,  24,  24,  24,  24,
@@ -329,16 +329,16 @@ pub(crate) static hb_use_u16: [u16; 864]=
 
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast)]
 #[inline(always)]
-fn hb_use_b4 (a: &[u8], i: usize) -> u8
+fn use_b4 (a: &[u8], i: usize) -> u8
 {
   (a[i>>1]>>((i&1)<<2))&15
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn hb_use_get_category (u: usize) -> u8
+pub(crate) fn use_get_category (u: usize) -> u8
 {
   /* packtab: [2^4,2^5,2^3,2^3,2^1] */
-  if u<921600usize { (hb_use_u8[2969usize+((((hb_use_u8[625usize+(((hb_use_u16[(((hb_use_u8[113usize+((((hb_use_b4(&hb_use_u8,(((((((((u)>>1))>>3))>>3))>>5) as usize) as usize)) as usize)<<5) as usize+((((((((u)>>1))>>3))>>3))&31) as usize) as usize]) as usize)<<3) as usize+((((((u)>>1))>>3))&7) as usize]) as usize) as usize+((((u)>>1))&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize]) as u8 } else { O }
+  if u<921600usize { (use_u8[2969usize+((((use_u8[625usize+(((use_u16[(((use_u8[113usize+((((use_b4(&use_u8,(((((((((u)>>1))>>3))>>3))>>5) as usize) as usize)) as usize)<<5) as usize+((((((((u)>>1))>>3))>>3))&31) as usize) as usize]) as usize)<<3) as usize+((((((u)>>1))>>3))&7) as usize]) as usize) as usize+((((u)>>1))&7) as usize) as usize]) as usize)<<1) as usize+((u)&1) as usize) as usize]) as u8 } else { O }
 }
 
 /* == End of generated table == */

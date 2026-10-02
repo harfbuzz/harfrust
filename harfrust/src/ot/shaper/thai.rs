@@ -1,24 +1,24 @@
 use super::*;
 use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::layout::*;
-use crate::ot::shape::normalize::HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::normalize::NormalizationMode;
+use crate::ot::shape::plan::ShapePlan;
 use crate::script;
 use crate::unicode::GeneralCategory;
 
-pub const THAI_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const THAI_SHAPER: OtShaper = OtShaper {
     collect_features: None,
     override_features: None,
     create_data: None,
     preprocess_text: Some(preprocess_text),
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_AUTO,
+    normalization_preference: NormalizationMode::Auto,
     decompose: None,
     compose: None,
     setup_masks: None,
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE,
+    zero_width_marks: ZeroWidthMarks::ByGdefLate,
     fallback_position: false,
 };
 
@@ -308,7 +308,7 @@ fn do_pua_shaping(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
 }
 
 // TODO: more tests
-fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn preprocess_text(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     // This function implements the shaping logic documented here:
     //
     //   https://linux.thai.net/~thep/th-otf/shaping.html
@@ -421,7 +421,7 @@ fn preprocess_text(plan: &hb_ot_shape_plan_t, face: &mut FontFuncsDispatch, buff
     buffer.sync();
 
     // If font has Thai GSUB, we are done.
-    if plan.script == Some(script::THAI) && !plan.ot_map.found_script(TableIndex::GSUB) {
+    if plan.script == Some(script::THAI) && !plan.ot_map.found_script(LayoutTableKind::Gsub) {
         do_pua_shaping(face, buffer);
     }
 }

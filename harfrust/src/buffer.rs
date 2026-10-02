@@ -1,9 +1,9 @@
-use super::hb_mask_t;
 use super::ot::layout::MAX_SYLLABLE_LENGTH;
+use super::Mask;
 use crate::face::BasicFontMetrics;
 use crate::glyph_metrics::GlyphMetrics;
 use crate::glyph_names::GlyphNames;
-use crate::set_digest::hb_set_digest_t;
+use crate::set_digest::SetDigest;
 use crate::tables::TableRanges;
 use crate::unicode::{CharExt, Codepoint};
 use crate::U32Set;
@@ -83,7 +83,7 @@ pub struct GlyphInfo {
     ///
     /// Guarantee to be <= `u16::MAX`.
     pub glyph_id: u32,
-    pub(crate) mask: hb_mask_t,
+    pub(crate) mask: Mask,
     /// An index to the start of the grapheme cluster in the original string.
     ///
     /// [Read more on clusters](https://harfbuzz.github.io/clusters.html).
@@ -406,7 +406,7 @@ impl GlyphInfo {
         Some(gid.into())
     }
 
-    pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
+    pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut ScratchFlags) {
         let u = self.as_codepoint();
         let gc = u.general_category();
         let mut props = gc.0 as u16;
@@ -462,7 +462,7 @@ impl GlyphInfo {
     }
 }
 
-pub type hb_buffer_cluster_level_t = u32;
+pub type ClusterLevelCode = u32;
 pub const HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES: u32 = 0;
 pub const HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS: u32 = 1;
 pub const HB_BUFFER_CLUSTER_LEVEL_CHARACTERS: u32 = 2;
@@ -489,7 +489,7 @@ pub enum BufferContentType {
 pub struct Buffer {
     // Information about how the text in the buffer should be treated.
     pub(crate) flags: BufferFlags,
-    pub(crate) cluster_level: hb_buffer_cluster_level_t,
+    pub(crate) cluster_level: ClusterLevelCode,
     pub(crate) invisible: Option<GlyphId>,
     pub(crate) not_found_variation_selector: Option<u32>,
 
@@ -520,13 +520,13 @@ pub struct Buffer {
     pub(crate) context: [[Codepoint; CONTEXT_LENGTH]; 2],
     pub(crate) context_len: [usize; 2],
 
-    pub(crate) digest: hb_set_digest_t,
+    pub(crate) digest: SetDigest,
     pub(crate) glyph_set: U32Set,
 
     // Managed by enter / leave
     pub(crate) allocated_var_bits: u8,
     pub(crate) serial: u8,
-    pub(crate) scratch_flags: hb_buffer_scratch_flags_t,
+    pub(crate) scratch_flags: ScratchFlags,
     /// Maximum allowed len.
     pub(crate) max_len: usize,
     /// Maximum allowed operations.
@@ -571,7 +571,7 @@ impl Buffer {
             serial: 0,
             context: Default::default(),
             context_len: [0, 0],
-            digest: hb_set_digest_t::new(),
+            digest: SetDigest::new(),
             glyph_set: U32Set::default(),
         }
     }
@@ -740,7 +740,7 @@ impl Buffer {
     }
 
     pub(crate) fn update_digest(&mut self) {
-        self.digest = hb_set_digest_t::new();
+        self.digest = SetDigest::new();
         self.digest.add_array(self.info.iter().map(|i| i.glyph_id));
     }
     pub(crate) fn update_glyph_set(&mut self) {
@@ -1103,8 +1103,8 @@ impl Buffer {
 
     pub(crate) fn set_masks(
         &mut self,
-        mut value: hb_mask_t,
-        mask: hb_mask_t,
+        mut value: Mask,
+        mask: Mask,
         cluster_start: u32,
         cluster_end: u32,
     ) {
@@ -1380,7 +1380,7 @@ impl Buffer {
 
     fn _set_glyph_flags_impl(
         &mut self,
-        mask: hb_mask_t,
+        mask: Mask,
         start: usize,
         end: usize,
         interior: bool,
@@ -1665,7 +1665,7 @@ impl Buffer {
         }
     }
 
-    pub(crate) fn set_cluster(info: &mut GlyphInfo, cluster: u32, mask: hb_mask_t) {
+    pub(crate) fn set_cluster(info: &mut GlyphInfo, cluster: u32, mask: Mask) {
         if info.cluster != cluster {
             info.mask = (info.mask & !GlyphFlags::DEFINED_BITS) | (mask & GlyphFlags::DEFINED_BITS);
         }
@@ -1725,7 +1725,7 @@ impl Buffer {
         start: usize,
         end: usize,
         cluster: u32,
-        mask: hb_mask_t,
+        mask: Mask,
     ) {
         if start == end {
             return;
@@ -2417,7 +2417,7 @@ macro_rules! foreach_syllable {
 
 macro_rules! foreach_grapheme {
     ($buffer:expr, $start:ident, $end:ident, $($body:tt)*) => {
-        foreach_group!($buffer, $start, $end, $crate::ot::layout::_hb_grapheme_group_func, $($body)*)
+        foreach_group!($buffer, $start, $end, $crate::ot::layout::grapheme_group, $($body)*)
     };
 }
 
@@ -2456,7 +2456,7 @@ bitflags::bitflags! {
     }
 }
 
-pub type hb_buffer_scratch_flags_t = u32;
+pub type ScratchFlags = u32;
 pub const HB_BUFFER_SCRATCH_FLAG_DEFAULT: u32 = 0x0000_0000;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH: u32 = 0x0000_0001;
 pub const HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES: u32 = 0x0000_0002;

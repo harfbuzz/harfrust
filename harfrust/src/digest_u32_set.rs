@@ -1,10 +1,10 @@
-use crate::set_digest::hb_set_digest_t;
+use crate::set_digest::SetDigest;
 
-pub(crate) struct DigestU32Set(hb_set_digest_t);
+pub(crate) struct DigestU32Set(SetDigest);
 
 impl DigestU32Set {
     pub(crate) fn default() -> Self {
-        Self(hb_set_digest_t::new())
+        Self(SetDigest::new())
     }
     pub(crate) fn insert(&mut self, value: u32) {
         self.0.add(value);

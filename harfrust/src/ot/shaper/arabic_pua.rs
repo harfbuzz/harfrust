@@ -14,7 +14,7 @@
     clippy::allow_attributes_without_reason,
     missing_docs
 )]
-pub(crate) static _hb_arabic_pua_u8: [u8; 453] = [
+pub(crate) static arabic_pua_u8: [u8; 453] = [
     0, 0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 80,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 5, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 6, 0, 7, 0, 0, 8, 0, 0, 0, 9, 0, 0, 10, 0, 11, 12, 13, 14, 15, 16, 17, 18, 19,
@@ -38,7 +38,7 @@ pub(crate) static _hb_arabic_pua_u8: [u8; 453] = [
     clippy::allow_attributes_without_reason,
     missing_docs
 )]
-pub(crate) static _hb_arabic_pua_u16: [u16; 713] = [
+pub(crate) static arabic_pua_u16: [u16; 713] = [
     0, 0, 0, 0, 0, 0, 0, 0, 61728, 61729, 61730, 0, 0, 61733, 0, 0, 61736, 61737, 61738, 61739,
     61790, 61741, 61742, 61743, 61872, 61873, 61874, 61875, 61876, 61877, 61878, 61879, 61880,
     61881, 61754, 61755, 0, 61757, 0, 61759, 0, 0, 0, 61787, 61788, 61789, 0, 0, 0, 0, 0, 61731, 0,
@@ -97,7 +97,7 @@ pub(crate) static _hb_arabic_pua_u16: [u16; 713] = [
     clippy::unnecessary_cast
 )]
 #[inline(always)]
-fn _hb_arabic_pua_b4(a: &[u8], i: usize) -> u8 {
+fn arabic_pua_b4(a: &[u8], i: usize) -> u8 {
     (a[i >> 1] >> ((i & 1) << 2)) & 15
 }
 #[allow(
@@ -111,12 +111,12 @@ fn _hb_arabic_pua_b4(a: &[u8], i: usize) -> u8 {
     missing_docs
 )]
 #[inline]
-pub(crate) fn _hb_arabic_pua_simp_map(u: usize) -> u16 {
+pub(crate) fn arabic_pua_simp_map(u: usize) -> u16 {
     /* packtab: [2^2,2^4,2^4,2^3] */
     if u < 65277usize {
-        (_hb_arabic_pua_u16[(((_hb_arabic_pua_u8[31usize
-            + ((((_hb_arabic_pua_b4(
-                &_hb_arabic_pua_u8,
+        (arabic_pua_u16[(((arabic_pua_u8[31usize
+            + ((((arabic_pua_b4(
+                &arabic_pua_u8,
                 ((((13835058055282164225u64
                     >> ((((((((u) >> 3) >> 4) >> 4) as usize) as usize) as usize) << 1))
                     & 3) as usize)
@@ -142,15 +142,15 @@ pub(crate) fn _hb_arabic_pua_simp_map(u: usize) -> u16 {
     missing_docs
 )]
 #[inline]
-pub(crate) fn _hb_arabic_pua_trad_map(u: usize) -> u16 {
+pub(crate) fn arabic_pua_trad_map(u: usize) -> u16 {
     /* packtab: [2^4,2^4,2^4,2^2] */
     if u < 65277usize {
-        (_hb_arabic_pua_u16[317usize
-            + ((((_hb_arabic_pua_u8[197usize
-                + ((((_hb_arabic_pua_b4(
-                    &_hb_arabic_pua_u8[159usize..],
-                    (((_hb_arabic_pua_b4(
-                        &_hb_arabic_pua_u8[127usize..],
+        (arabic_pua_u16[317usize
+            + ((((arabic_pua_u8[197usize
+                + ((((arabic_pua_b4(
+                    &arabic_pua_u8[159usize..],
+                    (((arabic_pua_b4(
+                        &arabic_pua_u8[127usize..],
                         (((((u) >> 2) >> 4) >> 4) as usize) as usize,
                     )) as usize)
                         << 4) as usize

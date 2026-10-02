@@ -21,8 +21,8 @@ pub type Codepoint = u32;
 // Space estimates based on:
 // https://unicode.org/charts/PDF/U2000.pdf
 // https://docs.microsoft.com/en-us/typography/develop/character-design-standards/whitespace
-pub mod hb_unicode_funcs_t {
-    pub type space_t = u8;
+pub mod space_fallback {
+    pub type SpaceCode = u8;
     pub const NOT_SPACE: u8 = 0;
     pub const SPACE_EM: u8 = 1;
     pub const SPACE_EM_2: u8 = 2;
@@ -420,7 +420,7 @@ static MODIFIED_COMBINING_CLASS: &[u8; 256] = &[
 pub trait CharExt {
     fn script(self) -> Script;
     fn general_category(self) -> GeneralCategory;
-    fn space_fallback(self) -> hb_unicode_funcs_t::space_t;
+    fn space_fallback(self) -> space_fallback::SpaceCode;
     fn combining_class(self) -> u8;
     fn modified_combining_class(self) -> u8;
     fn mirroring(self) -> Option<Codepoint>;
@@ -447,8 +447,8 @@ impl CharExt for Codepoint {
         mirroring_for(self)
     }
 
-    fn space_fallback(self) -> hb_unicode_funcs_t::space_t {
-        use hb_unicode_funcs_t::*;
+    fn space_fallback(self) -> space_fallback::SpaceCode {
+        use space_fallback::*;
 
         // All GC=Zs chars that can use a fallback.
         match self {
@@ -737,19 +737,19 @@ mod builtin {
     use super::{super::algs::*, ucd_table::ucd::*, Codepoint, GeneralCategory, Script};
 
     pub(crate) fn script_for(c: u32) -> Script {
-        _hb_ucd_sc_map[_hb_ucd_sc(c as usize) as usize]
+        ucd_sc_map[ucd_sc(c as usize) as usize]
     }
 
     pub(crate) fn general_category_for(c: u32) -> GeneralCategory {
-        GeneralCategory(_hb_ucd_gc(c as usize))
+        GeneralCategory(ucd_gc(c as usize))
     }
 
     pub(crate) fn combining_class_for(c: u32) -> u8 {
-        _hb_ucd_ccc(c as usize)
+        ucd_ccc(c as usize)
     }
 
     pub(crate) fn mirroring_for(c: u32) -> Option<Codepoint> {
-        let delta = _hb_ucd_bmg(c as usize);
+        let delta = ucd_bmg(c as usize);
         if delta == 0 {
             None
         } else {
@@ -770,13 +770,13 @@ mod builtin {
              * the composition data is encoded in a 32bit array sorted
              * by "a,b" pair. */
             let k = HB_CODEPOINT_ENCODE3_11_7_14(a, b, 0);
-            let v = _hb_ucd_dm2_u32_map
+            let v = ucd_dm2_u32_map
                 .binary_search_by(|probe| {
                     let key = probe & HB_CODEPOINT_ENCODE3_11_7_14(0x001F_FFFF, 0x001F_FFFF, 0);
                     key.cmp(&k)
                 })
                 .ok()
-                .map(|index| _hb_ucd_dm2_u32_map[index]);
+                .map(|index| ucd_dm2_u32_map[index]);
 
             if let Some(value) = v {
                 u = HB_CODEPOINT_DECODE3_11_7_14_3(value);
@@ -787,13 +787,13 @@ mod builtin {
             /* Otherwise it is stored in a 64bit array sorted by
              * "a,b" pair. */
             let k = HB_CODEPOINT_ENCODE3(a, b, 0);
-            let v = _hb_ucd_dm2_u64_map
+            let v = ucd_dm2_u64_map
                 .binary_search_by(|probe| {
                     let key = probe & HB_CODEPOINT_ENCODE3(0x001F_FFFF, 0x001F_FFFF, 0);
                     key.cmp(&k)
                 })
                 .ok()
-                .map(|index| _hb_ucd_dm2_u64_map[index]);
+                .map(|index| ucd_dm2_u64_map[index]);
 
             if let Some(value) = v {
                 u = HB_CODEPOINT_DECODE3_3(value);
@@ -814,7 +814,7 @@ mod builtin {
             return Some((a, b));
         }
 
-        let mut i = _hb_ucd_dm(ab as usize) as usize;
+        let mut i = ucd_dm(ab as usize) as usize;
 
         // If no data, there's no decomposition.
         if i == 0 {
@@ -822,28 +822,28 @@ mod builtin {
         }
         i -= 1;
 
-        if i < _hb_ucd_dm1_p0_map.len() + _hb_ucd_dm1_p2_map.len() {
-            let a = if i < _hb_ucd_dm1_p0_map.len() {
-                _hb_ucd_dm1_p0_map[i] as u32
+        if i < ucd_dm1_p0_map.len() + ucd_dm1_p2_map.len() {
+            let a = if i < ucd_dm1_p0_map.len() {
+                ucd_dm1_p0_map[i] as u32
             } else {
-                let j = i - _hb_ucd_dm1_p0_map.len();
-                0x20000 | _hb_ucd_dm1_p2_map[j] as u32
+                let j = i - ucd_dm1_p0_map.len();
+                0x20000 | ucd_dm1_p2_map[j] as u32
             };
             return Some((a, 0));
         }
 
-        i -= _hb_ucd_dm1_p0_map.len() + _hb_ucd_dm1_p2_map.len();
+        i -= ucd_dm1_p0_map.len() + ucd_dm1_p2_map.len();
 
-        if i < _hb_ucd_dm2_u32_map.len() {
-            let v = _hb_ucd_dm2_u32_map[i];
+        if i < ucd_dm2_u32_map.len() {
+            let v = ucd_dm2_u32_map[i];
             let a = HB_CODEPOINT_DECODE3_11_7_14_1(v);
             let b = HB_CODEPOINT_DECODE3_11_7_14_2(v);
             return Some((a, b));
         }
 
-        i -= _hb_ucd_dm2_u32_map.len();
+        i -= ucd_dm2_u32_map.len();
 
-        let v = _hb_ucd_dm2_u64_map[i];
+        let v = ucd_dm2_u64_map[i];
         let a = HB_CODEPOINT_DECODE3_1(v);
         let b = HB_CODEPOINT_DECODE3_2(v);
         Some((a, b))

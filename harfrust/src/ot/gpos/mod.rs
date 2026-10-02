@@ -8,14 +8,14 @@ mod value;
 
 use crate::buffer::*;
 use crate::font_funcs::FontFuncsDispatch;
-use crate::hb_font_t;
 use crate::ot::layout::*;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
 use crate::Direction;
+use crate::Shaper;
 
 pub fn position(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
+    plan: &ShapePlan,
+    face: &Shaper,
     font_funcs: &mut FontFuncsDispatch,
     buffer: &mut Buffer,
 ) {
@@ -105,7 +105,7 @@ fn propagate_attachment_offsets(
     }
 }
 
-pub fn position_start(_: &hb_font_t, buffer: &mut Buffer) {
+pub fn position_start(_: &Shaper, buffer: &mut Buffer) {
     let len = buffer.len;
     for pos in &mut buffer.pos[..len] {
         pos.set_attach_chain(0);
@@ -113,11 +113,11 @@ pub fn position_start(_: &hb_font_t, buffer: &mut Buffer) {
     }
 }
 
-pub fn position_finish_advances(_: &hb_font_t, _: &mut Buffer) {
+pub fn position_finish_advances(_: &Shaper, _: &mut Buffer) {
     //buffer.assert_gsubgpos_vars();
 }
 
-pub fn position_finish_offsets(_: &hb_font_t, buffer: &mut Buffer) {
+pub fn position_finish_offsets(_: &Shaper, buffer: &mut Buffer) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;

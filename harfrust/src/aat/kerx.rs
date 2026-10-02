@@ -8,8 +8,8 @@ use crate::{
     buffer::*,
     ot::common::lookup_flags,
     ot::gpos::attach_type,
-    ot::gsubgpos::{hb_ot_apply_context_t, skipping_iterator_t},
-    ot::layout::TableIndex,
+    ot::gsubgpos::{ApplyContext, SkippingIterator},
+    ot::layout::LayoutTableKind,
 };
 use alloc::boxed::Box;
 use core::convert::TryFrom;
@@ -214,7 +214,7 @@ impl SimpleKerning for Subtable6<'_> {
 
 fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
     let scale = c.scale;
-    let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, c.face, c.scale, c.buffer);
+    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, c.face, c.scale, c.buffer);
     ctx.set_lookup_mask(c.plan.kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
@@ -227,7 +227,7 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
     let second_set = c.second_set.as_ref().unwrap();
 
     let mut i = 0;
-    let mut iter = skipping_iterator_t::new(&mut ctx, false);
+    let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
         if (iter.buffer.info[i].mask & c.plan.kern_mask) == 0 {
             i += 1;

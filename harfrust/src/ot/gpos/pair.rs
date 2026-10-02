@@ -1,27 +1,27 @@
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
+use crate::ot::gsubgpos::ApplyContext;
 use crate::ot::gsubgpos::{
-    skipping_iterator_t, Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
-    PairPosFormat2SmallCache, SubtableExternalCache, SubtableExternalCacheMode,
+    Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
+    PairPosFormat2SmallCache, SkippingIterator, SubtableExternalCache, SubtableExternalCacheMode,
 };
 use crate::ot::{coverage_index, coverage_index_cached, ClassDefInfo, CoverageInfo};
 use crate::ot::{glyph_class, glyph_class_cached};
-use crate::set_digest::hb_set_digest_t;
+use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use read_fonts::tables::gpos::{PairPosFormat1, PairPosFormat2};
 
-fn collect_pair_set_digests(table: &PairPosFormat1) -> Box<[hb_set_digest_t]> {
+fn collect_pair_set_digests(table: &PairPosFormat1) -> Box<[SetDigest]> {
     table
         .pair_sets()
         .iter()
         .map(|pair_set| {
             let Ok(pair_set) = pair_set else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
-            let mut digest = hb_set_digest_t::new();
+            let mut digest = SetDigest::new();
             for pair_value in pair_set.pair_value_records().iter() {
                 let Ok(pair_value) = pair_value else {
-                    return hb_set_digest_t::full();
+                    return SetDigest::full();
                 };
                 digest.add(pair_value.second_glyph().to_u32());
             }
@@ -34,7 +34,7 @@ fn collect_pair_set_digests(table: &PairPosFormat1) -> Box<[hb_set_digest_t]> {
 impl Apply for PairPosFormat1<'_> {
     fn apply_with_external_cache(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
@@ -55,7 +55,7 @@ impl Apply for PairPosFormat1<'_> {
             _ => (coverage_index(self.coverage(), first_glyph)?, None),
         };
 
-        let mut iter = skipping_iterator_t::new(ctx, false);
+        let mut iter = SkippingIterator::new(ctx, false);
         iter.reset(iter.buffer.idx);
 
         let mut unsafe_to = 0;
@@ -77,7 +77,7 @@ impl Apply for PairPosFormat1<'_> {
             return None;
         }
 
-        let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        let finish = |ctx: &mut ApplyContext, iter_index: &mut usize, has_record2| {
             if has_record2 {
                 *iter_index += 1;
                 // https://github.com/harfbuzz/harfbuzz/issues/3824
@@ -92,7 +92,7 @@ impl Apply for PairPosFormat1<'_> {
         };
 
         let success =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
+            |ctx: &mut ApplyContext, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
@@ -186,7 +186,7 @@ impl Apply for PairPosFormat1<'_> {
 impl Apply for PairPosFormat2<'_> {
     fn apply_with_external_cache(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let first_glyph = ctx.buffer.cur(0).as_glyph();
@@ -201,7 +201,7 @@ impl Apply for PairPosFormat2<'_> {
             }
             _ => coverage_index(self.coverage(), first_glyph)?,
         };
-        let mut iter = skipping_iterator_t::new(ctx, false);
+        let mut iter = SkippingIterator::new(ctx, false);
         iter.reset(iter.buffer.idx);
 
         let mut unsafe_to = 0;
@@ -214,7 +214,7 @@ impl Apply for PairPosFormat2<'_> {
         let second_glyph_index = iter.index();
         let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
 
-        let finish = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        let finish = |ctx: &mut ApplyContext, iter_index: &mut usize, has_record2| {
             if has_record2 {
                 *iter_index += 1;
                 // https://github.com/harfbuzz/harfbuzz/issues/3824
@@ -228,14 +228,14 @@ impl Apply for PairPosFormat2<'_> {
             Some(())
         };
 
-        let boring = |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, has_record2| {
+        let boring = |ctx: &mut ApplyContext, iter_index: &mut usize, has_record2| {
             ctx.buffer
                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
             finish(ctx, iter_index, has_record2)
         };
 
         let success =
-            |ctx: &mut hb_ot_apply_context_t, iter_index: &mut usize, flag1, flag2, has_record2| {
+            |ctx: &mut ApplyContext, iter_index: &mut usize, flag1, flag2, has_record2| {
                 if flag1 || flag2 {
                     ctx.buffer
                         .unsafe_to_break(Some(ctx.buffer.idx), Some(second_glyph_index + 1));
