@@ -1,11 +1,11 @@
 use super::*;
-use crate::font_funcs::FontFuncsDispatch;
+use crate::normalize::NormalizationMode;
 use crate::ot::map::*;
-use crate::ot::shape::normalize::NormalizationMode;
-use crate::ot::shape::plan::ShapePlan;
+use crate::plan::ShapePlan;
 use crate::unicode::*;
 use crate::Direction;
-use crate::{script, GlyphInfo, Mask, Script, Tag};
+use crate::ShaperFont;
+use crate::{GlyphInfo, Mask, Script, Tag};
 use alloc::boxed::Box;
 
 const HB_BUFFER_SCRATCH_FLAG_ARABIC_HAS_STCH: ScratchFlags = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
@@ -175,7 +175,7 @@ impl GlyphInfo {
     );
 }
 
-fn deallocate_buffer_var(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn deallocate_buffer_var(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     buffer.deallocate_var(GlyphInfo::ARABIC_SHAPING_ACTION_VAR);
 
     false
@@ -216,7 +216,7 @@ fn collect_features(planner: &mut ShapePlanner) {
     planner.ot_map.add_gsub_pause(None);
 
     for feature in ARABIC_FEATURES {
-        let has_fallback = planner.script == Some(script::ARABIC) && !feature_is_syriac(*feature);
+        let has_fallback = planner.script == Some(Script::ARABIC) && !feature_is_syriac(*feature);
         let flags = if has_fallback { F_HAS_FALLBACK } else { F_NONE };
         planner
             .ot_map
@@ -233,7 +233,7 @@ fn collect_features(planner: &mut ShapePlanner) {
         .ot_map
         .enable_feature(Tag::new(b"rlig"), F_MANUAL_ZWJ | F_HAS_FALLBACK, 1);
 
-    if planner.script == Some(script::ARABIC) {
+    if planner.script == Some(Script::ARABIC) {
         planner.ot_map.add_gsub_pause(Some(arabic_fallback_shape));
     }
 
@@ -282,7 +282,7 @@ pub struct ArabicShapePlan {
 
 pub fn data_create_arabic(plan: &ShapePlan) -> ArabicShapePlan {
     let has_stch = plan.ot_map.get_1_mask(Tag::new(b"stch")) != 0;
-    let mut do_fallback = plan.script == Some(script::ARABIC);
+    let mut do_fallback = plan.script == Some(Script::ARABIC);
 
     let mut mask_array = [0; ARABIC_FEATURES.len() + 1];
     for i in 0..ARABIC_FEATURES.len() {
@@ -388,7 +388,7 @@ fn mongolian_variation_selectors(buffer: &mut Buffer) {
     }
 }
 
-fn setup_masks_arabic_plan(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks_arabic_plan(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::ARABIC_SHAPING_ACTION_VAR);
 
     let arabic_plan = plan.data::<ArabicShapePlan>();
@@ -401,7 +401,7 @@ pub fn setup_masks_inner(
     buffer: &mut Buffer,
 ) {
     arabic_joining(buffer);
-    if script == Some(script::MONGOLIAN) {
+    if script == Some(Script::MONGOLIAN) {
         mongolian_variation_selectors(buffer);
     }
 
@@ -410,11 +410,7 @@ pub fn setup_masks_inner(
     }
 }
 
-fn arabic_fallback_shape(
-    plan: &ShapePlan,
-    font_funcs: &mut FontFuncsDispatch,
-    buffer: &mut Buffer,
-) -> bool {
+fn arabic_fallback_shape(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     let arabic_plan = plan.data::<ArabicShapePlan>();
     if !arabic_plan.do_fallback {
         return false;
@@ -422,9 +418,9 @@ fn arabic_fallback_shape(
 
     let fallback_plan = arabic_plan
         .fallback_plan
-        .get_or_init(|| Box::new(arabic_fallback::FallbackPlan::new(plan, font_funcs)));
+        .get_or_init(|| Box::new(arabic_fallback::FallbackPlan::new(plan, font)));
     if let Some(fallback_plan) = fallback_plan {
-        fallback_plan.apply(font_funcs, buffer);
+        fallback_plan.apply(font, buffer);
     }
     true
 }
@@ -434,7 +430,7 @@ fn arabic_fallback_shape(
 // https://docs.microsoft.com/en-us/typography/script-development/syriac
 // We implement this in a generic way, such that the Arabic subtending
 // marks can use it as well.
-fn record_stch(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn record_stch(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     let arabic_plan = plan.data::<ArabicShapePlan>();
     if !arabic_plan.has_stch {
         return false;
@@ -468,7 +464,7 @@ fn record_stch(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer)
     false
 }
 
-fn apply_stch(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_ARABIC_HAS_STCH == 0 {
         return;
     }
@@ -514,7 +510,7 @@ fn apply_stch(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
             let end = i;
             while i != 0 && arabic_action::is_stch(buffer.info[i - 1].arabic_shaping_action()) {
                 i -= 1;
-                let width = face.advance_width(buffer.info[i].as_glyph());
+                let width = font.h_advance(buffer.info[i].as_glyph());
 
                 if buffer.info[i].arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
@@ -554,9 +550,8 @@ fn apply_stch(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
                 let excess =
                     i64::from(n_copies + 1) * i64::from(w_repeating) - i64::from(w_remaining);
                 if excess > 0 {
-                    extra_repeat_overlap = crate::clamp_i64_to_i32(
-                        excess / (i64::from(n_copies) * i64::from(n_repeating)),
-                    );
+                    extra_repeat_overlap =
+                        clamp_i64_to_i32(excess / (i64::from(n_copies) * i64::from(n_repeating)));
                     w_remaining = 0;
                 }
             }
@@ -567,7 +562,7 @@ fn apply_stch(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
                 for k in (start + 1..=end).rev() {
-                    let width = face.advance_width(buffer.info[k - 1].as_glyph());
+                    let width = font.h_advance(buffer.info[k - 1].as_glyph());
 
                     let mut repeat = 1;
                     if buffer.info[k - 1].arabic_shaping_action()
@@ -622,8 +617,8 @@ fn apply_stch(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     }
 }
 
-fn postprocess_glyphs_arabic(_: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
-    apply_stch(face, buffer);
+fn postprocess_glyphs_arabic(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+    apply_stch(font, buffer);
 }
 
 // http://www.unicode.org/reports/tr53/

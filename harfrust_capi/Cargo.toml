@@ -12,7 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-harfrust = { workspace = true, features = ["std", "experimental_font_api"] }
+harfrust = { workspace = true, features = ["std"] }
 read-fonts.workspace = true
 
 [lib]

@@ -1,11 +1,11 @@
 use crate::{
-    ot::gsubgpos::{
+    ot::apply::{
         Apply, ApplyContext, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
         WouldApplyContext,
     },
     ot::layout::LayoutTableKind,
     set_digest::SetDigest,
-    GlyphInfo, Shaper,
+    GlyphInfo,
 };
 use alloc::vec::Vec;
 use read_fonts::{
@@ -322,7 +322,7 @@ impl LookupInfo {
 }
 
 impl LookupInfo {
-    pub fn would_apply(&self, face: &Shaper, ctx: &WouldApplyContext) -> Option<bool> {
+    pub fn would_apply(&self, ot: &crate::ot::OtData<'_>, ctx: &WouldApplyContext) -> Option<bool> {
         let glyph = ctx.glyphs[0];
         if !self.digest.may_have(glyph.into()) {
             return Some(false);
@@ -332,7 +332,7 @@ impl LookupInfo {
         } else {
             LayoutTableKind::Gpos
         };
-        let table_data = face.ot_tables.table_data(table_index)?;
+        let table_data = ot.table_data(table_index)?;
         for subtable_info in &self.subtables {
             if !subtable_info.digest.may_have(glyph.into()) {
                 continue;

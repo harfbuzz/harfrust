@@ -1,7 +1,6 @@
 use smallvec::SmallVec;
 
-use super::common::TagExt;
-use super::{script, tag_table, Language, Script, Tag};
+use super::{tag_table, Language, Script, Tag};
 
 type ThreeTags = SmallVec<[Tag; 3]>;
 
@@ -283,16 +282,16 @@ fn all_tags_from_script(script: Option<Script>, tags: &mut ThreeTags) {
 
 fn new_tag_from_script(script: Script) -> Option<Tag> {
     match script {
-        script::BENGALI => Some(Tag::new(b"bng2")),
-        script::DEVANAGARI => Some(Tag::new(b"dev2")),
-        script::GUJARATI => Some(Tag::new(b"gjr2")),
-        script::GURMUKHI => Some(Tag::new(b"gur2")),
-        script::KANNADA => Some(Tag::new(b"knd2")),
-        script::MALAYALAM => Some(Tag::new(b"mlm2")),
-        script::ORIYA => Some(Tag::new(b"ory2")),
-        script::TAMIL => Some(Tag::new(b"tml2")),
-        script::TELUGU => Some(Tag::new(b"tel2")),
-        script::MYANMAR => Some(Tag::new(b"mym2")),
+        Script::BENGALI => Some(Tag::new(b"bng2")),
+        Script::DEVANAGARI => Some(Tag::new(b"dev2")),
+        Script::GUJARATI => Some(Tag::new(b"gjr2")),
+        Script::GURMUKHI => Some(Tag::new(b"gur2")),
+        Script::KANNADA => Some(Tag::new(b"knd2")),
+        Script::MALAYALAM => Some(Tag::new(b"mlm2")),
+        Script::ORIYA => Some(Tag::new(b"ory2")),
+        Script::TAMIL => Some(Tag::new(b"tml2")),
+        Script::TELUGU => Some(Tag::new(b"tel2")),
+        Script::MYANMAR => Some(Tag::new(b"mym2")),
         _ => None,
     }
 }
@@ -302,21 +301,85 @@ fn old_tag_from_script(script: Script) -> Tag {
 
     // This seems to be accurate as of end of 2012.
     match script {
-        script::MATH => Tag::new(b"math"),
+        Script::MATH => Tag::new(b"math"),
 
         // Hiragana, Katakana, and their collective ISO 15924 script all map to 'kana'.
-        script::HIRAGANA | KATAKANA_OR_HIRAGANA => Tag::new(b"kana"),
+        Script::HIRAGANA | KATAKANA_OR_HIRAGANA => Tag::new(b"kana"),
 
         // Spaces at the end are preserved, unlike ISO 15924.
-        script::LAO => Tag::new(b"lao "),
-        script::YI => Tag::new(b"yi  "),
+        Script::LAO => Tag::new(b"lao "),
+        Script::YI => Tag::new(b"yi  "),
         // Unicode-5.0 additions.
-        script::NKO => Tag::new(b"nko "),
+        Script::NKO => Tag::new(b"nko "),
         // Unicode-5.1 additions.
-        script::VAI => Tag::new(b"vai "),
+        Script::VAI => Tag::new(b"vai "),
 
         // Else, just change first char to lowercase and return.
         _ => Tag::from_u32(script.tag().as_u32() | 0x2000_0000),
+    }
+}
+
+pub trait TagExt {
+    fn from_bytes_lossy(bytes: &[u8]) -> Self;
+    fn as_u32(self) -> u32;
+    fn is_null(self) -> bool;
+    fn default_script() -> Self;
+    fn default_language() -> Self;
+    #[cfg(test)]
+    fn to_lowercase(&self) -> Self;
+    fn to_uppercase(&self) -> Self;
+}
+
+impl TagExt for Tag {
+    fn from_bytes_lossy(bytes: &[u8]) -> Self {
+        let mut array = [b' '; 4];
+        for (src, dest) in bytes.iter().zip(&mut array) {
+            *dest = *src;
+        }
+        Tag::new(&array)
+    }
+
+    fn as_u32(self) -> u32 {
+        u32::from_be_bytes(self.to_be_bytes())
+    }
+
+    fn is_null(self) -> bool {
+        self.to_be_bytes() == [0, 0, 0, 0]
+    }
+
+    #[inline]
+    fn default_script() -> Self {
+        Tag::new(b"DFLT")
+    }
+
+    #[inline]
+    fn default_language() -> Self {
+        Tag::new(b"dflt")
+    }
+
+    /// Converts tag to lowercase.
+    #[cfg(test)]
+    #[inline]
+    fn to_lowercase(&self) -> Self {
+        let b = self.to_be_bytes();
+        Tag::new(&[
+            b[0].to_ascii_lowercase(),
+            b[1].to_ascii_lowercase(),
+            b[2].to_ascii_lowercase(),
+            b[3].to_ascii_lowercase(),
+        ])
+    }
+
+    /// Converts tag to uppercase.
+    #[inline]
+    fn to_uppercase(&self) -> Self {
+        let b = self.to_be_bytes();
+        Tag::new(&[
+            b[0].to_ascii_uppercase(),
+            b[1].to_ascii_uppercase(),
+            b[2].to_ascii_uppercase(),
+            b[3].to_ascii_uppercase(),
+        ])
     }
 }
 
@@ -339,17 +402,17 @@ mod tests {
 
     fn new_tag_to_script(tag: Tag) -> Option<Script> {
         match &tag.to_be_bytes() {
-            b"bng2" => Some(script::BENGALI),
-            b"dev2" => Some(script::DEVANAGARI),
-            b"gjr2" => Some(script::GUJARATI),
-            b"gur2" => Some(script::GURMUKHI),
-            b"knd2" => Some(script::KANNADA),
-            b"mlm2" => Some(script::MALAYALAM),
-            b"ory2" => Some(script::ORIYA),
-            b"tml2" => Some(script::TAMIL),
-            b"tel2" => Some(script::TELUGU),
-            b"mym2" => Some(script::MYANMAR),
-            _ => Some(script::UNKNOWN),
+            b"bng2" => Some(Script::BENGALI),
+            b"dev2" => Some(Script::DEVANAGARI),
+            b"gjr2" => Some(Script::GUJARATI),
+            b"gur2" => Some(Script::GURMUKHI),
+            b"knd2" => Some(Script::KANNADA),
+            b"mlm2" => Some(Script::MALAYALAM),
+            b"ory2" => Some(Script::ORIYA),
+            b"tml2" => Some(Script::TAMIL),
+            b"tel2" => Some(Script::TELUGU),
+            b"mym2" => Some(Script::MYANMAR),
+            _ => Some(Script::UNKNOWN),
         }
     }
 
@@ -420,9 +483,9 @@ mod tests {
         assert_eq!(Tag::new(b"DFLT"), Tag::default_script());
 
         // Hiragana, Katakana, and their collective ISO 15924 script all map to 'kana'.
-        test_simple_tags("kana", script::KATAKANA);
+        test_simple_tags("kana", Script::KATAKANA);
 
-        let (scripts, _) = tags_from_script_and_language(Some(script::HIRAGANA), None);
+        let (scripts, _) = tags_from_script_and_language(Some(Script::HIRAGANA), None);
         assert_eq!(scripts.as_slice(), &[Tag::new(b"kana")]);
 
         let katakana_or_hiragana =
@@ -440,29 +503,29 @@ mod tests {
         test_simple_tags("wwyz", Script::from_iso15924_tag(Tag::new(b"wWyZ")).unwrap());
 
         // These we don't really care about.
-        test_simple_tags("zyyy", script::COMMON);
-        test_simple_tags("zinh", script::INHERITED);
-        test_simple_tags("zzzz", script::UNKNOWN);
+        test_simple_tags("zyyy", Script::COMMON);
+        test_simple_tags("zinh", Script::INHERITED);
+        test_simple_tags("zzzz", Script::UNKNOWN);
 
-        test_simple_tags("arab", script::ARABIC);
-        test_simple_tags("copt", script::COPTIC);
-        test_simple_tags("kana", script::KATAKANA);
-        test_simple_tags("latn", script::LATIN);
+        test_simple_tags("arab", Script::ARABIC);
+        test_simple_tags("copt", Script::COPTIC);
+        test_simple_tags("kana", Script::KATAKANA);
+        test_simple_tags("latn", Script::LATIN);
 
         // These are trickier since their OT script tags have space.
-        test_simple_tags("lao ", script::LAO);
-        test_simple_tags("yi  ", script::YI);
+        test_simple_tags("lao ", Script::LAO);
+        test_simple_tags("yi  ", Script::YI);
         // Unicode-5.0 additions.
-        test_simple_tags("nko ", script::NKO);
+        test_simple_tags("nko ", Script::NKO);
         // Unicode-5.1 additions.
-        test_simple_tags("vai ", script::VAI);
+        test_simple_tags("vai ", Script::VAI);
 
         // https://docs.microsoft.com/en-us/typography/opentype/spec/scripttags
 
         // Unicode-5.2 additions.
-        test_simple_tags("mtei", script::MEETEI_MAYEK);
+        test_simple_tags("mtei", Script::MEETEI_MAYEK);
         // Unicode-6.0 additions.
-        test_simple_tags("mand", script::MANDAIC);
+        test_simple_tags("mand", Script::MANDAIC);
     }
 
     macro_rules! test_script_from_language {
@@ -481,16 +544,16 @@ mod tests {
 
     test_script_from_language!(script_from_language_01, "", "", None);
     test_script_from_language!(script_from_language_02, "", "en", None);
-    test_script_from_language!(script_from_language_03, "copt", "en", Some(script::COPTIC));
+    test_script_from_language!(script_from_language_03, "copt", "en", Some(Script::COPTIC));
     test_script_from_language!(script_from_language_04, "", "x-hbsc", None);
-    test_script_from_language!(script_from_language_05, "copt", "x-hbsc", Some(script::COPTIC));
+    test_script_from_language!(script_from_language_05, "copt", "x-hbsc", Some(Script::COPTIC));
     test_script_from_language!(script_from_language_06, "abc ", "x-hbscabc", None);
     test_script_from_language!(script_from_language_07, "deva", "x-hbscdeva", None);
     test_script_from_language!(script_from_language_08, "dev2", "x-hbscdev2", None);
     test_script_from_language!(script_from_language_09, "dev3", "x-hbscdev3", None);
     test_script_from_language!(script_from_language_10, "copt", "x-hbotpap0-hbsccopt", None);
     test_script_from_language!(script_from_language_11, "", "en-x-hbsc", None);
-    test_script_from_language!(script_from_language_12, "copt", "en-x-hbsc", Some(script::COPTIC));
+    test_script_from_language!(script_from_language_12, "copt", "en-x-hbsc", Some(Script::COPTIC));
     test_script_from_language!(script_from_language_13, "abc ", "en-x-hbscabc", None);
     test_script_from_language!(script_from_language_14, "deva", "en-x-hbscdeva", None);
     test_script_from_language!(script_from_language_15, "dev2", "en-x-hbscdev2", None);
@@ -511,15 +574,15 @@ mod tests {
             assert_eq!(tag_to_script(tag3), Some(script));
         }
 
-        check("bng3", "bng2", "beng", script::BENGALI);
-        check("dev3", "dev2", "deva", script::DEVANAGARI);
-        check("gjr3", "gjr2", "gujr", script::GUJARATI);
-        check("gur3", "gur2", "guru", script::GURMUKHI);
-        check("knd3", "knd2", "knda", script::KANNADA);
-        check("mlm3", "mlm2", "mlym", script::MALAYALAM);
-        check("ory3", "ory2", "orya", script::ORIYA);
-        check("tml3", "tml2", "taml", script::TAMIL);
-        check("tel3", "tel2", "telu", script::TELUGU);
+        check("bng3", "bng2", "beng", Script::BENGALI);
+        check("dev3", "dev2", "deva", Script::DEVANAGARI);
+        check("gjr3", "gjr2", "gujr", Script::GUJARATI);
+        check("gur3", "gur2", "guru", Script::GURMUKHI);
+        check("knd3", "knd2", "knda", Script::KANNADA);
+        check("mlm3", "mlm2", "mlym", Script::MALAYALAM);
+        check("ory3", "ory2", "orya", Script::ORIYA);
+        check("tml3", "tml2", "taml", Script::TAMIL);
+        check("tel3", "tel2", "telu", Script::TELUGU);
     }
 
     // TODO: swap tag and lang
@@ -726,17 +789,17 @@ mod tests {
 
     test_tags!(tag_full_en, None, "en", &[], &[b"ENG"]);
     test_tags!(tag_full_en_x_hbscdflt, None, "en-x-hbscdflt", &[b"DFLT"], &[b"ENG"]);
-    test_tags!(tag_full_en_latin, Some(script::LATIN), "en", &[b"latn"], &[b"ENG"]);
+    test_tags!(tag_full_en_latin, Some(Script::LATIN), "en", &[b"latn"], &[b"ENG"]);
     test_tags!(tag_full_und_fonnapa, None, "und-fonnapa", &[], &[b"APPH"]);
     test_tags!(tag_full_en_fonnapa, None, "en-fonnapa", &[], &[b"APPH"]);
     test_tags!(tag_full_und_fonupa, None, "und-fonupa", &[], &[b"UPPH"]);
     test_tags!(tag_full_fi_fonupa, None, "fi-fonupa", &[], &[b"UPPH"]);
     test_tags!(tag_full_x_hbot1234_hbsc5678, None, "x-hbot1234-hbsc5678", &[b"5678"], &[b"1234"]);
     test_tags!(tag_full_x_hbsc5678_hbot1234, None, "x-hbsc5678-hbot1234", &[b"5678"], &[b"1234"]);
-    test_tags!(tag_hex_mont, Some(script::MYANMAR), "x-hbot-4d4f4e54", &[b"mym2", b"mymr"], &[b"MONT"]);
+    test_tags!(tag_hex_mont, Some(Script::MYANMAR), "x-hbot-4d4f4e54", &[b"mym2", b"mymr"], &[b"MONT"]);
     test_tags!(tag_hex_uppercase, None, "X-HBOT-4D4F4E54", &[], &[b"MONT"]);
     test_tags!(tag_hex_language_override, None, "my-x-hbot-4d4f4e54-zxc", &[], &[b"MONT"]);
-    test_tags!(tag_hex_script_override, Some(script::LATIN), "en-x-hbsc-64657633", &[b"dev3"], &[b"ENG"]);
+    test_tags!(tag_hex_script_override, Some(Script::LATIN), "en-x-hbsc-64657633", &[b"dev3"], &[b"ENG"]);
     test_tags!(tag_hex_language_and_script, None, "x-hbot-4d4f4e54-hbsc-6d796d32", &[b"mym2"], &[b"MONT"]);
     test_tags!(tag_hex_script_and_language, None, "x-hbsc-6d796d32-hbot-4d4f4e54", &[b"mym2"], &[b"MONT"]);
     test_tags!(tag_hex_preserves_case_and_punctuation, None, "x-hbot-41686121-hbsc-41686121", &[b"Aha!"], &[b"Aha!"]);
@@ -758,7 +821,7 @@ mod tests {
         ] {
             let language = alloc::format!("en-x-hbot-{hex}-hbsc-{hex}");
             let (scripts, languages) = tags_from_script_and_language(
-                Some(script::LATIN), Language::new(&language).as_ref(),
+                Some(Script::LATIN), Language::new(&language).as_ref(),
             );
             assert_eq!(scripts.as_slice(), &[Tag::new(b"latn")], "{language}");
             assert_eq!(languages.as_slice(), &[Tag::new(b"ENG ")], "{language}");
@@ -771,7 +834,7 @@ mod tests {
         }
     }
 
-    test_tags!(tag_full_ml, Some(script::MALAYALAM), "ml", &[b"mlm3", b"mlm2", b"mlym"], &[b"MAL", b"MLR"]);
+    test_tags!(tag_full_ml, Some(Script::MALAYALAM), "ml", &[b"mlm3", b"mlm2", b"mlym"], &[b"MAL", b"MLR"]);
     test_tags!(tag_full_xyz, None, "xyz", &[], &[b"XYZ"]);
     test_tags!(tag_full_xy, None, "xy", &[], &[]);
 }

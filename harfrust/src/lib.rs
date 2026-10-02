@@ -36,19 +36,27 @@ mod unicode;
 mod buffer;
 mod aat;
 mod cache;
-mod charmap;
-mod common;
-mod face;
-mod font_funcs;
-mod glyph_metrics;
-pub(crate) mod glyph_names;
+mod direction;
+mod error;
+pub(crate) mod fallback;
+mod feature;
+pub(crate) mod font_support;
+mod language;
+pub(crate) mod normalize;
+mod options;
 pub(crate) mod ot;
+mod plan;
+pub(crate) mod planner;
+mod scale;
+mod script;
 pub(crate) mod set_digest;
-mod tables;
+mod shape;
+mod shaper_font;
 mod tag;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
+mod variation;
 
 type Mask = u32;
 
@@ -57,48 +65,39 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
     value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }
 
-#[cfg(feature = "std")]
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
-#[cfg(not(feature = "std"))]
-mod digest_u32_set;
-#[cfg(not(feature = "std"))]
-pub(crate) type U32Set = digest_u32_set::DigestU32Set;
 
-pub use read_fonts::{
-    types::{GlyphId, Tag},
-    FontRef,
-};
+pub use read_fonts::types::{GlyphId, Tag};
 
-#[cfg(feature = "experimental_font_api")]
-pub use face::shape;
+pub use error::ShapeError;
+pub use font_support::GlyphName;
+pub use options::ShapeOptions;
+pub use plan::{ShapePlan, ShapePlanKey};
+pub(crate) use planner::ShapePlanner;
+pub use scale::Scale;
+pub use shape::shape;
+pub(crate) use shaper_font::LayoutData;
+pub(crate) use shaper_font::{Advances, NominalGlyphs};
+pub use shaper_font::{GlyphExtents, ShaperFont};
 
 /// Font related types.
 pub mod font {
-    pub use crate::face::{
-        AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, NominalGlyphBatch, RawAdvanceWidthBatch,
-        RawNominalGlyphBatch,
+    pub use crate::shaper_font::{
+        Advances, FontFuncs, NominalGlyphs, RawAdvances, RawNominalGlyphs,
     };
+    pub use crate::ShaperFont;
 
     // Import the whole read-fonts "model" module as our font representation.
 
-    #[cfg(feature = "experimental_font_api")]
     pub use read_fonts::model::*;
-
-    #[cfg(not(feature = "experimental_font_api"))]
-    pub(crate) use read_fonts::model::*;
 }
 
-pub use buffer::{
-    Buffer, BufferContentType, EmptySerializerFont, GlyphBuffer, GlyphFlags, GlyphInfo,
-    GlyphPosition, ShapeError, UnicodeBuffer, WrongContentType,
-};
-pub use common::{script, Direction, Feature, Language, Script, Variation};
-pub use face::{
-    GlyphExtents, Scale, ShapeOptions, Shaper, ShaperBuilder, ShaperData, ShaperInstance,
-};
-pub use glyph_names::GlyphNames;
-
-pub use ot::shape::plan::{ShapePlan, ShapePlanKey};
+pub use buffer::{Buffer, ContentType, GlyphFlags, GlyphInfo, GlyphPosition};
+pub use direction::Direction;
+pub use feature::Feature;
+pub use language::Language;
+pub use script::Script;
+pub use variation::Variation;
 
 /// Type alias for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;
@@ -131,14 +130,14 @@ bitflags::bitflags! {
 /// A cluster level.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum BufferClusterLevel {
+pub enum ClusterLevel {
     MonotoneGraphemes,
     MonotoneCharacters,
     Characters,
     Graphemes,
 }
 
-impl BufferClusterLevel {
+impl ClusterLevel {
     #[inline]
     fn new(level: u32) -> Self {
         match level {
@@ -163,10 +162,10 @@ impl BufferClusterLevel {
     }
 }
 
-impl Default for BufferClusterLevel {
+impl Default for ClusterLevel {
     #[inline]
     fn default() -> Self {
-        BufferClusterLevel::MonotoneGraphemes
+        ClusterLevel::MonotoneGraphemes
     }
 }
 

@@ -2,17 +2,17 @@ use read_fonts::types::GlyphId;
 
 use super::plan::ShapePlan;
 use crate::buffer::{Buffer, GlyphPosition};
-use crate::face::GlyphExtents;
-use crate::font_funcs::FontFuncsDispatch;
 use crate::unicode::*;
-use crate::{Direction, Shaper};
+use crate::Direction;
+use crate::{GlyphExtents, Scale, ShaperFont};
 
-struct FallbackShapeContext<'a, 'x, 'u> {
+struct FallbackShapeContext<'a, 'x, 'c, 'd> {
     plan: &'a ShapePlan,
-    face: &'a Shaper<'a>,
+    units_per_em: u16,
+    scale: Scale,
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
-    font_funcs: &'x mut FontFuncsDispatch<'a, 'u>,
+    font: &'x ShaperFont<'c, 'd>,
 }
 
 fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
@@ -95,7 +95,7 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
     }
 }
 
-pub fn recategorize_marks(_: &ShapePlan, _: &Shaper, buffer: &mut Buffer) {
+pub fn recategorize_marks(buffer: &mut Buffer) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
@@ -128,19 +128,20 @@ fn zero_mark_advances(
 }
 
 fn position_mark(
-    face: &Shaper,
+    units_per_em: u16,
+    scale: Scale,
     direction: Direction,
-    font_funcs: &mut FontFuncsDispatch<'_, '_>,
+    font: &ShaperFont,
     glyph: GlyphId,
     pos: &mut GlyphPosition,
     base_extents: &mut GlyphExtents,
     combining_class: u8,
 ) {
-    let Some(mark_extents) = font_funcs.extents(glyph) else {
+    let Some(mark_extents) = font.glyph_extents(glyph) else {
         return;
     };
 
-    let y_gap = font_funcs.scale().scale_y(face.units_per_em as i32 / 16);
+    let y_gap = scale.scale_y(units_per_em as i32 / 16);
     pos.x_offset = 0;
     pos.y_offset = 0;
 
@@ -268,14 +269,14 @@ fn position_mark(
 
 fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize) {
     let mut horizontal_dir = Direction::Invalid;
-    let face = ctx.face;
+    let units_per_em = ctx.units_per_em;
     ctx.buffer.unsafe_to_break(Some(base), Some(end));
 
     let base_info = ctx.buffer.info[base];
     let base_pos = ctx.buffer.pos[base];
     let base_glyph = base_info.as_glyph();
 
-    let Some(mut base_extents) = ctx.font_funcs.extents(base_glyph) else {
+    let Some(mut base_extents) = ctx.font.glyph_extents(base_glyph) else {
         zero_mark_advances(ctx.buffer, base + 1, end, ctx.adjust_offsets_when_zeroing);
         return;
     };
@@ -286,7 +287,7 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     // Use horizontal advance for horizontal positioning.
     // Generally a better idea. Also works for zero-ink glyphs. See:
     // https://github.com/harfbuzz/harfbuzz/issues/1532
-    base_extents.width = ctx.font_funcs.advance_width(base_glyph);
+    base_extents.width = ctx.font.h_advance(base_glyph);
 
     let lig_id = base_info.lig_id() as u32;
     let num_lig_components = base_info.lig_num_comps() as i32;
@@ -303,7 +304,7 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     let mut component_extents = base_extents;
     let mut cluster_extents = base_extents;
     let direction = ctx.buffer.direction;
-    let font_funcs = &mut *ctx.font_funcs;
+    let font = ctx.font;
 
     for (info, pos) in ctx.buffer.info[base + 1..end]
         .iter()
@@ -341,7 +342,7 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
                     } else {
                         num_lig_components - 1 - this_lig_component
                     };
-                    component_extents.x_bearing = super::clamp_i64_to_i32(
+                    component_extents.x_bearing = crate::clamp_i64_to_i32(
                         i64::from(component_extents.x_bearing)
                             + i64::from(component) * i64::from(component_extents.width)
                                 / i64::from(num_lig_components),
@@ -358,9 +359,10 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
             }
 
             position_mark(
-                face,
+                units_per_em,
+                ctx.scale,
                 direction,
-                font_funcs,
+                font,
                 info.as_glyph(),
                 pos,
                 &mut cluster_extents,
@@ -414,19 +416,19 @@ fn position_cluster(ctx: &mut FallbackShapeContext, start: usize, end: usize) {
     position_cluster_impl(ctx, start, end);
 }
 
-pub fn position_marks<'a, 'x>(
-    plan: &'a ShapePlan,
-    face: &'a Shaper<'a>,
+pub fn position_marks<'x>(
+    plan: &ShapePlan,
+    font: &'x ShaperFont<'_, '_>,
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
-    font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {
     let mut ctx = FallbackShapeContext {
         plan,
-        face,
+        units_per_em: font.layout().units_per_em,
+        scale: font.scale,
         buffer,
         adjust_offsets_when_zeroing,
-        font_funcs,
+        font,
     };
 
     ctx.buffer.assert_gsubgpos_vars();
@@ -446,22 +448,18 @@ pub fn position_marks<'a, 'x>(
     position_cluster(&mut ctx, start, len);
 }
 
-pub fn fallback_kern(_: &ShapePlan, _: &Shaper, _: &mut Buffer) {
+pub fn fallback_kern(_: &ShapePlan, _: &mut Buffer) {
     // STUB: this is deprecated in HarfBuzz
 }
 
-pub fn fallback_spaces<'a, 'x>(
-    plan: &'a ShapePlan,
-    face: &'a Shaper<'a>,
-    buffer: &'x mut Buffer,
-    font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
-) {
+pub fn fallback_spaces(shaping_font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     use crate::unicode::space_fallback as t;
 
-    let _ = plan;
+    let layout = shaping_font.layout();
+    let scale = shaping_font.scale;
+    let font = shaping_font;
     let len = buffer.len;
     let horizontal = buffer.direction.is_horizontal();
-    let scale = *font_funcs.scale();
     for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
         if info.is_unicode_space() && !info.ligated() {
             let space_type = info.unicode_space_fallback_type();
@@ -474,7 +472,7 @@ pub fn fallback_spaces<'a, 'x>(
                 | t::SPACE_EM_6
                 | t::SPACE_EM_16 => {
                     let length =
-                        (face.units_per_em as i32 + (space_type as i32) / 2) / space_type as i32;
+                        (layout.units_per_em as i32 + (space_type as i32) / 2) / space_type as i32;
                     if horizontal {
                         pos.x_advance = scale.scale_x(length);
                     } else {
@@ -483,7 +481,7 @@ pub fn fallback_spaces<'a, 'x>(
                 }
 
                 t::SPACE_4_EM_18 => {
-                    let length = ((face.units_per_em as i64) * 4 / 18) as i32;
+                    let length = ((layout.units_per_em as i64) * 4 / 18) as i32;
                     if horizontal {
                         pos.x_advance = scale.scale_x(length);
                     } else {
@@ -493,11 +491,11 @@ pub fn fallback_spaces<'a, 'x>(
 
                 t::SPACE_FIGURE => {
                     for u in '0'..='9' {
-                        if let Some(glyph) = font_funcs.nominal_glyph(u as u32) {
+                        if let Some(glyph) = font.nominal_glyph(u as u32) {
                             if horizontal {
-                                pos.x_advance = font_funcs.advance_width(glyph);
+                                pos.x_advance = font.h_advance(glyph);
                             } else {
-                                pos.y_advance = font_funcs.advance_height(glyph);
+                                pos.y_advance = font.v_advance(glyph);
                             }
                             break;
                         }
@@ -505,15 +503,15 @@ pub fn fallback_spaces<'a, 'x>(
                 }
 
                 t::SPACE_PUNCTUATION => {
-                    let punct = font_funcs
+                    let punct = font
                         .nominal_glyph('.' as u32)
-                        .or_else(|| font_funcs.nominal_glyph(',' as u32));
+                        .or_else(|| font.nominal_glyph(',' as u32));
 
                     if let Some(glyph) = punct {
                         if horizontal {
-                            pos.x_advance = font_funcs.advance_width(glyph);
+                            pos.x_advance = font.h_advance(glyph);
                         } else {
-                            pos.y_advance = font_funcs.advance_height(glyph);
+                            pos.y_advance = font.v_advance(glyph);
                         }
                     }
                 }

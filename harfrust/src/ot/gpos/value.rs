@@ -1,4 +1,4 @@
-use crate::ot::gsubgpos::ApplyContext;
+use crate::ot::apply::ApplyContext;
 use read_fonts::{
     tables::{gpos::ValueFormat, variations::DeltaSetIndex},
     FontData,
@@ -47,8 +47,8 @@ pub(super) fn apply(
     if !format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
         return Some(worked);
     }
-    if let Some(vs) = &ctx.face.ot_tables.var_store {
-        let coords = ctx.face.ot_tables.coords;
+    if let Some(vs) = &ctx.layout.ot.var_store {
+        let coords = ctx.layout.ot.coords;
         macro_rules! read_delta {
             () => {{
                 let rec_offset = data.read_at::<u16>(offset).ok()? as usize;

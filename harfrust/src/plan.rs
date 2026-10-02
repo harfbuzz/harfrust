@@ -2,13 +2,13 @@ use alloc::boxed::Box;
 use core::any::Any;
 use smallvec::SmallVec;
 
-use crate::common::HB_FEATURE_GLOBAL_END;
-use crate::common::HB_FEATURE_GLOBAL_START;
-use crate::ShaperInstance;
+use crate::aat::map::AatMap;
+use crate::ot::shaper::OtShaper;
 
-use super::*;
 use crate::ot::map::*;
-use crate::{Direction, Feature, Language, Mask, Script, Shaper};
+use crate::LayoutData;
+use crate::{Direction, Feature, Language, Mask, Script};
+use crate::{ShapePlanner, ShaperFont};
 
 /// A reusable plan for shaping a text buffer.
 pub struct ShapePlan {
@@ -45,36 +45,27 @@ pub struct ShapePlan {
     pub(crate) user_features: SmallVec<[Feature; 4]>,
 }
 
-pub trait AnyFont {
-    fn with_font<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(Option<&Shaper>) -> R;
-}
-
-impl AnyFont for Shaper<'_> {
-    fn with_font<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(Option<&Shaper>) -> R,
-    {
-        f(Some(self))
-    }
-}
-
-impl AnyFont for crate::font::FontInstance {
-    fn with_font<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(Option<&Shaper>) -> R,
-    {
-        let shaper = Shaper::from_font(self);
-        f(shaper.as_ref())
-    }
-}
-
 impl ShapePlan {
-    /// Returns a plan that can be used for shaping any buffer with the
-    /// provided properties.
+    /// Builds a plan for the given font and segment properties.
     pub fn new(
-        font: &impl AnyFont,
+        font: &crate::font::FontInstance,
+        direction: Direction,
+        script: Option<Script>,
+        language: Option<&Language>,
+        user_features: &[Feature],
+    ) -> Self {
+        let shaping_font = ShaperFont::new(font);
+        Self::from_layout(
+            shaping_font.layout(),
+            direction,
+            script,
+            language,
+            user_features,
+        )
+    }
+
+    pub(crate) fn from_layout(
+        layout: LayoutData<'_>,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
@@ -85,12 +76,9 @@ impl ShapePlan {
             Direction::Invalid,
             "Direction must not be Invalid"
         );
-        font.with_font(|font| {
-            let font = font.expect("font should be available for shaping");
-            let mut planner = ShapePlanner::new(font, direction, script, language);
-            planner.collect_features(user_features);
-            planner.compile(user_features)
-        })
+        let mut planner = ShapePlanner::new(layout, direction, script, language);
+        planner.collect_features(user_features);
+        planner.compile(user_features)
     }
 
     pub(crate) fn data<T: 'static>(&self) -> &T {
@@ -118,18 +106,23 @@ pub struct ShapePlanKey<'a> {
     script: Option<Script>,
     direction: Direction,
     language: Option<&'a Language>,
-    feature_variations: [Option<u32>; 2],
+    pub(crate) feature_variations: [Option<u32>; 2],
     features: &'a [Feature],
 }
 
 impl<'a> ShapePlanKey<'a> {
     /// Creates a new shape plan key with the given script and direction.
-    pub fn new(script: Option<Script>, direction: Direction) -> Self {
+    pub fn new(
+        font: &crate::font::FontInstance,
+        script: Option<Script>,
+        direction: Direction,
+    ) -> Self {
+        let variations = font.feature_variations();
         Self {
             script,
             direction,
             language: None,
-            feature_variations: [None; 2],
+            feature_variations: [variations.gsub(), variations.gpos()],
             features: &[],
         }
     }
@@ -137,14 +130,6 @@ impl<'a> ShapePlanKey<'a> {
     /// Sets the language to use for this shape plan key.
     pub fn language(mut self, language: Option<&'a Language>) -> Self {
         self.language = language;
-        self
-    }
-
-    /// Sets the instance to use for this shape plan key.
-    pub fn instance(mut self, instance: Option<&ShaperInstance>) -> Self {
-        self.feature_variations = instance
-            .map(|instance| instance.feature_variations)
-            .unwrap_or_default();
         self
     }
 
@@ -171,8 +156,8 @@ fn features_equivalent(features_a: &[Feature], features_b: &[Feature]) -> bool {
     for (a, b) in features_a.iter().zip(features_b) {
         if a.tag != b.tag
             || a.value != b.value
-            || (a.start == HB_FEATURE_GLOBAL_START && a.end == HB_FEATURE_GLOBAL_END)
-                != (b.start == HB_FEATURE_GLOBAL_START && b.end == HB_FEATURE_GLOBAL_END)
+            || (a.start == Feature::GLOBAL_START && a.end == Feature::GLOBAL_END)
+                != (b.start == Feature::GLOBAL_START && b.end == Feature::GLOBAL_END)
         {
             return false;
         }

@@ -1,5 +1,5 @@
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{
     Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
     PairPosFormat2SmallCache, SkippingIterator, SubtableExternalCache, SubtableExternalCacheMode,
 };

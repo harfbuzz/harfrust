@@ -1,17 +1,12 @@
 use super::ot::layout::MAX_SYLLABLE_LENGTH;
 use super::Mask;
-use crate::face::BasicFontMetrics;
-use crate::glyph_metrics::GlyphMetrics;
-use crate::glyph_names::GlyphNames;
 use crate::set_digest::SetDigest;
-use crate::tables::TableRanges;
 use crate::unicode::{CharExt, Codepoint};
 use crate::U32Set;
-use crate::{script, BufferClusterLevel, BufferFlags, Direction, Language, Script, SerializeFlags};
+use crate::{BufferFlags, ClusterLevel, Direction, Language, Script, SerializeFlags};
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
-use core::convert::TryFrom;
-use read_fonts::types::{F2Dot14, GlyphId, GlyphId16};
+use read_fonts::types::{GlyphId, GlyphId16};
 
 const CONTEXT_LENGTH: usize = 5;
 
@@ -473,7 +468,7 @@ pub const HB_BUFFER_CLUSTER_LEVEL_DEFAULT: u32 = HB_BUFFER_CLUSTER_LEVEL_MONOTON
 ///
 /// This matches HarfBuzz's `hb_buffer_content_type_t`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum BufferContentType {
+pub enum ContentType {
     /// The buffer holds input characters, ready for shaping.
     Unicode,
     /// The buffer holds the glyphs produced by shaping.
@@ -483,9 +478,8 @@ pub enum BufferContentType {
 /// A buffer of text to be shaped, and of the glyphs that shaping produces.
 ///
 /// This is the unified buffer type, matching HarfBuzz's `hb_buffer_t`. It
-/// carries a [`BufferContentType`] describing which of the two states it is
-/// currently in. See [`UnicodeBuffer`] and [`GlyphBuffer`] for the typed
-/// alternative, which encodes that state in the type system instead.
+/// carries a [`ContentType`] describing which of the two states it is
+/// currently in.
 pub struct Buffer {
     // Information about how the text in the buffer should be treated.
     pub(crate) flags: BufferFlags,
@@ -494,7 +488,7 @@ pub struct Buffer {
     pub(crate) not_found_variation_selector: Option<u32>,
 
     // Buffer contents.
-    pub(crate) content_type: Option<BufferContentType>,
+    pub(crate) content_type: Option<ContentType>,
     pub(crate) direction: Direction,
     pub(crate) script: Option<Script>,
     pub(crate) language: Option<Language>,
@@ -810,7 +804,7 @@ impl Buffer {
     ///
     /// This matches HarfBuzz's `hb_buffer_add`.
     pub fn push(&mut self, codepoint: u32, cluster: u32) {
-        self.content_type = Some(BufferContentType::Unicode);
+        self.content_type = Some(ContentType::Unicode);
         if !self.ensure(self.len + 1) {
             return;
         }
@@ -905,7 +899,7 @@ impl Buffer {
         if self.script.is_none() {
             for info in &self.info {
                 match info.as_codepoint().script() {
-                    script::COMMON | script::INHERITED | script::UNKNOWN => {}
+                    Script::COMMON | Script::INHERITED | Script::UNKNOWN => {}
                     s => {
                         self.script = Some(s);
                         break;
@@ -1141,7 +1135,7 @@ impl Buffer {
             return;
         }
 
-        if !BufferClusterLevel::new(self.cluster_level).is_monotone() {
+        if !ClusterLevel::new(self.cluster_level).is_monotone() {
             self.unsafe_to_break(Some(start), Some(end));
             return;
         }
@@ -1194,7 +1188,7 @@ impl Buffer {
             return;
         }
 
-        if !BufferClusterLevel::new(self.cluster_level).is_graphemes() {
+        if !ClusterLevel::new(self.cluster_level).is_graphemes() {
             self.unsafe_to_break(Some(start), Some(end));
             return;
         }
@@ -1207,7 +1201,7 @@ impl Buffer {
             return;
         }
 
-        if !BufferClusterLevel::new(self.cluster_level).is_monotone() {
+        if !ClusterLevel::new(self.cluster_level).is_monotone() {
             return;
         }
 
@@ -1219,7 +1213,7 @@ impl Buffer {
             return;
         }
 
-        if !BufferClusterLevel::new(self.cluster_level).is_graphemes() {
+        if !ClusterLevel::new(self.cluster_level).is_graphemes() {
             return;
         }
 
@@ -1789,7 +1783,7 @@ impl Buffer {
         if !self.ensure(self.len + text.chars().count()) {
             return;
         }
-        self.content_type = Some(BufferContentType::Unicode);
+        self.content_type = Some(ContentType::Unicode);
 
         for (i, c) in text.char_indices() {
             self.info[self.len] = GlyphInfo {
@@ -1886,22 +1880,22 @@ impl Buffer {
     /// Returns the type of content currently held by the buffer, or `None`
     /// if the buffer is empty or has been cleared.
     #[inline]
-    pub fn content_type(&self) -> Option<BufferContentType> {
+    pub fn content_type(&self) -> Option<ContentType> {
         self.content_type
     }
 
     /// Sets the type of content held by the buffer.
     ///
     /// This only relabels the buffer; it never clears it. Shaping sets this to
-    /// [`BufferContentType::Glyphs`] on its own, so most callers never need it.
+    /// [`ContentType::Glyphs`] on its own, so most callers never need it.
     ///
     /// Setting it explicitly reinterprets the items already in the buffer, which
     /// is occasionally what you want: label a buffer of glyph ids as
-    /// [`BufferContentType::Glyphs`] to serialize a run that was shaped
-    /// elsewhere, or label a shaped buffer as [`BufferContentType::Unicode`] to
-    /// force [`shape`](Self::shape) to run over it again.
+    /// [`ContentType::Glyphs`] to serialize a run that was shaped
+    /// elsewhere, or label a shaped buffer as [`ContentType::Unicode`] to
+    /// force [`shape`](crate::shape) to run over it again.
     #[inline]
-    pub fn set_content_type(&mut self, content_type: Option<BufferContentType>) {
+    pub fn set_content_type(&mut self, content_type: Option<ContentType>) {
         self.content_type = content_type;
     }
 
@@ -1942,9 +1936,7 @@ impl Buffer {
     ///
     /// This goes false when filling the buffer runs out of memory, and when
     /// shaping needs more room, more operations or more nesting than the
-    /// shaper allows. Pathological input can provoke the latter, so it is
-    /// reported here rather than as a [`ShapeError`], and the contents are
-    /// left partly shaped.
+    /// shaper allows.
     #[inline]
     pub fn allocation_successful(&self) -> bool {
         self.successful
@@ -2008,7 +2000,7 @@ impl Buffer {
         if !self.ensure(self.len + codepoints.len()) {
             return;
         }
-        self.content_type = Some(BufferContentType::Unicode);
+        self.content_type = Some(ContentType::Unicode);
         for (i, &c) in codepoints.iter().enumerate() {
             self.info[self.len] = GlyphInfo {
                 glyph_id: c,
@@ -2072,18 +2064,18 @@ impl Buffer {
 
     /// Returns the buffer's cluster level.
     #[inline]
-    pub fn cluster_level(&self) -> BufferClusterLevel {
-        BufferClusterLevel::new(self.cluster_level)
+    pub fn cluster_level(&self) -> ClusterLevel {
+        ClusterLevel::new(self.cluster_level)
     }
 
     /// Sets the buffer's cluster level.
     #[inline]
-    pub fn set_cluster_level(&mut self, cluster_level: BufferClusterLevel) {
+    pub fn set_cluster_level(&mut self, cluster_level: ClusterLevel) {
         self.cluster_level = match cluster_level {
-            BufferClusterLevel::MonotoneGraphemes => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
-            BufferClusterLevel::MonotoneCharacters => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
-            BufferClusterLevel::Characters => HB_BUFFER_CLUSTER_LEVEL_CHARACTERS,
-            BufferClusterLevel::Graphemes => HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
+            ClusterLevel::MonotoneGraphemes => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
+            ClusterLevel::MonotoneCharacters => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
+            ClusterLevel::Characters => HB_BUFFER_CLUSTER_LEVEL_CHARACTERS,
+            ClusterLevel::Graphemes => HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
         };
     }
 
@@ -2128,13 +2120,17 @@ impl Buffer {
         self.not_found_variation_selector = None;
     }
     /// Serializes the buffer contents into a string.
-    pub fn serialize(&self, font: &impl SerializerFont, flags: SerializeFlags) -> String {
+    pub fn serialize(
+        &self,
+        font: Option<&crate::ShaperFont<'_, '_>>,
+        flags: SerializeFlags,
+    ) -> String {
         self.serialize_impl(font, flags).unwrap_or_default()
     }
 
     pub(crate) fn serialize_impl(
         &self,
-        font: &impl SerializerFont,
+        font: Option<&crate::ShaperFont<'_, '_>>,
         flags: SerializeFlags,
     ) -> Result<String, core::fmt::Error> {
         use core::fmt::Write;
@@ -2145,18 +2141,12 @@ impl Buffer {
         let pos = self.glyph_positions();
         let mut x: i32 = 0;
         let mut y: i32 = 0;
-        let names = font.glyph_names();
-        let glyph_metrics = if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
-            Some(font.glyph_metrics())
-        } else {
-            None
-        };
         for (info, pos) in info.iter().zip(pos) {
             s.push(if s.is_empty() { '[' } else { '|' });
 
             if !flags.contains(SerializeFlags::NO_GLYPH_NAMES) {
-                match names.get(info.as_glyph().to_u32()) {
-                    Some(name) => s.push_str(name),
+                match font.and_then(|font| font.glyph_name(info.as_glyph())) {
+                    Some(name) => s.push_str(name.as_str()),
                     None => write!(&mut s, "gid{}", info.glyph_id)?,
                 }
             } else {
@@ -2189,10 +2179,8 @@ impl Buffer {
             }
 
             if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
-                let extents = glyph_metrics
-                    .as_ref()
-                    .unwrap()
-                    .extents(info.as_glyph(), font.coords())
+                let extents = font
+                    .and_then(|font| font.glyph_extents(info.as_glyph()))
                     .unwrap_or_default();
                 write!(
                     &mut s,
@@ -2231,149 +2219,6 @@ impl core::fmt::Debug for Buffer {
             .field("cluster_level", &self.cluster_level())
             .field("len", &self.len())
             .finish()
-    }
-}
-
-impl From<UnicodeBuffer> for Buffer {
-    #[inline]
-    fn from(buffer: UnicodeBuffer) -> Self {
-        let mut buffer = buffer.0;
-        if buffer.len != 0 {
-            buffer.content_type = Some(BufferContentType::Unicode);
-        }
-        buffer
-    }
-}
-
-impl From<GlyphBuffer> for Buffer {
-    #[inline]
-    fn from(buffer: GlyphBuffer) -> Self {
-        let mut buffer = buffer.0;
-        buffer.content_type = Some(BufferContentType::Glyphs);
-        buffer
-    }
-}
-
-/// The reason a call to [`Buffer::shape`] could not produce glyphs.
-///
-/// Each of these is a misuse of the API. Running out of room is not among
-/// them: pathological input can provoke it, so it is reported through
-/// [`Buffer::allocation_successful`] rather than as a failure to shape.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-#[non_exhaustive]
-pub enum ShapeError {
-    /// The buffer already holds the glyphs from an earlier call.
-    ///
-    /// To shape the same contents again, set the content type back to
-    /// [`BufferContentType::Unicode`] with
-    /// [`set_content_type`](Buffer::set_content_type); to shape something else,
-    /// clear the buffer and fill it afresh.
-    AlreadyShaped,
-
-    /// The buffer has no direction, so no plan could be built for it.
-    ///
-    /// Call [`guess_segment_properties`](Buffer::guess_segment_properties) to
-    /// infer one from the contents, or set it with
-    /// [`set_direction`](Buffer::set_direction).
-    DirectionUnset,
-
-    /// The font holds nothing that can be shaped with.
-    ///
-    /// The buffer is left untouched.
-    UnusableFont,
-
-    /// The buffer's direction is not the one the supplied plan was built for.
-    DirectionMismatch {
-        /// The direction the plan was built for.
-        plan: Direction,
-        /// The direction the buffer carries.
-        buffer: Direction,
-    },
-
-    /// The buffer's script is not the one the supplied plan was built for.
-    ScriptMismatch {
-        /// The script the plan was built for.
-        plan: Script,
-        /// The script the buffer carries.
-        buffer: Script,
-    },
-}
-
-impl core::fmt::Display for ShapeError {
-    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::AlreadyShaped => fmt.write_str("buffer already holds shaped glyphs"),
-            Self::DirectionUnset => fmt.write_str("buffer has no direction set"),
-            Self::UnusableFont => fmt.write_str("font has nothing to shape with"),
-            Self::DirectionMismatch { plan, buffer } => write!(
-                fmt,
-                "buffer direction does not match plan direction: {buffer:?} != {plan:?}"
-            ),
-            Self::ScriptMismatch { plan, buffer } => write!(
-                fmt,
-                "buffer script does not match plan script: {buffer:?} != {plan:?}"
-            ),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ShapeError {}
-
-/// Error returned when a [`Buffer`] holds the wrong kind of content for the
-/// typed buffer it is being converted into.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct WrongContentType {
-    /// The content type the buffer actually holds.
-    pub found: Option<BufferContentType>,
-    /// The content type that was required.
-    pub expected: BufferContentType,
-}
-
-impl core::fmt::Display for WrongContentType {
-    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            fmt,
-            "buffer holds {:?} content, expected {:?}",
-            self.found, self.expected
-        )
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for WrongContentType {}
-
-impl TryFrom<Buffer> for UnicodeBuffer {
-    type Error = WrongContentType;
-
-    /// Converts into a [`UnicodeBuffer`], which succeeds unless the buffer
-    /// holds the output of shaping.
-    #[inline]
-    fn try_from(buffer: Buffer) -> Result<Self, Self::Error> {
-        if buffer.content_type == Some(BufferContentType::Glyphs) {
-            return Err(WrongContentType {
-                found: buffer.content_type,
-                expected: BufferContentType::Unicode,
-            });
-        }
-        Ok(UnicodeBuffer(buffer))
-    }
-}
-
-impl TryFrom<Buffer> for GlyphBuffer {
-    type Error = WrongContentType;
-
-    /// Converts into a [`GlyphBuffer`], which succeeds only if the buffer
-    /// holds the output of shaping.
-    #[inline]
-    fn try_from(buffer: Buffer) -> Result<Self, Self::Error> {
-        if buffer.content_type != Some(BufferContentType::Glyphs) {
-            return Err(WrongContentType {
-                found: buffer.content_type,
-                expected: BufferContentType::Glyphs,
-            });
-        }
-        Ok(GlyphBuffer(buffer))
     }
 }
 
@@ -2472,319 +2317,6 @@ pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER1: u32 = 0x02000000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER2: u32 = 0x04000000;
 // pub const HB_BUFFER_SCRATCH_FLAG_SHAPER3: u32 = 0x08000000;
-
-/// A buffer that contains an input string ready for shaping.
-pub struct UnicodeBuffer(pub(crate) Buffer);
-
-impl UnicodeBuffer {
-    /// Create a new `UnicodeBuffer`.
-    #[inline]
-    pub fn new() -> UnicodeBuffer {
-        UnicodeBuffer(Buffer::new())
-    }
-
-    /// Returns the length of the data of the buffer.
-    ///
-    /// This corresponds to the number of unicode codepoints contained in the
-    /// buffer.
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len
-    }
-
-    /// Ensures that the buffer can hold at least `size` codepoints.
-    pub fn reserve(&mut self, size: usize) -> bool {
-        self.0.ensure(size)
-    }
-
-    /// Returns `true` if the buffer contains no elements.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Pushes a string to a buffer.
-    #[inline]
-    pub fn push_str(&mut self, str: &str) {
-        self.0.push_str(str);
-    }
-
-    /// Sets the pre-context for this buffer.
-    #[inline]
-    pub fn set_pre_context(&mut self, str: &str) {
-        self.0.set_pre_context(str);
-    }
-
-    /// Sets the pre-context for this buffer from codepoints.
-    ///
-    /// The input is expected to be the Unicode codepoints in reverse order.
-    /// This matches HarfBuzz's internal storage of pre-context, and serves
-    /// as a low-overhead method to pass pre-context from HarfBuzz-HarfRust.
-    #[inline]
-    pub fn set_pre_context_codepoints(&mut self, codepoints: &[u32]) {
-        self.0.set_pre_context_codepoints(codepoints);
-    }
-
-    /// Sets the post-context for this buffer.
-    #[inline]
-    pub fn set_post_context(&mut self, str: &str) {
-        self.0.set_post_context(str);
-    }
-
-    /// Sets the post-context for this buffer from codepoints.
-    #[inline]
-    pub fn set_post_context_codepoints(&mut self, codepoints: &[u32]) {
-        self.0.set_post_context_codepoints(codepoints);
-    }
-
-    /// Appends glyph infos to a buffer.
-    #[inline]
-    pub fn push_glyph_infos(&mut self, infos: &[GlyphInfo]) -> bool {
-        let len = infos.len();
-        if !self.0.ensure(self.0.len + len) {
-            return false;
-        }
-
-        self.0.info[self.0.len..self.0.len + len].copy_from_slice(infos);
-        self.0.len += len;
-        true
-    }
-
-    /// Appends a character to a buffer with the given cluster value.
-    #[inline]
-    pub fn add(&mut self, codepoint: char, cluster: u32) {
-        self.0.push(codepoint as u32, cluster);
-        self.0.context_len[1] = 0;
-    }
-
-    /// Set the text direction of the `Buffer`'s contents.
-    #[inline]
-    pub fn set_direction(&mut self, direction: Direction) {
-        self.0.direction = direction;
-    }
-
-    /// Returns the `Buffer`'s text direction.
-    #[inline]
-    pub fn direction(&self) -> Direction {
-        self.0.direction
-    }
-
-    /// Set the script from an ISO15924 tag.
-    #[inline]
-    pub fn set_script(&mut self, script: Script) {
-        self.0.script = Some(script);
-    }
-
-    /// Get the ISO15924 script tag.
-    pub fn script(&self) -> Script {
-        self.0.script.unwrap_or(script::UNKNOWN)
-    }
-
-    /// Set the buffer language.
-    #[inline]
-    pub fn set_language(&mut self, lang: Language) {
-        self.0.language = Some(lang);
-    }
-
-    /// Set the glyph value to replace not-found variation-selector characters with.
-    #[inline]
-    pub fn set_not_found_variation_selector_glyph(&mut self, glyph: u32) {
-        self.0.not_found_variation_selector = Some(glyph);
-    }
-
-    /// Get the buffer language.
-    #[inline]
-    pub fn language(&self) -> Option<Language> {
-        self.0.language.clone()
-    }
-
-    /// Guess the segment properties (direction, language, script) for the
-    /// current buffer.
-    #[inline]
-    pub fn guess_segment_properties(&mut self) {
-        self.0.guess_segment_properties();
-    }
-
-    /// Set the flags for this buffer.
-    #[inline]
-    pub fn set_flags(&mut self, flags: BufferFlags) {
-        self.0.flags = flags;
-    }
-
-    /// Get the flags for this buffer.
-    #[inline]
-    pub fn flags(&self) -> BufferFlags {
-        self.0.flags
-    }
-
-    /// Set the cluster level of the buffer.
-    #[inline]
-    pub fn set_cluster_level(&mut self, cluster_level: BufferClusterLevel) {
-        self.0.cluster_level = match cluster_level {
-            BufferClusterLevel::MonotoneGraphemes => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
-            BufferClusterLevel::MonotoneCharacters => HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
-            BufferClusterLevel::Characters => HB_BUFFER_CLUSTER_LEVEL_CHARACTERS,
-            BufferClusterLevel::Graphemes => HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
-        }
-    }
-
-    /// Retrieve the cluster level of the buffer.
-    #[inline]
-    pub fn cluster_level(&self) -> BufferClusterLevel {
-        match self.0.cluster_level {
-            HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES => BufferClusterLevel::MonotoneGraphemes,
-            HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS => BufferClusterLevel::MonotoneCharacters,
-            HB_BUFFER_CLUSTER_LEVEL_CHARACTERS => BufferClusterLevel::Characters,
-            HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES => BufferClusterLevel::Graphemes,
-            _ => BufferClusterLevel::MonotoneGraphemes,
-        }
-    }
-
-    /// Resets clusters.
-    #[inline]
-    pub fn reset_clusters(&mut self) {
-        self.0.reset_clusters();
-    }
-
-    /// Clear the contents of the buffer.
-    #[inline]
-    pub fn clear(&mut self) {
-        self.0.clear();
-    }
-}
-
-impl core::fmt::Debug for UnicodeBuffer {
-    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fmt.debug_struct("UnicodeBuffer")
-            .field("direction", &self.direction())
-            .field("language", &self.language())
-            .field("script", &self.script())
-            .field("cluster_level", &self.cluster_level())
-            .finish()
-    }
-}
-
-impl Default for UnicodeBuffer {
-    fn default() -> UnicodeBuffer {
-        UnicodeBuffer::new()
-    }
-}
-
-/// A buffer that contains the results of the shaping process.
-pub struct GlyphBuffer(pub(crate) Buffer);
-
-impl GlyphBuffer {
-    /// Returns the length of the data of the buffer.
-    ///
-    /// When called before shaping this is the number of unicode codepoints
-    /// contained in the buffer. When called after shaping it returns the number
-    /// of glyphs stored.
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len
-    }
-
-    /// Returns `true` if the buffer contains no elements.
-    #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Get the glyph infos.
-    #[inline]
-    pub fn glyph_infos(&self) -> &[GlyphInfo] {
-        &self.0.info[0..self.0.len]
-    }
-
-    /// Get the glyph positions.
-    #[inline]
-    pub fn glyph_positions(&self) -> &[GlyphPosition] {
-        &self.0.pos[0..self.0.len]
-    }
-
-    /// Clears the content of the glyph buffer and returns an empty
-    /// `UnicodeBuffer` reusing the existing allocation.
-    #[inline]
-    pub fn clear(mut self) -> UnicodeBuffer {
-        self.0.clear();
-        UnicodeBuffer(self.0)
-    }
-
-    /// Converts the glyph buffer content into a string.
-    pub fn serialize(&self, font: &impl SerializerFont, flags: SerializeFlags) -> String {
-        self.0.serialize(font, flags)
-    }
-}
-
-pub trait SerializerFont {
-    fn coords(&self) -> &[F2Dot14];
-    fn glyph_names(&self) -> GlyphNames<'_>;
-    fn glyph_metrics(&self) -> GlyphMetrics<'_>;
-}
-
-/// Stands in for a font when a buffer is serialized without one, as
-/// HarfBuzz's empty font does: glyphs serialize by number rather than by
-/// name, and nothing has extents.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct EmptySerializerFont;
-
-impl SerializerFont for EmptySerializerFont {
-    fn coords(&self) -> &[F2Dot14] {
-        &[]
-    }
-
-    fn glyph_names(&self) -> GlyphNames<'_> {
-        GlyphNames::None
-    }
-
-    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        GlyphMetrics::default()
-    }
-}
-
-impl SerializerFont for crate::Shaper<'_> {
-    fn coords(&self) -> &[F2Dot14] {
-        self.coords()
-    }
-
-    fn glyph_names(&self) -> GlyphNames<'_> {
-        crate::Shaper::glyph_names(self)
-    }
-
-    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        crate::Shaper::glyph_metrics(self)
-    }
-}
-
-impl SerializerFont for crate::font::FontInstance {
-    fn coords(&self) -> &[F2Dot14] {
-        self.normalized_coords()
-    }
-
-    fn glyph_names(&self) -> GlyphNames<'_> {
-        GlyphNames::from_tables(&self.tables())
-    }
-
-    fn glyph_metrics(&self) -> GlyphMetrics<'_> {
-        let table_ranges = TableRanges::from_tables(&self.tables());
-        let metrics = BasicFontMetrics {
-            num_glyphs: table_ranges.num_glyphs,
-            units_per_em: table_ranges.units_per_em,
-            ascent: table_ranges.ascent,
-            descent: table_ranges.descent,
-        };
-        GlyphMetrics::from_tables(&self.tables(), &metrics)
-    }
-}
-
-impl core::fmt::Debug for GlyphBuffer {
-    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        fmt.debug_struct("GlyphBuffer")
-            .field("glyph_positions", &self.glyph_positions())
-            .field("glyph_infos", &self.glyph_infos())
-            .finish()
-    }
-}
 
 #[cfg(test)]
 mod tests {

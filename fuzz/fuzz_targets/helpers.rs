@@ -5,7 +5,7 @@ use read_fonts::{FileRef, FontRef, ReadError};
 /// Picks a single font if data is a collection.
 ///
 /// Borrowed from fuzzing in fontations
-pub(crate) fn select_font(data: &[u8]) -> Result<FontRef<'_>, ReadError> {
+pub(crate) fn select_font(data: &[u8]) -> Result<(FontRef<'_>, u32), ReadError> {
     // Take the last byte as the collection index to let the fuzzer guide
     let i = data.last().copied().unwrap_or_default();
     match FileRef::new(data)? {
@@ -13,8 +13,8 @@ pub(crate) fn select_font(data: &[u8]) -> Result<FontRef<'_>, ReadError> {
             let _ = cr.len();
             let _ = cr.is_empty();
             let _ = cr.iter().count();
-            cr.get(i.into())
+            cr.get(i.into()).map(|font| (font, u32::from(i)))
         }
-        FileRef::Font(f) => Ok(f),
+        FileRef::Font(f) => Ok((f, 0)),
     }
 }

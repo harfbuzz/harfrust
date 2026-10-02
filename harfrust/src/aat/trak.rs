@@ -7,16 +7,17 @@ use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
 
-use crate::{buffer::Buffer, face::Scale, ot::shape::plan::ShapePlan, Shaper};
+use crate::LayoutData;
+use crate::{buffer::Buffer, plan::ShapePlan, Scale};
 
 pub fn apply(
     _plan: &ShapePlan,
-    face: &Shaper,
+    layout: LayoutData<'_>,
     scale: Scale,
     point_size: Option<f32>,
     buffer: &mut Buffer,
 ) -> Option<()> {
-    let trak = face.aat_tables.trak.as_ref()?;
+    let trak = layout.aat.trak.as_ref()?;
     let mut ptem = point_size.unwrap_or(0.0);
     if ptem <= 0.0 {
         ptem = 12.0; // CoreText fallback

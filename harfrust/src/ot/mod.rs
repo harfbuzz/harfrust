@@ -1,8 +1,7 @@
-use self::gsubgpos::{BinaryCache, MappingCache};
+use self::apply::{BinaryCache, MappingCache};
 use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
-use super::{common::TagExt, set_digest::SetDigest};
-use crate::tables::TableRanges;
+use super::{set_digest::SetDigest, tag::TagExt};
 use crate::Tag;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
@@ -14,30 +13,37 @@ use read_fonts::{
         gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
         gsub::{ClassDef, FeatureList, FeatureVariations, Gsub, ScriptList},
         layout::{Feature as LayoutFeature, LangSys, Script as LayoutScript},
-        varc::{Condition, CoverageTable},
+        varc::CoverageTable,
         variations::{DeltaSetIndex, ItemVariationStore},
     },
     types::{BigEndian, F2Dot14, GlyphId},
-    FontData, FontRead, FontRef, ReadError, TableProvider,
+    FontData, FontRead, ReadError, TableProvider,
 };
 
-pub(crate) mod common;
+pub(crate) mod apply;
 pub mod contextual;
 pub mod gpos;
 pub mod gsub;
-pub(crate) mod gsubgpos;
 pub(crate) mod layout;
 pub mod lookup;
 pub(crate) mod map;
-pub(crate) mod shape;
 pub(crate) mod shaper;
 
 #[allow(unused_imports)]
-use super::{aat, buffer, cache, face, font_funcs, set_digest, tag};
+use super::{aat, buffer, cache, set_digest, tag};
 #[allow(unused_imports)]
-use super::{
-    clamp_i64_to_i32, script, Direction, Feature, GlyphInfo, Language, Mask, Script, Shaper,
-};
+use super::{clamp_i64_to_i32, Direction, Feature, GlyphInfo, Language, Mask, Script};
+
+#[allow(dead_code)]
+pub(crate) mod lookup_flags {
+    pub const RIGHT_TO_LEFT: u16 = 0x0001;
+    pub const IGNORE_BASE_GLYPHS: u16 = 0x0002;
+    pub const IGNORE_LIGATURES: u16 = 0x0004;
+    pub const IGNORE_MARKS: u16 = 0x0008;
+    pub const IGNORE_FLAGS: u16 = 0x000E;
+    pub const USE_MARK_FILTERING_SET: u16 = 0x0010;
+    pub const MARK_ATTACHMENT_TYPE_MASK: u16 = 0xFF00;
+}
 
 pub struct OtCache {
     pub gsub: LookupCache,
@@ -186,6 +192,14 @@ struct GdefCache {
 }
 
 impl GdefCache {
+    const EMPTY: Self = Self {
+        classes: None,
+        mark_classes: None,
+        mark_set_offsets: Vec::new(),
+        mark_set_bitmaps: Vec::new(),
+        item_var_store_offset: 0,
+    };
+
     fn new(gdef: &Gdef) -> Self {
         let data = gdef.offset_data();
         let classes = ClassDefInfo::new(
@@ -282,7 +296,7 @@ impl<'a> GdefTable<'a> {
 }
 
 #[derive(Clone)]
-pub struct OtTables<'a> {
+pub struct OtData<'a> {
     pub gsub: Option<GsubTable<'a>>,
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
@@ -294,55 +308,40 @@ pub struct OtTables<'a> {
     pub feature_variations: [Option<u32>; 2],
 }
 
-impl<'a> OtTables<'a> {
-    pub fn new(
-        font: &FontRef<'a>,
-        cache: &'a OtCache,
-        table_offsets: &TableRanges,
-        coords: &'a [F2Dot14],
-        feature_variations: [Option<u32>; 2],
-    ) -> Self {
-        let gsub = table_offsets
-            .gsub
-            .resolve_table(font)
-            .map(|table| GsubTable {
-                table,
-                lookups: &cache.gsub,
-            });
-        let gpos = table_offsets
-            .gpos
-            .resolve_table(font)
-            .map(|table| GposTable {
-                table,
-                lookups: &cache.gpos,
-            });
-        let gdef = if cache.has_gdef {
-            table_offsets
-                .gdef
-                .resolve_table(font)
-                .map(GdefTable::new)
-                .unwrap_or_default()
-        } else {
-            GdefTable::default()
-        };
-        let var_store = if !coords.is_empty() {
-            gdef.table
+static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
+static EMPTY_GDEF_CACHE: GdefCache = GdefCache::EMPTY;
+
+pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
+    gsub: None,
+    gpos: None,
+    gdef: GdefTable { table: None },
+    gdef_glyph_props_cache: &EMPTY_MAPPING_CACHE,
+    gdef_mark_set_bitmaps: &[],
+    gdef_cache: &EMPTY_GDEF_CACHE,
+    coords: &[],
+    var_store: None,
+    feature_variations: [None; 2],
+};
+
+impl<'a> OtData<'a> {
+    pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
+        match table_index {
+            LayoutTableKind::Gsub => self
+                .gsub
                 .as_ref()
-                .and_then(|gdef| cache.gdef.item_var_store(gdef))
-        } else {
-            None
-        };
-        Self {
-            gsub,
-            gpos,
-            gdef,
-            gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
-            gdef_mark_set_bitmaps: &cache.gdef.mark_set_bitmaps,
-            gdef_cache: &cache.gdef,
-            var_store,
-            coords,
-            feature_variations,
+                .map(|table| LayoutTable::Gsub(table.table.clone())),
+            LayoutTableKind::Gpos => self
+                .gpos
+                .as_ref()
+                .map(|table| LayoutTable::Gpos(table.table.clone())),
         }
+    }
+
+    pub(crate) fn layout_tables(
+        &self,
+    ) -> impl Iterator<Item = (LayoutTableKind, LayoutTable<'a>)> + '_ {
+        LayoutTableKind::iter()
+            .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
     }
 
     pub fn from_tables(
@@ -578,46 +577,6 @@ impl<'a> LayoutTable<'a> {
             .get(index)
             .ok()
             .map(|feature| feature.tag)
-    }
-
-    pub(crate) fn feature_variation_index(&self, coords: &[F2Dot14]) -> Option<u32> {
-        let feature_variations = self.feature_variations()?;
-        for (index, rec) in feature_variations
-            .feature_variation_records()
-            .iter()
-            .enumerate()
-        {
-            // If the ConditionSet offset is 0, this is treated as the
-            // universal condition: all contexts are matched.
-            if rec.condition_set_offset().is_null() {
-                return Some(index as u32);
-            }
-            let Some(Ok(condition_set)) = rec.condition_set(feature_variations.offset_data())
-            else {
-                continue;
-            };
-            // Otherwise, all conditions must be satisfied.
-            if condition_set
-                .conditions()
-                .iter()
-                // .. except we ignore errors
-                .filter_map(Result::ok)
-                .all(|cond| match cond {
-                    Condition::Format1AxisRange(format1) => {
-                        let coord = coords
-                            .get(format1.axis_index() as usize)
-                            .copied()
-                            .unwrap_or_default();
-                        coord >= format1.filter_range_min_value()
-                            && coord <= format1.filter_range_max_value()
-                    }
-                    _ => false,
-                })
-            {
-                return Some(index as u32);
-            }
-        }
-        None
     }
 
     pub(crate) fn feature_substitution(

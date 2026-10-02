@@ -13,14 +13,15 @@ use crate::aat::common::{
 };
 use crate::aat::kerx::SimpleKerning;
 use crate::buffer::*;
-use crate::face::Scale;
-use crate::ot::common::lookup_flags;
+use crate::ot::apply::{ApplyContext, SkippingIterator};
 use crate::ot::gpos::attach_type;
-use crate::ot::gsubgpos::{ApplyContext, SkippingIterator};
 use crate::ot::layout::LayoutTableKind;
-use crate::ot::shape::plan::ShapePlan;
+use crate::ot::lookup_flags;
+use crate::plan::ShapePlan;
+use crate::LayoutData;
+use crate::Mask;
+use crate::Scale;
 use crate::U32Set;
-use crate::{Mask, Shaper};
 
 pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &ClassCache) -> u8 {
     if let Some(klass) = cache.get(glyph_id.to_u32()) {
@@ -33,13 +34,18 @@ pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &Cl
     klass
 }
 
-pub fn apply(plan: &ShapePlan, face: &Shaper, scale: Scale, buffer: &mut Buffer) -> Option<()> {
-    let mut c = AatApplyContext::new(plan, face, scale, buffer);
+pub fn apply(
+    plan: &ShapePlan,
+    layout: LayoutData<'_>,
+    scale: Scale,
+    buffer: &mut Buffer,
+) -> Option<()> {
+    let mut c = AatApplyContext::new(plan, layout, scale, buffer);
 
     c.setup_buffer_glyph_set();
 
-    let (kern, subtable_caches) = c.face.aat_tables.kern.as_ref()?;
-    let safe_to_break = c.face.aat_tables.safe_to_break?;
+    let (kern, subtable_caches) = layout.aat.kern.as_ref()?;
+    let safe_to_break = layout.aat.safe_to_break?;
 
     let mut subtable_idx = 0;
 
@@ -122,7 +128,7 @@ pub fn apply(plan: &ShapePlan, face: &Shaper, scale: Scale, buffer: &mut Buffer)
 }
 
 fn machine_kern<F>(
-    face: &Shaper,
+    layout: LayoutData<'_>,
     scale: Scale,
     buffer: &mut Buffer,
     kern_mask: Mask,
@@ -132,7 +138,7 @@ fn machine_kern<F>(
     F: Fn(u32, u32) -> i32,
 {
     buffer.unsafe_to_concat(None, None);
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, face, scale, buffer);
+    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, layout, scale, buffer);
     ctx.set_lookup_mask(kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
@@ -206,7 +212,7 @@ fn apply_simple_kerning<T: SimpleKerning>(
     let second_set = c.second_set.as_ref().unwrap();
 
     machine_kern(
-        c.face,
+        c.layout,
         c.scale,
         c.buffer,
         c.plan.kern_mask,

@@ -1,8 +1,8 @@
 use crate::buffer::HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-use crate::ot::common::lookup_flags;
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{Apply, SkippingIterator};
 use crate::ot::gpos::attach_type;
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{Apply, SkippingIterator};
+use crate::ot::lookup_flags;
 use crate::{Direction, GlyphPosition};
 use read_fonts::tables::gpos::CursivePosFormat1;
 
@@ -38,8 +38,8 @@ impl Apply for CursivePosFormat1<'_> {
             return None;
         };
 
-        let (exit_x, exit_y) = ctx.face.ot_tables.resolve_anchor(&exit_prev);
-        let (entry_x, entry_y) = ctx.face.ot_tables.resolve_anchor(&entry_this);
+        let (exit_x, exit_y) = ctx.layout.ot.resolve_anchor(&exit_prev);
+        let (entry_x, entry_y) = ctx.layout.ot.resolve_anchor(&entry_this);
         let exit_x = ctx.scale_x(exit_x);
         let exit_y = ctx.scale_y(exit_y);
         let entry_x = ctx.scale_x(entry_x);

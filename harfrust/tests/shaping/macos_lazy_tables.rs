@@ -1,6 +1,6 @@
 use harfrust::{
     font::{Font, FontInstance, FontTableFunction},
-    shape, SerializeFlags, ShapeOptions, UnicodeBuffer,
+    shape, Buffer, SerializeFlags, ShapeOptions, ShaperFont,
 };
 use objc2_core_foundation::{self as cf, CFData, CFRetained};
 use objc2_core_text as ct;
@@ -85,13 +85,15 @@ fn compare_data_and_ct(font_path: &str, font_name: &str, input: &str, expected_o
     };
     let ct_instance = instance_for_ct_font(ct_font);
     let [data_out, ct_out] = [data_instance, ct_instance].map(|instance| {
-        let mut buffer = UnicodeBuffer::new();
+        let mut buffer = Buffer::new();
         for (i, ch) in input.chars().enumerate() {
-            buffer.add(ch, i as u32);
+            buffer.push(ch as u32, i as u32);
         }
         buffer.guess_segment_properties();
-        let glyphs = shape(&instance, buffer, ShapeOptions::default());
-        glyphs.serialize(&instance, SerializeFlags::default())
+        let shaper = ShaperFont::new(&instance);
+        let font = shaper;
+        shape(&font, &mut buffer, ShapeOptions::default()).unwrap();
+        buffer.serialize(Some(&font), SerializeFlags::default())
     });
     assert_eq!(data_out, ct_out);
     assert_eq!(data_out, expected_output);

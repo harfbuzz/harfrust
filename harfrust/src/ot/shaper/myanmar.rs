@@ -1,10 +1,10 @@
 use super::indic::{category, position};
 use super::syllabic::*;
 use super::*;
-use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::map::*;
-use crate::ot::shape::plan::ShapePlan;
 use crate::ot::shaper::indic::category::OT_VPre;
+use crate::plan::ShapePlan;
+use crate::ShaperFont;
 use crate::{GlyphInfo, Tag};
 
 pub const MYANMAR_SHAPER: OtShaper = OtShaper {
@@ -113,7 +113,7 @@ fn collect_features(planner: &mut ShapePlanner) {
     }
 }
 
-fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     myanmar_machine::find_syllables_myanmar(buffer);
@@ -129,13 +129,13 @@ fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer
     false
 }
 
-fn reorder_myanmar(_: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     use super::myanmar_machine::SyllableType;
 
     let mut ret = false;
 
     if insert_dotted_circles(
-        face,
+        font,
         buffer,
         SyllableType::BrokenCluster as u8,
         category::OT_DOTTEDCIRCLE,
@@ -315,7 +315,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     }
 }
 
-fn setup_masks(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::MYANMAR_CATEGORY_VAR);
     buffer.allocate_var(GlyphInfo::MYANMAR_POSITION_VAR);
 

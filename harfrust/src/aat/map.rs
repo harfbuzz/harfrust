@@ -1,11 +1,11 @@
-use crate::common::{HB_FEATURE_GLOBAL_END, HB_FEATURE_GLOBAL_START};
 use crate::Feature;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use super::layout::*;
-use crate::{Language, Mask, Shaper, Tag};
+use super::AatData;
+use crate::{Language, Mask, Tag};
 
 /// HB: hb_aat_map_t
 ///
@@ -42,8 +42,8 @@ impl Default for AatMapBuilder {
     fn default() -> Self {
         Self {
             language: None,
-            range_first: HB_FEATURE_GLOBAL_START as usize,
-            range_last: HB_FEATURE_GLOBAL_END as usize,
+            range_first: Feature::GLOBAL_START as usize,
+            range_last: Feature::GLOBAL_END as usize,
             current_features: Vec::default(),
             features: Vec::default(),
         }
@@ -58,8 +58,8 @@ impl AatMapBuilder {
         }
     }
 
-    pub fn add_feature(&mut self, face: &Shaper, feature: &Feature) -> Option<()> {
-        let feat = face.aat_tables.feat.as_ref()?;
+    pub fn add_feature(&mut self, aat: &AatData, feature: &Feature) -> Option<()> {
+        let feat = aat.feat.as_ref()?;
 
         if feature.tag == Tag::new(b"aalt") {
             let exposes_feature = feat
@@ -126,7 +126,7 @@ impl AatMapBuilder {
         Some(())
     }
 
-    pub fn compile(&mut self, face: &Shaper, m: &mut AatMap) {
+    pub fn compile(&mut self, aat: &AatData, m: &mut AatMap) {
         // Compute active features per range, and compile each.
         let mut feature_events = vec![];
         for feature in &self.features {
@@ -189,7 +189,7 @@ impl AatMapBuilder {
                     self.current_features.truncate(j + 1);
                 }
 
-                super::morx::compile_flags(face, self, m);
+                super::morx::compile_flags(aat, self, m);
                 last_index = event.index;
             }
 
@@ -204,7 +204,7 @@ impl AatMapBuilder {
 
         for chain_flags in &mut m.chain_flags {
             if let Some(last) = chain_flags.last_mut() {
-                last.cluster_last = HB_FEATURE_GLOBAL_END;
+                last.cluster_last = Feature::GLOBAL_END;
             }
         }
     }

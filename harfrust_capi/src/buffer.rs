@@ -5,8 +5,8 @@ use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::OnceLock;
 
 use harfrust::{
-    Buffer, BufferClusterLevel, BufferContentType, BufferFlags, Direction, EmptySerializerFont,
-    GlyphInfo, GlyphPosition, SerializeFlags,
+    Buffer, BufferFlags, ClusterLevel, ContentType, Direction, GlyphInfo, GlyphPosition,
+    SerializeFlags,
 };
 
 use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
@@ -203,41 +203,41 @@ impl Object for hr_buffer_t {
     }
 }
 
-fn content_type_to_rust(value: hr_buffer_content_type_t) -> Option<BufferContentType> {
+fn content_type_to_rust(value: hr_buffer_content_type_t) -> Option<ContentType> {
     match value {
         HR_BUFFER_CONTENT_TYPE_INVALID => None,
-        HR_BUFFER_CONTENT_TYPE_UNICODE => Some(BufferContentType::Unicode),
-        HR_BUFFER_CONTENT_TYPE_GLYPHS => Some(BufferContentType::Glyphs),
+        HR_BUFFER_CONTENT_TYPE_UNICODE => Some(ContentType::Unicode),
+        HR_BUFFER_CONTENT_TYPE_GLYPHS => Some(ContentType::Glyphs),
         // A value naming none of these says as little as the invalid one.
         _ => None,
     }
 }
 
-fn content_type_from_rust(value: Option<BufferContentType>) -> hr_buffer_content_type_t {
+fn content_type_from_rust(value: Option<ContentType>) -> hr_buffer_content_type_t {
     match value {
         None => HR_BUFFER_CONTENT_TYPE_INVALID,
-        Some(BufferContentType::Unicode) => HR_BUFFER_CONTENT_TYPE_UNICODE,
-        Some(BufferContentType::Glyphs) => HR_BUFFER_CONTENT_TYPE_GLYPHS,
+        Some(ContentType::Unicode) => HR_BUFFER_CONTENT_TYPE_UNICODE,
+        Some(ContentType::Glyphs) => HR_BUFFER_CONTENT_TYPE_GLYPHS,
     }
 }
 
-fn cluster_level_to_rust(value: hr_buffer_cluster_level_t) -> BufferClusterLevel {
+fn cluster_level_to_rust(value: hr_buffer_cluster_level_t) -> ClusterLevel {
     match value {
-        HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES => BufferClusterLevel::MonotoneGraphemes,
-        HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS => BufferClusterLevel::MonotoneCharacters,
-        HR_BUFFER_CLUSTER_LEVEL_CHARACTERS => BufferClusterLevel::Characters,
-        HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES => BufferClusterLevel::Graphemes,
+        HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES => ClusterLevel::MonotoneGraphemes,
+        HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS => ClusterLevel::MonotoneCharacters,
+        HR_BUFFER_CLUSTER_LEVEL_CHARACTERS => ClusterLevel::Characters,
+        HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES => ClusterLevel::Graphemes,
         // A value naming none of these leaves the buffer as it starts.
-        _ => BufferClusterLevel::MonotoneGraphemes,
+        _ => ClusterLevel::MonotoneGraphemes,
     }
 }
 
-fn cluster_level_from_rust(value: BufferClusterLevel) -> hr_buffer_cluster_level_t {
+fn cluster_level_from_rust(value: ClusterLevel) -> hr_buffer_cluster_level_t {
     match value {
-        BufferClusterLevel::MonotoneGraphemes => HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
-        BufferClusterLevel::MonotoneCharacters => HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
-        BufferClusterLevel::Characters => HR_BUFFER_CLUSTER_LEVEL_CHARACTERS,
-        BufferClusterLevel::Graphemes => HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
+        ClusterLevel::MonotoneGraphemes => HR_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES,
+        ClusterLevel::MonotoneCharacters => HR_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
+        ClusterLevel::Characters => HR_BUFFER_CLUSTER_LEVEL_CHARACTERS,
+        ClusterLevel::Graphemes => HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES,
     }
 }
 
@@ -770,7 +770,7 @@ pub unsafe extern "C" fn hr_buffer_append(
 
     // Text carries its surroundings: what the copied range had around it in
     // the source, and then whatever the source itself had around that.
-    if source.buffer.content_type() == Some(BufferContentType::Unicode) {
+    if source.buffer.content_type() == Some(ContentType::Unicode) {
         let infos = source.buffer.glyph_infos();
         let pre = source.buffer.pre_context_codepoints();
         if orig_len == 0 && (start > 0 || !pre.is_empty()) {
@@ -1435,6 +1435,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     // item is written when the whole of it fits and the count reports what
     // was written, which is what lets a caller serialize in several passes.
     let capacity = buf_size as usize;
+    let serializer_font = font.shaper().cloned();
     let mut out = String::new();
     let mut written = 0;
     let mut single = Buffer::new();
@@ -1456,12 +1457,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
 
         // Rebuilt per item: the flags are consumed by each call.
         let item_flags = SerializeFlags::from_bits_truncate(flags.bits());
-        let item = match font.instance() {
-            Some(instance) => single.serialize(instance, item_flags),
-            // A caller with no font still gets its glyphs, by number: that
-            // is what HarfBuzz's empty font, substituted for NULL, reports.
-            None => single.serialize(&EmptySerializerFont, item_flags),
-        };
+        let item = single.serialize(serializer_font.as_ref(), item_flags);
         // One item serializes as a list of one; the brackets belong to the
         // list, and which one opens this item depends on where in the buffer
         // it sits, so that pieces serialized separately concatenate.

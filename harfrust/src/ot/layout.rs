@@ -2,16 +2,18 @@
 
 use core::ops::{Index, IndexMut};
 
+use super::apply::ApplyContext;
 use super::buffer::*;
-use super::font_funcs::FontFuncsDispatch;
-use super::gsubgpos::ApplyContext;
 use super::set_digest::SetDigest;
-use super::shape::plan::ShapePlan;
-use super::{GlyphInfo, Shaper};
-use crate::ot::gsubgpos::check_glyph_property;
+use super::GlyphInfo;
+use crate::aat::AatData;
+use crate::ot::apply::check_glyph_property;
 use crate::ot::lookup::LookupInfo;
+use crate::ot::OtData;
+use crate::plan::ShapePlan;
 use crate::unicode::{space_fallback, GeneralCategory};
 use crate::BufferFlags;
+use crate::ShaperFont;
 
 impl GlyphInfo {
     declare_buffer_var!(u16, 1, 0, GLYPH_PROPS_VAR, glyph_props, set_glyph_props);
@@ -56,12 +58,12 @@ pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
 pub const MAX_SYLLABLE_LENGTH: usize = 64;
 
-pub fn has_kerning(face: &Shaper) -> bool {
-    face.aat_tables.kern.is_some()
+pub fn has_kerning(aat: &AatData) -> bool {
+    aat.kern.is_some()
 }
 
-pub fn has_machine_kerning(face: &Shaper) -> bool {
-    match face.aat_tables.kern {
+pub fn has_machine_kerning(aat: &AatData) -> bool {
+    match aat.kern {
         Some(ref kern) => kern
             .0
             .subtables()
@@ -71,8 +73,8 @@ pub fn has_machine_kerning(face: &Shaper) -> bool {
     }
 }
 
-pub fn has_cross_kerning(face: &Shaper) -> bool {
-    match face.aat_tables.kern {
+pub fn has_cross_kerning(aat: &AatData) -> bool {
+    match aat.kern {
         Some(ref kern) => kern
             .0
             .subtables()
@@ -84,7 +86,7 @@ pub fn has_cross_kerning(face: &Shaper) -> bool {
 
 // apply_kern
 
-pub fn set_glyph_props<const SET_DIGEST: bool>(face: &Shaper, buffer: &mut Buffer) {
+pub fn set_glyph_props<const SET_DIGEST: bool>(ot: &OtData, buffer: &mut Buffer) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
@@ -92,13 +94,13 @@ pub fn set_glyph_props<const SET_DIGEST: bool>(face: &Shaper, buffer: &mut Buffe
         if SET_DIGEST {
             buffer.digest.add(info.glyph_id);
         }
-        info.set_glyph_props(face.ot_tables.glyph_props(info.as_glyph()));
+        info.set_glyph_props(ot.glyph_props(info.as_glyph()));
         info.set_lig_props(0);
     }
 }
 
-pub fn has_glyph_classes(face: &Shaper) -> bool {
-    face.ot_tables.has_glyph_classes()
+pub fn has_glyph_classes(ot: &OtData) -> bool {
+    ot.has_glyph_classes()
 }
 
 // get_gsubgpos_table
@@ -143,24 +145,23 @@ pub trait LayoutTable {
 
 /// Called before substitution lookups are performed, to ensure that glyph
 /// class and other properties are set on the glyphs in the buffer.
-pub fn substitute_start(face: &Shaper, buffer: &mut Buffer) {
-    set_glyph_props::<false>(face, buffer);
+pub fn substitute_start(ot: &OtData, buffer: &mut Buffer) {
+    set_glyph_props::<false>(ot, buffer);
 }
 
-pub fn substitute_start_with_digest(face: &Shaper, buffer: &mut Buffer) {
+pub fn substitute_start_with_digest(ot: &OtData, buffer: &mut Buffer) {
     buffer.digest = SetDigest::new();
-    set_glyph_props::<true>(face, buffer);
+    set_glyph_props::<true>(ot, buffer);
 }
 
 /// Applies the lookups in the given GSUB or GPOS table.
 pub fn apply_layout_table<T: LayoutTable>(
     plan: &ShapePlan,
-    face: &Shaper,
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
     table: Option<&T>,
 ) {
-    let mut ctx = ApplyContext::new(T::KIND, face, *font_funcs.scale(), buffer);
+    let mut ctx = ApplyContext::new(T::KIND, font.layout(), font.scale, buffer);
 
     for (stage_index, stage) in plan.ot_map.stages(T::KIND).iter().enumerate() {
         if let Some(table) = table {
@@ -190,7 +191,7 @@ pub fn apply_layout_table<T: LayoutTable>(
         }
 
         if let Some(func) = stage.pause_func {
-            if func(plan, font_funcs, ctx.buffer) {
+            if func(plan, font, ctx.buffer) {
                 ctx.buffer.update_digest();
             }
         }
@@ -226,7 +227,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
 }
 
 fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
-    let Some(table_data) = ctx.face.ot_tables.table_data(ctx.table_index) else {
+    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
         return false;
     };
 
@@ -242,7 +243,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
     // lookup mask (see ApplyContext::recurse), so these can be
     // hoisted, letting the candidate scan below run over a slice without
     // per-glyph bounds checks.
-    let face = ctx.face;
+    let ot = ctx.layout.ot;
     let lookup_mask = ctx.lookup_mask();
     let lookup_props = ctx.lookup_props;
 
@@ -254,7 +255,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
             let info = &infos[j];
             if lookup.digest.may_have(info.glyph_id)
                 && (info.mask & lookup_mask) != 0
-                && check_glyph_property(face, info, lookup_props)
+                && check_glyph_property(ot, info, lookup_props)
             {
                 break;
             }
@@ -306,12 +307,12 @@ pub(crate) fn apply_synthesized_subst_lookup(
 
 fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     let mut ret = false;
-    let Some(table_data) = ctx.face.ot_tables.table_data(ctx.table_index) else {
+    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
         return false;
     };
     // Loop-invariant hoisting as in apply_forward; reverse lookups don't
     // recurse, and in-place application cannot change the buffer length.
-    let face = ctx.face;
+    let ot = ctx.layout.ot;
     let lookup_mask = ctx.lookup_mask();
     let lookup_props = ctx.lookup_props;
 
@@ -319,7 +320,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
         let candidate = ctx.buffer.info[..=ctx.buffer.idx].iter().rposition(|info| {
             lookup.digest.may_have(info.glyph_id)
                 && (info.mask & lookup_mask) != 0
-                && check_glyph_property(face, info, lookup_props)
+                && check_glyph_property(ot, info, lookup_props)
         });
 
         let Some(idx) = candidate else {
@@ -908,7 +909,7 @@ impl GlyphInfo {
 
 pub fn clear_substitution_flags(
     _: &ShapePlan,
-    _: &mut FontFuncsDispatch,
+    _: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
 ) -> bool {
     let len = buffer.len;

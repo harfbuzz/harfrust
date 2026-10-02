@@ -1,7 +1,7 @@
 use super::Tag;
 use super::*;
 use crate::buffer::Buffer;
-use crate::ot::shape::plan::ShapePlan;
+use crate::plan::ShapePlan;
 use crate::unicode::{self, combining_class, modified_combining_class, Codepoint};
 
 pub const HEBREW_SHAPER: OtShaper = OtShaper {

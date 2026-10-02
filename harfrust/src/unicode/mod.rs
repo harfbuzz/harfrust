@@ -650,7 +650,7 @@ mod icu {
         let Some(icu_script) = PropertyNamesShort::new()
             .get_locale_script(CodePointMapData::<IcuScript>::new().get32(c))
         else {
-            return crate::script::UNKNOWN;
+            return Script::UNKNOWN;
         };
         // As this is the script of some Unicode code point, correctly cased, we don't need to apply
         // any of the checks and conversion from Script::from_iso15924. Furthermore, both the
@@ -900,17 +900,17 @@ mod tests {
     #[test]
     fn unicode_18_scripts() {
         use super::GeneralCategory as Gc;
-        use crate::script;
+        use crate::Script;
 
         for (range, script, category) in [
             (
                 0x125A8..=0x1264B,
-                script::PROTO_CUNEIFORM,
+                Script::PROTO_CUNEIFORM,
                 Gc::LETTER_NUMBER,
             ),
-            (0x18E00..=0x19191, script::JURCHEN, Gc::OTHER_LETTER),
-            (0x191A0..=0x191D2, script::JURCHEN, Gc::OTHER_LETTER),
-            (0x3D000..=0x3FC3F, script::SEAL, Gc::OTHER_LETTER),
+            (0x18E00..=0x19191, Script::JURCHEN, Gc::OTHER_LETTER),
+            (0x191A0..=0x191D2, Script::JURCHEN, Gc::OTHER_LETTER),
+            (0x3D000..=0x3FC3F, Script::SEAL, Gc::OTHER_LETTER),
         ] {
             for cp in range {
                 assert_eq!(super::script_for(cp), script, "U+{cp:04X}");

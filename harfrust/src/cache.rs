@@ -144,3 +144,13 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
         self.values[index].set(packed);
     }
 }
+
+impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize>
+    CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, AtomicU16>
+{
+    pub const fn empty() -> Self {
+        Self {
+            values: [const { AtomicU16::new(u16::MAX) }; CACHE_SIZE],
+        }
+    }
+}

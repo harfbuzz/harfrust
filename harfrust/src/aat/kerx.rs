@@ -6,10 +6,10 @@ use crate::aat::common::{
 use crate::U32Set;
 use crate::{
     buffer::*,
-    ot::common::lookup_flags,
+    ot::apply::{ApplyContext, SkippingIterator},
     ot::gpos::attach_type,
-    ot::gsubgpos::{ApplyContext, SkippingIterator},
     ot::layout::LayoutTableKind,
+    ot::lookup_flags,
 };
 use alloc::boxed::Box;
 use core::convert::TryFrom;
@@ -31,8 +31,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    let (kerx, subtable_caches) = c.face.aat_tables.kerx.as_ref()?;
-    let safe_to_break = c.face.aat_tables.safe_to_break?;
+    let (kerx, subtable_caches) = c.layout.aat.kerx.as_ref()?;
+    let safe_to_break = c.layout.aat.safe_to_break?;
 
     let mut subtable_idx = 0;
 
@@ -119,7 +119,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 let mut driver = Driver4 {
                     mark_set: false,
                     mark: 0,
-                    ankr_table: c.face.aat_tables.ankr.clone(),
+                    ankr_table: c.layout.aat.ankr.clone(),
                 };
                 apply_state_machine_kerning(
                     c,
@@ -214,7 +214,7 @@ impl SimpleKerning for Subtable6<'_> {
 
 fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
     let scale = c.scale;
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, c.face, c.scale, c.buffer);
+    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, c.layout, c.scale, c.buffer);
     ctx.set_lookup_mask(c.plan.kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
