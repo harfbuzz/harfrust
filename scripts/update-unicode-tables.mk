@@ -6,18 +6,18 @@ PACKTAB_DIR ?= $(HOME)/packtab
 PACKTAB_PYTHONPATH ?= $(PACKTAB_DIR)
 PYTHON ?= python3
 
-HARFRUST_HB_DIR := ../harfrust/src/hb
+HARFRUST_SRC_DIR := ../harfrust/src
 HARFRUST_UNICODE_DIR := ../harfrust/src/unicode
 
 GENERATED := \
 	$(HARFRUST_UNICODE_DIR)/ucd_table.rs \
-	$(HARFRUST_HB_DIR)/ot_shaper_use_table.rs \
-	$(HARFRUST_HB_DIR)/ot_shaper_arabic_table.rs \
-	$(HARFRUST_HB_DIR)/ot_shaper_arabic_pua.rs \
-	$(HARFRUST_HB_DIR)/ot_shaper_indic_table.rs \
+	$(HARFRUST_SRC_DIR)/ot/shaper/use_table.rs \
+	$(HARFRUST_SRC_DIR)/ot/shaper/arabic_table.rs \
+	$(HARFRUST_SRC_DIR)/ot/shaper/arabic_pua.rs \
+	$(HARFRUST_SRC_DIR)/ot/shaper/indic_table.rs \
 	$(HARFRUST_UNICODE_DIR)/emoji_table.rs \
-	$(HARFRUST_HB_DIR)/tag_table.rs \
-	$(HARFRUST_HB_DIR)/ot_shaper_vowel_constraints.rs
+	$(HARFRUST_SRC_DIR)/tag_table.rs \
+	$(HARFRUST_SRC_DIR)/ot/shaper/vowel_constraints.rs
 
 .PHONY: all rust hb-refresh clean
 
@@ -37,22 +37,28 @@ $(HARFRUST_UNICODE_DIR)/ucd_table.rs: $(HB_SRC)/gen-ucd-table.py $(HB_SRC)/ucd.n
 	sed 's/crate::hb::algs/crate::algs/g' $@.tmp > $@
 	$(RM) $@.tmp
 
-$(HARFRUST_HB_DIR)/ot_shaper_use_table.rs: $(HB_SRC)/gen-use-table.py $(HB_SRC)/IndicSyllabicCategory.txt $(HB_SRC)/IndicPositionalCategory.txt $(HB_SRC)/ArabicShaping.txt $(HB_SRC)/DerivedCoreProperties.txt $(HB_SRC)/UnicodeData.txt $(HB_SRC)/Blocks.txt $(HB_SRC)/Scripts.txt $(HB_SRC)/ms-use/IndicSyllabicCategory-Additional.txt $(HB_SRC)/ms-use/IndicPositionalCategory-Additional.txt
+$(HARFRUST_SRC_DIR)/ot/shaper/use_table.rs: $(HB_SRC)/gen-use-table.py $(HB_SRC)/IndicSyllabicCategory.txt $(HB_SRC)/IndicPositionalCategory.txt $(HB_SRC)/ArabicShaping.txt $(HB_SRC)/DerivedCoreProperties.txt $(HB_SRC)/UnicodeData.txt $(HB_SRC)/Blocks.txt $(HB_SRC)/Scripts.txt $(HB_SRC)/ms-use/IndicSyllabicCategory-Additional.txt $(HB_SRC)/ms-use/IndicPositionalCategory-Additional.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
-		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,10,$^) > $@ || ($(RM) $@; false)
+		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,10,$^) > $@.tmp || ($(RM) $@.tmp; false)
+	sed 's/super::shaper_use::/super::use_::/g' $@.tmp > $@
+	$(RM) $@.tmp
 
-$(HARFRUST_HB_DIR)/ot_shaper_arabic_table.rs: $(HB_SRC)/gen-arabic-table.py $(HB_SRC)/ArabicShaping.txt $(HB_SRC)/UnicodeData.txt $(HB_SRC)/Blocks.txt
+$(HARFRUST_SRC_DIR)/ot/shaper/arabic_table.rs: $(HB_SRC)/gen-arabic-table.py $(HB_SRC)/ArabicShaping.txt $(HB_SRC)/UnicodeData.txt $(HB_SRC)/Blocks.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
-		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,4,$^) > $@ || ($(RM) $@; false)
+		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,4,$^) > $@.tmp || ($(RM) $@.tmp; false)
+	sed 's/super::shaper_arabic::/super::arabic::/g' $@.tmp > $@
+	$(RM) $@.tmp
 
-$(HARFRUST_HB_DIR)/ot_shaper_arabic_pua.rs: $(HB_SRC)/gen-arabic-pua.py $(HB_SRC)/ArabicPUASimplified.txt $(HB_SRC)/ArabicPUATraditional.txt
+$(HARFRUST_SRC_DIR)/ot/shaper/arabic_pua.rs: $(HB_SRC)/gen-arabic-pua.py $(HB_SRC)/ArabicPUASimplified.txt $(HB_SRC)/ArabicPUATraditional.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
 		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,3,$^) > $@ || ($(RM) $@; false)
 	rustfmt $@
 
-$(HARFRUST_HB_DIR)/ot_shaper_indic_table.rs: $(HB_SRC)/gen-indic-table.py $(HB_SRC)/IndicSyllabicCategory.txt $(HB_SRC)/IndicPositionalCategory.txt $(HB_SRC)/Blocks.txt
+$(HARFRUST_SRC_DIR)/ot/shaper/indic_table.rs: $(HB_SRC)/gen-indic-table.py $(HB_SRC)/IndicSyllabicCategory.txt $(HB_SRC)/IndicPositionalCategory.txt $(HB_SRC)/Blocks.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
-		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,4,$^) > $@ || ($(RM) $@; false)
+		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,4,$^) > $@.tmp || ($(RM) $@.tmp; false)
+	sed 's/super::shaper_indic::/super::indic::/g' $@.tmp > $@
+	$(RM) $@.tmp
 
 $(HARFRUST_UNICODE_DIR)/emoji_table.rs: $(HB_SRC)/gen-emoji-table.py $(HB_SRC)/emoji-data.txt $(HB_SRC)/emoji-test.txt
 	PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$(PACKTAB_PYTHONPATH) \
@@ -60,14 +66,14 @@ $(HARFRUST_UNICODE_DIR)/emoji_table.rs: $(HB_SRC)/gen-emoji-table.py $(HB_SRC)/e
 	sed 's/crate::hb::unicode/crate::unicode/g' $@.tmp > $@
 	$(RM) $@.tmp
 
-$(HARFRUST_HB_DIR)/tag_table.rs: $(HB_SRC)/gen-tag-table.py $(HB_SRC)/languagetags $(HB_SRC)/language-subtag-registry
+$(HARFRUST_SRC_DIR)/tag_table.rs: $(HB_SRC)/gen-tag-table.py $(HB_SRC)/languagetags $(HB_SRC)/language-subtag-registry
 	PYTHONDONTWRITEBYTECODE=1 \
 		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,3,$^) > $@ || ($(RM) $@; false)
 
-$(HARFRUST_HB_DIR)/ot_shaper_vowel_constraints.rs: $(HB_SRC)/gen-vowel-constraints.py $(HB_SRC)/ms-use/IndicShapingInvalidCluster.txt $(HB_SRC)/Scripts.txt
+$(HARFRUST_SRC_DIR)/ot/shaper/vowel_constraints.rs: $(HB_SRC)/gen-vowel-constraints.py $(HB_SRC)/ms-use/IndicShapingInvalidCluster.txt $(HB_SRC)/Scripts.txt
 	PYTHONDONTWRITEBYTECODE=1 \
 		$(PYTHON) $(word 1,$^) --rust $(wordlist 2,3,$^) > $@.tmp || ($(RM) $@.tmp; false)
-	sed 's/hb_buffer_t/Buffer/g' $@.tmp > $@
+	sed -e 's/hb_buffer_t/Buffer/g' -e 's/super::buffer::/crate::buffer::/g' -e 's/super::script/crate::script/g' $@.tmp > $@
 	$(RM) $@.tmp
 	rustfmt $@
 
