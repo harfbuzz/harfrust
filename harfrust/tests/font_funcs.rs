@@ -1,9 +1,10 @@
+use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;
 
 use harfrust::{
-    font::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs},
-    Direction, FontRef, ShapeOptions, ShaperData, UnicodeBuffer,
+    font::{Advances, FontFuncs},
+    Direction, FontRef, ShapeOptions, ShaperData, ShaperFont, UnicodeBuffer,
 };
 use read_fonts::types::GlyphId;
 
@@ -39,28 +40,67 @@ fn buffer_with_text(text: &str) -> UnicodeBuffer {
 }
 
 #[test]
+fn shape_font_allows_cross_query_callbacks() {
+    struct CrossQuery {
+        extents_calls: Cell<usize>,
+    }
+
+    impl FontFuncs for CrossQuery {
+        fn v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+            let _ = font.glyph_extents(glyph);
+            font.default_v_origin(glyph)
+        }
+
+        fn glyph_extents(
+            &self,
+            font: &ShaperFont,
+            glyph: GlyphId,
+        ) -> Option<harfrust::GlyphExtents> {
+            self.extents_calls.set(self.extents_calls.get() + 1);
+            font.default_glyph_extents(glyph)
+        }
+    }
+
+    with_test_shaper(|shaper| {
+        let funcs = CrossQuery {
+            extents_calls: Cell::new(0),
+        };
+        let mut font = ShaperFont::from_shaper(shaper);
+        let glyph = GlyphId::new(1);
+        let default_advance = font.default_h_advance(glyph);
+        font.set_scale(shaper.units_per_em() * 2);
+        assert_eq!(font.default_h_advance(glyph), default_advance * 2);
+        font.set_font_funcs(Some(&funcs));
+        let _ = font.v_origin(glyph);
+        assert_eq!(funcs.extents_calls.get(), 1);
+    });
+}
+
+#[test]
 fn font_funcs_nominal_override_is_used() {
     struct ForceNotdef {
-        nominal_calls: usize,
+        nominal_calls: Cell<usize>,
     }
 
     impl FontFuncs for ForceNotdef {
-        fn nominal_glyph(&mut self, _: &BuiltinFontFuncs, _: u32) -> Option<GlyphId> {
-            self.nominal_calls += 1;
+        fn nominal_glyph(&self, _: &ShaperFont, _: u32) -> Option<GlyphId> {
+            self.nominal_calls.set(self.nominal_calls.get() + 1);
             Some(GlyphId::new(0))
         }
     }
 
-    let mut funcs = ForceNotdef { nominal_calls: 0 };
+    let funcs = ForceNotdef {
+        nominal_calls: Cell::new(0),
+    };
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
-    assert!(funcs.nominal_calls > 0);
+    assert!(funcs.nominal_calls.get() > 0);
     assert!(!glyphs.glyph_infos().is_empty());
     assert!(glyphs.glyph_infos().iter().all(|info| info.glyph_id == 0));
 }
@@ -68,28 +108,30 @@ fn font_funcs_nominal_override_is_used() {
 #[test]
 fn font_funcs_default_fallback_is_available() {
     struct DelegatingFuncs {
-        nominal_calls: usize,
+        nominal_calls: Cell<usize>,
     }
 
     impl FontFuncs for DelegatingFuncs {
-        fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
-            self.nominal_calls += 1;
-            builtin.nominal_glyph(c)
+        fn nominal_glyph(&self, builtin: &ShaperFont, c: u32) -> Option<GlyphId> {
+            self.nominal_calls.set(self.nominal_calls.get() + 1);
+            builtin.default_nominal_glyph(c)
         }
     }
 
-    let mut funcs = DelegatingFuncs { nominal_calls: 0 };
+    let funcs = DelegatingFuncs {
+        nominal_calls: Cell::new(0),
+    };
 
     let (baseline, with_funcs) = with_test_shaper(|shaper| {
         let baseline = shaper.shape(buffer_with_text("abc"), ShapeOptions::new());
         let with_funcs = shaper.shape(
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         );
         (baseline, with_funcs)
     });
 
-    assert!(funcs.nominal_calls > 0);
+    assert!(funcs.nominal_calls.get() > 0);
     assert_eq!(
         baseline
             .glyph_infos()
@@ -108,27 +150,27 @@ fn font_funcs_default_fallback_is_available() {
 fn font_funcs_nominal_override_bypasses_cmap_cache() {
     struct RangeFuncs {
         max_char: u32,
-        nominal_calls: usize,
+        nominal_calls: Cell<usize>,
     }
 
     impl FontFuncs for RangeFuncs {
-        fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
-            self.nominal_calls += 1;
+        fn nominal_glyph(&self, builtin: &ShaperFont, c: u32) -> Option<GlyphId> {
+            self.nominal_calls.set(self.nominal_calls.get() + 1);
             if c <= self.max_char {
-                builtin.nominal_glyph(c)
+                builtin.default_nominal_glyph(c)
             } else {
                 None
             }
         }
     }
 
-    let mut maps_abc = RangeFuncs {
+    let maps_abc = RangeFuncs {
         max_char: u32::from('c'),
-        nominal_calls: 0,
+        nominal_calls: Cell::new(0),
     };
-    let mut maps_a = RangeFuncs {
+    let maps_a = RangeFuncs {
         max_char: u32::from('a'),
-        nominal_calls: 0,
+        nominal_calls: Cell::new(0),
     };
 
     let (first, second) = with_test_shaper_from_path(
@@ -140,18 +182,18 @@ fn font_funcs_nominal_override_bypasses_cmap_cache() {
         |shaper| {
             let first = shaper.shape(
                 buffer_with_text("abc"),
-                ShapeOptions::new().font_funcs(Some(&mut maps_abc)),
+                ShapeOptions::new().font_funcs(Some(&maps_abc)),
             );
             let second = shaper.shape(
                 buffer_with_text("abc"),
-                ShapeOptions::new().font_funcs(Some(&mut maps_a)),
+                ShapeOptions::new().font_funcs(Some(&maps_a)),
             );
             (first, second)
         },
     );
 
-    assert!(maps_abc.nominal_calls > 0);
-    assert!(maps_a.nominal_calls > 0);
+    assert!(maps_abc.nominal_calls.get() > 0);
+    assert!(maps_a.nominal_calls.get() > 0);
     assert_ne!(
         first
             .glyph_infos()
@@ -172,7 +214,7 @@ fn arabic_win1256_fallback_is_applied() {
     struct Win1256Funcs;
 
     impl FontFuncs for Win1256Funcs {
-        fn nominal_glyph(&mut self, _: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+        fn nominal_glyph(&self, _: &ShaperFont, c: u32) -> Option<GlyphId> {
             let glyph = match c {
                 0x0627 => 199, // ALEF
                 0x0644 => 225, // LAM
@@ -186,11 +228,11 @@ fn arabic_win1256_fallback_is_applied() {
         }
     }
 
-    let mut funcs = Win1256Funcs;
+    let funcs = Win1256Funcs;
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("لم"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
@@ -207,12 +249,12 @@ fn arabic_win1256_fallback_is_applied() {
 #[test]
 fn font_funcs_batch_advance_override_is_used() {
     struct BatchAdvanceFuncs {
-        batch_calls: usize,
+        batch_calls: Cell<usize>,
     }
 
     impl FontFuncs for BatchAdvanceFuncs {
-        fn populate_advance_widths(&mut self, _: &BuiltinFontFuncs, batch: AdvanceWidthBatch) {
-            self.batch_calls += 1;
+        fn h_advances(&self, _: &ShaperFont, batch: Advances) {
+            self.batch_calls.set(self.batch_calls.get() + 1);
             assert!(!batch.is_empty());
             for (_, advance) in batch {
                 *advance = 777;
@@ -220,16 +262,18 @@ fn font_funcs_batch_advance_override_is_used() {
         }
     }
 
-    let mut funcs = BatchAdvanceFuncs { batch_calls: 0 };
+    let funcs = BatchAdvanceFuncs {
+        batch_calls: Cell::new(0),
+    };
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
-    assert!(funcs.batch_calls > 0);
+    assert!(funcs.batch_calls.get() > 0);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -240,28 +284,29 @@ fn font_funcs_batch_advance_override_is_used() {
 #[test]
 fn font_funcs_batch_advance_uses_single_glyph_override_by_default() {
     struct AdvanceOnlyFuncs {
-        advance_width_calls: usize,
+        advance_width_calls: Cell<usize>,
     }
 
     impl FontFuncs for AdvanceOnlyFuncs {
-        fn advance_width(&mut self, _: &BuiltinFontFuncs, _: GlyphId) -> i32 {
-            self.advance_width_calls += 1;
+        fn h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+            self.advance_width_calls
+                .set(self.advance_width_calls.get() + 1);
             333
         }
     }
 
-    let mut funcs = AdvanceOnlyFuncs {
-        advance_width_calls: 0,
+    let funcs = AdvanceOnlyFuncs {
+        advance_width_calls: Cell::new(0),
     };
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
-    assert!(funcs.advance_width_calls >= 2);
+    assert!(funcs.advance_width_calls.get() >= 2);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -272,12 +317,12 @@ fn font_funcs_batch_advance_uses_single_glyph_override_by_default() {
 #[test]
 fn font_funcs_batch_hb_raw_view_is_available() {
     struct HbRawFuncs {
-        batch_calls: usize,
+        batch_calls: Cell<usize>,
     }
 
     impl FontFuncs for HbRawFuncs {
-        fn populate_advance_widths(&mut self, _: &BuiltinFontFuncs, batch: AdvanceWidthBatch) {
-            self.batch_calls += 1;
+        fn h_advances(&self, _: &ShaperFont, batch: Advances) {
+            self.batch_calls.set(self.batch_calls.get() + 1);
             let raw = batch.into_raw();
             assert_eq!(raw.len, 3);
             assert!(!raw.gids.is_null());
@@ -287,32 +332,36 @@ fn font_funcs_batch_hb_raw_view_is_available() {
         }
     }
 
-    let mut funcs = HbRawFuncs { batch_calls: 0 };
+    let funcs = HbRawFuncs {
+        batch_calls: Cell::new(0),
+    };
 
     let _ = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("abc"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
-    assert!(funcs.batch_calls > 0);
+    assert!(funcs.batch_calls.get() > 0);
 }
 
 #[test]
 fn font_funcs_vertical_origin_override_is_used() {
     struct VOriginFuncs {
-        v_origin_calls: usize,
+        v_origin_calls: Cell<usize>,
     }
 
     impl FontFuncs for VOriginFuncs {
-        fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
-            self.v_origin_calls += 1;
-            builtin.vertical_origin(glyph)
+        fn v_origin(&self, builtin: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+            self.v_origin_calls.set(self.v_origin_calls.get() + 1);
+            builtin.default_v_origin(glyph)
         }
     }
 
-    let mut funcs = VOriginFuncs { v_origin_calls: 0 };
+    let funcs = VOriginFuncs {
+        v_origin_calls: Cell::new(0),
+    };
 
     let mut buffer = UnicodeBuffer::new();
     buffer.push_str("abc");
@@ -321,60 +370,64 @@ fn font_funcs_vertical_origin_override_is_used() {
     buffer.set_direction(Direction::TopToBottom);
 
     let _ = with_test_shaper(|shaper| {
-        shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&mut funcs)))
+        shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&funcs)))
     });
 
-    assert!(funcs.v_origin_calls >= 2);
+    assert!(funcs.v_origin_calls.get() >= 2);
 }
 
 #[test]
 fn font_funcs_batch_advance_not_called_for_empty_buffer() {
     struct BatchAdvanceFuncs {
-        batch_calls: usize,
+        batch_calls: Cell<usize>,
     }
 
     impl FontFuncs for BatchAdvanceFuncs {
-        fn populate_advance_widths(&mut self, _: &BuiltinFontFuncs, _: AdvanceWidthBatch) {
-            self.batch_calls += 1;
+        fn h_advances(&self, _: &ShaperFont, _: Advances) {
+            self.batch_calls.set(self.batch_calls.get() + 1);
         }
     }
 
-    let mut funcs = BatchAdvanceFuncs { batch_calls: 0 };
+    let funcs = BatchAdvanceFuncs {
+        batch_calls: Cell::new(0),
+    };
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text(""),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
-    assert_eq!(funcs.batch_calls, 0);
+    assert_eq!(funcs.batch_calls.get(), 0);
     assert!(glyphs.glyph_infos().is_empty());
 }
 
 #[test]
 fn font_funcs_variant_glyph_override_is_used() {
     struct VariantFuncs {
-        variant_calls: usize,
+        variant_calls: Cell<usize>,
     }
 
     impl FontFuncs for VariantFuncs {
-        fn variant_glyph(&mut self, _: &BuiltinFontFuncs, _: u32, _: u32) -> Option<GlyphId> {
-            self.variant_calls += 1;
+        fn variant_glyph(&self, _: &ShaperFont, _: u32, _: u32) -> Option<GlyphId> {
+            self.variant_calls.set(self.variant_calls.get() + 1);
             Some(GlyphId::new(1))
         }
     }
 
-    let mut funcs = VariantFuncs { variant_calls: 0 };
+    let funcs = VariantFuncs {
+        variant_calls: Cell::new(0),
+    };
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("a\u{FE0F}"),
-            ShapeOptions::new().font_funcs(Some(&mut funcs)),
+            ShapeOptions::new().font_funcs(Some(&funcs)),
         )
     });
 
-    assert!(funcs.variant_calls > 0);
+    assert!(funcs.variant_calls.get() > 0);
     assert_eq!(glyphs.glyph_infos().len(), 1);
     assert_eq!(glyphs.glyph_infos()[0].glyph_id, 1);
 }
@@ -382,18 +435,19 @@ fn font_funcs_variant_glyph_override_is_used() {
 #[test]
 fn font_funcs_advance_width_override_is_used() {
     struct AdvanceFuncs {
-        advance_width_calls: usize,
+        advance_width_calls: Cell<usize>,
     }
 
     impl FontFuncs for AdvanceFuncs {
-        fn advance_width(&mut self, _: &BuiltinFontFuncs, _: GlyphId) -> i32 {
-            self.advance_width_calls += 1;
+        fn h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+            self.advance_width_calls
+                .set(self.advance_width_calls.get() + 1);
             100
         }
     }
 
-    let mut funcs = AdvanceFuncs {
-        advance_width_calls: 0,
+    let funcs = AdvanceFuncs {
+        advance_width_calls: Cell::new(0),
     };
 
     let glyphs = with_test_shaper_from_path(
@@ -405,12 +459,12 @@ fn font_funcs_advance_width_override_is_used() {
         |shaper| {
             shaper.shape(
                 buffer_with_text("\u{0718}\u{070F}\u{0718}\u{0718}\u{002E}"),
-                ShapeOptions::new().font_funcs(Some(&mut funcs)),
+                ShapeOptions::new().font_funcs(Some(&funcs)),
             )
         },
     );
 
-    assert!(funcs.advance_width_calls >= 2);
+    assert!(funcs.advance_width_calls.get() >= 2);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -421,18 +475,19 @@ fn font_funcs_advance_width_override_is_used() {
 #[test]
 fn font_funcs_advance_height_override_is_used() {
     struct AdvanceHeightFuncs {
-        advance_height_calls: usize,
+        advance_height_calls: Cell<usize>,
     }
 
     impl FontFuncs for AdvanceHeightFuncs {
-        fn advance_height(&mut self, _: &BuiltinFontFuncs, _: GlyphId) -> i32 {
-            self.advance_height_calls += 1;
+        fn v_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+            self.advance_height_calls
+                .set(self.advance_height_calls.get() + 1);
             50
         }
     }
 
-    let mut funcs = AdvanceHeightFuncs {
-        advance_height_calls: 0,
+    let funcs = AdvanceHeightFuncs {
+        advance_height_calls: Cell::new(0),
     };
 
     let mut buffer = UnicodeBuffer::new();
@@ -441,10 +496,10 @@ fn font_funcs_advance_height_override_is_used() {
     buffer.guess_segment_properties();
 
     let glyphs = with_test_shaper(|shaper| {
-        shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&mut funcs)))
+        shaper.shape(buffer, ShapeOptions::new().font_funcs(Some(&funcs)))
     });
 
-    assert!(funcs.advance_height_calls >= 2);
+    assert!(funcs.advance_height_calls.get() >= 2);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -455,24 +510,26 @@ fn font_funcs_advance_height_override_is_used() {
 #[test]
 fn font_funcs_extents_override_is_used() {
     struct ExtentsFuncs {
-        extents_calls: usize,
+        extents_calls: Cell<usize>,
     }
 
     impl FontFuncs for ExtentsFuncs {
-        fn extents(
-            &mut self,
-            default: &BuiltinFontFuncs,
+        fn glyph_extents(
+            &self,
+            default: &ShaperFont,
             glyph: GlyphId,
         ) -> Option<harfrust::GlyphExtents> {
-            self.extents_calls += 1;
-            default.extents(glyph).map(|mut e| {
+            self.extents_calls.set(self.extents_calls.get() + 1);
+            default.default_glyph_extents(glyph).map(|mut e| {
                 e.width = 999;
                 e
             })
         }
     }
 
-    let mut funcs = ExtentsFuncs { extents_calls: 0 };
+    let funcs = ExtentsFuncs {
+        extents_calls: Cell::new(0),
+    };
 
     let glyphs = with_test_shaper_from_path(
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -483,12 +540,12 @@ fn font_funcs_extents_override_is_used() {
         |shaper| {
             shaper.shape(
                 buffer_with_text("x\u{0301}X\u{0301}"),
-                ShapeOptions::new().font_funcs(Some(&mut funcs)),
+                ShapeOptions::new().font_funcs(Some(&funcs)),
             )
         },
     );
 
-    assert!(funcs.extents_calls >= 2);
+    assert!(funcs.extents_calls.get() >= 2);
     assert_eq!(glyphs.glyph_positions().len(), 4);
     assert!(glyphs
         .glyph_positions()

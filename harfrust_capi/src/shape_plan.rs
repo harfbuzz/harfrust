@@ -577,7 +577,7 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
 /// HarfRust compares a plan's script against the buffer's with an unset script
 /// standing in for `Zzzz`, so this normalizes the same way.
 fn plan_matches_buffer(plan: &ShapePlan, buffer: &harfrust::Buffer) -> bool {
-    let unset = harfrust::script::UNKNOWN;
+    let unset = Script::UNKNOWN;
     plan.direction() == buffer.direction()
         && plan.script().unwrap_or(unset) == buffer.script().unwrap_or(unset)
         && plan.language() == buffer.language()

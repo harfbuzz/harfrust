@@ -1,10 +1,10 @@
 use super::*;
-use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::layout::*;
-use crate::ot::shape::normalize::NormalizationMode;
-use crate::ot::shape::plan::ShapePlan;
-use crate::script;
+use crate::shape::normalize::NormalizationMode;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::unicode::GeneralCategory;
+use crate::Script;
 
 pub const THAI_SHAPER: OtShaper = OtShaper {
     collect_features: None,
@@ -131,7 +131,7 @@ static RD_MAPPINGS: &[PuaMapping] = &[
     PuaMapping::new(0x0000, 0x0000, 0x0000),
 ];
 
-fn pua_shape(u: u32, action: Action, face: &mut FontFuncsDispatch) -> u32 {
+fn pua_shape(u: u32, action: Action, font: &ShaperFont<'_, '_>) -> u32 {
     let mappings = match action {
         Action::NOP => return u,
         Action::SD => SD_MAPPINGS,
@@ -142,11 +142,11 @@ fn pua_shape(u: u32, action: Action, face: &mut FontFuncsDispatch) -> u32 {
 
     for m in mappings {
         if m.u as u32 == u {
-            if face.nominal_glyph(m.win_pua as u32).is_some() {
+            if font.nominal_glyph(m.win_pua as u32).is_some() {
                 return m.win_pua as u32;
             }
 
-            if face.nominal_glyph(m.mac_pua as u32).is_some() {
+            if font.nominal_glyph(m.mac_pua as u32).is_some() {
                 return m.mac_pua as u32;
             }
 
@@ -270,7 +270,7 @@ static BELOW_STATE_MACHINE: &[[BSME; 3]] = &[
     ],
 ];
 
-fn do_pua_shaping(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn do_pua_shaping(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     let mut above_state = ABOVE_START_STATE[Consonant::NotConsonant as usize];
     let mut below_state = BELOW_START_STATE[Consonant::NotConsonant as usize];
     let mut base = 0;
@@ -300,15 +300,15 @@ fn do_pua_shaping(face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
 
         buffer.unsafe_to_break(Some(base), Some(i));
         if action == Action::RD {
-            buffer.info[base].glyph_id = pua_shape(buffer.info[base].glyph_id, action, face);
+            buffer.info[base].glyph_id = pua_shape(buffer.info[base].glyph_id, action, font);
         } else {
-            buffer.info[i].glyph_id = pua_shape(buffer.info[i].glyph_id, action, face);
+            buffer.info[i].glyph_id = pua_shape(buffer.info[i].glyph_id, action, font);
         }
     }
 }
 
 // TODO: more tests
-fn preprocess_text(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     // This function implements the shaping logic documented here:
     //
     //   https://linux.thai.net/~thep/th-otf/shaping.html
@@ -421,7 +421,7 @@ fn preprocess_text(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut 
     buffer.sync();
 
     // If font has Thai GSUB, we are done.
-    if plan.script == Some(script::THAI) && !plan.ot_map.found_script(LayoutTableKind::Gsub) {
-        do_pua_shaping(face, buffer);
+    if plan.script == Some(Script::THAI) && !plan.ot_map.found_script(LayoutTableKind::Gsub) {
+        do_pua_shaping(font, buffer);
     }
 }

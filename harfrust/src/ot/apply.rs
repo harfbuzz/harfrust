@@ -3,12 +3,12 @@
 use super::buffer::GlyphInfo;
 use super::buffer::{Buffer, GlyphPropsFlags};
 use super::cache::Cache;
-use super::common::*;
-use super::face::Scale;
 use super::layout::*;
+use super::lookup_flags;
 use super::set_digest::SetDigest;
 use super::Mask;
-use super::Shaper;
+use super::OtData;
+use crate::face::Scale;
 use crate::ot::{ClassDefInfo, CoverageInfo};
 use crate::unicode::GeneralCategory;
 use alloc::boxed::Box;
@@ -292,8 +292,8 @@ impl Matcher {
     }
 
     #[inline(always)]
-    fn may_skip(&self, info: &GlyphInfo, face: &Shaper, lookup_props: u32) -> MaySkip {
-        if !check_glyph_property(face, info, lookup_props) {
+    fn may_skip(&self, info: &GlyphInfo, ot: &OtData, lookup_props: u32) -> MaySkip {
+        if !check_glyph_property(ot, info, lookup_props) {
             return MaySkip::Yes;
         }
 
@@ -313,13 +313,13 @@ impl Matcher {
 fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
     matcher: &Matcher,
     info: &mut GlyphInfo,
-    face: &Shaper,
+    ot: &OtData,
     lookup_props: u32,
     glyph_data: u32,
     match_func: Option<&F>,
     syllable: u8,
 ) -> MatchResult {
-    let skip = matcher.may_skip(info, face, lookup_props);
+    let skip = matcher.may_skip(info, ot, lookup_props);
 
     if skip == MaySkip::Yes {
         return MatchResult::Skip;
@@ -346,7 +346,7 @@ fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
 pub struct SkippingIterator<'f, 'c, F> {
     pub(crate) buffer: &'c mut Buffer,
-    face: &'c Shaper<'f>,
+    ot: &'c OtData<'f>,
     matcher: &'c Matcher,
     match_positions: &'c mut MatchPositions,
     buf_len: usize,
@@ -380,7 +380,7 @@ where
         let buf_len = ctx.buffer.len;
         SkippingIterator {
             buffer: ctx.buffer,
-            face: ctx.face,
+            ot: ctx.layout.ot,
             glyph_data: 0,
             buf_len,
             buf_idx: 0,
@@ -459,7 +459,7 @@ where
             match match_info(
                 self.matcher,
                 &mut out_info[self.buf_idx],
-                self.face,
+                self.ot,
                 self.lookup_props,
                 self.glyph_data,
                 self.match_func.as_ref(),
@@ -508,7 +508,7 @@ where
     }
 
     pub fn may_skip(&self, info: &GlyphInfo) -> MaySkip {
-        self.matcher.may_skip(info, self.face, self.lookup_props)
+        self.matcher.may_skip(info, self.ot, self.lookup_props)
     }
 
     #[inline]
@@ -517,7 +517,7 @@ where
         match_info(
             self.matcher,
             info,
-            self.face,
+            self.ot,
             self.lookup_props,
             self.glyph_data,
             self.match_func.as_ref(),
@@ -855,7 +855,7 @@ pub struct WouldApplyContext<'a> {
 }
 
 fn match_properties_mark(
-    face: &Shaper,
+    ot: &OtData,
     info: &GlyphInfo,
     glyph_props: u16,
     match_props: u32,
@@ -864,9 +864,7 @@ fn match_properties_mark(
     // match_props has the set index.
     if match_props as u16 & lookup_flags::USE_MARK_FILTERING_SET != 0 {
         let set_index = (match_props >> 16) as u16;
-        return face
-            .ot_tables
-            .is_mark_glyph(info.as_glyph().to_u32(), set_index);
+        return ot.is_mark_glyph(info.as_glyph().to_u32(), set_index);
     }
 
     // The second byte of match_props has the meaning
@@ -881,7 +879,7 @@ fn match_properties_mark(
 }
 
 #[inline(always)]
-pub fn check_glyph_property(face: &Shaper, info: &GlyphInfo, match_props: u32) -> bool {
+pub fn check_glyph_property(ot: &OtData, info: &GlyphInfo, match_props: u32) -> bool {
     let glyph_props = info.glyph_props();
 
     // Not covered, if, for example, glyph class is ligature and
@@ -891,7 +889,7 @@ pub fn check_glyph_property(face: &Shaper, info: &GlyphInfo, match_props: u32) -
     }
 
     if glyph_props & GlyphPropsFlags::MARK.bits() != 0 {
-        return match_properties_mark(face, info, glyph_props, match_props);
+        return match_properties_mark(ot, info, glyph_props, match_props);
     }
 
     true
@@ -899,7 +897,7 @@ pub fn check_glyph_property(face: &Shaper, info: &GlyphInfo, match_props: u32) -
 
 pub struct ApplyContext<'a> {
     pub table_index: LayoutTableKind,
-    pub face: &'a Shaper<'a>,
+    pub layout: crate::shape::LayoutData<'a>,
     pub scale: Scale,
     pub buffer: &'a mut Buffer,
     lookup_mask: Mask,
@@ -923,13 +921,13 @@ pub struct ApplyContext<'a> {
 impl<'a> ApplyContext<'a> {
     pub fn new(
         table_index: LayoutTableKind,
-        face: &'a Shaper<'a>,
+        layout: crate::shape::LayoutData<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
     ) -> Self {
         Self {
             table_index,
-            face,
+            layout,
             scale,
             buffer,
             lookup_mask: 1,
@@ -1009,8 +1007,8 @@ impl<'a> ApplyContext<'a> {
 
         self.lookup_index = sub_lookup_index;
         let applied = self
-            .face
-            .ot_tables
+            .layout
+            .ot
             .table_data_and_lookup(self.table_index, sub_lookup_index)
             .and_then(|(table_data, lookup)| {
                 self.lookup_props = lookup.props();
@@ -1058,11 +1056,11 @@ impl<'a> ApplyContext<'a> {
             props |= GlyphPropsFlags::MULTIPLIED.bits();
         }
 
-        let has_glyph_classes = self.face.ot_tables.has_glyph_classes();
+        let has_glyph_classes = self.layout.ot.has_glyph_classes();
 
         if has_glyph_classes {
             props &= GlyphPropsFlags::PRESERVE.bits();
-            cur.set_glyph_props(props | self.face.ot_tables.glyph_props(glyph_id));
+            cur.set_glyph_props(props | self.layout.ot.glyph_props(glyph_id));
         } else if !class_guess.is_empty() {
             props &= GlyphPropsFlags::PRESERVE.bits();
             cur.set_glyph_props(props | class_guess.bits());

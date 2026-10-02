@@ -7,19 +7,14 @@ mod single;
 mod value;
 
 use crate::buffer::*;
-use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::layout::*;
-use crate::ot::shape::plan::ShapePlan;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::Direction;
-use crate::Shaper;
 
-pub fn position(
-    plan: &ShapePlan,
-    face: &Shaper,
-    font_funcs: &mut FontFuncsDispatch,
-    buffer: &mut Buffer,
-) {
-    apply_layout_table(plan, face, font_funcs, buffer, face.ot_tables.gpos.as_ref());
+pub fn position(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+    let table = font.layout.ot.gpos.clone();
+    apply_layout_table(plan, font, buffer, table.as_ref());
 }
 
 pub mod attach_type {
@@ -105,7 +100,7 @@ fn propagate_attachment_offsets(
     }
 }
 
-pub fn position_start(_: &Shaper, buffer: &mut Buffer) {
+pub fn position_start(buffer: &mut Buffer) {
     let len = buffer.len;
     for pos in &mut buffer.pos[..len] {
         pos.set_attach_chain(0);
@@ -113,11 +108,11 @@ pub fn position_start(_: &Shaper, buffer: &mut Buffer) {
     }
 }
 
-pub fn position_finish_advances(_: &Shaper, _: &mut Buffer) {
+pub fn position_finish_advances(_: &mut Buffer) {
     //buffer.assert_gsubgpos_vars();
 }
 
-pub fn position_finish_offsets(_: &Shaper, buffer: &mut Buffer) {
+pub fn position_finish_offsets(buffer: &mut Buffer) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;

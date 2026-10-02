@@ -1,11 +1,11 @@
 use super::arabic_table::{LIGATURE_3_TABLE, LIGATURE_MARK_TABLE, LIGATURE_TABLE, SHAPING_TABLE};
 use crate::buffer::Buffer;
-use crate::font_funcs::FontFuncsDispatch;
-use crate::ot::common::lookup_flags;
-use crate::ot::gsubgpos::ApplyContext;
+use crate::ot::apply::ApplyContext;
 use crate::ot::layout::{apply_synthesized_subst_lookup, LayoutTableKind};
 use crate::ot::lookup::LookupInfo;
-use crate::ot::shape::plan::ShapePlan;
+use crate::ot::lookup_flags;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::{Mask, Tag};
 use alloc::vec::Vec;
 
@@ -135,11 +135,11 @@ impl FallbackLookup {
 }
 
 impl FallbackPlan {
-    pub(crate) fn new(plan: &ShapePlan, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
-        Self::new_unicode(plan, font_funcs).or_else(|| Self::new_win1256(plan, font_funcs))
+    pub(crate) fn new(plan: &ShapePlan, font: &ShaperFont<'_, '_>) -> Option<Self> {
+        Self::new_unicode(plan, font).or_else(|| Self::new_win1256(plan, font))
     }
 
-    fn new_unicode(plan: &ShapePlan, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
+    fn new_unicode(plan: &ShapePlan, font: &ShaperFont<'_, '_>) -> Option<Self> {
         let mut lookups = Vec::with_capacity(FALLBACK_FEATURES.len());
 
         for (feature_index, feature) in FALLBACK_FEATURES.iter().enumerate() {
@@ -149,20 +149,20 @@ impl FallbackPlan {
             }
 
             let lookup = match feature_index {
-                0..=3 => synthesize_single_lookup(font_funcs, feature_index, mask),
+                0..=3 => synthesize_single_lookup(font, feature_index, mask),
                 4 => synthesize_ligature_lookup(
-                    font_funcs,
+                    font,
                     LIGATURE_3_TABLE,
                     lookup_flags::IGNORE_MARKS,
                     mask,
                 ),
                 5 => synthesize_ligature_lookup(
-                    font_funcs,
+                    font,
                     LIGATURE_TABLE,
                     lookup_flags::IGNORE_MARKS,
                     mask,
                 ),
-                6 => synthesize_ligature_lookup(font_funcs, LIGATURE_MARK_TABLE, 0, mask),
+                6 => synthesize_ligature_lookup(font, LIGATURE_MARK_TABLE, 0, mask),
                 _ => unreachable!(),
             };
             if let Some(lookup) = lookup {
@@ -173,8 +173,8 @@ impl FallbackPlan {
         (!lookups.is_empty()).then_some(Self { lookups })
     }
 
-    fn new_win1256(plan: &ShapePlan, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
-        if !is_win1256_font(font_funcs) {
+    fn new_win1256(plan: &ShapePlan, font: &ShaperFont<'_, '_>) -> Option<Self> {
+        if !is_win1256_font(font) {
             return None;
         }
 
@@ -210,13 +210,8 @@ impl FallbackPlan {
         (!lookups.is_empty()).then_some(Self { lookups })
     }
 
-    pub(crate) fn apply(&self, font_funcs: &FontFuncsDispatch, buffer: &mut Buffer) {
-        let mut ctx = ApplyContext::new(
-            LayoutTableKind::Gsub,
-            font_funcs.font(),
-            *font_funcs.scale(),
-            buffer,
-        );
+    pub(crate) fn apply(&self, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+        let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout, font.scale, buffer);
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
             apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);
@@ -224,10 +219,9 @@ impl FallbackPlan {
     }
 }
 
-fn is_win1256_font(font_funcs: &mut FontFuncsDispatch) -> bool {
+fn is_win1256_font(font: &ShaperFont<'_, '_>) -> bool {
     WIN1256_SIGNATURE.iter().all(|&(codepoint, glyph)| {
-        font_funcs
-            .nominal_glyph(codepoint)
+        font.nominal_glyph(codepoint)
             .is_some_and(|actual| actual.to_u32() == u32::from(glyph))
     })
 }
@@ -270,13 +264,13 @@ fn add_direct_ligature_lookup<const N: usize>(
     }
 }
 
-fn glyph_for_codepoint(font_funcs: &mut FontFuncsDispatch, codepoint: u16) -> Option<u16> {
-    let glyph = font_funcs.nominal_glyph(u32::from(codepoint))?;
+fn glyph_for_codepoint(font: &ShaperFont<'_, '_>, codepoint: u16) -> Option<u16> {
+    let glyph = font.nominal_glyph(u32::from(codepoint))?;
     u16::try_from(glyph.to_u32()).ok()
 }
 
 fn synthesize_single_lookup(
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     feature_index: usize,
     mask: Mask,
 ) -> Option<FallbackLookup> {
@@ -287,10 +281,10 @@ fn synthesize_single_lookup(
             continue;
         }
 
-        let Some(glyph) = glyph_for_codepoint(font_funcs, codepoint) else {
+        let Some(glyph) = glyph_for_codepoint(font, codepoint) else {
             continue;
         };
-        let Some(substitute) = glyph_for_codepoint(font_funcs, form) else {
+        let Some(substitute) = glyph_for_codepoint(font, form) else {
             continue;
         };
         if glyph != substitute {
@@ -309,7 +303,7 @@ fn synthesize_single_lookup(
 }
 
 fn synthesize_ligature_lookup<const N: usize>(
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     rules: &[([u16; N], u16)],
     flags: u16,
     mask: Mask,
@@ -319,7 +313,7 @@ fn synthesize_ligature_lookup<const N: usize>(
         let mut component_glyphs = [0; N];
         let mut matched = true;
         for (glyph, &codepoint) in component_glyphs.iter_mut().zip(components.iter()) {
-            let Some(component) = glyph_for_codepoint(font_funcs, codepoint) else {
+            let Some(component) = glyph_for_codepoint(font, codepoint) else {
                 matched = false;
                 break;
             };
@@ -328,7 +322,7 @@ fn synthesize_ligature_lookup<const N: usize>(
         if !matched {
             continue;
         }
-        let Some(ligature) = glyph_for_codepoint(font_funcs, ligature) else {
+        let Some(ligature) = glyph_for_codepoint(font, ligature) else {
             continue;
         };
         ligatures.push((component_glyphs, ligature));

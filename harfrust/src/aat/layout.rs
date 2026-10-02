@@ -3,8 +3,9 @@
 use super::map;
 use super::{kerx, morx, trak};
 use crate::aat::common::{AatApplyContext, HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED};
+use crate::shape::LayoutData;
 use crate::Feature;
-use crate::{buffer::Buffer, face::Scale, ot::shape::plan::ShapePlan, GlyphInfo, Shaper, Tag};
+use crate::{buffer::Buffer, face::Scale, shape::plan::ShapePlan, GlyphInfo, Tag};
 
 pub type FeatureType = u8;
 
@@ -497,17 +498,22 @@ pub const DELETED_GLYPH: u32 = 0xFFFF;
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-aat-layout.cc#L285>
 #[doc(alias = "hb_aat_layout_substitute")]
-pub fn substitute(plan: &ShapePlan, face: &Shaper, buffer: &mut Buffer, features: &[Feature]) {
+pub fn substitute(
+    plan: &ShapePlan,
+    layout: LayoutData<'_>,
+    buffer: &mut Buffer,
+    features: &[Feature],
+) {
     let mut aat_map = map::AatMap::default();
     if !features.is_empty() {
         let mut builder = map::AatMapBuilder::new(plan.language.as_ref());
         for feature in features {
-            builder.add_feature(face, feature);
+            builder.add_feature(layout.aat, feature);
         }
-        builder.compile(face, &mut aat_map);
+        builder.compile(layout.aat, &mut aat_map);
     }
 
-    let mut c = AatApplyContext::new(plan, face, Scale::default(), buffer);
+    let mut c = AatApplyContext::new(plan, layout, Scale::default(), buffer);
     morx::apply(
         &mut c,
         if features.is_empty() {
@@ -536,8 +542,8 @@ pub fn remove_deleted_glyphs(buffer: &mut Buffer) {
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L363>
 #[doc(alias = "hb_aat_layout_position")]
-pub fn position(plan: &ShapePlan, face: &Shaper, scale: Scale, buffer: &mut Buffer) {
-    let mut c = AatApplyContext::new(plan, face, scale, buffer);
+pub fn position(plan: &ShapePlan, layout: LayoutData<'_>, scale: Scale, buffer: &mut Buffer) {
+    let mut c = AatApplyContext::new(plan, layout, scale, buffer);
     kerx::apply(&mut c);
 }
 
@@ -547,10 +553,10 @@ pub fn position(plan: &ShapePlan, face: &Shaper, scale: Scale, buffer: &mut Buff
 #[doc(alias = "hb_aat_layout_track")]
 pub fn track(
     plan: &ShapePlan,
-    face: &Shaper,
+    layout: LayoutData<'_>,
     scale: Scale,
     point_size: Option<f32>,
     buffer: &mut Buffer,
 ) {
-    trak::apply(plan, face, scale, point_size, buffer);
+    trak::apply(plan, layout, scale, point_size, buffer);
 }

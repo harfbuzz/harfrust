@@ -7,14 +7,15 @@ use read_fonts::types::GlyphId;
 use super::syllabic::*;
 use super::*;
 use crate::algs::*;
-use crate::font_funcs::FontFuncsDispatch;
-use crate::ot::gsubgpos::WouldApplyContext;
+use crate::ot::apply::WouldApplyContext;
 use crate::ot::layout::*;
 use crate::ot::map::*;
-use crate::ot::shape::plan::ShapePlan;
+use crate::ot::OtData;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::unicode::GeneralCategory;
 use crate::unicode::{CharExt, Codepoint};
-use crate::{script, GlyphInfo, Mask, Script, Shaper, Tag};
+use crate::{GlyphInfo, Mask, Script, Tag};
 
 pub const INDIC_SHAPER: OtShaper = OtShaper {
     collect_features: Some(collect_features),
@@ -298,7 +299,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::DEVANAGARI),
+        Some(Script::DEVANAGARI),
         true,
         0x094D,
         RephPosition::BeforePost,
@@ -306,7 +307,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::BENGALI),
+        Some(Script::BENGALI),
         true,
         0x09CD,
         RephPosition::AfterSub,
@@ -314,7 +315,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::GURMUKHI),
+        Some(Script::GURMUKHI),
         true,
         0x0A4D,
         RephPosition::BeforeSub,
@@ -322,7 +323,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::GUJARATI),
+        Some(Script::GUJARATI),
         true,
         0x0ACD,
         RephPosition::BeforePost,
@@ -330,7 +331,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::ORIYA),
+        Some(Script::ORIYA),
         true,
         0x0B4D,
         RephPosition::AfterMain,
@@ -338,7 +339,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::TAMIL),
+        Some(Script::TAMIL),
         true,
         0x0BCD,
         RephPosition::AfterPost,
@@ -346,7 +347,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::TELUGU),
+        Some(Script::TELUGU),
         true,
         0x0C4D,
         RephPosition::AfterPost,
@@ -354,7 +355,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PostOnly,
     ),
     IndicConfig::new(
-        Some(script::KANNADA),
+        Some(Script::KANNADA),
         true,
         0x0CCD,
         RephPosition::AfterPost,
@@ -362,7 +363,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PostOnly,
     ),
     IndicConfig::new(
-        Some(script::MALAYALAM),
+        Some(Script::MALAYALAM),
         true,
         0x0D4D,
         RephPosition::AfterMain,
@@ -370,7 +371,7 @@ static INDIC_CONFIGS: &[IndicConfig] = &[
         BlwfMode::PreAndPost,
     ),
     IndicConfig::new(
-        Some(script::SINHALA),
+        Some(Script::SINHALA),
         false,
         0x0DCA,
         RephPosition::AfterPost,
@@ -395,19 +396,18 @@ impl IndicWouldSubstituteFeature {
         }
     }
 
-    pub fn would_substitute(&self, map: &OtMap, face: &Shaper, glyphs: &[GlyphId]) -> bool {
+    pub fn would_substitute(&self, map: &OtMap, ot: &OtData<'_>, glyphs: &[GlyphId]) -> bool {
         for index in self.lookups.clone() {
             let lookup = map.lookup(LayoutTableKind::Gsub, index);
             let ctx = WouldApplyContext {
                 glyphs,
                 zero_context: self.zero_context,
             };
-            if face
-                .ot_tables
+            if ot
                 .gsub
                 .as_ref()
                 .and_then(|table| table.get_lookup(lookup.index))
-                .is_some_and(|lookup| lookup.would_apply(face, &ctx) == Some(true))
+                .is_some_and(|lookup| lookup.would_apply(ot, &ctx) == Some(true))
             {
                 return true;
             }
@@ -452,7 +452,7 @@ impl IndicShapePlan {
         // context.  Testing with Bengali new-spec however shows that it doesn't.
         // So, the heuristic here is the way it is.  It should *only* be changed,
         // as we discover more cases of what Windows does.  DON'T TOUCH OTHERWISE.
-        let zero_context = is_old_spec && script != Some(script::MALAYALAM);
+        let zero_context = is_old_spec && script != Some(Script::MALAYALAM);
 
         let mut mask_array = [0; INDIC_FEATURES.len()];
         for (i, feature) in INDIC_FEATURES.iter().enumerate() {
@@ -517,7 +517,7 @@ fn override_features(planner: &mut ShapePlanner) {
     planner.ot_map.add_gsub_pause(Some(syllabic_clear_var)); // Don't need syllables anymore.
 }
 
-fn preprocess_text(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn preprocess_text(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     vowel_constraints::preprocess_text_vowel_constraints(buffer);
 }
 
@@ -549,7 +549,7 @@ fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint
     crate::unicode::compose(a, b)
 }
 
-fn setup_masks(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
     buffer.allocate_var(GlyphInfo::INDIC_POSITION_VAR);
 
@@ -560,7 +560,7 @@ fn setup_masks(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     }
 }
 
-fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     indic_machine::find_syllables_indic(buffer);
@@ -576,20 +576,16 @@ fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer
     false
 }
 
-fn initial_reordering(
-    plan: &ShapePlan,
-    font_funcs: &mut FontFuncsDispatch,
-    buffer: &mut Buffer,
-) -> bool {
+fn initial_reordering(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     use super::indic_machine::SyllableType;
 
     let mut ret = false;
 
     let indic_plan = plan.data::<IndicShapePlan>();
 
-    update_consonant_positions(plan, indic_plan, font_funcs, buffer);
+    update_consonant_positions(plan, indic_plan, font, buffer);
     if insert_dotted_circles(
-        font_funcs,
+        font,
         buffer,
         SyllableType::BrokenCluster as u8,
         category::OT_DOTTEDCIRCLE,
@@ -602,7 +598,7 @@ fn initial_reordering(
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
-        initial_reordering_syllable(plan, indic_plan, font_funcs, start, end, buffer);
+        initial_reordering_syllable(plan, indic_plan, font, start, end, buffer);
         start = end;
         end = buffer.next_syllable(start);
     }
@@ -613,31 +609,31 @@ fn initial_reordering(
 fn update_consonant_positions(
     plan: &ShapePlan,
     indic_plan: &IndicShapePlan,
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
 ) {
     let mut virama_glyph = None;
     if indic_plan.config.virama != 0 {
-        virama_glyph = font_funcs.nominal_glyph(indic_plan.config.virama);
+        virama_glyph = font.nominal_glyph(indic_plan.config.virama);
     }
 
     if let Some(virama) = virama_glyph {
-        let face = font_funcs.font();
+        let ot = font.layout.ot;
         for info in buffer.info_slice_mut() {
             if info.indic_position() == position::POS_BASE_C {
                 let consonant = info.as_glyph();
-                info.set_indic_position(consonant_position_from_face(
-                    plan, indic_plan, face, consonant, virama,
+                info.set_indic_position(consonant_position_from_ot(
+                    plan, indic_plan, ot, consonant, virama,
                 ));
             }
         }
     }
 }
 
-fn consonant_position_from_face(
+fn consonant_position_from_ot(
     plan: &ShapePlan,
     indic_plan: &IndicShapePlan,
-    face: &Shaper,
+    ot: &OtData<'_>,
     consonant: GlyphId,
     virama: GlyphId,
 ) -> u8 {
@@ -657,36 +653,36 @@ fn consonant_position_from_face(
 
     if indic_plan
         .blwf
-        .would_substitute(&plan.ot_map, face, &[virama, consonant])
+        .would_substitute(&plan.ot_map, ot, &[virama, consonant])
         || indic_plan
             .blwf
-            .would_substitute(&plan.ot_map, face, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
         || indic_plan
             .vatu
-            .would_substitute(&plan.ot_map, face, &[virama, consonant])
+            .would_substitute(&plan.ot_map, ot, &[virama, consonant])
         || indic_plan
             .vatu
-            .would_substitute(&plan.ot_map, face, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
     {
         return position::POS_BELOW_C;
     }
 
     if indic_plan
         .pstf
-        .would_substitute(&plan.ot_map, face, &[virama, consonant])
+        .would_substitute(&plan.ot_map, ot, &[virama, consonant])
         || indic_plan
             .pstf
-            .would_substitute(&plan.ot_map, face, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
     {
         return position::POS_POST_C;
     }
 
     if indic_plan
         .pref
-        .would_substitute(&plan.ot_map, face, &[virama, consonant])
+        .would_substitute(&plan.ot_map, ot, &[virama, consonant])
         || indic_plan
             .pref
-            .would_substitute(&plan.ot_map, face, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
     {
         return position::POS_POST_C;
     }
@@ -697,7 +693,7 @@ fn consonant_position_from_face(
 fn initial_reordering_syllable(
     plan: &ShapePlan,
     indic_plan: &IndicShapePlan,
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     start: usize,
     end: usize,
     buffer: &mut Buffer,
@@ -717,11 +713,11 @@ fn initial_reordering_syllable(
     match syllable_type {
         // We made the vowels look like consonants.  So let's call the consonant logic!
         SyllableType::VowelSyllable | SyllableType::ConsonantSyllable => {
-            initial_reordering_consonant_syllable(plan, indic_plan, font_funcs, start, end, buffer);
+            initial_reordering_consonant_syllable(plan, indic_plan, font, start, end, buffer);
         }
         // We already inserted dotted-circles, so just call the standalone_cluster.
         SyllableType::BrokenCluster | SyllableType::StandaloneCluster => {
-            initial_reordering_standalone_cluster(plan, indic_plan, font_funcs, start, end, buffer);
+            initial_reordering_standalone_cluster(plan, indic_plan, font, start, end, buffer);
         }
         SyllableType::SymbolCluster | SyllableType::NonIndicCluster => {}
     }
@@ -732,16 +728,16 @@ fn initial_reordering_syllable(
 fn initial_reordering_consonant_syllable(
     plan: &ShapePlan,
     indic_plan: &IndicShapePlan,
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     start: usize,
     end: usize,
     buffer: &mut Buffer,
 ) {
-    let face = font_funcs.font();
+    let ot = font.layout.ot;
     // https://github.com/harfbuzz/harfbuzz/issues/435#issuecomment-335560167
     // For compatibility with legacy usage in Kannada,
     // Ra+h+ZWJ must behave like Ra+ZWJ+h...
-    if buffer.script == Some(script::KANNADA)
+    if buffer.script == Some(Script::KANNADA)
         && start + 3 <= end
         && buffer.info[start].is_one_of(category_flag(category::OT_Ra))
         && buffer.info[start + 1].is_one_of(category_flag(category::OT_H))
@@ -791,9 +787,9 @@ fn initial_reordering_consonant_syllable(
             ];
             if indic_plan
                 .rphf
-                .would_substitute(&plan.ot_map, face, &glyphs[0..2])
+                .would_substitute(&plan.ot_map, ot, &glyphs[0..2])
                 || (indic_plan.config.reph_mode == RephMode::Explicit
-                    && indic_plan.rphf.would_substitute(&plan.ot_map, face, glyphs))
+                    && indic_plan.rphf.would_substitute(&plan.ot_map, ot, glyphs))
             {
                 limit += 2;
                 while limit < end && buffer.info[limit].is_joiner() {
@@ -946,7 +942,7 @@ fn initial_reordering_consonant_syllable(
     // With chandas.ttf
     // https://github.com/harfbuzz/harfbuzz/issues/1071
     if indic_plan.is_old_spec {
-        let disallow_double_halants = buffer.script == Some(script::KANNADA);
+        let disallow_double_halants = buffer.script == Some(Script::KANNADA);
         for i in base + 1..end {
             if buffer.info[i].indic_category() == category::OT_H {
                 let mut j = end - 1;
@@ -1183,7 +1179,7 @@ fn initial_reordering_consonant_syllable(
         }
     }
 
-    if indic_plan.is_old_spec && buffer.script == Some(script::DEVANAGARI) {
+    if indic_plan.is_old_spec && buffer.script == Some(Script::DEVANAGARI) {
         // Old-spec eye-lash Ra needs special handling.  From the
         // spec:
         //
@@ -1217,7 +1213,7 @@ fn initial_reordering_consonant_syllable(
         // Find a Halant,Ra sequence and mark it for pre-base-reordering processing.
         for i in base + 1..end - pref_len + 1 {
             let glyphs = &[buffer.info[i + 0].as_glyph(), buffer.info[i + 1].as_glyph()];
-            if indic_plan.pref.would_substitute(&plan.ot_map, face, glyphs) {
+            if indic_plan.pref.would_substitute(&plan.ot_map, ot, glyphs) {
                 buffer.info[i + 0].mask |= indic_plan.mask_array[indic_feature::PREF];
                 buffer.info[i + 1].mask |= indic_plan.mask_array[indic_feature::PREF];
                 break;
@@ -1254,23 +1250,23 @@ fn initial_reordering_consonant_syllable(
 fn initial_reordering_standalone_cluster(
     plan: &ShapePlan,
     indic_plan: &IndicShapePlan,
-    face: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     start: usize,
     end: usize,
     buffer: &mut Buffer,
 ) {
     // We treat placeholder/dotted-circle as if they are consonants, so we
     // should just chain.  Only if not in compatibility mode that is...
-    initial_reordering_consonant_syllable(plan, indic_plan, face, start, end, buffer);
+    initial_reordering_consonant_syllable(plan, indic_plan, font, start, end, buffer);
 }
 
-fn final_reordering(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn final_reordering(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     if buffer.is_empty() {
         return false;
     }
 
     foreach_syllable!(buffer, start, end, {
-        final_reordering_impl(plan, face, start, end, buffer);
+        final_reordering_impl(plan, font, start, end, buffer);
     });
 
     buffer.deallocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
@@ -1281,7 +1277,7 @@ fn final_reordering(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut
 
 fn final_reordering_impl(
     plan: &ShapePlan,
-    face: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     start: usize,
     end: usize,
     buffer: &mut Buffer,
@@ -1297,7 +1293,7 @@ fn final_reordering_impl(
     // We don't call load_virama_glyph(), since we know it's already loaded.
     let mut virama_glyph = None;
     if indic_plan.config.virama != 0 {
-        if let Some(g) = face.nominal_glyph(indic_plan.config.virama) {
+        if let Some(g) = font.nominal_glyph(indic_plan.config.virama) {
             virama_glyph = Some(g.to_u32());
         }
     }
@@ -1354,7 +1350,7 @@ fn final_reordering_impl(
             }
 
             // For Malayalam, skip over unformed below- (but NOT post-) forms.
-            if buffer.script == Some(script::MALAYALAM) {
+            if buffer.script == Some(Script::MALAYALAM) {
                 let mut i = base + 1;
                 while i < end {
                     while i < end && buffer.info[i].is_joiner() {
@@ -1446,7 +1442,7 @@ fn final_reordering_impl(
         // Malayalam / Tamil do not have "half" forms or explicit virama forms.
         // The glyphs formed by 'half' are Chillus or ligated explicit viramas.
         // We want to position matra after them.
-        if buffer.script != Some(script::MALAYALAM) && buffer.script != Some(script::TAMIL) {
+        if buffer.script != Some(Script::MALAYALAM) && buffer.script != Some(Script::TAMIL) {
             loop {
                 while new_pos > start
                     && !buffer.info[new_pos].is_one_of(
@@ -1713,8 +1709,8 @@ fn final_reordering_impl(
                     // Malayalam / Tamil do not have "half" forms or explicit virama forms.
                     // The glyphs formed by 'half' are Chillus or ligated explicit viramas.
                     // We want to position matra after them.
-                    if buffer.script != Some(script::MALAYALAM)
-                        && buffer.script != Some(script::TAMIL)
+                    if buffer.script != Some(Script::MALAYALAM)
+                        && buffer.script != Some(Script::TAMIL)
                     {
                         while new_pos > start
                             && !buffer.info[new_pos - 1].is_one_of(

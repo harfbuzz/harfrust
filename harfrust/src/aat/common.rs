@@ -2,9 +2,9 @@ use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
 use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::face::Scale;
-use crate::face::Shaper;
-use crate::ot::gsubgpos::MappingCache;
-use crate::ot::shape::plan::ShapePlan;
+use crate::ot::apply::MappingCache;
+use crate::shape::plan::ShapePlan;
+use crate::shape::LayoutData;
 use crate::Mask;
 use crate::U32Set;
 use alloc::vec::Vec;
@@ -39,7 +39,7 @@ pub(crate) fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
 #[doc(alias = "hb_aat_apply_context_t")]
 pub struct AatApplyContext<'a> {
     pub plan: &'a ShapePlan,
-    pub face: &'a Shaper<'a>,
+    pub layout: LayoutData<'a>,
     pub scale: Scale,
     pub buffer: &'a mut Buffer,
     pub has_glyph_classes: bool,
@@ -58,16 +58,16 @@ pub struct AatApplyContext<'a> {
 impl<'a> AatApplyContext<'a> {
     pub fn new(
         plan: &'a ShapePlan,
-        face: &'a Shaper<'a>,
+        layout: LayoutData<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
     ) -> Self {
         Self {
             plan,
-            face,
+            layout,
             scale,
             buffer,
-            has_glyph_classes: face.ot_tables.has_glyph_classes(),
+            has_glyph_classes: layout.ot.has_glyph_classes(),
             range_flags: None,
             subtable_flags: 0,
             buffer_is_reversed: false,
@@ -148,7 +148,7 @@ impl<'a> AatApplyContext<'a> {
             info.set_aat_deleted();
         } else {
             if self.has_glyph_classes {
-                let glyph_props = self.face.ot_tables.glyph_props(glyph.into());
+                let glyph_props = self.layout.ot.glyph_props(glyph.into());
                 let info = if at_end {
                     self.buffer.prev_mut()
                 } else {
@@ -174,7 +174,7 @@ impl<'a> AatApplyContext<'a> {
         if self.has_glyph_classes {
             self.buffer
                 .cur_mut(0)
-                .set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
+                .set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
         self.buffer.replace_glyph(glyph);
     }
@@ -196,7 +196,7 @@ impl<'a> AatApplyContext<'a> {
             self.buffer.glyph_set.insert(glyph);
         }
         if self.has_glyph_classes {
-            self.buffer.info[i].set_glyph_props(self.face.ot_tables.glyph_props(glyph.into()));
+            self.buffer.info[i].set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
     }
 }
@@ -745,7 +745,12 @@ mod tests {
         buffer.clear_output();
         buffer.next_glyph();
 
-        let mut context = AatApplyContext::new(&plan, &shaper, Scale::default(), &mut buffer);
+        let mut context = AatApplyContext::new(
+            &plan,
+            LayoutData::from_shaper(&shaper),
+            Scale::default(),
+            &mut buffer,
+        );
         context.output_glyph(DELETED_GLYPH);
 
         assert_eq!(context.buffer.out_len, 2);

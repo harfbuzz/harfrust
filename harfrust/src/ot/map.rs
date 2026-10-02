@@ -3,11 +3,11 @@ use core::cmp::Ordering;
 use core::ops::Range;
 
 use super::buffer::{Buffer, GlyphFlags};
-use super::font_funcs::FontFuncsDispatch;
 use super::layout::LayoutTableKind;
-use super::shape::plan::ShapePlan;
-use super::{tag, Language, Mask, Script, Shaper, Tag};
-use crate::common::TagExt;
+use super::{tag, Language, Mask, Script, Tag};
+use crate::shape::plan::ShapePlan;
+use crate::shape::{LayoutData, ShaperFont};
+use crate::tag::TagExt;
 
 // TODO: Remove once MSRV is 1.80+
 use core::mem::{size_of, size_of_val};
@@ -71,7 +71,7 @@ pub struct StageMap {
 
 // Pause functions return true if new glyph indices might have been added to the buffer.
 // This is used to update buffer digest.
-pub type PauseFn = fn(&ShapePlan, &mut FontFuncsDispatch, &mut Buffer) -> bool;
+pub type PauseFn = fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer) -> bool;
 
 impl OtMap {
     pub const MAX_BITS: u32 = 8;
@@ -182,7 +182,7 @@ pub const F_RANDOM: u32 = 0x0020; /* Randomly select a glyph from an AlternateSu
 pub const F_PER_SYLLABLE: u32 = 0x0040; /* Contain lookup application to within syllable. */
 
 pub struct OtMapBuilder<'a> {
-    face: &'a Shaper<'a>,
+    layout: LayoutData<'a>,
     found_script: [bool; 2],
     script_index: [Option<u16>; 2],
     chosen_script: [Option<Tag>; 2],
@@ -216,7 +216,11 @@ const GLOBAL_BIT_SHIFT: u32 = 8 * size_of::<u32>() as u32 - 1;
 const GLOBAL_BIT_MASK: Mask = 1 << GLOBAL_BIT_SHIFT;
 
 impl<'a> OtMapBuilder<'a> {
-    pub fn new(face: &'a Shaper<'a>, script: Option<Script>, language: Option<&Language>) -> Self {
+    pub fn new(
+        layout: LayoutData<'a>,
+        script: Option<Script>,
+        language: Option<&Language>,
+    ) -> Self {
         // Fetch script/language indices for GSUB/GPOS.  We need these later to skip
         // features not available in either table and not waste precious bits for them.
         let (script_tags, lang_tags) = tag::tags_from_script_and_language(script, language);
@@ -226,7 +230,7 @@ impl<'a> OtMapBuilder<'a> {
         let mut chosen_script = [None; 2];
         let mut lang_index = [None; 2];
 
-        for (table_index, table) in face.layout_tables() {
+        for (table_index, table) in layout.ot.layout_tables() {
             if let Some((found, idx, tag)) = table.select_script(&script_tags) {
                 chosen_script[table_index] = Some(tag);
                 found_script[table_index] = found;
@@ -239,7 +243,7 @@ impl<'a> OtMapBuilder<'a> {
         }
 
         Self {
-            face,
+            layout,
             found_script,
             script_index,
             chosen_script,
@@ -258,7 +262,7 @@ impl<'a> OtMapBuilder<'a> {
 
     #[inline]
     pub fn has_feature(&self, tag: Tag) -> bool {
-        for (table_index, table) in self.face.layout_tables() {
+        for (table_index, table) in self.layout.ot.layout_tables() {
             if let Some(script_index) = self.script_index[table_index] {
                 if table
                     .find_language_feature(script_index, self.lang_index[table_index], tag)
@@ -323,7 +327,7 @@ impl<'a> OtMapBuilder<'a> {
         let mut required_index = [None; 2];
         let mut required_tag = [None; 2];
 
-        for (table_index, table) in self.face.layout_tables() {
+        for (table_index, table) in self.layout.ot.layout_tables() {
             if let Some(script) = self.script_index[table_index] {
                 let lang = self.lang_index[table_index];
                 if let Some((idx, tag)) = table.get_required_language_feature(script, lang) {
@@ -348,7 +352,7 @@ impl<'a> OtMapBuilder<'a> {
             features,
             lookups,
             stages,
-            feature_variations: self.face.ot_tables.feature_variations,
+            feature_variations: self.layout.ot.feature_variations,
         }
     }
 
@@ -383,7 +387,7 @@ impl<'a> OtMapBuilder<'a> {
             let mut found = false;
             let mut feature_index = [None; 2];
 
-            for (table_index, table) in self.face.layout_tables() {
+            for (table_index, table) in self.layout.ot.layout_tables() {
                 if required_tag[table_index] == Some(info.tag) {
                     required_stage[table_index] = info.stage[table_index];
                 }
@@ -399,7 +403,7 @@ impl<'a> OtMapBuilder<'a> {
 
             if !found && info.flags & F_GLOBAL_SEARCH != 0 {
                 // hb_ot_layout_table_find_feature
-                for (table_index, table) in self.face.layout_tables() {
+                for (table_index, table) in self.layout.ot.layout_tables() {
                     if let Some(idx) = table.feature_index(info.tag) {
                         feature_index[table_index] = Some(idx);
                         found = true;
@@ -498,7 +502,7 @@ impl<'a> OtMapBuilder<'a> {
             let mut stage_index = 0;
             let mut last_lookup = 0;
 
-            let variation_index = self.face.ot_tables.feature_variations[table_index as usize];
+            let variation_index = self.layout.ot.feature_variations[table_index as usize];
 
             for stage in 0..self.current_stage[table_index] {
                 if let Some(feature_index) = required_feature_index[table_index] {
@@ -587,7 +591,7 @@ impl<'a> OtMapBuilder<'a> {
         random: bool,
         per_syllable: bool,
     ) -> Option<()> {
-        let table = self.face.layout_table(table_index)?;
+        let table = self.layout.ot.layout_table(table_index)?;
 
         let lookup_count = table.lookup_count();
         let feature = match variation_index {

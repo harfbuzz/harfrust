@@ -1,9 +1,10 @@
+use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;
 
 use harfrust::{
-    font::{AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs},
-    FontRef, ShapeOptions, ShaperData, UnicodeBuffer,
+    font::{Advances, FontFuncs},
+    FontRef, ShapeOptions, ShaperData, ShaperFont, UnicodeBuffer,
 };
 use read_fonts::types::GlyphId;
 
@@ -55,12 +56,12 @@ fn assert_positions_scaled(
 #[test]
 fn font_funcs_batch_advance_override_is_used_with_scale() {
     struct BatchAdvanceFuncs {
-        batch_calls: usize,
+        batch_calls: Cell<usize>,
     }
 
     impl FontFuncs for BatchAdvanceFuncs {
-        fn populate_advance_widths(&mut self, _: &BuiltinFontFuncs, batch: AdvanceWidthBatch) {
-            self.batch_calls += 1;
+        fn h_advances(&self, _: &ShaperFont, batch: Advances) {
+            self.batch_calls.set(self.batch_calls.get() + 1);
             assert!(!batch.is_empty());
             for (_, advance) in batch {
                 *advance = 777;
@@ -68,18 +69,20 @@ fn font_funcs_batch_advance_override_is_used_with_scale() {
         }
     }
 
-    let mut funcs = BatchAdvanceFuncs { batch_calls: 0 };
+    let funcs = BatchAdvanceFuncs {
+        batch_calls: Cell::new(0),
+    };
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("abc"),
             ShapeOptions::new()
                 .scale(Some(shaper.units_per_em() * 2))
-                .font_funcs(Some(&mut funcs)),
+                .font_funcs(Some(&funcs)),
         )
     });
 
-    assert!(funcs.batch_calls > 0);
+    assert!(funcs.batch_calls.get() > 0);
     assert!(!glyphs.glyph_positions().is_empty());
     assert!(glyphs
         .glyph_positions()
@@ -92,19 +95,19 @@ fn font_funcs_advance_width_override_is_not_scaled() {
     struct AdvanceFuncs;
 
     impl FontFuncs for AdvanceFuncs {
-        fn advance_width(&mut self, _: &BuiltinFontFuncs, _: GlyphId) -> i32 {
+        fn h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
             100
         }
     }
 
-    let mut funcs = AdvanceFuncs;
+    let funcs = AdvanceFuncs;
 
     let glyphs = with_test_shaper(|shaper| {
         shaper.shape(
             buffer_with_text("abc"),
             ShapeOptions::new()
                 .scale(Some(shaper.units_per_em() * 2))
-                .font_funcs(Some(&mut funcs)),
+                .font_funcs(Some(&funcs)),
         )
     });
 

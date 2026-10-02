@@ -1,6 +1,6 @@
 use crate::buffer::GlyphInfo;
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{
     ligate_input, match_always, match_glyph, match_input, Apply, LigatureSubstFormat1Cache,
     LigatureSubstFormat1SmallCache, MaySkip, SkippingIterator, SubtableExternalCache,
     SubtableExternalCacheMode, WouldApply, WouldApplyContext,

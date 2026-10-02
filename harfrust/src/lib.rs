@@ -36,19 +36,21 @@ mod unicode;
 mod buffer;
 mod aat;
 mod cache;
-mod charmap;
-mod common;
+mod direction;
 mod face;
+mod feature;
 mod font_funcs;
-mod glyph_metrics;
-pub(crate) mod glyph_names;
+mod language;
 pub(crate) mod ot;
+mod script;
 pub(crate) mod set_digest;
+mod shape;
 mod tables;
 mod tag;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
+mod variation;
 
 type Mask = u32;
 
@@ -57,12 +59,7 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
     value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }
 
-#[cfg(feature = "std")]
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
-#[cfg(not(feature = "std"))]
-mod digest_u32_set;
-#[cfg(not(feature = "std"))]
-pub(crate) type U32Set = digest_u32_set::DigestU32Set;
 
 pub use read_fonts::{
     types::{GlyphId, Tag},
@@ -75,9 +72,9 @@ pub use face::shape;
 /// Font related types.
 pub mod font {
     pub use crate::face::{
-        AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, NominalGlyphBatch, RawAdvanceWidthBatch,
-        RawNominalGlyphBatch,
+        Advances, BuiltinFontFuncs, FontFuncs, NominalGlyphs, RawAdvances, RawNominalGlyphs,
     };
+    pub use crate::ShaperFont;
 
     // Import the whole read-fonts "model" module as our font representation.
 
@@ -89,16 +86,20 @@ pub mod font {
 }
 
 pub use buffer::{
-    Buffer, BufferContentType, EmptySerializerFont, GlyphBuffer, GlyphFlags, GlyphInfo,
-    GlyphPosition, ShapeError, UnicodeBuffer, WrongContentType,
+    Buffer, ContentType, EmptySerializerFont, GlyphBuffer, GlyphFlags, GlyphInfo, GlyphPosition,
+    UnicodeBuffer, WrongContentType,
 };
-pub use common::{script, Direction, Feature, Language, Script, Variation};
-pub use face::{
-    GlyphExtents, Scale, ShapeOptions, Shaper, ShaperBuilder, ShaperData, ShaperInstance,
-};
-pub use glyph_names::GlyphNames;
+pub use direction::Direction;
+pub use face::{GlyphExtents, Scale, Shaper};
+pub use feature::Feature;
+pub use language::Language;
+pub use script::Script;
+pub use shape::font_ref::GlyphNames;
+pub use shape::font_ref::{ShaperBuilder, ShaperData, ShaperInstance};
+pub use shape::{ShapeError, ShapeOptions, ShaperFont};
+pub use variation::Variation;
 
-pub use ot::shape::plan::{ShapePlan, ShapePlanKey};
+pub use shape::plan::{ShapePlan, ShapePlanKey};
 
 /// Type alias for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;
@@ -131,14 +132,14 @@ bitflags::bitflags! {
 /// A cluster level.
 #[allow(missing_docs)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum BufferClusterLevel {
+pub enum ClusterLevel {
     MonotoneGraphemes,
     MonotoneCharacters,
     Characters,
     Graphemes,
 }
 
-impl BufferClusterLevel {
+impl ClusterLevel {
     #[inline]
     fn new(level: u32) -> Self {
         match level {
@@ -163,10 +164,10 @@ impl BufferClusterLevel {
     }
 }
 
-impl Default for BufferClusterLevel {
+impl Default for ClusterLevel {
     #[inline]
     fn default() -> Self {
-        BufferClusterLevel::MonotoneGraphemes
+        ClusterLevel::MonotoneGraphemes
     }
 }
 

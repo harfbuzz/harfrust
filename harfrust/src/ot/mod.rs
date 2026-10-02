@@ -1,7 +1,7 @@
-use self::gsubgpos::{BinaryCache, MappingCache};
+use self::apply::{BinaryCache, MappingCache};
 use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
-use super::{common::TagExt, set_digest::SetDigest};
+use super::{set_digest::SetDigest, tag::TagExt};
 use crate::tables::TableRanges;
 use crate::Tag;
 use alloc::vec::Vec;
@@ -21,23 +21,30 @@ use read_fonts::{
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
 
-pub(crate) mod common;
+pub(crate) mod apply;
 pub mod contextual;
 pub mod gpos;
 pub mod gsub;
-pub(crate) mod gsubgpos;
 pub(crate) mod layout;
 pub mod lookup;
 pub(crate) mod map;
-pub(crate) mod shape;
 pub(crate) mod shaper;
 
 #[allow(unused_imports)]
 use super::{aat, buffer, cache, face, font_funcs, set_digest, tag};
 #[allow(unused_imports)]
-use super::{
-    clamp_i64_to_i32, script, Direction, Feature, GlyphInfo, Language, Mask, Script, Shaper,
-};
+use super::{clamp_i64_to_i32, Direction, Feature, GlyphInfo, Language, Mask, Script};
+
+#[allow(dead_code)]
+pub(crate) mod lookup_flags {
+    pub const RIGHT_TO_LEFT: u16 = 0x0001;
+    pub const IGNORE_BASE_GLYPHS: u16 = 0x0002;
+    pub const IGNORE_LIGATURES: u16 = 0x0004;
+    pub const IGNORE_MARKS: u16 = 0x0008;
+    pub const IGNORE_FLAGS: u16 = 0x000E;
+    pub const USE_MARK_FILTERING_SET: u16 = 0x0010;
+    pub const MARK_ATTACHMENT_TYPE_MASK: u16 = 0xFF00;
+}
 
 pub struct OtCache {
     pub gsub: LookupCache,
@@ -282,7 +289,7 @@ impl<'a> GdefTable<'a> {
 }
 
 #[derive(Clone)]
-pub struct OtTables<'a> {
+pub struct OtData<'a> {
     pub gsub: Option<GsubTable<'a>>,
     pub gpos: Option<GposTable<'a>>,
     pub gdef: GdefTable<'a>,
@@ -294,7 +301,27 @@ pub struct OtTables<'a> {
     pub feature_variations: [Option<u32>; 2],
 }
 
-impl<'a> OtTables<'a> {
+impl<'a> OtData<'a> {
+    pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
+        match table_index {
+            LayoutTableKind::Gsub => self
+                .gsub
+                .as_ref()
+                .map(|table| LayoutTable::Gsub(table.table.clone())),
+            LayoutTableKind::Gpos => self
+                .gpos
+                .as_ref()
+                .map(|table| LayoutTable::Gpos(table.table.clone())),
+        }
+    }
+
+    pub(crate) fn layout_tables(
+        &self,
+    ) -> impl Iterator<Item = (LayoutTableKind, LayoutTable<'a>)> + '_ {
+        LayoutTableKind::iter()
+            .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
+    }
+
     pub fn new(
         font: &FontRef<'a>,
         cache: &'a OtCache,

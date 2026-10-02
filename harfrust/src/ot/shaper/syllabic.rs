@@ -1,11 +1,11 @@
 use crate::buffer::*;
-use crate::font_funcs::FontFuncsDispatch;
-use crate::ot::shape::plan::ShapePlan;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::BufferFlags;
 use crate::GlyphInfo;
 
 pub fn insert_dotted_circles(
-    font_funcs: &mut FontFuncsDispatch,
+    font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
     broken_syllable_type: u8,
     dottedcircle_category: u8,
@@ -23,7 +23,7 @@ pub fn insert_dotted_circles(
         return false;
     }
 
-    let dottedcircle_glyph = match font_funcs.nominal_glyph(0x25CC) {
+    let dottedcircle_glyph = match font.nominal_glyph(0x25CC) {
         Some(g) => g.to_u32(),
         None => return false,
     };
@@ -75,7 +75,7 @@ pub fn insert_dotted_circles(
 
 pub(crate) fn syllabic_clear_var(
     _: &ShapePlan,
-    _: &mut FontFuncsDispatch,
+    _: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
 ) -> bool {
     for info in &mut buffer.info {

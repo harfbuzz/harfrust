@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use harfrust::{
     font::{Font, FontInstance},
-    shape as shape_impl, BufferClusterLevel, BufferFlags, Direction, Feature, Language, Script,
+    shape as shape_impl, BufferFlags, ClusterLevel, Direction, Feature, Language, Script,
     SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey, UnicodeBuffer, Variation,
 };
 
@@ -130,7 +130,7 @@ pub struct Args {
 
     /// Cluster merging level (0-3)
     #[arg(long, value_parser = parse_cluster, default_value = "0")]
-    cluster_level: BufferClusterLevel,
+    cluster_level: ClusterLevel,
 
     /// Treat text as beginning of paragraph
     #[arg(long)]
@@ -574,12 +574,12 @@ fn parse_unicodes(s: &str) -> Result<String, String> {
     Ok(text)
 }
 
-fn parse_cluster(s: &str) -> Result<BufferClusterLevel, String> {
+fn parse_cluster(s: &str) -> Result<ClusterLevel, String> {
     match s {
-        "0" => Ok(BufferClusterLevel::MonotoneGraphemes),
-        "1" => Ok(BufferClusterLevel::MonotoneCharacters),
-        "2" => Ok(BufferClusterLevel::Characters),
-        "3" => Ok(BufferClusterLevel::Graphemes),
+        "0" => Ok(ClusterLevel::MonotoneGraphemes),
+        "1" => Ok(ClusterLevel::MonotoneCharacters),
+        "2" => Ok(ClusterLevel::Characters),
+        "3" => Ok(ClusterLevel::Graphemes),
         _ => Err("invalid cluster level".to_string()),
     }
 }
@@ -596,7 +596,7 @@ fn parse_output_format(s: &str) -> Result<String, String> {
 fn resolved_script(explicit_script: Option<Script>, buffer: &UnicodeBuffer) -> Option<Script> {
     explicit_script.or_else(|| {
         let script = buffer.script();
-        (script != harfrust::script::UNKNOWN).then_some(script)
+        (script != Script::UNKNOWN).then_some(script)
     })
 }
 
@@ -644,8 +644,8 @@ mod tests {
 
         assert_eq!(resolved_script(None, &buffer), None);
         assert_eq!(
-            resolved_script(Some(harfrust::script::UNKNOWN), &buffer),
-            Some(harfrust::script::UNKNOWN)
+            resolved_script(Some(Script::UNKNOWN), &buffer),
+            Some(Script::UNKNOWN)
         );
     }
 }

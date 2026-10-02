@@ -53,7 +53,7 @@ pub(crate) fn shape_with_plan(
         return false.into();
     };
     let has_funcs = font_ref.has_callbacks();
-    let mut adapter = FontFuncsAdapter::new(font, font_ref);
+    let adapter = FontFuncsAdapter::new(font, font_ref);
 
     guard(|| {
         let mut options = ShapeOptions::new()
@@ -64,7 +64,7 @@ pub(crate) fn shape_with_plan(
             options = options.point_size(Some(font_ref.ptem));
         }
         if has_funcs {
-            options = options.font_funcs(Some(&mut adapter));
+            options = options.font_funcs(Some(&adapter));
         }
         shaper.shape_buffer(&mut buffer_ref.buffer, options)
     })
@@ -160,7 +160,7 @@ pub unsafe extern "C" fn hr_shape_full(
     // The plan cache lives on the face, which outlives the font.
     let face = font_ref.face();
     let has_funcs = font_ref.has_callbacks();
-    let mut adapter = FontFuncsAdapter::new(font, font_ref);
+    let adapter = FontFuncsAdapter::new(font, font_ref);
 
     let outcome = guard(|| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn hr_shape_full(
             options = options.point_size(Some(font_ref.ptem));
         }
         if has_funcs {
-            options = options.font_funcs(Some(&mut adapter));
+            options = options.font_funcs(Some(&adapter));
         }
         shaper.shape_buffer(&mut buffer_ref.buffer, options)
     });

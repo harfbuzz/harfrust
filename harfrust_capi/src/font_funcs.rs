@@ -9,7 +9,8 @@ use core::ffi::c_void;
 use core::ptr;
 use std::sync::OnceLock;
 
-use harfrust::font::{BuiltinFontFuncs, FontFuncs};
+use harfrust::font::FontFuncs;
+use harfrust::ShaperFont;
 use harfrust::{GlyphExtents, GlyphId};
 
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_glyph_extents_t, hr_position_t};
@@ -697,45 +698,45 @@ impl<'a> FontFuncsAdapter<'a> {
 }
 
 impl FontFuncs for FontFuncsAdapter<'_> {
-    fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
+    fn nominal_glyph(&self, font: &ShaperFont, c: u32) -> Option<GlyphId> {
         match self.call_nominal_glyph(c)? {
-            Answer::Builtin => builtin.nominal_glyph(c),
+            Answer::Builtin => font.default_nominal_glyph(c),
             Answer::Value(glyph) => Some(GlyphId::from(glyph)),
         }
     }
 
-    fn variant_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32, vs: u32) -> Option<GlyphId> {
+    fn variant_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {
         match self.call_variation_glyph(c, vs)? {
-            Answer::Builtin => builtin.variant_glyph(c, vs),
+            Answer::Builtin => font.default_variant_glyph(c, vs),
             Answer::Value(glyph) => Some(GlyphId::from(glyph)),
         }
     }
 
-    fn advance_width(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
+    fn h_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
         match self.call_h_advance(glyph.to_u32()) {
-            Answer::Builtin => builtin.advance_width(glyph),
+            Answer::Builtin => font.default_h_advance(glyph),
             Answer::Value(advance) => advance,
         }
     }
 
-    fn advance_height(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
+    fn v_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
         match self.call_v_advance(glyph.to_u32()) {
-            Answer::Builtin => builtin.advance_height(glyph),
+            Answer::Builtin => font.default_v_advance(glyph),
             Answer::Value(advance) => advance,
         }
     }
 
-    fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
+    fn v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
         match self.call_v_origin(glyph.to_u32()) {
-            Answer::Builtin => builtin.vertical_origin(glyph),
+            Answer::Builtin => font.default_v_origin(glyph),
             // Nowhere in particular is the origin shaping uses.
             Answer::Value(origin) => origin.unwrap_or((0, 0)),
         }
     }
 
-    fn extents(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {
+    fn glyph_extents(&self, font: &ShaperFont, glyph: GlyphId) -> Option<GlyphExtents> {
         match self.call_extents(glyph.to_u32())? {
-            Answer::Builtin => builtin.extents(glyph),
+            Answer::Builtin => font.default_glyph_extents(glyph),
             Answer::Value(extents) => Some(GlyphExtents {
                 x_bearing: extents.x_bearing,
                 y_bearing: extents.y_bearing,

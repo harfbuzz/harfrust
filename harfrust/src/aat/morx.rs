@@ -1,5 +1,6 @@
 use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
+use super::AatData;
 use crate::aat::common::{
     AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs,
     START_OF_TEXT,
@@ -7,7 +8,7 @@ use crate::aat::common::{
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::tag::lang_matches;
 use crate::U32Set;
-use crate::{GlyphInfo, Language, Shaper};
+use crate::{GlyphInfo, Language};
 use alloc::{vec, vec::Vec};
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
@@ -54,7 +55,7 @@ impl MorphChain for mort::Chain<'_> {
 }
 
 // Chain::compile_flags in harfbuzz
-pub fn compile_flags(face: &Shaper, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
+pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
     let has_feature = |kind: u16, setting: u16| {
         builder
             .current_features
@@ -74,7 +75,7 @@ pub fn compile_flags(face: &Shaper, builder: &AatMapBuilder, map: &mut AatMap) -
         let Some(requested) = builder.language.as_ref() else {
             return false;
         };
-        let Some(ltag) = face.aat_tables.ltag.as_ref() else {
+        let Some(ltag) = aat.ltag.as_ref() else {
             return false;
         };
         let Some(tag) = ltag
@@ -132,7 +133,7 @@ pub fn compile_flags(face: &Shaper, builder: &AatMapBuilder, map: &mut AatMap) -
         });
     }
 
-    if let Some((morx, _, _)) = face.aat_tables.morx.as_ref() {
+    if let Some((morx, _, _)) = aat.morx.as_ref() {
         let chains = morx.chains();
         map.chain_flags.resize(chains.iter().count(), vec![]);
         for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
@@ -147,7 +148,7 @@ pub fn compile_flags(face: &Shaper, builder: &AatMapBuilder, map: &mut AatMap) -
             }
         }
     } else {
-        let chains = face.aat_tables.mort.as_ref()?.0.chains();
+        let chains = aat.mort.as_ref()?.0.chains();
         map.chain_flags.resize(chains.iter().count(), vec![]);
         for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
             if let Ok(chain) = chain {
@@ -171,8 +172,8 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    let safe_to_break = c.face.aat_tables.safe_to_break?;
-    if let Some((morx, subtable_caches, descriptors)) = c.face.aat_tables.morx.as_ref() {
+    let safe_to_break = c.layout.aat.safe_to_break?;
+    if let Some((morx, subtable_caches, descriptors)) = c.layout.aat.morx.as_ref() {
         apply_table(
             c,
             map,
@@ -182,7 +183,7 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
             descriptors,
         )?;
     } else {
-        let (mort, subtable_caches, descriptors) = c.face.aat_tables.mort.as_ref()?;
+        let (mort, subtable_caches, descriptors) = c.layout.aat.mort.as_ref()?;
         apply_table(
             c,
             map,

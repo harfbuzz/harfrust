@@ -1,328 +1,101 @@
+mod error;
 pub(crate) mod fallback;
+mod font;
+pub(crate) mod font_ref;
+mod fonts;
 pub(crate) mod normalize;
+mod options;
 pub mod plan;
+pub(crate) mod planner;
+mod scale;
+
+pub use error::ShapeError;
+pub use font::ShaperFont;
+pub use font::{Advances, GlyphExtents, NominalGlyphs};
+pub(crate) use font::{LayoutCache, LayoutData};
+pub(crate) use fonts::CharmapCache;
+pub use options::ShapeOptions;
+pub(crate) use planner::ShapePlanner;
+pub use scale::Scale;
 
 use self::plan::ShapePlan;
 use crate::aat;
 use crate::aat::map::*;
 use crate::buffer::GlyphFlags;
 use crate::buffer::*;
-use crate::font_funcs::{AdvanceWidthBatch, FontFuncsDispatch};
 use crate::ot::gpos;
 use crate::ot::layout::*;
-use crate::ot::map::*;
 use crate::ot::shaper::*;
 use crate::ot::*;
 use crate::unicode::{CharExt, GeneralCategory};
-use crate::BufferFlags;
-use crate::{Direction, Feature, Language, Script};
-use crate::{Shaper, Tag};
-use core::ptr;
+use crate::{BufferFlags, ContentType, Direction, Feature, Mask, Script};
 
-pub struct ShapePlanner<'a> {
-    pub face: &'a Shaper<'a>,
-    pub direction: Direction,
-    pub script: Option<Script>,
-    pub language: Option<Language>,
-    pub ot_map: OtMapBuilder<'a>,
-    pub aat_map: AatMapBuilder,
-    pub apply_morx: bool,
-    pub script_zero_marks: bool,
-    pub script_fallback_position: bool,
-    pub shaper: &'static OtShaper,
-}
-
-impl<'a> ShapePlanner<'a> {
-    pub fn new(
-        face: &'a Shaper<'a>,
-        direction: Direction,
-        script: Option<Script>,
-        language: Option<&Language>,
-    ) -> Self {
-        let ot_map = OtMapBuilder::new(face, script, language);
-        let aat_map = AatMapBuilder::new(language);
-
-        let mut shaper = match script {
-            Some(script) => categorize(
-                script,
-                direction,
-                ot_map.chosen_script(LayoutTableKind::Gsub),
-            ),
-            None => &DEFAULT_SHAPER,
-        };
-
-        let script_zero_marks = shaper.zero_width_marks != ZeroWidthMarks::None;
-        let script_fallback_position = shaper.fallback_position;
-
-        // https://github.com/harfbuzz/harfbuzz/issues/2124
-        let apply_morx = (face.aat_tables.morx.is_some() || face.aat_tables.mort.is_some())
-            && (direction.is_horizontal() || face.ot_tables.gsub.is_none());
-
-        // https://github.com/harfbuzz/harfbuzz/issues/1528
-        if apply_morx && !ptr::eq(ptr::from_ref(shaper), ptr::from_ref(&DEFAULT_SHAPER)) {
-            shaper = &DUMBER_SHAPER;
-        }
-
-        ShapePlanner {
-            face,
-            direction,
-            script,
-            language: language.cloned(),
-            ot_map,
-            aat_map,
-            apply_morx,
-            script_zero_marks,
-            script_fallback_position,
-            shaper,
-        }
+/// Runs a compiled plan using prepared layout data and effective font queries.
+pub(crate) fn shape_with_font(
+    plan: &ShapePlan,
+    font: &ShaperFont<'_, '_>,
+    buffer: &mut Buffer,
+    features: &[Feature],
+    point_size: Option<f32>,
+) -> Result<(), ShapeError> {
+    if buffer.content_type == Some(ContentType::Glyphs) {
+        return Err(ShapeError::AlreadyShaped);
+    }
+    if buffer.direction != plan.direction {
+        return Err(ShapeError::DirectionMismatch {
+            plan: plan.direction,
+            buffer: buffer.direction,
+        });
+    }
+    let plan_script = plan.script.unwrap_or(Script::UNKNOWN);
+    let buffer_script = buffer.script.unwrap_or(Script::UNKNOWN);
+    if buffer_script != plan_script {
+        return Err(ShapeError::ScriptMismatch {
+            plan: plan_script,
+            buffer: buffer_script,
+        });
     }
 
-    pub fn collect_features(&mut self, user_features: &[Feature]) {
-        static COMMON_FEATURES: &[(Tag, MapFeatureFlags)] = &[
-            (Tag::new(b"abvm"), F_GLOBAL),
-            (Tag::new(b"blwm"), F_GLOBAL),
-            (Tag::new(b"ccmp"), F_GLOBAL),
-            (Tag::new(b"locl"), F_GLOBAL),
-            (Tag::new(b"mark"), F_GLOBAL_MANUAL_JOINERS),
-            (Tag::new(b"mkmk"), F_GLOBAL_MANUAL_JOINERS),
-            (Tag::new(b"rlig"), F_GLOBAL),
-        ];
-
-        static HORIZONTAL_FEATURES: &[(Tag, MapFeatureFlags)] = &[
-            (Tag::new(b"calt"), F_GLOBAL),
-            (Tag::new(b"clig"), F_GLOBAL),
-            (Tag::new(b"curs"), F_GLOBAL),
-            (Tag::new(b"dist"), F_GLOBAL),
-            (Tag::new(b"kern"), F_GLOBAL_HAS_FALLBACK),
-            (Tag::new(b"liga"), F_GLOBAL),
-            (Tag::new(b"rclt"), F_GLOBAL),
-        ];
-
-        let empty = F_NONE;
-        self.ot_map.is_simple = true;
-
-        self.ot_map.enable_feature(Tag::new(b"rvrn"), empty, 1);
-        self.ot_map.add_gsub_pause(None);
-
-        match self.direction {
-            Direction::LeftToRight => {
-                self.ot_map.enable_feature(Tag::new(b"ltra"), empty, 1);
-                self.ot_map.enable_feature(Tag::new(b"ltrm"), empty, 1);
-            }
-            Direction::RightToLeft => {
-                self.ot_map.enable_feature(Tag::new(b"rtla"), empty, 1);
-                self.ot_map.add_feature(Tag::new(b"rtlm"), empty, 1);
-            }
-            _ => {}
+    buffer.enter();
+    if buffer.len > 0 {
+        let target_direction = buffer.direction;
+        OtShapeContext {
+            plan,
+            font,
+            buffer,
+            features,
+            target_direction,
+            point_size,
         }
-
-        // Automatic fractions.
-        self.ot_map.add_feature(Tag::new(b"frac"), empty, 1);
-        self.ot_map.add_feature(Tag::new(b"numr"), empty, 1);
-        self.ot_map.add_feature(Tag::new(b"dnom"), empty, 1);
-
-        // Random!
-        self.ot_map
-            .enable_feature(Tag::new(b"rand"), F_RANDOM, OtMap::MAX_VALUE);
-
-        // Tracking.  We enable dummy feature here just to allow disabling
-        // AAT 'trak' table using features.
-        // https://github.com/harfbuzz/harfbuzz/issues/1303
-        self.ot_map
-            .enable_feature(Tag::new(b"trak"), F_HAS_FALLBACK, 1);
-
-        self.ot_map.enable_feature(Tag::new(b"Harf"), empty, 1); // Considered required.
-        self.ot_map.enable_feature(Tag::new(b"HARF"), empty, 1); // Considered discretionary.
-
-        if let Some(func) = self.shaper.collect_features {
-            self.ot_map.is_simple = false;
-            func(self);
-        }
-
-        self.ot_map.enable_feature(Tag::new(b"Buzz"), empty, 1); // Considered required.
-        self.ot_map.enable_feature(Tag::new(b"BUZZ"), empty, 1); // Considered discretionary.
-
-        for &(tag, flags) in COMMON_FEATURES {
-            self.ot_map.add_feature(tag, flags, 1);
-        }
-
-        if self.direction.is_horizontal() {
-            for &(tag, flags) in HORIZONTAL_FEATURES {
-                self.ot_map.add_feature(tag, flags, 1);
-            }
-        } else {
-            // We only apply `vert` feature. See:
-            // https://github.com/harfbuzz/harfbuzz/commit/d71c0df2d17f4590d5611239577a6cb532c26528
-            // https://lists.freedesktop.org/archives/harfbuzz/2013-August/003490.html
-
-            // We really want to find a 'vert' feature if there's any in the font, no
-            // matter which script/langsys it is listed (or not) under.
-            // See various bugs referenced from:
-            // https://github.com/harfbuzz/harfbuzz/issues/63
-            self.ot_map
-                .enable_feature(Tag::new(b"vert"), F_GLOBAL_SEARCH, 1);
-        }
-
-        if !user_features.is_empty() {
-            self.ot_map.is_simple = false;
-        }
-
-        for feature in user_features {
-            let flags = if feature.is_global() { F_GLOBAL } else { empty };
-            self.ot_map.add_feature(feature.tag, flags, feature.value);
-        }
-
-        if let Some(func) = self.shaper.override_features {
-            func(self);
-        }
+        .shape_internal();
     }
-
-    pub fn compile(mut self, features: &[Feature]) -> ShapePlan {
-        let ot_map = self.ot_map.compile();
-        let mut aat_map = AatMap::default();
-        if self.apply_morx {
-            self.aat_map.compile(self.face, &mut aat_map);
-        }
-
-        let frac_mask = ot_map.get_1_mask(Tag::new(b"frac"));
-        let numr_mask = ot_map.get_1_mask(Tag::new(b"numr"));
-        let dnom_mask = ot_map.get_1_mask(Tag::new(b"dnom"));
-        let has_frac = frac_mask != 0 || (numr_mask != 0 && dnom_mask != 0);
-
-        let rtlm_mask = ot_map.get_1_mask(Tag::new(b"rtlm"));
-        let has_vert = ot_map.get_1_mask(Tag::new(b"vert")) != 0;
-
-        let horizontal = self.direction.is_horizontal();
-        let kern_tag = if horizontal {
-            Tag::new(b"kern")
-        } else {
-            Tag::new(b"vkrn")
-        };
-        let kern_mask = ot_map.get_mask(kern_tag).0;
-        let requested_kerning = kern_mask != 0;
-
-        let has_gpos_kern = ot_map
-            .get_feature_index(LayoutTableKind::Gpos, kern_tag)
-            .is_some();
-        let disable_gpos = self.shaper.gpos_tag.is_some()
-            && self.shaper.gpos_tag != ot_map.chosen_script(LayoutTableKind::Gpos);
-
-        // Decide who provides glyph classes. GDEF or Unicode.
-        let fallback_glyph_classes = !has_glyph_classes(self.face);
-
-        // Decide who does substitutions. GSUB, morx, or fallback.
-        let apply_morx = self.apply_morx;
-
-        let mut apply_gpos = false;
-        let mut apply_kerx = false;
-        let mut apply_kern = false;
-
-        // Decide who does positioning. GPOS, kerx, kern, or fallback.
-        let has_kerx = self.face.aat_tables.kerx.is_some();
-        let has_gsub = !apply_morx && self.face.ot_tables.gsub.is_some();
-        let has_gpos = !disable_gpos && self.face.ot_tables.gpos.is_some();
-
-        // Prefer GPOS over kerx if GSUB is present;
-        // https://github.com/harfbuzz/harfbuzz/issues/3008
-        if has_kerx && !(has_gsub && has_gpos) {
-            apply_kerx = true;
-        } else if has_gpos {
-            apply_gpos = true;
-        }
-
-        if !apply_kerx && (!has_gpos_kern || !apply_gpos) {
-            if has_kerx {
-                apply_kerx = true;
-            } else if has_kerning(self.face) {
-                apply_kern = self.script_fallback_position;
-            }
-        }
-
-        let apply_fallback_kern = !(apply_gpos || apply_kerx || apply_kern);
-        let zero_marks = self.script_zero_marks
-            && !apply_kerx
-            && (!apply_kern || !has_machine_kerning(self.face));
-
-        let has_gpos_mark = ot_map.get_1_mask(Tag::new(b"mark")) != 0;
-
-        let mut adjust_mark_positioning_when_zeroing =
-            !apply_gpos && !apply_kerx && (!apply_kern || !has_cross_kerning(self.face));
-
-        let fallback_mark_positioning =
-            adjust_mark_positioning_when_zeroing && self.script_fallback_position;
-
-        // If we're using morx shaping, we cancel mark position adjustment because
-        // Apple Color Emoji assumes this will NOT be done when forming emoji sequences;
-        // https://github.com/harfbuzz/harfbuzz/issues/2967.
-        if apply_morx {
-            adjust_mark_positioning_when_zeroing = false;
-        }
-
-        // According to Ned, trak is applied by default for "modern fonts", as detected by presence of STAT table.
-        // https://github.com/googlefonts/fontations/issues/1492
-        let apply_trak = self.face.apply_trak;
-
-        let mut plan = ShapePlan {
-            direction: self.direction,
-            script: self.script,
-            language: self.language,
-            shaper: self.shaper,
-            ot_map,
-            aat_map,
-            data: None,
-            frac_mask,
-            numr_mask,
-            dnom_mask,
-            rtlm_mask,
-            kern_mask,
-            requested_kerning,
-            has_frac,
-            has_vert,
-            has_gpos_mark,
-            zero_marks,
-            fallback_glyph_classes,
-            fallback_mark_positioning,
-            adjust_mark_positioning_when_zeroing,
-            apply_gpos,
-            apply_kern,
-            apply_fallback_kern,
-            apply_kerx,
-            apply_morx,
-            apply_trak,
-            user_features: features.into(),
-        };
-
-        if let Some(func) = self.shaper.create_data {
-            plan.data = Some(func(&plan));
-        }
-
-        plan
-    }
+    buffer.leave();
+    buffer.content_type = Some(ContentType::Glyphs);
+    Ok(())
 }
 
 // hb_ot_shape_context_t: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L450>
-pub(crate) struct OtShapeContext<'a, 'u> {
-    pub plan: &'a ShapePlan,
-    pub face: &'a Shaper<'a>,
-    pub buffer: &'a mut Buffer,
-    pub features: &'a [Feature],
+struct OtShapeContext<'a, 'c, 'd> {
+    plan: &'a ShapePlan,
+    font: &'a ShaperFont<'c, 'd>,
+    buffer: &'a mut Buffer,
+    features: &'a [Feature],
     // Transient stuff
-    pub target_direction: Direction,
-    pub point_size: Option<f32>,
-    pub font_funcs: &'a mut FontFuncsDispatch<'a, 'u>,
+    target_direction: Direction,
+    point_size: Option<f32>,
 }
 
-impl OtShapeContext<'_, '_> {
+impl OtShapeContext<'_, '_, '_> {
     fn glyph_h_advances(&mut self) {
         if self.buffer.len == 0 {
             return;
         }
-        let batched_advances = AdvanceWidthBatch::new(self.buffer);
-        self.font_funcs.populate_advance_widths(batched_advances);
+        let batched_advances = Advances::new(self.buffer);
+        self.font.h_advances(batched_advances);
     }
 
     // hb_ot_shape_internal: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1171>
-    pub(crate) fn shape_internal(&mut self) {
+    fn shape_internal(&mut self) {
         self.buffer.allocate_unicode_vars();
 
         self.set_unicode_props(self.plan.ot_map.get_global_mask());
@@ -333,7 +106,7 @@ impl OtShapeContext<'_, '_> {
         ensure_native_direction(self.buffer);
 
         if let Some(func) = self.plan.shaper.preprocess_text {
-            func(self.plan, self.font_funcs, self.buffer);
+            func(self.plan, self.font, self.buffer);
         }
 
         self.substitute_pre();
@@ -367,10 +140,10 @@ impl OtShapeContext<'_, '_> {
         }
 
         deal_with_variation_selectors(self.buffer);
-        hide_default_ignorables(self.buffer, self.font_funcs);
+        hide_default_ignorables(self.buffer, self.font);
 
         if let Some(func) = self.plan.shaper.postprocess_glyphs {
-            func(self.plan, self.font_funcs, self.buffer);
+            func(self.plan, self.font, self.buffer);
         }
     }
 
@@ -381,13 +154,13 @@ impl OtShapeContext<'_, '_> {
         self.buffer
             .allocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
 
-        normalize::normalize(self.plan, self.buffer, self.face, self.font_funcs);
+        normalize::normalize(self.plan, self.buffer, self.font);
 
         self.setup_masks();
 
         // This is unfortunate to go here, but necessary...
         if self.plan.fallback_mark_positioning {
-            fallback::recategorize_marks(self.plan, self.face, self.buffer);
+            fallback::recategorize_marks(self.buffer);
         }
 
         map_glyphs_fast(self.buffer);
@@ -399,26 +172,26 @@ impl OtShapeContext<'_, '_> {
     // hb_ot_substitute_plan: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L911>
     fn substitute_plan(&mut self) {
         if self.plan.apply_morx {
-            substitute_start(self.face, self.buffer);
+            substitute_start(self.font.layout.ot, self.buffer);
 
             if self.plan.fallback_glyph_classes {
                 synthesize_glyph_classes(self.buffer);
             }
 
-            aat::layout::substitute(self.plan, self.face, self.buffer, self.features);
+            aat::layout::substitute(self.plan, self.font.layout, self.buffer, self.features);
             // The digest is only read by the OT lookup-apply loop; without
             // GPOS ahead, nothing consumes it.
             if self.plan.apply_gpos {
                 self.buffer.update_digest();
             }
         } else {
-            substitute_start_with_digest(self.face, self.buffer);
+            substitute_start_with_digest(self.font.layout.ot, self.buffer);
 
             if self.plan.fallback_glyph_classes {
                 synthesize_glyph_classes(self.buffer);
             }
 
-            gsub::substitute(self.plan, self.face, self.font_funcs, self.buffer);
+            gsub::substitute(self.plan, self.font, self.buffer);
         }
     }
 
@@ -448,15 +221,15 @@ impl OtShapeContext<'_, '_> {
                 .zip(&mut self.buffer.pos[..len])
             {
                 let glyph = info.as_glyph();
-                pos.y_advance = self.font_funcs.advance_height(glyph);
-                let (x, y) = self.font_funcs.vertical_origin(glyph);
+                pos.y_advance = self.font.v_advance(glyph);
+                let (x, y) = self.font.v_origin(glyph);
                 pos.x_offset = pos.x_offset.saturating_sub(x);
                 pos.y_offset = pos.y_offset.saturating_sub(y);
             }
         }
 
         if self.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_SPACE_FALLBACK != 0 {
-            fallback::fallback_spaces(self.plan, self.face, self.buffer, self.font_funcs);
+            fallback::fallback_spaces(self.font, self.buffer);
         }
     }
 
@@ -475,7 +248,7 @@ impl OtShapeContext<'_, '_> {
 
         // We change glyph origin to what GPOS expects (horizontal), apply GPOS, change it back.
 
-        gpos::position_start(self.face, self.buffer);
+        gpos::position_start(self.buffer);
 
         if self.plan.zero_marks && self.plan.shaper.zero_width_marks == ZeroWidthMarks::ByGdefEarly
         {
@@ -489,17 +262,16 @@ impl OtShapeContext<'_, '_> {
         }
 
         // Finish off.  Has to follow a certain order.
-        gpos::position_finish_advances(self.face, self.buffer);
+        gpos::position_finish_advances(self.buffer);
         zero_width_default_ignorables(self.buffer);
-        gpos::position_finish_offsets(self.face, self.buffer);
+        gpos::position_finish_offsets(self.buffer);
 
         if self.plan.fallback_mark_positioning {
             fallback::position_marks(
                 self.plan,
-                self.face,
+                self.font,
                 self.buffer,
                 adjust_offsets_when_zeroing,
-                self.font_funcs,
             );
         }
     }
@@ -507,27 +279,21 @@ impl OtShapeContext<'_, '_> {
     // ShapePlan::position <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L271>
     fn position_by_plan(&mut self) {
         let plan = self.plan;
-        let face = self.face;
+        let layout = self.font.layout;
         let buffer = &mut *self.buffer;
         if plan.apply_gpos {
-            gpos::position(plan, face, self.font_funcs, buffer);
+            gpos::position(plan, self.font, buffer);
         } else if plan.apply_kerx {
-            aat::layout::position(plan, face, *self.font_funcs.scale(), buffer);
+            aat::layout::position(plan, layout, self.font.scale, buffer);
         }
         if plan.apply_kern {
-            aat::kern::apply(plan, face, *self.font_funcs.scale(), buffer);
+            aat::kern::apply(plan, layout, self.font.scale, buffer);
         } else if plan.apply_fallback_kern {
-            fallback::fallback_kern(plan, face, buffer);
+            fallback::fallback_kern(plan, buffer);
         }
 
         if plan.apply_trak {
-            aat::layout::track(
-                plan,
-                face,
-                *self.font_funcs.scale(),
-                self.point_size,
-                buffer,
-            );
+            aat::layout::track(plan, layout, self.font.scale, self.point_size, buffer);
         }
     }
 
@@ -536,7 +302,7 @@ impl OtShapeContext<'_, '_> {
         self.setup_masks_fraction();
 
         if let Some(func) = self.plan.shaper.setup_masks {
-            func(self.plan, self.font_funcs, self.buffer);
+            func(self.plan, self.font, self.buffer);
         }
 
         for feature in self.features {
@@ -724,7 +490,7 @@ impl OtShapeContext<'_, '_> {
                 && buffer.info[0].is_unicode_mark()
         };
 
-        if should_insert && self.font_funcs.nominal_glyph(0x25CC).is_some() {
+        if should_insert && self.font.nominal_glyph(0x25CC).is_some() {
             let mask = self.buffer.cur(0).mask;
             let cluster = self.buffer.cur(0).cluster;
             let buffer = &mut *self.buffer;
@@ -751,7 +517,7 @@ impl OtShapeContext<'_, '_> {
 
             for info in &mut self.buffer.info[..len] {
                 if let Some(c) = info.as_codepoint().mirroring() {
-                    if self.font_funcs.nominal_glyph(c).is_some() {
+                    if self.font.nominal_glyph(c).is_some() {
                         info.glyph_id = c;
                         continue;
                     }
@@ -763,7 +529,7 @@ impl OtShapeContext<'_, '_> {
         if self.target_direction.is_vertical() && !self.plan.has_vert {
             for info in &mut self.buffer.info[..len] {
                 if let Some(c) = info.as_codepoint().vertical() {
-                    if self.font_funcs.nominal_glyph(c).is_some() {
+                    if self.font.nominal_glyph(c).is_some() {
                         info.glyph_id = c;
                     }
                 }
@@ -937,7 +703,7 @@ fn zero_mark_widths_by_gdef(buffer: &mut Buffer, adjust_offsets: bool) {
     }
 }
 
-fn hide_default_ignorables(buffer: &mut Buffer, font_funcs: &mut FontFuncsDispatch<'_, '_>) {
+fn hide_default_ignorables(buffer: &mut Buffer, font: &ShaperFont) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES != 0
         && !buffer
             .flags
@@ -949,7 +715,7 @@ fn hide_default_ignorables(buffer: &mut Buffer, font_funcs: &mut FontFuncsDispat
         {
             if let Some(invisible) = buffer
                 .invisible
-                .or_else(|| font_funcs.nominal_glyph(u32::from(' ')))
+                .or_else(|| font.nominal_glyph(u32::from(' ')))
             {
                 let len = buffer.len;
                 for info in &mut buffer.info[..len] {

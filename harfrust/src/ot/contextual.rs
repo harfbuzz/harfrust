@@ -2,8 +2,8 @@ use alloc::{boxed::Box, vec::Vec};
 
 use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
 use crate::buffer::GlyphInfo;
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead, Apply,
     BinaryCache, ChainContextClassCaches, ChainContextFormat2Cache, ContextFormat2Cache,
     MappingCache, MaySkip, RuleSetDigest, SkippingIterator, SubtableExternalCache,

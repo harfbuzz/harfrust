@@ -1,5 +1,5 @@
-use crate::ot::gsubgpos::Apply;
-use crate::ot::gsubgpos::ApplyContext;
+use crate::ot::apply::Apply;
+use crate::ot::apply::ApplyContext;
 use read_fonts::tables::gpos::{SinglePosFormat1, SinglePosFormat2};
 
 impl Apply for SinglePosFormat1<'_> {

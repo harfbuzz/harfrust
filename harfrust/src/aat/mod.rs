@@ -150,7 +150,7 @@ impl AatCache {
 }
 
 #[derive(Clone, Default)]
-pub struct AatTables<'a> {
+pub struct AatData<'a> {
     pub(crate) safe_to_break: Option<&'a SafeToBreakAccel>,
     pub morx: Option<(
         Morx<'a>,
@@ -183,7 +183,7 @@ fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
     BLOCKLIST.contains(&key)
 }
 
-impl<'a> AatTables<'a> {
+impl<'a> AatData<'a> {
     pub fn new(font: &FontRef<'a>, cache: &'a AatCache, table_ranges: &TableRanges) -> Self {
         let morx = if cache.has_morx {
             table_ranges.morx.resolve_table(font).map(|table| {

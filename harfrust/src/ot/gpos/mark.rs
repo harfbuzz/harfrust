@@ -1,8 +1,8 @@
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
-use crate::ot::common::lookup_flags;
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{Apply, MatchResult, SkippingIterator};
 use crate::ot::gpos::attach_type;
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{Apply, MatchResult, SkippingIterator};
+use crate::ot::lookup_flags;
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
@@ -62,8 +62,8 @@ impl MarkArrayExt for MarkArray<'_> {
         // If this subtable doesn't have an anchor for this base and this class
         // return `None` such that the subsequent subtables have a chance at it.
 
-        let (base_x, base_y) = ctx.face.ot_tables.resolve_anchor(base_anchor);
-        let (mark_x, mark_y) = ctx.face.ot_tables.resolve_anchor(mark_anchor);
+        let (base_x, base_y) = ctx.layout.ot.resolve_anchor(base_anchor);
+        let (mark_x, mark_y) = ctx.layout.ot.resolve_anchor(mark_anchor);
         let x_offset = ctx.scale_x(base_x - mark_x);
         let y_offset = ctx.scale_y(base_y - mark_y);
 

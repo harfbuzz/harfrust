@@ -1,5 +1,5 @@
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{Apply, WouldApply, WouldApplyContext};
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::{AlternateSet, AlternateSubstFormat1};
 
 impl Apply for AlternateSet<'_> {

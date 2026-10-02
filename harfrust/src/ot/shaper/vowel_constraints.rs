@@ -4,8 +4,8 @@
 #![allow(clippy::single_match)]
 
 use crate::buffer::Buffer;
-use crate::script;
 use crate::BufferFlags;
+use crate::Script;
 
 fn output_dotted_circle(buffer: &mut Buffer) {
     buffer.output_glyph(0x25CC);
@@ -35,7 +35,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
     // https://github.com/harfbuzz/harfbuzz/issues/1019
     buffer.clear_output();
     match buffer.script {
-        Some(script::DEVANAGARI) => {
+        Some(Script::DEVANAGARI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -82,7 +82,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::BENGALI) => {
+        Some(Script::BENGALI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -106,7 +106,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::GURMUKHI) => {
+        Some(Script::GURMUKHI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -139,7 +139,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::GUJARATI) => {
+        Some(Script::GUJARATI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -163,7 +163,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::ORIYA) => {
+        Some(Script::ORIYA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -184,7 +184,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::TAMIL) => {
+        Some(Script::TAMIL) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -200,7 +200,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::TELUGU) => {
+        Some(Script::TELUGU) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -224,7 +224,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::KANNADA) => {
+        Some(Script::KANNADA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -245,7 +245,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::MALAYALAM) => {
+        Some(Script::MALAYALAM) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -272,7 +272,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::SINHALA) => {
+        Some(Script::SINHALA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -305,7 +305,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::BRAHMI) => {
+        Some(Script::BRAHMI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -329,7 +329,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::KHOJKI) => {
+        Some(Script::KHOJKI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -362,7 +362,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::KHUDAWADI) => {
+        Some(Script::KHUDAWADI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -383,7 +383,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::TIRHUTA) => {
+        Some(Script::TIRHUTA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -410,7 +410,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::MODI) => {
+        Some(Script::MODI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
@@ -431,7 +431,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             }
         }
 
-        Some(script::TAKRI) => {
+        Some(Script::TAKRI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]

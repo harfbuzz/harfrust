@@ -1,4 +1,4 @@
-use super::{common::TagExt, Tag};
+use super::{tag::TagExt, Tag};
 
 pub struct TextParser<'a> {
     pos: usize,

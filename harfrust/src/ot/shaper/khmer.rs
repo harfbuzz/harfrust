@@ -1,9 +1,9 @@
 use super::indic::category;
 use super::syllabic::*;
 use super::*;
-use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::map::*;
-use crate::ot::shape::plan::ShapePlan;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::unicode::{CharExt, Codepoint};
 use crate::{GlyphInfo, Mask, Tag};
 use alloc::boxed::Box;
@@ -121,7 +121,7 @@ fn collect_features(planner: &mut ShapePlanner) {
     }
 }
 
-fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     khmer_machine::find_syllables_khmer(buffer);
@@ -137,13 +137,13 @@ fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer
     false
 }
 
-fn reorder_khmer(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     use super::khmer_machine::SyllableType;
 
     let mut ret = false;
 
     if insert_dotted_circles(
-        face,
+        font,
         buffer,
         SyllableType::BrokenCluster as u8,
         category::OT_DOTTEDCIRCLE,
@@ -293,7 +293,7 @@ fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint
     crate::unicode::compose(a, b)
 }
 
-fn setup_masks(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
 
     // We cannot setup masks here.  We save information about characters

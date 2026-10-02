@@ -1,9 +1,9 @@
 use super::plan::ShapePlan;
 use crate::buffer::*;
-use crate::font_funcs::{FontFuncsDispatch, NominalGlyphBatch};
 use crate::ot::shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
+use crate::shape::NominalGlyphs;
+use crate::shape::ShaperFont;
 use crate::unicode::{space_fallback, CharExt, Codepoint};
-use crate::Shaper;
 use read_fonts::types::GlyphId;
 
 impl GlyphInfo {
@@ -17,26 +17,26 @@ impl GlyphInfo {
     );
 }
 
-pub struct NormalizeContext<'a, 'x, 'u> {
+pub struct NormalizeContext<'a, 'x, 'c, 'd> {
     pub plan: &'a ShapePlan,
     pub buffer: &'x mut Buffer,
-    pub font_funcs: &'x mut FontFuncsDispatch<'a, 'u>,
+    pub font: &'x ShaperFont<'c, 'd>,
     pub decompose: DecomposeFn,
     pub compose: ComposeFn,
 }
 
-impl NormalizeContext<'_, '_, '_> {
+impl NormalizeContext<'_, '_, '_, '_> {
     fn nominal_glyph(&mut self, codepoint: u32) -> Option<GlyphId> {
-        self.font_funcs.nominal_glyph(codepoint)
+        self.font.nominal_glyph(codepoint)
     }
 
-    fn variant_glyph(&mut self, codepoint: u32, selector: u32) -> Option<GlyphId> {
-        self.font_funcs.variant_glyph(codepoint, selector)
+    fn variation_glyph(&mut self, codepoint: u32, selector: u32) -> Option<GlyphId> {
+        self.font.variant_glyph(codepoint, selector)
     }
 
     fn set_current_glyph(&mut self) {
         let info = self.buffer.cur_mut(0);
-        if let Some(glyph_id) = self.font_funcs.nominal_glyph(info.glyph_id) {
+        if let Some(glyph_id) = self.font.nominal_glyph(info.glyph_id) {
             info.set_normalizer_glyph_index(u32::from(glyph_id));
         }
     }
@@ -224,7 +224,7 @@ fn handle_variation_selector_cluster(ctx: &mut NormalizeContext, end: usize, _: 
         if ctx.buffer.cur(1).as_codepoint().is_variation_selector() {
             let base = ctx.buffer.cur(0).as_codepoint();
             let selector = ctx.buffer.cur(1).as_codepoint();
-            if let Some(glyph_id) = ctx.variant_glyph(base, selector) {
+            if let Some(glyph_id) = ctx.variation_glyph(base, selector) {
                 ctx.buffer
                     .cur_mut(0)
                     .set_normalizer_glyph_index(u32::from(glyph_id));
@@ -288,8 +288,7 @@ fn compare_combining_class(pa: &GlyphInfo, pb: &GlyphInfo) -> bool {
 pub fn normalize<'a, 'x>(
     plan: &'a ShapePlan,
     buffer: &'x mut Buffer,
-    _face: &'a Shaper<'a>,
-    font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
+    font: &'x ShaperFont<'_, '_>,
 ) {
     if buffer.is_empty() {
         return;
@@ -311,7 +310,7 @@ pub fn normalize<'a, 'x>(
     let mut ctx = NormalizeContext {
         plan,
         buffer,
-        font_funcs,
+        font,
         decompose: plan.shaper.decompose.unwrap_or(decompose_unicode),
         compose: plan.shaper.compose.unwrap_or(compose_unicode),
     };
@@ -348,10 +347,8 @@ pub fn normalize<'a, 'x>(
             if might_short_circuit {
                 let idx = ctx.buffer.idx;
                 let done = ctx
-                    .font_funcs
-                    .populate_nominal_glyphs(NominalGlyphBatch::new(
-                        &mut ctx.buffer.info[idx..end],
-                    ));
+                    .font
+                    .nominal_glyphs(NominalGlyphs::new(&mut ctx.buffer.info[idx..end]));
                 ctx.buffer.next_glyphs(done);
             }
 

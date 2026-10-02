@@ -2,12 +2,12 @@ use super::arabic::ArabicShapePlan;
 use super::syllabic::*;
 use super::*;
 use crate::algs::*;
-use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::layout::*;
 use crate::ot::map::*;
-use crate::ot::shape::plan::ShapePlan;
+use crate::shape::plan::ShapePlan;
+use crate::shape::ShaperFont;
 use crate::unicode::{CharExt, Codepoint};
-use crate::{script, GlyphInfo, Mask, Script, Tag};
+use crate::{GlyphInfo, Mask, Script, Tag};
 use alloc::boxed::Box;
 
 pub const UNIVERSAL_SHAPER: OtShaper = OtShaper {
@@ -232,7 +232,7 @@ fn collect_features(planner: &mut ShapePlanner) {
     }
 }
 
-fn setup_syllables(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn setup_syllables(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     use_machine::find_syllables(buffer);
@@ -345,7 +345,7 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) {
     }
 }
 
-fn record_rphf(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn record_rphf(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     let universal_plan = plan.data::<UniversalShapePlan>();
 
     let mask = universal_plan.rphf_mask;
@@ -375,7 +375,7 @@ fn record_rphf(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer)
     false
 }
 
-fn reorder_use(_: &ShapePlan, font: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn reorder_use(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     use super::use_machine::SyllableType;
 
     let mut ret = false;
@@ -499,7 +499,7 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
     }
 }
 
-fn record_pref(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn record_pref(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
@@ -522,23 +522,23 @@ fn has_arabic_joining(script: Script) -> bool {
     // List of scripts that have data in arabic-table.
     matches!(
         script,
-        script::ADLAM
-            | script::ARABIC
-            | script::CHORASMIAN
-            | script::HANIFI_ROHINGYA
-            | script::MANDAIC
-            | script::MANICHAEAN
-            | script::MONGOLIAN
-            | script::NKO
-            | script::OLD_UYGHUR
-            | script::PHAGS_PA
-            | script::PSALTER_PAHLAVI
-            | script::SOGDIAN
-            | script::SYRIAC
+        Script::ADLAM
+            | Script::ARABIC
+            | Script::CHORASMIAN
+            | Script::HANIFI_ROHINGYA
+            | Script::MANDAIC
+            | Script::MANICHAEAN
+            | Script::MONGOLIAN
+            | Script::NKO
+            | Script::OLD_UYGHUR
+            | Script::PHAGS_PA
+            | Script::PSALTER_PAHLAVI
+            | Script::SOGDIAN
+            | Script::SYRIAC
     )
 }
 
-fn preprocess_text(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn preprocess_text(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     vowel_constraints::preprocess_text_vowel_constraints(buffer);
 }
 
@@ -551,7 +551,7 @@ fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint
     crate::unicode::compose(a, b)
 }
 
-fn setup_masks(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     let universal_plan = plan.data::<UniversalShapePlan>();
 
     // Do this before allocating use_category().

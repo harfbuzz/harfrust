@@ -1,21 +1,20 @@
 use core::mem::size_of;
 use core::ptr;
-use core::slice;
 
 use read_fonts::types::F2Dot14;
 use read_fonts::types::GlyphId;
 
-use crate::charmap::Charmap;
-use crate::face::FontKind;
-use crate::face::Scale;
-use crate::glyph_metrics::GlyphMetrics;
+use crate::face::BasicFontMetrics;
+use crate::shape::font_ref::{Charmap, GlyphMetrics, LegacyFont};
+use crate::shape::CharmapCache;
+use crate::shape::{Advances, NominalGlyphs, ShaperFont};
 
-use super::buffer::{Buffer, GlyphInfo, GlyphPosition};
-use super::face::{GlyphExtents, Shaper};
+use super::buffer::{GlyphInfo, GlyphPosition};
+use super::face::GlyphExtents;
 
 /// Raw C-style view over a batch of glyph ids and advance widths.
 #[derive(Clone, Copy, Debug)]
-pub struct RawAdvanceWidthBatch {
+pub struct RawAdvances {
     /// Number of batch entries.
     pub len: usize,
     /// Pointer to glyph ids (read-only).
@@ -31,34 +30,11 @@ pub struct RawAdvanceWidthBatch {
     pub advance_stride: isize,
 }
 
-/// Safe batch view for glyph id / horizontal-advance updates.
-pub struct AdvanceWidthBatch<'a> {
-    infos: &'a [GlyphInfo],
-    positions: &'a mut [GlyphPosition],
-}
-
-impl<'a> AdvanceWidthBatch<'a> {
-    pub(crate) fn new(buffer: &'a mut Buffer) -> Self {
-        let len = buffer.len;
-        let infos = &buffer.info[..len];
-        let positions = &mut buffer.pos[..len];
-        Self { infos, positions }
-    }
-
-    /// Returns the number of entries in the batch.
-    pub fn len(&self) -> usize {
-        self.infos.len()
-    }
-
-    /// Returns true if the batch is empty.
-    pub fn is_empty(&self) -> bool {
-        self.infos.is_empty()
-    }
-
+impl Advances<'_> {
     /// Returns a raw C-style view over this batch.
-    pub fn into_raw(self) -> RawAdvanceWidthBatch {
+    pub fn into_raw(self) -> RawAdvances {
         if self.infos.is_empty() {
-            return RawAdvanceWidthBatch {
+            return RawAdvances {
                 len: 0,
                 gids: ptr::null(),
                 advances: ptr::null_mut(),
@@ -67,7 +43,7 @@ impl<'a> AdvanceWidthBatch<'a> {
             };
         }
 
-        RawAdvanceWidthBatch {
+        RawAdvances {
             len: self.infos.len(),
             // `glyph_id` is the first field in `GlyphInfo`.
             gids: self.infos.as_ptr().cast::<u32>(),
@@ -79,36 +55,9 @@ impl<'a> AdvanceWidthBatch<'a> {
     }
 }
 
-pub struct AdvanceWidthBatchIter<'a> {
-    infos: slice::Iter<'a, GlyphInfo>,
-    positions: slice::IterMut<'a, GlyphPosition>,
-}
-
-impl<'a> Iterator for AdvanceWidthBatchIter<'a> {
-    type Item = (GlyphId, &'a mut i32);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let info = self.infos.next()?;
-        let pos = self.positions.next()?;
-        Some((info.as_glyph(), &mut pos.x_advance))
-    }
-}
-
-impl<'a> IntoIterator for AdvanceWidthBatch<'a> {
-    type Item = (GlyphId, &'a mut i32);
-    type IntoIter = AdvanceWidthBatchIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        AdvanceWidthBatchIter {
-            infos: self.infos.iter(),
-            positions: self.positions.iter_mut(),
-        }
-    }
-}
-
 /// Raw C-style view over a batch of codepoints and output glyph ids.
 #[derive(Clone, Copy, Debug)]
-pub struct RawNominalGlyphBatch {
+pub struct RawNominalGlyphs {
     /// Number of batch entries.
     pub len: usize,
     /// Pointer to codepoints (read-only).
@@ -121,39 +70,15 @@ pub struct RawNominalGlyphBatch {
     pub glyph_stride: isize,
 }
 
-/// Safe batch view for codepoint to nominal-glyph mapping.
-///
-/// Glyph ids must be written for consecutive codepoints starting at the
-/// first entry; mapping stops at the first codepoint the font has no
-/// glyph for, and the number of glyphs written is returned from
-/// [FontFuncs::populate_nominal_glyphs].
-pub struct NominalGlyphBatch<'a> {
-    infos: &'a mut [GlyphInfo],
-}
-
-impl<'a> NominalGlyphBatch<'a> {
+impl NominalGlyphs<'_> {
     /// Byte offset of the output glyph id within a batch entry.
     const GLYPH_OFFSET: usize = core::mem::offset_of!(GlyphInfo, vars)
         + (GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR.var_index as usize - 1) * size_of::<u32>();
 
-    pub(crate) fn new(infos: &'a mut [GlyphInfo]) -> Self {
-        Self { infos }
-    }
-
-    /// Returns the number of entries in the batch.
-    pub fn len(&self) -> usize {
-        self.infos.len()
-    }
-
-    /// Returns true if the batch is empty.
-    pub fn is_empty(&self) -> bool {
-        self.infos.is_empty()
-    }
-
     /// Returns a raw C-style view over this batch.
-    pub fn into_raw(self) -> RawNominalGlyphBatch {
+    pub fn into_raw(self) -> RawNominalGlyphs {
         if self.infos.is_empty() {
-            return RawNominalGlyphBatch {
+            return RawNominalGlyphs {
                 len: 0,
                 codepoints: ptr::null(),
                 glyphs: ptr::null_mut(),
@@ -163,7 +88,7 @@ impl<'a> NominalGlyphBatch<'a> {
         }
 
         let base = self.infos.as_mut_ptr();
-        RawNominalGlyphBatch {
+        RawNominalGlyphs {
             len: self.infos.len(),
             // `glyph_id` is the first field in `GlyphInfo` and holds the
             // codepoint before mapping.
@@ -176,72 +101,104 @@ impl<'a> NominalGlyphBatch<'a> {
     }
 }
 
-pub struct NominalGlyphBatchIter<'a> {
-    infos: slice::IterMut<'a, GlyphInfo>,
+struct InstanceFont<'a> {
+    instance: &'a crate::font::FontInstance,
+    basic_metrics: BasicFontMetrics,
+    prepared_glyph_metrics: Option<&'a GlyphMetrics<'a>>,
+    prepared_charmap: Option<&'a Charmap<'a>>,
+    glyph_metrics: core::cell::OnceCell<GlyphMetrics<'a>>,
+    charmap: core::cell::OnceCell<Charmap<'a>>,
 }
 
-impl<'a> Iterator for NominalGlyphBatchIter<'a> {
-    type Item = (u32, &'a mut GlyphId);
+enum BuiltinSource<'a> {
+    Legacy(LegacyFont<'a>),
+    Instance(InstanceFont<'a>),
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let info = self.infos.next()?;
-        let codepoint = info.glyph_id;
-        let var_index = GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR.var_index as usize - 1;
-        Some((codepoint, bytemuck::cast_mut(&mut info.vars[var_index])))
+impl<'a> BuiltinSource<'a> {
+    fn charmap(&self) -> &Charmap<'a> {
+        match self {
+            Self::Legacy(font) => font.charmap,
+            Self::Instance(font) => font.prepared_charmap.unwrap_or_else(|| {
+                font.charmap
+                    .get_or_init(|| Charmap::from_tables(&font.instance.tables()))
+            }),
+        }
     }
-}
 
-impl<'a> IntoIterator for NominalGlyphBatch<'a> {
-    type Item = (u32, &'a mut GlyphId);
-    type IntoIter = NominalGlyphBatchIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        NominalGlyphBatchIter {
-            infos: self.infos.iter_mut(),
+    fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
+        match self {
+            Self::Legacy(font) => font.glyph_metrics,
+            Self::Instance(font) => font.prepared_glyph_metrics.unwrap_or_else(|| {
+                font.glyph_metrics.get_or_init(|| {
+                    GlyphMetrics::from_tables(&font.instance.tables(), &font.basic_metrics)
+                })
+            }),
         }
     }
 }
 
 /// Default implementations backed by font tables.
 pub struct BuiltinFontFuncs<'a> {
-    face: &'a Shaper<'a>,
-    glyph_metrics: core::cell::OnceCell<GlyphMetrics<'a>>,
-    charmap: core::cell::OnceCell<Charmap<'a>>,
+    source: BuiltinSource<'a>,
+    coords: &'a [F2Dot14],
+    units_per_em: u16,
+    pub(crate) cmap_cache: &'a CharmapCache,
 }
 
 impl<'a> BuiltinFontFuncs<'a> {
-    pub(crate) fn new(face: &'a Shaper<'a>) -> Self {
+    pub(crate) fn from_legacy(
+        glyph_metrics: &'a GlyphMetrics<'a>,
+        charmap: &'a Charmap<'a>,
+        coords: &'a [F2Dot14],
+        units_per_em: u16,
+        cmap_cache: &'a CharmapCache,
+    ) -> Self {
         Self {
-            face,
-            glyph_metrics: core::cell::OnceCell::new(),
-            charmap: core::cell::OnceCell::new(),
+            source: BuiltinSource::Legacy(LegacyFont {
+                glyph_metrics,
+                charmap,
+            }),
+            coords,
+            units_per_em,
+            cmap_cache,
         }
     }
 
-    fn coords(&self) -> &[F2Dot14] {
-        self.face.ot_tables.coords
+    pub(crate) fn from_instance(
+        instance: &'a crate::font::FontInstance,
+        basic_metrics: BasicFontMetrics,
+        prepared_glyph_metrics: Option<&'a GlyphMetrics<'a>>,
+        prepared_charmap: Option<&'a Charmap<'a>>,
+        coords: &'a [F2Dot14],
+        units_per_em: u16,
+        cmap_cache: &'a CharmapCache,
+    ) -> Self {
+        Self {
+            source: BuiltinSource::Instance(InstanceFont {
+                instance,
+                basic_metrics,
+                prepared_glyph_metrics,
+                prepared_charmap,
+                glyph_metrics: core::cell::OnceCell::new(),
+                charmap: core::cell::OnceCell::new(),
+            }),
+            coords,
+            units_per_em,
+            cmap_cache,
+        }
+    }
+
+    pub(crate) fn coords(&self) -> &[F2Dot14] {
+        self.coords
     }
 
     fn charmap(&self) -> &Charmap<'a> {
-        if let Some(charmap) = &self.face.charmap {
-            return charmap;
-        }
-        self.charmap.get_or_init(|| match &self.face.font {
-            FontKind::FontRef(font) => font.charmap.clone(),
-            FontKind::FontInstance(instance, _) => Charmap::from_tables(&instance.tables()),
-        })
+        self.source.charmap()
     }
 
-    fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
-        if let Some(metrics) = &self.face.glyph_metrics {
-            return metrics;
-        }
-        self.glyph_metrics.get_or_init(|| match &self.face.font {
-            FontKind::FontRef(font) => font.glyph_metrics.clone(),
-            FontKind::FontInstance(instance, metrics) => {
-                GlyphMetrics::from_tables(&instance.tables(), metrics)
-            }
-        })
+    pub(crate) fn glyph_metrics(&self) -> &GlyphMetrics<'a> {
+        self.source.glyph_metrics()
     }
 
     /// Maps a Unicode scalar value to a nominal glyph.
@@ -272,7 +229,7 @@ impl<'a> BuiltinFontFuncs<'a> {
     pub fn advance_height(&self, glyph: GlyphId) -> i32 {
         self.glyph_metrics()
             .advance_height(glyph, self.coords())
-            .unwrap_or(self.face.units_per_em as i32)
+            .unwrap_or(self.units_per_em as i32)
             .saturating_neg()
     }
 
@@ -291,7 +248,7 @@ impl<'a> BuiltinFontFuncs<'a> {
     }
 
     /// Populates horizontal advances for all entries in the batch.
-    pub fn populate_advance_widths(&self, batch: AdvanceWidthBatch<'_>) {
+    pub fn populate_advance_widths(&self, batch: Advances<'_>) {
         for (glyph, advance) in batch {
             *advance = self.advance_width(glyph);
         }
@@ -300,7 +257,7 @@ impl<'a> BuiltinFontFuncs<'a> {
     /// Maps a run of codepoints to nominal glyphs, stopping at the first
     /// codepoint the font has no glyph for. Returns the number of
     /// consecutive codepoints mapped.
-    pub fn populate_nominal_glyphs(&self, batch: NominalGlyphBatch<'_>) -> usize {
+    pub fn populate_nominal_glyphs(&self, batch: NominalGlyphs<'_>) -> usize {
         let mut done = 0;
         for (codepoint, glyph) in batch {
             match self.nominal_glyph(codepoint) {
@@ -318,7 +275,7 @@ impl<'a> BuiltinFontFuncs<'a> {
 /// # Metrics scaling
 ///
 /// All font metrics returned by these callbacks must be consistent with the
-/// scale factor configured via
+/// scale factor configured on [`ShaperFont`] or through
 /// [`ShapeOptions::scale`](crate::ShapeOptions::scale).
 ///
 /// If no scale is set, values must be in unscaled font units (i.e. the same
@@ -327,35 +284,8 @@ impl<'a> BuiltinFontFuncs<'a> {
 /// values must already be in that scaled coordinate space.
 pub trait FontFuncs {
     /// Nominal character-to-glyph mapping callback.
-    fn nominal_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32) -> Option<GlyphId> {
-        builtin.nominal_glyph(c)
-    }
-
-    /// Variation-selector mapping callback.
-    fn variant_glyph(&mut self, builtin: &BuiltinFontFuncs, c: u32, vs: u32) -> Option<GlyphId> {
-        builtin.variant_glyph(c, vs)
-    }
-
-    /// Horizontal advance callback.
-    ///
-    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
-    /// on what value this method should return.
-    fn advance_width(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
-        builtin.advance_width(glyph)
-    }
-
-    /// Batch horizontal-advance callback.
-    ///
-    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
-    /// on what value this method should return.
-    fn populate_advance_widths(
-        &mut self,
-        builtin: &BuiltinFontFuncs,
-        batch: AdvanceWidthBatch<'_>,
-    ) {
-        for (glyph, advance) in batch {
-            *advance = self.advance_width(builtin, glyph);
-        }
+    fn nominal_glyph(&self, font: &ShaperFont, c: u32) -> Option<GlyphId> {
+        font.default_nominal_glyph(c)
     }
 
     /// Batch nominal character-to-glyph mapping callback.
@@ -363,14 +293,10 @@ pub trait FontFuncs {
     /// Maps a run of codepoints to glyphs, stopping at the first
     /// codepoint the font has no glyph for. Returns the number of
     /// consecutive codepoints mapped.
-    fn populate_nominal_glyphs(
-        &mut self,
-        builtin: &BuiltinFontFuncs,
-        batch: NominalGlyphBatch<'_>,
-    ) -> usize {
+    fn nominal_glyphs(&self, font: &ShaperFont, glyphs: NominalGlyphs<'_>) -> usize {
         let mut done = 0;
-        for (codepoint, glyph) in batch {
-            match self.nominal_glyph(builtin, codepoint) {
+        for (codepoint, glyph) in glyphs {
+            match self.nominal_glyph(font, codepoint) {
                 Some(gid) => *glyph = gid,
                 None => break,
             }
@@ -379,12 +305,35 @@ pub trait FontFuncs {
         done
     }
 
+    /// Variation-selector mapping callback.
+    fn variant_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {
+        font.default_variant_glyph(c, vs)
+    }
+
+    /// Horizontal advance callback.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what value this method should return.
+    fn h_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
+        font.default_h_advance(glyph)
+    }
+
+    /// Batch horizontal-advance callback.
+    ///
+    /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
+    /// on what value this method should return.
+    fn h_advances(&self, font: &ShaperFont, advances: Advances<'_>) {
+        for (glyph, advance) in advances {
+            *advance = self.h_advance(font, glyph);
+        }
+    }
+
     /// Vertical advance callback.
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what value this method should return.
-    fn advance_height(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> i32 {
-        builtin.advance_height(glyph)
+    fn v_advance(&self, font: &ShaperFont, glyph: GlyphId) -> i32 {
+        font.default_v_advance(glyph)
     }
 
     /// Vertical origin callback.
@@ -393,177 +342,15 @@ pub trait FontFuncs {
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what values this method should return.
-    fn vertical_origin(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> (i32, i32) {
-        builtin.vertical_origin(glyph)
+    fn v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+        font.default_v_origin(glyph)
     }
 
     /// Glyph extents callback.
     ///
     /// See "Metrics scaling" in the [trait-level docs](FontFuncs) for details
     /// on what values this method should return.
-    fn extents(&mut self, builtin: &BuiltinFontFuncs, glyph: GlyphId) -> Option<GlyphExtents> {
-        builtin.extents(glyph)
-    }
-}
-
-impl<'a> Shaper<'a> {
-    /// The callbacks that read the font's own tables, which shaping falls
-    /// back on when nothing else answers.
-    ///
-    /// These know about the legacy cmap subtables -- Macintosh Roman, and the
-    /// Windows symbol encoding's private-use pages -- so a caller looking a
-    /// glyph up outside shaping finds the same one shaping would.
-    pub fn builtin_font_funcs(&'a self) -> BuiltinFontFuncs<'a> {
-        BuiltinFontFuncs::new(self)
-    }
-}
-
-pub(crate) struct FontFuncsDispatch<'a, 'u> {
-    builtin: BuiltinFontFuncs<'a>,
-    scale: Scale,
-    funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
-}
-
-impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
-    pub(crate) fn new(
-        face: &'a Shaper<'a>,
-        scale: Scale,
-        funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
-    ) -> Self {
-        Self {
-            builtin: BuiltinFontFuncs::new(face),
-            scale,
-            funcs,
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn font(&self) -> &'a Shaper<'a> {
-        self.builtin.face
-    }
-
-    #[inline(always)]
-    pub(crate) fn scale(&self) -> &Scale {
-        &self.scale
-    }
-
-    #[inline(always)]
-    fn scale_x(&self, value: i32) -> i32 {
-        self.scale.scale_x(value)
-    }
-
-    #[inline(always)]
-    fn scale_y(&self, value: i32) -> i32 {
-        self.scale.scale_y(value)
-    }
-
-    #[inline(always)]
-    fn scale_point(&self, point: (i32, i32)) -> (i32, i32) {
-        (self.scale_x(point.0), self.scale_y(point.1))
-    }
-
-    #[inline(always)]
-    fn scale_extents(&self, extents: GlyphExtents) -> GlyphExtents {
-        self.scale.scale_extents(extents)
-    }
-
-    #[inline(always)]
-    pub(crate) fn nominal_glyph(&mut self, c: u32) -> Option<GlyphId> {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.nominal_glyph(&self.builtin, c)
-        } else if let Some(gid) = self.builtin.face.cmap_cache.get(c) {
-            Some(gid.into())
-        } else if let Some(gid) = self.builtin.nominal_glyph(c) {
-            let cache = self.builtin.face.cmap_cache;
-            cache.set(c, gid.to_u32());
-            Some(gid)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn populate_nominal_glyphs(&mut self, batch: NominalGlyphBatch<'_>) -> usize {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.populate_nominal_glyphs(&self.builtin, batch)
-        } else {
-            let mut done = 0;
-            for (codepoint, glyph) in batch {
-                let gid = if let Some(gid) = self.builtin.face.cmap_cache.get(codepoint) {
-                    GlyphId::new(gid)
-                } else if let Some(gid) = self.builtin.nominal_glyph(codepoint) {
-                    self.builtin.face.cmap_cache.set(codepoint, gid.to_u32());
-                    gid
-                } else {
-                    break;
-                };
-                *glyph = gid;
-                done += 1;
-            }
-            done
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn has_glyph(&mut self, c: u32) -> bool {
-        self.nominal_glyph(c).is_some()
-    }
-
-    #[inline(always)]
-    pub(crate) fn variant_glyph(&mut self, c: u32, vs: u32) -> Option<GlyphId> {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.variant_glyph(&self.builtin, c, vs)
-        } else {
-            self.builtin.variant_glyph(c, vs)
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn advance_width(&mut self, glyph: GlyphId) -> i32 {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.advance_width(&self.builtin, glyph)
-        } else {
-            self.scale_x(self.builtin.advance_width(glyph))
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn advance_height(&mut self, glyph: GlyphId) -> i32 {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.advance_height(&self.builtin, glyph)
-        } else {
-            self.scale_y(self.builtin.advance_height(glyph))
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn vertical_origin(&mut self, glyph: GlyphId) -> (i32, i32) {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.vertical_origin(&self.builtin, glyph)
-        } else {
-            self.scale_point(self.builtin.vertical_origin(glyph))
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn extents(&mut self, glyph: GlyphId) -> Option<GlyphExtents> {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.extents(&self.builtin, glyph)
-        } else {
-            Some(self.scale_extents(self.builtin.extents(glyph)?))
-        }
-    }
-
-    pub(crate) fn populate_advance_widths(&mut self, batch: AdvanceWidthBatch<'_>) {
-        if let Some(funcs) = &mut self.funcs {
-            funcs.populate_advance_widths(&self.builtin, batch);
-        } else {
-            self.builtin.glyph_metrics().populate_advance_widths(
-                batch.infos,
-                batch.positions,
-                self.builtin.coords(),
-                self.scale,
-            );
-        }
+    fn glyph_extents(&self, font: &ShaperFont, glyph: GlyphId) -> Option<GlyphExtents> {
+        font.default_glyph_extents(glyph)
     }
 }

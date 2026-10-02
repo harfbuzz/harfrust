@@ -1,6 +1,6 @@
 use crate::buffer::GlyphPropsFlags;
-use crate::ot::gsubgpos::ApplyContext;
-use crate::ot::gsubgpos::{Apply, WouldApply, WouldApplyContext};
+use crate::ot::apply::ApplyContext;
+use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::MultipleSubstFormat1;
 
 impl WouldApply for MultipleSubstFormat1<'_> {
