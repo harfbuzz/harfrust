@@ -311,19 +311,19 @@ pub struct OtData<'a> {
 static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
 static EMPTY_GDEF_CACHE: GdefCache = GdefCache::EMPTY;
 
-impl<'a> OtData<'a> {
-    pub(crate) const EMPTY: Self = Self {
-        gsub: None,
-        gpos: None,
-        gdef: GdefTable { table: None },
-        gdef_glyph_props_cache: &EMPTY_MAPPING_CACHE,
-        gdef_mark_set_bitmaps: &[],
-        gdef_cache: &EMPTY_GDEF_CACHE,
-        coords: &[],
-        var_store: None,
-        feature_variations: [None; 2],
-    };
+pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
+    gsub: None,
+    gpos: None,
+    gdef: GdefTable { table: None },
+    gdef_glyph_props_cache: &EMPTY_MAPPING_CACHE,
+    gdef_mark_set_bitmaps: &[],
+    gdef_cache: &EMPTY_GDEF_CACHE,
+    coords: &[],
+    var_store: None,
+    feature_variations: [None; 2],
+};
 
+impl<'a> OtData<'a> {
     pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
         match table_index {
             LayoutTableKind::Gsub => self

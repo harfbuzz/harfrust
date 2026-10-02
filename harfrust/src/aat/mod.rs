@@ -182,19 +182,19 @@ fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
     BLOCKLIST.contains(&key)
 }
 
-impl<'a> AatData<'a> {
-    pub(crate) const EMPTY: Self = Self {
-        safe_to_break: None,
-        morx: None,
-        mort: None,
-        ankr: None,
-        kern: None,
-        kerx: None,
-        trak: None,
-        feat: None,
-        ltag: None,
-    };
+pub(crate) static EMPTY_AAT_DATA: AatData<'static> = AatData {
+    safe_to_break: None,
+    morx: None,
+    mort: None,
+    ankr: None,
+    kern: None,
+    kerx: None,
+    trak: None,
+    feat: None,
+    ltag: None,
+};
 
+impl<'a> AatData<'a> {
     pub fn from_tables(font: &impl TableProvider<'a>, cache: &'a AatCache) -> Self {
         let morx = cache
             .has_morx_from_tables

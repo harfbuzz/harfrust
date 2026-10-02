@@ -5,11 +5,11 @@ use core::{mem::size_of, ops::Deref, ptr, slice};
 use read_fonts::types::GlyphId;
 use read_fonts::TableProvider;
 
-use crate::aat::{AatCache, AatData};
+use crate::aat::{AatCache, AatData, EMPTY_AAT_DATA};
 use crate::buffer::{Buffer, GlyphInfo, GlyphPosition};
 use crate::cache::Cache;
 use crate::font_support::{BasicFontMetrics, BuiltinFontFuncs, GlyphName};
-use crate::ot::{OtCache, OtData};
+use crate::ot::{OtCache, OtData, EMPTY_OT_DATA};
 use crate::scale::Scale;
 
 pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
@@ -330,7 +330,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
                 Some(&cache.cmap),
             )
         } else {
-            (OtData::EMPTY, AatData::EMPTY, false, None)
+            (EMPTY_OT_DATA.clone(), EMPTY_AAT_DATA.clone(), false, None)
         };
         let scale = font
             .size()
