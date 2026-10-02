@@ -9,13 +9,13 @@ mod single;
 
 use crate::buffer::Buffer;
 use crate::font_funcs::FontFuncsDispatch;
-use crate::hb_font_t;
 use crate::ot::layout::*;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
+use crate::Shaper;
 
 pub fn substitute(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
+    plan: &ShapePlan,
+    face: &Shaper,
     font_funcs: &mut FontFuncsDispatch,
     buffer: &mut Buffer,
 ) {

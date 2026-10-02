@@ -27,10 +27,10 @@ use crate::buffer::*;
 use crate::common::TagExt;
 use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::shape::normalize::*;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
 use crate::ot::shape::*;
 use crate::unicode::Codepoint;
-use crate::{hb_tag_t, script, Direction, Script};
+use crate::{script, Direction, Script, Tag};
 use alloc::boxed::Box;
 use core::any::Any;
 
@@ -55,56 +55,56 @@ impl GlyphInfo {
 
 pub const MAX_COMBINING_MARKS: usize = 32;
 
-pub type hb_ot_shape_zero_width_marks_type_t = u32;
-pub const HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE: u32 = 0;
-pub const HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY: u32 = 1;
-pub const HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE: u32 = 2;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ZeroWidthMarks {
+    None,
+    ByGdefEarly,
+    ByGdefLate,
+}
 
-pub type DecomposeFn =
-    fn(&hb_ot_shape_normalize_context_t, Codepoint) -> Option<(Codepoint, Codepoint)>;
-pub type ComposeFn =
-    fn(&hb_ot_shape_normalize_context_t, Codepoint, Codepoint) -> Option<Codepoint>;
+pub type DecomposeFn = fn(&NormalizeContext, Codepoint) -> Option<(Codepoint, Codepoint)>;
+pub type ComposeFn = fn(&NormalizeContext, Codepoint, Codepoint) -> Option<Codepoint>;
 
-pub const DEFAULT_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const DEFAULT_SHAPER: OtShaper = OtShaper {
     collect_features: None,
     override_features: None,
     create_data: None,
     preprocess_text: None,
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_AUTO,
+    normalization_preference: NormalizationMode::Auto,
     decompose: None,
     compose: None,
     setup_masks: None,
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE,
+    zero_width_marks: ZeroWidthMarks::ByGdefLate,
     fallback_position: true,
 };
 
-pub struct hb_ot_shaper_t {
+pub struct OtShaper {
     /// Called during `shape_plan()`.
     /// Shapers should use plan.map to add their features and callbacks.
-    pub collect_features: Option<fn(&mut hb_ot_shape_planner_t)>,
+    pub collect_features: Option<fn(&mut ShapePlanner)>,
 
     /// Called during `shape_plan()`.
     /// Shapers should use plan.map to override features and add callbacks after
     /// common features are added.
-    pub override_features: Option<fn(&mut hb_ot_shape_planner_t)>,
+    pub override_features: Option<fn(&mut ShapePlanner)>,
 
     /// Called at the end of `shape_plan()`.
     /// Whatever shapers return will be accessible through `plan.data()` later.
-    pub create_data: Option<fn(&hb_ot_shape_plan_t) -> Box<dyn Any + Send + Sync>>,
+    pub create_data: Option<fn(&ShapePlan) -> Box<dyn Any + Send + Sync>>,
 
     /// Called during `shape()`.
     /// Shapers can use to modify text before shaping starts.
-    pub preprocess_text: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer)>,
+    pub preprocess_text: Option<fn(&ShapePlan, &mut FontFuncsDispatch, &mut Buffer)>,
 
     /// Called during `shape()`.
     /// Shapers can use to modify text before shaping starts.
-    pub postprocess_glyphs: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer)>,
+    pub postprocess_glyphs: Option<fn(&ShapePlan, &mut FontFuncsDispatch, &mut Buffer)>,
 
     /// How to normalize.
-    pub normalization_preference: hb_ot_shape_normalization_mode_t,
+    pub normalization_preference: NormalizationMode,
 
     /// Called during `shape()`'s normalization.
     pub decompose: Option<DecomposeFn>,
@@ -115,18 +115,18 @@ pub struct hb_ot_shaper_t {
     /// Called during `shape()`.
     /// Shapers should use map to get feature masks and set on buffer.
     /// Shapers may NOT modify characters.
-    pub setup_masks: Option<fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer)>,
+    pub setup_masks: Option<fn(&ShapePlan, &mut FontFuncsDispatch, &mut Buffer)>,
 
     /// If not `None`, then must match found GPOS script tag for
     /// GPOS to be applied.  Otherwise, fallback positioning will be used.
-    pub gpos_tag: Option<hb_tag_t>,
+    pub gpos_tag: Option<Tag>,
 
     /// Called during `shape()`.
     /// Shapers can use to modify ordering of combining marks.
-    pub reorder_marks: Option<fn(&hb_ot_shape_plan_t, &mut Buffer, usize, usize)>,
+    pub reorder_marks: Option<fn(&ShapePlan, &mut Buffer, usize, usize)>,
 
     /// If and when to zero-width marks.
-    pub zero_width_marks: hb_ot_shape_zero_width_marks_type_t,
+    pub zero_width_marks: ZeroWidthMarks,
 
     /// Whether to use fallback mark positioning.
     pub fallback_position: bool,
@@ -134,27 +134,27 @@ pub struct hb_ot_shaper_t {
 
 // Same as default but no mark advance zeroing / fallback positioning.
 // Dumbest shaper ever, basically.
-pub const DUMBER_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const DUMBER_SHAPER: OtShaper = OtShaper {
     collect_features: None,
     override_features: None,
     create_data: None,
     preprocess_text: None,
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_AUTO,
+    normalization_preference: NormalizationMode::Auto,
     decompose: None,
     compose: None,
     setup_masks: None,
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
+    zero_width_marks: ZeroWidthMarks::None,
     fallback_position: false,
 };
 
-pub fn hb_ot_shape_complex_categorize(
+pub fn categorize(
     script: Script,
     direction: Direction,
-    gsub_script: Option<hb_tag_t>,
-) -> &'static hb_ot_shaper_t {
+    gsub_script: Option<Tag>,
+) -> &'static OtShaper {
     match script {
         // Unicode-1.1 additions
         script::ARABIC
@@ -167,7 +167,7 @@ pub fn hb_ot_shape_complex_categorize(
             // vertical text, just use the generic shaper instead.
             //
             // TODO: Does this still apply? Arabic fallback shaping was removed.
-            if (gsub_script != Some(hb_tag_t::default_script()) || script == script::ARABIC)
+            if (gsub_script != Some(Tag::default_script()) || script == script::ARABIC)
                 && direction.is_horizontal()
             {
                 &arabic::ARABIC_SHAPER
@@ -201,8 +201,8 @@ pub fn hb_ot_shape_complex_categorize(
             // Otherwise, use the specific shaper.
             //
             // If it's indy3 tag, send to USE.
-            if gsub_script == Some(hb_tag_t::default_script()) ||
-               gsub_script == Some(hb_tag_t::new(b"latn")) {
+            if gsub_script == Some(Tag::default_script()) ||
+               gsub_script == Some(Tag::new(b"latn")) {
                 &DEFAULT_SHAPER
             } else if gsub_script.is_some_and(|tag| tag.to_be_bytes()[3] == b'3') {
                 &use_::UNIVERSAL_SHAPER
@@ -221,9 +221,9 @@ pub fn hb_ot_shape_complex_categorize(
             // If designer designed for 'mymr' tag, also send to default
             // shaper.  That's tag used from before Myanmar shaping spec
             // was developed.  The shaping spec uses 'mym2' tag.
-            if gsub_script == Some(hb_tag_t::default_script()) ||
-               gsub_script == Some(hb_tag_t::new(b"latn")) ||
-               gsub_script == Some(hb_tag_t::new(b"mymr"))
+            if gsub_script == Some(Tag::default_script()) ||
+               gsub_script == Some(Tag::new(b"latn")) ||
+               gsub_script == Some(Tag::new(b"mymr"))
             {
                 &DEFAULT_SHAPER
             } else {
@@ -375,8 +375,8 @@ pub fn hb_ot_shape_complex_categorize(
             // Otherwise, use the specific shaper.
             // Note that for some simple scripts, there may not be *any*
             // GSUB/GPOS needed, so there may be no scripts found!
-            if gsub_script == Some(hb_tag_t::default_script()) ||
-               gsub_script == Some(hb_tag_t::new(b"latn")) {
+            if gsub_script == Some(Tag::default_script()) ||
+               gsub_script == Some(Tag::new(b"latn")) {
                 &DEFAULT_SHAPER
             } else {
                 &use_::UNIVERSAL_SHAPER

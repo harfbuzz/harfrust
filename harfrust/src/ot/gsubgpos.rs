@@ -2,13 +2,13 @@
 
 use super::buffer::GlyphInfo;
 use super::buffer::{Buffer, GlyphPropsFlags};
-use super::cache::hb_cache_t;
+use super::cache::Cache;
 use super::common::*;
 use super::face::Scale;
-use super::hb_font_t;
-use super::hb_mask_t;
 use super::layout::*;
-use super::set_digest::hb_set_digest_t;
+use super::set_digest::SetDigest;
+use super::Mask;
+use super::Shaper;
 use crate::ot::{ClassDefInfo, CoverageInfo};
 use crate::unicode::GeneralCategory;
 use alloc::boxed::Box;
@@ -27,7 +27,7 @@ pub fn match_always(_info: &mut GlyphInfo, _value: u32) -> bool {
 }
 
 pub fn match_input(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     input_len: u16,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     end_position: &mut usize,
@@ -79,7 +79,7 @@ pub fn match_input(
     }
     ctx.match_positions_len = count;
 
-    let mut iter = skipping_iterator_t::with_match_fn(ctx, false, Some(match_func));
+    let mut iter = SkippingIterator::with_match_fn(ctx, false, Some(match_func));
     iter.reset(iter.buffer.idx);
     iter.set_glyph_data(0);
 
@@ -122,7 +122,7 @@ pub fn match_input(
                         j -= 1;
                     }
 
-                    ligbase = if found && iter.may_skip(&out[j]) == may_skip_t::SKIP_YES {
+                    ligbase = if found && iter.may_skip(&out[j]) == MaySkip::Yes {
                         Ligbase::MaySkip
                     } else {
                         Ligbase::MayNotSkip
@@ -158,7 +158,7 @@ pub fn match_input(
 }
 
 pub fn match_backtrack(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     backtrack_len: u16,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     match_start: &mut usize,
@@ -168,7 +168,7 @@ pub fn match_backtrack(
         return true;
     }
 
-    let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
+    let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_func));
     iter.reset_back(iter.buffer.backtrack_len());
     iter.set_glyph_data(0);
 
@@ -185,7 +185,7 @@ pub fn match_backtrack(
 }
 
 pub fn match_lookahead(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     lookahead_len: u16,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     start_index: usize,
@@ -199,7 +199,7 @@ pub fn match_lookahead(
     // Function should always be called with a non-zero starting index
     // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
     debug_assert!(start_index >= 1);
-    let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_func));
+    let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_func));
     iter.reset(start_index - 1);
     iter.set_glyph_data(0);
 
@@ -216,53 +216,54 @@ pub fn match_lookahead(
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
-pub enum match_t {
-    MATCH,
-    NOT_MATCH,
-    SKIP,
+pub enum MatchResult {
+    Match,
+    NotMatch,
+    Skip,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
-enum may_match_t {
-    MATCH_NO,
-    MATCH_YES,
-    MATCH_MAYBE,
+enum MayMatch {
+    No,
+    Yes,
+    Maybe,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
-pub enum may_skip_t {
-    SKIP_NO,
-    SKIP_YES,
-    SKIP_MAYBE,
+pub enum MaySkip {
+    No,
+    Yes,
+    Maybe,
 }
 
 #[derive(Default)]
-pub struct matcher_t {
+pub struct Matcher {
     lookup_props: u32,
-    mask: hb_mask_t,
+    mask: Mask,
     ignore_zwnj: bool,
     ignore_zwj: bool,
     ignore_hidden: bool,
     per_syllable: bool,
 }
 
-impl matcher_t {
-    fn new(ctx: &hb_ot_apply_context_t, context_match: bool) -> Self {
-        matcher_t {
+impl Matcher {
+    fn new(ctx: &ApplyContext, context_match: bool) -> Self {
+        Matcher {
             lookup_props: ctx.lookup_props,
             // Ignore ZWNJ if we are matching GPOS, or matching GSUB context and asked to.
-            ignore_zwnj: ctx.table_index == TableIndex::GPOS || (context_match && ctx.auto_zwnj),
+            ignore_zwnj: ctx.table_index == LayoutTableKind::Gpos
+                || (context_match && ctx.auto_zwnj),
             // Ignore ZWJ if we are matching context, or asked to.
             ignore_zwj: context_match || ctx.auto_zwj,
             // Ignore hidden glyphs (like CGJ) during GPOS.
-            ignore_hidden: ctx.table_index == TableIndex::GPOS,
+            ignore_hidden: ctx.table_index == LayoutTableKind::Gpos,
             mask: if context_match {
                 u32::MAX
             } else {
                 ctx.lookup_mask()
             },
             /* Per syllable matching is only for GSUB. */
-            per_syllable: ctx.table_index == TableIndex::GSUB && ctx.per_syllable,
+            per_syllable: ctx.table_index == LayoutTableKind::Gsub && ctx.per_syllable,
         }
     }
 
@@ -272,28 +273,28 @@ impl matcher_t {
         glyph_data: u32,
         match_func: Option<&impl Fn(&mut GlyphInfo, u32) -> bool>,
         syllable: u8,
-    ) -> may_match_t {
+    ) -> MayMatch {
         if (info.mask & self.mask) == 0
             || (self.per_syllable && syllable != 0 && syllable != info.syllable())
         {
-            return may_match_t::MATCH_NO;
+            return MayMatch::No;
         }
 
         if let Some(match_func) = match_func {
             return if match_func(info, glyph_data) {
-                may_match_t::MATCH_YES
+                MayMatch::Yes
             } else {
-                may_match_t::MATCH_NO
+                MayMatch::No
             };
         }
 
-        may_match_t::MATCH_MAYBE
+        MayMatch::Maybe
     }
 
     #[inline(always)]
-    fn may_skip(&self, info: &GlyphInfo, face: &hb_font_t, lookup_props: u32) -> may_skip_t {
+    fn may_skip(&self, info: &GlyphInfo, face: &Shaper, lookup_props: u32) -> MaySkip {
         if !check_glyph_property(face, info, lookup_props) {
-            return may_skip_t::SKIP_YES;
+            return MaySkip::Yes;
         }
 
         if info.is_default_ignorable()
@@ -301,42 +302,40 @@ impl matcher_t {
             && (self.ignore_zwj || !info.is_zwj())
             && (self.ignore_hidden || !info.is_hidden())
         {
-            return may_skip_t::SKIP_MAYBE;
+            return MaySkip::Maybe;
         }
 
-        may_skip_t::SKIP_NO
+        MaySkip::No
     }
 }
 
 #[inline(always)]
 fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
-    matcher: &matcher_t,
+    matcher: &Matcher,
     info: &mut GlyphInfo,
-    face: &hb_font_t,
+    face: &Shaper,
     lookup_props: u32,
     glyph_data: u32,
     match_func: Option<&F>,
     syllable: u8,
-) -> match_t {
+) -> MatchResult {
     let skip = matcher.may_skip(info, face, lookup_props);
 
-    if skip == may_skip_t::SKIP_YES {
-        return match_t::SKIP;
+    if skip == MaySkip::Yes {
+        return MatchResult::Skip;
     }
 
     let _match = matcher.may_match(info, glyph_data, match_func, syllable);
 
-    if _match == may_match_t::MATCH_YES
-        || (_match == may_match_t::MATCH_MAYBE && skip == may_skip_t::SKIP_NO)
-    {
-        return match_t::MATCH;
+    if _match == MayMatch::Yes || (_match == MayMatch::Maybe && skip == MaySkip::No) {
+        return MatchResult::Match;
     }
 
-    if skip == may_skip_t::SKIP_NO {
-        return match_t::NOT_MATCH;
+    if skip == MaySkip::No {
+        return MatchResult::NotMatch;
     }
 
-    match_t::SKIP
+    MatchResult::Skip
 }
 
 // In harfbuzz, skipping iterator works quite differently than it works here. In harfbuzz,
@@ -345,10 +344,10 @@ fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
 // we cannot copy this approach. Because of this, we basically create a new skipping iterator
 // when needed, and we do not have `init` method that exist in harfbuzz. This has a performance
 // cost, and makes backporting related changes very hard, but it seems unavoidable, unfortunately.
-pub struct skipping_iterator_t<'f, 'c, F> {
+pub struct SkippingIterator<'f, 'c, F> {
     pub(crate) buffer: &'c mut Buffer,
-    face: &'c hb_font_t<'f>,
-    matcher: &'c matcher_t,
+    face: &'c Shaper<'f>,
+    matcher: &'c Matcher,
     match_positions: &'c mut MatchPositions,
     buf_len: usize,
     glyph_data: u32,
@@ -358,18 +357,18 @@ pub struct skipping_iterator_t<'f, 'c, F> {
     syllable: u8,
 }
 
-impl<'f, 'c> skipping_iterator_t<'f, 'c, fn(&mut GlyphInfo, u32) -> bool> {
-    pub fn new(ctx: &'c mut hb_ot_apply_context_t<'f>, context_match: bool) -> Self {
+impl<'f, 'c> SkippingIterator<'f, 'c, fn(&mut GlyphInfo, u32) -> bool> {
+    pub fn new(ctx: &'c mut ApplyContext<'f>, context_match: bool) -> Self {
         Self::with_match_fn(ctx, context_match, None)
     }
 }
 
-impl<'f, 'c, F> skipping_iterator_t<'f, 'c, F>
+impl<'f, 'c, F> SkippingIterator<'f, 'c, F>
 where
     F: Fn(&mut GlyphInfo, u32) -> bool,
 {
     pub fn with_match_fn(
-        ctx: &'c mut hb_ot_apply_context_t<'f>,
+        ctx: &'c mut ApplyContext<'f>,
         context_match: bool,
         match_fn: Option<F>,
     ) -> Self {
@@ -379,7 +378,7 @@ where
             &ctx.matcher
         };
         let buf_len = ctx.buffer.len;
-        skipping_iterator_t {
+        SkippingIterator {
             buffer: ctx.buffer,
             face: ctx.face,
             glyph_data: 0,
@@ -426,18 +425,18 @@ where
             self.buf_idx += 1;
 
             match self.match_at(self.buf_idx) {
-                match_t::MATCH => {
+                MatchResult::Match => {
                     self.advance_glyph_data();
                     return true;
                 }
-                match_t::NOT_MATCH => {
+                MatchResult::NotMatch => {
                     if let Some(unsafe_to) = unsafe_to {
                         *unsafe_to = self.buf_idx + 1;
                     }
 
                     return false;
                 }
-                match_t::SKIP => continue,
+                MatchResult::Skip => continue,
             }
         }
 
@@ -466,18 +465,18 @@ where
                 self.match_func.as_ref(),
                 self.syllable,
             ) {
-                match_t::MATCH => {
+                MatchResult::Match => {
                     self.advance_glyph_data();
                     return true;
                 }
-                match_t::NOT_MATCH => {
+                MatchResult::NotMatch => {
                     if let Some(unsafe_from) = unsafe_from {
                         *unsafe_from = self.buf_idx.max(1) - 1;
                     }
 
                     return false;
                 }
-                match_t::SKIP => {
+                MatchResult::Skip => {
                     continue;
                 }
             }
@@ -508,12 +507,12 @@ where
         self.buf_idx = start_index;
     }
 
-    pub fn may_skip(&self, info: &GlyphInfo) -> may_skip_t {
+    pub fn may_skip(&self, info: &GlyphInfo) -> MaySkip {
         self.matcher.may_skip(info, self.face, self.lookup_props)
     }
 
     #[inline]
-    pub fn match_at(&mut self, idx: usize) -> match_t {
+    pub fn match_at(&mut self, idx: usize) -> MatchResult {
         let info = &mut self.buffer.info[idx];
         match_info(
             self.matcher,
@@ -528,7 +527,7 @@ where
 }
 
 pub(crate) fn apply_lookup(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     input_len: usize,
     match_end: usize,
     lookups: &[SequenceLookupRecord],
@@ -670,14 +669,14 @@ pub trait WouldApply {
 
 // HB uses a cache size of 128 here; we double it to reduce collisions
 // since our lookup is slower.
-pub(crate) type MappingCache = hb_cache_t<
+pub(crate) type MappingCache = Cache<
     16,  // KEY_BITS
     8,   // VALUE_BITS
     256, // CACHE_SIZE
     16,  // STORAGE_BITS
 >;
 
-pub(crate) type BinaryCache = hb_cache_t<
+pub(crate) type BinaryCache = Cache<
     15,  // KEY_BITS
     1,   // VALUE_BITS
     256, // CACHE_SIZE
@@ -693,12 +692,12 @@ pub(crate) enum SubtableExternalCacheMode {
 }
 
 pub(crate) struct LigatureSubstFormat1Cache {
-    pub seconds: hb_set_digest_t,
+    pub seconds: SetDigest,
     pub coverage: MappingCache,
 }
 
 impl LigatureSubstFormat1Cache {
-    pub fn new(seconds: hb_set_digest_t) -> Self {
+    pub fn new(seconds: SetDigest) -> Self {
         LigatureSubstFormat1Cache {
             coverage: MappingCache::new(),
             seconds,
@@ -708,16 +707,16 @@ impl LigatureSubstFormat1Cache {
 
 pub(crate) struct LigatureSubstFormat1SmallCache {
     pub coverage: CoverageInfo,
-    pub seconds: hb_set_digest_t,
+    pub seconds: SetDigest,
 }
 
 pub(crate) struct PairPosFormat1Cache {
     pub coverage: MappingCache,
-    pub pair_sets: Box<[hb_set_digest_t]>,
+    pub pair_sets: Box<[SetDigest]>,
 }
 
 impl PairPosFormat1Cache {
-    pub fn new(pair_sets: Box<[hb_set_digest_t]>) -> Self {
+    pub fn new(pair_sets: Box<[SetDigest]>) -> Self {
         PairPosFormat1Cache {
             coverage: MappingCache::new(),
             pair_sets,
@@ -727,7 +726,7 @@ impl PairPosFormat1Cache {
 
 pub(crate) struct PairPosFormat1SmallCache {
     pub coverage: CoverageInfo,
-    pub pair_sets: Box<[hb_set_digest_t]>,
+    pub pair_sets: Box<[SetDigest]>,
 }
 
 pub(crate) struct PairPosFormat2Cache {
@@ -810,7 +809,7 @@ pub(crate) enum SubtableExternalCache {
 
 /// Apply a lookup.
 pub trait Apply {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         // Default implementation just calls `apply_with_external_cache`.
         self.apply_with_external_cache(ctx, &SubtableExternalCache::None)
     }
@@ -819,7 +818,7 @@ pub trait Apply {
 
     fn apply_with_external_cache(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         _external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         // Default implementation just calls `apply`.
@@ -828,7 +827,7 @@ pub trait Apply {
 
     fn apply_cached(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         // Default implementation just calls `apply_with_external_cache`.
@@ -856,7 +855,7 @@ pub struct WouldApplyContext<'a> {
 }
 
 fn match_properties_mark(
-    face: &hb_font_t,
+    face: &Shaper,
     info: &GlyphInfo,
     glyph_props: u16,
     match_props: u32,
@@ -882,7 +881,7 @@ fn match_properties_mark(
 }
 
 #[inline(always)]
-pub fn check_glyph_property(face: &hb_font_t, info: &GlyphInfo, match_props: u32) -> bool {
+pub fn check_glyph_property(face: &Shaper, info: &GlyphInfo, match_props: u32) -> bool {
     let glyph_props = info.glyph_props();
 
     // Not covered, if, for example, glyph class is ligature and
@@ -898,12 +897,12 @@ pub fn check_glyph_property(face: &hb_font_t, info: &GlyphInfo, match_props: u32
     true
 }
 
-pub struct hb_ot_apply_context_t<'a> {
-    pub table_index: TableIndex,
-    pub face: &'a hb_font_t<'a>,
+pub struct ApplyContext<'a> {
+    pub table_index: LayoutTableKind,
+    pub face: &'a Shaper<'a>,
     pub scale: Scale,
     pub buffer: &'a mut Buffer,
-    lookup_mask: hb_mask_t,
+    lookup_mask: Mask,
     pub per_syllable: bool,
     pub lookup_index: u16,
     pub lookup_props: u32,
@@ -915,16 +914,16 @@ pub struct hb_ot_apply_context_t<'a> {
     pub new_syllables: Option<u8>,
     pub last_base: i32,
     pub last_base_until: u32,
-    pub(crate) matcher: matcher_t,
-    pub(crate) context_matcher: matcher_t,
+    pub(crate) matcher: Matcher,
+    pub(crate) context_matcher: Matcher,
     pub(crate) match_positions_len: usize,
     pub(crate) match_positions: MatchPositions,
 }
 
-impl<'a> hb_ot_apply_context_t<'a> {
+impl<'a> ApplyContext<'a> {
     pub fn new(
-        table_index: TableIndex,
-        face: &'a hb_font_t<'a>,
+        table_index: LayoutTableKind,
+        face: &'a Shaper<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
     ) -> Self {
@@ -945,8 +944,8 @@ impl<'a> hb_ot_apply_context_t<'a> {
             new_syllables: None,
             last_base: -1,
             last_base_until: 0,
-            matcher: matcher_t::default(),
-            context_matcher: matcher_t::default(),
+            matcher: Matcher::default(),
+            context_matcher: Matcher::default(),
             match_positions_len: 0,
             match_positions: MatchPositions::from_elem(0, 1),
         }
@@ -968,19 +967,19 @@ impl<'a> hb_ot_apply_context_t<'a> {
         self.random_state
     }
 
-    pub fn set_lookup_mask(&mut self, mask: hb_mask_t) {
+    pub fn set_lookup_mask(&mut self, mask: Mask) {
         self.lookup_mask = mask;
         self.last_base = -1;
         self.last_base_until = 0;
     }
 
-    pub fn lookup_mask(&self) -> hb_mask_t {
+    pub fn lookup_mask(&self) -> Mask {
         self.lookup_mask
     }
 
     pub fn update_matchers(&mut self) {
-        self.matcher = matcher_t::new(self, false);
-        self.context_matcher = matcher_t::new(self, true);
+        self.matcher = Matcher::new(self, false);
+        self.context_matcher = Matcher::new(self, true);
     }
 
     pub fn recurse(&mut self, sub_lookup_index: u16) -> Option<()> {
@@ -1094,7 +1093,7 @@ impl<'a> hb_ot_apply_context_t<'a> {
 }
 
 pub fn ligate_input(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     // Including the first glyph
     count: usize,
     // Including the first glyph

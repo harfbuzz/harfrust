@@ -50,11 +50,7 @@ mod tag;
 mod tag_table;
 mod text_parser;
 
-use read_fonts::types::Tag as hb_tag_t;
-
-use self::face::hb_font_t;
-
-type hb_mask_t = u32;
+type Mask = u32;
 
 #[inline(always)]
 fn clamp_i64_to_i32(value: i64) -> i32 {
@@ -98,12 +94,11 @@ pub use buffer::{
 };
 pub use common::{script, Direction, Feature, Language, Script, Variation};
 pub use face::{
-    hb_font_t as Shaper, GlyphExtents, Scale, ShapeOptions, ShaperBuilder, ShaperData,
-    ShaperInstance,
+    GlyphExtents, Scale, ShapeOptions, Shaper, ShaperBuilder, ShaperData, ShaperInstance,
 };
 pub use glyph_names::GlyphNames;
 
-pub use ot::shape::plan::{hb_ot_shape_plan_t as ShapePlan, ShapePlanKey};
+pub use ot::shape::plan::{ShapePlan, ShapePlanKey};
 
 /// Type alias for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;

@@ -16,11 +16,11 @@ use crate::buffer::*;
 use crate::face::Scale;
 use crate::ot::common::lookup_flags;
 use crate::ot::gpos::attach_type;
-use crate::ot::gsubgpos::{hb_ot_apply_context_t, skipping_iterator_t};
-use crate::ot::layout::TableIndex;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::gsubgpos::{ApplyContext, SkippingIterator};
+use crate::ot::layout::LayoutTableKind;
+use crate::ot::shape::plan::ShapePlan;
 use crate::U32Set;
-use crate::{hb_font_t, hb_mask_t};
+use crate::{Mask, Shaper};
 
 pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &ClassCache) -> u8 {
     if let Some(klass) = cache.get(glyph_id.to_u32()) {
@@ -33,12 +33,7 @@ pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &Cl
     klass
 }
 
-pub fn hb_ot_layout_kern(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
-    scale: Scale,
-    buffer: &mut Buffer,
-) -> Option<()> {
+pub fn apply(plan: &ShapePlan, face: &Shaper, scale: Scale, buffer: &mut Buffer) -> Option<()> {
     let mut c = AatApplyContext::new(plan, face, scale, buffer);
 
     c.setup_buffer_glyph_set();
@@ -127,17 +122,17 @@ pub fn hb_ot_layout_kern(
 }
 
 fn machine_kern<F>(
-    face: &hb_font_t,
+    face: &Shaper,
     scale: Scale,
     buffer: &mut Buffer,
-    kern_mask: hb_mask_t,
+    kern_mask: Mask,
     cross_stream: bool,
     get_kerning: F,
 ) where
     F: Fn(u32, u32) -> i32,
 {
     buffer.unsafe_to_concat(None, None);
-    let mut ctx = hb_ot_apply_context_t::new(TableIndex::GPOS, face, scale, buffer);
+    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, face, scale, buffer);
     ctx.set_lookup_mask(kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
@@ -145,7 +140,7 @@ fn machine_kern<F>(
     let horizontal = ctx.buffer.direction.is_horizontal();
     let use_x_scale = horizontal ^ cross_stream;
     let mut i = 0;
-    let mut iter = skipping_iterator_t::new(&mut ctx, false);
+    let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
         if (iter.buffer.info[i].mask & kern_mask) == 0 {
             i += 1;

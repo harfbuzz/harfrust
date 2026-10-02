@@ -8,23 +8,23 @@ use crate::ShaperInstance;
 
 use super::*;
 use crate::ot::map::*;
-use crate::{hb_font_t, hb_mask_t, Direction, Feature, Language, Script};
+use crate::{Direction, Feature, Language, Mask, Script, Shaper};
 
 /// A reusable plan for shaping a text buffer.
-pub struct hb_ot_shape_plan_t {
+pub struct ShapePlan {
     pub(crate) direction: Direction,
     pub(crate) script: Option<Script>,
     pub(crate) language: Option<Language>,
-    pub(crate) shaper: &'static hb_ot_shaper_t,
-    pub(crate) ot_map: hb_ot_map_t,
+    pub(crate) shaper: &'static OtShaper,
+    pub(crate) ot_map: OtMap,
     pub(crate) aat_map: AatMap,
     pub(crate) data: Option<Box<dyn Any + Send + Sync>>,
 
-    pub(crate) frac_mask: hb_mask_t,
-    pub(crate) numr_mask: hb_mask_t,
-    pub(crate) dnom_mask: hb_mask_t,
-    pub(crate) rtlm_mask: hb_mask_t,
-    pub(crate) kern_mask: hb_mask_t,
+    pub(crate) frac_mask: Mask,
+    pub(crate) numr_mask: Mask,
+    pub(crate) dnom_mask: Mask,
+    pub(crate) rtlm_mask: Mask,
+    pub(crate) kern_mask: Mask,
 
     pub(crate) requested_kerning: bool,
     pub(crate) has_frac: bool,
@@ -48,13 +48,13 @@ pub struct hb_ot_shape_plan_t {
 pub trait AnyFont {
     fn with_font<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(Option<&hb_font_t>) -> R;
+        F: FnOnce(Option<&Shaper>) -> R;
 }
 
-impl AnyFont for hb_font_t<'_> {
+impl AnyFont for Shaper<'_> {
     fn with_font<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(Option<&hb_font_t>) -> R,
+        F: FnOnce(Option<&Shaper>) -> R,
     {
         f(Some(self))
     }
@@ -63,14 +63,14 @@ impl AnyFont for hb_font_t<'_> {
 impl AnyFont for crate::font::FontInstance {
     fn with_font<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(Option<&hb_font_t>) -> R,
+        F: FnOnce(Option<&Shaper>) -> R,
     {
-        let hb_font = hb_font_t::from_font(self);
-        f(hb_font.as_ref())
+        let shaper = Shaper::from_font(self);
+        f(shaper.as_ref())
     }
 }
 
-impl hb_ot_shape_plan_t {
+impl ShapePlan {
     /// Returns a plan that can be used for shaping any buffer with the
     /// provided properties.
     pub fn new(
@@ -87,7 +87,7 @@ impl hb_ot_shape_plan_t {
         );
         font.with_font(|font| {
             let font = font.expect("font should be available for shaping");
-            let mut planner = hb_ot_shape_planner_t::new(font, direction, script, language);
+            let mut planner = ShapePlanner::new(font, direction, script, language);
             planner.collect_features(user_features);
             planner.compile(user_features)
         })
@@ -155,7 +155,7 @@ impl<'a> ShapePlanKey<'a> {
     }
 
     /// Returns true if this key is a match for the given shape plan.
-    pub fn matches(&self, plan: &hb_ot_shape_plan_t) -> bool {
+    pub fn matches(&self, plan: &ShapePlan) -> bool {
         self.script == plan.script
             && self.direction == plan.direction
             && self.language == plan.language.as_ref()
@@ -182,11 +182,11 @@ fn features_equivalent(features_a: &[Feature], features_b: &[Feature]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::hb_ot_shape_plan_t;
+    use super::ShapePlan;
 
     #[test]
     fn test_shape_plan_is_send_and_sync() {
         fn ensure_send_and_sync<T: Send + Sync>() {}
-        ensure_send_and_sync::<hb_ot_shape_plan_t>();
+        ensure_send_and_sync::<ShapePlan>();
     }
 }

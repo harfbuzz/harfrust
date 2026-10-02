@@ -71,16 +71,16 @@ impl SelectAtomic<32> for () {
 }
 
 /// Public wrapper
-pub type hb_cache_t<
+pub type Cache<
     const KEY_BITS: usize,
     const VALUE_BITS: usize,
     const CACHE_SIZE: usize,
     const STORAGE_BITS: usize,
-> = hb_cache_core_t<KEY_BITS, VALUE_BITS, CACHE_SIZE, <() as SelectAtomic<STORAGE_BITS>>::Type>;
+> = CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, <() as SelectAtomic<STORAGE_BITS>>::Type>;
 
 /// Core cache
 #[derive(Debug)]
-pub struct hb_cache_core_t<
+pub struct CacheCore<
     const KEY_BITS: usize,
     const VALUE_BITS: usize,
     const CACHE_SIZE: usize,
@@ -90,7 +90,7 @@ pub struct hb_cache_core_t<
 }
 
 impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T: AtomicStorage>
-    hb_cache_core_t<KEY_BITS, VALUE_BITS, CACHE_SIZE, T>
+    CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, T>
 {
     pub const MAX_VALUE: u32 = (1 << VALUE_BITS) - 1;
     const CACHE_BITS: usize = CACHE_SIZE.ilog2() as usize;

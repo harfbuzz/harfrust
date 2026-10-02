@@ -19,8 +19,8 @@
 #![allow(non_camel_case_types)]
 #![allow(unused_imports)]
 
-use super::indic::ot_category_t::*;
-use super::indic::ot_position_t::*;
+use super::indic::category::*;
+use super::indic::position::*;
 
 
 use OT_A     as _OT_A;          /*  53 chars; A */
@@ -78,7 +78,7 @@ const fn indic_combine_categories (s: u8, m: u8) -> u16
 
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_indic_values: [u16; 42]=
+pub(crate) static indic_values: [u16; 42]=
 [
     indic_combine_categories(_OT_A, _POS_SM),  indic_combine_categories(_OT_As, _POS_X),
      indic_combine_categories(_OT_C, _POS_C),  indic_combine_categories(_OT_CM, _POS_C),
@@ -103,7 +103,7 @@ pub(crate) static _hb_indic_values: [u16; 42]=
    indic_combine_categories(_OT_ZWJ, _POS_X),indic_combine_categories(_OT_ZWNJ, _POS_X),
 ];
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_indic_u8: [u8; 1224]=
+pub(crate) static indic_u8: [u8; 1224]=
 [
     1,  0, 50,  4,  5, 96,  0,  7,  8,  9,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -186,22 +186,22 @@ pub(crate) static _hb_indic_u8: [u8; 1224]=
 
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast)]
 #[inline(always)]
-fn _hb_indic_b4 (a: &[u8], i: usize) -> u8
+fn indic_b4 (a: &[u8], i: usize) -> u8
 {
   (a[i>>1]>>((i&1)<<2))&15
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_indic_get_categories_index (u: usize) -> u8
+pub(crate) fn indic_get_categories_index (u: usize) -> u8
 {
   /* packtab: [2^4,2^3,2^3,2^2,2^1] */
-  if u<71396usize { (_hb_indic_u8[996usize+(((_hb_indic_u8[488usize+((((_hb_indic_u8[186usize+((((_hb_indic_u8[70usize+((((_hb_indic_b4(&_hb_indic_u8,(((((((((u)>>1))>>2))>>3))>>3) as usize) as usize)) as usize)<<3) as usize+((((((((u)>>1))>>2))>>3))&7) as usize) as usize]) as usize)<<3) as usize+((((((u)>>1))>>2))&7) as usize) as usize]) as usize)<<2) as usize+((((u)>>1))&3) as usize) as usize]) as usize) as usize+((u)&1) as usize) as usize]) as u8 } else { 37 }
+  if u<71396usize { (indic_u8[996usize+(((indic_u8[488usize+((((indic_u8[186usize+((((indic_u8[70usize+((((indic_b4(&indic_u8,(((((((((u)>>1))>>2))>>3))>>3) as usize) as usize)) as usize)<<3) as usize+((((((((u)>>1))>>2))>>3))&7) as usize) as usize]) as usize)<<3) as usize+((((((u)>>1))>>2))&7) as usize) as usize]) as usize)<<2) as usize+((((u)>>1))&3) as usize) as usize]) as usize) as usize+((u)&1) as usize) as usize]) as u8 } else { 37 }
 }
 
 #[inline]
 pub(crate) fn get_categories (u: u32) -> (u8, u8)
 {
-  let v = _hb_indic_values[_hb_indic_get_categories_index (u as usize) as usize];
+  let v = indic_values[indic_get_categories_index (u as usize) as usize];
   ((v & 0xFF) as u8, (v >> 8) as u8)
 }
 

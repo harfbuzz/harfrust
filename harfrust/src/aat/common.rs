@@ -1,11 +1,11 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
 use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
-use crate::face::hb_font_t;
 use crate::face::Scale;
-use crate::hb_mask_t;
+use crate::face::Shaper;
 use crate::ot::gsubgpos::MappingCache;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
+use crate::Mask;
 use crate::U32Set;
 use alloc::vec::Vec;
 use read_fonts::tables::aat::*;
@@ -38,13 +38,13 @@ pub(crate) fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout-common.hh#L108>
 #[doc(alias = "hb_aat_apply_context_t")]
 pub struct AatApplyContext<'a> {
-    pub plan: &'a hb_ot_shape_plan_t,
-    pub face: &'a hb_font_t<'a>,
+    pub plan: &'a ShapePlan,
+    pub face: &'a Shaper<'a>,
     pub scale: Scale,
     pub buffer: &'a mut Buffer,
     pub has_glyph_classes: bool,
     pub range_flags: Option<&'a [RangeFlags]>,
-    pub subtable_flags: hb_mask_t,
+    pub subtable_flags: Mask,
     pub(crate) buffer_is_reversed: bool,
     // Caches
     using_buffer_glyph_set: bool,
@@ -57,8 +57,8 @@ pub struct AatApplyContext<'a> {
 
 impl<'a> AatApplyContext<'a> {
     pub fn new(
-        plan: &'a hb_ot_shape_plan_t,
-        face: &'a hb_font_t<'a>,
+        plan: &'a ShapePlan,
+        face: &'a Shaper<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
     ) -> Self {

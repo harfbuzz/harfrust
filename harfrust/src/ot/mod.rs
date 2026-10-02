@@ -1,9 +1,9 @@
 use self::gsubgpos::{BinaryCache, MappingCache};
-use self::layout::TableIndex;
+use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
-use super::{common::TagExt, set_digest::hb_set_digest_t};
-use crate::hb_tag_t;
+use super::{common::TagExt, set_digest::SetDigest};
 use crate::tables::TableRanges;
+use crate::Tag;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
 use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
@@ -36,7 +36,7 @@ pub(crate) mod shaper;
 use super::{aat, buffer, cache, face, font_funcs, set_digest, tag};
 #[allow(unused_imports)]
 use super::{
-    clamp_i64_to_i32, hb_font_t, hb_mask_t, script, Direction, Feature, GlyphInfo, Language, Script,
+    clamp_i64_to_i32, script, Direction, Feature, GlyphInfo, Language, Mask, Script, Shaper,
 };
 
 pub struct OtCache {
@@ -56,7 +56,7 @@ const MARK_GLYPH_SET_PAGE_BITS: u32 = 512;
 #[derive(Clone, Debug)]
 pub enum MarkGlyphSetBitmap {
     Page { bias: u32, bits: [u64; 8] },
-    Digest(hb_set_digest_t),
+    Digest(SetDigest),
 }
 
 impl MarkGlyphSetBitmap {
@@ -116,7 +116,7 @@ impl MarkGlyphSetBitmap {
             }
         }
 
-        Self::Digest(hb_set_digest_t::from_coverage(coverage))
+        Self::Digest(SetDigest::from_coverage(coverage))
     }
 
     #[inline(always)]
@@ -211,7 +211,7 @@ impl GdefCache {
             );
             mark_set_bitmaps.extend(mark_sets.coverages().iter().map(|set| {
                 set.ok().map_or_else(
-                    || MarkGlyphSetBitmap::Digest(hb_set_digest_t::default()),
+                    || MarkGlyphSetBitmap::Digest(SetDigest::default()),
                     |coverage| MarkGlyphSetBitmap::from_coverage(&coverage),
                 )
             }));
@@ -247,7 +247,7 @@ pub struct GsubTable<'a> {
 }
 
 impl layout::LayoutTable for GsubTable<'_> {
-    const INDEX: TableIndex = TableIndex::GSUB;
+    const KIND: LayoutTableKind = LayoutTableKind::Gsub;
     const IN_PLACE: bool = false;
 
     fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
@@ -262,7 +262,7 @@ pub struct GposTable<'a> {
 }
 
 impl layout::LayoutTable for GposTable<'_> {
-    const INDEX: TableIndex = TableIndex::GPOS;
+    const KIND: LayoutTableKind = LayoutTableKind::Gpos;
     const IN_PLACE: bool = true;
 
     fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
@@ -459,8 +459,8 @@ impl<'a> OtTables<'a> {
             .unwrap_or_else(|| self.is_mark_glyph_gdef(glyph_id, set_index))
     }
 
-    pub fn table_data(&self, table_index: TableIndex) -> Option<&'a [u8]> {
-        if table_index == TableIndex::GSUB {
+    pub fn table_data(&self, table_index: LayoutTableKind) -> Option<&'a [u8]> {
+        if table_index == LayoutTableKind::Gsub {
             self.gsub.as_ref().map(|t| t.table.offset_data().as_bytes())
         } else {
             self.gpos.as_ref().map(|t| t.table.offset_data().as_bytes())
@@ -469,10 +469,10 @@ impl<'a> OtTables<'a> {
 
     pub fn table_data_and_lookup(
         &self,
-        table_index: TableIndex,
+        table_index: LayoutTableKind,
         lookup_index: u16,
     ) -> Option<(&'a [u8], &'a LookupInfo)> {
-        if table_index == TableIndex::GSUB {
+        if table_index == LayoutTableKind::Gsub {
             let table = self.gsub.as_ref()?;
             Some((
                 table.table.offset_data().as_bytes(),
@@ -551,7 +551,7 @@ impl<'a> LayoutTable<'a> {
             .map(|script| script.element)
     }
 
-    fn langsys_index(&self, script_index: u16, tag: hb_tag_t) -> Option<u16> {
+    fn langsys_index(&self, script_index: u16, tag: Tag) -> Option<u16> {
         let script = self.script(script_index)?;
         script.lang_sys_index_for_tag(tag)
     }
@@ -573,7 +573,7 @@ impl<'a> LayoutTable<'a> {
             .map(|feature| feature.element)
     }
 
-    fn feature_tag(&self, index: u16) -> Option<hb_tag_t> {
+    fn feature_tag(&self, index: u16) -> Option<Tag> {
         self.feature_list()?
             .get(index)
             .ok()
@@ -644,7 +644,7 @@ impl<'a> LayoutTable<'a> {
         }
     }
 
-    pub(crate) fn feature_index(&self, tag: hb_tag_t) -> Option<u16> {
+    pub(crate) fn feature_index(&self, tag: Tag) -> Option<u16> {
         let list = self.feature_list()?;
         for (index, feature) in list.feature_records().iter().enumerate() {
             if feature.feature_tag() == tag {
@@ -670,7 +670,7 @@ impl<'a> LayoutTable<'a> {
     // hb_ot_layout_table_select_script
     /// Returns true + index and tag of the first found script tag in the given GSUB or GPOS table
     /// or false + index and tag if falling back to a default script.
-    pub(crate) fn select_script(&self, script_tags: &[hb_tag_t]) -> Option<(bool, u16, hb_tag_t)> {
+    pub(crate) fn select_script(&self, script_tags: &[Tag]) -> Option<(bool, u16, Tag)> {
         let selected = self.script_list()?.select(script_tags)?;
         Some((!selected.is_fallback, selected.index, selected.tag))
     }
@@ -681,7 +681,7 @@ impl<'a> LayoutTable<'a> {
     pub(crate) fn select_script_language(
         &self,
         script_index: u16,
-        lang_tags: &[hb_tag_t],
+        lang_tags: &[Tag],
     ) -> Option<u16> {
         for &tag in lang_tags {
             if let Some(index) = self.langsys_index(script_index, tag) {
@@ -690,7 +690,7 @@ impl<'a> LayoutTable<'a> {
         }
 
         // try finding 'dflt'
-        if let Some(index) = self.langsys_index(script_index, hb_tag_t::default_language()) {
+        if let Some(index) = self.langsys_index(script_index, Tag::default_language()) {
             return Some(index);
         }
 
@@ -704,7 +704,7 @@ impl<'a> LayoutTable<'a> {
         &self,
         script_index: u16,
         lang_index: Option<u16>,
-    ) -> Option<(u16, hb_tag_t)> {
+    ) -> Option<(u16, Tag)> {
         let sys = self.langsys(script_index, lang_index)?;
         let idx = sys.required_feature_index();
         if idx == 0xFFFF {
@@ -721,7 +721,7 @@ impl<'a> LayoutTable<'a> {
         &self,
         script_index: u16,
         lang_index: Option<u16>,
-        feature_tag: hb_tag_t,
+        feature_tag: Tag,
     ) -> Option<u16> {
         self.langsys(script_index, lang_index)?
             .feature_index_for_tag(&self.feature_list()?, feature_tag)

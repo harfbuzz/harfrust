@@ -1,8 +1,8 @@
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::ot::common::lookup_flags;
 use crate::ot::gpos::attach_type;
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
-use crate::ot::gsubgpos::{match_t, skipping_iterator_t, Apply};
+use crate::ot::gsubgpos::ApplyContext;
+use crate::ot::gsubgpos::{Apply, MatchResult, SkippingIterator};
 use read_fonts::tables::gpos::{
     AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
@@ -44,7 +44,7 @@ fn resolve_cross_offset(
 trait MarkArrayExt {
     fn apply(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         base_anchor: &AnchorTable,
         mark_anchor: &AnchorTable,
         glyph_pos: usize,
@@ -54,7 +54,7 @@ trait MarkArrayExt {
 impl MarkArrayExt for MarkArray<'_> {
     fn apply(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         base_anchor: &AnchorTable,
         mark_anchor: &AnchorTable,
         glyph_pos: usize,
@@ -99,7 +99,7 @@ impl MarkArrayExt for MarkArray<'_> {
 }
 
 impl Apply for MarkBasePosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
 
@@ -116,24 +116,24 @@ impl Apply for MarkBasePosFormat1<'_> {
 
         // Now we search backwards for a non-mark glyph
         // We don't use skippy_iter.prev() to avoid O(n^2) behavior.
-        let mut iter = skipping_iterator_t::new(ctx, false);
+        let mut iter = SkippingIterator::new(ctx, false);
         iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
 
         let mut j = iter.buffer.idx;
         while j > last_base_until as usize {
             let mut _match = iter.match_at(j - 1);
-            if _match == match_t::MATCH {
+            if _match == MatchResult::Match {
                 // https://github.com/harfbuzz/harfbuzz/issues/4124
                 if !accept(iter.buffer, j - 1)
                     && base_coverage
                         .get(iter.buffer.info[j - 1].as_glyph())
                         .is_none()
                 {
-                    _match = match_t::SKIP;
+                    _match = MatchResult::Skip;
                 }
             }
 
-            if _match == match_t::MATCH {
+            if _match == MatchResult::Match {
                 last_base = j as i32 - 1;
                 break;
             }
@@ -192,12 +192,12 @@ fn accept(buffer: &Buffer, idx: usize) -> bool {
 }
 
 impl Apply for MarkMarkPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let mark1_glyph = ctx.buffer.cur(0).as_glyph();
         let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
         let lookup_props = ctx.lookup_props;
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
-        let mut iter = skipping_iterator_t::new(ctx, false);
+        let mut iter = SkippingIterator::new(ctx, false);
         iter.reset_fast(iter.buffer.idx);
         iter.set_lookup_props(lookup_props & !u32::from(lookup_flags::IGNORE_FLAGS));
 
@@ -255,7 +255,7 @@ impl Apply for MarkMarkPosFormat1<'_> {
 }
 
 impl Apply for MarkLigPosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0).as_glyph();
         let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
         let ligature_coverage = self.ligature_coverage().ok()?;
@@ -271,21 +271,21 @@ impl Apply for MarkLigPosFormat1<'_> {
         let mut last_base = ctx.last_base;
 
         // Now we search backwards for a non-mark glyph
-        let mut iter = skipping_iterator_t::new(ctx, false);
+        let mut iter = SkippingIterator::new(ctx, false);
         iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
 
         let mut j = iter.buffer.idx;
         while j > last_base_until as usize {
             let mut _match = iter.match_at(j - 1);
-            if _match == match_t::MATCH
+            if _match == MatchResult::Match
                 && !accept_mark_ligature(iter.buffer, j - 1)
                 && ligature_coverage
                     .get(iter.buffer.info[j - 1].as_glyph())
                     .is_none()
             {
-                _match = match_t::SKIP;
+                _match = MatchResult::Skip;
             }
-            if _match == match_t::MATCH {
+            if _match == MatchResult::Match {
                 last_base = j as i32 - 1;
                 break;
             }

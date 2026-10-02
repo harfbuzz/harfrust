@@ -4,34 +4,34 @@ use core::ops::Range;
 
 use super::buffer::{Buffer, GlyphFlags};
 use super::font_funcs::FontFuncsDispatch;
-use super::layout::TableIndex;
-use super::shape::plan::hb_ot_shape_plan_t;
-use super::{hb_font_t, hb_mask_t, hb_tag_t, tag, Language, Script};
+use super::layout::LayoutTableKind;
+use super::shape::plan::ShapePlan;
+use super::{tag, Language, Mask, Script, Shaper, Tag};
 use crate::common::TagExt;
 
 // TODO: Remove once MSRV is 1.80+
 use core::mem::{size_of, size_of_val};
 
-pub struct hb_ot_map_t {
+pub struct OtMap {
     found_script: [bool; 2],
-    chosen_script: [Option<hb_tag_t>; 2],
-    global_mask: hb_mask_t,
-    features: Vec<feature_map_t>,
-    lookups: [Vec<lookup_map_t>; 2],
+    chosen_script: [Option<Tag>; 2],
+    global_mask: Mask,
+    features: Vec<FeatureMap>,
+    lookups: [Vec<LookupMap>; 2],
     stages: [Vec<StageMap>; 2],
     feature_variations: [Option<u32>; 2],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct feature_map_t {
-    tag: hb_tag_t,
+pub struct FeatureMap {
+    tag: Tag,
     // GSUB/GPOS
     index: [Option<u16>; 2],
     stage: [usize; 2],
     shift: u32,
-    mask: hb_mask_t,
+    mask: Mask,
     // mask for value=1, for quick access
-    one_mask: hb_mask_t,
+    one_mask: Mask,
     needs_fallback: bool,
     auto_zwnj: bool,
     auto_zwj: bool,
@@ -39,26 +39,26 @@ pub struct feature_map_t {
     per_syllable: bool,
 }
 
-impl Ord for feature_map_t {
+impl Ord for FeatureMap {
     fn cmp(&self, other: &Self) -> Ordering {
         self.tag.cmp(&other.tag)
     }
 }
 
-impl PartialOrd for feature_map_t {
+impl PartialOrd for FeatureMap {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.tag.partial_cmp(&other.tag)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct lookup_map_t {
+pub struct LookupMap {
     pub index: u16,
     // TODO: to bitflags
     pub auto_zwnj: bool,
     pub auto_zwj: bool,
     pub random: bool,
-    pub mask: hb_mask_t,
+    pub mask: Mask,
     pub per_syllable: bool,
 }
 
@@ -66,34 +66,34 @@ pub struct lookup_map_t {
 pub struct StageMap {
     // Cumulative
     pub last_lookup: usize,
-    pub pause_func: Option<pause_func_t>,
+    pub pause_func: Option<PauseFn>,
 }
 
 // Pause functions return true if new glyph indices might have been added to the buffer.
 // This is used to update buffer digest.
-pub type pause_func_t = fn(&hb_ot_shape_plan_t, &mut FontFuncsDispatch, &mut Buffer) -> bool;
+pub type PauseFn = fn(&ShapePlan, &mut FontFuncsDispatch, &mut Buffer) -> bool;
 
-impl hb_ot_map_t {
+impl OtMap {
     pub const MAX_BITS: u32 = 8;
     pub const MAX_VALUE: u32 = (1 << Self::MAX_BITS) - 1;
 
     #[inline]
-    pub fn found_script(&self, table_index: TableIndex) -> bool {
+    pub fn found_script(&self, table_index: LayoutTableKind) -> bool {
         self.found_script[table_index]
     }
 
     #[inline]
-    pub fn chosen_script(&self, table_index: TableIndex) -> Option<hb_tag_t> {
+    pub fn chosen_script(&self, table_index: LayoutTableKind) -> Option<Tag> {
         self.chosen_script[table_index]
     }
 
     #[inline]
-    pub fn get_global_mask(&self) -> hb_mask_t {
+    pub fn get_global_mask(&self) -> Mask {
         self.global_mask
     }
 
     #[inline]
-    pub fn get_mask(&self, feature_tag: hb_tag_t) -> (hb_mask_t, u32) {
+    pub fn get_mask(&self, feature_tag: Tag) -> (Mask, u32) {
         self.features
             .binary_search_by_key(&feature_tag, |f| f.tag)
             .map_or((0, 0), |idx| {
@@ -102,21 +102,21 @@ impl hb_ot_map_t {
     }
 
     #[inline]
-    pub fn get_1_mask(&self, feature_tag: hb_tag_t) -> hb_mask_t {
+    pub fn get_1_mask(&self, feature_tag: Tag) -> Mask {
         self.features
             .binary_search_by_key(&feature_tag, |f| f.tag)
             .map_or(0, |idx| self.features[idx].one_mask)
     }
 
     #[inline]
-    pub fn needs_fallback(&self, feature_tag: hb_tag_t) -> bool {
+    pub fn needs_fallback(&self, feature_tag: Tag) -> bool {
         self.features
             .binary_search_by_key(&feature_tag, |f| f.tag)
             .is_ok_and(|idx| self.features[idx].needs_fallback)
     }
 
     #[inline]
-    pub fn get_feature_index(&self, table_index: TableIndex, feature_tag: hb_tag_t) -> Option<u16> {
+    pub fn get_feature_index(&self, table_index: LayoutTableKind, feature_tag: Tag) -> Option<u16> {
         self.features
             .binary_search_by_key(&feature_tag, |f| f.tag)
             .ok()
@@ -126,8 +126,8 @@ impl hb_ot_map_t {
     #[inline]
     pub fn get_feature_stage(
         &self,
-        table_index: TableIndex,
-        feature_tag: hb_tag_t,
+        table_index: LayoutTableKind,
+        feature_tag: Tag,
     ) -> Option<usize> {
         self.features
             .binary_search_by_key(&feature_tag, |f| f.tag)
@@ -136,22 +136,22 @@ impl hb_ot_map_t {
     }
 
     #[inline]
-    pub fn stages(&self, table_index: TableIndex) -> &[StageMap] {
+    pub fn stages(&self, table_index: LayoutTableKind) -> &[StageMap] {
         &self.stages[table_index]
     }
 
     #[inline]
-    pub fn lookup(&self, table_index: TableIndex, index: usize) -> &lookup_map_t {
+    pub fn lookup(&self, table_index: LayoutTableKind, index: usize) -> &LookupMap {
         &self.lookups[table_index][index]
     }
 
     #[inline]
-    pub fn stage_lookups(&self, table_index: TableIndex, stage: usize) -> &[lookup_map_t] {
+    pub fn stage_lookups(&self, table_index: LayoutTableKind, stage: usize) -> &[LookupMap] {
         &self.lookups[table_index][self.stage_lookup_range(table_index, stage)]
     }
 
     #[inline]
-    pub fn stage_lookup_range(&self, table_index: TableIndex, stage: usize) -> Range<usize> {
+    pub fn stage_lookup_range(&self, table_index: LayoutTableKind, stage: usize) -> Range<usize> {
         let stages = &self.stages[table_index];
         let lookups = &self.lookups[table_index];
         let start = stage
@@ -168,7 +168,7 @@ impl hb_ot_map_t {
     }
 }
 
-pub type hb_ot_map_feature_flags_t = u32;
+pub type MapFeatureFlags = u32;
 pub const F_NONE: u32 = 0x0000;
 pub const F_GLOBAL: u32 = 0x0001; /* Feature applies to all characters; results in no mask allocated for it. */
 pub const F_HAS_FALLBACK: u32 = 0x0002; /* Has fallback implementation, so include mask bit even if feature not found. */
@@ -181,25 +181,25 @@ pub const F_GLOBAL_SEARCH: u32 = 0x0010; /* If feature not found in LangSys, loo
 pub const F_RANDOM: u32 = 0x0020; /* Randomly select a glyph from an AlternateSubstFormat1 subtable. */
 pub const F_PER_SYLLABLE: u32 = 0x0040; /* Contain lookup application to within syllable. */
 
-pub struct hb_ot_map_builder_t<'a> {
-    face: &'a hb_font_t<'a>,
+pub struct OtMapBuilder<'a> {
+    face: &'a Shaper<'a>,
     found_script: [bool; 2],
     script_index: [Option<u16>; 2],
-    chosen_script: [Option<hb_tag_t>; 2],
+    chosen_script: [Option<Tag>; 2],
     lang_index: [Option<u16>; 2],
     current_stage: [usize; 2],
-    feature_infos: Vec<feature_info_t>,
-    stages: [Vec<stage_info_t>; 2],
+    feature_infos: Vec<FeatureInfo>,
+    stages: [Vec<StageInfo>; 2],
     pub(crate) is_simple: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct feature_info_t {
-    tag: hb_tag_t,
+struct FeatureInfo {
+    tag: Tag,
     // sequence number, used for stable sorting only
     seq: usize,
     max_value: u32,
-    flags: hb_ot_map_feature_flags_t,
+    flags: MapFeatureFlags,
     // for non-global features, what should the unset glyphs take
     default_value: u32,
     // GSUB/GPOS
@@ -207,20 +207,16 @@ struct feature_info_t {
 }
 
 #[derive(Clone, Copy)]
-struct stage_info_t {
+struct StageInfo {
     index: usize,
-    pause_func: Option<pause_func_t>,
+    pause_func: Option<PauseFn>,
 }
 
 const GLOBAL_BIT_SHIFT: u32 = 8 * size_of::<u32>() as u32 - 1;
-const GLOBAL_BIT_MASK: hb_mask_t = 1 << GLOBAL_BIT_SHIFT;
+const GLOBAL_BIT_MASK: Mask = 1 << GLOBAL_BIT_SHIFT;
 
-impl<'a> hb_ot_map_builder_t<'a> {
-    pub fn new(
-        face: &'a hb_font_t<'a>,
-        script: Option<Script>,
-        language: Option<&Language>,
-    ) -> Self {
+impl<'a> OtMapBuilder<'a> {
+    pub fn new(face: &'a Shaper<'a>, script: Option<Script>, language: Option<&Language>) -> Self {
         // Fetch script/language indices for GSUB/GPOS.  We need these later to skip
         // features not available in either table and not waste precious bits for them.
         let (script_tags, lang_tags) = tag::tags_from_script_and_language(script, language);
@@ -256,12 +252,12 @@ impl<'a> hb_ot_map_builder_t<'a> {
     }
 
     #[inline]
-    pub fn chosen_script(&self, table_index: TableIndex) -> Option<hb_tag_t> {
+    pub fn chosen_script(&self, table_index: LayoutTableKind) -> Option<Tag> {
         self.chosen_script[table_index]
     }
 
     #[inline]
-    pub fn has_feature(&self, tag: hb_tag_t) -> bool {
+    pub fn has_feature(&self, tag: Tag) -> bool {
         for (table_index, table) in self.face.layout_tables() {
             if let Some(script_index) = self.script_index[table_index] {
                 if table
@@ -277,10 +273,10 @@ impl<'a> hb_ot_map_builder_t<'a> {
     }
 
     #[inline]
-    pub fn add_feature(&mut self, tag: hb_tag_t, flags: hb_ot_map_feature_flags_t, value: u32) {
+    pub fn add_feature(&mut self, tag: Tag, flags: MapFeatureFlags, value: u32) {
         if !tag.is_null() {
             let seq = self.feature_infos.len();
-            self.feature_infos.push(feature_info_t {
+            self.feature_infos.push(FeatureInfo {
                 tag,
                 seq,
                 max_value: value,
@@ -292,27 +288,27 @@ impl<'a> hb_ot_map_builder_t<'a> {
     }
 
     #[inline]
-    pub fn enable_feature(&mut self, tag: hb_tag_t, flags: hb_ot_map_feature_flags_t, value: u32) {
+    pub fn enable_feature(&mut self, tag: Tag, flags: MapFeatureFlags, value: u32) {
         self.add_feature(tag, flags | F_GLOBAL, value);
     }
 
     #[inline]
-    pub fn disable_feature(&mut self, tag: hb_tag_t) {
+    pub fn disable_feature(&mut self, tag: Tag) {
         self.add_feature(tag, F_GLOBAL, 0);
     }
 
     #[inline]
-    pub fn add_gsub_pause(&mut self, pause: Option<pause_func_t>) {
-        self.add_pause(TableIndex::GSUB, pause);
+    pub fn add_gsub_pause(&mut self, pause: Option<PauseFn>) {
+        self.add_pause(LayoutTableKind::Gsub, pause);
     }
 
     #[inline]
-    pub fn add_gpos_pause(&mut self, pause: Option<pause_func_t>) {
-        self.add_pause(TableIndex::GPOS, pause);
+    pub fn add_gpos_pause(&mut self, pause: Option<PauseFn>) {
+        self.add_pause(LayoutTableKind::Gpos, pause);
     }
 
-    fn add_pause(&mut self, table_index: TableIndex, pause: Option<pause_func_t>) {
-        self.stages[table_index].push(stage_info_t {
+    fn add_pause(&mut self, table_index: LayoutTableKind, pause: Option<PauseFn>) {
+        self.stages[table_index].push(StageInfo {
             index: self.current_stage[table_index],
             pause_func: pause,
         });
@@ -320,7 +316,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
         self.current_stage[table_index] += 1;
     }
 
-    pub fn compile(&mut self) -> hb_ot_map_t {
+    pub fn compile(&mut self) -> OtMap {
         // We default to applying required feature in stage 0.  If the required
         // feature has a tag that is known to the shaper, we apply required feature
         // in the stage for that tag.
@@ -345,7 +341,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
         let (lookups, stages) =
             self.collect_lookup_stages(&features, required_index, required_stage);
 
-        hb_ot_map_t {
+        OtMap {
             found_script: self.found_script,
             chosen_script: self.chosen_script,
             global_mask,
@@ -358,8 +354,8 @@ impl<'a> hb_ot_map_builder_t<'a> {
 
     fn collect_feature_maps(
         &mut self,
-        required_tag: [Option<hb_tag_t>; 2],
-    ) -> (Vec<feature_map_t>, [usize; 2], hb_mask_t) {
+        required_tag: [Option<Tag>; 2],
+    ) -> (Vec<FeatureMap>, [usize; 2], Mask) {
         let mut map_features = Vec::new();
         let mut required_stage = [0; 2];
         let mut global_mask = GLOBAL_BIT_MASK;
@@ -376,7 +372,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
                 // Limit bits per feature.
                 let v = info.max_value;
                 let num_bits = 8 * size_of_val(&v) as u32 - v.leading_zeros();
-                hb_ot_map_t::MAX_BITS.min(num_bits)
+                OtMap::MAX_BITS.min(num_bits)
             };
 
             if info.max_value == 0 || next_bit + bits_needed >= GLOBAL_BIT_SHIFT {
@@ -426,7 +422,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
                 (shift, mask)
             };
 
-            map_features.push(feature_map_t {
+            map_features.push(FeatureMap {
                 tag: info.tag,
                 index: feature_index,
                 stage: info.stage,
@@ -490,14 +486,14 @@ impl<'a> hb_ot_map_builder_t<'a> {
 
     fn collect_lookup_stages(
         &self,
-        map_features: &[feature_map_t],
+        map_features: &[FeatureMap],
         required_feature_index: [Option<u16>; 2],
         required_feature_stage: [usize; 2],
-    ) -> ([Vec<lookup_map_t>; 2], [Vec<StageMap>; 2]) {
+    ) -> ([Vec<LookupMap>; 2], [Vec<StageMap>; 2]) {
         let mut map_lookups = [Vec::new(), Vec::new()];
         let mut map_stages = [Vec::new(), Vec::new()];
 
-        for table_index in TableIndex::iter() {
+        for table_index in LayoutTableKind::iter() {
             // Collect lookup indices for features.
             let mut stage_index = 0;
             let mut last_lookup = 0;
@@ -581,11 +577,11 @@ impl<'a> hb_ot_map_builder_t<'a> {
 
     fn add_lookups(
         &self,
-        lookups: &mut Vec<lookup_map_t>,
-        table_index: TableIndex,
+        lookups: &mut Vec<LookupMap>,
+        table_index: LayoutTableKind,
         feature_index: u16,
         variation_index: Option<u32>,
-        mask: hb_mask_t,
+        mask: Mask,
         auto_zwnj: bool,
         auto_zwj: bool,
         random: bool,
@@ -604,7 +600,7 @@ impl<'a> hb_ot_map_builder_t<'a> {
         for index in feature.lookup_list_indices() {
             let index = index.get();
             if index < lookup_count {
-                lookups.push(lookup_map_t {
+                lookups.push(LookupMap {
                     index,
                     auto_zwnj,
                     auto_zwj,

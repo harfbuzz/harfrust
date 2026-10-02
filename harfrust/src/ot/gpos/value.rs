@@ -1,4 +1,4 @@
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
+use crate::ot::gsubgpos::ApplyContext;
 use read_fonts::{
     tables::{gpos::ValueFormat, variations::DeltaSetIndex},
     FontData,
@@ -6,7 +6,7 @@ use read_fonts::{
 
 #[allow(unused_assignments)]
 pub(super) fn apply(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     idx: usize,
     data: &FontData,
     mut offset: usize,

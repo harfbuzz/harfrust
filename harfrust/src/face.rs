@@ -10,11 +10,11 @@ use core_maths::CoreFloat as _;
 
 use super::aat::AatTables;
 use super::buffer::Buffer;
-use super::charmap::{cache_t as cmap_cache_t, Charmap};
+use super::charmap::{Charmap, CharmapCache};
 use super::font_funcs::FontFuncsDispatch;
 use super::glyph_metrics::GlyphMetrics;
 use super::glyph_names::GlyphNames;
-use super::ot::layout::TableIndex;
+use super::ot::layout::LayoutTableKind;
 use super::ot::shape::OtShapeContext;
 use super::ot::{LayoutTable, OtCache, OtTables};
 use crate::aat::AatCache;
@@ -34,7 +34,7 @@ pub struct ShaperData {
     table_ranges: TableRanges,
     ot_cache: OtCache,
     aat_cache: AatCache,
-    cmap_cache: cmap_cache_t,
+    cmap_cache: CharmapCache,
     // True if a font has both trak and STAT tables.
     apply_trak: bool,
 }
@@ -45,7 +45,7 @@ impl ShaperData {
         let ot_cache = OtCache::new(font);
         let aat_cache = AatCache::new(font, &ot_cache);
         let table_ranges = TableRanges::new(font);
-        let cmap_cache = cmap_cache_t::new();
+        let cmap_cache = CharmapCache::new();
         let apply_trak = font.trak().is_ok() && font.stat().is_ok();
         Self {
             table_ranges,
@@ -61,7 +61,7 @@ impl ShaperData {
         let ot_cache = OtCache::new(&tables);
         let aat_cache = AatCache::new(&tables, &ot_cache);
         let table_ranges = TableRanges::from_tables(&tables);
-        let cmap_cache = cmap_cache_t::new();
+        let cmap_cache = CharmapCache::new();
         let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
         Self {
             table_ranges,
@@ -228,7 +228,7 @@ impl<'a> ShaperBuilder<'a> {
     }
 
     /// Builds the shaper with the current configuration.
-    pub fn build(self) -> crate::Shaper<'a> {
+    pub fn build(self) -> Shaper<'a> {
         let font = self.font;
         let units_per_em = self.data.table_ranges.units_per_em;
         let charmap = Charmap::new(&font, &self.data.table_ranges);
@@ -253,7 +253,7 @@ impl<'a> ShaperBuilder<'a> {
         let glyph_metrics = Some(font_data.glyph_metrics.clone());
         let charmap = Some(font_data.charmap.clone());
         let font = FontKind::FontRef(font_data);
-        hb_font_t {
+        Shaper {
             font,
             units_per_em,
             cmap_cache: &self.data.cmap_cache,
@@ -470,8 +470,8 @@ pub fn shape(
     buffer: UnicodeBuffer,
     mut options: ShapeOptions<'_>,
 ) -> GlyphBuffer {
-    let hb_font = hb_font_t::from_font(font);
-    let Some(hb_font) = hb_font.as_ref() else {
+    let shaper = Shaper::from_font(font);
+    let Some(shaper) = shaper.as_ref() else {
         let mut buffer = buffer;
         buffer.clear();
         return GlyphBuffer(buffer.0);
@@ -485,7 +485,7 @@ pub fn shape(
     }
     let mut buffer = buffer.0;
     // As above, this signature cannot report a failure.
-    if let Err(err) = hb_font.shape_buffer_inner(&mut buffer, options) {
+    if let Err(err) = shaper.shape_buffer_inner(&mut buffer, options) {
         panic!("{err}");
     }
     GlyphBuffer(buffer)
@@ -520,8 +520,8 @@ impl Buffer {
         font: &crate::font::FontInstance,
         mut options: ShapeOptions<'_>,
     ) -> Result<(), ShapeError> {
-        let hb_font = hb_font_t::from_font(font);
-        let Some(hb_font) = hb_font.as_ref() else {
+        let shaper = Shaper::from_font(font);
+        let Some(shaper) = shaper.as_ref() else {
             return Err(ShapeError::UnusableFont);
         };
         // If the user didn't request an explicit scale but the font instance
@@ -531,7 +531,7 @@ impl Buffer {
                 options = options.scale(Some((ppem * 65536.0) as i32));
             }
         }
-        hb_font.shape_buffer_inner(self, options)
+        shaper.shape_buffer_inner(self, options)
     }
 }
 
@@ -560,10 +560,10 @@ pub struct BasicFontMetrics {
 
 /// A configured shaper.
 #[derive(Clone)]
-pub struct hb_font_t<'a> {
+pub struct Shaper<'a> {
     pub(crate) font: FontKind<'a>,
     pub(crate) units_per_em: u16,
-    pub(crate) cmap_cache: &'a cmap_cache_t,
+    pub(crate) cmap_cache: &'a CharmapCache,
     pub(crate) glyph_metrics: Option<GlyphMetrics<'a>>,
     pub(crate) charmap: Option<Charmap<'a>>,
     pub(crate) ot_tables: OtTables<'a>,
@@ -571,7 +571,7 @@ pub struct hb_font_t<'a> {
     pub(crate) apply_trak: bool,
 }
 
-impl<'a> crate::Shaper<'a> {
+impl<'a> Shaper<'a> {
     /// Builds a shaper for the font instance, reusing the instance's cached
     /// shaping data.
     ///
@@ -778,14 +778,14 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    pub(crate) fn layout_table(&self, table_index: TableIndex) -> Option<LayoutTable<'a>> {
+    pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
         match table_index {
-            TableIndex::GSUB => self
+            LayoutTableKind::Gsub => self
                 .ot_tables
                 .gsub
                 .as_ref()
                 .map(|table| LayoutTable::Gsub(table.table.clone())),
-            TableIndex::GPOS => self
+            LayoutTableKind::Gpos => self
                 .ot_tables
                 .gpos
                 .as_ref()
@@ -793,8 +793,11 @@ impl<'a> crate::Shaper<'a> {
         }
     }
 
-    pub(crate) fn layout_tables(&self) -> impl Iterator<Item = (TableIndex, LayoutTable<'a>)> + '_ {
-        TableIndex::iter().filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
+    pub(crate) fn layout_tables(
+        &self,
+    ) -> impl Iterator<Item = (LayoutTableKind, LayoutTable<'a>)> + '_ {
+        LayoutTableKind::iter()
+            .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
     }
 }
 

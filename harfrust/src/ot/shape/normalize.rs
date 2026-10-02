@@ -1,9 +1,9 @@
-use super::plan::hb_ot_shape_plan_t;
+use super::plan::ShapePlan;
 use crate::buffer::*;
 use crate::font_funcs::{FontFuncsDispatch, NominalGlyphBatch};
-use crate::hb_font_t;
 use crate::ot::shaper::{ComposeFn, DecomposeFn, MAX_COMBINING_MARKS};
-use crate::unicode::{hb_unicode_funcs_t, CharExt, Codepoint};
+use crate::unicode::{space_fallback, CharExt, Codepoint};
+use crate::Shaper;
 use read_fonts::types::GlyphId;
 
 impl GlyphInfo {
@@ -17,15 +17,15 @@ impl GlyphInfo {
     );
 }
 
-pub struct hb_ot_shape_normalize_context_t<'a, 'x, 'u> {
-    pub plan: &'a hb_ot_shape_plan_t,
+pub struct NormalizeContext<'a, 'x, 'u> {
+    pub plan: &'a ShapePlan,
     pub buffer: &'x mut Buffer,
     pub font_funcs: &'x mut FontFuncsDispatch<'a, 'u>,
     pub decompose: DecomposeFn,
     pub compose: ComposeFn,
 }
 
-impl hb_ot_shape_normalize_context_t<'_, '_, '_> {
+impl NormalizeContext<'_, '_, '_> {
     fn nominal_glyph(&mut self, codepoint: u32) -> Option<GlyphId> {
         self.font_funcs.nominal_glyph(codepoint)
     }
@@ -42,14 +42,16 @@ impl hb_ot_shape_normalize_context_t<'_, '_, '_> {
     }
 }
 
-pub type hb_ot_shape_normalization_mode_t = i32;
-pub const HB_OT_SHAPE_NORMALIZATION_MODE_NONE: i32 = 0;
-pub const HB_OT_SHAPE_NORMALIZATION_MODE_DECOMPOSED: i32 = 1;
-pub const HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS: i32 = 2; /* Never composes base-to-base */
-pub const HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT: i32 = 3; /* Always fully decomposes and then recompose back */
-pub const HB_OT_SHAPE_NORMALIZATION_MODE_AUTO: i32 = 4; /* See hb-ot-shape-normalize.cc for logic. */
-#[allow(dead_code)]
-pub const HB_OT_SHAPE_NORMALIZATION_MODE_DEFAULT: i32 = HB_OT_SHAPE_NORMALIZATION_MODE_AUTO;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NormalizationMode {
+    None,
+    Decomposed,
+    /// Never composes base to base.
+    ComposedDiacritics,
+    /// Fully decomposes and recomposes.
+    ComposedDiacriticsNoShortCircuit,
+    Auto,
+}
 
 // HIGHLEVEL DESIGN:
 //
@@ -90,18 +92,11 @@ pub const HB_OT_SHAPE_NORMALIZATION_MODE_DEFAULT: i32 = HB_OT_SHAPE_NORMALIZATIO
 //     offload some of their requirements to the normalizer.  For example, the
 //     Indic shaper may want to disallow recomposing of two matras.
 
-fn decompose_unicode(
-    _: &hb_ot_shape_normalize_context_t,
-    ab: Codepoint,
-) -> Option<(Codepoint, Codepoint)> {
+fn decompose_unicode(_: &NormalizeContext, ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
     crate::unicode::decompose(ab)
 }
 
-fn compose_unicode(
-    _: &hb_ot_shape_normalize_context_t,
-    a: Codepoint,
-    b: Codepoint,
-) -> Option<Codepoint> {
+fn compose_unicode(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     crate::unicode::compose(a, b)
 }
 
@@ -125,7 +120,7 @@ fn skip_char(buffer: &mut Buffer) {
 }
 
 /// Returns 0 if didn't decompose, number of resulting characters otherwise.
-fn decompose(ctx: &mut hb_ot_shape_normalize_context_t, shortest: bool, ab: Codepoint) -> u32 {
+fn decompose(ctx: &mut NormalizeContext, shortest: bool, ab: Codepoint) -> u32 {
     let Some((a, b)) = (ctx.decompose)(ctx, ab) else {
         return 0;
     };
@@ -173,7 +168,7 @@ fn decompose(ctx: &mut hb_ot_shape_normalize_context_t, shortest: bool, ab: Code
     0
 }
 
-fn decompose_current_character(ctx: &mut hb_ot_shape_normalize_context_t, shortest: bool) {
+fn decompose_current_character(ctx: &mut NormalizeContext, shortest: bool) {
     let u = ctx.buffer.cur(0).as_codepoint();
     let glyph = ctx.nominal_glyph(u);
 
@@ -196,7 +191,7 @@ fn decompose_current_character(ctx: &mut hb_ot_shape_normalize_context_t, shorte
 
     if ctx.buffer.cur(0).is_unicode_space() {
         let space_type = u.space_fallback();
-        if space_type != hb_unicode_funcs_t::NOT_SPACE {
+        if space_type != space_fallback::NOT_SPACE {
             let space_glyph = ctx.nominal_glyph(0x0020).or(ctx.buffer.invisible);
 
             if let Some(space_glyph) = space_glyph {
@@ -223,11 +218,7 @@ fn decompose_current_character(ctx: &mut hb_ot_shape_normalize_context_t, shorte
     next_char(ctx.buffer, 0);
 }
 
-fn handle_variation_selector_cluster(
-    ctx: &mut hb_ot_shape_normalize_context_t,
-    end: usize,
-    _: bool,
-) {
+fn handle_variation_selector_cluster(ctx: &mut NormalizeContext, end: usize, _: bool) {
     // Currently if there's a variation-selector we give-up on normalization, it's just too hard.
     while ctx.buffer.idx < end - 1 && ctx.buffer.successful {
         if ctx.buffer.cur(1).as_codepoint().is_variation_selector() {
@@ -273,11 +264,7 @@ fn handle_variation_selector_cluster(
     }
 }
 
-fn decompose_multi_char_cluster(
-    ctx: &mut hb_ot_shape_normalize_context_t,
-    end: usize,
-    short_circuit: bool,
-) {
+fn decompose_multi_char_cluster(ctx: &mut NormalizeContext, end: usize, short_circuit: bool) {
     let mut i = ctx.buffer.idx;
     while i < end && ctx.buffer.successful {
         if ctx.buffer.info[i].as_codepoint().is_variation_selector() {
@@ -298,10 +285,10 @@ fn compare_combining_class(pa: &GlyphInfo, pb: &GlyphInfo) -> bool {
     a > b
 }
 
-pub fn _hb_ot_shape_normalize<'a, 'x>(
-    plan: &'a hb_ot_shape_plan_t,
+pub fn normalize<'a, 'x>(
+    plan: &'a ShapePlan,
     buffer: &'x mut Buffer,
-    _face: &'a hb_font_t<'a>,
+    _face: &'a Shaper<'a>,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {
     if buffer.is_empty() {
@@ -311,17 +298,17 @@ pub fn _hb_ot_shape_normalize<'a, 'x>(
     buffer.assert_unicode_vars();
 
     let mut mode = plan.shaper.normalization_preference;
-    if mode == HB_OT_SHAPE_NORMALIZATION_MODE_AUTO {
+    if mode == NormalizationMode::Auto {
         if plan.has_gpos_mark {
             // https://github.com/harfbuzz/harfbuzz/issues/653#issuecomment-423905920
-            // mode = Some(HB_OT_SHAPE_NORMALIZATION_MODE_DECOMPOSED);
-            mode = HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS;
+            // mode = Some(NormalizationMode::Decomposed);
+            mode = NormalizationMode::ComposedDiacritics;
         } else {
-            mode = HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS;
+            mode = NormalizationMode::ComposedDiacritics;
         }
     }
 
-    let mut ctx = hb_ot_shape_normalize_context_t {
+    let mut ctx = NormalizeContext {
         plan,
         buffer,
         font_funcs,
@@ -329,10 +316,10 @@ pub fn _hb_ot_shape_normalize<'a, 'x>(
         compose: plan.shaper.compose.unwrap_or(compose_unicode),
     };
 
-    let always_short_circuit = mode == HB_OT_SHAPE_NORMALIZATION_MODE_NONE;
+    let always_short_circuit = mode == NormalizationMode::None;
     let might_short_circuit = always_short_circuit
-        || (mode != HB_OT_SHAPE_NORMALIZATION_MODE_DECOMPOSED
-            && mode != HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT);
+        || (mode != NormalizationMode::Decomposed
+            && mode != NormalizationMode::ComposedDiacriticsNoShortCircuit);
 
     // We do a fairly straightforward yet custom normalization process in three
     // separate rounds: decompose, reorder, recompose (if desired).  Currently
@@ -442,8 +429,8 @@ pub fn _hb_ot_shape_normalize<'a, 'x>(
     // Third round, recompose
     if !all_simple
         && ctx.buffer.successful
-        && (mode == HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS
-            || mode == HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT)
+        && (mode == NormalizationMode::ComposedDiacritics
+            || mode == NormalizationMode::ComposedDiacriticsNoShortCircuit)
     {
         // As noted in the comment earlier, we don't try to combine
         // ccc=0 chars with their previous Starter.

@@ -1,12 +1,11 @@
 use crate::{
-    hb_font_t,
     ot::gsubgpos::{
-        hb_ot_apply_context_t, Apply, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
+        Apply, ApplyContext, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
         WouldApplyContext,
     },
-    ot::layout::TableIndex,
-    set_digest::hb_set_digest_t,
-    GlyphInfo,
+    ot::layout::LayoutTableKind,
+    set_digest::SetDigest,
+    GlyphInfo, Shaper,
 };
 use alloc::vec::Vec;
 use read_fonts::{
@@ -183,8 +182,8 @@ pub struct LookupInfo {
     pub props: u32,
     pub is_subst: bool,
     pub is_reversed: bool,
-    pub digest: hb_set_digest_t,
-    pub digest_second: hb_set_digest_t,
+    pub digest: SetDigest,
+    pub digest_second: SetDigest,
     pub subtable_cache_user_idx: Option<usize>,
     pub subtables: Vec<SubtableInfo>,
 }
@@ -252,11 +251,11 @@ impl LookupInfo {
         self.is_reversed
     }
 
-    pub fn digest(&self) -> &hb_set_digest_t {
+    pub fn digest(&self) -> &SetDigest {
         &self.digest
     }
 
-    pub fn digest_second(&self) -> &hb_set_digest_t {
+    pub fn digest_second(&self) -> &SetDigest {
         &self.digest_second
     }
 }
@@ -265,7 +264,7 @@ impl LookupInfo {
     #[inline]
     pub(crate) fn apply(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         table_data: &[u8],
         use_hot_subtable_cache: bool,
     ) -> Option<()> {
@@ -290,7 +289,7 @@ impl LookupInfo {
         None
     }
 
-    pub(crate) fn cache_enter(&self, ctx: &mut hb_ot_apply_context_t) -> bool {
+    pub(crate) fn cache_enter(&self, ctx: &mut ApplyContext) -> bool {
         let Some(idx) = self.subtable_cache_user_idx else {
             return false;
         };
@@ -306,7 +305,7 @@ impl LookupInfo {
             false
         }
     }
-    pub(crate) fn cache_leave(&self, ctx: &mut hb_ot_apply_context_t) {
+    pub(crate) fn cache_leave(&self, ctx: &mut ApplyContext) {
         let Some(idx) = self.subtable_cache_user_idx else {
             return;
         };
@@ -323,15 +322,15 @@ impl LookupInfo {
 }
 
 impl LookupInfo {
-    pub fn would_apply(&self, face: &hb_font_t, ctx: &WouldApplyContext) -> Option<bool> {
+    pub fn would_apply(&self, face: &Shaper, ctx: &WouldApplyContext) -> Option<bool> {
         let glyph = ctx.glyphs[0];
         if !self.digest.may_have(glyph.into()) {
             return Some(false);
         }
         let table_index = if self.is_subst {
-            TableIndex::GSUB
+            LayoutTableKind::Gsub
         } else {
-            TableIndex::GPOS
+            LayoutTableKind::Gpos
         };
         let table_data = face.ot_tables.table_data(table_index)?;
         for subtable_info in &self.subtables {
@@ -396,19 +395,18 @@ pub struct SubtableInfo {
     /// Byte offset to the subtable from the base of the GSUB or GPOS
     /// table.
     pub offset: u32,
-    pub digest: hb_set_digest_t,
+    pub digest: SetDigest,
     pub apply_fns: [SubtableApplyFn; 2],
     pub external_cache: SubtableExternalCache,
 }
 
-pub type SubtableApplyFn =
-    fn(&mut hb_ot_apply_context_t, &SubtableExternalCache, &[u8]) -> Option<()>;
+pub type SubtableApplyFn = fn(&mut ApplyContext, &SubtableExternalCache, &[u8]) -> Option<()>;
 
 impl SubtableInfo {
     #[inline]
     pub(crate) fn apply(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         table_data: &[u8],
         is_cached: bool,
     ) -> Option<()> {
@@ -417,16 +415,16 @@ impl SubtableInfo {
     }
 }
 
-fn coverage_digest(coverage: Result<CoverageTable, ReadError>) -> hb_set_digest_t {
+fn coverage_digest(coverage: Result<CoverageTable, ReadError>) -> SetDigest {
     match coverage {
-        Ok(coverage) => hb_set_digest_t::from_coverage(&coverage),
-        Err(_) => hb_set_digest_t::full(),
+        Ok(coverage) => SetDigest::from_coverage(&coverage),
+        Err(_) => SetDigest::full(),
     }
 }
 
-fn add_class(digest: &mut hb_set_digest_t, class_def: &ClassDef, class: u16) {
+fn add_class(digest: &mut SetDigest, class_def: &ClassDef, class: u16) {
     if class == 0 {
-        *digest = hb_set_digest_t::full();
+        *digest = SetDigest::full();
         return;
     }
 
@@ -437,19 +435,19 @@ fn add_class(digest: &mut hb_set_digest_t, class_def: &ClassDef, class: u16) {
     }
 }
 
-fn context_format1_digest(table: &SequenceContextFormat1) -> hb_set_digest_t {
-    let mut digest = hb_set_digest_t::new();
+fn context_format1_digest(table: &SequenceContextFormat1) -> SetDigest {
+    let mut digest = SetDigest::new();
     for rule_set in table.seq_rule_sets().iter() {
         let Some(rule_set) = rule_set else { continue };
         let Ok(rule_set) = rule_set else {
-            return hb_set_digest_t::full();
+            return SetDigest::full();
         };
         for rule in rule_set.seq_rules().iter() {
             let Ok(rule) = rule else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             let Some(second) = rule.input_sequence().first() else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             digest.add(second.get().to_u32());
         }
@@ -457,22 +455,22 @@ fn context_format1_digest(table: &SequenceContextFormat1) -> hb_set_digest_t {
     digest
 }
 
-fn context_format2_digest(table: &SequenceContextFormat2) -> hb_set_digest_t {
+fn context_format2_digest(table: &SequenceContextFormat2) -> SetDigest {
     let Ok(class_def) = table.class_def() else {
-        return hb_set_digest_t::full();
+        return SetDigest::full();
     };
-    let mut digest = hb_set_digest_t::new();
+    let mut digest = SetDigest::new();
     for rule_set in table.class_seq_rule_sets().iter() {
         let Some(rule_set) = rule_set else { continue };
         let Ok(rule_set) = rule_set else {
-            return hb_set_digest_t::full();
+            return SetDigest::full();
         };
         for rule in rule_set.class_seq_rules().iter() {
             let Ok(rule) = rule else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             let Some(second) = rule.input_sequence().first() else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             add_class(&mut digest, &class_def, second.get());
         }
@@ -480,31 +478,31 @@ fn context_format2_digest(table: &SequenceContextFormat2) -> hb_set_digest_t {
     digest
 }
 
-fn context_format3_digest(table: &SequenceContextFormat3) -> hb_set_digest_t {
+fn context_format3_digest(table: &SequenceContextFormat3) -> SetDigest {
     if table.coverages().len() <= 1 {
-        hb_set_digest_t::full()
+        SetDigest::full()
     } else {
         coverage_digest(table.coverages().get(1))
     }
 }
 
-fn chained_context_format1_digest(table: &ChainedSequenceContextFormat1) -> hb_set_digest_t {
-    let mut digest = hb_set_digest_t::new();
+fn chained_context_format1_digest(table: &ChainedSequenceContextFormat1) -> SetDigest {
+    let mut digest = SetDigest::new();
     for rule_set in table.chained_seq_rule_sets().iter() {
         let Some(rule_set) = rule_set else { continue };
         let Ok(rule_set) = rule_set else {
-            return hb_set_digest_t::full();
+            return SetDigest::full();
         };
         for rule in rule_set.chained_seq_rules().iter() {
             let Ok(rule) = rule else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             let second = rule
                 .input_sequence()
                 .first()
                 .or_else(|| rule.lookahead_sequence().first());
             let Some(second) = second else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             digest.add(second.get().to_u32());
         }
@@ -512,54 +510,54 @@ fn chained_context_format1_digest(table: &ChainedSequenceContextFormat1) -> hb_s
     digest
 }
 
-fn chained_context_format2_digest(table: &ChainedSequenceContextFormat2) -> hb_set_digest_t {
+fn chained_context_format2_digest(table: &ChainedSequenceContextFormat2) -> SetDigest {
     let Ok(input_class_def) = table.input_class_def() else {
-        return hb_set_digest_t::full();
+        return SetDigest::full();
     };
     let Ok(lookahead_class_def) = table.lookahead_class_def() else {
-        return hb_set_digest_t::full();
+        return SetDigest::full();
     };
-    let mut digest = hb_set_digest_t::new();
+    let mut digest = SetDigest::new();
     for rule_set in table.chained_class_seq_rule_sets().iter() {
         let Some(rule_set) = rule_set else { continue };
         let Ok(rule_set) = rule_set else {
-            return hb_set_digest_t::full();
+            return SetDigest::full();
         };
         for rule in rule_set.chained_class_seq_rules().iter() {
             let Ok(rule) = rule else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             if let Some(second) = rule.input_sequence().first() {
                 add_class(&mut digest, &input_class_def, second.get());
             } else if let Some(second) = rule.lookahead_sequence().first() {
                 add_class(&mut digest, &lookahead_class_def, second.get());
             } else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             }
         }
     }
     digest
 }
 
-fn chained_context_format3_digest(table: &ChainedSequenceContextFormat3) -> hb_set_digest_t {
+fn chained_context_format3_digest(table: &ChainedSequenceContextFormat3) -> SetDigest {
     if table.input_coverages().len() > 1 {
         coverage_digest(table.input_coverages().get(1))
     } else if !table.lookahead_coverages().is_empty() {
         coverage_digest(table.lookahead_coverages().get(0))
     } else {
-        hb_set_digest_t::full()
+        SetDigest::full()
     }
 }
 
-fn pair_pos_format1_digest(table: &PairPosFormat1) -> hb_set_digest_t {
-    let mut digest = hb_set_digest_t::new();
+fn pair_pos_format1_digest(table: &PairPosFormat1) -> SetDigest {
+    let mut digest = SetDigest::new();
     for pair_set in table.pair_sets().iter() {
         let Ok(pair_set) = pair_set else {
-            return hb_set_digest_t::full();
+            return SetDigest::full();
         };
         for pair_value in pair_set.pair_value_records().iter() {
             let Ok(pair_value) = pair_value else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             };
             digest.add(pair_value.second_glyph().to_u32());
         }
@@ -570,7 +568,7 @@ fn pair_pos_format1_digest(table: &PairPosFormat1) -> hb_set_digest_t {
 macro_rules! apply_fns {
     ($apply:ident, $apply_cached:ident, $ty:ident) => {
         fn $apply(
-            ctx: &mut hb_ot_apply_context_t,
+            ctx: &mut ApplyContext,
             external_cache: &SubtableExternalCache,
             table_data: &[u8],
         ) -> Option<()> {
@@ -579,7 +577,7 @@ macro_rules! apply_fns {
         }
 
         fn $apply_cached(
-            ctx: &mut hb_ot_apply_context_t,
+            ctx: &mut ApplyContext,
             external_cache: &SubtableExternalCache,
             table_data: &[u8],
         ) -> Option<()> {
@@ -670,27 +668,27 @@ impl SubtableInfo {
         is_subst: bool,
         lookup_type: u8,
         cache_mode: SubtableExternalCacheMode,
-    ) -> Option<(Self, u32, hb_set_digest_t)> {
+    ) -> Option<(Self, u32, SetDigest)> {
         let data = table_data.split_off(subtable_offset as usize)?;
         let maybe_external_cache = |s: &dyn Apply| s.external_cache_create(cache_mode);
         let (kind, (external_cache, cache_cost, coverage), apply_fns, digest_second): (
             SubtableKind,
             (SubtableExternalCache, u32, CoverageTable),
             [SubtableApplyFn; 2],
-            hb_set_digest_t,
+            SetDigest,
         ) = match (is_subst, lookup_type) {
             (true, 1) => match SingleSubst::read(data).ok()? {
                 SingleSubst::Format1(s) => (
                     SubtableKind::SingleSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_subst1, single_subst1_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 ),
                 SingleSubst::Format2(s) => (
                     SubtableKind::SingleSubst2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_subst2, single_subst2_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 ),
             },
             (false, 1) => match SinglePos::read(data).ok()? {
@@ -698,13 +696,13 @@ impl SubtableInfo {
                     SubtableKind::SinglePos1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_pos1, single_pos1_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 ),
                 SinglePos::Format2(s) => (
                     SubtableKind::SinglePos2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [single_pos2, single_pos2_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 ),
             },
             (true, 2) => {
@@ -713,7 +711,7 @@ impl SubtableInfo {
                     SubtableKind::MultipleSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [multiple_subst1, multiple_subst1_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 )
             }
             (false, 2) => match PairPos::read(data).ok()? {
@@ -727,7 +725,7 @@ impl SubtableInfo {
                     SubtableKind::PairPos2,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [pair_pos2, pair_pos2_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 ),
             },
             (true, 3) => {
@@ -736,7 +734,7 @@ impl SubtableInfo {
                     SubtableKind::AlternateSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [alternate_subst1, alternate_subst1_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 )
             }
             (false, 3) => {
@@ -865,12 +863,12 @@ impl SubtableInfo {
                     SubtableKind::ReverseChainContext,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
-                    hb_set_digest_t::full(),
+                    SetDigest::full(),
                 )
             }
             _ => return None,
         };
-        let mut digest = hb_set_digest_t::new();
+        let mut digest = SetDigest::new();
         digest.add_coverage(&coverage);
         Some((
             SubtableInfo {
@@ -886,7 +884,7 @@ impl SubtableInfo {
     }
 }
 
-fn cache_enter(ctx: &mut hb_ot_apply_context_t) -> bool {
+fn cache_enter(ctx: &mut ApplyContext) -> bool {
     if !ctx.buffer.try_allocate_var(GlyphInfo::SYLLABLE_VAR) {
         return false;
     }
@@ -897,7 +895,7 @@ fn cache_enter(ctx: &mut hb_ot_apply_context_t) -> bool {
     true
 }
 
-fn cache_leave(ctx: &mut hb_ot_apply_context_t) {
+fn cache_leave(ctx: &mut ApplyContext) {
     ctx.new_syllables = None;
     ctx.buffer.deallocate_var(GlyphInfo::SYLLABLE_VAR);
 }

@@ -1,4 +1,4 @@
-use super::{common::TagExt, hb_tag_t};
+use super::{common::TagExt, Tag};
 
 pub struct TextParser<'a> {
     pos: usize,
@@ -83,13 +83,13 @@ impl<'a> TextParser<'a> {
         }
     }
 
-    pub fn consume_tag(&mut self) -> Option<hb_tag_t> {
+    pub fn consume_tag(&mut self) -> Option<Tag> {
         let tag = self.consume_bytes(|c| c.is_ascii_alphanumeric() || c == b'_');
         if tag.len() > 4 {
             return None;
         }
 
-        Some(hb_tag_t::from_bytes_lossy(tag.as_bytes()))
+        Some(Tag::from_bytes_lossy(tag.as_bytes()))
     }
 
     pub fn consume_i32(&mut self) -> Option<i32> {

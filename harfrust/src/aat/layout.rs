@@ -4,10 +4,7 @@ use super::map;
 use super::{kerx, morx, trak};
 use crate::aat::common::{AatApplyContext, HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED};
 use crate::Feature;
-use crate::{
-    buffer::Buffer, face::Scale, hb_font_t, hb_tag_t, ot::shape::plan::hb_ot_shape_plan_t,
-    GlyphInfo,
-};
+use crate::{buffer::Buffer, face::Scale, ot::shape::plan::ShapePlan, GlyphInfo, Shaper, Tag};
 
 pub type FeatureType = u8;
 
@@ -386,7 +383,7 @@ pub const FEATURE_SELECTOR_FULL_WIDTH_CJK_ROMAN: u8 = 3;
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.hh#L38>
 pub struct FeatureMapping {
-    pub ot_feature_tag: hb_tag_t,
+    pub ot_feature_tag: Tag,
     pub aat_feature_type: FeatureType,
     pub selector_to_enable: u8,
     pub selector_to_disable: u8,
@@ -400,7 +397,7 @@ impl FeatureMapping {
         selector_to_disable: u8,
     ) -> Self {
         FeatureMapping {
-            ot_feature_tag: hb_tag_t::new(ot_feature_tag),
+            ot_feature_tag: Tag::new(ot_feature_tag),
             aat_feature_type,
             selector_to_enable,
             selector_to_disable,
@@ -500,12 +497,7 @@ pub const DELETED_GLYPH: u32 = 0xFFFF;
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-aat-layout.cc#L285>
 #[doc(alias = "hb_aat_layout_substitute")]
-pub fn substitute(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
-    buffer: &mut Buffer,
-    features: &[Feature],
-) {
+pub fn substitute(plan: &ShapePlan, face: &Shaper, buffer: &mut Buffer, features: &[Feature]) {
     let mut aat_map = map::AatMap::default();
     if !features.is_empty() {
         let mut builder = map::AatMapBuilder::new(plan.language.as_ref());
@@ -544,7 +536,7 @@ pub fn remove_deleted_glyphs(buffer: &mut Buffer) {
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L363>
 #[doc(alias = "hb_aat_layout_position")]
-pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, scale: Scale, buffer: &mut Buffer) {
+pub fn position(plan: &ShapePlan, face: &Shaper, scale: Scale, buffer: &mut Buffer) {
     let mut c = AatApplyContext::new(plan, face, scale, buffer);
     kerx::apply(&mut c);
 }
@@ -554,8 +546,8 @@ pub fn position(plan: &hb_ot_shape_plan_t, face: &hb_font_t, scale: Scale, buffe
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L398>
 #[doc(alias = "hb_aat_layout_track")]
 pub fn track(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
+    plan: &ShapePlan,
+    face: &Shaper,
     scale: Scale,
     point_size: Option<f32>,
     buffer: &mut Buffer,

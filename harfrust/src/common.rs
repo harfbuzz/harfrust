@@ -326,7 +326,7 @@ mod tests_language {
     }
 }
 
-// In harfbuzz, despite having `hb_script_t`, script can actually have any tag.
+// In harfbuzz, despite having `Script`, script can actually have any tag.
 // So we're doing the same.
 // The only difference is that `Script` cannot be set to `HB_SCRIPT_INVALID`.
 /// A text script.

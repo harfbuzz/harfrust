@@ -1,12 +1,12 @@
 use crate::buffer::GlyphInfo;
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
+use crate::ot::gsubgpos::ApplyContext;
 use crate::ot::gsubgpos::{
-    ligate_input, match_always, match_glyph, match_input, may_skip_t, skipping_iterator_t, Apply,
-    LigatureSubstFormat1Cache, LigatureSubstFormat1SmallCache, SubtableExternalCache,
+    ligate_input, match_always, match_glyph, match_input, Apply, LigatureSubstFormat1Cache,
+    LigatureSubstFormat1SmallCache, MaySkip, SkippingIterator, SubtableExternalCache,
     SubtableExternalCacheMode, WouldApply, WouldApplyContext,
 };
 use crate::ot::{coverage_index, coverage_index_cached, CoverageInfo};
-use crate::set_digest::hb_set_digest_t;
+use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
@@ -29,7 +29,7 @@ impl WouldApply for Ligature<'_> {
 }
 
 impl Apply for Ligature<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         // Special-case to make it in-place and not consider this
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
@@ -79,18 +79,18 @@ impl WouldApply for LigatureSet<'_> {
 }
 
 pub trait ApplyLigatureSet {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()>;
+    fn apply(&self, ctx: &mut ApplyContext, seconds: &SetDigest) -> Option<()>;
 }
 
 impl ApplyLigatureSet for LigatureSet<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t, seconds: &hb_set_digest_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext, seconds: &SetDigest) -> Option<()> {
         let mut second = GlyphId::new(u32::MAX);
         let mut unsafe_to = 0;
         let ligatures = self.ligatures();
         let slow_path = if ligatures.len() <= 1 {
             true
         } else {
-            let mut iter = skipping_iterator_t::with_match_fn(ctx, true, Some(match_always));
+            let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
             iter.reset(iter.buffer.idx);
             let matched = iter.next(Some(&mut unsafe_to));
             if !matched {
@@ -101,7 +101,7 @@ impl ApplyLigatureSet for LigatureSet<'_> {
 
                 // Can't use the fast path if eg. the next char is a default-ignorable
                 // or other skippable.
-                iter.may_skip(&iter.buffer.info[iter.index()]) != may_skip_t::SKIP_NO
+                iter.may_skip(&iter.buffer.info[iter.index()]) != MaySkip::No
             }
         };
 
@@ -160,7 +160,7 @@ impl WouldApply for LigatureSubstFormat1<'_> {
 impl Apply for LigatureSubstFormat1<'_> {
     fn apply_with_external_cache(
         &self,
-        ctx: &mut hb_ot_apply_context_t,
+        ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
@@ -178,10 +178,7 @@ impl Apply for LigatureSubstFormat1<'_> {
                 cache.coverage.index(&self.offset_data(), glyph)?,
                 &cache.seconds,
             ),
-            _ => (
-                coverage_index(self.coverage(), glyph)?,
-                &hb_set_digest_t::full(),
-            ),
+            _ => (coverage_index(self.coverage(), glyph)?, &SetDigest::full()),
         };
         self.ligature_sets()
             .get(index as usize)
@@ -213,19 +210,19 @@ impl Apply for LigatureSubstFormat1<'_> {
     }
 }
 
-pub(crate) fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest_t {
-    let mut seconds = hb_set_digest_t::new();
+pub(crate) fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> SetDigest {
+    let mut seconds = SetDigest::new();
     let mut remaining_work = MAX_LIGATURE_CACHE_WORK;
     let ligature_sets = lig_subst.ligature_sets();
     if ligature_sets.len() > remaining_work {
-        return hb_set_digest_t::full();
+        return SetDigest::full();
     }
     remaining_work -= ligature_sets.len();
 
     for lig_set in ligature_sets.iter().filter_map(Result::ok) {
         let ligatures = lig_set.ligatures();
         if ligatures.len() > remaining_work {
-            return hb_set_digest_t::full();
+            return SetDigest::full();
         }
         remaining_work -= ligatures.len();
 
@@ -233,7 +230,7 @@ pub(crate) fn collect_seconds(lig_subst: &LigatureSubstFormat1) -> hb_set_digest
             if let Some(gid) = lig.component_glyph_ids().first() {
                 seconds.add(gid.get().into());
             } else {
-                return hb_set_digest_t::full();
+                return SetDigest::full();
             }
         }
     }
@@ -245,7 +242,7 @@ mod tests {
     use super::*;
     use read_fonts::{FontData, FontRead};
 
-    fn assert_full_digest(digest: hb_set_digest_t) {
+    fn assert_full_digest(digest: SetDigest) {
         assert!(digest.may_have(0));
         assert!(digest.may_have(12345));
         assert!(digest.may_have(u16::MAX as u32));

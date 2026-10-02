@@ -11,7 +11,7 @@ use crate::face::Scale;
 use crate::glyph_metrics::GlyphMetrics;
 
 use super::buffer::{Buffer, GlyphInfo, GlyphPosition};
-use super::face::{hb_font_t, GlyphExtents};
+use super::face::{GlyphExtents, Shaper};
 
 /// Raw C-style view over a batch of glyph ids and advance widths.
 #[derive(Clone, Copy, Debug)]
@@ -204,13 +204,13 @@ impl<'a> IntoIterator for NominalGlyphBatch<'a> {
 
 /// Default implementations backed by font tables.
 pub struct BuiltinFontFuncs<'a> {
-    face: &'a hb_font_t<'a>,
+    face: &'a Shaper<'a>,
     glyph_metrics: core::cell::OnceCell<GlyphMetrics<'a>>,
     charmap: core::cell::OnceCell<Charmap<'a>>,
 }
 
 impl<'a> BuiltinFontFuncs<'a> {
-    pub(crate) fn new(face: &'a hb_font_t<'a>) -> Self {
+    pub(crate) fn new(face: &'a Shaper<'a>) -> Self {
         Self {
             face,
             glyph_metrics: core::cell::OnceCell::new(),
@@ -406,7 +406,7 @@ pub trait FontFuncs {
     }
 }
 
-impl<'a> hb_font_t<'a> {
+impl<'a> Shaper<'a> {
     /// The callbacks that read the font's own tables, which shaping falls
     /// back on when nothing else answers.
     ///
@@ -426,7 +426,7 @@ pub(crate) struct FontFuncsDispatch<'a, 'u> {
 
 impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
     pub(crate) fn new(
-        face: &'a hb_font_t<'a>,
+        face: &'a Shaper<'a>,
         scale: Scale,
         funcs: Option<&'u mut (dyn FontFuncs + 'u)>,
     ) -> Self {
@@ -438,7 +438,7 @@ impl<'a, 'u> FontFuncsDispatch<'a, 'u> {
     }
 
     #[inline(always)]
-    pub(crate) fn font(&self) -> &'a hb_font_t<'a> {
+    pub(crate) fn font(&self) -> &'a Shaper<'a> {
         self.builtin.face
     }
 

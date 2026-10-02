@@ -1,15 +1,15 @@
 use read_fonts::types::GlyphId;
 
-use super::plan::hb_ot_shape_plan_t;
+use super::plan::ShapePlan;
 use crate::buffer::{Buffer, GlyphPosition};
 use crate::face::GlyphExtents;
 use crate::font_funcs::FontFuncsDispatch;
 use crate::unicode::*;
-use crate::{hb_font_t, Direction};
+use crate::{Direction, Shaper};
 
 struct FallbackShapeContext<'a, 'x, 'u> {
-    plan: &'a hb_ot_shape_plan_t,
-    face: &'a hb_font_t<'a>,
+    plan: &'a ShapePlan,
+    face: &'a Shaper<'a>,
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
     font_funcs: &'x mut FontFuncsDispatch<'a, 'u>,
@@ -95,11 +95,7 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
     }
 }
 
-pub fn _hb_ot_shape_fallback_mark_position_recategorize_marks(
-    _: &hb_ot_shape_plan_t,
-    _: &hb_font_t,
-    buffer: &mut Buffer,
-) {
+pub fn recategorize_marks(_: &ShapePlan, _: &Shaper, buffer: &mut Buffer) {
     let len = buffer.len;
     for info in &mut buffer.info[..len] {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
@@ -132,7 +128,7 @@ fn zero_mark_advances(
 }
 
 fn position_mark(
-    face: &hb_font_t,
+    face: &Shaper,
     direction: Direction,
     font_funcs: &mut FontFuncsDispatch<'_, '_>,
     glyph: GlyphId,
@@ -419,8 +415,8 @@ fn position_cluster(ctx: &mut FallbackShapeContext, start: usize, end: usize) {
 }
 
 pub fn position_marks<'a, 'x>(
-    plan: &'a hb_ot_shape_plan_t,
-    face: &'a hb_font_t<'a>,
+    plan: &'a ShapePlan,
+    face: &'a Shaper<'a>,
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
@@ -450,17 +446,17 @@ pub fn position_marks<'a, 'x>(
     position_cluster(&mut ctx, start, len);
 }
 
-pub fn _hb_ot_shape_fallback_kern(_: &hb_ot_shape_plan_t, _: &hb_font_t, _: &mut Buffer) {
+pub fn fallback_kern(_: &ShapePlan, _: &Shaper, _: &mut Buffer) {
     // STUB: this is deprecated in HarfBuzz
 }
 
-pub fn _hb_ot_shape_fallback_spaces<'a, 'x>(
-    plan: &'a hb_ot_shape_plan_t,
-    face: &'a hb_font_t<'a>,
+pub fn fallback_spaces<'a, 'x>(
+    plan: &'a ShapePlan,
+    face: &'a Shaper<'a>,
     buffer: &'x mut Buffer,
     font_funcs: &'x mut FontFuncsDispatch<'a, '_>,
 ) {
-    use crate::unicode::hb_unicode_funcs_t as t;
+    use crate::unicode::space_fallback as t;
 
     let _ = plan;
     let len = buffer.len;

@@ -2,12 +2,12 @@ use alloc::boxed::Box;
 
 use super::*;
 use crate::font_funcs::FontFuncsDispatch;
-use crate::hb_mask_t;
 use crate::ot::map::*;
-use crate::ot::shape::normalize::HB_OT_SHAPE_NORMALIZATION_MODE_NONE;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::normalize::NormalizationMode;
+use crate::ot::shape::plan::ShapePlan;
 use crate::unicode::Codepoint;
 use crate::BufferFlags;
+use crate::Mask;
 
 const LJMO: u8 = 1;
 const VJMO: u8 = 2;
@@ -23,19 +23,13 @@ impl GlyphInfo {
     );
 }
 
-fn collect_features_hangul(planner: &mut hb_ot_shape_planner_t) {
-    planner
-        .ot_map
-        .add_feature(hb_tag_t::new(b"ljmo"), F_NONE, 1);
-    planner
-        .ot_map
-        .add_feature(hb_tag_t::new(b"vjmo"), F_NONE, 1);
-    planner
-        .ot_map
-        .add_feature(hb_tag_t::new(b"tjmo"), F_NONE, 1);
+fn collect_features_hangul(planner: &mut ShapePlanner) {
+    planner.ot_map.add_feature(Tag::new(b"ljmo"), F_NONE, 1);
+    planner.ot_map.add_feature(Tag::new(b"vjmo"), F_NONE, 1);
+    planner.ot_map.add_feature(Tag::new(b"tjmo"), F_NONE, 1);
 }
 
-fn override_features_hangul(planner: &mut hb_ot_shape_planner_t) {
+fn override_features_hangul(planner: &mut ShapePlanner) {
     // Uniscribe does not apply 'calt' for Hangul, and certain fonts
     // (Noto Sans CJK, Source Han Sans, etc) apply all of jamo lookups
     // in calt, which is not desirable.
@@ -47,25 +41,23 @@ fn override_features_hangul(planner: &mut hb_ot_shape_planner_t) {
     // the run shape with 'calt' as usual.
     //
     // https://github.com/harfbuzz/harfbuzz/discussions/4853
-    planner
-        .ot_map
-        .add_feature(hb_tag_t::new(b"calt"), F_NONE, 1);
+    planner.ot_map.add_feature(Tag::new(b"calt"), F_NONE, 1);
 }
 
-struct hangul_shape_plan_t {
-    mask_array: [hb_mask_t; 4],
-    calt_mask: hb_mask_t,
+struct HangulShapePlan {
+    mask_array: [Mask; 4],
+    calt_mask: Mask,
 }
 
-fn data_create_hangul(map: &hb_ot_map_t) -> hangul_shape_plan_t {
-    hangul_shape_plan_t {
+fn data_create_hangul(map: &OtMap) -> HangulShapePlan {
+    HangulShapePlan {
         mask_array: [
             0,
-            map.get_1_mask(hb_tag_t::new(b"ljmo")),
-            map.get_1_mask(hb_tag_t::new(b"vjmo")),
-            map.get_1_mask(hb_tag_t::new(b"tjmo")),
+            map.get_1_mask(Tag::new(b"ljmo")),
+            map.get_1_mask(Tag::new(b"vjmo")),
+            map.get_1_mask(Tag::new(b"tjmo")),
         ],
-        calt_mask: map.get_1_mask(hb_tag_t::new(b"calt")),
+        calt_mask: map.get_1_mask(Tag::new(b"calt")),
     }
 }
 
@@ -119,11 +111,7 @@ fn is_zero_width_char(face: &mut FontFuncsDispatch, c: Codepoint) -> bool {
     }
 }
 
-fn preprocess_text_hangul(
-    _: &hb_ot_shape_plan_t,
-    face: &mut FontFuncsDispatch,
-    buffer: &mut Buffer,
-) {
+fn preprocess_text_hangul(_: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::HANGUL_SHAPING_FEATURE_VAR);
 
     // Hangul syllables come in two shapes: LV, and LVT.  Of those:
@@ -367,8 +355,8 @@ fn preprocess_text_hangul(
     buffer.sync();
 }
 
-fn setup_masks_hangul(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
-    let hangul_plan = plan.data::<hangul_shape_plan_t>();
+fn setup_masks_hangul(plan: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+    let hangul_plan = plan.data::<HangulShapePlan>();
     for info in buffer.info_slice_mut() {
         info.mask |= hangul_plan.mask_array[info.hangul_shaping_feature() as usize];
 
@@ -382,18 +370,18 @@ fn setup_masks_hangul(plan: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buff
     buffer.deallocate_var(GlyphInfo::HANGUL_SHAPING_FEATURE_VAR);
 }
 
-pub const HANGUL_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const HANGUL_SHAPER: OtShaper = OtShaper {
     collect_features: Some(collect_features_hangul),
     override_features: Some(override_features_hangul),
     create_data: Some(|plan| Box::new(data_create_hangul(&plan.ot_map))),
     preprocess_text: Some(preprocess_text_hangul),
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_NONE,
+    normalization_preference: NormalizationMode::None,
     decompose: None,
     compose: None,
     setup_masks: Some(setup_masks_hangul),
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
+    zero_width_marks: ZeroWidthMarks::None,
     fallback_position: true,
 };

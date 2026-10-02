@@ -18,10 +18,10 @@
 
 use crate::unicode::Codepoint;
 
-use super::arabic::hb_arabic_joining_type_t::{self, D, GroupAlaph, GroupDalathRish, L, R, T, U, X};
+use super::arabic::ArabicJoiningType::{self, D, GroupAlaph, GroupDalathRish, L, R, T, U, X};
 
 #[allow(dead_code, non_upper_case_globals, clippy::allow_attributes_without_reason, missing_docs)]
-pub(crate) static _hb_arabic_joining_u8: [u8; 749]=
+pub(crate) static arabic_joining_u8: [u8; 749]=
 [
     0, 16,  2,  0,  0,  0,  3,  0,  4,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -74,22 +74,22 @@ pub(crate) static _hb_arabic_joining_u8: [u8; 749]=
 
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast)]
 #[inline(always)]
-fn _hb_arabic_joining_b4 (a: &[u8], i: usize) -> u8
+fn arabic_joining_b4 (a: &[u8], i: usize) -> u8
 {
   (a[i>>1]>>((i&1)<<2))&15
 }
 #[allow(dead_code, unused_parens, trivial_numeric_casts, clippy::allow_attributes_without_reason, clippy::unseparated_literal_suffix, clippy::double_parens, clippy::unnecessary_cast, missing_docs)]
 #[inline]
-pub(crate) fn _hb_arabic_joining_joining_type_u8 (u: usize) -> u8
+pub(crate) fn arabic_joining_joining_type_u8 (u: usize) -> u8
 {
   /* packtab: [2^4,2^3,2^3,2^3] */
-  if u<125260usize { (_hb_arabic_joining_b4(&_hb_arabic_joining_u8[441usize..],(((_hb_arabic_joining_u8[209usize+(((_hb_arabic_joining_u8[123usize+((((_hb_arabic_joining_b4(&_hb_arabic_joining_u8,(((((((u)>>3))>>3))>>3) as usize) as usize)) as usize)<<3) as usize+((((((u)>>3))>>3))&7) as usize) as usize]) as usize) as usize+((((u)>>3))&7) as usize) as usize]) as usize)<<3) as usize+((u)&7) as usize)) as u8 } else { 7 }
+  if u<125260usize { (arabic_joining_b4(&arabic_joining_u8[441usize..],(((arabic_joining_u8[209usize+(((arabic_joining_u8[123usize+((((arabic_joining_b4(&arabic_joining_u8,(((((((u)>>3))>>3))>>3) as usize) as usize)) as usize)<<3) as usize+((((((u)>>3))>>3))&7) as usize) as usize]) as usize) as usize+((((u)>>3))&7) as usize) as usize]) as usize)<<3) as usize+((u)&7) as usize)) as u8 } else { 7 }
 }
 
 #[inline]
-pub(crate) fn joining_type (u: Codepoint) -> hb_arabic_joining_type_t
+pub(crate) fn joining_type (u: Codepoint) -> ArabicJoiningType
 {
-  match _hb_arabic_joining_joining_type_u8 (u as usize) {
+  match arabic_joining_joining_type_u8 (u as usize) {
     0 => U,
     1 => L,
     2 => R,

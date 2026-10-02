@@ -1,13 +1,13 @@
 use crate::buffer::HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
 use crate::ot::common::lookup_flags;
 use crate::ot::gpos::attach_type;
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
-use crate::ot::gsubgpos::{skipping_iterator_t, Apply};
+use crate::ot::gsubgpos::ApplyContext;
+use crate::ot::gsubgpos::{Apply, SkippingIterator};
 use crate::{Direction, GlyphPosition};
 use read_fonts::tables::gpos::CursivePosFormat1;
 
 impl Apply for CursivePosFormat1<'_> {
-    fn apply(&self, ctx: &mut hb_ot_apply_context_t) -> Option<()> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let this = ctx.buffer.cur(0).as_glyph();
 
         let coverage = self.coverage().ok()?;
@@ -16,7 +16,7 @@ impl Apply for CursivePosFormat1<'_> {
         let offset_data = self.offset_data();
         let entry_this = records.get(index_this)?.entry_anchor(offset_data)?.ok()?;
 
-        let mut iter = skipping_iterator_t::new(ctx, false);
+        let mut iter = SkippingIterator::new(ctx, false);
         iter.reset_fast(iter.buffer.idx);
 
         let mut unsafe_from = 0;

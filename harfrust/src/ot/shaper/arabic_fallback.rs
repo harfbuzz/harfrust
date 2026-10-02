@@ -2,21 +2,21 @@ use super::arabic_table::{LIGATURE_3_TABLE, LIGATURE_MARK_TABLE, LIGATURE_TABLE,
 use crate::buffer::Buffer;
 use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::common::lookup_flags;
-use crate::ot::gsubgpos::hb_ot_apply_context_t;
-use crate::ot::layout::{apply_synthesized_subst_lookup, TableIndex};
+use crate::ot::gsubgpos::ApplyContext;
+use crate::ot::layout::{apply_synthesized_subst_lookup, LayoutTableKind};
 use crate::ot::lookup::LookupInfo;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
-use crate::{hb_mask_t, hb_tag_t};
+use crate::ot::shape::plan::ShapePlan;
+use crate::{Mask, Tag};
 use alloc::vec::Vec;
 
-const FALLBACK_FEATURES: [hb_tag_t; 7] = [
-    hb_tag_t::new(b"init"),
-    hb_tag_t::new(b"medi"),
-    hb_tag_t::new(b"fina"),
-    hb_tag_t::new(b"isol"),
-    hb_tag_t::new(b"rlig"),
-    hb_tag_t::new(b"rlig"),
-    hb_tag_t::new(b"rlig"),
+const FALLBACK_FEATURES: [Tag; 7] = [
+    Tag::new(b"init"),
+    Tag::new(b"medi"),
+    Tag::new(b"fina"),
+    Tag::new(b"isol"),
+    Tag::new(b"rlig"),
+    Tag::new(b"rlig"),
+    Tag::new(b"rlig"),
 ];
 
 // HarfBuzz uses this signature to identify legacy Windows-1256 Arabic fonts.
@@ -122,27 +122,24 @@ pub(crate) struct FallbackPlan {
 }
 
 struct FallbackLookup {
-    mask: hb_mask_t,
+    mask: Mask,
     data: Vec<u8>,
     info: LookupInfo,
 }
 
 impl FallbackLookup {
-    fn new(mask: hb_mask_t, data: Vec<u8>) -> Option<Self> {
+    fn new(mask: Mask, data: Vec<u8>) -> Option<Self> {
         let info = LookupInfo::new_subst(&data)?;
         Some(Self { mask, data, info })
     }
 }
 
 impl FallbackPlan {
-    pub(crate) fn new(
-        plan: &hb_ot_shape_plan_t,
-        font_funcs: &mut FontFuncsDispatch,
-    ) -> Option<Self> {
+    pub(crate) fn new(plan: &ShapePlan, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
         Self::new_unicode(plan, font_funcs).or_else(|| Self::new_win1256(plan, font_funcs))
     }
 
-    fn new_unicode(plan: &hb_ot_shape_plan_t, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
+    fn new_unicode(plan: &ShapePlan, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
         let mut lookups = Vec::with_capacity(FALLBACK_FEATURES.len());
 
         for (feature_index, feature) in FALLBACK_FEATURES.iter().enumerate() {
@@ -176,7 +173,7 @@ impl FallbackPlan {
         (!lookups.is_empty()).then_some(Self { lookups })
     }
 
-    fn new_win1256(plan: &hb_ot_shape_plan_t, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
+    fn new_win1256(plan: &ShapePlan, font_funcs: &mut FontFuncsDispatch) -> Option<Self> {
         if !is_win1256_font(font_funcs) {
             return None;
         }
@@ -184,28 +181,28 @@ impl FallbackPlan {
         let mut lookups = Vec::with_capacity(5);
         add_direct_ligature_lookup(
             &mut lookups,
-            plan.ot_map.get_1_mask(hb_tag_t::new(b"rlig")),
+            plan.ot_map.get_1_mask(Tag::new(b"rlig")),
             WIN1256_LAM_ALEF_LIGATURES,
             lookup_flags::IGNORE_MARKS,
         );
         add_direct_single_lookup(
             &mut lookups,
-            plan.ot_map.get_1_mask(hb_tag_t::new(b"init")),
+            plan.ot_map.get_1_mask(Tag::new(b"init")),
             WIN1256_INIT_MAPPINGS,
         );
         add_direct_single_lookup(
             &mut lookups,
-            plan.ot_map.get_1_mask(hb_tag_t::new(b"medi")),
+            plan.ot_map.get_1_mask(Tag::new(b"medi")),
             WIN1256_MEDI_MAPPINGS,
         );
         add_direct_single_lookup(
             &mut lookups,
-            plan.ot_map.get_1_mask(hb_tag_t::new(b"fina")),
+            plan.ot_map.get_1_mask(Tag::new(b"fina")),
             WIN1256_FINA_MAPPINGS,
         );
         add_direct_ligature_lookup(
             &mut lookups,
-            plan.ot_map.get_1_mask(hb_tag_t::new(b"rlig")),
+            plan.ot_map.get_1_mask(Tag::new(b"rlig")),
             WIN1256_SHADDA_LIGATURES,
             0,
         );
@@ -214,8 +211,8 @@ impl FallbackPlan {
     }
 
     pub(crate) fn apply(&self, font_funcs: &FontFuncsDispatch, buffer: &mut Buffer) {
-        let mut ctx = hb_ot_apply_context_t::new(
-            TableIndex::GSUB,
+        let mut ctx = ApplyContext::new(
+            LayoutTableKind::Gsub,
             font_funcs.font(),
             *font_funcs.scale(),
             buffer,
@@ -237,7 +234,7 @@ fn is_win1256_font(font_funcs: &mut FontFuncsDispatch) -> bool {
 
 fn add_direct_single_lookup(
     lookups: &mut Vec<FallbackLookup>,
-    mask: hb_mask_t,
+    mask: Mask,
     mappings: &[(u16, u16)],
 ) {
     if mask == 0 {
@@ -256,7 +253,7 @@ fn add_direct_single_lookup(
 
 fn add_direct_ligature_lookup<const N: usize>(
     lookups: &mut Vec<FallbackLookup>,
-    mask: hb_mask_t,
+    mask: Mask,
     ligatures: &[([u16; N], u16)],
     flags: u16,
 ) {
@@ -281,7 +278,7 @@ fn glyph_for_codepoint(font_funcs: &mut FontFuncsDispatch, codepoint: u16) -> Op
 fn synthesize_single_lookup(
     font_funcs: &mut FontFuncsDispatch,
     feature_index: usize,
-    mask: hb_mask_t,
+    mask: Mask,
 ) -> Option<FallbackLookup> {
     let mut mappings = Vec::with_capacity(SHAPING_TABLE.len());
     for &(codepoint, forms) in SHAPING_TABLE {
@@ -315,7 +312,7 @@ fn synthesize_ligature_lookup<const N: usize>(
     font_funcs: &mut FontFuncsDispatch,
     rules: &[([u16; N], u16)],
     flags: u16,
-    mask: hb_mask_t,
+    mask: Mask,
 ) -> Option<FallbackLookup> {
     let mut ligatures = Vec::with_capacity(rules.len());
     for &(components, ligature) in rules {

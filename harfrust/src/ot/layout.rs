@@ -4,13 +4,13 @@ use core::ops::{Index, IndexMut};
 
 use super::buffer::*;
 use super::font_funcs::FontFuncsDispatch;
-use super::gsubgpos::hb_ot_apply_context_t;
-use super::set_digest::hb_set_digest_t;
-use super::shape::plan::hb_ot_shape_plan_t;
-use super::{hb_font_t, GlyphInfo};
+use super::gsubgpos::ApplyContext;
+use super::set_digest::SetDigest;
+use super::shape::plan::ShapePlan;
+use super::{GlyphInfo, Shaper};
 use crate::ot::gsubgpos::check_glyph_property;
 use crate::ot::lookup::LookupInfo;
-use crate::unicode::{hb_unicode_funcs_t, GeneralCategory};
+use crate::unicode::{space_fallback, GeneralCategory};
 use crate::BufferFlags;
 
 impl GlyphInfo {
@@ -56,11 +56,11 @@ pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
 pub const MAX_SYLLABLE_LENGTH: usize = 64;
 
-pub fn hb_ot_layout_has_kerning(face: &hb_font_t) -> bool {
+pub fn has_kerning(face: &Shaper) -> bool {
     face.aat_tables.kern.is_some()
 }
 
-pub fn hb_ot_layout_has_machine_kerning(face: &hb_font_t) -> bool {
+pub fn has_machine_kerning(face: &Shaper) -> bool {
     match face.aat_tables.kern {
         Some(ref kern) => kern
             .0
@@ -71,7 +71,7 @@ pub fn hb_ot_layout_has_machine_kerning(face: &hb_font_t) -> bool {
     }
 }
 
-pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
+pub fn has_cross_kerning(face: &Shaper) -> bool {
     match face.aat_tables.kern {
         Some(ref kern) => kern
             .0
@@ -82,12 +82,9 @@ pub fn hb_ot_layout_has_cross_kerning(face: &hb_font_t) -> bool {
     }
 }
 
-// hb_ot_layout_kern
+// apply_kern
 
-pub fn _hb_ot_layout_set_glyph_props<const SET_DIGEST: bool>(
-    face: &hb_font_t,
-    buffer: &mut Buffer,
-) {
+pub fn set_glyph_props<const SET_DIGEST: bool>(face: &Shaper, buffer: &mut Buffer) {
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
@@ -100,42 +97,42 @@ pub fn _hb_ot_layout_set_glyph_props<const SET_DIGEST: bool>(
     }
 }
 
-pub fn hb_ot_layout_has_glyph_classes(face: &hb_font_t) -> bool {
+pub fn has_glyph_classes(face: &Shaper) -> bool {
     face.ot_tables.has_glyph_classes()
 }
 
 // get_gsubgpos_table
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TableIndex {
-    GSUB = 0,
-    GPOS = 1,
+pub enum LayoutTableKind {
+    Gsub = 0,
+    Gpos = 1,
 }
 
-impl TableIndex {
-    pub fn iter() -> impl Iterator<Item = TableIndex> {
-        [Self::GSUB, Self::GPOS].iter().copied()
+impl LayoutTableKind {
+    pub fn iter() -> impl Iterator<Item = LayoutTableKind> {
+        [Self::Gsub, Self::Gpos].iter().copied()
     }
 }
 
-impl<T> Index<TableIndex> for [T] {
+impl<T> Index<LayoutTableKind> for [T] {
     type Output = T;
 
-    fn index(&self, table_index: TableIndex) -> &Self::Output {
+    fn index(&self, table_index: LayoutTableKind) -> &Self::Output {
         &self[table_index as usize]
     }
 }
 
-impl<T> IndexMut<TableIndex> for [T] {
-    fn index_mut(&mut self, table_index: TableIndex) -> &mut Self::Output {
+impl<T> IndexMut<LayoutTableKind> for [T] {
+    fn index_mut(&mut self, table_index: LayoutTableKind) -> &mut Self::Output {
         &mut self[table_index as usize]
     }
 }
 
 /// A lookup-based layout table (GSUB or GPOS).
 pub trait LayoutTable {
-    /// The index of this table.
-    const INDEX: TableIndex;
+    /// The kind of layout table.
+    const KIND: LayoutTableKind;
 
     /// Whether lookups in this table can be applied to the buffer in-place.
     const IN_PLACE: bool;
@@ -146,28 +143,28 @@ pub trait LayoutTable {
 
 /// Called before substitution lookups are performed, to ensure that glyph
 /// class and other properties are set on the glyphs in the buffer.
-pub fn hb_ot_layout_substitute_start(face: &hb_font_t, buffer: &mut Buffer) {
-    _hb_ot_layout_set_glyph_props::<false>(face, buffer);
+pub fn substitute_start(face: &Shaper, buffer: &mut Buffer) {
+    set_glyph_props::<false>(face, buffer);
 }
 
-pub fn hb_ot_layout_substitute_start_with_digest(face: &hb_font_t, buffer: &mut Buffer) {
-    buffer.digest = hb_set_digest_t::new();
-    _hb_ot_layout_set_glyph_props::<true>(face, buffer);
+pub fn substitute_start_with_digest(face: &Shaper, buffer: &mut Buffer) {
+    buffer.digest = SetDigest::new();
+    set_glyph_props::<true>(face, buffer);
 }
 
 /// Applies the lookups in the given GSUB or GPOS table.
 pub fn apply_layout_table<T: LayoutTable>(
-    plan: &hb_ot_shape_plan_t,
-    face: &hb_font_t,
+    plan: &ShapePlan,
+    face: &Shaper,
     font_funcs: &mut FontFuncsDispatch,
     buffer: &mut Buffer,
     table: Option<&T>,
 ) {
-    let mut ctx = hb_ot_apply_context_t::new(T::INDEX, face, *font_funcs.scale(), buffer);
+    let mut ctx = ApplyContext::new(T::KIND, face, *font_funcs.scale(), buffer);
 
-    for (stage_index, stage) in plan.ot_map.stages(T::INDEX).iter().enumerate() {
+    for (stage_index, stage) in plan.ot_map.stages(T::KIND).iter().enumerate() {
         if let Some(table) = table {
-            for lookup_map in plan.ot_map.stage_lookups(T::INDEX, stage_index) {
+            for lookup_map in plan.ot_map.stage_lookups(T::KIND, stage_index) {
                 let Some(lookup) = table.get_lookup(lookup_map.index) else {
                     continue;
                 };
@@ -200,7 +197,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     }
 }
 
-fn apply_string<T: LayoutTable>(ctx: &mut hb_ot_apply_context_t, lookup: &LookupInfo) {
+fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -228,7 +225,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut hb_ot_apply_context_t, lookup: &Lookup
     }
 }
 
-fn apply_forward(ctx: &mut hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
+fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     let Some(table_data) = ctx.face.ot_tables.table_data(ctx.table_index) else {
         return false;
     };
@@ -236,17 +233,13 @@ fn apply_forward(ctx: &mut hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
     apply_forward_with_data(ctx, lookup, table_data)
 }
 
-fn apply_forward_with_data(
-    ctx: &mut hb_ot_apply_context_t,
-    lookup: &LookupInfo,
-    table_data: &[u8],
-) -> bool {
+fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_data: &[u8]) -> bool {
     let mut ret = false;
 
     let use_hot_subtable_cache = lookup.cache_enter(ctx);
 
     // Loop-invariant: nested lookups save and restore lookup_props and the
-    // lookup mask (see hb_ot_apply_context_t::recurse), so these can be
+    // lookup mask (see ApplyContext::recurse), so these can be
     // hoisted, letting the candidate scan below run over a slice without
     // per-glyph bounds checks.
     let face = ctx.face;
@@ -293,7 +286,7 @@ fn apply_forward_with_data(
 }
 
 pub(crate) fn apply_synthesized_subst_lookup(
-    ctx: &mut hb_ot_apply_context_t,
+    ctx: &mut ApplyContext,
     lookup: &LookupInfo,
     table_data: &[u8],
 ) {
@@ -311,7 +304,7 @@ pub(crate) fn apply_synthesized_subst_lookup(
     ctx.buffer.sync();
 }
 
-fn apply_backward(ctx: &mut hb_ot_apply_context_t, lookup: &LookupInfo) -> bool {
+fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     let mut ret = false;
     let Some(table_data) = ctx.face.ot_tables.table_data(ctx.table_index) else {
         return false;
@@ -384,7 +377,7 @@ fn apply_backward(ctx: &mut hb_ot_apply_context_t, lookup: &LookupInfo) -> bool 
 //   static inline void
 //   _hb_glyph_info_set_unicode_props (hb_glyph_info_t *info, Buffer *buffer)
 //   {
-//     hb_unicode_funcs_t *unicode = buffer->unicode;
+//     space_fallback *unicode = buffer->unicode;
 //     unsigned int u = info->codepoint;
 //     unsigned int gen_cat = (unsigned int) unicode->general_category (u);
 //     unsigned int props = gen_cat;
@@ -506,7 +499,7 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L300>
     #[doc(alias = "_hb_glyph_info_set_unicode_space_fallback_type")]
     #[inline]
-    pub(crate) fn set_unicode_space_fallback_type(&mut self, s: hb_unicode_funcs_t::space_t) {
+    pub(crate) fn set_unicode_space_fallback_type(&mut self, s: space_fallback::SpaceCode) {
         if !self.is_unicode_space() {
             return;
         }
@@ -519,11 +512,11 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L307>
     #[doc(alias = "_hb_glyph_info_get_unicode_space_fallback_type")]
     #[inline]
-    pub(crate) fn unicode_space_fallback_type(&self) -> hb_unicode_funcs_t::space_t {
+    pub(crate) fn unicode_space_fallback_type(&self) -> space_fallback::SpaceCode {
         if self.is_unicode_space() {
             (self.unicode_props() >> 8) as u8
         } else {
-            hb_unicode_funcs_t::NOT_SPACE
+            space_fallback::NOT_SPACE
         }
     }
 
@@ -603,7 +596,7 @@ impl GlyphInfo {
     /// See <https://github.com/harfbuzz/harfbuzz/blob/368598b5bd9c37a15cb0fd5438b8e617e254609b/src/hb-ot-layout.hh#L365>
     #[doc(alias = "_hb_glyph_info_set_continuation")]
     #[inline]
-    pub(crate) fn set_continuation(&mut self, scratch_flags: &mut hb_buffer_scratch_flags_t) {
+    pub(crate) fn set_continuation(&mut self, scratch_flags: &mut ScratchFlags) {
         *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_CONTINUATIONS;
         let mut n = self.unicode_props();
         n |= UnicodeProps::CONTINUATION.bits();
@@ -631,15 +624,15 @@ impl GlyphInfo {
     }
 }
 
-pub(crate) fn _hb_grapheme_group_func(_: &GlyphInfo, b: &GlyphInfo) -> bool {
+pub(crate) fn grapheme_group(_: &GlyphInfo, b: &GlyphInfo) -> bool {
     b.is_continuation()
 }
 
-pub fn _hb_ot_layout_reverse_graphemes(buffer: &mut Buffer) {
-    // MONOTONE_GRAPHEMES was already applied and is taken care of by _hb_grapheme_group_func.
+pub fn reverse_graphemes(buffer: &mut Buffer) {
+    // MONOTONE_GRAPHEMES was already applied and is taken care of by grapheme_group.
     // So we just check for MONOTONE_CHARACTERS here.
     buffer.reverse_groups(
-        _hb_grapheme_group_func,
+        grapheme_group,
         buffer.cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS,
     );
 }
@@ -913,8 +906,8 @@ impl GlyphInfo {
     }
 }
 
-pub fn _hb_clear_substitution_flags(
-    _: &hb_ot_shape_plan_t,
+pub fn clear_substitution_flags(
+    _: &ShapePlan,
     _: &mut FontFuncsDispatch,
     buffer: &mut Buffer,
 ) -> bool {

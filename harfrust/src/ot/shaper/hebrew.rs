@@ -1,26 +1,26 @@
-use super::hb_tag_t;
+use super::Tag;
 use super::*;
 use crate::buffer::Buffer;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
 use crate::unicode::{self, combining_class, modified_combining_class, Codepoint};
 
-pub const HEBREW_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const HEBREW_SHAPER: OtShaper = OtShaper {
     collect_features: None,
     override_features: None,
     create_data: None,
     preprocess_text: None,
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_AUTO,
+    normalization_preference: NormalizationMode::Auto,
     decompose: None,
     compose: Some(compose),
     setup_masks: None,
-    gpos_tag: Some(hb_tag_t::new(b"hebr")),
+    gpos_tag: Some(Tag::new(b"hebr")),
     reorder_marks: Some(reorder_marks_hebrew),
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE,
+    zero_width_marks: ZeroWidthMarks::ByGdefLate,
     fallback_position: true,
 };
 
-fn reorder_marks_hebrew(_: &hb_ot_shape_plan_t, buffer: &mut Buffer, start: usize, end: usize) {
+fn reorder_marks_hebrew(_: &ShapePlan, buffer: &mut Buffer, start: usize, end: usize) {
     for i in start + 2..end {
         let c0 = buffer.info[i - 2];
         let c1 = buffer.info[i - 1];
@@ -72,7 +72,7 @@ static S_DAGESH_FORMS: &[Codepoint] = &[
     0xFB4A, // TAV
 ];
 
-fn compose(ctx: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+fn compose(ctx: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     // Hebrew presentation-form shaping.
     // https://bugzilla.mozilla.org/show_bug.cgi?id=728866
     // Hebrew presentation forms with dagesh, for characters U+05D0..05EA;

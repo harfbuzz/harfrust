@@ -1,25 +1,25 @@
-use super::indic::{ot_category_t, ot_position_t};
+use super::indic::{category, position};
 use super::syllabic::*;
 use super::*;
 use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::map::*;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
-use crate::ot::shaper::indic::ot_category_t::OT_VPre;
-use crate::{hb_tag_t, GlyphInfo};
+use crate::ot::shape::plan::ShapePlan;
+use crate::ot::shaper::indic::category::OT_VPre;
+use crate::{GlyphInfo, Tag};
 
-pub const MYANMAR_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const MYANMAR_SHAPER: OtShaper = OtShaper {
     collect_features: Some(collect_features),
     override_features: None,
     create_data: None,
     preprocess_text: None,
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT,
+    normalization_preference: NormalizationMode::ComposedDiacriticsNoShortCircuit,
     decompose: None,
     compose: None,
     setup_masks: Some(setup_masks),
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_EARLY,
+    zero_width_marks: ZeroWidthMarks::ByGdefEarly,
     fallback_position: false,
 };
 
@@ -43,36 +43,36 @@ impl GlyphInfo {
 // Ugly Zawgyi encoding.
 // Disable all auto processing.
 // https://github.com/harfbuzz/harfbuzz/issues/1162
-pub const MYANMAR_ZAWGYI_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const MYANMAR_ZAWGYI_SHAPER: OtShaper = OtShaper {
     collect_features: None,
     override_features: None,
     create_data: None,
     preprocess_text: None,
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_NONE,
+    normalization_preference: NormalizationMode::None,
     decompose: None,
     compose: None,
     setup_masks: None,
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
+    zero_width_marks: ZeroWidthMarks::None,
     fallback_position: false,
 };
 
-static MYANMAR_FEATURES: &[hb_tag_t] = &[
+static MYANMAR_FEATURES: &[Tag] = &[
     // Basic features.
     // These features are applied in order, one at a time, after reordering,
     // constrained to the syllable.
-    hb_tag_t::new(b"rphf"),
-    hb_tag_t::new(b"pref"),
-    hb_tag_t::new(b"blwf"),
-    hb_tag_t::new(b"pstf"),
+    Tag::new(b"rphf"),
+    Tag::new(b"pref"),
+    Tag::new(b"blwf"),
+    Tag::new(b"pstf"),
     // Other features.
     // These features are applied all at once after clearing syllables.
-    hb_tag_t::new(b"pres"),
-    hb_tag_t::new(b"abvs"),
-    hb_tag_t::new(b"blws"),
-    hb_tag_t::new(b"psts"),
+    Tag::new(b"pres"),
+    Tag::new(b"abvs"),
+    Tag::new(b"blws"),
+    Tag::new(b"psts"),
 ];
 
 impl GlyphInfo {
@@ -84,18 +84,18 @@ impl GlyphInfo {
     }
 }
 
-fn collect_features(planner: &mut hb_ot_shape_planner_t) {
+fn collect_features(planner: &mut ShapePlanner) {
     // Do this before any lookups have been applied.
     planner.ot_map.add_gsub_pause(Some(setup_syllables));
 
     planner
         .ot_map
-        .enable_feature(hb_tag_t::new(b"locl"), F_PER_SYLLABLE, 1);
+        .enable_feature(Tag::new(b"locl"), F_PER_SYLLABLE, 1);
     // The Indic specs do not require ccmp, but we apply it here since if
     // there is a use of it, it's typically at the beginning.
     planner
         .ot_map
-        .enable_feature(hb_tag_t::new(b"ccmp"), F_PER_SYLLABLE, 1);
+        .enable_feature(Tag::new(b"ccmp"), F_PER_SYLLABLE, 1);
 
     planner.ot_map.add_gsub_pause(Some(reorder_myanmar));
 
@@ -113,7 +113,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     }
 }
 
-fn setup_syllables(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     myanmar_machine::find_syllables_myanmar(buffer);
@@ -129,11 +129,7 @@ fn setup_syllables(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &m
     false
 }
 
-fn reorder_myanmar(
-    _: &hb_ot_shape_plan_t,
-    face: &mut FontFuncsDispatch,
-    buffer: &mut Buffer,
-) -> bool {
+fn reorder_myanmar(_: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     use super::myanmar_machine::SyllableType;
 
     let mut ret = false;
@@ -142,7 +138,7 @@ fn reorder_myanmar(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
-        ot_category_t::OT_DOTTEDCIRCLE,
+        category::OT_DOTTEDCIRCLE,
         None,
         None,
     ) {
@@ -192,9 +188,9 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     {
         let mut limit = start;
         if start + 3 <= end
-            && buffer.info[start + 0].myanmar_category() == ot_category_t::OT_Ra
-            && buffer.info[start + 1].myanmar_category() == ot_category_t::OT_As
-            && buffer.info[start + 2].myanmar_category() == ot_category_t::OT_H
+            && buffer.info[start + 0].myanmar_category() == category::OT_Ra
+            && buffer.info[start + 1].myanmar_category() == category::OT_As
+            && buffer.info[start + 2].myanmar_category() == category::OT_H
         {
             limit += 3;
             base = start;
@@ -219,68 +215,64 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     {
         let mut i = start;
         while i < start + if has_reph { 3 } else { 0 } {
-            buffer.info[i].set_myanmar_position(ot_position_t::POS_AFTER_MAIN);
+            buffer.info[i].set_myanmar_position(position::POS_AFTER_MAIN);
             i += 1;
         }
 
         while i < base {
-            buffer.info[i].set_myanmar_position(ot_position_t::POS_PRE_C);
+            buffer.info[i].set_myanmar_position(position::POS_PRE_C);
             i += 1;
         }
 
         if i < end {
-            buffer.info[i].set_myanmar_position(ot_position_t::POS_BASE_C);
+            buffer.info[i].set_myanmar_position(position::POS_BASE_C);
             i += 1;
         }
 
-        let mut pos = ot_position_t::POS_AFTER_MAIN;
+        let mut pos = position::POS_AFTER_MAIN;
         // The following loop may be ugly, but it implements all of
         // Myanmar reordering!
         for i in i..end {
             // Pre-base reordering
-            if buffer.info[i].myanmar_category() == ot_category_t::OT_MR {
-                buffer.info[i].set_myanmar_position(ot_position_t::POS_PRE_C);
+            if buffer.info[i].myanmar_category() == category::OT_MR {
+                buffer.info[i].set_myanmar_position(position::POS_PRE_C);
                 continue;
             }
 
             // Left matra
             if buffer.info[i].myanmar_category() == OT_VPre {
-                buffer.info[i].set_myanmar_position(ot_position_t::POS_PRE_M);
+                buffer.info[i].set_myanmar_position(position::POS_PRE_M);
                 continue;
             }
 
-            if buffer.info[i].myanmar_category() == ot_category_t::OT_VS {
+            if buffer.info[i].myanmar_category() == category::OT_VS {
                 let t = buffer.info[i - 1].myanmar_position();
                 buffer.info[i].set_myanmar_position(t);
                 continue;
             }
 
-            if pos == ot_position_t::POS_AFTER_MAIN
-                && buffer.info[i].myanmar_category() == ot_category_t::OT_VBlw
+            if pos == position::POS_AFTER_MAIN
+                && buffer.info[i].myanmar_category() == category::OT_VBlw
             {
-                pos = ot_position_t::POS_BELOW_C;
+                pos = position::POS_BELOW_C;
                 buffer.info[i].set_myanmar_position(pos);
                 continue;
             }
 
-            if pos == ot_position_t::POS_BELOW_C
-                && buffer.info[i].myanmar_category() == ot_category_t::OT_A
-            {
-                buffer.info[i].set_myanmar_position(ot_position_t::POS_BEFORE_SUB);
+            if pos == position::POS_BELOW_C && buffer.info[i].myanmar_category() == category::OT_A {
+                buffer.info[i].set_myanmar_position(position::POS_BEFORE_SUB);
                 continue;
             }
 
-            if pos == ot_position_t::POS_BELOW_C
-                && buffer.info[i].myanmar_category() == ot_category_t::OT_VBlw
+            if pos == position::POS_BELOW_C
+                && buffer.info[i].myanmar_category() == category::OT_VBlw
             {
                 buffer.info[i].set_myanmar_position(pos);
                 continue;
             }
 
-            if pos == ot_position_t::POS_BELOW_C
-                && buffer.info[i].myanmar_category() != ot_category_t::OT_A
-            {
-                pos = ot_position_t::POS_AFTER_SUB;
+            if pos == position::POS_BELOW_C && buffer.info[i].myanmar_category() != category::OT_A {
+                pos = position::POS_AFTER_SUB;
                 buffer.info[i].set_myanmar_position(pos);
                 continue;
             }
@@ -298,7 +290,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     let mut last_left_matra = end;
 
     for i in start..end {
-        if buffer.info[i].myanmar_position() == ot_position_t::POS_PRE_M {
+        if buffer.info[i].myanmar_position() == position::POS_PRE_M {
             if first_left_matra == end {
                 first_left_matra = i;
             }
@@ -323,7 +315,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     }
 }
 
-fn setup_masks(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::MYANMAR_CATEGORY_VAR);
     buffer.allocate_var(GlyphInfo::MYANMAR_POSITION_VAR);
 

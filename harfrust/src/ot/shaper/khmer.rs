@@ -1,26 +1,26 @@
-use super::indic::ot_category_t;
+use super::indic::category;
 use super::syllabic::*;
 use super::*;
 use crate::font_funcs::FontFuncsDispatch;
 use crate::ot::map::*;
-use crate::ot::shape::plan::hb_ot_shape_plan_t;
+use crate::ot::shape::plan::ShapePlan;
 use crate::unicode::{CharExt, Codepoint};
-use crate::{hb_mask_t, hb_tag_t, GlyphInfo};
+use crate::{GlyphInfo, Mask, Tag};
 use alloc::boxed::Box;
 
-pub const KHMER_SHAPER: hb_ot_shaper_t = hb_ot_shaper_t {
+pub const KHMER_SHAPER: OtShaper = OtShaper {
     collect_features: Some(collect_features),
     override_features: Some(override_features),
     create_data: Some(|plan| Box::new(KhmerShapePlan::new(plan))),
     preprocess_text: None,
     postprocess_glyphs: None,
-    normalization_preference: HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT,
+    normalization_preference: NormalizationMode::ComposedDiacriticsNoShortCircuit,
     decompose: Some(decompose),
     compose: Some(compose),
     setup_masks: Some(setup_masks),
     gpos_tag: None,
     reorder_marks: None,
-    zero_width_marks: HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
+    zero_width_marks: ZeroWidthMarks::None,
     fallback_position: false,
 };
 
@@ -34,21 +34,21 @@ impl GlyphInfo {
     );
 }
 
-const KHMER_FEATURES: &[(hb_tag_t, hb_ot_map_feature_flags_t)] = &[
+const KHMER_FEATURES: &[(Tag, MapFeatureFlags)] = &[
     // Basic features.
     // These features are applied all at once, before reordering, constrained
     // to the syllable.
-    (hb_tag_t::new(b"pref"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
-    (hb_tag_t::new(b"blwf"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
-    (hb_tag_t::new(b"abvf"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
-    (hb_tag_t::new(b"pstf"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
-    (hb_tag_t::new(b"cfar"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
+    (Tag::new(b"pref"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
+    (Tag::new(b"blwf"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
+    (Tag::new(b"abvf"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
+    (Tag::new(b"pstf"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
+    (Tag::new(b"cfar"), F_MANUAL_JOINERS | F_PER_SYLLABLE),
     // Other features.
     // These features are applied all at once after clearing syllables.
-    (hb_tag_t::new(b"pres"), F_GLOBAL_MANUAL_JOINERS),
-    (hb_tag_t::new(b"abvs"), F_GLOBAL_MANUAL_JOINERS),
-    (hb_tag_t::new(b"blws"), F_GLOBAL_MANUAL_JOINERS),
-    (hb_tag_t::new(b"psts"), F_GLOBAL_MANUAL_JOINERS),
+    (Tag::new(b"pres"), F_GLOBAL_MANUAL_JOINERS),
+    (Tag::new(b"abvs"), F_GLOBAL_MANUAL_JOINERS),
+    (Tag::new(b"blws"), F_GLOBAL_MANUAL_JOINERS),
+    (Tag::new(b"psts"), F_GLOBAL_MANUAL_JOINERS),
 ];
 
 // Must be in the same order as the KHMER_FEATURES array.
@@ -70,11 +70,11 @@ impl GlyphInfo {
 }
 
 struct KhmerShapePlan {
-    mask_array: [hb_mask_t; KHMER_FEATURES.len()],
+    mask_array: [Mask; KHMER_FEATURES.len()],
 }
 
 impl KhmerShapePlan {
-    fn new(plan: &hb_ot_shape_plan_t) -> Self {
+    fn new(plan: &ShapePlan) -> Self {
         let mut mask_array = [0; KHMER_FEATURES.len()];
         for (i, feature) in KHMER_FEATURES.iter().enumerate() {
             mask_array[i] = if feature.1 & F_GLOBAL != 0 {
@@ -88,7 +88,7 @@ impl KhmerShapePlan {
     }
 }
 
-fn collect_features(planner: &mut hb_ot_shape_planner_t) {
+fn collect_features(planner: &mut ShapePlanner) {
     // Do this before any lookups have been applied.
     planner.ot_map.add_gsub_pause(Some(setup_syllables));
     planner.ot_map.add_gsub_pause(Some(reorder_khmer));
@@ -104,10 +104,10 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     // https://github.com/harfbuzz/harfbuzz/issues/974
     planner
         .ot_map
-        .enable_feature(hb_tag_t::new(b"locl"), F_PER_SYLLABLE, 1);
+        .enable_feature(Tag::new(b"locl"), F_PER_SYLLABLE, 1);
     planner
         .ot_map
-        .enable_feature(hb_tag_t::new(b"ccmp"), F_PER_SYLLABLE, 1);
+        .enable_feature(Tag::new(b"ccmp"), F_PER_SYLLABLE, 1);
 
     for feature in KHMER_FEATURES.iter().take(5) {
         planner.ot_map.add_feature(feature.0, feature.1, 1);
@@ -121,7 +121,7 @@ fn collect_features(planner: &mut hb_ot_shape_planner_t) {
     }
 }
 
-fn setup_syllables(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     khmer_machine::find_syllables_khmer(buffer);
@@ -137,11 +137,7 @@ fn setup_syllables(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &m
     false
 }
 
-fn reorder_khmer(
-    plan: &hb_ot_shape_plan_t,
-    face: &mut FontFuncsDispatch,
-    buffer: &mut Buffer,
-) -> bool {
+fn reorder_khmer(plan: &ShapePlan, face: &mut FontFuncsDispatch, buffer: &mut Buffer) -> bool {
     use super::khmer_machine::SyllableType;
 
     let mut ret = false;
@@ -150,8 +146,8 @@ fn reorder_khmer(
         face,
         buffer,
         SyllableType::BrokenCluster as u8,
-        ot_category_t::OT_DOTTEDCIRCLE,
-        Some(ot_category_t::OT_Repha),
+        category::OT_DOTTEDCIRCLE,
+        Some(category::OT_Repha),
         None,
     ) {
         ret = true;
@@ -225,11 +221,10 @@ fn reorder_consonant_syllable(
         // Subscript Type 2 - The COENG + RO characters are reordered to immediately
         // before the base glyph. Then the COENG + RO characters are assigned to have
         // the 'pref' OpenType feature applied to them.
-        if buffer.info[i].indic_category() == ot_category_t::OT_H && num_coengs <= 2 && i + 1 < end
-        {
+        if buffer.info[i].indic_category() == category::OT_H && num_coengs <= 2 && i + 1 < end {
             num_coengs += 1;
 
-            if buffer.info[i + 1].indic_category() == ot_category_t::OT_Ra {
+            if buffer.info[i + 1].indic_category() == category::OT_Ra {
                 for j in 0..2 {
                     buffer.info[i + j].mask |= plan.mask_array[khmer_feature::PREF];
                 }
@@ -258,7 +253,7 @@ fn reorder_consonant_syllable(
 
                 num_coengs = 2; // Done.
             }
-        } else if buffer.info[i].indic_category() == ot_category_t::OT_VPre {
+        } else if buffer.info[i].indic_category() == category::OT_VPre {
             // Reorder left matra piece.
 
             // Move to the start.
@@ -272,18 +267,16 @@ fn reorder_consonant_syllable(
     }
 }
 
-fn override_features(planner: &mut hb_ot_shape_planner_t) {
+fn override_features(planner: &mut ShapePlanner) {
     // Khmer spec has 'clig' as part of required shaping features:
     // "Apply feature 'clig' to form ligatures that are desired for
     // typographical correctness.", hence in overrides...
-    planner
-        .ot_map
-        .enable_feature(hb_tag_t::new(b"clig"), F_NONE, 1);
+    planner.ot_map.enable_feature(Tag::new(b"clig"), F_NONE, 1);
 
-    planner.ot_map.disable_feature(hb_tag_t::new(b"liga"));
+    planner.ot_map.disable_feature(Tag::new(b"liga"));
 }
 
-fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
+fn decompose(_: &NormalizeContext, ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
     // Decompose split matras that don't have Unicode decompositions.
     match ab {
         0x17BE | 0x17BF | 0x17C0 | 0x17C4 | 0x17C5 => Some((0x17C1, ab)),
@@ -291,7 +284,7 @@ fn decompose(_: &hb_ot_shape_normalize_context_t, ab: Codepoint) -> Option<(Code
     }
 }
 
-fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
     // Avoid recomposing split matras.
     if a.general_category().is_mark() {
         return None;
@@ -300,7 +293,7 @@ fn compose(_: &hb_ot_shape_normalize_context_t, a: Codepoint, b: Codepoint) -> O
     crate::unicode::compose(a, b)
 }
 
-fn setup_masks(_: &hb_ot_shape_plan_t, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
+fn setup_masks(_: &ShapePlan, _: &mut FontFuncsDispatch, buffer: &mut Buffer) {
     buffer.allocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
 
     // We cannot setup masks here.  We save information about characters
