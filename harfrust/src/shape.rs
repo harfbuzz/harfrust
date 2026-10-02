@@ -2,6 +2,11 @@
 ///
 /// A supplied plan must match the buffer's direction and script. On success,
 /// the buffer contains glyphs.
+///
+/// # Errors
+///
+/// Returns an error if the buffer cannot be shaped with the supplied plan or
+/// lacks the properties needed to build one.
 pub fn shape(
     font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,

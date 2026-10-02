@@ -285,11 +285,7 @@ fn compare_combining_class(pa: &GlyphInfo, pb: &GlyphInfo) -> bool {
     a > b
 }
 
-pub fn normalize<'a, 'x>(
-    plan: &'a ShapePlan,
-    buffer: &'x mut Buffer,
-    font: &'x ShaperFont<'_, '_>,
-) {
+pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperFont<'_, '_>) {
     if buffer.is_empty() {
         return;
     }

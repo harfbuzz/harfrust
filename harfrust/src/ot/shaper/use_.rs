@@ -548,7 +548,7 @@ fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint
         return None;
     }
 
-    crate::unicode::compose(a, b)
+    unicode::compose(a, b)
 }
 
 fn setup_masks(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {

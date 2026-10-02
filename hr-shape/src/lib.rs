@@ -487,8 +487,8 @@ pub fn render(mut args: Args) -> Result<String, String> {
 
                 buffer.guess_segment_properties();
 
-                let script = resolved_script(args.script, &buffer);
-                let plan = shape_plan_cache.get(&instance, &buffer, script, features);
+                let script = resolved_script(args.script, buffer);
+                let plan = shape_plan_cache.get(&instance, buffer, script, features);
                 shape_impl(
                     &shaping_font,
                     buffer,

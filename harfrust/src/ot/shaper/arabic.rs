@@ -550,9 +550,8 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
                 let excess =
                     i64::from(n_copies + 1) * i64::from(w_repeating) - i64::from(w_remaining);
                 if excess > 0 {
-                    extra_repeat_overlap = crate::clamp_i64_to_i32(
-                        excess / (i64::from(n_copies) * i64::from(n_repeating)),
-                    );
+                    extra_repeat_overlap =
+                        clamp_i64_to_i32(excess / (i64::from(n_copies) * i64::from(n_repeating)));
                     w_remaining = 0;
                 }
             }

@@ -532,7 +532,7 @@ fn decompose(_: &NormalizeContext, ab: Codepoint) -> Option<(Codepoint, Codepoin
         _ => {}
     }
 
-    crate::unicode::decompose(ab)
+    unicode::decompose(ab)
 }
 
 fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
@@ -546,7 +546,7 @@ fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint
         return Some(0x09DF);
     }
 
-    crate::unicode::compose(a, b)
+    unicode::compose(a, b)
 }
 
 fn setup_masks(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {

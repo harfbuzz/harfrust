@@ -71,14 +71,8 @@ pub(crate) struct BasicFontMetrics {
 
 impl BasicFontMetrics {
     pub(crate) fn new<'a>(tables: &impl TableProvider<'a>) -> Self {
-        let units_per_em = tables
-            .head()
-            .map(|head| head.units_per_em())
-            .unwrap_or(1000);
-        let num_glyphs = tables
-            .maxp()
-            .map(|maxp| maxp.num_glyphs() as u32)
-            .unwrap_or_default();
+        let units_per_em = tables.head().map_or(1000, |head| head.units_per_em());
+        let num_glyphs = tables.maxp().map_or(0, |maxp| maxp.num_glyphs() as u32);
         let os2 = tables.os2().ok();
         let hhea = tables.hhea().ok();
         let (ascent, descent) = horizontal_metrics(os2.as_ref(), hhea.as_ref(), units_per_em);

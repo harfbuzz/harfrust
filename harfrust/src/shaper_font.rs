@@ -563,87 +563,6 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{aat::AatData, ot::OtData, Tag};
-    use core::cell::Cell;
-    use read_fonts::{FontData, FontRef, TableProvider};
-
-    struct CountingProvider<'a> {
-        font: FontRef<'a>,
-        loads: Cell<usize>,
-    }
-
-    impl<'a> TableProvider<'a> for CountingProvider<'a> {
-        fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
-            self.loads.set(self.loads.get() + 1);
-            self.font.data_for_tag(tag)
-        }
-    }
-
-    #[test]
-    fn cached_table_disposition_skips_missing_tables() {
-        let font = FontRef::new(include_bytes!("../benches/fonts/Roboto-Regular.ttf")).unwrap();
-        let provider = CountingProvider {
-            font,
-            loads: Cell::new(0),
-        };
-        let cache = LayoutCache::new(&provider, false);
-
-        provider.loads.set(0);
-        let ot_data = OtData::from_tables(&provider, &cache.ot, &[], [None; 2]);
-        let aat_data = AatData::from_tables(&provider, &cache.aat);
-
-        assert!(ot_data.gsub.is_some());
-        assert!(ot_data.gpos.is_some());
-        assert!(ot_data.gdef.table.is_some());
-        assert!(aat_data.morx.is_none());
-        assert!(aat_data.mort.is_none());
-        assert!(aat_data.ankr.is_none());
-        assert!(aat_data.kern.is_none());
-        assert!(aat_data.kerx.is_none());
-        assert!(aat_data.trak.is_none());
-        assert!(aat_data.feat.is_none());
-        assert!(aat_data.ltag.is_none());
-        assert_eq!(provider.loads.get(), 3);
-    }
-
-    #[test]
-    fn extents_scale_from_corners_like_harfbuzz() {
-        // HarfBuzz scales corners in floating point, floors the bearings,
-        // ceils the far corners, and then derives width/height from them.
-        let scale = Scale::new(Some((1500, 1500)), 1000);
-        let extents = GlyphExtents {
-            x_bearing: 1,
-            y_bearing: 4,
-            width: 3,
-            height: -2,
-        };
-        let scaled = scale.scale_extents(extents);
-        assert_eq!(scaled.x_bearing, 1);
-        assert_eq!(scaled.y_bearing, 6);
-        assert_eq!(scaled.width, 5);
-        assert_eq!(scaled.height, -3);
-    }
-
-    #[test]
-    fn full_range_extents_saturate() {
-        let extents = GlyphExtents {
-            x_bearing: i32::MAX,
-            y_bearing: i32::MIN,
-            width: i32::MAX,
-            height: i32::MIN,
-        };
-
-        let scaled = Scale::default().scale_extents(extents);
-        assert_eq!(scaled.x_bearing, i32::MAX);
-        assert_eq!(scaled.y_bearing, i32::MIN);
-        assert_eq!(scaled.width, i32::MAX);
-        assert_eq!(scaled.height, i32::MIN);
-    }
-}
-
 /// Customizable font callback surface.
 ///
 /// # Metrics scaling
@@ -725,5 +644,86 @@ pub trait FontFuncs {
     /// on what values this method should return.
     fn glyph_extents(&self, font: &ShaperFont, glyph: GlyphId) -> Option<GlyphExtents> {
         font.default_glyph_extents(glyph)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{aat::AatData, ot::OtData, Tag};
+    use core::cell::Cell;
+    use read_fonts::{FontData, FontRef, TableProvider};
+
+    struct CountingProvider<'a> {
+        font: FontRef<'a>,
+        loads: Cell<usize>,
+    }
+
+    impl<'a> TableProvider<'a> for CountingProvider<'a> {
+        fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
+            self.loads.set(self.loads.get() + 1);
+            self.font.data_for_tag(tag)
+        }
+    }
+
+    #[test]
+    fn cached_table_disposition_skips_missing_tables() {
+        let font = FontRef::new(include_bytes!("../benches/fonts/Roboto-Regular.ttf")).unwrap();
+        let provider = CountingProvider {
+            font,
+            loads: Cell::new(0),
+        };
+        let cache = LayoutCache::new(&provider, false);
+
+        provider.loads.set(0);
+        let ot_data = OtData::from_tables(&provider, &cache.ot, &[], [None; 2]);
+        let aat_data = AatData::from_tables(&provider, &cache.aat);
+
+        assert!(ot_data.gsub.is_some());
+        assert!(ot_data.gpos.is_some());
+        assert!(ot_data.gdef.table.is_some());
+        assert!(aat_data.morx.is_none());
+        assert!(aat_data.mort.is_none());
+        assert!(aat_data.ankr.is_none());
+        assert!(aat_data.kern.is_none());
+        assert!(aat_data.kerx.is_none());
+        assert!(aat_data.trak.is_none());
+        assert!(aat_data.feat.is_none());
+        assert!(aat_data.ltag.is_none());
+        assert_eq!(provider.loads.get(), 3);
+    }
+
+    #[test]
+    fn extents_scale_from_corners_like_harfbuzz() {
+        // HarfBuzz scales corners in floating point, floors the bearings,
+        // ceils the far corners, and then derives width/height from them.
+        let scale = Scale::new(Some((1500, 1500)), 1000);
+        let extents = GlyphExtents {
+            x_bearing: 1,
+            y_bearing: 4,
+            width: 3,
+            height: -2,
+        };
+        let scaled = scale.scale_extents(extents);
+        assert_eq!(scaled.x_bearing, 1);
+        assert_eq!(scaled.y_bearing, 6);
+        assert_eq!(scaled.width, 5);
+        assert_eq!(scaled.height, -3);
+    }
+
+    #[test]
+    fn full_range_extents_saturate() {
+        let extents = GlyphExtents {
+            x_bearing: i32::MAX,
+            y_bearing: i32::MIN,
+            width: i32::MAX,
+            height: i32::MIN,
+        };
+
+        let scaled = Scale::default().scale_extents(extents);
+        assert_eq!(scaled.x_bearing, i32::MAX);
+        assert_eq!(scaled.y_bearing, i32::MIN);
+        assert_eq!(scaled.width, i32::MAX);
+        assert_eq!(scaled.height, i32::MIN);
     }
 }

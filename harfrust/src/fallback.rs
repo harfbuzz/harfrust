@@ -416,8 +416,8 @@ fn position_cluster(ctx: &mut FallbackShapeContext, start: usize, end: usize) {
     position_cluster_impl(ctx, start, end);
 }
 
-pub fn position_marks<'a, 'x>(
-    plan: &'a ShapePlan,
+pub fn position_marks<'x>(
+    plan: &ShapePlan,
     font: &'x ShaperFont<'_, '_>,
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
@@ -428,7 +428,7 @@ pub fn position_marks<'a, 'x>(
         scale: font.scale,
         buffer,
         adjust_offsets_when_zeroing,
-        font: font,
+        font,
     };
 
     ctx.buffer.assert_gsubgpos_vars();

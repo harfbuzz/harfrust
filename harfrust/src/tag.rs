@@ -319,6 +319,70 @@ fn old_tag_from_script(script: Script) -> Tag {
     }
 }
 
+pub trait TagExt {
+    fn from_bytes_lossy(bytes: &[u8]) -> Self;
+    fn as_u32(self) -> u32;
+    fn is_null(self) -> bool;
+    fn default_script() -> Self;
+    fn default_language() -> Self;
+    #[cfg(test)]
+    fn to_lowercase(&self) -> Self;
+    fn to_uppercase(&self) -> Self;
+}
+
+impl TagExt for Tag {
+    fn from_bytes_lossy(bytes: &[u8]) -> Self {
+        let mut array = [b' '; 4];
+        for (src, dest) in bytes.iter().zip(&mut array) {
+            *dest = *src;
+        }
+        Tag::new(&array)
+    }
+
+    fn as_u32(self) -> u32 {
+        u32::from_be_bytes(self.to_be_bytes())
+    }
+
+    fn is_null(self) -> bool {
+        self.to_be_bytes() == [0, 0, 0, 0]
+    }
+
+    #[inline]
+    fn default_script() -> Self {
+        Tag::new(b"DFLT")
+    }
+
+    #[inline]
+    fn default_language() -> Self {
+        Tag::new(b"dflt")
+    }
+
+    /// Converts tag to lowercase.
+    #[cfg(test)]
+    #[inline]
+    fn to_lowercase(&self) -> Self {
+        let b = self.to_be_bytes();
+        Tag::new(&[
+            b[0].to_ascii_lowercase(),
+            b[1].to_ascii_lowercase(),
+            b[2].to_ascii_lowercase(),
+            b[3].to_ascii_lowercase(),
+        ])
+    }
+
+    /// Converts tag to uppercase.
+    #[inline]
+    fn to_uppercase(&self) -> Self {
+        let b = self.to_be_bytes();
+        Tag::new(&[
+            b[0].to_ascii_uppercase(),
+            b[1].to_ascii_uppercase(),
+            b[2].to_ascii_uppercase(),
+            b[3].to_ascii_uppercase(),
+        ])
+    }
+}
+
 #[rustfmt::skip]
 #[cfg(test)]
 mod tests {
@@ -773,68 +837,4 @@ mod tests {
     test_tags!(tag_full_ml, Some(Script::MALAYALAM), "ml", &[b"mlm3", b"mlm2", b"mlym"], &[b"MAL", b"MLR"]);
     test_tags!(tag_full_xyz, None, "xyz", &[], &[b"XYZ"]);
     test_tags!(tag_full_xy, None, "xy", &[], &[]);
-}
-
-pub trait TagExt {
-    fn from_bytes_lossy(bytes: &[u8]) -> Self;
-    fn as_u32(self) -> u32;
-    fn is_null(self) -> bool;
-    fn default_script() -> Self;
-    fn default_language() -> Self;
-    #[cfg(test)]
-    fn to_lowercase(&self) -> Self;
-    fn to_uppercase(&self) -> Self;
-}
-
-impl TagExt for Tag {
-    fn from_bytes_lossy(bytes: &[u8]) -> Self {
-        let mut array = [b' '; 4];
-        for (src, dest) in bytes.iter().zip(&mut array) {
-            *dest = *src;
-        }
-        Tag::new(&array)
-    }
-
-    fn as_u32(self) -> u32 {
-        u32::from_be_bytes(self.to_be_bytes())
-    }
-
-    fn is_null(self) -> bool {
-        self.to_be_bytes() == [0, 0, 0, 0]
-    }
-
-    #[inline]
-    fn default_script() -> Self {
-        Tag::new(b"DFLT")
-    }
-
-    #[inline]
-    fn default_language() -> Self {
-        Tag::new(b"dflt")
-    }
-
-    /// Converts tag to lowercase.
-    #[cfg(test)]
-    #[inline]
-    fn to_lowercase(&self) -> Self {
-        let b = self.to_be_bytes();
-        Tag::new(&[
-            b[0].to_ascii_lowercase(),
-            b[1].to_ascii_lowercase(),
-            b[2].to_ascii_lowercase(),
-            b[3].to_ascii_lowercase(),
-        ])
-    }
-
-    /// Converts tag to uppercase.
-    #[inline]
-    fn to_uppercase(&self) -> Self {
-        let b = self.to_be_bytes();
-        Tag::new(&[
-            b[0].to_ascii_uppercase(),
-            b[1].to_ascii_uppercase(),
-            b[2].to_ascii_uppercase(),
-            b[3].to_ascii_uppercase(),
-        ])
-    }
 }

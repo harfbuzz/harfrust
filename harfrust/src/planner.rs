@@ -171,7 +171,7 @@ impl<'a> ShapePlanner<'a> {
         let ot_map = self.ot_map.compile();
         let mut aat_map = AatMap::default();
         if self.apply_morx {
-            self.aat_map.compile(&self.layout.aat, &mut aat_map);
+            self.aat_map.compile(self.layout.aat, &mut aat_map);
         }
 
         let frac_mask = ot_map.get_1_mask(Tag::new(b"frac"));
@@ -198,7 +198,7 @@ impl<'a> ShapePlanner<'a> {
             && self.shaper.gpos_tag != ot_map.chosen_script(LayoutTableKind::Gpos);
 
         // Decide who provides glyph classes. GDEF or Unicode.
-        let fallback_glyph_classes = !has_glyph_classes(&self.layout.ot);
+        let fallback_glyph_classes = !has_glyph_classes(self.layout.ot);
 
         // Decide who does substitutions. GSUB, morx, or fallback.
         let apply_morx = self.apply_morx;
@@ -223,7 +223,7 @@ impl<'a> ShapePlanner<'a> {
         if !apply_kerx && (!has_gpos_kern || !apply_gpos) {
             if has_kerx {
                 apply_kerx = true;
-            } else if has_kerning(&self.layout.aat) {
+            } else if has_kerning(self.layout.aat) {
                 apply_kern = self.script_fallback_position;
             }
         }
@@ -231,12 +231,12 @@ impl<'a> ShapePlanner<'a> {
         let apply_fallback_kern = !(apply_gpos || apply_kerx || apply_kern);
         let zero_marks = self.script_zero_marks
             && !apply_kerx
-            && (!apply_kern || !has_machine_kerning(&self.layout.aat));
+            && (!apply_kern || !has_machine_kerning(self.layout.aat));
 
         let has_gpos_mark = ot_map.get_1_mask(Tag::new(b"mark")) != 0;
 
         let mut adjust_mark_positioning_when_zeroing =
-            !apply_gpos && !apply_kerx && (!apply_kern || !has_cross_kerning(&self.layout.aat));
+            !apply_gpos && !apply_kerx && (!apply_kern || !has_cross_kerning(self.layout.aat));
 
         let fallback_mark_positioning =
             adjust_mark_positioning_when_zeroing && self.script_fallback_position;
