@@ -412,6 +412,54 @@ fn fuzzer_009() {
 }
 
 #[test]
+fn fuzzer_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/fuzz-lookup-type-oob-1.ttf",
+            "\u{0041}",
+            "",
+        ),
+        "[.notdef=0+900]"
+    );
+}
+
+#[test]
+fn fuzzer_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/fuzz-lookup-type-oob-1.ttf",
+            "\u{0066}\u{0069}",
+            "",
+        ),
+        "[.notdef=0+900|.notdef=1+900]"
+    );
+}
+
+#[test]
+fn fuzzer_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/fuzz-lookup-type-oob-2.ttf",
+            "\u{0041}",
+            "",
+        ),
+        "[.notdef=0+900]"
+    );
+}
+
+#[test]
+fn fuzzer_013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/rb_custom/fuzz-lookup-type-oob-2.ttf",
+            "\u{0066}\u{0069}",
+            "",
+        ),
+        "[.notdef=0+900|.notdef=1+900]"
+    );
+}
+
+#[test]
 fn glyph_flags_001() {
     assert_eq!(
         shape(

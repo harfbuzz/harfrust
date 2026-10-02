@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
 
+- Reject GSUB/GPOS lookups with an out-of-range `lookupType` instead of
+  truncating it to `u8`. A malformed font could have e.g. type 3586 dispatched
+  as MultipleSubst, expanding a single character into thousands of glyphs and
+  costing up to a second per `shape` call. HarfBuzz rejects such tables.
 - Update the built-in Unicode data to 18.0. Add Jurchen, Proto-Cuneiform, and
   Seal script constants to the Rust and C APIs and route them through USE.
 - Support hexadecimal OpenType language and script overrides in `x-hbot-`
