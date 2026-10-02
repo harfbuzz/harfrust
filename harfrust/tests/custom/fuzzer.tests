@@ -7,3 +7,7 @@ tests/fonts/rb_custom/NotoSansSinhala.subset1.otf;;U+0DC1,U+200D,U+0DCA,U+200D,U
 tests/fonts/rb_custom/LaBelleAurore.ttf;;U+006B,U+0065,U+031D;
 tests/fonts/rb_custom/Linefont.ttf;--no-glyph-names;U+0054,U+021F;
 tests/fonts/rb_custom/Linefont.ttf;--no-glyph-names;U+021F,U+0061;
+tests/fonts/rb_custom/fuzz-lookup-type-oob-1.ttf;;U+0041;[.notdef=0+900]
+tests/fonts/rb_custom/fuzz-lookup-type-oob-1.ttf;;U+0066,U+0069;[.notdef=0+900|.notdef=1+900]
+tests/fonts/rb_custom/fuzz-lookup-type-oob-2.ttf;;U+0041;[.notdef=0+900]
+tests/fonts/rb_custom/fuzz-lookup-type-oob-2.ttf;;U+0066,U+0069;[.notdef=0+900|.notdef=1+900]

@@ -155,7 +155,7 @@ mod cache {
 
 pub(crate) use cache::LookupCache;
 
-fn is_extension_lookup_type(is_subst: bool, lookup_type: u8) -> bool {
+fn is_extension_lookup_type(is_subst: bool, lookup_type: u16) -> bool {
     (is_subst && lookup_type == 7) || (!is_subst && lookup_type == 9)
 }
 
@@ -168,7 +168,7 @@ fn is_reversed(table_data: FontData, lookup: &Lookup<()>, lookup_offset: usize) 
             let offset = lookup_offset + lookup.subtable_offsets().first()?.get().to_usize();
             let data = table_data.split_off(offset)?;
             let ext = ExtensionSubstFormat1::<()>::read(data).ok()?;
-            if is_extension_lookup_type(true, ext.extension_lookup_type() as u8) {
+            if is_extension_lookup_type(true, ext.extension_lookup_type()) {
                 return None;
             }
             Some(ext.extension_lookup_type() == 8)
@@ -220,7 +220,7 @@ impl LookupInfo {
                 data.table_data,
                 subtable_offset as u32,
                 data.is_subst,
-                lookup_type as u8,
+                lookup_type,
                 cache_mode,
             ) {
                 info.digest.union(&subtable_info.digest);
@@ -668,7 +668,7 @@ impl SubtableInfo {
         table_data: FontData,
         subtable_offset: u32,
         is_subst: bool,
-        lookup_type: u8,
+        lookup_type: u16,
         cache_mode: SubtableExternalCacheMode,
     ) -> Option<(Self, u32, hb_set_digest_t)> {
         let data = table_data.split_off(subtable_offset as usize)?;
@@ -833,7 +833,7 @@ impl SubtableInfo {
             },
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<'_, ()>::read(data).ok()?;
-                let ext_type = ext.extension_lookup_type() as u8;
+                let ext_type = ext.extension_lookup_type();
                 if is_extension_lookup_type(is_subst, ext_type) {
                     return None;
                 }
