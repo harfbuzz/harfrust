@@ -7,12 +7,59 @@ A complete [harfbuzz](https://github.com/harfbuzz/harfbuzz) shaping algorithm po
 // examples continue to use it, so this cannot be placed into Cargo.toml
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+#![allow(non_camel_case_types)]
+#![allow(non_upper_case_globals)]
+#![allow(non_snake_case)]
+#![allow(clippy::collapsible_if)]
+#![allow(clippy::collapsible_else_if)]
+#![allow(clippy::comparison_chain)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::non_canonical_partial_ord_impl)]
+#![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::wildcard_in_or_patterns)]
+#![allow(clippy::identity_op)]
+#![allow(clippy::inline_always)]
+#![allow(clippy::mut_range_bound)]
+#![allow(clippy::enum_variant_names)]
+#![allow(clippy::manual_range_patterns)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::wrong_self_convention)]
+#![allow(clippy::match_like_matches_macro)]
+#![allow(clippy::manual_range_contains)]
 
 extern crate alloc;
 
 mod algs;
-mod hb;
 mod unicode;
+#[macro_use]
+mod buffer;
+mod aat;
+mod cache;
+mod charmap;
+mod common;
+mod face;
+mod font_funcs;
+mod glyph_metrics;
+pub(crate) mod glyph_names;
+pub(crate) mod ot;
+pub(crate) mod set_digest;
+mod tables;
+mod tag;
+#[allow(clippy::collapsible_match)]
+mod tag_table;
+mod text_parser;
+
+use read_fonts::types::Tag as hb_tag_t;
+
+use self::face::hb_font_t;
+
+type hb_mask_t = u32;
+
+#[inline(always)]
+fn clamp_i64_to_i32(value: i64) -> i32 {
+    value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+}
 
 #[cfg(feature = "std")]
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
@@ -27,11 +74,11 @@ pub use read_fonts::{
 };
 
 #[cfg(feature = "experimental_font_api")]
-pub use hb::face::shape;
+pub use face::shape;
 
 /// Font related types.
 pub mod font {
-    pub use crate::hb::face::{
+    pub use crate::face::{
         AdvanceWidthBatch, BuiltinFontFuncs, FontFuncs, NominalGlyphBatch, RawAdvanceWidthBatch,
         RawNominalGlyphBatch,
     };
@@ -45,18 +92,18 @@ pub mod font {
     pub(crate) use read_fonts::model::*;
 }
 
-pub use hb::buffer::{
+pub use buffer::{
     Buffer, BufferContentType, EmptySerializerFont, GlyphBuffer, GlyphFlags, GlyphInfo,
     GlyphPosition, ShapeError, UnicodeBuffer, WrongContentType,
 };
-pub use hb::common::{script, Direction, Feature, Language, Script, Variation};
-pub use hb::face::{
+pub use common::{script, Direction, Feature, Language, Script, Variation};
+pub use face::{
     hb_font_t as Shaper, GlyphExtents, Scale, ShapeOptions, ShaperBuilder, ShaperData,
     ShaperInstance,
 };
-pub use hb::glyph_names::GlyphNames;
+pub use glyph_names::GlyphNames;
 
-pub use hb::ot_shape_plan::{hb_ot_shape_plan_t as ShapePlan, ShapePlanKey};
+pub use ot::shape::plan::{hb_ot_shape_plan_t as ShapePlan, ShapePlanKey};
 
 /// Type alias for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;

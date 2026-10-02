@@ -1,4 +1,4 @@
-use crate::hb::set_digest::hb_set_digest_t;
+use crate::set_digest::hb_set_digest_t;
 
 pub(crate) struct DigestU32Set(hb_set_digest_t);
 
