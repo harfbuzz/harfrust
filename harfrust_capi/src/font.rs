@@ -4,8 +4,10 @@
 use core::ffi::{c_char, c_int, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
-use harfrust::font::{FontInstance, FontVariation, NormalizedCoord};
-use harfrust::{GlyphName, ShaperFont};
+use harfrust::{
+    font::{name::GlyphName, Font, NormalizedCoord, Variation},
+    ShaperFont,
+};
 use read_fonts::TableProvider;
 
 use crate::common::hr_glyph_extents_t;
@@ -45,12 +47,11 @@ impl Drop for FontData {
 /// are ever reordered.
 struct PreparedFont {
     shaper: Option<ShaperFont<'static, 'static>>,
-    builtin_shaper: Option<OnceLock<ShaperFont<'static, 'static>>>,
-    instance: Box<FontInstance>,
+    instance: Box<Font>,
 }
 
 impl PreparedFont {
-    fn new(instance: FontInstance) -> Self {
+    fn new(instance: Font) -> Self {
         let instance = Box::new(instance);
         let shaper = ShaperFont::new(&instance);
         // SAFETY: the prepared font borrows the allocation owned by `instance`,
@@ -59,31 +60,17 @@ impl PreparedFont {
         let shaper = Some(unsafe {
             core::mem::transmute::<ShaperFont<'_, '_>, ShaperFont<'static, 'static>>(shaper)
         });
-        Self {
-            shaper,
-            builtin_shaper: Some(OnceLock::new()),
-            instance,
-        }
+        Self { shaper, instance }
     }
 
-    fn shaper(&self, preload_builtin_data: bool) -> Option<&ShaperFont<'static, 'static>> {
-        let shaper = self.shaper.as_ref()?;
-        if !preload_builtin_data {
-            return Some(shaper);
-        }
-        let cache = self.builtin_shaper.as_ref()?;
-        Some(cache.get_or_init(|| {
-            let shaper = (*shaper).clone();
-            shaper.preload_builtin_font_data();
-            shaper
-        }))
+    fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
+        self.shaper.as_ref()
     }
 }
 
 impl Drop for PreparedFont {
     fn drop(&mut self) {
         self.shaper = None;
-        self.builtin_shaper = None;
     }
 }
 
@@ -141,7 +128,7 @@ impl hr_font_t {
     pub(crate) fn builtin_nominal_glyph(&self, unicode: u32) -> Option<hr_codepoint_t> {
         self.prepared
             .as_ref()?
-            .shaper(true)?
+            .shaper()?
             .default_nominal_glyph(unicode)
             .map(|glyph| glyph.to_u32())
     }
@@ -154,8 +141,8 @@ impl hr_font_t {
     ) -> Option<hr_codepoint_t> {
         self.prepared
             .as_ref()?
-            .shaper(true)?
-            .default_variant_glyph(unicode, variation_selector)
+            .shaper()?
+            .default_variation_glyph(unicode, variation_selector)
             .map(|glyph| glyph.to_u32())
     }
 
@@ -187,7 +174,7 @@ impl hr_font_t {
     }
 
     fn builtin_shaping_font(&self) -> Option<ShaperFont<'static, 'static>> {
-        let mut font = (*self.prepared.as_ref()?.shaper(true)?).clone();
+        let mut font = (*self.prepared.as_ref()?.shaper()?).clone();
         font.set_scale_separate(self.x_scale, self.y_scale);
         Some(font)
     }
@@ -197,7 +184,7 @@ impl hr_font_t {
         let Some(font) = self.builtin_shaping_font() else {
             return 0;
         };
-        font.default_h_advance(harfrust::GlyphId::from(glyph))
+        font.default_glyph_h_advance(harfrust::GlyphId::from(glyph))
     }
 
     /// As [`hr_font_t::builtin_h_advance`], downwards.
@@ -205,14 +192,14 @@ impl hr_font_t {
         let Some(font) = self.builtin_shaping_font() else {
             return 0;
         };
-        font.default_v_advance(harfrust::GlyphId::from(glyph))
+        font.default_glyph_v_advance(harfrust::GlyphId::from(glyph))
     }
 
     /// Where the font's own tables hang a glyph from, in reported units.
     pub(crate) fn builtin_v_origin(&self, glyph: hr_codepoint_t) -> Option<(i32, i32)> {
         Some(
             self.builtin_shaping_font()?
-                .default_v_origin(harfrust::GlyphId::from(glyph)),
+                .default_glyph_v_origin(harfrust::GlyphId::from(glyph)),
         )
     }
 
@@ -246,7 +233,7 @@ impl hr_font_t {
 
     /// The name the face gives a glyph, if it names it at all.
     pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<GlyphName> {
-        let shaper = self.prepared.as_ref()?.shaper(true)?;
+        let shaper = self.prepared.as_ref()?.shaper()?;
         shaper.glyph_name(glyph.into())
     }
 
@@ -286,19 +273,17 @@ impl hr_font_t {
         self.face
     }
 
-    pub(crate) fn instance(&self) -> Option<&FontInstance> {
+    pub(crate) fn instance(&self) -> Option<&Font> {
         self.prepared.as_ref().map(|prepared| &*prepared.instance)
     }
 
     pub(crate) fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
-        self.prepared
-            .as_ref()
-            .and_then(|prepared| prepared.shaper(self.funcs.is_null()))
+        self.prepared.as_ref().and_then(PreparedFont::shaper)
     }
 
     /// Rebuilds the font instance after a change to variation settings, and
     /// refreshes the normalized coordinate mirror.
-    fn set_instance(&mut self, instance: FontInstance) {
+    fn set_instance(&mut self, instance: Font) {
         let coords = instance
             .normalized_coords()
             .iter()
@@ -385,7 +370,7 @@ pub unsafe extern "C" fn hr_font_create(face: *mut hr_face_t) -> *mut hr_font_t 
         font_data: None,
         parent: core::ptr::null_mut(),
     };
-    this.set_instance(FontInstance::builder(font).build());
+    this.set_instance(font.default_instance());
     object::create(this)
 }
 
@@ -423,7 +408,8 @@ pub unsafe extern "C" fn hr_font_create_sub_font(parent: *mut hr_font_t) -> *mut
         parent: unsafe { object::reference(parent) },
     };
     this.set_instance(
-        FontInstance::builder(instance.font())
+        instance
+            .instance_builder()
             .normalized_coords(instance.normalized_coords().iter().copied())
             .build(),
     );
@@ -616,20 +602,18 @@ pub unsafe extern "C" fn hr_font_set_variations(
     let Some(instance) = font.instance() else {
         return;
     };
-    let settings: Vec<FontVariation> = if variations.is_null() || variations_length == 0 {
+    let settings: Vec<Variation> = if variations.is_null() || variations_length == 0 {
         Vec::new()
     } else {
         // SAFETY: the caller guarantees the array is readable.
         unsafe { core::slice::from_raw_parts(variations, variations_length as usize) }
             .iter()
             .map(|variation| {
-                FontVariation::new(crate::common::tag_to_rust(variation.tag), variation.value)
+                Variation::new(crate::common::tag_to_rust(variation.tag), variation.value)
             })
             .collect()
     };
-    let rebuilt = FontInstance::builder(instance.font())
-        .variations(settings)
-        .build();
+    let rebuilt = instance.instance_builder().variations(settings).build();
     font.set_instance(rebuilt);
 }
 
@@ -663,7 +647,8 @@ pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
             .map(|coord| NormalizedCoord::from_bits(*coord as i16))
             .collect()
     };
-    let rebuilt = FontInstance::builder(instance.font())
+    let rebuilt = instance
+        .instance_builder()
         .normalized_coords(settings)
         .build();
     font.set_instance(rebuilt);
@@ -705,7 +690,8 @@ pub unsafe extern "C" fn hr_font_set_var_named_instance(font: *mut hr_font_t, in
     let Some(current) = font.instance() else {
         return;
     };
-    let rebuilt = FontInstance::builder(current.font())
+    let rebuilt = current
+        .instance_builder()
         .named_instance(instance as usize)
         .build();
     font.set_instance(rebuilt);
@@ -1355,7 +1341,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_name(
         return true.into();
     }
     // SAFETY: the caller guarantees `size` writable bytes.
-    unsafe { write_cstr(found.as_bytes(), name, size) };
+    unsafe { write_cstr(found.as_str().as_bytes(), name, size) };
     true.into()
 }
 

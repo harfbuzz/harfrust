@@ -105,7 +105,7 @@ fn is_hangul_tone(u: u32) -> bool {
 
 fn is_zero_width_char(font: &ShaperFont<'_, '_>, c: Codepoint) -> bool {
     if let Some(glyph) = font.nominal_glyph(c) {
-        font.h_advance(glyph) == 0
+        font.glyph_h_advance(glyph) == 0
     } else {
         false
     }

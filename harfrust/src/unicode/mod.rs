@@ -753,7 +753,7 @@ mod builtin {
         if delta == 0 {
             None
         } else {
-            Some(((c as i32).wrapping_add(delta as i32)) as u32)
+            Some(((c as i32).wrapping_add(delta)) as u32)
         }
     }
 

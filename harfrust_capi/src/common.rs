@@ -8,7 +8,7 @@ use core::ffi::{c_char, c_int, c_uint};
 use core::str::FromStr;
 use std::sync::{OnceLock, RwLock};
 
-use harfrust::{Direction, Feature, Language, Script, Tag, Variation};
+use harfrust::{font::Variation, Direction, Feature, Language, ParseSetting, Script, Tag};
 
 /// A boolean, as C sees it: zero is false, non-zero is true.
 pub type hr_bool_t = c_int;
@@ -973,7 +973,7 @@ pub unsafe extern "C" fn hr_variation_from_string(
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };
-    let Ok(parsed) = Variation::from_str(s) else {
+    let Ok(parsed) = Variation::parse_setting(s) else {
         return false.into();
     };
     if let Some(out) = unsafe { variation.as_mut() } {

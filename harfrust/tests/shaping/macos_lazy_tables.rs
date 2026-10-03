@@ -1,5 +1,5 @@
 use harfrust::{
-    font::{Font, FontInstance, FontTableFunction},
+    font::{Font, TableFunction},
     shape, Buffer, SerializeFlags, ShapeOptions, ShaperFont,
 };
 use objc2_core_foundation::{self as cf, CFData, CFRetained};
@@ -99,26 +99,26 @@ fn compare_data_and_ct(font_path: &str, font_name: &str, input: &str, expected_o
     assert_eq!(data_out, expected_output);
 }
 
-fn instance_for_font_data(data: Vec<u8>) -> FontInstance {
+fn instance_for_font_data(data: Vec<u8>) -> Font {
     let font = Font::new(data, 0).unwrap();
-    FontInstance::builder(&font).build()
+    font.instance_builder().build()
 }
 
-fn instance_for_ct_font(ct_font: CFRetained<ct::CTFont>) -> FontInstance {
+fn instance_for_ct_font(ct_font: CFRetained<ct::CTFont>) -> Font {
     let ct_font = CTFontWrapper(ct_font);
     let table_fn = unsafe {
-        FontTableFunction::new(Arc::new(move |tag| {
+        TableFunction::new(Arc::new(move |tag| {
             let table_data = ct_font.table(
                 u32::from_be_bytes(tag.to_be_bytes()),
                 ct::CTFontTableOptions::NoOptions,
             )?;
-            Some(harfrust::font::FontBlob::Shared(Arc::new(CFDataWrapper(
+            Some(harfrust::font::Blob::Shared(Arc::new(CFDataWrapper(
                 table_data,
             ))))
         }))
     };
     let font = Font::new(table_fn, 0).unwrap();
-    FontInstance::builder(&font).build()
+    font.instance_builder().build()
 }
 
 struct CTFontWrapper(CFRetained<ct::CTFont>);

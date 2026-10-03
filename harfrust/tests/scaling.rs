@@ -2,10 +2,7 @@ use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;
 
-use harfrust::{
-    font::{Advances, FontFuncs},
-    Buffer, ShaperFont,
-};
+use harfrust::{Advances, Buffer, FontFuncs, ShaperFont};
 use read_fonts::types::GlyphId;
 
 fn test_font_path() -> PathBuf {
@@ -19,7 +16,7 @@ fn test_font_path() -> PathBuf {
 fn with_test_shaper<T>(f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(test_font_path()).expect("failed to read test font");
     let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
@@ -27,7 +24,7 @@ fn with_test_shaper<T>(f: impl FnOnce(&ShaperFont) -> T) -> T {
 fn with_test_shaper_from_path<T>(font_path: PathBuf, f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(font_path).expect("failed to read test font");
     let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
@@ -90,7 +87,7 @@ fn font_funcs_batch_advance_override_is_used_with_scale() {
     }
 
     impl FontFuncs for BatchAdvanceFuncs {
-        fn h_advances(&self, _: &ShaperFont, batch: Advances) {
+        fn glyph_h_advances(&self, _: &ShaperFont, batch: Advances) {
             self.batch_calls.set(self.batch_calls.get() + 1);
             assert!(!batch.is_empty());
             for (_, advance) in batch {
@@ -108,7 +105,7 @@ fn font_funcs_batch_advance_override_is_used_with_scale() {
             shaper,
             buffer_with_text("abc"),
             TestOptions::new()
-                .scale(Some(shaper.units_per_em() * 2))
+                .scale(Some(i32::from(shaper.units_per_em()) * 2))
                 .font_funcs(Some(&funcs)),
         )
     });
@@ -126,7 +123,7 @@ fn font_funcs_advance_width_override_is_not_scaled() {
     struct AdvanceFuncs;
 
     impl FontFuncs for AdvanceFuncs {
-        fn h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+        fn glyph_h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
             100
         }
     }
@@ -138,7 +135,7 @@ fn font_funcs_advance_width_override_is_not_scaled() {
             shaper,
             buffer_with_text("abc"),
             TestOptions::new()
-                .scale(Some(shaper.units_per_em() * 2))
+                .scale(Some(i32::from(shaper.units_per_em()) * 2))
                 .font_funcs(Some(&funcs)),
         )
     });
@@ -167,7 +164,7 @@ fn aat_kern_scale_doubles_advances_and_offsets() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(shaper.units_per_em() * 2)),
+            TestOptions::new().scale(Some(i32::from(shaper.units_per_em()) * 2)),
         );
         (baseline, scaled)
     });
@@ -184,7 +181,7 @@ fn aat_kern_negative_scale_flips_advances() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
+            TestOptions::new().scale(Some(-(i32::from(shaper.units_per_em()) * 2))),
         );
         (baseline, scaled)
     });
@@ -214,7 +211,7 @@ fn shape_scale_doubles_positioned_output() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(shaper.units_per_em() * 2)),
+            TestOptions::new().scale(Some(i32::from(shaper.units_per_em()) * 2)),
         );
         (baseline, scaled)
     });
@@ -243,7 +240,7 @@ fn shape_negative_scale_flips_and_doubles_advances() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
+            TestOptions::new().scale(Some(-(i32::from(shaper.units_per_em()) * 2))),
         );
         (baseline, scaled)
     });

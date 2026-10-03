@@ -1,5 +1,8 @@
 /*!
-A complete [harfbuzz](https://github.com/harfbuzz/harfbuzz) shaping algorithm port to Rust.
+Text shaping with a Rust port of [HarfBuzz](https://harfbuzz.github.io/).
+
+Create a [`ShaperFont`] from a [`Font`], add Unicode text to a [`Buffer`],
+and call [`shape`] to replace the text with positioned glyphs.
 */
 
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -40,11 +43,12 @@ mod direction;
 mod error;
 pub(crate) mod fallback;
 mod feature;
-pub(crate) mod font_support;
 mod language;
 pub(crate) mod normalize;
+mod once;
 mod options;
 pub(crate) mod ot;
+mod parse_setting;
 mod plan;
 pub(crate) mod planner;
 mod scale;
@@ -56,7 +60,6 @@ mod tag;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
-mod variation;
 
 type Mask = u32;
 
@@ -67,73 +70,94 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
 
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 
-pub use read_fonts::types::{GlyphId, Tag};
-
 pub use error::ShapeError;
-pub use font_support::GlyphName;
 pub use options::ShapeOptions;
+#[doc(hidden)]
+pub use parse_setting::ParseSetting;
 pub use plan::{ShapePlan, ShapePlanKey};
 pub(crate) use planner::ShapePlanner;
 pub use scale::Scale;
 pub use shape::shape;
 pub(crate) use shaper_font::LayoutData;
-pub(crate) use shaper_font::{Advances, NominalGlyphs};
-pub use shaper_font::{GlyphExtents, ShaperFont};
-
-/// Font related types.
-pub mod font {
-    pub use crate::shaper_font::{
-        Advances, FontFuncs, NominalGlyphs, RawAdvances, RawNominalGlyphs,
-    };
-    pub use crate::ShaperFont;
-
-    // Import the whole read-fonts "model" module as our font representation.
-
-    pub use read_fonts::model::*;
-}
 
 pub use buffer::{Buffer, ContentType, GlyphFlags, GlyphInfo, GlyphPosition};
 pub use direction::Direction;
 pub use feature::Feature;
 pub use language::Language;
 pub use script::Script;
-pub use variation::Variation;
+pub use shaper_font::{
+    Advances, FontFuncs, GlyphExtents, NominalGlyphs, RawAdvances, RawNominalGlyphs, ShaperFont,
+};
 
-/// Type alias for a normalized variation coordinate.
-pub type NormalizedCoord = read_fonts::types::F2Dot14;
+/// Font types supplied by `read-fonts`.
+pub mod font {
+    pub use read_fonts::model::*;
+}
+
+#[doc(inline)]
+pub use font::Font;
+
+pub use read_fonts::types::{GlyphId, Tag};
+
+// /// An OpenType tag.
+// pub type Tag = read_fonts::types::Tag;
+
+// /// A 32-bit glyph identifier.
+// pub type GlyphId = read_fonts::types::GlyphId;
 
 bitflags::bitflags! {
-    /// Flags for buffers.
+    /// Flags that control how a buffer is shaped.
     #[derive(Default, Debug, Clone, Copy)]
     pub struct BufferFlags: u32 {
-        /// Indicates that special handling of the beginning of text paragraph can be applied to this buffer. Should usually be set, unless you are passing to the buffer only part of the text without the full context.
+        /// Treat the buffer as the beginning of a paragraph.
+        ///
+        /// Set this when the buffer includes the beginning of the text, rather
+        /// than a segment shaped with surrounding context.
         const BEGINNING_OF_TEXT             = 0x0000_0001;
-        /// Indicates that special handling of the end of text paragraph can be applied to this buffer, similar to [`BufferFlags::BEGINNING_OF_TEXT`].
+        /// Treat the buffer as the end of a paragraph.
+        ///
+        /// See [`BufferFlags::BEGINNING_OF_TEXT`].
         const END_OF_TEXT                   = 0x0000_0002;
-        /// Indicates that characters with `Default_Ignorable` Unicode property should use the corresponding glyph from the font, instead of hiding them (done by replacing them with the space glyph and zeroing the advance width.) This flag takes precedence over [`BufferFlags::REMOVE_DEFAULT_IGNORABLES`].
+        /// Keep glyphs for default-ignorable Unicode characters.
+        ///
+        /// Without this flag, shaping hides them by substituting a space glyph
+        /// with zero advance. This takes precedence over
+        /// [`BufferFlags::REMOVE_DEFAULT_IGNORABLES`].
         const PRESERVE_DEFAULT_IGNORABLES   = 0x0000_0004;
-        /// Indicates that characters with `Default_Ignorable` Unicode property should be removed from glyph string instead of hiding them (done by replacing them with the space glyph and zeroing the advance width.) [`BufferFlags::PRESERVE_DEFAULT_IGNORABLES`] takes precedence over this flag.
+        /// Remove default-ignorable Unicode characters from the glyph output.
+        ///
+        /// [`BufferFlags::PRESERVE_DEFAULT_IGNORABLES`] takes precedence.
         const REMOVE_DEFAULT_IGNORABLES     = 0x0000_0008;
-        /// Indicates that a dotted circle should not be inserted in the rendering of incorrect character sequences (such as `<0905 093E>`).
+        /// Suppress dotted circles for broken character sequences.
         const DO_NOT_INSERT_DOTTED_CIRCLE   = 0x0000_0010;
-        /// Indicates that the shape() call and its variants should perform various verification processes on the results of the shaping operation on the buffer. If the verification fails, then either a buffer message is sent, if a message handler is installed on the buffer, or a message is written to standard error. In either case, the shaping result might be modified to show the failed output.
+        /// Reserved for HarfBuzz-compatible shaping verification.
+        ///
+        /// Verification is not currently implemented by this crate.
         const VERIFY                        = 0x0000_0020;
-        /// Indicates that the `UNSAFE_TO_CONCAT` glyph-flag should be produced by the shaper. By default it will not be produced since it incurs a cost.
+        /// Produce [`GlyphFlags::UNSAFE_TO_CONCAT`] on output glyphs.
+        ///
+        /// Disabled by default because it adds shaping work.
         const PRODUCE_UNSAFE_TO_CONCAT      = 0x0000_0040;
-        /// Indicates that the `SAFE_TO_INSERT_TATWEEL` glyph-flag should be produced by the shaper. By default it will not be produced.
+        /// Produce [`GlyphFlags::SAFE_TO_INSERT_TATWEEL`] on output glyphs.
         const PRODUCE_SAFE_TO_INSERT_TATWEEL      = 0x0000_0080;
-        /// All currently defined flags
+        /// All currently defined flags.
         const DEFINED = 0x0000_00FF;
     }
 }
 
-/// A cluster level.
-#[allow(missing_docs)]
+/// How input text clusters are assigned to output glyphs.
+///
+/// Cluster values relate glyphs to positions in the input. Monotone levels
+/// preserve cluster order, which is useful for finding line break positions.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ClusterLevel {
+    /// Keep grapheme clusters together and preserve cluster order.
     MonotoneGraphemes,
+    /// Preserve cluster order, allowing characters to keep separate clusters.
     MonotoneCharacters,
+    /// Allow separate character clusters without preserving cluster order.
     Characters,
+    /// Keep grapheme clusters together without preserving cluster order.
     Graphemes,
 }
 
@@ -170,21 +194,20 @@ impl Default for ClusterLevel {
 }
 
 bitflags::bitflags! {
-    /// Flags used for serialization with a `BufferSerializer`.
+    /// Flags used for serializing a buffer.
     #[derive(Default)]
     pub struct SerializeFlags: u8 {
-        /// Do not serialize glyph cluster.
+        /// Omit glyph cluster values.
         const NO_CLUSTERS       = 0b0000_0001;
-        /// Do not serialize glyph position information.
+        /// Omit glyph position information.
         const NO_POSITIONS      = 0b0000_0010;
-        /// Do no serialize glyph name.
+        /// Serialize glyph IDs instead of glyph names.
         const NO_GLYPH_NAMES    = 0b0000_0100;
         /// Serialize glyph extents.
         const GLYPH_EXTENTS     = 0b0000_1000;
         /// Serialize glyph flags.
         const GLYPH_FLAGS       = 0b0001_0000;
-        /// Do not serialize glyph advances, glyph offsets will reflect absolute
-        /// glyph positions.
+        /// Omit advances and report offsets as absolute glyph positions.
         const NO_ADVANCES       = 0b0010_0000;
         /// All currently defined flags.
         const DEFINED = 0b0011_1111;

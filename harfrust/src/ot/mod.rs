@@ -494,7 +494,7 @@ impl<'a> OtData<'a> {
             // matching HarfBuzz's Anchor::get_anchor.
             let delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {
                 Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => {
-                    vs.compute_float_delta(
+                    vs.compute_delta(
                         DeltaSetIndex {
                             outer: varix.delta_set_outer_index(),
                             inner: varix.delta_set_inner_index(),

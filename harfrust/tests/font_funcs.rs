@@ -2,10 +2,7 @@ use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;
 
-use harfrust::{
-    font::{Advances, FontFuncs},
-    Buffer, Direction, ShaperFont,
-};
+use harfrust::{Advances, Buffer, Direction, FontFuncs, ShaperFont};
 use read_fonts::types::GlyphId;
 
 fn test_font_path() -> PathBuf {
@@ -19,7 +16,7 @@ fn test_font_path() -> PathBuf {
 fn with_test_shaper<T>(f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(test_font_path()).expect("failed to read test font");
     let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
@@ -27,7 +24,7 @@ fn with_test_shaper<T>(f: impl FnOnce(&ShaperFont) -> T) -> T {
 fn with_test_shaper_from_path<T>(font_path: PathBuf, f: impl FnOnce(&ShaperFont) -> T) -> T {
     let font_data = fs::read(font_path).expect("failed to read test font");
     let font = harfrust::font::Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = harfrust::font::FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     f(&shaper)
 }
@@ -68,9 +65,9 @@ fn shape_font_allows_cross_query_callbacks() {
     }
 
     impl FontFuncs for CrossQuery {
-        fn v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+        fn glyph_v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
             let _ = font.glyph_extents(glyph);
-            font.default_v_origin(glyph)
+            font.default_glyph_v_origin(glyph)
         }
 
         fn glyph_extents(
@@ -89,12 +86,14 @@ fn shape_font_allows_cross_query_callbacks() {
         };
         let mut font = ShaperFont::new(shaper);
         let glyph = GlyphId::new(1);
-        let default_advance = font.default_h_advance(glyph);
-        font.set_scale(shaper.units_per_em() * 2);
-        assert_eq!(font.default_h_advance(glyph), default_advance * 2);
+        let default_advance = font.default_glyph_h_advance(glyph);
+        font.set_scale(i32::from(shaper.units_per_em()) * 2);
+        assert_eq!(font.default_glyph_h_advance(glyph), default_advance * 2);
         font.set_font_funcs(Some(&funcs));
-        let _ = font.v_origin(glyph);
-        assert_eq!(funcs.extents_calls.get(), 1);
+        let _ = font.glyph_v_origin(glyph);
+        // The callback's own query and the default vertical-origin fallback
+        // both consult the overridden extents.
+        assert_eq!(funcs.extents_calls.get(), 2);
     });
 }
 
@@ -280,7 +279,7 @@ fn font_funcs_batch_advance_override_is_used() {
     }
 
     impl FontFuncs for BatchAdvanceFuncs {
-        fn h_advances(&self, _: &ShaperFont, batch: Advances) {
+        fn glyph_h_advances(&self, _: &ShaperFont, batch: Advances) {
             self.batch_calls.set(self.batch_calls.get() + 1);
             assert!(!batch.is_empty());
             for (_, advance) in batch {
@@ -316,7 +315,7 @@ fn font_funcs_batch_advance_uses_single_glyph_override_by_default() {
     }
 
     impl FontFuncs for AdvanceOnlyFuncs {
-        fn h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+        fn glyph_h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
             self.advance_width_calls
                 .set(self.advance_width_calls.get() + 1);
             333
@@ -350,7 +349,7 @@ fn font_funcs_batch_hb_raw_view_is_available() {
     }
 
     impl FontFuncs for HbRawFuncs {
-        fn h_advances(&self, _: &ShaperFont, batch: Advances) {
+        fn glyph_h_advances(&self, _: &ShaperFont, batch: Advances) {
             self.batch_calls.set(self.batch_calls.get() + 1);
             let raw = batch.into_raw();
             assert_eq!(raw.len, 3);
@@ -383,9 +382,9 @@ fn font_funcs_vertical_origin_override_is_used() {
     }
 
     impl FontFuncs for VOriginFuncs {
-        fn v_origin(&self, builtin: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
+        fn glyph_v_origin(&self, builtin: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
             self.v_origin_calls.set(self.v_origin_calls.get() + 1);
-            builtin.default_v_origin(glyph)
+            builtin.default_glyph_v_origin(glyph)
         }
     }
 
@@ -413,7 +412,7 @@ fn font_funcs_batch_advance_not_called_for_empty_buffer() {
     }
 
     impl FontFuncs for BatchAdvanceFuncs {
-        fn h_advances(&self, _: &ShaperFont, _: Advances) {
+        fn glyph_h_advances(&self, _: &ShaperFont, _: Advances) {
             self.batch_calls.set(self.batch_calls.get() + 1);
         }
     }
@@ -441,7 +440,7 @@ fn font_funcs_variant_glyph_override_is_used() {
     }
 
     impl FontFuncs for VariantFuncs {
-        fn variant_glyph(&self, _: &ShaperFont, _: u32, _: u32) -> Option<GlyphId> {
+        fn variation_glyph(&self, _: &ShaperFont, _: u32, _: u32) -> Option<GlyphId> {
             self.variant_calls.set(self.variant_calls.get() + 1);
             Some(GlyphId::new(1))
         }
@@ -471,7 +470,7 @@ fn font_funcs_advance_width_override_is_used() {
     }
 
     impl FontFuncs for AdvanceFuncs {
-        fn h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+        fn glyph_h_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
             self.advance_width_calls
                 .set(self.advance_width_calls.get() + 1);
             100
@@ -512,7 +511,7 @@ fn font_funcs_advance_height_override_is_used() {
     }
 
     impl FontFuncs for AdvanceHeightFuncs {
-        fn v_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
+        fn glyph_v_advance(&self, _: &ShaperFont, _: GlyphId) -> i32 {
             self.advance_height_calls
                 .set(self.advance_height_calls.get() + 1);
             50
@@ -593,8 +592,8 @@ fn no_advance_past_the_last_glyph_the_face_has() {
     // HarfBuzz answers no advance for one, rather than repeating the last
     // advance it does have.
     with_test_shaper(|shaper| {
-        assert!(shaper.default_h_advance(GlyphId::from(1u32)) > 0);
-        assert_eq!(shaper.default_h_advance(GlyphId::from(60_000u32)), 0);
+        assert!(shaper.default_glyph_h_advance(GlyphId::from(1u32)) > 0);
+        assert_eq!(shaper.default_glyph_h_advance(GlyphId::from(60_000u32)), 0);
     });
 }
 

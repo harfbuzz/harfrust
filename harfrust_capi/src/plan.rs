@@ -21,12 +21,12 @@
 
 use std::sync::{Arc, OnceLock};
 
-use harfrust::font::FontInstance;
+use harfrust::font::Font;
 use harfrust::{Direction, Feature, Language, Script, ShapePlan};
 
 /// Everything a plan depends on.
 ///
-/// `ShapePlanKey` cannot be built from a [`FontInstance`], so the cache keeps
+/// `ShapePlanKey` cannot be built from a [`Font`], so the cache keeps
 /// its own key rather than asking HarfRust whether a plan matches. Features are
 /// compared exactly, which can miss a reusable plan that HarfBuzz would have
 /// matched, but never returns a wrong one.
@@ -98,14 +98,14 @@ impl PlanCache {
     /// not already hold a match.
     pub(crate) fn get(
         &self,
-        instance: &FontInstance,
+        instance: &Font,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
         features: &[Feature],
     ) -> &Arc<ShapePlan> {
         let variations = instance.feature_variations();
-        let feature_variations = [variations.gsub(), variations.gpos()];
+        let feature_variations = [variations.gsub, variations.gpos];
 
         // A linear walk, as HarfBuzz does over its per-face plan list. The key
         // is compared against the caller's own values, so a hit -- the common
@@ -164,7 +164,7 @@ impl PlanCache {
 }
 
 fn build(
-    instance: &FontInstance,
+    instance: &Font,
     direction: Direction,
     script: Option<Script>,
     language: Option<&Language>,

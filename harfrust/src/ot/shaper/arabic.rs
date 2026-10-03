@@ -1,5 +1,6 @@
 use super::*;
 use crate::normalize::NormalizationMode;
+use crate::once::Once;
 use crate::ot::map::*;
 use crate::plan::ShapePlan;
 use crate::unicode::*;
@@ -277,7 +278,7 @@ pub struct ArabicShapePlan {
     mask_array: [Mask; ARABIC_FEATURES.len() + 1],
     do_fallback: bool,
     has_stch: bool,
-    fallback_plan: once_cell::race::OnceBox<Option<arabic_fallback::FallbackPlan>>,
+    fallback_plan: Once<Option<arabic_fallback::FallbackPlan>>,
 }
 
 pub fn data_create_arabic(plan: &ShapePlan) -> ArabicShapePlan {
@@ -295,7 +296,7 @@ pub fn data_create_arabic(plan: &ShapePlan) -> ArabicShapePlan {
         mask_array,
         do_fallback,
         has_stch,
-        fallback_plan: once_cell::race::OnceBox::new(),
+        fallback_plan: Once::new(),
     }
 }
 
@@ -418,7 +419,7 @@ fn arabic_fallback_shape(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &m
 
     let fallback_plan = arabic_plan
         .fallback_plan
-        .get_or_init(|| Box::new(arabic_fallback::FallbackPlan::new(plan, font)));
+        .get_or_init(|| arabic_fallback::FallbackPlan::new(plan, font));
     if let Some(fallback_plan) = fallback_plan {
         fallback_plan.apply(font, buffer);
     }
@@ -510,7 +511,7 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
             let end = i;
             while i != 0 && arabic_action::is_stch(buffer.info[i - 1].arabic_shaping_action()) {
                 i -= 1;
-                let width = font.h_advance(buffer.info[i].as_glyph());
+                let width = font.glyph_h_advance(buffer.info[i].as_glyph());
 
                 if buffer.info[i].arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
@@ -562,7 +563,7 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
                 for k in (start + 1..=end).rev() {
-                    let width = font.h_advance(buffer.info[k - 1].as_glyph());
+                    let width = font.glyph_h_advance(buffer.info[k - 1].as_glyph());
 
                     let mut repeat = 1;
                     if buffer.info[k - 1].arabic_shaping_action()

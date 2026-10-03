@@ -287,7 +287,7 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     // Use horizontal advance for horizontal positioning.
     // Generally a better idea. Also works for zero-ink glyphs. See:
     // https://github.com/harfbuzz/harfbuzz/issues/1532
-    base_extents.width = ctx.font.h_advance(base_glyph);
+    base_extents.width = ctx.font.glyph_h_advance(base_glyph);
 
     let lig_id = base_info.lig_id() as u32;
     let num_lig_components = base_info.lig_num_comps() as i32;
@@ -493,9 +493,9 @@ pub fn fallback_spaces(shaping_font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
                     for u in '0'..='9' {
                         if let Some(glyph) = font.nominal_glyph(u as u32) {
                             if horizontal {
-                                pos.x_advance = font.h_advance(glyph);
+                                pos.x_advance = font.glyph_h_advance(glyph);
                             } else {
-                                pos.y_advance = font.v_advance(glyph);
+                                pos.y_advance = font.glyph_v_advance(glyph);
                             }
                             break;
                         }
@@ -509,9 +509,9 @@ pub fn fallback_spaces(shaping_font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
 
                     if let Some(glyph) = punct {
                         if horizontal {
-                            pos.x_advance = font.h_advance(glyph);
+                            pos.x_advance = font.glyph_h_advance(glyph);
                         } else {
-                            pos.y_advance = font.v_advance(glyph);
+                            pos.y_advance = font.glyph_v_advance(glyph);
                         }
                     }
                 }

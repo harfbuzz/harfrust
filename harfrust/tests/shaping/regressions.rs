@@ -1,9 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use harfrust::{
-    font::{Font, FontInstance},
-    shape, Buffer, ShapeOptions, ShaperFont,
-};
+use harfrust::{font::Font, shape, Buffer, ShapeOptions, ShaperFont};
 
 fn font_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -20,7 +17,7 @@ fn font_path(name: &str) -> PathBuf {
 fn issue_384_overly_long_grapheme_cluster_gpos_does_not_overflow() {
     let font_data = fs::read(font_path("TestGPOSThree.ttf")).expect("failed to read test font");
     let font = Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     let shaping_font = shaper;
 
@@ -44,7 +41,7 @@ fn issue_384_overly_long_grapheme_cluster_fallback_does_not_overflow() {
     let font_data =
         fs::read(font_path("Calculator-Regular.ttf")).expect("failed to read test font");
     let font = Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     let mut shaping_font = shaper;
 
@@ -65,7 +62,7 @@ fn issue_384_overly_long_grapheme_cluster_fallback_does_not_overflow() {
 fn shaping_long_line_kern_does_not_overflow_glyph_data() {
     let font_data = fs::read(font_path("TestKERNOne.otf")).expect("failed to read test font");
     let font = Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = FontInstance::builder(&font).build();
+    let instance = font.instance_builder().build();
     let shaper = ShaperFont::new(&instance);
     let shaping_font = shaper;
 

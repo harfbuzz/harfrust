@@ -60153,6 +60153,30 @@ fn vertical_007() {
 }
 
 #[test]
+fn vertical_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/NotoSansCJK-VF.abc.ttf",
+            "\u{0041}\u{0042}",
+            "--direction=t --variations wght=700",
+        ),
+        "[gid1=0@-320,-880+0,-1000|gid2=1@-340,-880+0,-1000]"
+    );
+}
+
+#[test]
+fn vertical_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/NotoSerifHK-subset.ttf",
+            "\u{0041}\u{0042}",
+            "--direction=t --variations wght=700",
+        ),
+        "[gid1=0@-373,-880+0,-1000|gid2=1@-354,-880+0,-1000]"
+    );
+}
+
+#[test]
 fn vertical_012() {
     assert_eq!(
         shape(
@@ -60189,6 +60213,18 @@ fn vertical_014() {
 }
 
 #[test]
+fn vertical_015() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/NotoSans-VF.abc.ttf",
+            "\u{0062}\u{0063}",
+            "--direction=t --font-size=2000",
+        ),
+        "[gid2=0@-615,-2112+0,-2724|gid3=1@-480,-1898+0,-2724]"
+    );
+}
+
+#[test]
 fn vertical_016() {
     assert_eq!(
         shape(
@@ -60197,6 +60233,18 @@ fn vertical_016() {
             "--direction=t",
         ),
         "[gid1=0@-280,-948+0,-1362|gid2=1@-307,-1056+0,-1362]"
+    );
+}
+
+#[test]
+fn vertical_017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/NotoSans-VF.abc.ttf",
+            "\u{0061}\u{0062}",
+            "--direction=t --variations wght=700",
+        ),
+        "[gid1=0@-302,-954+0,-1362|gid2=1@-316,-1056+0,-1362]"
     );
 }
 

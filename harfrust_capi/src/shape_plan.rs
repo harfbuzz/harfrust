@@ -12,7 +12,7 @@
 use core::ffi::{c_char, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
-use harfrust::font::{FontInstance, NormalizedCoord};
+use harfrust::font::{Font, NormalizedCoord};
 use harfrust::{Direction, Language, Script, ShapePlan};
 
 use crate::buffer::hr_buffer_t;
@@ -191,10 +191,10 @@ unsafe fn collect_coords(coords: *const i32, num_coords: c_uint) -> Vec<Normaliz
 }
 
 /// Builds the font instance a plan is compiled against.
-fn instance_for(face: &hr_face_t, coords: &[NormalizedCoord]) -> Option<FontInstance> {
+fn instance_for(face: &hr_face_t, coords: &[NormalizedCoord]) -> Option<Font> {
     let font = face.font()?;
     Some(
-        FontInstance::builder(font)
+        font.instance_builder()
             .normalized_coords(coords.iter().copied())
             .build(),
     )

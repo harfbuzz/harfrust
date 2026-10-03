@@ -106,7 +106,7 @@ impl OtShapeContext<'_, '_, '_> {
             return;
         }
         let batched_advances = Advances::new(self.buffer);
-        self.font.h_advances(batched_advances);
+        self.font.glyph_h_advances(batched_advances);
     }
 
     // hb_ot_shape_internal: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1171>
@@ -236,8 +236,8 @@ impl OtShapeContext<'_, '_, '_> {
                 .zip(&mut self.buffer.pos[..len])
             {
                 let glyph = info.as_glyph();
-                pos.y_advance = self.font.v_advance(glyph);
-                let (x, y) = self.font.v_origin(glyph);
+                pos.y_advance = self.font.glyph_v_advance(glyph);
+                let (x, y) = self.font.glyph_v_origin(glyph);
                 pos.x_offset = pos.x_offset.saturating_sub(x);
                 pos.y_offset = pos.y_offset.saturating_sub(y);
             }

@@ -1,4 +1,5 @@
 use crate::GlyphExtents;
+use read_fonts::types::{BoundingBox, F48Dot16};
 
 // libm used for f32::floor() and f32::ceil()
 #[cfg(not(feature = "std"))]
@@ -6,14 +7,10 @@ use crate::GlyphExtents;
 use core_maths::CoreFloat as _;
 
 #[derive(Copy, Clone)]
-/// How font units become the units a caller asked for.
+/// Converts font units to the configured font scale.
 ///
-/// Shaping applies this to everything it reports, from
-/// [`crate::ShaperFont::set_scale`].
-/// A caller asking a font about one glyph rather
-/// than about a run needs the same conversion, and needs it to be the same
-/// one, so it is spelled once here -- down to the rounding, which follows
-/// HarfBuzz's.
+/// The conversion uses the scale set on [`ShaperFont`](crate::ShaperFont)
+/// and follows HarfBuzz's rounding rules for glyph metrics and shaping.
 #[derive(Debug)]
 pub struct Scale {
     x_mult: i64,
@@ -36,8 +33,9 @@ impl Default for Scale {
 // Various conversions between f32 and i32
 #[allow(clippy::cast_precision_loss)]
 impl Scale {
-    /// The conversion from `upem` font units into `scale`, or the identity
-    /// when there is no scale to apply or the face has no units to convert.
+    /// Creates a conversion from font units to the requested scale.
+    ///
+    /// Returns an identity conversion if `scale` is `None` or `upem` is zero.
     pub fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
         let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
             // When scale is not configured, or upem is zero, return results
@@ -54,13 +52,13 @@ impl Scale {
         }
     }
 
-    /// A horizontal distance in font units, in the units asked for.
+    /// Converts a horizontal distance from font units.
     #[inline(always)]
     pub fn scale_x(&self, x: i32) -> i32 {
         Self::scale_by_mult(x, self.x_mult)
     }
 
-    /// A vertical distance in font units, in the units asked for.
+    /// Converts a vertical distance from font units.
     #[inline(always)]
     pub fn scale_y(&self, y: i32) -> i32 {
         Self::scale_by_mult(y, self.y_mult)
@@ -78,10 +76,10 @@ impl Scale {
         (y * self.y_multf).round() as i32
     }
 
-    /// Scales glyph extents using HarfBuzz's corner-based float arithmetic:
-    /// floor the origin corners and ceil the far corners before deriving the
-    /// final width/height.
-    /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
+    /// Scales glyph extents using HarfBuzz's corner rounding.
+    ///
+    /// Floors the near corners and ceils the far corners before calculating
+    /// width and height.
     pub fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
@@ -110,5 +108,62 @@ impl Scale {
     #[inline(always)]
     fn scale_by_mult(value: i32, mult: i64) -> i32 {
         ((i64::from(value) * mult + 32768) >> 16) as i32
+    }
+}
+
+impl read_fonts::model::metrics::Scale for Scale {
+    type Value = i32;
+
+    fn add(a: i32, b: i32) -> i32 {
+        a.saturating_add(b)
+    }
+
+    fn sub(a: i32, b: i32) -> i32 {
+        a.saturating_sub(b)
+    }
+
+    fn half(value: i32) -> i32 {
+        value / 2
+    }
+
+    fn scale_x(&self, value: F48Dot16) -> i32 {
+        if value.to_bits().trailing_zeros() >= 16 {
+            self.scale_x(value.to_i32())
+        } else {
+            self.scale_x_f(value.to_f32())
+        }
+    }
+
+    fn scale_y(&self, value: F48Dot16) -> i32 {
+        if value.to_bits().trailing_zeros() >= 16 {
+            self.scale_y(value.to_i32())
+        } else {
+            self.scale_y_f(value.to_f32())
+        }
+    }
+
+    fn scale_glyph_extents(
+        &self,
+        extents: read_fonts::model::metrics::GlyphExtents<F48Dot16>,
+    ) -> read_fonts::model::metrics::GlyphExtents<i32> {
+        let left = (extents.x_bearing.to_f32() * self.x_multf).floor();
+        let top = (extents.y_bearing.to_f32() * self.y_multf).floor();
+        let right = ((extents.x_bearing + extents.width).to_f32() * self.x_multf).ceil();
+        let bottom = ((extents.y_bearing - extents.height).to_f32() * self.y_multf).ceil();
+        read_fonts::model::metrics::GlyphExtents {
+            x_bearing: left as i32,
+            y_bearing: top as i32,
+            width: (f64::from(right) - f64::from(left)) as i32,
+            height: (f64::from(top) - f64::from(bottom)) as i32,
+        }
+    }
+
+    fn scale_rect(&self, bounds: BoundingBox<F48Dot16>) -> BoundingBox<i32> {
+        BoundingBox {
+            x_min: self.scale_x_f(bounds.x_min.to_f32()),
+            y_min: self.scale_y_f(bounds.y_min.to_f32()),
+            x_max: self.scale_x_f(bounds.x_max.to_f32()),
+            y_max: self.scale_y_f(bounds.y_max.to_f32()),
+        }
     }
 }

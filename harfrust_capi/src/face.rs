@@ -4,7 +4,7 @@ use core::ffi::{c_uint, c_void};
 use core::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Arc, OnceLock};
 
-use harfrust::font::{Font, FontBlob, FontTableFunction};
+use harfrust::font::{Blob, Font, TableFunction};
 use harfrust::Tag;
 use read_fonts::TableProvider;
 
@@ -43,7 +43,7 @@ unsafe impl Send for TableFunc {}
 unsafe impl Sync for TableFunc {}
 
 impl TableFunc {
-    fn call(&self, tag: Tag) -> Option<FontBlob> {
+    fn call(&self, tag: Tag) -> Option<Blob> {
         let func = self.func?;
         let face = self.face.load(Ordering::Acquire);
         // SAFETY: the caller registered this callback and promised it is safe
@@ -183,7 +183,7 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
     let Some(blob_ref) = (unsafe { blob.as_ref() }) else {
         return core::ptr::null_mut();
     };
-    let Ok(font) = Font::new(blob_ref.blob.clone(), index) else {
+    let Some(font) = Font::new(blob_ref.blob.clone(), index) else {
         return core::ptr::null_mut();
     };
     // Keep the blob alive for as long as the face.
@@ -232,10 +232,10 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
         face: AtomicPtr::new(core::ptr::null_mut()),
     });
     let for_closure = Arc::clone(&state);
-    let table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync> =
+    let table_fn: Arc<dyn Fn(Tag) -> Option<Blob> + Send + Sync> =
         Arc::new(move |tag| for_closure.call(tag));
     // A table-function font is built lazily and never fails here.
-    let Ok(font) = Font::new(FontTableFunction::new(table_fn), 0) else {
+    let Some(font) = Font::new(TableFunction::new(table_fn), 0) else {
         return hr_face_t::empty();
     };
     let face = object::create(hr_face_t {
