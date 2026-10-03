@@ -47,22 +47,10 @@ pub fn decompose(codepoint: u32) -> Option<Decomposed> {
     })
 }
 
-/// Whether Harfrust treats this code point as default ignorable during shaping.
-#[inline]
-pub fn is_default_ignorable(codepoint: u32) -> bool {
-    codepoint.is_default_ignorable()
-}
-
 /// The canonical combining class of a code point.
 #[inline]
 pub fn combining_class(codepoint: u32) -> u8 {
     combining_class_for(codepoint)
-}
-
-/// The combining class after Harfrust's shaping adjustments.
-#[inline]
-pub fn modified_combining_class(codepoint: u32) -> u8 {
-    codepoint.modified_combining_class()
 }
 
 // Space estimates based on:
