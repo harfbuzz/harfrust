@@ -4,8 +4,7 @@ use core::str::FromStr;
 // In harfbuzz, despite having `Script`, script can actually have any tag.
 // So we're doing the same.
 // The only difference is that `Script` cannot be set to `HB_SCRIPT_INVALID`.
-/// A text script.
-#[allow(missing_docs)]
+/// A text script identified by an ISO 15924 tag.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Script(pub(crate) Tag);
 

@@ -4,7 +4,7 @@ use core::{
     str::FromStr,
 };
 
-/// A feature tag with an accompanying range.
+/// An OpenType feature and the text range where it applies.
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Hash, Debug)]
 pub struct Feature {
@@ -24,7 +24,7 @@ impl Feature {
     /// End index for a feature that applies to the whole buffer.
     pub const GLOBAL_END: u32 = u32::MAX;
 
-    /// Create a new `Feature` struct.
+    /// Creates a feature for the given tag, value, and cluster range.
     pub fn new(tag: Tag, value: u32, range: impl RangeBounds<usize>) -> Feature {
         let max = Self::GLOBAL_END as usize;
         let start = match range.start_bound() {
@@ -54,23 +54,16 @@ impl Feature {
 impl FromStr for Feature {
     type Err = &'static str;
 
-    /// Parses a `Feature` form a string.
+    /// Parses HarfBuzz feature syntax.
     ///
     /// Possible values:
     ///
-    /// - `kern` -> kern .. 1
-    /// - `+kern` -> kern .. 1
-    /// - `-kern` -> kern .. 0
-    /// - `kern=0` -> kern .. 0
-    /// - `kern=1` -> kern .. 1
-    /// - `aalt=2` -> altr .. 2
-    /// - `kern[]` -> kern .. 1
-    /// - `kern[:]` -> kern .. 1
-    /// - `kern[5:]` -> kern 5.. 1
-    /// - `kern[:5]` -> kern ..=5 1
-    /// - `kern[3:5]` -> kern 3..=5 1
-    /// - `kern[3]` -> kern 3..=4 1
-    /// - `aalt[3:5]=2` -> kern 3..=5 1
+    /// - `kern` and `+kern` enable kerning globally.
+    /// - `-kern` and `kern=0` disable it globally.
+    /// - `aalt=2` selects value 2 for the `aalt` feature.
+    /// - `kern[5:]` applies from cluster 5 onward.
+    /// - `kern[3:5]` applies to clusters 3 and 4.
+    /// - `kern[3]` applies to cluster 3.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn parse(s: &str) -> Option<Feature> {
             if s.is_empty() {

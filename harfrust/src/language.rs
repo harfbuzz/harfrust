@@ -3,12 +3,15 @@ use smallvec::SmallVec;
 
 type SmallVecLanguage = SmallVec<[u8; 8]>;
 
-/// A language tag.
+/// A language tag used to select shaping rules.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Language(SmallVecLanguage);
 
 impl Language {
-    /// Creates a new language from the given bytes.
+    /// Creates a language from nonempty bytes.
+    ///
+    /// ASCII letters are lowercased and underscores become hyphens. Returns
+    /// `None` for empty input.
     #[inline]
     pub fn new(bytes: impl AsRef<[u8]>) -> Option<Self> {
         let bytes = bytes.as_ref();
@@ -21,7 +24,7 @@ impl Language {
         &self.0
     }
 
-    /// Returns the language as a string.
+    /// Returns the language as UTF-8, or an empty string for invalid UTF-8.
     #[inline]
     pub fn as_str(&self) -> &str {
         core::str::from_utf8(&self.0).unwrap_or_default()

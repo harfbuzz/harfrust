@@ -4,7 +4,8 @@ use crate::{Direction, Script};
 ///
 /// Each of these is a misuse of the API. Running out of room is not among
 /// them: pathological input can provoke it, so it is reported through
-/// [`Buffer::allocation_successful`](crate::Buffer::allocation_successful) rather than as a failure to shape.
+/// [`Buffer::allocation_successful`](crate::Buffer::allocation_successful)
+/// rather than as a failure to shape.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[non_exhaustive]
 pub enum ShapeError {

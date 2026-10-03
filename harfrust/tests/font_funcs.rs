@@ -87,7 +87,7 @@ fn shape_font_allows_cross_query_callbacks() {
         let mut font = ShaperFont::new(shaper);
         let glyph = GlyphId::new(1);
         let default_advance = font.default_glyph_h_advance(glyph);
-        font.set_scale(shaper.units_per_em() * 2);
+        font.set_scale(i32::from(shaper.units_per_em()) * 2);
         assert_eq!(font.default_glyph_h_advance(glyph), default_advance * 2);
         font.set_font_funcs(Some(&funcs));
         let _ = font.glyph_v_origin(glyph);

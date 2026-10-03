@@ -7,14 +7,10 @@ use read_fonts::types::{BoundingBox, F48Dot16};
 use core_maths::CoreFloat as _;
 
 #[derive(Copy, Clone)]
-/// How font units become the units a caller asked for.
+/// Converts font units to the configured font scale.
 ///
-/// Shaping applies this to everything it reports, from
-/// [`ShaperFont::set_scale`](crate::ShaperFont::set_scale).
-/// A caller asking a font about one glyph rather
-/// than about a run needs the same conversion, and needs it to be the same
-/// one, so it is spelled once here -- down to the rounding, which follows
-/// HarfBuzz's.
+/// The conversion uses the scale set on [`ShaperFont`](crate::ShaperFont)
+/// and follows HarfBuzz's rounding rules for glyph metrics and shaping.
 #[derive(Debug)]
 pub struct Scale {
     x_mult: i64,
@@ -37,8 +33,9 @@ impl Default for Scale {
 // Various conversions between f32 and i32
 #[allow(clippy::cast_precision_loss)]
 impl Scale {
-    /// The conversion from `upem` font units into `scale`, or the identity
-    /// when there is no scale to apply or the face has no units to convert.
+    /// Creates a conversion from font units to the requested scale.
+    ///
+    /// Returns an identity conversion if `scale` is `None` or `upem` is zero.
     pub fn new(scale: Option<(i32, i32)>, upem: i32) -> Self {
         let (Some((x_scale, y_scale)), true) = (scale, upem != 0) else {
             // When scale is not configured, or upem is zero, return results
@@ -55,13 +52,13 @@ impl Scale {
         }
     }
 
-    /// A horizontal distance in font units, in the units asked for.
+    /// Converts a horizontal distance from font units.
     #[inline(always)]
     pub fn scale_x(&self, x: i32) -> i32 {
         Self::scale_by_mult(x, self.x_mult)
     }
 
-    /// A vertical distance in font units, in the units asked for.
+    /// Converts a vertical distance from font units.
     #[inline(always)]
     pub fn scale_y(&self, y: i32) -> i32 {
         Self::scale_by_mult(y, self.y_mult)
@@ -79,10 +76,10 @@ impl Scale {
         (y * self.y_multf).round() as i32
     }
 
-    /// Scales glyph extents using HarfBuzz's corner-based float arithmetic:
-    /// floor the origin corners and ceil the far corners before deriving the
-    /// final width/height.
-    /// hb_font_t::scale_glyph_extents: <https://github.com/harfbuzz/harfbuzz/blob/88adc6437ef561486a5adf1822410297ef4a852b/src/hb-font.hh#L201>'
+    /// Scales glyph extents using HarfBuzz's corner rounding.
+    ///
+    /// Floors the near corners and ceils the far corners before calculating
+    /// width and height.
     pub fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;

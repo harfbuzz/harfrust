@@ -9,7 +9,10 @@ use crate::ot::map::*;
 use crate::LayoutData;
 use crate::{font::Font, Direction, Feature, Language, Mask, Script, ShapePlanner, ShaperFont};
 
-/// A reusable plan for shaping a text buffer.
+/// A reusable plan for shaping with one set of segment properties.
+///
+/// A plan records the selected shaping features and lookups. Reuse it with a
+/// compatible font, direction, script, language, and feature set.
 pub struct ShapePlan {
     pub(crate) direction: Direction,
     pub(crate) script: Option<Script>,
@@ -45,7 +48,11 @@ pub struct ShapePlan {
 }
 
 impl ShapePlan {
-    /// Builds a plan for the given font and segment properties.
+    /// Builds a plan for a font and segment properties.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `direction` is [`Direction::Invalid`].
     pub fn new(
         font: &Font,
         direction: Direction,
@@ -100,7 +107,7 @@ impl ShapePlan {
     }
 }
 
-/// A key used for selecting a shape plan.
+/// The properties used to match a reusable [`ShapePlan`].
 pub struct ShapePlanKey<'a> {
     script: Option<Script>,
     direction: Direction,
@@ -110,7 +117,7 @@ pub struct ShapePlanKey<'a> {
 }
 
 impl<'a> ShapePlanKey<'a> {
-    /// Creates a new shape plan key with the given script and direction.
+    /// Creates a key for a font, script, and direction.
     pub fn new(font: &Font, script: Option<Script>, direction: Direction) -> Self {
         let variations = font.feature_variations();
         Self {

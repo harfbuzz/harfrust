@@ -18,266 +18,11 @@ use read_fonts::model::{
     name::GlyphName,
 };
 
-pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
-
-/// Glyph ink extents in font units.
+/// A font configured for shaping and font queries.
 ///
-/// This matches HarfBuzz's glyph extents layout and semantics.
-#[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct GlyphExtents {
-    /// Horizontal bearing from glyph origin to the left side of the ink box.
-    pub x_bearing: i32,
-    /// Vertical bearing from glyph origin to the top of the ink box.
-    pub y_bearing: i32,
-    /// Width of the glyph ink box.
-    pub width: i32,
-    /// Height of the glyph ink box.
-    pub height: i32,
-}
-
-/// Safe batch view for advance updates.
-pub struct Advances<'a> {
-    pub(crate) infos: &'a [GlyphInfo],
-    pub(crate) positions: &'a mut [GlyphPosition],
-}
-
-impl<'a> Advances<'a> {
-    pub(crate) fn new(buffer: &'a mut Buffer) -> Self {
-        let len = buffer.len;
-        Self {
-            infos: &buffer.info[..len],
-            positions: &mut buffer.pos[..len],
-        }
-    }
-
-    /// Returns the number of entries in the batch.
-    pub fn len(&self) -> usize {
-        self.infos.len()
-    }
-
-    /// Returns true if the batch is empty.
-    pub fn is_empty(&self) -> bool {
-        self.infos.is_empty()
-    }
-}
-
-pub struct AdvancesIter<'a> {
-    infos: slice::Iter<'a, GlyphInfo>,
-    positions: slice::IterMut<'a, GlyphPosition>,
-}
-
-impl<'a> Iterator for AdvancesIter<'a> {
-    type Item = (GlyphId, &'a mut i32);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let info = self.infos.next()?;
-        let pos = self.positions.next()?;
-        Some((info.as_glyph(), &mut pos.x_advance))
-    }
-}
-
-impl<'a> IntoIterator for Advances<'a> {
-    type Item = (GlyphId, &'a mut i32);
-    type IntoIter = AdvancesIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        AdvancesIter {
-            infos: self.infos.iter(),
-            positions: self.positions.iter_mut(),
-        }
-    }
-}
-
-/// Safe batch view for codepoint to nominal glyph mapping.
-///
-/// Glyph ids must be written for consecutive codepoints starting at the
-/// first entry; mapping stops at the first codepoint the font has no
-/// glyph for, and the number of glyphs written is returned from
-/// [`FontFuncs::nominal_glyphs`](crate::FontFuncs::nominal_glyphs).
-pub struct NominalGlyphs<'a> {
-    pub(crate) infos: &'a mut [GlyphInfo],
-}
-
-impl<'a> NominalGlyphs<'a> {
-    pub(crate) fn new(infos: &'a mut [GlyphInfo]) -> Self {
-        Self { infos }
-    }
-
-    /// Returns the number of entries in the batch.
-    pub fn len(&self) -> usize {
-        self.infos.len()
-    }
-
-    /// Returns true if the batch is empty.
-    pub fn is_empty(&self) -> bool {
-        self.infos.is_empty()
-    }
-}
-
-pub struct NominalGlyphsIter<'a> {
-    infos: slice::IterMut<'a, GlyphInfo>,
-}
-
-impl<'a> Iterator for NominalGlyphsIter<'a> {
-    type Item = (u32, &'a mut GlyphId);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let info = self.infos.next()?;
-        let codepoint = info.glyph_id;
-        let var_index = GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR.var_index as usize - 1;
-        Some((codepoint, bytemuck::cast_mut(&mut info.vars[var_index])))
-    }
-}
-
-impl<'a> IntoIterator for NominalGlyphs<'a> {
-    type Item = (u32, &'a mut GlyphId);
-    type IntoIter = NominalGlyphsIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        NominalGlyphsIter {
-            infos: self.infos.iter_mut(),
-        }
-    }
-}
-
-/// Raw C-style view over a batch of glyph ids and advance widths.
-#[derive(Clone, Copy, Debug)]
-pub struct RawAdvances {
-    /// Number of batch entries.
-    pub len: usize,
-    /// Pointer to glyph ids (read-only).
-    pub gids: *const u32,
-    /// Pointer to horizontal advances (writable).
-    ///
-    /// See "Metrics scaling" in the [FontFuncs] for details
-    /// on what value this method should return.
-    pub advances: *mut i32,
-    /// Byte stride between successive glyph ids.
-    pub gid_stride: isize,
-    /// Byte stride between successive advances.
-    pub advance_stride: isize,
-}
-
-impl Advances<'_> {
-    /// Returns a raw C-style view over this batch.
-    pub fn into_raw(self) -> RawAdvances {
-        if self.infos.is_empty() {
-            return RawAdvances {
-                len: 0,
-                gids: ptr::null(),
-                advances: ptr::null_mut(),
-                gid_stride: size_of::<GlyphInfo>() as isize,
-                advance_stride: size_of::<GlyphPosition>() as isize,
-            };
-        }
-
-        RawAdvances {
-            len: self.infos.len(),
-            // `glyph_id` is the first field in `GlyphInfo`.
-            gids: self.infos.as_ptr().cast::<u32>(),
-            // `x_advance` is the first field in `GlyphPosition`.
-            advances: self.positions.as_mut_ptr().cast::<i32>(),
-            gid_stride: size_of::<GlyphInfo>() as isize,
-            advance_stride: size_of::<GlyphPosition>() as isize,
-        }
-    }
-}
-
-/// Raw C-style view over a batch of codepoints and output glyph ids.
-#[derive(Clone, Copy, Debug)]
-pub struct RawNominalGlyphs {
-    /// Number of batch entries.
-    pub len: usize,
-    /// Pointer to codepoints (read-only).
-    pub codepoints: *const u32,
-    /// Pointer to output glyph ids (writable).
-    pub glyphs: *mut u32,
-    /// Byte stride between successive codepoints.
-    pub codepoint_stride: isize,
-    /// Byte stride between successive glyphs.
-    pub glyph_stride: isize,
-}
-
-impl NominalGlyphs<'_> {
-    /// Byte offset of the output glyph id within a batch entry.
-    const GLYPH_OFFSET: usize = core::mem::offset_of!(GlyphInfo, vars)
-        + (GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR.var_index as usize - 1) * size_of::<u32>();
-
-    /// Returns a raw C-style view over this batch.
-    pub fn into_raw(self) -> RawNominalGlyphs {
-        if self.infos.is_empty() {
-            return RawNominalGlyphs {
-                len: 0,
-                codepoints: ptr::null(),
-                glyphs: ptr::null_mut(),
-                codepoint_stride: size_of::<GlyphInfo>() as isize,
-                glyph_stride: size_of::<GlyphInfo>() as isize,
-            };
-        }
-
-        let base = self.infos.as_mut_ptr();
-        RawNominalGlyphs {
-            len: self.infos.len(),
-            // `glyph_id` is the first field in `GlyphInfo` and holds the
-            // codepoint before mapping.
-            codepoints: base.cast::<u32>().cast_const(),
-            // The normalizer glyph-index var.
-            glyphs: base.wrapping_byte_add(Self::GLYPH_OFFSET).cast::<u32>(),
-            codepoint_stride: size_of::<GlyphInfo>() as isize,
-            glyph_stride: size_of::<GlyphInfo>() as isize,
-        }
-    }
-}
-
-/// Font-wide layout data shared by shapers at different variation positions.
-pub(crate) struct LayoutCache {
-    pub ot: OtCache,
-    pub aat: AatCache,
-    pub cmap: CharmapCache,
-    /// True if the font has both `trak` and `STAT` tables.
-    pub apply_trak: bool,
-}
-
-impl LayoutCache {
-    pub(crate) fn new(font: &Font) -> Self {
-        let tables = font.tables();
-        let ot = OtCache::new(&tables);
-        let aat = AatCache::new(&tables, &ot);
-        let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
-        Self {
-            ot,
-            aat,
-            cmap: CharmapCache::new(),
-            apply_trak,
-        }
-    }
-}
-
-/// Returns cached layout data, or `None` if the read-fonts interop slot
-/// contains an unexpected type.
-fn layout_cache(font: &Font) -> Option<&LayoutCache> {
-    let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
-        Box::new(LayoutCache::new(font))
-    });
-    let cache = data.downcast_ref::<LayoutCache>()?;
-    Some(cache)
-}
-
-/// Prepared, read-only data for one font and variation position.
-///
-/// The table views borrow a long-lived `LayoutCache`.
-#[derive(Clone, Copy)]
-pub(crate) struct LayoutData<'a> {
-    pub ot: &'a OtData<'a>,
-    pub aat: &'a AatData<'a>,
-    pub units_per_em: u16,
-    pub apply_trak: bool,
-}
-
-/// Prepared font data, scale, and optional callbacks used by shaping.
-///
-/// Dereferences to the underlying font for direct font queries.
+/// Uses the font's own character map and metrics by default. A scale and
+/// custom [`FontFuncs`] can be set to change the queries used during shaping.
+/// Dereferences to the underlying [`Font`] for direct font queries.
 #[derive(Clone)]
 pub struct ShaperFont<'a, 'f> {
     font: &'a Font,
@@ -291,14 +36,6 @@ pub struct ShaperFont<'a, 'f> {
     symbol_font_page: Once<u16>,
     pub(crate) scale: Scale,
     funcs: Option<&'f dyn FontFuncs>,
-}
-
-impl Deref for ShaperFont<'_, '_> {
-    type Target = Font;
-
-    fn deref(&self) -> &Self::Target {
-        self.font
-    }
 }
 
 impl<'a, 'f> ShaperFont<'a, 'f> {
@@ -337,20 +74,6 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
             scale,
             funcs: None,
         }
-    }
-
-    pub(crate) fn layout(&self) -> LayoutData<'_> {
-        LayoutData {
-            ot: &self.ot,
-            aat: &self.aat,
-            units_per_em: self.units_per_em,
-            apply_trak: self.apply_trak,
-        }
-    }
-
-    /// Returns font's units per EM.
-    pub fn units_per_em(&self) -> i32 {
-        self.units_per_em as i32
     }
 
     /// Returns the currently active normalized coordinates.
@@ -421,10 +144,6 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         } else {
             None
         }
-    }
-
-    pub(crate) fn has_glyph(&self, codepoint: u32) -> bool {
-        self.nominal_glyph(codepoint).is_some()
     }
 
     /// Maps a batch of codepoints through the configured callbacks.
@@ -551,62 +270,22 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
                 height: extents.height.saturating_neg(),
             })
     }
+}
 
-    fn cmap_cache(&self) -> Option<&CharmapCache> {
-        self.cmap_cache
-    }
+impl Deref for ShaperFont<'_, '_> {
+    type Target = Font;
 
-    fn symbol_font_page(&self) -> u16 {
-        *self.symbol_font_page.get_or_init(|| {
-            if self.charmap.unicode_is_symbol() {
-                legacy_symbol_font_page(self.font.tables().os2().ok().as_ref())
-            } else {
-                0
-            }
-        })
-    }
-
-    fn glyph_metrics(&self) -> ScaledGlyphMetrics<'a, 'static, Scale> {
-        (*self.glyph_metrics.get_or_init(|| self.font.glyph_metrics())).scaled(self.scale)
-    }
-
-    fn map_unicode(&self, codepoint: u32) -> Option<GlyphId> {
-        self.charmap.map_unicode(codepoint).or_else(|| {
-            let mapped = match self.symbol_font_page() {
-                0xB200 => arabic_pua_map(codepoint, true),
-                0xB300 => arabic_pua_map(codepoint, false),
-                _ => 0,
-            };
-            (mapped != 0)
-                .then(|| self.charmap.map_unicode(mapped))
-                .flatten()
-        })
+    fn deref(&self) -> &Self::Target {
+        self.font
     }
 }
 
-fn legacy_symbol_font_page(os2: Option<&read_fonts::tables::os2::Os2<'_>>) -> u16 {
-    let Some(os2) = os2.filter(|os2| os2.version() == 0) else {
-        return 0;
-    };
-    os2.offset_data()
-        .read_at::<u16>(os2.fs_selection_byte_range().start)
-        .unwrap_or_default()
-        & 0xFF00
-}
-
-fn arabic_pua_map(codepoint: u32, simplified: bool) -> u32 {
-    let Ok(codepoint) = usize::try_from(codepoint) else {
-        return 0;
-    };
-    let mapped = if simplified {
-        crate::ot::shaper::arabic_pua::arabic_pua_simp_map(codepoint)
-    } else {
-        crate::ot::shaper::arabic_pua::arabic_pua_trad_map(codepoint)
-    };
-    u32::from(mapped)
-}
-
-/// Customizable font callback surface.
+/// Overrides character mapping and glyph metrics for a [`ShaperFont`].
+///
+/// Scalar methods default to queries on the underlying font; batch methods
+/// call their scalar counterparts. Implement only the callbacks that need
+/// different behavior. Callbacks take `&self`; mutable state can be managed
+/// by the implementation.
 ///
 /// # Metrics scaling
 ///
@@ -688,6 +367,335 @@ pub trait FontFuncs {
     fn glyph_extents(&self, font: &ShaperFont, glyph: GlyphId) -> Option<GlyphExtents> {
         font.default_glyph_extents(glyph)
     }
+}
+
+/// The ink extents of a glyph.
+///
+/// Values use the configured font scale, or font units if no scale was set.
+/// The bearings locate the top-left corner of the ink box relative to the
+/// glyph origin. Height is usually negative in a Y-up coordinate system.
+#[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct GlyphExtents {
+    /// Horizontal bearing from glyph origin to the left side of the ink box.
+    pub x_bearing: i32,
+    /// Vertical bearing from glyph origin to the top of the ink box.
+    pub y_bearing: i32,
+    /// Width of the glyph ink box.
+    pub width: i32,
+    /// Height of the glyph ink box.
+    pub height: i32,
+}
+
+/// A batch of codepoints and writable nominal glyphs.
+///
+/// Nominal glyphs must be written for consecutive codepoints starting at
+/// the first entry; mapping stops at the first codepoint the font has no
+/// glyph for, and the number of glyphs written is returned from
+/// [`FontFuncs::nominal_glyphs`](crate::FontFuncs::nominal_glyphs).
+pub struct NominalGlyphs<'a> {
+    pub(crate) infos: &'a mut [GlyphInfo],
+}
+
+impl<'a> NominalGlyphs<'a> {
+    pub(crate) fn new(infos: &'a mut [GlyphInfo]) -> Self {
+        Self { infos }
+    }
+
+    /// Returns the number of entries in the batch.
+    pub fn len(&self) -> usize {
+        self.infos.len()
+    }
+
+    /// Returns true if the batch is empty.
+    pub fn is_empty(&self) -> bool {
+        self.infos.is_empty()
+    }
+}
+
+/// Iterates over codepoints and writable glyphs.
+pub struct NominalGlyphsIter<'a> {
+    infos: slice::IterMut<'a, GlyphInfo>,
+}
+
+impl<'a> Iterator for NominalGlyphsIter<'a> {
+    type Item = (u32, &'a mut GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let info = self.infos.next()?;
+        let codepoint = info.glyph_id;
+        let var_index = GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR.var_index as usize - 1;
+        Some((codepoint, bytemuck::cast_mut(&mut info.vars[var_index])))
+    }
+}
+
+impl<'a> IntoIterator for NominalGlyphs<'a> {
+    type Item = (u32, &'a mut GlyphId);
+    type IntoIter = NominalGlyphsIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        NominalGlyphsIter {
+            infos: self.infos.iter_mut(),
+        }
+    }
+}
+
+/// Raw C-style view over a batch of codepoints and output glyphs.
+#[derive(Clone, Copy, Debug)]
+pub struct RawNominalGlyphs {
+    /// Number of batch entries.
+    pub len: usize,
+    /// Pointer to codepoints (read-only).
+    pub codepoints: *const u32,
+    /// Pointer to output glyphs (writable).
+    pub glyphs: *mut u32,
+    /// Byte stride between successive codepoints.
+    pub codepoint_stride: isize,
+    /// Byte stride between successive glyphs.
+    pub glyph_stride: isize,
+}
+
+impl NominalGlyphs<'_> {
+    /// Byte offset of the output glyph id within a batch entry.
+    const GLYPH_OFFSET: usize = core::mem::offset_of!(GlyphInfo, vars)
+        + (GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR.var_index as usize - 1) * size_of::<u32>();
+
+    /// Returns a raw C-style view over this batch.
+    pub fn into_raw(self) -> RawNominalGlyphs {
+        if self.infos.is_empty() {
+            return RawNominalGlyphs {
+                len: 0,
+                codepoints: ptr::null(),
+                glyphs: ptr::null_mut(),
+                codepoint_stride: size_of::<GlyphInfo>() as isize,
+                glyph_stride: size_of::<GlyphInfo>() as isize,
+            };
+        }
+
+        let base = self.infos.as_mut_ptr();
+        RawNominalGlyphs {
+            len: self.infos.len(),
+            // `glyph_id` is the first field in `GlyphInfo` and holds the
+            // codepoint before mapping.
+            codepoints: base.cast::<u32>().cast_const(),
+            // The normalizer glyph-index var.
+            glyphs: base.wrapping_byte_add(Self::GLYPH_OFFSET).cast::<u32>(),
+            codepoint_stride: size_of::<GlyphInfo>() as isize,
+            glyph_stride: size_of::<GlyphInfo>() as isize,
+        }
+    }
+}
+
+/// A batch of glyphs and their writable advances.
+pub struct Advances<'a> {
+    pub(crate) infos: &'a [GlyphInfo],
+    pub(crate) positions: &'a mut [GlyphPosition],
+}
+
+impl<'a> Advances<'a> {
+    pub(crate) fn new(buffer: &'a mut Buffer) -> Self {
+        let len = buffer.len;
+        Self {
+            infos: &buffer.info[..len],
+            positions: &mut buffer.pos[..len],
+        }
+    }
+
+    /// Returns the number of entries in the batch.
+    pub fn len(&self) -> usize {
+        self.infos.len()
+    }
+
+    /// Returns true if the batch is empty.
+    pub fn is_empty(&self) -> bool {
+        self.infos.is_empty()
+    }
+}
+
+/// Iterates over glyphs and their writable advances.
+pub struct AdvancesIter<'a> {
+    infos: slice::Iter<'a, GlyphInfo>,
+    positions: slice::IterMut<'a, GlyphPosition>,
+}
+
+impl<'a> Iterator for AdvancesIter<'a> {
+    type Item = (GlyphId, &'a mut i32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let info = self.infos.next()?;
+        let pos = self.positions.next()?;
+        Some((info.as_glyph(), &mut pos.x_advance))
+    }
+}
+
+impl<'a> IntoIterator for Advances<'a> {
+    type Item = (GlyphId, &'a mut i32);
+    type IntoIter = AdvancesIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        AdvancesIter {
+            infos: self.infos.iter(),
+            positions: self.positions.iter_mut(),
+        }
+    }
+}
+
+/// Raw C-style view over a batch of glyphs and their writable advances.
+#[derive(Clone, Copy, Debug)]
+pub struct RawAdvances {
+    /// Number of batch entries.
+    pub len: usize,
+    /// Pointer to glyphs (read-only).
+    pub gids: *const u32,
+    /// Pointer to horizontal advances (writable).
+    ///
+    /// See "Metrics scaling" in the [FontFuncs] for details
+    /// on what value this method should return.
+    pub advances: *mut i32,
+    /// Byte stride between successive glyphs.
+    pub gid_stride: isize,
+    /// Byte stride between successive advances.
+    pub advance_stride: isize,
+}
+
+impl Advances<'_> {
+    /// Returns a raw C-style view over this batch.
+    pub fn into_raw(self) -> RawAdvances {
+        if self.infos.is_empty() {
+            return RawAdvances {
+                len: 0,
+                gids: ptr::null(),
+                advances: ptr::null_mut(),
+                gid_stride: size_of::<GlyphInfo>() as isize,
+                advance_stride: size_of::<GlyphPosition>() as isize,
+            };
+        }
+
+        RawAdvances {
+            len: self.infos.len(),
+            // `glyph_id` is the first field in `GlyphInfo`.
+            gids: self.infos.as_ptr().cast::<u32>(),
+            // `x_advance` is the first field in `GlyphPosition`.
+            advances: self.positions.as_mut_ptr().cast::<i32>(),
+            gid_stride: size_of::<GlyphInfo>() as isize,
+            advance_stride: size_of::<GlyphPosition>() as isize,
+        }
+    }
+}
+
+pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
+
+/// Font-wide layout data shared by shapers at different variation positions.
+pub(crate) struct LayoutCache {
+    pub ot: OtCache,
+    pub aat: AatCache,
+    pub cmap: CharmapCache,
+    /// True if the font has both `trak` and `STAT` tables.
+    pub apply_trak: bool,
+}
+
+impl LayoutCache {
+    pub(crate) fn new(font: &Font) -> Self {
+        let tables = font.tables();
+        let ot = OtCache::new(&tables);
+        let aat = AatCache::new(&tables, &ot);
+        let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
+        Self {
+            ot,
+            aat,
+            cmap: CharmapCache::new(),
+            apply_trak,
+        }
+    }
+}
+
+/// Returns cached layout data, or `None` if the read-fonts interop slot
+/// contains an unexpected type.
+fn layout_cache(font: &Font) -> Option<&LayoutCache> {
+    let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
+        Box::new(LayoutCache::new(font))
+    });
+    let cache = data.downcast_ref::<LayoutCache>()?;
+    Some(cache)
+}
+
+/// Prepared, read-only data for one font and variation position.
+///
+/// The table views borrow a long-lived `LayoutCache`.
+#[derive(Clone, Copy)]
+pub(crate) struct LayoutData<'a> {
+    pub ot: &'a OtData<'a>,
+    pub aat: &'a AatData<'a>,
+    pub units_per_em: u16,
+    pub apply_trak: bool,
+}
+
+impl<'a> ShaperFont<'a, '_> {
+    pub(crate) fn layout(&self) -> LayoutData<'_> {
+        LayoutData {
+            ot: &self.ot,
+            aat: &self.aat,
+            units_per_em: self.units_per_em,
+            apply_trak: self.apply_trak,
+        }
+    }
+
+    pub(crate) fn has_glyph(&self, codepoint: u32) -> bool {
+        self.nominal_glyph(codepoint).is_some()
+    }
+
+    fn cmap_cache(&self) -> Option<&CharmapCache> {
+        self.cmap_cache
+    }
+
+    fn symbol_font_page(&self) -> u16 {
+        *self.symbol_font_page.get_or_init(|| {
+            if self.charmap.unicode_is_symbol() {
+                legacy_symbol_font_page(self.font.tables().os2().ok().as_ref())
+            } else {
+                0
+            }
+        })
+    }
+
+    fn glyph_metrics(&self) -> ScaledGlyphMetrics<'a, 'static, Scale> {
+        (*self.glyph_metrics.get_or_init(|| self.font.glyph_metrics())).scaled(self.scale)
+    }
+
+    fn map_unicode(&self, codepoint: u32) -> Option<GlyphId> {
+        self.charmap.map_unicode(codepoint).or_else(|| {
+            let mapped = match self.symbol_font_page() {
+                0xB200 => arabic_pua_map(codepoint, true),
+                0xB300 => arabic_pua_map(codepoint, false),
+                _ => 0,
+            };
+            (mapped != 0)
+                .then(|| self.charmap.map_unicode(mapped))
+                .flatten()
+        })
+    }
+}
+
+fn legacy_symbol_font_page(os2: Option<&read_fonts::tables::os2::Os2<'_>>) -> u16 {
+    let Some(os2) = os2.filter(|os2| os2.version() == 0) else {
+        return 0;
+    };
+    os2.offset_data()
+        .read_at::<u16>(os2.fs_selection_byte_range().start)
+        .unwrap_or_default()
+        & 0xFF00
+}
+
+fn arabic_pua_map(codepoint: u32, simplified: bool) -> u32 {
+    let Ok(codepoint) = usize::try_from(codepoint) else {
+        return 0;
+    };
+    let mapped = if simplified {
+        crate::ot::shaper::arabic_pua::arabic_pua_simp_map(codepoint)
+    } else {
+        crate::ot::shaper::arabic_pua::arabic_pua_trad_map(codepoint)
+    };
+    u32::from(mapped)
 }
 
 #[cfg(test)]

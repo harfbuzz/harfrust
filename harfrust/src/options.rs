@@ -1,6 +1,9 @@
 use crate::{Feature, ShapePlan};
 
-/// Options which can be used to configure shaping.
+/// Optional settings for a shaping operation.
+///
+/// By default, shaping creates a plan, applies the font's default features,
+/// and has no point size for the `trak` table.
 #[derive(Default)]
 pub struct ShapeOptions<'a> {
     pub(crate) plan: Option<&'a ShapePlan>,
@@ -23,13 +26,13 @@ impl<'a> ShapeOptions<'a> {
         self
     }
 
-    /// Sets the size used for application of the tracking table.
+    /// Sets the point size used by the `trak` tracking table.
     pub fn point_size(mut self, point_size: Option<f32>) -> Self {
         self.point_size = point_size;
         self
     }
 
-    /// Sets the features to apply during shaping.
+    /// Sets user features to apply during shaping.
     pub fn features(mut self, features: &'a [Feature]) -> Self {
         self.features = features;
         self

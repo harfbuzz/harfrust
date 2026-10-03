@@ -105,7 +105,7 @@ fn font_funcs_batch_advance_override_is_used_with_scale() {
             shaper,
             buffer_with_text("abc"),
             TestOptions::new()
-                .scale(Some(shaper.units_per_em() * 2))
+                .scale(Some(i32::from(shaper.units_per_em()) * 2))
                 .font_funcs(Some(&funcs)),
         )
     });
@@ -135,7 +135,7 @@ fn font_funcs_advance_width_override_is_not_scaled() {
             shaper,
             buffer_with_text("abc"),
             TestOptions::new()
-                .scale(Some(shaper.units_per_em() * 2))
+                .scale(Some(i32::from(shaper.units_per_em()) * 2))
                 .font_funcs(Some(&funcs)),
         )
     });
@@ -164,7 +164,7 @@ fn aat_kern_scale_doubles_advances_and_offsets() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(shaper.units_per_em() * 2)),
+            TestOptions::new().scale(Some(i32::from(shaper.units_per_em()) * 2)),
         );
         (baseline, scaled)
     });
@@ -181,7 +181,7 @@ fn aat_kern_negative_scale_flips_advances() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
+            TestOptions::new().scale(Some(-(i32::from(shaper.units_per_em()) * 2))),
         );
         (baseline, scaled)
     });
@@ -211,7 +211,7 @@ fn shape_scale_doubles_positioned_output() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(shaper.units_per_em() * 2)),
+            TestOptions::new().scale(Some(i32::from(shaper.units_per_em()) * 2)),
         );
         (baseline, scaled)
     });
@@ -240,7 +240,7 @@ fn shape_negative_scale_flips_and_doubles_advances() {
         let scaled = shape_test(
             shaper,
             buffer_with_text(text),
-            TestOptions::new().scale(Some(-(shaper.units_per_em() * 2))),
+            TestOptions::new().scale(Some(-(i32::from(shaper.units_per_em()) * 2))),
         );
         (baseline, scaled)
     });
