@@ -1516,6 +1516,95 @@ fn table_callback_face_shapes_like_a_blob_face() {
 }
 
 #[test]
+fn builtin_font_queries_load_charmap_and_metrics_separately() {
+    let source = Box::into_raw(Box::new(TableSource {
+        data: font_data(),
+        requested: Mutex::new(Vec::new()),
+    }));
+    unsafe {
+        let face = hr_face_create_for_tables(
+            Some(reference_table),
+            source.cast::<c_void>(),
+            Some(destroy_table_source),
+        );
+        let font = hr_font_create(face);
+        let cmap = hr_tag_from_string(c"cmap".as_ptr(), -1);
+        let hmtx = hr_tag_from_string(c"hmtx".as_ptr(), -1);
+
+        let mut name = [0; 64];
+        hr_font_get_glyph_name(font, 1, name.as_mut_ptr(), name.len() as c_uint);
+        {
+            let requested = (*source).requested.lock().unwrap();
+            assert!(!requested.contains(&cmap));
+            assert!(!requested.contains(&hmtx));
+        }
+
+        let mut glyph = 0;
+        assert_ne!(
+            hr_font_get_nominal_glyph(font, 'a' as u32, &raw mut glyph),
+            0
+        );
+        {
+            let requested = (*source).requested.lock().unwrap();
+            assert!(requested.contains(&cmap));
+            assert!(!requested.contains(&hmtx));
+        }
+
+        assert!(hr_font_get_glyph_h_advance(font, glyph) > 0);
+        assert!((*source).requested.lock().unwrap().contains(&hmtx));
+
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+    }
+}
+
+#[test]
+fn cold_builtin_font_queries_from_several_threads() {
+    let source = Box::into_raw(Box::new(TableSource {
+        data: font_data(),
+        requested: Mutex::new(Vec::new()),
+    }));
+    unsafe {
+        let face = hr_face_create_for_tables(
+            Some(reference_table),
+            source.cast::<c_void>(),
+            Some(destroy_table_source),
+        );
+        let font = hr_font_create(face);
+        hr_font_make_immutable(font);
+
+        let shared = Shared(font);
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    for _ in 0..8 {
+                        let mut glyph = 0;
+                        assert_eq!(
+                            hr_font_get_nominal_glyph(shared.get(), 0x4E00, &raw mut glyph),
+                            0
+                        );
+                        assert_ne!(
+                            hr_font_get_nominal_glyph(shared.get(), 'a' as u32, &raw mut glyph),
+                            0
+                        );
+                        assert!(hr_font_get_glyph_h_advance(shared.get(), glyph) > 0);
+                    }
+                })
+            })
+            .collect();
+        for thread in threads {
+            thread.join().expect("thread panicked");
+        }
+
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+    }
+}
+
+#[test]
 fn custom_font_funcs_do_not_load_builtin_font_tables() {
     let source = Box::into_raw(Box::new(TableSource {
         data: font_data(),

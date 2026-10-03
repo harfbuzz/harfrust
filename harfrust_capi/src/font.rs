@@ -47,7 +47,6 @@ impl Drop for FontData {
 /// are ever reordered.
 struct PreparedFont {
     shaper: Option<ShaperFont<'static, 'static>>,
-    builtin_shaper: Option<OnceLock<ShaperFont<'static, 'static>>>,
     instance: Box<Font>,
 }
 
@@ -61,31 +60,17 @@ impl PreparedFont {
         let shaper = Some(unsafe {
             core::mem::transmute::<ShaperFont<'_, '_>, ShaperFont<'static, 'static>>(shaper)
         });
-        Self {
-            shaper,
-            builtin_shaper: Some(OnceLock::new()),
-            instance,
-        }
+        Self { shaper, instance }
     }
 
-    fn shaper(&self, preload_builtin_data: bool) -> Option<&ShaperFont<'static, 'static>> {
-        let shaper = self.shaper.as_ref()?;
-        if !preload_builtin_data {
-            return Some(shaper);
-        }
-        let cache = self.builtin_shaper.as_ref()?;
-        Some(cache.get_or_init(|| {
-            let shaper = (*shaper).clone();
-            shaper.preload_builtin_font_data();
-            shaper
-        }))
+    fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
+        self.shaper.as_ref()
     }
 }
 
 impl Drop for PreparedFont {
     fn drop(&mut self) {
         self.shaper = None;
-        self.builtin_shaper = None;
     }
 }
 
@@ -143,7 +128,7 @@ impl hr_font_t {
     pub(crate) fn builtin_nominal_glyph(&self, unicode: u32) -> Option<hr_codepoint_t> {
         self.prepared
             .as_ref()?
-            .shaper(true)?
+            .shaper()?
             .default_nominal_glyph(unicode)
             .map(|glyph| glyph.to_u32())
     }
@@ -156,7 +141,7 @@ impl hr_font_t {
     ) -> Option<hr_codepoint_t> {
         self.prepared
             .as_ref()?
-            .shaper(true)?
+            .shaper()?
             .default_variation_glyph(unicode, variation_selector)
             .map(|glyph| glyph.to_u32())
     }
@@ -189,7 +174,7 @@ impl hr_font_t {
     }
 
     fn builtin_shaping_font(&self) -> Option<ShaperFont<'static, 'static>> {
-        let mut font = (*self.prepared.as_ref()?.shaper(true)?).clone();
+        let mut font = (*self.prepared.as_ref()?.shaper()?).clone();
         font.set_scale_separate(self.x_scale, self.y_scale);
         Some(font)
     }
@@ -248,7 +233,7 @@ impl hr_font_t {
 
     /// The name the face gives a glyph, if it names it at all.
     pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<GlyphName> {
-        let shaper = self.prepared.as_ref()?.shaper(true)?;
+        let shaper = self.prepared.as_ref()?.shaper()?;
         shaper.glyph_name(glyph.into())
     }
 
@@ -293,9 +278,7 @@ impl hr_font_t {
     }
 
     pub(crate) fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
-        self.prepared
-            .as_ref()
-            .and_then(|prepared| prepared.shaper(self.funcs.is_null()))
+        self.prepared.as_ref().and_then(PreparedFont::shaper)
     }
 
     /// Rebuilds the font instance after a change to variation settings, and

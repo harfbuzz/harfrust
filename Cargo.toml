@@ -25,7 +25,6 @@ inherits = "release"
 harfrust = { version = "0.13.3", path = "./harfrust", default-features = false }
 # read-fonts = { version = "0.45.0", default-features = false }
 read-fonts = { version = "0.44.0", git = "https://github.com/googlefonts/fontations", default-features = false }
-once_cell = { version = "1.21.4", default-features = false, features = ["alloc", "race"] }
 
 [workspace.lints.rust]
 unused_qualifications = "warn"

@@ -42,6 +42,7 @@ pub(crate) mod fallback;
 mod feature;
 mod language;
 pub(crate) mod normalize;
+mod once;
 mod options;
 pub(crate) mod ot;
 mod parse_setting;

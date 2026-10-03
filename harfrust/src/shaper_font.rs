@@ -9,10 +9,14 @@ use crate::aat::{AatCache, AatData, EMPTY_AAT_DATA};
 use crate::buffer::{Buffer, GlyphInfo, GlyphPosition};
 use crate::cache::Cache;
 use crate::font::Font;
+use crate::once::Once;
 use crate::ot::{OtCache, OtData, EMPTY_OT_DATA};
 use crate::scale::Scale;
-use core::cell::OnceCell;
-use read_fonts::model::{charmap::Charmap, metrics::ScaledGlyphMetrics, name::GlyphName};
+use read_fonts::model::{
+    charmap::Charmap,
+    metrics::{GlyphMetrics, ScaledGlyphMetrics},
+    name::GlyphName,
+};
 
 pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
 
@@ -282,9 +286,9 @@ pub struct ShaperFont<'a, 'f> {
     units_per_em: u16,
     apply_trak: bool,
     charmap: Charmap<'a>,
-    glyph_metrics: OnceCell<ScaledGlyphMetrics<'a, 'static, Scale>>,
+    glyph_metrics: Once<GlyphMetrics<'a>>,
     cmap_cache: Option<&'a CharmapCache>,
-    symbol_font_page: OnceCell<u16>,
+    symbol_font_page: Once<u16>,
     pub(crate) scale: Scale,
     funcs: Option<&'f dyn FontFuncs>,
 }
@@ -327,9 +331,9 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
             units_per_em: font.units_per_em(),
             apply_trak,
             charmap: font.charmap(),
-            glyph_metrics: OnceCell::new(),
+            glyph_metrics: Once::new(),
             cmap_cache,
-            symbol_font_page: OnceCell::new(),
+            symbol_font_page: Once::new(),
             scale,
             funcs: None,
         }
@@ -354,13 +358,6 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         self.font.normalized_coords()
     }
 
-    /// Preloads the font's selected Unicode mapping for repeated queries.
-    #[doc(hidden)]
-    pub fn preload_builtin_font_data(&self) {
-        let _ = self.charmap.has_unicode();
-        let _ = self.glyph_metrics();
-    }
-
     /// Sets the same scale on both axes.
     pub fn set_scale(&mut self, scale: i32) {
         self.set_scale_separate(scale, scale);
@@ -375,7 +372,6 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     /// Sets independent horizontal and vertical scales.
     pub fn set_scale_separate(&mut self, x_scale: i32, y_scale: i32) {
         self.scale = Scale::new(Some((x_scale, y_scale)), self.units_per_em as i32);
-        self.glyph_metrics.take();
     }
 
     /// Returns a new shaping font with independent horizontal and vertical scales applied.
@@ -527,7 +523,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
                         height: extents.height.saturating_neg(),
                     })
             };
-            (*self.glyph_metrics())
+            self.glyph_metrics()
                 .with_glyph_extents(Some(&extents))
                 .v_origin_y(glyph)
         } else {
@@ -570,9 +566,8 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         })
     }
 
-    fn glyph_metrics(&self) -> &ScaledGlyphMetrics<'a, 'static, Scale> {
-        self.glyph_metrics
-            .get_or_init(|| self.font.glyph_metrics().scaled(self.scale))
+    fn glyph_metrics(&self) -> ScaledGlyphMetrics<'a, 'static, Scale> {
+        (*self.glyph_metrics.get_or_init(|| self.font.glyph_metrics())).scaled(self.scale)
     }
 
     fn map_unicode(&self, codepoint: u32) -> Option<GlyphId> {
@@ -704,6 +699,12 @@ mod tests {
 
     use alloc::sync::Arc;
     use read_fonts::model::{Blob, TableFunction};
+
+    #[test]
+    fn cached_glyph_metrics_are_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Once<GlyphMetrics<'static>>>();
+    }
 
     #[test]
     fn cached_table_disposition_skips_missing_tables() {
