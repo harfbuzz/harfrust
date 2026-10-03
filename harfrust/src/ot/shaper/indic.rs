@@ -532,7 +532,7 @@ fn decompose(_: &NormalizeContext, ab: Codepoint) -> Option<(Codepoint, Codepoin
         _ => {}
     }
 
-    unicode::decompose(ab)
+    unicode::decompose_impl(ab)
 }
 
 fn compose(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint> {

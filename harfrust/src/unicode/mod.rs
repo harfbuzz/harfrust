@@ -1,3 +1,5 @@
+//! Unicode properties and canonical composition used by the shaper.
+
 #![allow(
     non_camel_case_types,
     non_snake_case,
@@ -16,12 +18,57 @@ mod ucd_table;
 
 use crate::Script;
 
-pub type Codepoint = u32;
+pub(crate) type Codepoint = u32;
+
+/// One step of canonical decomposition.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Decomposed {
+    /// A single resulting code point.
+    Singleton(u32),
+    /// Two resulting code points.
+    Pair(u32, u32),
+}
+
+/// Compose two code points, if they have a canonical composition.
+#[inline]
+pub fn compose(a: u32, b: u32) -> Option<u32> {
+    compose_impl(a, b)
+}
+
+/// Return one step of canonical decomposition, if one exists.
+#[inline]
+pub fn decompose(codepoint: u32) -> Option<Decomposed> {
+    decompose_impl(codepoint).map(|(a, b)| {
+        if b == 0 {
+            Decomposed::Singleton(a)
+        } else {
+            Decomposed::Pair(a, b)
+        }
+    })
+}
+
+/// Whether Harfrust treats this code point as default ignorable during shaping.
+#[inline]
+pub fn is_default_ignorable(codepoint: u32) -> bool {
+    codepoint.is_default_ignorable()
+}
+
+/// The canonical combining class of a code point.
+#[inline]
+pub fn combining_class(codepoint: u32) -> u8 {
+    combining_class_for(codepoint)
+}
+
+/// The combining class after Harfrust's shaping adjustments.
+#[inline]
+pub fn modified_combining_class(codepoint: u32) -> u8 {
+    codepoint.modified_combining_class()
+}
 
 // Space estimates based on:
 // https://unicode.org/charts/PDF/U2000.pdf
 // https://docs.microsoft.com/en-us/typography/develop/character-design-standards/whitespace
-pub mod space_fallback {
+pub(crate) mod space_fallback {
     pub type SpaceCode = u8;
     pub const NOT_SPACE: u8 = 0;
     pub const SPACE_EM: u8 = 1;
@@ -41,7 +88,7 @@ pub mod space_fallback {
 /// Data type for the "General_Category" (gc) property from the Unicode
 /// Character Database.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct GeneralCategory(pub u8);
+pub(crate) struct GeneralCategory(pub u8);
 
 #[allow(unused)]
 impl GeneralCategory {
@@ -149,7 +196,7 @@ impl GeneralCategory {
 }
 
 #[allow(dead_code)]
-pub mod combining_class {
+pub(crate) mod combining_class {
     pub const NotReordered: u8 = 0;
     pub const Overlay: u8 = 1;
     pub const Nukta: u8 = 7;
@@ -227,7 +274,7 @@ pub mod combining_class {
 }
 
 #[allow(dead_code)]
-pub mod modified_combining_class {
+pub(crate) mod modified_combining_class {
     // Hebrew
     //
     // We permute the "fixed-position" classes 10-26 into the order
@@ -417,7 +464,7 @@ static MODIFIED_COMBINING_CLASS: &[u8; 256] = &[
     combining_class::Invalid,
 ];
 
-pub trait CharExt {
+pub(crate) trait CharExt {
     fn script(self) -> Script;
     fn general_category(self) -> GeneralCategory;
     fn space_fallback(self) -> space_fallback::SpaceCode;
@@ -675,7 +722,7 @@ mod icu {
             .map(Codepoint::from)
     }
 
-    pub(crate) fn compose(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+    pub(crate) fn compose_impl(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
         let a = char::from_u32(a)?;
         let b = char::from_u32(b)?;
         CanonicalCompositionBorrowed::new()
@@ -683,7 +730,7 @@ mod icu {
             .map(Codepoint::from)
     }
 
-    pub(crate) fn decompose(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
+    pub(crate) fn decompose_impl(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
         let ch = char::from_u32(ab)?;
         match CanonicalDecompositionBorrowed::new().decompose(ch) {
             Decomposed::Default => None,
@@ -757,7 +804,7 @@ mod builtin {
         }
     }
 
-    pub(crate) fn compose(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
+    pub(crate) fn compose_impl(a: Codepoint, b: Codepoint) -> Option<Codepoint> {
         // Hangul is handled algorithmically.
         if let Some(ab) = compose_hangul(a, b) {
             return Some(ab);
@@ -809,7 +856,7 @@ mod builtin {
         }
     }
 
-    pub(crate) fn decompose(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
+    pub(crate) fn decompose_impl(ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
         if let Some((a, b)) = decompose_hangul(ab) {
             return Some((a, b));
         }
