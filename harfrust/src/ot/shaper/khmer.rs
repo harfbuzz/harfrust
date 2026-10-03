@@ -280,7 +280,7 @@ fn decompose(_: &NormalizeContext, ab: Codepoint) -> Option<(Codepoint, Codepoin
     // Decompose split matras that don't have Unicode decompositions.
     match ab {
         0x17BE | 0x17BF | 0x17C0 | 0x17C4 | 0x17C5 => Some((0x17C1, ab)),
-        _ => unicode::decompose(ab),
+        _ => unicode::decompose_impl(ab),
     }
 }
 

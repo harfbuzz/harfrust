@@ -93,7 +93,7 @@ pub enum NormalizationMode {
 //     Indic shaper may want to disallow recomposing of two matras.
 
 fn decompose_unicode(_: &NormalizeContext, ab: Codepoint) -> Option<(Codepoint, Codepoint)> {
-    crate::unicode::decompose(ab)
+    crate::unicode::decompose_impl(ab)
 }
 
 fn compose_unicode(_: &NormalizeContext, a: Codepoint, b: Codepoint) -> Option<Codepoint> {
