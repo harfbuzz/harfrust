@@ -26,10 +26,10 @@ use read_fonts::{
         },
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-            ChainedSequenceContextFormat3, ClassDef, CoverageTable, Lookup, LookupFlag,
-            LookupListTable, SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
-            SequenceContextFormat3, SequenceContextFormat4, SequenceContextFormat5,
-            SequenceContextFormat6,
+            ChainedSequenceContextFormat3, ChainedSequenceContextFormat4, ClassDef, CoverageTable,
+            Lookup, LookupFlag, LookupListTable, SequenceContext, SequenceContextFormat1,
+            SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4,
+            SequenceContextFormat5, SequenceContextFormat6,
         },
     },
     FontData, FontRead, Offset, ReadError,
@@ -432,6 +432,9 @@ impl LookupInfo {
                 SubtableKind::ChainedContextFormat3 => {
                     ChainedSequenceContextFormat3::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::ChainedContextFormat4 => {
+                    ChainedSequenceContextFormat4::read(data).map(|t| t.would_apply(ctx))
+                }
                 _ => continue,
             };
             if result == Ok(true) {
@@ -562,29 +565,42 @@ fn context_format6_digest(table: &SequenceContextFormat6) -> SetDigest {
     }
 }
 
-fn chained_context_format1_digest(table: &ChainedSequenceContextFormat1) -> SetDigest {
-    let mut digest = SetDigest::new();
-    for rule_set in table.chained_seq_rule_sets().iter() {
-        let Some(rule_set) = rule_set else { continue };
-        let Ok(rule_set) = rule_set else {
-            return SetDigest::full();
-        };
-        for rule in rule_set.chained_seq_rules().iter() {
-            let Ok(rule) = rule else {
-                return SetDigest::full();
-            };
-            let second = rule
-                .input_sequence()
-                .first()
-                .or_else(|| rule.lookahead_sequence().first());
-            let Some(second) = second else {
-                return SetDigest::full();
-            };
-            digest.add(second.get().to_u32());
+macro_rules! glyph_chain_context_digest {
+    ($name:ident, $format:ident) => {
+        fn $name(table: &$format) -> SetDigest {
+            let mut digest = SetDigest::new();
+            for rule_set in table.chained_seq_rule_sets().iter() {
+                let Some(rule_set) = rule_set else { continue };
+                let Ok(rule_set) = rule_set else {
+                    return SetDigest::full();
+                };
+                for rule in rule_set.chained_seq_rules().iter() {
+                    let Ok(rule) = rule else {
+                        return SetDigest::full();
+                    };
+                    let second = rule
+                        .input_sequence()
+                        .first()
+                        .or_else(|| rule.lookahead_sequence().first());
+                    let Some(second) = second else {
+                        return SetDigest::full();
+                    };
+                    digest.add(second.get().to_u32());
+                }
+            }
+            digest
         }
-    }
-    digest
+    };
 }
+
+glyph_chain_context_digest!(
+    chained_context_format1_digest,
+    ChainedSequenceContextFormat1
+);
+glyph_chain_context_digest!(
+    chained_context_format4_digest,
+    ChainedSequenceContextFormat4
+);
 
 fn chained_context_format2_digest(table: &ChainedSequenceContextFormat2) -> SetDigest {
     let Ok(input_class_def) = table.input_class_def() else {
@@ -751,6 +767,11 @@ apply_fns!(
     ChainedSequenceContextFormat3
 );
 apply_fns!(
+    chained_context4,
+    chained_context4_cached,
+    ChainedSequenceContextFormat4
+);
+apply_fns!(
     rev_chain_single_subst1,
     rev_chain_single_subst1_cached,
     ReverseChainSingleSubstFormat1
@@ -799,6 +820,7 @@ pub enum SubtableKind {
     ChainedContextFormat1,
     ChainedContextFormat2,
     ChainedContextFormat3,
+    ChainedContextFormat4,
     ReverseChainContext,
     ReverseChainContext2,
 }
@@ -1070,7 +1092,13 @@ impl SubtableInfo {
                     [chained_context3, chained_context3_cached as _],
                     chained_context_format3_digest(&s),
                 ),
-                _ => return None,
+                ChainedSequenceContext::Format4(s) => (
+                    SubtableKind::ChainedContextFormat4,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [chained_context4, chained_context4_cached as _],
+                    chained_context_format4_digest(&s),
+                ),
+                ChainedSequenceContext::Format5(_) => return None,
             },
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<'_, ()>::read(data).ok()?;

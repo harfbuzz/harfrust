@@ -1196,3 +1196,102 @@ fn context5_does_not_truncate_wide_classes_to_match_rule_values() {
         assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
     }
 }
+
+fn chain_context4(coverage_index: u32, large_offsets: bool, input_count: u16) -> Vec<u8> {
+    let set_count = coverage_index + 1;
+    let coverage_offset = 9 + set_count * 3;
+    let rule_set_offset = if large_offsets {
+        (coverage_offset + 14).max(65536)
+    } else {
+        coverage_offset + 14
+    };
+    let rule_offset = if large_offsets { 65536 } else { 11 };
+    let rule_len = 24 + u32::from(input_count - 1) * 3;
+    let mut subtable = vec![0, 4];
+    subtable.extend_from_slice(&coverage_offset.to_be_bytes());
+    subtable.extend_from_slice(&Uint24::new(set_count).to_be_bytes());
+    subtable.resize(coverage_offset as usize, 0);
+    let set_offset_pos = 9 + coverage_index as usize * 3;
+    subtable[set_offset_pos..set_offset_pos + 3]
+        .copy_from_slice(&Uint24::new(rule_set_offset).to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 1, 1, 0, 1]);
+    subtable.extend_from_slice(&Uint24::new(coverage_index).to_be_bytes());
+    subtable.resize(rule_set_offset as usize, 0);
+    subtable.extend_from_slice(&[0, 3]);
+    for offset in [
+        rule_offset,
+        rule_offset + rule_len,
+        rule_offset + 2 * rule_len,
+    ] {
+        subtable.extend_from_slice(&Uint24::new(offset).to_be_bytes());
+    }
+    subtable.resize((rule_set_offset + rule_offset) as usize, 0);
+    for matches in [false, false, true] {
+        subtable.extend_from_slice(&[0, 2]);
+        for glyph in [65540, 65541] {
+            subtable.extend_from_slice(&Uint24::new(glyph).to_be_bytes());
+        }
+        subtable.extend_from_slice(&input_count.to_be_bytes());
+        for index in 1..input_count {
+            let glyph = if !matches && index == 1 {
+                65539
+            } else {
+                65537 + u32::from(index)
+            };
+            subtable.extend_from_slice(&Uint24::new(glyph).to_be_bytes());
+        }
+        subtable.extend_from_slice(&[0, 2]);
+        let first_lookahead = if !matches && input_count == 1 {
+            65543
+        } else {
+            65542
+        };
+        for glyph in [first_lookahead, 65543] {
+            subtable.extend_from_slice(&Uint24::new(glyph).to_be_bytes());
+        }
+        subtable.extend_from_slice(&[0, 1, 0, 0, 0, 1]);
+    }
+    subtable
+}
+
+#[test]
+fn chain_context4_matches_wide_backtrack_input_and_lookahead() {
+    use super::apply::{WouldApply, WouldApplyContext};
+    for input_count in 1..=3 {
+        for (coverage_index, large_offsets) in [(0, false), (0, true), (65536, true)] {
+            let subtable = chain_context4(coverage_index, large_offsets, input_count);
+            let mut input = vec![65541, 65540];
+            input.extend((0..input_count).map(|index| 65537 + u32::from(index)));
+            input.extend([65542, 65543]);
+            let table = read_fonts::tables::layout::ChainedSequenceContextFormat4::read(
+                FontData::new(&subtable),
+            )
+            .unwrap();
+            let glyphs = input[2..2 + usize::from(input_count)]
+                .iter()
+                .copied()
+                .map(GlyphId::new)
+                .collect::<Vec<_>>();
+            assert!(table.would_apply(&WouldApplyContext {
+                glyphs: &glyphs,
+                zero_context: false,
+            }));
+            assert!(!table.would_apply(&WouldApplyContext {
+                glyphs: &glyphs,
+                zero_context: true,
+            }));
+            let output = apply_nested_context(6, true, &subtable, &input);
+            assert_eq!(output.glyph_infos()[2].glyph_id, 65538);
+            let output = apply_nested_context(8, false, &subtable, &input);
+            assert_eq!(output.glyph_positions()[2].x_advance, 10);
+            for mismatch in (0..input.len()).filter(|index| *index != 2) {
+                let mut unmatched = input.clone();
+                unmatched[mismatch] &= 0xFFFF;
+                let output = apply_nested_context(6, true, &subtable, &unmatched);
+                assert_eq!(output.glyph_infos()[2].glyph_id, 65537);
+                let output = apply_nested_context(8, false, &subtable, &unmatched);
+                assert_eq!(output.glyph_positions()[2].x_advance, 0);
+            }
+        }
+    }
+}
