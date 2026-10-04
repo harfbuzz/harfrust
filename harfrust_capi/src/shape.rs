@@ -256,11 +256,11 @@ pub extern "C" fn hr_shape_list_shapers() -> *mut *const c_char {
 /// keeps them in step with the crate version.
 pub const HR_VERSION_MAJOR: c_uint = 0;
 /// The minor version of this library.
-pub const HR_VERSION_MINOR: c_uint = 13;
+pub const HR_VERSION_MINOR: c_uint = 14;
 /// The micro version of this library.
-pub const HR_VERSION_MICRO: c_uint = 3;
+pub const HR_VERSION_MICRO: c_uint = 0;
 /// The version of this library, as a string.
-pub const HR_VERSION_STRING: &str = "0.13.3";
+pub const HR_VERSION_STRING: &str = "0.14.0";
 
 /// Returns the version of the underlying HarfRust library.
 ///
