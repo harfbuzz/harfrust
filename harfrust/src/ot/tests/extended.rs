@@ -4,6 +4,16 @@ use crate::{Buffer, Direction, LayoutData, Scale};
 use alloc::vec;
 
 fn apply_subtable(lookup_type: u16, is_subst: bool, subtable: &[u8], glyphs: &[u32]) -> Buffer {
+    apply_subtable_configured(lookup_type, is_subst, subtable, glyphs, |_| {})
+}
+
+fn apply_subtable_configured(
+    lookup_type: u16,
+    is_subst: bool,
+    subtable: &[u8],
+    glyphs: &[u32],
+    configure: impl FnOnce(&mut ApplyContext),
+) -> Buffer {
     let mut bytes = vec![0; 8];
     bytes[..2].copy_from_slice(&lookup_type.to_be_bytes());
     bytes[4..6].copy_from_slice(&1u16.to_be_bytes());
@@ -46,6 +56,7 @@ fn apply_subtable(lookup_type: u16, is_subst: bool, subtable: &[u8], glyphs: &[u
         &mut buffer,
     );
     ctx.lookup_props = lookup.props();
+    configure(&mut ctx);
     ctx.update_matchers();
     while ctx.buffer.idx < ctx.buffer.len {
         if lookup.apply(&mut ctx, &bytes, false).is_none() {
@@ -296,5 +307,39 @@ fn multiple_subst2_resolves_large_sequence_offsets() {
     subtable.resize(65536, 0);
     subtable.extend_from_slice(&[0, 1, 2, 0, 1]);
     let output = apply_subtable(2, true, &subtable, &[65536]);
+    assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
+}
+
+#[test]
+fn alternate_subst2_uses_feature_values_to_select_wide_glyphs() {
+    let subtable = [
+        0, 2, 0, 0, 0, 12, 0, 0, 1, 0, 0, 20, // Header and set offset.
+        0, 3, 0, 0, 1, 1, 0, 0, // Coverage.
+        0, 2, 1, 0, 1, 2, 0, 1, // Two alternates.
+    ];
+    for (value, expected) in [(0, 65536), (1, 65537), (2, 131_073), (3, 65536)] {
+        let output = apply_subtable_configured(3, true, &subtable, &[65536], |ctx| {
+            ctx.set_lookup_mask(3);
+            ctx.buffer.glyph_infos_mut()[0].mask = value;
+        });
+        assert_eq!(output.glyph_infos()[0].glyph_id, expected);
+    }
+
+    let output = apply_subtable_configured(3, true, &subtable, &[65536], |ctx| {
+        ctx.set_lookup_mask(map::OtMap::MAX_VALUE);
+        ctx.buffer.glyph_infos_mut()[0].mask = map::OtMap::MAX_VALUE;
+        ctx.random = true;
+    });
+    // The initial random state yields 48271, so choose the second alternate.
+    assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
+}
+
+#[test]
+fn alternate_subst2_resolves_large_set_offsets() {
+    let mut subtable = vec![0, 2, 0, 0, 0, 12, 0, 0, 1, 1, 0, 0];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    subtable.resize(65536, 0);
+    subtable.extend_from_slice(&[0, 1, 2, 0, 1]);
+    let output = apply_subtable(3, true, &subtable, &[65536]);
     assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
 }

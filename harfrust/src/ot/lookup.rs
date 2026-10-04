@@ -15,8 +15,8 @@ use read_fonts::{
             PairPos, PairPosFormat1, PairPosFormat2, SinglePos, SinglePosFormat1, SinglePosFormat2,
         },
         gsub::{
-            AlternateSubstFormat1, ExtensionSubstFormat1, Gsub, LigatureSubstFormat1,
-            MultipleSubst, MultipleSubstFormat1, MultipleSubstFormat2,
+            AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
+            Gsub, LigatureSubstFormat1, MultipleSubst, MultipleSubstFormat1, MultipleSubstFormat2,
             ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
             SingleSubstFormat3, SingleSubstFormat4,
         },
@@ -381,6 +381,9 @@ impl LookupInfo {
                 SubtableKind::AlternateSubst1 => {
                     AlternateSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::AlternateSubst2 => {
+                    AlternateSubstFormat2::read(data).map(|t| t.would_apply(ctx))
+                }
                 SubtableKind::LigatureSubst1 => {
                     LigatureSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
@@ -634,6 +637,11 @@ apply_fns!(
     AlternateSubstFormat1
 );
 apply_fns!(
+    alternate_subst2,
+    alternate_subst2_cached,
+    AlternateSubstFormat2
+);
+apply_fns!(
     ligature_subst1,
     ligature_subst1_cached,
     LigatureSubstFormat1
@@ -680,6 +688,7 @@ pub enum SubtableKind {
     MultipleSubst1,
     MultipleSubst2,
     AlternateSubst1,
+    AlternateSubst2,
     LigatureSubst1,
     SinglePos1,
     SinglePos2,
@@ -784,15 +793,20 @@ impl SubtableInfo {
                 ),
                 _ => return None,
             },
-            (true, 3) => {
-                let s = AlternateSubstFormat1::read(data).ok()?;
-                (
+            (true, 3) => match AlternateSubst::read(data).ok()? {
+                AlternateSubst::Format1(s) => (
                     SubtableKind::AlternateSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [alternate_subst1, alternate_subst1_cached as _],
                     SetDigest::full(),
-                )
-            }
+                ),
+                AlternateSubst::Format2(s) => (
+                    SubtableKind::AlternateSubst2,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [alternate_subst2, alternate_subst2_cached as _],
+                    SetDigest::full(),
+                ),
+            },
             (false, 3) => {
                 let s = CursivePosFormat1::read(data).ok()?;
                 (
