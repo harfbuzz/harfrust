@@ -257,3 +257,44 @@ fn extension_lookup_applies_wide_single_substitution() {
     let output = apply_subtable(7, true, &subtable, &[65536]);
     assert_eq!(output.glyph_infos()[0].glyph_id, 65537);
 }
+
+#[test]
+fn multiple_subst2_preserves_expansion_and_single_glyph_behavior() {
+    for replacements in [&[65537, 131_073][..], &[131_073][..], &[][..]] {
+        let mut subtable = vec![0, 2, 0, 0, 0, 12, 0, 0, 1, 0, 0, 20];
+        subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+        subtable.extend_from_slice(&(replacements.len() as u16).to_be_bytes());
+        for glyph in replacements {
+            subtable.extend_from_slice(&Uint24::new(*glyph).to_be_bytes());
+        }
+        let output = apply_subtable(2, true, &subtable, &[65536, 1]);
+        let mut expected = replacements.to_vec();
+        expected.push(1);
+        assert_eq!(
+            output
+                .glyph_infos()
+                .iter()
+                .map(|info| info.glyph_id)
+                .collect::<Vec<_>>(),
+            expected
+        );
+        if replacements.len() > 1 {
+            assert!(output.glyph_infos()[0].multiplied());
+            assert!(output.glyph_infos()[1].multiplied());
+            assert_eq!(output.glyph_infos()[0].lig_comp(), 0);
+            assert_eq!(output.glyph_infos()[1].lig_comp(), 1);
+        } else if replacements.len() == 1 {
+            assert!(!output.glyph_infos()[0].multiplied());
+        }
+    }
+}
+
+#[test]
+fn multiple_subst2_resolves_large_sequence_offsets() {
+    let mut subtable = vec![0, 2, 0, 0, 0, 12, 0, 0, 1, 1, 0, 0];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    subtable.resize(65536, 0);
+    subtable.extend_from_slice(&[0, 1, 2, 0, 1]);
+    let output = apply_subtable(2, true, &subtable, &[65536]);
+    assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
+}

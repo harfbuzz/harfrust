@@ -16,8 +16,9 @@ use read_fonts::{
         },
         gsub::{
             AlternateSubstFormat1, ExtensionSubstFormat1, Gsub, LigatureSubstFormat1,
-            MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1,
-            SingleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
+            MultipleSubst, MultipleSubstFormat1, MultipleSubstFormat2,
+            ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
+            SingleSubstFormat3, SingleSubstFormat4,
         },
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
@@ -374,6 +375,9 @@ impl LookupInfo {
                 SubtableKind::MultipleSubst1 => {
                     MultipleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::MultipleSubst2 => {
+                    MultipleSubstFormat2::read(data).map(|t| t.would_apply(ctx))
+                }
                 SubtableKind::AlternateSubst1 => {
                     AlternateSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
@@ -620,6 +624,11 @@ apply_fns!(
     MultipleSubstFormat1
 );
 apply_fns!(
+    multiple_subst2,
+    multiple_subst2_cached,
+    MultipleSubstFormat2
+);
+apply_fns!(
     alternate_subst1,
     alternate_subst1_cached,
     AlternateSubstFormat1
@@ -669,6 +678,7 @@ pub enum SubtableKind {
     SingleSubst3,
     SingleSubst4,
     MultipleSubst1,
+    MultipleSubst2,
     AlternateSubst1,
     LigatureSubst1,
     SinglePos1,
@@ -745,15 +755,20 @@ impl SubtableInfo {
                 ),
                 _ => return None,
             },
-            (true, 2) => {
-                let s = MultipleSubstFormat1::read(data).ok()?;
-                (
+            (true, 2) => match MultipleSubst::read(data).ok()? {
+                MultipleSubst::Format1(s) => (
                     SubtableKind::MultipleSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [multiple_subst1, multiple_subst1_cached as _],
                     SetDigest::full(),
-                )
-            }
+                ),
+                MultipleSubst::Format2(s) => (
+                    SubtableKind::MultipleSubst2,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [multiple_subst2, multiple_subst2_cached as _],
+                    SetDigest::full(),
+                ),
+            },
             (false, 2) => match PairPos::read(data).ok()? {
                 PairPos::Format1(s) => (
                     SubtableKind::PairPos1,
