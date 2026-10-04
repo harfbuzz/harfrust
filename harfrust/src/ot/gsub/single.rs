@@ -1,6 +1,8 @@
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
-use read_fonts::tables::gsub::{SingleSubstFormat1, SingleSubstFormat2};
+use read_fonts::tables::gsub::{
+    SingleSubstFormat1, SingleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
+};
 
 impl WouldApply for SingleSubstFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -33,6 +35,48 @@ impl Apply for SingleSubstFormat2<'_> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let subst = self.substitute_glyph_ids().get(index)?.get().to_u16();
+        ctx.replace_glyph(subst.into());
+        Some(())
+    }
+}
+
+impl WouldApply for SingleSubstFormat3<'_> {
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        ctx.glyphs.len() == 1
+            && self
+                .coverage()
+                .is_ok_and(|cov| cov.get(ctx.glyphs[0]).is_some())
+    }
+}
+
+impl Apply for SingleSubstFormat3<'_> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_glyph();
+        self.coverage().ok()?.get(glyph)?;
+        // OFF format 3 wraps the signed delta in the low 24 bits.
+        let subst = glyph
+            .to_u32()
+            .wrapping_add(self.delta_glyph_id().to_i32() as u32)
+            & 0x00FF_FFFF;
+        ctx.replace_glyph(subst.into());
+        Some(())
+    }
+}
+
+impl WouldApply for SingleSubstFormat4<'_> {
+    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+        ctx.glyphs.len() == 1
+            && self
+                .coverage()
+                .is_ok_and(|cov| cov.get(ctx.glyphs[0]).is_some())
+    }
+}
+
+impl Apply for SingleSubstFormat4<'_> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_glyph();
+        let index = self.coverage().ok()?.get(glyph)? as usize;
+        let subst = self.substitute_glyph_ids().get(index)?.get().to_u32();
         ctx.replace_glyph(subst.into());
         Some(())
     }

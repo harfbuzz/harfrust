@@ -1,5 +1,62 @@
+use super::apply::ApplyContext;
 use super::*;
+use crate::{Buffer, Direction, LayoutData, Scale};
 use alloc::vec;
+
+fn apply_subtable(lookup_type: u16, is_subst: bool, subtable: &[u8], glyphs: &[u32]) -> Buffer {
+    let mut bytes = vec![0; 8];
+    bytes[..2].copy_from_slice(&lookup_type.to_be_bytes());
+    bytes[4..6].copy_from_slice(&1u16.to_be_bytes());
+    bytes[6..8].copy_from_slice(&8u16.to_be_bytes());
+    bytes.extend_from_slice(subtable);
+    let host = lookup::LookupData {
+        offset: 0,
+        is_subst,
+        table_data: FontData::new(&bytes),
+    };
+    let lookup = LookupInfo::new(&host).unwrap();
+    assert_eq!(lookup.subtables.len(), 1);
+    let mut buffer = Buffer::new();
+    assert!(buffer.set_length(glyphs.len()));
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.allocate_gsubgpos_vars();
+    for (info, glyph) in buffer.glyph_infos_mut().iter_mut().zip(glyphs) {
+        info.glyph_id = *glyph;
+        info.mask = 1;
+    }
+    if is_subst {
+        buffer.clear_output();
+    } else {
+        buffer.clear_positions();
+    }
+    let layout = LayoutData {
+        ot: &EMPTY_OT_DATA,
+        aat: &aat::EMPTY_AAT_DATA,
+        units_per_em: 1000,
+        apply_trak: false,
+    };
+    let mut ctx = ApplyContext::new(
+        if is_subst {
+            LayoutTableKind::Gsub
+        } else {
+            LayoutTableKind::Gpos
+        },
+        layout,
+        Scale::default(),
+        &mut buffer,
+    );
+    ctx.lookup_props = lookup.props();
+    ctx.update_matchers();
+    while ctx.buffer.idx < ctx.buffer.len {
+        if lookup.apply(&mut ctx, &bytes, false).is_none() {
+            ctx.buffer.next_glyph();
+        }
+    }
+    if is_subst {
+        assert!(buffer.sync());
+    }
+    buffer
+}
 
 fn table_data(bytes: &[u8]) -> Vec<u8> {
     let mut data = vec![0; 2];
@@ -138,4 +195,65 @@ fn invalid_offsets_and_overflowing_legacy_indices_do_not_match() {
     assert_eq!(coverage.index(&data, GlyphId::new(2)), None);
     assert!(CoverageInfo::new(&data, u32::MAX).is_none());
     assert!(ClassDefInfo::new(&data, u32::MAX).is_none());
+}
+
+#[test]
+fn single_subst3_wraps_signed_deltas_in_24_bits() {
+    use read_fonts::types::Int24;
+    for (glyph, delta, expected) in [
+        (65535, 1, 65536),
+        (65536, -1, 65535),
+        (0x00FF_FFFF, 1, 0),
+        (0, -1, 0x00FF_FFFF),
+    ] {
+        let mut subtable = vec![0, 3, 0, 0, 0, 9];
+        subtable.extend_from_slice(&Int24::new(delta).to_be_bytes());
+        subtable.extend_from_slice(&[0, 3, 0, 0, 1]);
+        subtable.extend_from_slice(&Uint24::new(glyph).to_be_bytes());
+        let output = apply_subtable(1, true, &subtable, &[glyph]);
+        assert_eq!(output.glyph_infos()[0].glyph_id, expected);
+        let table =
+            read_fonts::tables::gsub::SingleSubstFormat3::read(FontData::new(&subtable)).unwrap();
+        use super::apply::{WouldApply, WouldApplyContext};
+        assert!(table.would_apply(&WouldApplyContext {
+            glyphs: &[GlyphId::new(glyph)],
+            zero_context: false,
+        }));
+    }
+}
+
+#[test]
+fn single_subst4_keeps_wide_coverage_indices_and_replacements() {
+    let mut subtable = vec![0, 4, 0, 0, 0, 12, 0, 0, 1, 2, 0, 1];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    let output = apply_subtable(1, true, &subtable, &[65536, 1]);
+    assert_eq!(
+        output
+            .glyph_infos()
+            .iter()
+            .map(|info| info.glyph_id)
+            .collect::<Vec<_>>(),
+        [131_073, 1]
+    );
+
+    // The selected replacement is at index 65536, not index zero.
+    let count = 65537;
+    subtable = vec![0, 4];
+    subtable.extend_from_slice(&(9 + count * 3u32).to_be_bytes());
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    for replacement in 0..count {
+        subtable.extend_from_slice(&Uint24::new(replacement + 1).to_be_bytes());
+    }
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    let output = apply_subtable(1, true, &subtable, &[65536]);
+    assert_eq!(output.glyph_infos()[0].glyph_id, 65537);
+}
+
+#[test]
+fn extension_lookup_applies_wide_single_substitution() {
+    let mut subtable = vec![0, 1, 0, 1, 0, 0, 0, 8];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 0, 9, 0, 0, 1]);
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    let output = apply_subtable(7, true, &subtable, &[65536]);
+    assert_eq!(output.glyph_infos()[0].glyph_id, 65537);
 }

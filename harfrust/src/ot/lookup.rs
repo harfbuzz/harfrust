@@ -17,7 +17,7 @@ use read_fonts::{
         gsub::{
             AlternateSubstFormat1, ExtensionSubstFormat1, Gsub, LigatureSubstFormat1,
             MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1,
-            SingleSubstFormat2,
+            SingleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
         },
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
@@ -31,11 +31,11 @@ use read_fonts::{
 
 pub struct LookupData<'a> {
     /// Offset of the lookup from the base of the layout table.
-    offset: usize,
+    pub(super) offset: usize,
     /// True if the lookup comes from GSUB.
-    is_subst: bool,
+    pub(super) is_subst: bool,
     /// Data of the layout table.
-    table_data: FontData<'a>,
+    pub(super) table_data: FontData<'a>,
 }
 
 pub trait LookupHost<'a> {
@@ -365,6 +365,12 @@ impl LookupInfo {
                 SubtableKind::SingleSubst2 => {
                     SingleSubstFormat2::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::SingleSubst3 => {
+                    SingleSubstFormat3::read(data).map(|t| t.would_apply(ctx))
+                }
+                SubtableKind::SingleSubst4 => {
+                    SingleSubstFormat4::read(data).map(|t| t.would_apply(ctx))
+                }
                 SubtableKind::MultipleSubst1 => {
                     MultipleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
@@ -606,6 +612,8 @@ macro_rules! apply_fns {
 
 apply_fns!(single_subst1, single_subst1_cached, SingleSubstFormat1);
 apply_fns!(single_subst2, single_subst2_cached, SingleSubstFormat2);
+apply_fns!(single_subst3, single_subst3_cached, SingleSubstFormat3);
+apply_fns!(single_subst4, single_subst4_cached, SingleSubstFormat4);
 apply_fns!(
     multiple_subst1,
     multiple_subst1_cached,
@@ -658,6 +666,8 @@ apply_fns!(
 pub enum SubtableKind {
     SingleSubst1,
     SingleSubst2,
+    SingleSubst3,
+    SingleSubst4,
     MultipleSubst1,
     AlternateSubst1,
     LigatureSubst1,
@@ -707,7 +717,18 @@ impl SubtableInfo {
                     [single_subst2, single_subst2_cached as _],
                     SetDigest::full(),
                 ),
-                _ => return None,
+                SingleSubst::Format3(s) => (
+                    SubtableKind::SingleSubst3,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [single_subst3, single_subst3_cached as _],
+                    SetDigest::full(),
+                ),
+                SingleSubst::Format4(s) => (
+                    SubtableKind::SingleSubst4,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [single_subst4, single_subst4_cached as _],
+                    SetDigest::full(),
+                ),
             },
             (false, 1) => match SinglePos::read(data).ok()? {
                 SinglePos::Format1(s) => (
