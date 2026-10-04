@@ -46,12 +46,12 @@
 /**
  * The minor version of this library.
  */
-#define HR_VERSION_MINOR 13
+#define HR_VERSION_MINOR 14
 
 /**
  * The micro version of this library.
  */
-#define HR_VERSION_MICRO 3
+#define HR_VERSION_MICRO 0
 
 /**
  * Binary data with a lifetime.
@@ -3607,7 +3607,7 @@ hr_bool_t hr_shape_plan_execute(struct hr_shape_plan_t *shape_plan,
 #define HR_DIRECTION_REVERSE(dir) hr_direction_reverse(dir)
 
 /** The version of this library, as a string. */
-#define HR_VERSION_STRING "0.13.3"
+#define HR_VERSION_STRING "0.14.0"
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))

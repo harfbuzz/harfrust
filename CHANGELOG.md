@@ -7,22 +7,74 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
-This development version matches HarfBuzz [v14.3.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.3.1).
+## [0.14.0] - 2026-10-03
 
+This release matches HarfBuzz [v14.5.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.5.1),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+### Breaking changes
+
+- Replace `UnicodeBuffer` and `GlyphBuffer` with one `Buffer` that holds input
+  Unicode code points before shaping and glyphs afterward. `ContentType`
+  reports which state the buffer is in. The old buffer types and their
+  conversion methods have been removed.
+- Replace the `FontRef` entry point with `Font` from `read-fonts`, re-exported
+  as `harfrust::Font`. Create a `ShaperFont` from a `Font` (or one of its
+  instances) before shaping.
+- Replace the old `Shaper`, `ShaperBuilder`, `ShaperInstance`, and `ShaperData`
+  API with `ShaperFont`.
+- Configure scale and custom `FontFuncs` on `ShaperFont` instead of
+  `ShapeOptions`.
+- Shape in place with `harfrust::shape(&shaper_font, &mut buffer, options)`.
+  It returns `Result<(), ShapeError>` for invalid shaping state or properties,
+  rather than returning a separate glyph buffer. Check
+  `Buffer::allocation_successful()` separately for allocation or shaping-limit
+  failure.
+
+### Migration
+
+Replace `UnicodeBuffer` construction and the returned `GlyphBuffer` with a
+single mutable `Buffer`. For example, with `font_data` containing font bytes:
+
+```rust
+use harfrust::{shape, Buffer, Font, ShapeOptions, ShaperFont};
+
+let font = Font::new(font_data, 0).expect("invalid font");
+let shaper_font = ShaperFont::new(&font);
+let mut buffer = Buffer::new();
+buffer.push_str("Hello");
+buffer.guess_segment_properties();
+shape(&shaper_font, &mut buffer, ShapeOptions::new()).expect("shaping failed");
+let glyphs = buffer.glyph_infos();
+let positions = buffer.glyph_positions();
+```
+
+Use `buffer.clear()` to reuse its allocation for another run, then push new
+text. Call `guess_segment_properties()` or set the direction and other segment
+properties explicitly before shaping.
+
+Use `ShaperFont::set_scale` or `set_scale_separate` for scaling, and
+`ShaperFont::set_font_funcs` for custom font callbacks. `ShaperFont` borrows the
+`Font` and any supplied callbacks, so it is intended as a short-lived shaping
+view; keep the `Font` and callbacks alive and construct a `ShaperFont` as needed.
+`ShapeOptions` holds per-call features, an optional plan, and point size.
+
+### Other changes
+
+- Update `read-fonts` to 0.45.0 and use its current font model API.
 - Update the built-in Unicode data to 18.0. Add Jurchen, Proto-Cuneiform, and
   Seal script constants to the Rust and C APIs and route them through USE.
+- Treat U+180F as default ignorable during shaping.
 - Support hexadecimal OpenType language and script overrides in `x-hbot-`
   and `x-hbsc-` private-use subtags, such as `x-hbot-4d4f4e54` for `MONT`.
-- Add a unified `Buffer` type, matching HarfBuzz's `hb_buffer_t`. It carries a
-  `BufferContentType` describing whether it holds input characters or shaped
-  glyphs, and is shaped in place with `Buffer::shape`. `UnicodeBuffer` and
-  `GlyphBuffer` are unchanged, and convert to and from `Buffer`.
-- `Buffer::shape` returns `Result<(), ShapeError>`, reporting a buffer that
-  already holds glyphs, a buffer with no direction, a font with nothing to
-  shape with, and a plan built for other properties. Running out of room is
-  reported through `Buffer::allocation_successful`, as before.
+- Expose Unicode composition, one-step canonical decomposition, and canonical
+  combining classes through the public `harfrust::unicode` module.
+  Decomposition returns a `Decomposed` enum.
 - Add the `harfrust_capi` crate, a C API mirroring the shaping half of
   HarfBuzz's API with an `hr_` prefix in place of `hb_`.
+- Speed up repeated `hr-shape` runs and contextual lookup matching.
+- Reduce OpenType subtable cache memory by boxing the two large contextual
+  cache variants.
 - Leave a GPOS mark unattached when it is more than 32767 glyphs from its base,
   as HarfBuzz does, instead of storing a truncated `attach_chain` that
   mispositioned the mark.
@@ -321,7 +373,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.13.3...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.14.0...HEAD
+[0.14.0]: https://github.com/harfbuzz/harfrust/compare/0.13.3...0.14.0
 [0.13.3]: https://github.com/harfbuzz/harfrust/compare/0.13.2...0.13.3
 [0.13.2]: https://github.com/harfbuzz/harfrust/compare/0.13.1...0.13.2
 [0.13.1]: https://github.com/harfbuzz/harfrust/compare/0.13.0...0.13.1
