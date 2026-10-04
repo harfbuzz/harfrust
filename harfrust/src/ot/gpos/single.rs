@@ -1,6 +1,8 @@
 use crate::ot::apply::Apply;
 use crate::ot::apply::ApplyContext;
-use read_fonts::tables::gpos::{SinglePosFormat1, SinglePosFormat2};
+use read_fonts::tables::gpos::{
+    SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4,
+};
 
 impl Apply for SinglePosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
@@ -18,6 +20,33 @@ impl Apply for SinglePosFormat2<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0).as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
+        let format = self.value_format();
+        let offset = self.value_records_byte_range().start + (format.record_byte_len() * index);
+        super::value::apply(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);
+        ctx.buffer.idx += 1;
+        Some(())
+    }
+}
+
+impl Apply for SinglePosFormat3<'_> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_glyph();
+        self.coverage().ok()?.get(glyph)?;
+        let format = self.value_format();
+        let offset = self.value_record_byte_range().start;
+        super::value::apply(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);
+        ctx.buffer.idx += 1;
+        Some(())
+    }
+}
+
+impl Apply for SinglePosFormat4<'_> {
+    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+        let glyph = ctx.buffer.cur(0).as_glyph();
+        let index = self.coverage().ok()?.get(glyph)? as usize;
+        if index >= self.value_count().to_u32() as usize {
+            return None;
+        }
         let format = self.value_format();
         let offset = self.value_records_byte_range().start + (format.record_byte_len() * index);
         super::value::apply(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);

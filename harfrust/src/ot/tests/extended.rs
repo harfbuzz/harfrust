@@ -468,3 +468,60 @@ fn ligature_subst2_keeps_wide_set_counts_and_coverage_indices() {
     assert_eq!(output.glyph_infos().len(), 1);
     assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
 }
+
+#[test]
+fn single_pos3_applies_scaled_values_in_both_directions() {
+    let subtable = [
+        0, 3, 0, 0, 0, 16, 0, 15, // Header and value format.
+        0, 10, 0xFF, 0xEC, 0, 30, 0xFF, 0xD8, // Placement and advances.
+        0, 3, 0, 0, 1, 1, 0, 0, // Coverage.
+    ];
+    for (direction, expected) in [
+        (Direction::LeftToRight, [20, -10, 60, 0]),
+        (Direction::TopToBottom, [20, -10, 0, 20]),
+    ] {
+        let output = apply_subtable_configured(1, false, &subtable, &[65536, 1], |ctx| {
+            ctx.buffer.set_direction(direction);
+            ctx.scale = Scale::new(Some((2000, 500)), 1000);
+        });
+        let pos = &output.glyph_positions()[0];
+        assert_eq!(
+            [pos.x_offset, pos.y_offset, pos.x_advance, pos.y_advance],
+            expected
+        );
+        let pos = &output.glyph_positions()[1];
+        assert_eq!(
+            [pos.x_offset, pos.y_offset, pos.x_advance, pos.y_advance],
+            [0; 4]
+        );
+    }
+}
+
+#[test]
+fn single_pos4_keeps_wide_record_counts_and_indices() {
+    let count = 65537;
+    let mut subtable = vec![0, 4];
+    subtable.extend_from_slice(&(11 + count * 2u32).to_be_bytes());
+    subtable.extend_from_slice(&4u16.to_be_bytes()); // X advance.
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    subtable.resize(11 + (count as usize - 1) * 2, 0);
+    subtable.extend_from_slice(&(-10i16).to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    let output = apply_subtable(1, false, &subtable, &[65536]);
+    assert_eq!(output.glyph_positions()[0].x_advance, -10);
+
+    let mut extension = vec![0, 1, 0, 1, 0, 0, 0, 8];
+    extension.extend_from_slice(&subtable);
+    let output = apply_subtable(9, false, &extension, &[65536]);
+    assert_eq!(output.glyph_positions()[0].x_advance, -10);
+}
+
+#[test]
+fn single_pos4_rejects_coverage_indices_outside_the_value_array() {
+    let subtable = [
+        0, 4, 0, 0, 0, 13, 0, 4, 0, 0, 1, 0, 20, // Header and one value.
+        0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, // Index 1 is out of bounds.
+    ];
+    let output = apply_subtable(1, false, &subtable, &[65536]);
+    assert_eq!(output.glyph_positions()[0].x_advance, 0);
+}
