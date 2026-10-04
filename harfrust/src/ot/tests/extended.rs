@@ -648,3 +648,73 @@ fn pair_pos4_does_not_truncate_wide_classes_to_matrix_indices() {
     assert_eq!(output.glyph_positions()[0].x_advance, 0);
     assert_eq!(output.glyph_positions()[1].y_offset, 0);
 }
+
+#[test]
+fn pair_pos3_matches_wide_second_glyphs_and_applies_both_values() {
+    let subtable = [
+        0, 3, 0, 0, 0, 16, 0, 4, 0, 2, 0, 0, 1, 0, 0, 24, // Header.
+        0, 3, 0, 0, 1, 1, 0, 0, // Coverage.
+        0, 0, 2, // Pair count.
+        1, 0, 1, 0, 10, 0, 20, // First pair.
+        1, 0, 2, 0xFF, 0xF6, 0xFF, 0xEC, // Second pair.
+    ];
+    for (second, advance, placement) in [(65537, 10, 20), (65538, -10, -20), (1, 0, 0)] {
+        let output = apply_subtable(2, false, &subtable, &[65536, second]);
+        assert_eq!(output.glyph_positions()[0].x_advance, advance);
+        assert_eq!(output.glyph_positions()[1].y_offset, placement);
+    }
+}
+
+#[test]
+fn pair_pos3_keeps_wide_pair_counts_without_unbounded_cache_walks() {
+    use super::apply::{Apply, SubtableExternalCache, SubtableExternalCacheMode};
+    let mut subtable = vec![0, 3, 0, 0, 0, 16, 0, 4, 0, 0, 0, 0, 1, 1, 0, 0];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    subtable.resize(65536, 0);
+    subtable.extend_from_slice(&Uint24::new(65537).to_be_bytes());
+    for glyph in 0..=65536 {
+        subtable.extend_from_slice(&Uint24::new(glyph).to_be_bytes());
+        subtable.extend_from_slice(&(if glyph == 65536 { 100i16 } else { 0 }).to_be_bytes());
+    }
+    let output = apply_subtable(2, false, &subtable, &[65536, 65536]);
+    assert_eq!(output.glyph_positions()[0].x_advance, 100);
+
+    let table = read_fonts::tables::gpos::PairPosFormat3::read(FontData::new(&subtable)).unwrap();
+    let SubtableExternalCache::PairPosFormat1Cache(cache) =
+        table.external_cache_create(SubtableExternalCacheMode::Full)
+    else {
+        panic!("missing pair cache");
+    };
+    assert!(cache.pair_sets.is_empty());
+}
+
+#[test]
+fn pair_pos3_keeps_wide_set_counts_and_small_cache_offsets() {
+    use super::apply::{Apply, SubtableExternalCache, SubtableExternalCacheMode};
+    let count = 65537;
+    let coverage_offset = 13 + count * 3u32;
+    let mut subtable = vec![0, 3];
+    subtable.extend_from_slice(&coverage_offset.to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 0]);
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    subtable.resize(coverage_offset as usize - 3, 0);
+    subtable.extend_from_slice(&Uint24::new(coverage_offset + 14).to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 0, 1, 1, 0, 1, 0, 100]);
+    let output = apply_subtable(2, false, &subtable, &[65536, 65537]);
+    assert_eq!(output.glyph_positions()[0].x_advance, 100);
+
+    let table = read_fonts::tables::gpos::PairPosFormat3::read(FontData::new(&subtable)).unwrap();
+    let SubtableExternalCache::PairPosFormat1SmallCache(cache) =
+        table.external_cache_create(SubtableExternalCacheMode::Small)
+    else {
+        panic!("missing small pair cache");
+    };
+    assert_eq!(
+        cache
+            .coverage
+            .index(&table.offset_data(), GlyphId::new(65536)),
+        Some(65536)
+    );
+    assert!(cache.pair_sets.is_empty());
+}

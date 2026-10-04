@@ -13,8 +13,8 @@ use read_fonts::{
         gpos::{
             CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePosFormat1,
             MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1, PairPosFormat2,
-            PairPosFormat4, SinglePos, SinglePosFormat1, SinglePosFormat2, SinglePosFormat3,
-            SinglePosFormat4,
+            PairPosFormat3, PairPosFormat4, SinglePos, SinglePosFormat1, SinglePosFormat2,
+            SinglePosFormat3, SinglePosFormat4,
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
@@ -604,6 +604,22 @@ fn pair_pos_format1_digest(table: &PairPosFormat1) -> SetDigest {
     digest
 }
 
+fn pair_pos_format3_digest(cache: &SubtableExternalCache) -> SetDigest {
+    let digests = match cache {
+        SubtableExternalCache::PairPosFormat1Cache(cache) => &cache.pair_sets,
+        SubtableExternalCache::PairPosFormat1SmallCache(cache) => &cache.pair_sets,
+        _ => return SetDigest::full(),
+    };
+    if digests.is_empty() {
+        return SetDigest::full();
+    }
+    let mut digest = SetDigest::new();
+    for set in digests {
+        digest.union(set);
+    }
+    digest
+}
+
 macro_rules! apply_fns {
     ($apply:ident, $apply_cached:ident, $ty:ident) => {
         fn $apply(
@@ -666,6 +682,7 @@ apply_fns!(single_pos3, single_pos3_cached, SinglePosFormat3);
 apply_fns!(single_pos4, single_pos4_cached, SinglePosFormat4);
 apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
 apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
+apply_fns!(pair_pos3, pair_pos3_cached, PairPosFormat3);
 apply_fns!(pair_pos4, pair_pos4_cached, PairPosFormat4);
 apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
 apply_fns!(cursive_pos2, cursive_pos2_cached, CursivePosFormat2);
@@ -720,6 +737,7 @@ pub enum SubtableKind {
     SinglePos4,
     PairPos1,
     PairPos2,
+    PairPos3,
     PairPos4,
     CursivePos1,
     CursivePos2,
@@ -837,7 +855,16 @@ impl SubtableInfo {
                     [pair_pos4, pair_pos4_cached as _],
                     SetDigest::full(),
                 ),
-                PairPos::Format3(_) => return None,
+                PairPos::Format3(s) => {
+                    let cache = maybe_external_cache(&s);
+                    let seconds = pair_pos_format3_digest(&cache);
+                    (
+                        SubtableKind::PairPos3,
+                        (cache, s.cache_cost(), s.coverage().ok()?),
+                        [pair_pos3, pair_pos3_cached as _],
+                        seconds,
+                    )
+                }
             },
             (true, 3) => match AlternateSubst::read(data).ok()? {
                 AlternateSubst::Format1(s) => (
