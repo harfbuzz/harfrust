@@ -119,12 +119,12 @@ pub struct ShapePlanKey<'a> {
 impl<'a> ShapePlanKey<'a> {
     /// Creates a key for a font, script, and direction.
     pub fn new(font: &Font, script: Option<Script>, direction: Direction) -> Self {
-        let variations = font.feature_variations();
+        let feature_variations = crate::ot::feature_variations::feature_variation_indices(font);
         Self {
             script,
             direction,
             language: None,
-            feature_variations: [variations.gsub, variations.gpos],
+            feature_variations,
             features: &[],
         }
     }

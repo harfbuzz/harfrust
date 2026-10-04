@@ -45,12 +45,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
             let tables = font.tables();
             let coords = font.normalized_coords();
-            let feature_variations = if coords.is_empty() {
-                [None; 2]
-            } else {
-                let variations = font.feature_variations();
-                [variations.gsub, variations.gpos]
-            };
+            let feature_variations = crate::ot::feature_variations::feature_variation_indices(font);
             (
                 OtData::from_tables(&tables, &cache.ot, coords, feature_variations),
                 AatData::from_tables(&tables, &cache.aat),

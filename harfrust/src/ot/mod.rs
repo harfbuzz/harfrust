@@ -22,6 +22,7 @@ use read_fonts::{
 
 pub(crate) mod apply;
 pub mod contextual;
+pub(crate) mod feature_variations;
 pub mod gpos;
 pub mod gsub;
 pub(crate) mod layout;
