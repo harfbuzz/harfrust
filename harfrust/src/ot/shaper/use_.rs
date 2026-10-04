@@ -440,6 +440,7 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
         & (rb_flag(SyllableType::ViramaTerminatedCluster as u32)
             | rb_flag(SyllableType::SakotTerminatedCluster as u32)
             | rb_flag(SyllableType::StandardCluster as u32)
+            | rb_flag(SyllableType::SymbolCluster as u32)
             | rb_flag(SyllableType::BrokenCluster as u32)
             | 0))
         == 0
@@ -564,5 +565,38 @@ fn setup_masks(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     // and setup masks later on in a pause-callback.
     for info in buffer.info_slice_mut() {
         info.set_use_category(use_table::use_get_category(info.glyph_id as usize));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::use_machine::{find_syllables, SyllableType};
+    use super::*;
+
+    #[test]
+    fn symbol_clusters_reorder_prebase_marks() {
+        for base in [category::O, category::GB, category::SB] {
+            for mark in [category::VPre, category::VMPre] {
+                let mut buffer = Buffer::new();
+                buffer.push(0x111CD, 0);
+                buffer.push(0x111CE, 4);
+                buffer.info[0].set_use_category(base);
+                buffer.info[1].set_use_category(mark);
+                find_syllables(&mut buffer);
+                assert_eq!(
+                    buffer.info[0].syllable() & 0x0F,
+                    if base == category::GB {
+                        SyllableType::StandardCluster
+                    } else {
+                        SyllableType::SymbolCluster
+                    } as u8
+                );
+                reorder_syllable_use(0, 2, &mut buffer);
+                assert_eq!(buffer.info[0].glyph_id, 0x111CE);
+                assert_eq!(buffer.info[1].glyph_id, 0x111CD);
+                assert_eq!(buffer.info[0].cluster, 0);
+                assert_eq!(buffer.info[1].cluster, 0);
+            }
+        }
     }
 }
