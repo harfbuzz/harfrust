@@ -11,9 +11,9 @@ use alloc::vec::Vec;
 use read_fonts::{
     tables::{
         gpos::{
-            CursivePosFormat1, Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
-            PairPos, PairPosFormat1, PairPosFormat2, SinglePos, SinglePosFormat1, SinglePosFormat2,
-            SinglePosFormat3, SinglePosFormat4,
+            CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePosFormat1,
+            MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1, PairPosFormat2,
+            SinglePos, SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4,
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
@@ -666,6 +666,7 @@ apply_fns!(single_pos4, single_pos4_cached, SinglePosFormat4);
 apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
 apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
 apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
+apply_fns!(cursive_pos2, cursive_pos2_cached, CursivePosFormat2);
 apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
 apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
 apply_fns!(mark_lig_pos1, mark_lig_pos1_cached, MarkLigPosFormat1);
@@ -718,6 +719,7 @@ pub enum SubtableKind {
     PairPos1,
     PairPos2,
     CursivePos1,
+    CursivePos2,
     MarkBasePos1,
     MarkMarkPos1,
     MarkLigPos1,
@@ -842,15 +844,20 @@ impl SubtableInfo {
                     SetDigest::full(),
                 ),
             },
-            (false, 3) => {
-                let s = CursivePosFormat1::read(data).ok()?;
-                (
+            (false, 3) => match CursivePos::read(data).ok()? {
+                CursivePos::Format1(s) => (
                     SubtableKind::CursivePos1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [cursive_pos1, cursive_pos1_cached as _],
                     coverage_digest(s.coverage()),
-                )
-            }
+                ),
+                CursivePos::Format2(s) => (
+                    SubtableKind::CursivePos2,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [cursive_pos2, cursive_pos2_cached as _],
+                    coverage_digest(s.coverage()),
+                ),
+            },
             (true, 4) => match LigatureSubst::read(data).ok()? {
                 LigatureSubst::Format1(s) => (
                     SubtableKind::LigatureSubst1,

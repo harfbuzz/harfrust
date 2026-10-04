@@ -525,3 +525,62 @@ fn single_pos4_rejects_coverage_indices_outside_the_value_array() {
     let output = apply_subtable(1, false, &subtable, &[65536]);
     assert_eq!(output.glyph_positions()[0].x_advance, 0);
 }
+
+#[test]
+fn cursive_pos2_attaches_wide_glyphs_in_all_directions() {
+    let subtable = [
+        0, 2, 0, 0, 0, 21, 0, 0, 2, // Header and two records.
+        0, 0, 0, 0, 0, 32, // First glyph's exit anchor.
+        0, 0, 38, 0, 0, 0, // Second glyph's entry anchor.
+        0, 3, 0, 0, 2, 1, 0, 0, 1, 0, 1, // Coverage.
+        0, 1, 0, 100, 0, 50, // Exit anchor.
+        0, 1, 0, 20, 0, 10, // Entry anchor.
+    ];
+    for (direction, expected) in [
+        (Direction::LeftToRight, [[0, 0, 100, 0], [-20, 40, -20, 0]]),
+        (Direction::RightToLeft, [[-100, 0, -100, 0], [0, 40, 20, 0]]),
+        (Direction::TopToBottom, [[0, 0, 0, 50], [80, -10, 0, -10]]),
+        (Direction::BottomToTop, [[0, -50, 0, -50], [80, 0, 0, 10]]),
+    ] {
+        let output = apply_subtable_configured(3, false, &subtable, &[65536, 65537], |ctx| {
+            ctx.buffer.set_direction(direction);
+        });
+        for (pos, expected) in output.glyph_positions().iter().zip(expected) {
+            assert_eq!(
+                [pos.x_offset, pos.y_offset, pos.x_advance, pos.y_advance],
+                expected
+            );
+        }
+        assert_eq!(output.glyph_positions()[1].attach_chain(), -1);
+        assert_eq!(
+            output.glyph_positions()[1].attach_type(),
+            gpos::attach_type::CURSIVE
+        );
+    }
+
+    let output = apply_subtable_configured(3, false, &subtable, &[65536, 65537], |ctx| {
+        ctx.lookup_props |= u32::from(lookup_flags::RIGHT_TO_LEFT);
+    });
+    assert_eq!(output.glyph_positions()[0].attach_chain(), 1);
+    assert_eq!(output.glyph_positions()[0].y_offset, -40);
+}
+
+#[test]
+fn cursive_pos2_resolves_large_and_nullable_anchor_offsets() {
+    let mut subtable = vec![
+        0, 2, 0, 0, 0, 21, 0, 0, 2, // Header and two records.
+        0, 0, 0, 1, 0, 0, // First glyph's exit anchor at 65536.
+        1, 0, 6, 0, 0, 0, // Second glyph's entry anchor at 65542.
+        0, 3, 0, 0, 2, 1, 0, 0, 1, 0, 1, // Coverage.
+    ];
+    subtable.resize(65536, 0);
+    subtable.extend_from_slice(&[0, 1, 0, 100, 0, 50, 0, 1, 0, 20, 0, 10]);
+    let output = apply_subtable(3, false, &subtable, &[65536, 65537]);
+    assert_eq!(output.glyph_positions()[0].x_advance, 100);
+    assert_eq!(output.glyph_positions()[1].y_offset, 40);
+
+    subtable[15..18].fill(0);
+    let output = apply_subtable(3, false, &subtable, &[65536, 65537]);
+    assert_eq!(output.glyph_positions()[0].x_advance, 0);
+    assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+}

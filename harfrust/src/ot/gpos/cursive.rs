@@ -4,139 +4,150 @@ use crate::ot::apply::{Apply, SkippingIterator};
 use crate::ot::gpos::attach_type;
 use crate::ot::lookup_flags;
 use crate::{Direction, GlyphPosition};
-use read_fonts::tables::gpos::CursivePosFormat1;
+use read_fonts::tables::gpos::{CursivePosFormat1, CursivePosFormat2};
 
-impl Apply for CursivePosFormat1<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let this = ctx.buffer.cur(0).as_glyph();
+macro_rules! impl_cursive_pos {
+    ($format:ident) => {
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let this = ctx.buffer.cur(0).as_glyph();
 
-        let coverage = self.coverage().ok()?;
-        let index_this = coverage.get(this)? as usize;
-        let records = self.entry_exit_record();
-        let offset_data = self.offset_data();
-        let entry_this = records.get(index_this)?.entry_anchor(offset_data)?.ok()?;
+                let coverage = self.coverage().ok()?;
+                let index_this = coverage.get(this)? as usize;
+                let records = self.entry_exit_record();
+                let offset_data = self.offset_data();
+                let entry_this = records.get(index_this)?.entry_anchor(offset_data)?.ok()?;
 
-        let mut iter = SkippingIterator::new(ctx, false);
-        iter.reset_fast(iter.buffer.idx);
+                let mut iter = SkippingIterator::new(ctx, false);
+                iter.reset_fast(iter.buffer.idx);
 
-        let mut unsafe_from = 0;
-        if !iter.prev(Some(&mut unsafe_from)) {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(unsafe_from), Some(ctx.buffer.idx + 1));
-            return None;
-        }
+                let mut unsafe_from = 0;
+                if !iter.prev(Some(&mut unsafe_from)) {
+                    ctx.buffer.unsafe_to_concat_from_outbuffer(
+                        Some(unsafe_from),
+                        Some(ctx.buffer.idx + 1),
+                    );
+                    return None;
+                }
 
-        let i = iter.index();
-        let prev = iter.buffer.info[i].as_glyph();
-        let index_prev = coverage.get(prev)? as usize;
-        let Some(exit_prev) = records
-            .get(index_prev)
-            .and_then(|rec| rec.exit_anchor(offset_data).transpose().ok().flatten())
-        else {
-            iter.buffer
-                .unsafe_to_concat_from_outbuffer(Some(iter.index()), Some(iter.buffer.idx + 1));
-            return None;
-        };
+                let i = iter.index();
+                let prev = iter.buffer.info[i].as_glyph();
+                let index_prev = coverage.get(prev)? as usize;
+                let Some(exit_prev) = records
+                    .get(index_prev)
+                    .and_then(|rec| rec.exit_anchor(offset_data).transpose().ok().flatten())
+                else {
+                    iter.buffer.unsafe_to_concat_from_outbuffer(
+                        Some(iter.index()),
+                        Some(iter.buffer.idx + 1),
+                    );
+                    return None;
+                };
 
-        let (exit_x, exit_y) = ctx.layout.ot.resolve_anchor(&exit_prev);
-        let (entry_x, entry_y) = ctx.layout.ot.resolve_anchor(&entry_this);
-        let exit_x = ctx.scale_x(exit_x);
-        let exit_y = ctx.scale_y(exit_y);
-        let entry_x = ctx.scale_x(entry_x);
-        let entry_y = ctx.scale_y(entry_y);
+                let (exit_x, exit_y) = ctx.layout.ot.resolve_anchor(&exit_prev);
+                let (entry_x, entry_y) = ctx.layout.ot.resolve_anchor(&entry_this);
+                let exit_x = ctx.scale_x(exit_x);
+                let exit_y = ctx.scale_y(exit_y);
+                let entry_x = ctx.scale_x(entry_x);
+                let entry_y = ctx.scale_y(entry_y);
 
-        let direction = ctx.buffer.direction;
-        let j = ctx.buffer.idx;
-        ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
+                let direction = ctx.buffer.direction;
+                let j = ctx.buffer.idx;
+                ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
 
-        let pos = &mut ctx.buffer.pos;
-        match direction {
-            Direction::LeftToRight => {
-                pos[i].x_advance = exit_x.saturating_add(pos[i].x_offset);
-                let d = entry_x.saturating_add(pos[j].x_offset);
-                pos[j].x_advance = pos[j].x_advance.saturating_sub(d);
-                pos[j].x_offset = pos[j].x_offset.saturating_sub(d);
+                let pos = &mut ctx.buffer.pos;
+                match direction {
+                    Direction::LeftToRight => {
+                        pos[i].x_advance = exit_x.saturating_add(pos[i].x_offset);
+                        let d = entry_x.saturating_add(pos[j].x_offset);
+                        pos[j].x_advance = pos[j].x_advance.saturating_sub(d);
+                        pos[j].x_offset = pos[j].x_offset.saturating_sub(d);
+                    }
+                    Direction::RightToLeft => {
+                        let d = exit_x.saturating_add(pos[i].x_offset);
+                        pos[i].x_advance = pos[i].x_advance.saturating_sub(d);
+                        pos[i].x_offset = pos[i].x_offset.saturating_sub(d);
+                        pos[j].x_advance = entry_x.saturating_add(pos[j].x_offset);
+                    }
+                    Direction::TopToBottom => {
+                        pos[i].y_advance = exit_y.saturating_add(pos[i].y_offset);
+                        let d = entry_y.saturating_add(pos[j].y_offset);
+                        pos[j].y_advance = pos[j].y_advance.saturating_sub(d);
+                        pos[j].y_offset = pos[j].y_offset.saturating_sub(d);
+                    }
+                    Direction::BottomToTop => {
+                        let d = exit_y.saturating_add(pos[i].y_offset);
+                        pos[i].y_advance = pos[i].y_advance.saturating_sub(d);
+                        pos[i].y_offset = pos[i].y_offset.saturating_sub(d);
+                        pos[j].y_advance = entry_y;
+                    }
+                    Direction::Invalid => {}
+                }
+
+                // Cross-direction adjustment
+
+                // We attach child to parent (think graph theory and rooted trees whereas
+                // the root stays on baseline and each node aligns itself against its
+                // parent.
+                //
+                // Optimize things for the case of RightToLeft, as that's most common in
+                // Arabic.
+                let mut child = i;
+                let mut parent = j;
+                let mut x_offset = entry_x.saturating_sub(exit_x);
+                let mut y_offset = entry_y.saturating_sub(exit_y);
+
+                // Low bits are lookup flags, so we want to truncate.
+                if ctx.lookup_props as u16 & lookup_flags::RIGHT_TO_LEFT == 0 {
+                    core::mem::swap(&mut child, &mut parent);
+                    x_offset = x_offset.saturating_neg();
+                    y_offset = y_offset.saturating_neg();
+                }
+
+                // If child was already connected to someone else, walk through its old
+                // chain and reverse the link direction, such that the whole tree of its
+                // previous connection now attaches to new parent.  Watch out for case
+                // where new parent is on the path from old chain...
+                reverse_cursive_minor_offset(pos, child, direction, parent);
+
+                pos[child].set_attach_type(attach_type::CURSIVE);
+                let chain = parent as isize - child as isize;
+                pos[child].set_attach_chain(chain as i16);
+                // If the distance between the two glyphs does not fit in the i16 chain
+                // field it would be truncated to a bogus value; leave the glyph
+                // unattached instead of storing a poisoned chain. Matches HarfBuzz.
+                if isize::from(pos[child].attach_chain()) != chain {
+                    pos[child].set_attach_chain(0);
+                }
+
+                ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+                if direction.is_horizontal() {
+                    pos[child].y_offset = y_offset;
+                } else {
+                    pos[child].x_offset = x_offset;
+                }
+
+                // If parent was attached to child, separate them.
+                // https://github.com/harfbuzz/harfbuzz/issues/2469
+                if pos[parent].attach_chain() == -pos[child].attach_chain() {
+                    pos[parent].set_attach_chain(0);
+
+                    if direction.is_horizontal() {
+                        pos[parent].y_offset = 0;
+                    } else {
+                        pos[parent].x_offset = 0;
+                    }
+                }
+
+                ctx.buffer.idx += 1;
+                Some(())
             }
-            Direction::RightToLeft => {
-                let d = exit_x.saturating_add(pos[i].x_offset);
-                pos[i].x_advance = pos[i].x_advance.saturating_sub(d);
-                pos[i].x_offset = pos[i].x_offset.saturating_sub(d);
-                pos[j].x_advance = entry_x.saturating_add(pos[j].x_offset);
-            }
-            Direction::TopToBottom => {
-                pos[i].y_advance = exit_y.saturating_add(pos[i].y_offset);
-                let d = entry_y.saturating_add(pos[j].y_offset);
-                pos[j].y_advance = pos[j].y_advance.saturating_sub(d);
-                pos[j].y_offset = pos[j].y_offset.saturating_sub(d);
-            }
-            Direction::BottomToTop => {
-                let d = exit_y.saturating_add(pos[i].y_offset);
-                pos[i].y_advance = pos[i].y_advance.saturating_sub(d);
-                pos[i].y_offset = pos[i].y_offset.saturating_sub(d);
-                pos[j].y_advance = entry_y;
-            }
-            Direction::Invalid => {}
         }
-
-        // Cross-direction adjustment
-
-        // We attach child to parent (think graph theory and rooted trees whereas
-        // the root stays on baseline and each node aligns itself against its
-        // parent.
-        //
-        // Optimize things for the case of RightToLeft, as that's most common in
-        // Arabic.
-        let mut child = i;
-        let mut parent = j;
-        let mut x_offset = entry_x.saturating_sub(exit_x);
-        let mut y_offset = entry_y.saturating_sub(exit_y);
-
-        // Low bits are lookup flags, so we want to truncate.
-        if ctx.lookup_props as u16 & lookup_flags::RIGHT_TO_LEFT == 0 {
-            core::mem::swap(&mut child, &mut parent);
-            x_offset = x_offset.saturating_neg();
-            y_offset = y_offset.saturating_neg();
-        }
-
-        // If child was already connected to someone else, walk through its old
-        // chain and reverse the link direction, such that the whole tree of its
-        // previous connection now attaches to new parent.  Watch out for case
-        // where new parent is on the path from old chain...
-        reverse_cursive_minor_offset(pos, child, direction, parent);
-
-        pos[child].set_attach_type(attach_type::CURSIVE);
-        let chain = parent as isize - child as isize;
-        pos[child].set_attach_chain(chain as i16);
-        // If the distance between the two glyphs does not fit in the i16 chain
-        // field it would be truncated to a bogus value; leave the glyph
-        // unattached instead of storing a poisoned chain. Matches HarfBuzz.
-        if isize::from(pos[child].attach_chain()) != chain {
-            pos[child].set_attach_chain(0);
-        }
-
-        ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-        if direction.is_horizontal() {
-            pos[child].y_offset = y_offset;
-        } else {
-            pos[child].x_offset = x_offset;
-        }
-
-        // If parent was attached to child, separate them.
-        // https://github.com/harfbuzz/harfbuzz/issues/2469
-        if pos[parent].attach_chain() == -pos[child].attach_chain() {
-            pos[parent].set_attach_chain(0);
-
-            if direction.is_horizontal() {
-                pos[parent].y_offset = 0;
-            } else {
-                pos[parent].x_offset = 0;
-            }
-        }
-
-        ctx.buffer.idx += 1;
-        Some(())
-    }
+    };
 }
+
+impl_cursive_pos!(CursivePosFormat1);
+impl_cursive_pos!(CursivePosFormat2);
 
 fn reverse_cursive_minor_offset(
     pos: &mut [GlyphPosition],
