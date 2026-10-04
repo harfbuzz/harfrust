@@ -418,6 +418,30 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
  */
 typedef hr_tag_t hr_ot_layout_baseline_tag_t;
 
+typedef unsigned int hr_ot_math_constant_t;
+
+typedef unsigned int hr_ot_math_kern_t;
+
+typedef struct hr_ot_math_kern_entry_t {
+  hr_position_t max_correction_height;
+  hr_position_t kern_value;
+} hr_ot_math_kern_entry_t;
+
+typedef struct hr_ot_math_glyph_variant_t {
+  hr_codepoint_t glyph;
+  hr_position_t advance;
+} hr_ot_math_glyph_variant_t;
+
+typedef unsigned int hr_ot_math_glyph_part_flags_t;
+
+typedef struct hr_ot_math_glyph_part_t {
+  hr_codepoint_t glyph;
+  hr_position_t start_connector_length;
+  hr_position_t end_connector_length;
+  hr_position_t full_advance;
+  hr_ot_math_glyph_part_flags_t flags;
+} hr_ot_math_glyph_part_t;
+
 /**
  * Copy the data. The caller keeps ownership of the original buffer.
  */
@@ -1571,6 +1595,132 @@ typedef hr_tag_t hr_ot_layout_baseline_tag_t;
 #define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL 1231315813
 
 #define HR_OT_LAYOUT_BASELINE_TAG_MATH 1835103336
+
+#define HR_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN 0
+
+#define HR_OT_MATH_CONSTANT_SCRIPT_SCRIPT_PERCENT_SCALE_DOWN 1
+
+#define HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT 2
+
+#define HR_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT 3
+
+#define HR_OT_MATH_CONSTANT_MATH_LEADING 4
+
+#define HR_OT_MATH_CONSTANT_AXIS_HEIGHT 5
+
+#define HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT 6
+
+#define HR_OT_MATH_CONSTANT_FLATTENED_ACCENT_BASE_HEIGHT 7
+
+#define HR_OT_MATH_CONSTANT_SUBSCRIPT_SHIFT_DOWN 8
+
+#define HR_OT_MATH_CONSTANT_SUBSCRIPT_TOP_MAX 9
+
+#define HR_OT_MATH_CONSTANT_SUBSCRIPT_BASELINE_DROP_MIN 10
+
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP 11
+
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP_CRAMPED 12
+
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MIN 13
+
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BASELINE_DROP_MAX 14
+
+#define HR_OT_MATH_CONSTANT_SUB_SUPERSCRIPT_GAP_MIN 15
+
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MAX_WITH_SUBSCRIPT 16
+
+#define HR_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT 17
+
+#define HR_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN 18
+
+#define HR_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN 19
+
+#define HR_OT_MATH_CONSTANT_LOWER_LIMIT_GAP_MIN 20
+
+#define HR_OT_MATH_CONSTANT_LOWER_LIMIT_BASELINE_DROP_MIN 21
+
+#define HR_OT_MATH_CONSTANT_STACK_TOP_SHIFT_UP 22
+
+#define HR_OT_MATH_CONSTANT_STACK_TOP_DISPLAY_STYLE_SHIFT_UP 23
+
+#define HR_OT_MATH_CONSTANT_STACK_BOTTOM_SHIFT_DOWN 24
+
+#define HR_OT_MATH_CONSTANT_STACK_BOTTOM_DISPLAY_STYLE_SHIFT_DOWN 25
+
+#define HR_OT_MATH_CONSTANT_STACK_GAP_MIN 26
+
+#define HR_OT_MATH_CONSTANT_STACK_DISPLAY_STYLE_GAP_MIN 27
+
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_TOP_SHIFT_UP 28
+
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_BOTTOM_SHIFT_DOWN 29
+
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_ABOVE_MIN 30
+
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_BELOW_MIN 31
+
+#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_SHIFT_UP 32
+
+#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP 33
+
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_SHIFT_DOWN 34
+
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_DISPLAY_STYLE_SHIFT_DOWN 35
+
+#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_GAP_MIN 36
+
+#define HR_OT_MATH_CONSTANT_FRACTION_NUM_DISPLAY_STYLE_GAP_MIN 37
+
+#define HR_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS 38
+
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_GAP_MIN 39
+
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOM_DISPLAY_STYLE_GAP_MIN 40
+
+#define HR_OT_MATH_CONSTANT_SKEWED_FRACTION_HORIZONTAL_GAP 41
+
+#define HR_OT_MATH_CONSTANT_SKEWED_FRACTION_VERTICAL_GAP 42
+
+#define HR_OT_MATH_CONSTANT_OVERBAR_VERTICAL_GAP 43
+
+#define HR_OT_MATH_CONSTANT_OVERBAR_RULE_THICKNESS 44
+
+#define HR_OT_MATH_CONSTANT_OVERBAR_EXTRA_ASCENDER 45
+
+#define HR_OT_MATH_CONSTANT_UNDERBAR_VERTICAL_GAP 46
+
+#define HR_OT_MATH_CONSTANT_UNDERBAR_RULE_THICKNESS 47
+
+#define HR_OT_MATH_CONSTANT_UNDERBAR_EXTRA_DESCENDER 48
+
+#define HR_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP 49
+
+#define HR_OT_MATH_CONSTANT_RADICAL_DISPLAY_STYLE_VERTICAL_GAP 50
+
+#define HR_OT_MATH_CONSTANT_RADICAL_RULE_THICKNESS 51
+
+#define HR_OT_MATH_CONSTANT_RADICAL_EXTRA_ASCENDER 52
+
+#define HR_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE 53
+
+#define HR_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE 54
+
+#define HR_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT 55
+
+#define HR_OT_MATH_KERN_TOP_RIGHT 0
+
+#define HR_OT_MATH_KERN_TOP_LEFT 1
+
+#define HR_OT_MATH_KERN_BOTTOM_RIGHT 2
+
+#define HR_OT_MATH_KERN_BOTTOM_LEFT 3
+
+#define HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER 1
+
+#define HR_OT_TAG_MATH 1296127048
+
+#define HR_OT_TAG_MATH_SCRIPT 1835103336
 
 #ifdef __cplusplus
 extern "C" {
@@ -3393,6 +3543,100 @@ void hr_ot_layout_get_baseline_with_fallback2(struct hr_font_t *font,
                                               hr_script_t script,
                                               hr_language_t _language,
                                               hr_position_t *coord);
+
+/**
+ * Whether a face has a MATH table with a nonzero version.
+ * # Safety
+ * `face` must be null or a live face.
+ */
+hr_bool_t hr_ot_math_has_data(struct hr_face_t *face);
+
+/**
+ * Returns a MATH constant, scaled on its specified axis.
+ * # Safety
+ * `font` must be null or a live font.
+ */
+hr_position_t hr_ot_math_get_constant(struct hr_font_t *font, hr_ot_math_constant_t constant);
+
+/**
+ * Returns the glyph's MATH italics correction, or zero.
+ * # Safety
+ * `font` must be null or a live font.
+ */
+hr_position_t hr_ot_math_get_glyph_italics_correction(struct hr_font_t *font, hr_codepoint_t glyph);
+
+/**
+ * Returns the top accent attachment, falling back to half the glyph advance.
+ * # Safety
+ * `font` must be null or a live font.
+ */
+hr_position_t hr_ot_math_get_glyph_top_accent_attachment(struct hr_font_t *font,
+                                                         hr_codepoint_t glyph);
+
+/**
+ * Whether the glyph is covered by MATH's extended-shape set.
+ * # Safety
+ * `face` must be null or a live face.
+ */
+hr_bool_t hr_ot_math_is_glyph_extended_shape(struct hr_face_t *face, hr_codepoint_t glyph);
+
+/**
+ * Returns a MATH kern selected in the font's scaled coordinate space.
+ * # Safety
+ * `font` must be null or a live font.
+ */
+hr_position_t hr_ot_math_get_glyph_kerning(struct hr_font_t *font,
+                                           hr_codepoint_t glyph,
+                                           hr_ot_math_kern_t kern,
+                                           hr_position_t correction_height);
+
+/**
+ * Returns paginated raw MATH kern entries and their total count.
+ * # Safety
+ * `font` must be null or live; `entries_count` must be null or writable;
+ * `kern_entries` must hold its input capacity when non-null.
+ */
+unsigned int hr_ot_math_get_glyph_kernings(struct hr_font_t *font,
+                                           hr_codepoint_t glyph,
+                                           hr_ot_math_kern_t kern,
+                                           unsigned int start_offset,
+                                           unsigned int *entries_count,
+                                           struct hr_ot_math_kern_entry_t *kern_entries);
+
+/**
+ * Returns paginated MATH size variants and their total count.
+ * # Safety
+ * `font` must be null or live; `variants_count` must be null or writable;
+ * `variants` must hold its input capacity when non-null.
+ */
+unsigned int hr_ot_math_get_glyph_variants(struct hr_font_t *font,
+                                           hr_codepoint_t glyph,
+                                           hr_direction_t direction,
+                                           unsigned int start_offset,
+                                           unsigned int *variants_count,
+                                           struct hr_ot_math_glyph_variant_t *variants);
+
+/**
+ * Returns the minimum overlap needed between MATH assembly parts.
+ * # Safety
+ * `font` must be null or a live font.
+ */
+hr_position_t hr_ot_math_get_min_connector_overlap(struct hr_font_t *font,
+                                                   hr_direction_t direction);
+
+/**
+ * Returns paginated MATH assembly parts and their total count.
+ * # Safety
+ * `font` must be null or live; `parts_count` and `italics_correction` must be
+ * null or writable; `parts` must hold the input capacity when non-null.
+ */
+unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
+                                           hr_codepoint_t glyph,
+                                           hr_direction_t direction,
+                                           unsigned int start_offset,
+                                           unsigned int *parts_count,
+                                           struct hr_ot_math_glyph_part_t *parts,
+                                           hr_position_t *italics_correction);
 
 /**
  * Shapes a buffer with a font, applying the given features.

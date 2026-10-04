@@ -29,6 +29,298 @@ const PLAIN_UPEM: c_uint = 1024;
 const VARIABLE_FONT: &str = "Linefont.ttf";
 
 #[test]
+fn math_queries_scale_device_values_and_page() {
+    unsafe {
+        let path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/MathQuery.ttf");
+        with_font_file(&path, |face, font| {
+            assert_eq!(hr_ot_math_has_data(face), 1);
+            assert_eq!(hr_ot_math_is_glyph_extended_shape(face, 1), 1);
+            assert_eq!(hr_ot_math_is_glyph_extended_shape(face, 0), 0);
+            assert_eq!(
+                hr_ot_math_get_constant(font, HR_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN),
+                80
+            );
+            assert_eq!(
+                hr_ot_math_get_constant(font, HR_OT_MATH_CONSTANT_AXIS_HEIGHT),
+                642
+            );
+            assert_eq!(hr_ot_math_get_constant(font, 99), 0);
+            assert_eq!(hr_ot_math_get_glyph_italics_correction(font, 1), 120);
+            assert_eq!(hr_ot_math_get_glyph_top_accent_attachment(font, 1), 300);
+            assert_eq!(
+                hr_ot_math_get_glyph_top_accent_attachment(font, 0),
+                hr_font_get_glyph_h_advance(font, 0) / 2
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, 399),
+                25
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, 400),
+                50
+            );
+            assert_eq!(
+                hr_ot_math_get_min_connector_overlap(font, HR_DIRECTION_LTR),
+                40
+            );
+
+            let mut count = 7;
+            assert_eq!(
+                hr_ot_math_get_glyph_kernings(
+                    font,
+                    1,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut()
+                ),
+                2
+            );
+            assert_eq!(count, 7);
+            let mut entries = [hr_ot_math_kern_entry_t::default(); 2];
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_kernings(
+                    font,
+                    1,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    1,
+                    &raw mut count,
+                    entries.as_mut_ptr()
+                ),
+                2
+            );
+            assert_eq!(count, 1);
+            assert_eq!(entries[0].max_correction_height, i32::MAX);
+            assert_eq!(entries[0].kern_value, 50);
+
+            let mut variants = [hr_ot_math_glyph_variant_t::default(); 1];
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_TTB,
+                    0,
+                    &raw mut count,
+                    variants.as_mut_ptr()
+                ),
+                1
+            );
+            assert_eq!(count, 1);
+            assert_eq!(
+                variants[0],
+                hr_ot_math_glyph_variant_t {
+                    glyph: 1,
+                    advance: 700
+                }
+            );
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    variants.as_mut_ptr()
+                ),
+                1
+            );
+            assert_eq!(variants[0].advance, 900);
+            count = 7;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut()
+                ),
+                1
+            );
+            assert_eq!(count, 7);
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    1,
+                    &raw mut count,
+                    variants.as_mut_ptr()
+                ),
+                1
+            );
+            assert_eq!(count, 0);
+
+            let mut parts = [hr_ot_math_glyph_part_t::default(); 1];
+            let mut correction = 0;
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_TTB,
+                    0,
+                    &raw mut count,
+                    parts.as_mut_ptr(),
+                    &raw mut correction
+                ),
+                1
+            );
+            assert_eq!(count, 1);
+            assert_eq!(
+                parts[0],
+                hr_ot_math_glyph_part_t {
+                    glyph: 1,
+                    start_connector_length: 20,
+                    end_connector_length: 30,
+                    full_advance: 700,
+                    flags: HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER
+                }
+            );
+            assert_eq!(correction, 70);
+            count = 7;
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_TTB,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut(),
+                    &raw mut correction
+                ),
+                1
+            );
+            assert_eq!(count, 7);
+            assert_eq!(correction, 70);
+
+            hr_font_set_scale(font, 4096, 2048);
+            hr_font_set_ppem(font, 13, 12);
+            assert_eq!(
+                hr_ot_math_get_constant(font, HR_OT_MATH_CONSTANT_AXIS_HEIGHT),
+                812
+            );
+            assert_eq!(hr_ot_math_get_glyph_italics_correction(font, 1), 240);
+            assert_eq!(
+                hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, 569),
+                680
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, 570),
+                100
+            );
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_kernings(
+                    font,
+                    1,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    0,
+                    &raw mut count,
+                    entries.as_mut_ptr()
+                ),
+                2
+            );
+            assert_eq!(
+                entries[0],
+                hr_ot_math_kern_entry_t {
+                    max_correction_height: 570,
+                    kern_value: 680
+                }
+            );
+            assert_eq!(
+                hr_ot_math_get_min_connector_overlap(font, HR_DIRECTION_LTR),
+                80
+            );
+            assert_eq!(
+                hr_ot_math_get_min_connector_overlap(font, HR_DIRECTION_TTB),
+                40
+            );
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    variants.as_mut_ptr()
+                ),
+                1
+            );
+            assert_eq!(variants[0].advance, 1800);
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    parts.as_mut_ptr(),
+                    &raw mut correction
+                ),
+                1
+            );
+            assert_eq!(parts[0].start_connector_length, 40);
+            assert_eq!(parts[0].end_connector_length, 60);
+            assert_eq!(parts[0].full_advance, 1800);
+            assert_eq!(correction, 140);
+            hr_font_set_scale(font, 4096, -2048);
+            assert_eq!(
+                hr_ot_math_get_constant(font, HR_OT_MATH_CONSTANT_AXIS_HEIGHT),
+                -812
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, -569),
+                680
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, -570),
+                100
+            );
+            assert_eq!(
+                hr_ot_math_get_min_connector_overlap(font, HR_DIRECTION_TTB),
+                -40
+            );
+        });
+    }
+}
+
+#[test]
+fn math_queries_without_table_return_empty_values() {
+    unsafe {
+        with_font(|face, font| {
+            assert_eq!(hr_ot_math_has_data(face), 0);
+            assert_eq!(
+                hr_ot_math_get_constant(font, HR_OT_MATH_CONSTANT_AXIS_HEIGHT),
+                0
+            );
+            assert_eq!(hr_ot_math_get_glyph_italics_correction(font, 1), 0);
+            assert_eq!(hr_ot_math_is_glyph_extended_shape(face, 1), 0);
+            let mut count = 2;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!(count, 0);
+        });
+    }
+}
+
+#[test]
 fn base_baselines_follow_script_and_font_scale() {
     unsafe {
         with_named_font("NotoSansCJK.subset1.otf", |_face, font| {

@@ -1,7 +1,8 @@
 # harfrust_capi
 
 A C API for [HarfRust](https://github.com/harfbuzz/harfrust), mirroring the
-shaping half of HarfBuzz's API with an `hr_` prefix in place of `hb_`.
+shaping, OpenType BASE baseline, and MATH query APIs of HarfBuzz with an `hr_`
+prefix in place of `hb_`.
 
 Every type, function, enumerator and constant is named and numbered to match
 its HarfBuzz counterpart, so C code can usually be ported by renaming `hb_` to
@@ -51,9 +52,8 @@ hb_shape(font, buffer, NULL, 0);
 
 Two things to know. It cannot be combined with HarfBuzz itself in one
 translation unit, since the macros would rewrite HarfBuzz's own declarations;
-include one or the other. And it covers only the shaping API, so anything from
-the list below fails to compile rather than failing at run time, which is the
-point.
+include one or the other. It covers the APIs listed below, so unsupported
+HarfBuzz calls fail to compile.
 
 The header is generated from `hr.h`, so the two cannot drift:
 
@@ -99,8 +99,9 @@ and can be frozen with `hr_*_make_immutable`, after which setters are ignored.
 Blobs, faces, fonts, font callbacks, buffers, shape plans and `hr_shape`,
 along with the tags, directions, scripts, languages, features and variations
 they need. OpenType `BASE` baseline queries are available through
-`hr_ot_layout_get_baseline` and its related functions.
-Set `hr_font_set_ppem` when `BASE` device adjustments should apply; it is
+`hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
+are available through `hr_ot_math_*` functions.
+Set `hr_font_set_ppem` when `BASE` or `MATH` device adjustments should apply; it is
 independent of the point size set by `hr_font_set_ptem`.
 
 Faces can be built two ways: over a blob with `hr_face_create`, or from a
