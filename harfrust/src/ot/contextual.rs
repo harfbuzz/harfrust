@@ -14,29 +14,36 @@ use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
     ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
     ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
-    SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4, SequenceContextFormat6,
-    SequenceLookupRecord, SequenceRule,
+    SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4, SequenceContextFormat5,
+    SequenceContextFormat6, SequenceLookupRecord, SequenceRule,
 };
-use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16, Scalar, Uint24};
-use read_fonts::FontData;
+use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16, Offset24, Scalar, Uint24};
+use read_fonts::{FontData, Offset};
 
-fn context_rule_set_digests(table: &SequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
-    table
-        .class_seq_rule_sets()
-        .iter()
-        .map(|rule_set| match rule_set {
-            None => RuleSetDigest::default(),
-            Some(Err(_)) => RuleSetDigest::full(),
-            Some(Ok(rule_set)) => rule_set_digest(
-                rule_set.offset_data(),
-                rule_set.class_seq_rule_offsets(),
-                plain_rule_data_at,
-                plain_rule_first_input,
-            ),
-        })
-        .collect::<Vec<_>>()
-        .into_boxed_slice()
+macro_rules! class_context_rule_set_digests {
+    ($name:ident, $format:ident) => {
+        fn $name(table: &$format<'_>) -> Box<[RuleSetDigest]> {
+            table
+                .class_seq_rule_sets()
+                .iter()
+                .map(|rule_set| match rule_set {
+                    None => RuleSetDigest::default(),
+                    Some(Err(_)) => RuleSetDigest::full(),
+                    Some(Ok(rule_set)) => rule_set_digest(
+                        rule_set.offset_data(),
+                        rule_set.class_seq_rule_offsets(),
+                        plain_rule_data_at,
+                        plain_rule_first_input,
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        }
+    };
 }
+
+class_context_rule_set_digests!(context_rule_set_digests, SequenceContextFormat2);
+class_context_rule_set_digests!(context_rule_set_digests2, SequenceContextFormat5);
 
 fn chain_rule_set_digests(table: &ChainedSequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
     table
@@ -91,7 +98,7 @@ macro_rules! impl_glyph_context {
                 let glyph = ctx.buffer.cur(0).as_glyph();
                 let index = self.coverage().ok()?.get(glyph)? as usize;
                 let set = self.seq_rule_sets().get(index)?.ok()?;
-                apply_context_rules::<$value>(
+                apply_context_rules::<$value, Offset16>(
                     ctx,
                     set.offset_data(),
                     set.seq_rule_offsets(),
@@ -107,111 +114,122 @@ macro_rules! impl_glyph_context {
 impl_glyph_context!(SequenceContextFormat1, u16);
 impl_glyph_context!(SequenceContextFormat4, Uint24);
 
-impl WouldApply for SequenceContextFormat2<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        let class_def = self.class_def().ok();
-        let match_fn = &match_class(&class_def);
-        let class = glyph_class(self.class_def(), ctx.glyphs[0]);
-        self.class_seq_rule_sets()
-            .get(class as usize)
-            .transpose()
-            .ok()
-            .flatten()
-            .is_some_and(|set| {
-                set.class_seq_rules().iter().any(|rule| {
-                    rule.is_ok_and(|rule| {
-                        let input = rule.input_sequence();
-                        ctx.glyphs.len() == input.len() + 1
-                            && input.iter().enumerate().all(|(i, value)| {
-                                let mut info = GlyphInfo {
-                                    glyph_id: ctx.glyphs[i + 1].into(),
-                                    ..GlyphInfo::default()
-                                };
-                                match_fn(&mut info, value.get() as u32)
+macro_rules! impl_class_context {
+    ($format:ident, $offset:ty, $digests:ident) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                let class_def = self.class_def().ok();
+                let match_fn = &match_class(&class_def);
+                let class = glyph_class(self.class_def(), ctx.glyphs[0]);
+                self.class_seq_rule_sets()
+                    .get(class as usize)
+                    .transpose()
+                    .ok()
+                    .flatten()
+                    .is_some_and(|set| {
+                        set.class_seq_rules().iter().any(|rule| {
+                            rule.is_ok_and(|rule| {
+                                let input = rule.input_sequence();
+                                ctx.glyphs.len() == input.len() + 1
+                                    && input.iter().enumerate().all(|(i, value)| {
+                                        let mut info = GlyphInfo {
+                                            glyph_id: ctx.glyphs[i + 1].into(),
+                                            ..GlyphInfo::default()
+                                        };
+                                        match_fn(&mut info, value.get() as u32)
+                                    })
                             })
+                        })
                     })
-                })
-            })
-    }
+            }
+        }
+
+        impl Apply for $format<'_> {
+            fn apply_with_external_cache(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let index = input_class(glyph) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.class_seq_rule_sets().get(index)?.ok()?;
+                apply_context_rules::<u16, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.class_seq_rule_offsets(),
+                    |info, value| input_class(info.as_glyph()) == value,
+                    digest,
+                    |info| input_class(info.as_glyph()),
+                )
+            }
+
+            fn apply_cached(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let index =
+                    get_class_cached(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.class_seq_rule_sets().get(index)?.ok()?;
+                apply_context_rules::<u16, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.class_seq_rule_offsets(),
+                    |info, value| get_class_cached(&input_class, info) == value,
+                    digest,
+                    |info| get_class_cached(&input_class, info),
+                )
+            }
+
+            fn cache_cost(&self) -> u32 {
+                self.class_def()
+                    .ok()
+                    .map_or(0, |class_def| class_def.cost())
+            }
+
+            fn external_cache_create(
+                &self,
+                _mode: SubtableExternalCacheMode,
+            ) -> SubtableExternalCache {
+                let data = self.offset_data();
+                SubtableExternalCache::ContextFormat2Cache(Box::new(ContextFormat2Cache {
+                    coverage_cache: BinaryCache::new(),
+                    coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32())
+                        .unwrap_or_default(),
+                    input: ClassDefInfo::new(&data, self.class_def_offset().to_u32())
+                        .unwrap_or_default(),
+                    rule_sets: $digests(self),
+                }))
+            }
+        }
+    };
 }
 
-impl Apply for SequenceContextFormat2<'_> {
-    fn apply_with_external_cache(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let index = input_class(glyph) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules::<u16>(
-            ctx,
-            set.offset_data(),
-            set.class_seq_rule_offsets(),
-            |info, value| input_class(info.as_glyph()) == value,
-            digest,
-            |info| input_class(info.as_glyph()),
-        )
-    }
-
-    fn apply_cached(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let index = get_class_cached(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules::<u16>(
-            ctx,
-            set.offset_data(),
-            set.class_seq_rule_offsets(),
-            |info, value| get_class_cached(&input_class, info) == value,
-            digest,
-            |info| get_class_cached(&input_class, info),
-        )
-    }
-
-    fn cache_cost(&self) -> u32 {
-        self.class_def()
-            .ok()
-            .map_or(0, |class_def| class_def.cost())
-    }
-
-    fn external_cache_create(&self, _mode: SubtableExternalCacheMode) -> SubtableExternalCache {
-        let data = self.offset_data();
-        SubtableExternalCache::ContextFormat2Cache(Box::new(ContextFormat2Cache {
-            coverage_cache: BinaryCache::new(),
-            coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            input: ClassDefInfo::new(&data, self.class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            rule_sets: context_rule_set_digests(self),
-        }))
-    }
-}
+impl_class_context!(SequenceContextFormat2, Offset16, context_rule_set_digests);
+impl_class_context!(SequenceContextFormat5, Offset24, context_rule_set_digests2);
 
 macro_rules! impl_coverage_context {
     ($format:ident) => {
@@ -810,18 +828,18 @@ const _: () = assert!(ChainedSequenceRule::MIN_SIZE == ChainedClassSequenceRule:
 /// data lets the rule walks below probe rules without constructing rule
 /// tables for the ones they discard, which is most of them.
 #[inline]
-fn plain_rule_data_at<'a>(
+fn plain_rule_data_at<'a, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    off: &BigEndian<Offset16>,
+    off: &BigEndian<O>,
 ) -> Option<FontData<'a>> {
-    let data = set_data.split_off(off.get().to_u32() as usize)?;
+    let data = set_data.split_off(off.get().to_usize())?;
     (data.len() >= SequenceRule::MIN_SIZE).then_some(data)
 }
 
 #[inline]
-fn parse_plain_rule_at<'a, T: Scalar + Copy + Default + Into<u32> + 'static>(
+fn parse_plain_rule_at<'a, T: Scalar + Copy + Default + Into<u32> + 'static, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    off: &BigEndian<Offset16>,
+    off: &BigEndian<O>,
 ) -> Option<ParsedRule<'a, T>> {
     plain_rule_data_at(set_data, off).map(|d| ParsedRule::from_rule_data(d).unwrap_or_default())
 }
@@ -836,10 +854,10 @@ fn chain_rule_data_at<'a>(
     (data.len() >= ChainedSequenceRule::MIN_SIZE).then_some(data)
 }
 
-fn rule_set_digest<'a>(
+fn rule_set_digest<'a, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    rule_offsets: &[BigEndian<Offset16>],
-    rule_data_at: fn(FontData<'a>, &BigEndian<Offset16>) -> Option<FontData<'a>>,
+    rule_offsets: &[BigEndian<O>],
+    rule_data_at: fn(FontData<'a>, &BigEndian<O>) -> Option<FontData<'a>>,
     first_input: fn(&FontData<'a>) -> Option<u16>,
 ) -> RuleSetDigest {
     let mut digest = RuleSetDigest::default();
@@ -864,10 +882,13 @@ fn parse_chain_rule_at<'a>(
         .map(|d| ParsedRule::from_chain_rule_data(d).unwrap_or_default())
 }
 
-fn apply_context_rules<T: Scalar + Copy + Default + Into<u32> + Eq + 'static>(
+fn apply_context_rules<
+    T: Scalar + Copy + Default + Into<u32> + Eq + 'static,
+    O: Scalar + Offset,
+>(
     ctx: &mut ApplyContext,
     set_data: FontData<'_>,
-    rule_offsets: &[BigEndian<Offset16>],
+    rule_offsets: &[BigEndian<O>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     rule_set_digest: Option<RuleSetDigest>,
     first_value: impl Fn(&mut GlyphInfo) -> u32,
@@ -898,7 +919,7 @@ fn apply_context_rules<T: Scalar + Copy + Default + Into<u32> + Eq + 'static>(
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
-                let Some(rule) = parse_plain_rule_at::<T>(set_data, off) else {
+                let Some(rule) = parse_plain_rule_at::<T, O>(set_data, off) else {
                     continue;
                 };
                 if rule.apply(ctx, &match_func).is_some() {
@@ -922,7 +943,7 @@ fn apply_context_rules<T: Scalar + Copy + Default + Into<u32> + Eq + 'static>(
     } else {
         let mut unsafe_to_concat = false;
         for off in rule_offsets {
-            let Some(rule) = parse_plain_rule_at::<T>(set_data, off) else {
+            let Some(rule) = parse_plain_rule_at::<T, O>(set_data, off) else {
                 continue;
             };
             if !rule.input.is_empty() {
@@ -952,7 +973,7 @@ fn apply_context_rules<T: Scalar + Copy + Default + Into<u32> + Eq + 'static>(
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
-                let Some(rule) = parse_plain_rule_at::<T>(set_data, off) else {
+                let Some(rule) = parse_plain_rule_at::<T, O>(set_data, off) else {
                     continue;
                 };
                 if rule.apply(ctx, &match_func).is_some() {

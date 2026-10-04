@@ -32,7 +32,7 @@ fn apply_subtable_configured(
         units_per_em: 1000,
         apply_trak: false,
     };
-    apply_lookup_configured(&lookup, &bytes, layout, glyphs, configure)
+    apply_lookup_configured(&lookup, &bytes, layout, glyphs, configure, false)
 }
 
 fn apply_lookup_configured(
@@ -41,6 +41,7 @@ fn apply_lookup_configured(
     layout: LayoutData,
     glyphs: &[u32],
     configure: impl FnOnce(&mut ApplyContext),
+    use_hot_cache: bool,
 ) -> Buffer {
     let is_subst = lookup.is_subst;
     let mut buffer = Buffer::new();
@@ -69,17 +70,21 @@ fn apply_lookup_configured(
     ctx.lookup_props = lookup.props();
     configure(&mut ctx);
     ctx.update_matchers();
+    let use_hot_cache = use_hot_cache && lookup.cache_enter(&mut ctx);
     if lookup.is_reverse() {
         for index in (0..ctx.buffer.len).rev() {
             ctx.buffer.idx = index;
-            lookup.apply(&mut ctx, bytes, false);
+            lookup.apply(&mut ctx, bytes, use_hot_cache);
         }
     } else {
         while ctx.buffer.idx < ctx.buffer.len {
-            if lookup.apply(&mut ctx, bytes, false).is_none() {
+            if lookup.apply(&mut ctx, bytes, use_hot_cache).is_none() {
                 ctx.buffer.next_glyph();
             }
         }
+    }
+    if use_hot_cache {
+        lookup.cache_leave(&mut ctx);
     }
     if is_subst && !lookup.is_reverse() {
         assert!(buffer.sync());
@@ -92,6 +97,16 @@ fn apply_nested_context(
     is_subst: bool,
     subtable: &[u8],
     glyphs: &[u32],
+) -> Buffer {
+    apply_nested_context_cached(lookup_type, is_subst, subtable, glyphs, false)
+}
+
+fn apply_nested_context_cached(
+    lookup_type: u16,
+    is_subst: bool,
+    subtable: &[u8],
+    glyphs: &[u32],
+    use_hot_cache: bool,
 ) -> Buffer {
     let mut target = vec![0, 1, 0, 0, 0, 1, 0, 8];
     if is_subst {
@@ -139,7 +154,7 @@ fn apply_nested_context(
         units_per_em: 1000,
         apply_trak: false,
     };
-    apply_lookup_configured(lookup, table_data, layout, glyphs, |_| {})
+    apply_lookup_configured(lookup, table_data, layout, glyphs, |_| {}, use_hot_cache)
 }
 
 fn table_data(bytes: &[u8]) -> Vec<u8> {
@@ -1091,4 +1106,93 @@ fn context4_rejects_null_rule_sets_and_truncated_rules() {
     subtable.truncate(subtable.len() - 6);
     let output = apply_nested_context(5, true, &subtable, &[65536, 65537, 65539]);
     assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
+}
+
+fn context5(first_class: u32, second_class: u32, large_offsets: bool) -> Vec<u8> {
+    let set_count = first_class + 1;
+    let header_end = 13 + set_count * 3;
+    let coverage_offset = if large_offsets {
+        header_end.max(65536)
+    } else {
+        header_end
+    };
+    let class_def_offset = coverage_offset + 8;
+    let rule_set_offset = class_def_offset + 17;
+    let rule_offset = if large_offsets { 65536 } else { 11 };
+    let mut subtable = vec![0, 5];
+    subtable.extend_from_slice(&coverage_offset.to_be_bytes());
+    subtable.extend_from_slice(&class_def_offset.to_be_bytes());
+    subtable.extend_from_slice(&Uint24::new(set_count).to_be_bytes());
+    subtable.resize(coverage_offset as usize, 0);
+    let set_offset_pos = 13 + first_class as usize * 3;
+    subtable[set_offset_pos..set_offset_pos + 3]
+        .copy_from_slice(&Uint24::new(rule_set_offset).to_be_bytes());
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 3, 1, 0, 0, 0, 0, 3]); // ClassDef3: three glyphs.
+    for class in [first_class, second_class, 301] {
+        subtable.extend_from_slice(&Uint24::new(class).to_be_bytes());
+    }
+    subtable.extend_from_slice(&[0, 3]);
+    for offset in [rule_offset, rule_offset + 12, rule_offset + 24] {
+        subtable.extend_from_slice(&Uint24::new(offset).to_be_bytes());
+    }
+    subtable.resize((rule_set_offset + rule_offset) as usize, 0);
+    // Classes within ClassSequenceRule remain 16-bit.
+    for second in [302u16, 302, 300] {
+        subtable.extend_from_slice(&[0, 3, 0, 1]);
+        subtable.extend_from_slice(&second.to_be_bytes());
+        subtable.extend_from_slice(&301u16.to_be_bytes());
+        subtable.extend_from_slice(&[0, 1, 0, 1]);
+    }
+    subtable
+}
+
+#[test]
+fn context5_applies_class_rules_with_wide_offsets_and_set_counts() {
+    use super::apply::{WouldApply, WouldApplyContext};
+    for first_class in [1, 300, 65536] {
+        for large_offsets in [false, true] {
+            let subtable = context5(first_class, 300, large_offsets);
+            let table =
+                read_fonts::tables::layout::SequenceContextFormat5::read(FontData::new(&subtable))
+                    .unwrap();
+            for (input, matches) in [
+                ([65536, 65537, 65538], true),
+                ([65536, 1, 65538], false),
+                ([65536, 65537, 2], false),
+            ] {
+                assert_eq!(
+                    table.would_apply(&WouldApplyContext {
+                        glyphs: &input.map(GlyphId::new),
+                        zero_context: true,
+                    }),
+                    matches
+                );
+                for use_hot_cache in [false, true] {
+                    let output =
+                        apply_nested_context_cached(5, true, &subtable, &input, use_hot_cache);
+                    assert_eq!(
+                        output.glyph_infos()[1].glyph_id,
+                        if matches { 65538 } else { input[1] }
+                    );
+                    let output =
+                        apply_nested_context_cached(7, false, &subtable, &input, use_hot_cache);
+                    assert_eq!(
+                        output.glyph_positions()[1].x_advance,
+                        if matches { 10 } else { 0 }
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn context5_does_not_truncate_wide_classes_to_match_rule_values() {
+    let subtable = context5(1, 65536 + 300, false);
+    for use_hot_cache in [false, true] {
+        let output =
+            apply_nested_context_cached(5, true, &subtable, &[65536, 65537, 65538], use_hot_cache);
+        assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
+    }
 }
