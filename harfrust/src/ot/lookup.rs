@@ -12,10 +12,10 @@ use read_fonts::{
     tables::{
         gpos::{
             CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePos,
-            MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPos,
-            MarkMarkPosFormat1, MarkMarkPosFormat2, PairPos, PairPosFormat1, PairPosFormat2,
-            PairPosFormat3, PairPosFormat4, SinglePos, SinglePosFormat1, SinglePosFormat2,
-            SinglePosFormat3, SinglePosFormat4,
+            MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPos, MarkLigPosFormat1,
+            MarkLigPosFormat2, MarkMarkPos, MarkMarkPosFormat1, MarkMarkPosFormat2, PairPos,
+            PairPosFormat1, PairPosFormat2, PairPosFormat3, PairPosFormat4, SinglePos,
+            SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4,
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
@@ -692,6 +692,7 @@ apply_fns!(mark_base_pos2, mark_base_pos2_cached, MarkBasePosFormat2);
 apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
 apply_fns!(mark_mark_pos2, mark_mark_pos2_cached, MarkMarkPosFormat2);
 apply_fns!(mark_lig_pos1, mark_lig_pos1_cached, MarkLigPosFormat1);
+apply_fns!(mark_lig_pos2, mark_lig_pos2_cached, MarkLigPosFormat2);
 apply_fns!(context1, context1_cached, SequenceContextFormat1);
 apply_fns!(context2, context2_cached, SequenceContextFormat2);
 apply_fns!(context3, context3_cached, SequenceContextFormat3);
@@ -749,6 +750,7 @@ pub enum SubtableKind {
     MarkMarkPos1,
     MarkMarkPos2,
     MarkLigPos1,
+    MarkLigPos2,
     ContextFormat1,
     ContextFormat2,
     ContextFormat3,
@@ -960,9 +962,8 @@ impl SubtableInfo {
                 ),
                 _ => return None,
             },
-            (false, 5) => {
-                let s = MarkLigPosFormat1::read(data).ok()?;
-                (
+            (false, 5) => match MarkLigPos::read(data).ok()? {
+                MarkLigPos::Format1(s) => (
                     SubtableKind::MarkLigPos1,
                     (
                         maybe_external_cache(&s),
@@ -971,8 +972,18 @@ impl SubtableInfo {
                     ),
                     [mark_lig_pos1, mark_lig_pos1_cached as _],
                     coverage_digest(s.ligature_coverage()),
-                )
-            }
+                ),
+                MarkLigPos::Format2(s) => (
+                    SubtableKind::MarkLigPos2,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.mark_coverage().ok()?,
+                    ),
+                    [mark_lig_pos2, mark_lig_pos2_cached as _],
+                    coverage_digest(s.ligature_coverage()),
+                ),
+            },
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
                 ChainedSequenceContext::Format1(s) => (
                     SubtableKind::ChainedContextFormat1,

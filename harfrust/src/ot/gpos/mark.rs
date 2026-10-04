@@ -4,8 +4,8 @@ use crate::ot::apply::{Apply, MatchResult, SkippingIterator};
 use crate::ot::gpos::attach_type;
 use crate::ot::lookup_flags;
 use read_fonts::tables::gpos::{
-    AnchorTable, MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPosFormat1,
-    MarkMarkPosFormat2,
+    AnchorTable, MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkLigPosFormat2,
+    MarkMarkPosFormat1, MarkMarkPosFormat2,
 };
 
 fn resolve_cross_offset(
@@ -257,108 +257,115 @@ macro_rules! impl_mark_mark_pos {
 impl_mark_mark_pos!(MarkMarkPosFormat1);
 impl_mark_mark_pos!(MarkMarkPosFormat2);
 
-impl Apply for MarkLigPosFormat1<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
-        let ligature_coverage = self.ligature_coverage().ok()?;
+macro_rules! impl_mark_lig_pos {
+    ($format:ident) => {
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let mark_glyph = ctx.buffer.cur(0).as_glyph();
+                let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
+                let ligature_coverage = self.ligature_coverage().ok()?;
 
-        // Due to borrowing rules, we have this piece of code before creating the
-        // iterator, unlike in harfbuzz.
-        if ctx.last_base_until > ctx.buffer.idx as u32 {
-            ctx.last_base_until = 0;
-            ctx.last_base = -1;
-        }
+                // Due to borrowing rules, we have this piece of code before creating the
+                // iterator, unlike in harfbuzz.
+                if ctx.last_base_until > ctx.buffer.idx as u32 {
+                    ctx.last_base_until = 0;
+                    ctx.last_base = -1;
+                }
 
-        let last_base_until = ctx.last_base_until;
-        let mut last_base = ctx.last_base;
+                let last_base_until = ctx.last_base_until;
+                let mut last_base = ctx.last_base;
 
-        // Now we search backwards for a non-mark glyph
-        let mut iter = SkippingIterator::new(ctx, false);
-        iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
+                // Now we search backwards for a non-mark glyph
+                let mut iter = SkippingIterator::new(ctx, false);
+                iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
 
-        let mut j = iter.buffer.idx;
-        while j > last_base_until as usize {
-            let mut _match = iter.match_at(j - 1);
-            if _match == MatchResult::Match
-                && !accept_mark_ligature(iter.buffer, j - 1)
-                && ligature_coverage
-                    .get(iter.buffer.info[j - 1].as_glyph())
-                    .is_none()
-            {
-                _match = MatchResult::Skip;
+                let mut j = iter.buffer.idx;
+                while j > last_base_until as usize {
+                    let mut _match = iter.match_at(j - 1);
+                    if _match == MatchResult::Match
+                        && !accept_mark_ligature(iter.buffer, j - 1)
+                        && ligature_coverage
+                            .get(iter.buffer.info[j - 1].as_glyph())
+                            .is_none()
+                    {
+                        _match = MatchResult::Skip;
+                    }
+                    if _match == MatchResult::Match {
+                        last_base = j as i32 - 1;
+                        break;
+                    }
+                    j -= 1;
+                }
+
+                ctx.last_base_until = ctx.buffer.idx as u32;
+                ctx.last_base = last_base;
+
+                if ctx.last_base == -1 {
+                    ctx.buffer
+                        .unsafe_to_concat_from_outbuffer(Some(0), Some(ctx.buffer.idx + 1));
+                    return None;
+                }
+
+                let idx = ctx.last_base as usize;
+
+                // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
+
+                let lig_glyph = ctx.buffer.info[idx].as_glyph();
+                let Some(lig_index) = ligature_coverage.get(lig_glyph) else {
+                    ctx.buffer
+                        .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
+                    return None;
+                };
+                let lig_attach = self
+                    .ligature_array()
+                    .ok()?
+                    .ligature_attaches()
+                    .get(lig_index as usize)
+                    .ok()?;
+
+                // Find component to attach to
+                let comp_count = lig_attach.component_count();
+                if comp_count == 0 {
+                    ctx.buffer
+                        .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
+                    return None;
+                }
+
+                // We must now check whether the ligature ID of the current mark glyph
+                // is identical to the ligature ID of the found ligature.  If yes, we
+                // can directly use the component index.  If not, we attach the mark
+                // glyph to the last component of the ligature.
+                let lig_id = ctx.buffer.info[idx].lig_id();
+                let mark_id = ctx.buffer.cur(0).lig_id();
+                let mark_comp = u16::from(ctx.buffer.cur(0).lig_comp());
+                let matches = lig_id != 0 && lig_id == mark_id && mark_comp > 0;
+                let comp_index = if matches {
+                    mark_comp.min(comp_count)
+                } else {
+                    comp_count
+                } - 1;
+
+                let mark_array = self.mark_array().ok()?;
+                let mark_record = mark_array.mark_records().get(mark_index)?;
+                let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
+
+                let base_record = lig_attach
+                    .component_records()
+                    .get(comp_index as usize)
+                    .ok()?;
+                let base_anchor = base_record
+                    .ligature_anchors(lig_attach.offset_data())
+                    .get(mark_record.mark_class() as usize)?
+                    .ok()?;
+
+                apply_mark_attachment(ctx, &base_anchor, &mark_anchor, idx)
             }
-            if _match == MatchResult::Match {
-                last_base = j as i32 - 1;
-                break;
-            }
-            j -= 1;
         }
-
-        ctx.last_base_until = ctx.buffer.idx as u32;
-        ctx.last_base = last_base;
-
-        if ctx.last_base == -1 {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(0), Some(ctx.buffer.idx + 1));
-            return None;
-        }
-
-        let idx = ctx.last_base as usize;
-
-        // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
-
-        let lig_glyph = ctx.buffer.info[idx].as_glyph();
-        let Some(lig_index) = ligature_coverage.get(lig_glyph) else {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
-            return None;
-        };
-        let lig_attach = self
-            .ligature_array()
-            .ok()?
-            .ligature_attaches()
-            .get(lig_index as usize)
-            .ok()?;
-
-        // Find component to attach to
-        let comp_count = lig_attach.component_count();
-        if comp_count == 0 {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
-            return None;
-        }
-
-        // We must now check whether the ligature ID of the current mark glyph
-        // is identical to the ligature ID of the found ligature.  If yes, we
-        // can directly use the component index.  If not, we attach the mark
-        // glyph to the last component of the ligature.
-        let lig_id = ctx.buffer.info[idx].lig_id();
-        let mark_id = ctx.buffer.cur(0).lig_id();
-        let mark_comp = u16::from(ctx.buffer.cur(0).lig_comp());
-        let matches = lig_id != 0 && lig_id == mark_id && mark_comp > 0;
-        let comp_index = if matches {
-            mark_comp.min(comp_count)
-        } else {
-            comp_count
-        } - 1;
-
-        let mark_array = self.mark_array().ok()?;
-        let mark_record = mark_array.mark_records().get(mark_index)?;
-        let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
-
-        let base_record = lig_attach
-            .component_records()
-            .get(comp_index as usize)
-            .ok()?;
-        let base_anchor = base_record
-            .ligature_anchors(lig_attach.offset_data())
-            .get(mark_record.mark_class() as usize)?
-            .ok()?;
-
-        apply_mark_attachment(ctx, &base_anchor, &mark_anchor, idx)
-    }
+    };
 }
+
+impl_mark_lig_pos!(MarkLigPosFormat1);
+impl_mark_lig_pos!(MarkLigPosFormat2);
 
 fn accept_mark_ligature(buffer: &Buffer, idx: usize) -> bool {
     // We only want to attach to the first of a MultipleSubst sequence,

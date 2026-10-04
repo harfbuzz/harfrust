@@ -851,3 +851,74 @@ fn mark_mark_pos2_does_not_truncate_wide_mark2_indices() {
     });
     assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
 }
+
+fn mark_lig_pos2(large_offsets: bool) -> Vec<u8> {
+    let mut subtable = mark_base_pos2(large_offsets);
+    let array = FontData::new(&subtable).read_at::<u32>(16).unwrap() as usize;
+    let attach_offset = if large_offsets { 65536 } else { 6 };
+    let anchor_offset = if large_offsets { 65536 } else { 8 };
+    subtable.truncate(array);
+    subtable.extend_from_slice(&[0, 0, 1]);
+    subtable.extend_from_slice(&Uint24::new(attach_offset).to_be_bytes());
+    let attach = array + attach_offset as usize;
+    subtable.resize(attach, 0);
+    subtable.extend_from_slice(&2u16.to_be_bytes()); // Component count stays 16-bit.
+    subtable.extend_from_slice(&Uint24::new(anchor_offset).to_be_bytes());
+    subtable.extend_from_slice(&Uint24::new(anchor_offset + 6).to_be_bytes());
+    subtable.resize(attach + anchor_offset as usize, 0);
+    subtable.extend_from_slice(&[0, 1, 0, 100, 0, 50, 0, 1, 0, 200, 0, 100]);
+    subtable
+}
+
+#[test]
+fn mark_lig_pos2_selects_the_component_and_resolves_large_offsets() {
+    for large_offsets in [false, true] {
+        let subtable = mark_lig_pos2(large_offsets);
+        for (mark_id, component, expected) in [
+            (1, 1, [80, 40]),
+            (1, 2, [180, 90]),
+            (1, 15, [180, 90]),
+            (1, 0, [180, 90]),
+            (2, 1, [180, 90]),
+        ] {
+            let output = apply_subtable_configured(5, false, &subtable, &[65536, 65537], |ctx| {
+                let infos = ctx.buffer.glyph_infos_mut();
+                infos[0].set_glyph_props(GlyphPropsFlags::LIGATURE.bits());
+                infos[0].set_lig_props_for_ligature(1, 2);
+                infos[1].set_glyph_props(GlyphPropsFlags::MARK.bits());
+                infos[1].set_lig_props_for_mark(mark_id, component);
+            });
+            let pos = &output.glyph_positions()[1];
+            assert_eq!([pos.x_offset, pos.y_offset], expected);
+            assert_eq!(pos.attach_chain(), -1);
+        }
+    }
+}
+
+#[test]
+fn mark_lig_pos2_keeps_wide_ligature_counts_and_coverage_indices() {
+    let count = 65537;
+    let mut subtable = vec![
+        0, 2, 0, 0, 0, 20, 0, 0, 0, 28, 0, 1, 0, 0, 0, 42, 0, 0, 0, 56,
+    ];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 1]);
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 0, 1, 0, 0, 0, 0, 8, 0, 1, 0, 20, 0, 10]);
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    let attach_offset = 3 + count * 3;
+    subtable.resize(56 + attach_offset as usize - 3, 0);
+    subtable.extend_from_slice(&Uint24::new(attach_offset).to_be_bytes());
+    subtable.extend_from_slice(&[0, 1, 0, 0, 5, 0, 1, 0, 200, 0, 100]);
+    let output = apply_subtable(5, false, &subtable, &[65536, 65537]);
+    let pos = &output.glyph_positions()[1];
+    assert_eq!([pos.x_offset, pos.y_offset], [180, 90]);
+    assert_eq!(pos.attach_chain(), -1);
+}
+
+#[test]
+fn mark_lig_pos2_rejects_empty_component_arrays() {
+    let mut subtable = mark_lig_pos2(false);
+    subtable[56..58].fill(0);
+    let output = apply_subtable(5, false, &subtable, &[65536, 65537]);
+    assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+}
