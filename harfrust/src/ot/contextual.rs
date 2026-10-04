@@ -151,7 +151,7 @@ impl Apply for SequenceContextFormat2<'_> {
             ctx,
             set.offset_data(),
             set.class_seq_rule_offsets(),
-            |info, value| u32::from(input_class(info.as_glyph())) == value,
+            |info, value| input_class(info.as_glyph()) == value,
             digest,
             |info| input_class(info.as_glyph()),
         )
@@ -180,7 +180,7 @@ impl Apply for SequenceContextFormat2<'_> {
             ctx,
             set.offset_data(),
             set.class_seq_rule_offsets(),
-            |info, value| u32::from(get_class_cached(&input_class, info)) == value,
+            |info, value| get_class_cached(&input_class, info) == value,
             digest,
             |info| get_class_cached(&input_class, info),
         )
@@ -341,12 +341,12 @@ fn match_class<'a>(
     |&mut info, value| {
         class_def
             .as_ref()
-            .is_some_and(|class_def| u32::from(class_def.get(info.as_glyph())) == value)
+            .is_some_and(|class_def| class_def.get(info.as_glyph()) == value)
     }
 }
 
-fn get_class_cached(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
-    let mut klass = info.syllable() as u16;
+fn get_class_cached(class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
+    let mut klass = u32::from(info.syllable());
     if klass < 255 {
         return klass;
     }
@@ -358,8 +358,8 @@ fn get_class_cached(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -
     klass
 }
 
-fn get_class_cached1(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
-    let mut klass = (info.syllable() & 0x0F) as u16;
+fn get_class_cached1(class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
+    let mut klass = u32::from(info.syllable() & 0x0F);
     if klass < 15 {
         return klass;
     }
@@ -374,13 +374,13 @@ fn get_class_cached1(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) 
 }
 
 fn match_class_cached1<'a>(
-    class_def: impl Fn(GlyphId) -> u16 + 'a,
+    class_def: impl Fn(GlyphId) -> u32 + 'a,
 ) -> impl Fn(&mut GlyphInfo, u32) -> bool + 'a {
-    move |info: &mut GlyphInfo, value| u32::from(get_class_cached1(&class_def, info)) == value
+    move |info: &mut GlyphInfo, value| get_class_cached1(&class_def, info) == value
 }
 
-fn get_class_cached2(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
-    let mut klass = (info.syllable() & 0xF0) as u16 >> 4;
+fn get_class_cached2(class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
+    let mut klass = u32::from(info.syllable() & 0xF0) >> 4;
     if klass < 15 {
         return klass;
     }
@@ -392,9 +392,9 @@ fn get_class_cached2(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) 
 }
 
 fn match_class_cached2<'a>(
-    class_def: impl Fn(GlyphId) -> u16 + 'a,
+    class_def: impl Fn(GlyphId) -> u32 + 'a,
 ) -> impl Fn(&mut GlyphInfo, u32) -> bool + 'a {
-    move |info: &mut GlyphInfo, value| u32::from(get_class_cached2(&class_def, info)) == value
+    move |info: &mut GlyphInfo, value| get_class_cached2(&class_def, info) == value
 }
 
 impl Apply for ChainedSequenceContextFormat2<'_> {
@@ -428,22 +428,16 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 set.offset_data(),
                 set.chained_class_seq_rule_offsets(),
                 (
+                    |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
                     |info, val| {
-                        u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val
+                        glyph_class_cached(input_class, info.as_glyph(), &class_caches.input) == val
                     },
                     |info, val| {
-                        u32::from(glyph_class_cached(
-                            input_class,
-                            info.as_glyph(),
-                            &class_caches.input,
-                        )) == val
-                    },
-                    |info, val| {
-                        u32::from(glyph_class_cached(
+                        glyph_class_cached(
                             lookahead_class,
                             info.as_glyph(),
                             &class_caches.lookahead,
-                        )) == val
+                        ) == val
                     },
                 ),
                 digest,
@@ -455,11 +449,9 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 set.offset_data(),
                 set.chained_class_seq_rule_offsets(),
                 (
-                    |info, val| {
-                        u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val
-                    },
-                    |info, val| u32::from(input_class(info.as_glyph())) == val,
-                    |info, val| u32::from(lookahead_class(info.as_glyph())) == val,
+                    |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                    |info, val| input_class(info.as_glyph()) == val,
+                    |info, val| lookahead_class(info.as_glyph()) == val,
                 ),
                 digest,
                 |info| input_class(info.as_glyph()),
@@ -491,7 +483,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
             set.offset_data(),
             set.chained_class_seq_rule_offsets(),
             (
-                |info, val| u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val,
+                |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
                 match_class_cached2(&input_class),
                 match_class_cached1(&lookahead_class),
             ),
@@ -863,7 +855,7 @@ fn apply_context_rules(
     rule_offsets: &[BigEndian<Offset16>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     rule_set_digest: Option<RuleSetDigest>,
-    first_value: impl Fn(&mut GlyphInfo) -> u16,
+    first_value: impl Fn(&mut GlyphInfo) -> u32,
 ) -> Option<()> {
     // HarfBuzz bypasses the first/second-component pre-match below for rule
     // sets of at most 4 rules, because its pre-match setup costs more than
@@ -1083,7 +1075,7 @@ fn apply_chain_context_rules<
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
-    F4: Fn(&mut GlyphInfo) -> u16,
+    F4: Fn(&mut GlyphInfo) -> u32,
 >(
     ctx: &mut ApplyContext,
     set_data: FontData<'_>,

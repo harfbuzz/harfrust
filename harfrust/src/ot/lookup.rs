@@ -22,7 +22,7 @@ use read_fonts::{
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
             ChainedSequenceContextFormat3, ClassDef, CoverageTable, Lookup, LookupFlag,
-            SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
+            LookupListTable, SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
             SequenceContextFormat3,
         },
     },
@@ -52,13 +52,7 @@ impl<'a> LookupHost<'a> for Gsub<'a> {
 
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError> {
         let list = self.lookup_list()?;
-        let offset = list
-            .lookup_offsets()
-            .get(index as usize)
-            .ok_or(ReadError::OutOfBounds)?
-            .get()
-            .to_usize()
-            + self.lookup_list_offset().to_usize();
+        let offset = lookup_offset(&list, self.offset_data(), index)?;
         Ok(LookupData {
             offset,
             is_subst: true,
@@ -76,19 +70,42 @@ impl<'a> LookupHost<'a> for Gpos<'a> {
 
     fn lookup_data(&self, index: u16) -> Result<LookupData<'a>, ReadError> {
         let list = self.lookup_list()?;
-        let offset = list
-            .lookup_offsets()
-            .get(index as usize)
-            .ok_or(ReadError::OutOfBounds)?
-            .get()
-            .to_usize()
-            + self.lookup_list_offset().to_usize();
+        let offset = lookup_offset(&list, self.offset_data(), index)?;
         Ok(LookupData {
             offset,
             is_subst: false,
             table_data: self.offset_data(),
         })
     }
+}
+
+fn lookup_offset<'a, T: FontRead<'a, Args = ()> + 'a>(
+    list: &LookupListTable<'a, T>,
+    table_data: FontData<'a>,
+    index: u16,
+) -> Result<usize, ReadError> {
+    let relative = match list {
+        LookupListTable::Offset16(list) => list
+            .lookup_offsets()
+            .get(index as usize)
+            .ok_or(ReadError::OutOfBounds)?
+            .get()
+            .to_usize(),
+        LookupListTable::Offset32(list) => list
+            .lookup_offsets()
+            .get(index as usize)
+            .ok_or(ReadError::OutOfBounds)?
+            .get()
+            .to_usize(),
+    };
+    if relative == 0 {
+        return Err(ReadError::NullOffset);
+    }
+    table_data
+        .len()
+        .checked_sub(list.offset_data().len())
+        .and_then(|base| base.checked_add(relative))
+        .ok_or(ReadError::OutOfBounds)
 }
 
 #[cfg(feature = "std")]
@@ -429,7 +446,7 @@ fn add_class(digest: &mut SetDigest, class_def: &ClassDef, class: u16) {
     }
 
     for (glyph, glyph_class) in class_def.iter() {
-        if glyph_class == class {
+        if glyph_class == u32::from(class) {
             digest.add(glyph.to_u32());
         }
     }
@@ -690,6 +707,7 @@ impl SubtableInfo {
                     [single_subst2, single_subst2_cached as _],
                     SetDigest::full(),
                 ),
+                _ => return None,
             },
             (false, 1) => match SinglePos::read(data).ok()? {
                 SinglePos::Format1(s) => (
@@ -704,6 +722,7 @@ impl SubtableInfo {
                     [single_pos2, single_pos2_cached as _],
                     SetDigest::full(),
                 ),
+                _ => return None,
             },
             (true, 2) => {
                 let s = MultipleSubstFormat1::read(data).ok()?;
@@ -727,6 +746,7 @@ impl SubtableInfo {
                     [pair_pos2, pair_pos2_cached as _],
                     SetDigest::full(),
                 ),
+                _ => return None,
             },
             (true, 3) => {
                 let s = AlternateSubstFormat1::read(data).ok()?;
@@ -791,6 +811,7 @@ impl SubtableInfo {
                     [context3, context3_cached as _],
                     context_format3_digest(&s),
                 ),
+                _ => return None,
             },
             (false, 5) => {
                 let s = MarkLigPosFormat1::read(data).ok()?;
@@ -828,6 +849,7 @@ impl SubtableInfo {
                     [chained_context3, chained_context3_cached as _],
                     chained_context_format3_digest(&s),
                 ),
+                _ => return None,
             },
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<'_, ()>::read(data).ok()?;
@@ -903,6 +925,46 @@ fn cache_leave(ctx: &mut ApplyContext) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn lookup_list2_keeps_full_width_offsets_for_both_layout_tables() {
+        let mut bytes = vec![0; 65568];
+        bytes[..4].copy_from_slice(&[0, 1, 0, 2]);
+        // A bad legacy list must not override a valid wide list.
+        bytes[8..10].copy_from_slice(&12u16.to_be_bytes());
+        bytes[22..26].copy_from_slice(&26u32.to_be_bytes());
+        bytes[26..28].copy_from_slice(&1u16.to_be_bytes());
+        bytes[28..32].copy_from_slice(&65536u32.to_be_bytes());
+        bytes[65562..65564].copy_from_slice(&1u16.to_be_bytes());
+        let data = FontData::new(&bytes);
+        let gsub = Gsub::read(data).unwrap();
+        let gpos = Gpos::read(data).unwrap();
+        assert_eq!(LookupHost::lookup_count(&gsub), 1);
+        assert_eq!(LookupHost::lookup_count(&gpos), 1);
+        for lookup in [gsub.lookup_data(0).unwrap(), gpos.lookup_data(0).unwrap()] {
+            assert_eq!(lookup.offset, 65562);
+            assert!(LookupInfo::new(&lookup).is_some());
+        }
+    }
+
+    #[test]
+    fn null_wide_lookup_list_falls_back_but_invalid_wide_list_does_not() {
+        let mut bytes = vec![0; 36];
+        bytes[..4].copy_from_slice(&[0, 1, 0, 2]);
+        bytes[8..10].copy_from_slice(&26u16.to_be_bytes());
+        bytes[26..28].copy_from_slice(&1u16.to_be_bytes());
+        bytes[28..30].copy_from_slice(&4u16.to_be_bytes());
+        bytes[30..32].copy_from_slice(&1u16.to_be_bytes());
+        let data = FontData::new(&bytes);
+        assert_eq!(Gsub::read(data).unwrap().lookup_data(0).unwrap().offset, 30);
+        assert_eq!(Gpos::read(data).unwrap().lookup_data(0).unwrap().offset, 30);
+
+        bytes[22..26].copy_from_slice(&u32::MAX.to_be_bytes());
+        let data = FontData::new(&bytes);
+        assert!(Gsub::read(data).unwrap().lookup_data(0).is_err());
+        assert!(Gpos::read(data).unwrap().lookup_data(0).is_err());
+    }
 
     fn lookup_with_recursive_extension(lookup_type: u16) -> [u8; 16] {
         let mut data = [0; 16];
