@@ -584,3 +584,19 @@ fn cursive_pos2_resolves_large_and_nullable_anchor_offsets() {
     assert_eq!(output.glyph_positions()[0].x_advance, 0);
     assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
 }
+
+#[test]
+fn pair_class_indices_cannot_alias_another_matrix_row() {
+    for class in [2, 65536] {
+        let mut subtable = vec![
+            0, 2, 0, 24, 0, 4, 0, 0, 0, 32, 0, 43, 0, 2, 0, 2, // Header.
+            0, 0, 0, 0, 0, 100, 0, 0, // A nonzero value in the next row.
+            0, 3, 0, 0, 1, 1, 0, 0, // Coverage.
+            0, 3, 1, 0, 0, 0, 0, 1, 0, 0, 0, // First class is zero.
+            0, 3, 1, 0, 1, 0, 0, 1, // Second class is outside the matrix.
+        ];
+        subtable.extend_from_slice(&Uint24::new(class).to_be_bytes());
+        let output = apply_subtable(2, false, &subtable, &[65536, 65537]);
+        assert_eq!(output.glyph_positions()[0].x_advance, 0);
+    }
+}

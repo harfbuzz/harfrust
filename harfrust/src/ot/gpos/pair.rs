@@ -267,15 +267,20 @@ impl Apply for PairPosFormat2<'_> {
                 glyph_class(self.class_def2(), second_glyph),
             ),
         };
+        if class1 >= u32::from(self.class1_count()) || class2 >= u32::from(self.class2_count()) {
+            return None;
+        }
         let mut buf_idx = iter.buf_idx;
         let format1 = self.value_format1();
         let format1_len = format1.record_byte_len();
         let format2 = self.value_format2();
         let record_size = format1_len + format2.record_byte_len();
         // Compute an offset into the 2D array of positioning records
-        let record_offset = (class1 as usize * record_size * self.class2_count() as usize)
-            + (class2 as usize * record_size)
-            + self.class1_records_byte_range().start;
+        let record_offset = (class1 as usize)
+            .checked_mul(self.class2_count() as usize)?
+            .checked_add(class2 as usize)?
+            .checked_mul(record_size)?
+            .checked_add(self.class1_records_byte_range().start)?;
         let has_record2 = !format2.is_empty();
         let worked1 = !format1.is_empty()
             && super::value::apply(ctx, ctx.buffer.idx, &data, record_offset, format1)
