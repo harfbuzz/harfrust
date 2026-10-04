@@ -16,10 +16,10 @@ use read_fonts::{
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
-            Gsub, LigatureSubstFormat1, MultipleSubst, MultipleSubstFormat1, MultipleSubstFormat2,
-            ReverseChainSingleSubst, ReverseChainSingleSubstFormat1,
-            ReverseChainSingleSubstFormat2, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
-            SingleSubstFormat3, SingleSubstFormat4,
+            Gsub, LigatureSubst, LigatureSubstFormat1, LigatureSubstFormat2, MultipleSubst,
+            MultipleSubstFormat1, MultipleSubstFormat2, ReverseChainSingleSubst,
+            ReverseChainSingleSubstFormat1, ReverseChainSingleSubstFormat2, SingleSubst,
+            SingleSubstFormat1, SingleSubstFormat2, SingleSubstFormat3, SingleSubstFormat4,
         },
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
@@ -388,6 +388,9 @@ impl LookupInfo {
                 SubtableKind::LigatureSubst1 => {
                     LigatureSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::LigatureSubst2 => {
+                    LigatureSubstFormat2::read(data).map(|t| t.would_apply(ctx))
+                }
                 SubtableKind::ReverseChainContext => {
                     ReverseChainSingleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
@@ -650,6 +653,11 @@ apply_fns!(
     ligature_subst1_cached,
     LigatureSubstFormat1
 );
+apply_fns!(
+    ligature_subst2,
+    ligature_subst2_cached,
+    LigatureSubstFormat2
+);
 apply_fns!(single_pos1, single_pos1_cached, SinglePosFormat1);
 apply_fns!(single_pos2, single_pos2_cached, SinglePosFormat2);
 apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
@@ -699,6 +707,7 @@ pub enum SubtableKind {
     AlternateSubst1,
     AlternateSubst2,
     LigatureSubst1,
+    LigatureSubst2,
     SinglePos1,
     SinglePos2,
     PairPos1,
@@ -826,15 +835,20 @@ impl SubtableInfo {
                     coverage_digest(s.coverage()),
                 )
             }
-            (true, 4) => {
-                let s = LigatureSubstFormat1::read(data).ok()?;
-                (
+            (true, 4) => match LigatureSubst::read(data).ok()? {
+                LigatureSubst::Format1(s) => (
                     SubtableKind::LigatureSubst1,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [ligature_subst1, ligature_subst1_cached as _],
                     super::gsub::collect_seconds(&s),
-                )
-            }
+                ),
+                LigatureSubst::Format2(s) => (
+                    SubtableKind::LigatureSubst2,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [ligature_subst2, ligature_subst2_cached as _],
+                    super::gsub::collect_seconds2(&s),
+                ),
+            },
             (false, 4) => {
                 let s = MarkBasePosFormat1::read(data).ok()?;
                 (

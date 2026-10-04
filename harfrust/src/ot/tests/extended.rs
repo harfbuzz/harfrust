@@ -403,3 +403,68 @@ fn reverse_chain_subst2_applies_in_reverse_order() {
         [65536, 65537, 65536]
     );
 }
+
+#[test]
+fn ligature_subst2_matches_wide_components_and_results() {
+    let subtable = [
+        0, 2, 0, 0, 0, 12, 0, 0, 1, 0, 0, 20, // Header and set offset.
+        0, 3, 0, 0, 1, 1, 0, 0, // Coverage.
+        0, 2, 0, 0, 8, 0, 0, 16, // Two ligature offsets.
+        1, 0, 1, 0, 2, 1, 0, 2, // First ligature.
+        2, 0, 1, 0, 2, 1, 0, 3, // Second ligature.
+    ];
+    for (input, expected) in [
+        ([65536, 65538], vec![65537]),
+        ([65536, 65539], vec![131_073]),
+        ([65536, 65540], vec![65536, 65540]),
+    ] {
+        let output = apply_subtable(4, true, &subtable, &input);
+        assert_eq!(
+            output
+                .glyph_infos()
+                .iter()
+                .map(|info| info.glyph_id)
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+    use super::apply::{WouldApply, WouldApplyContext};
+    let table =
+        read_fonts::tables::gsub::LigatureSubstFormat2::read(FontData::new(&subtable)).unwrap();
+    assert!(table.would_apply(&WouldApplyContext {
+        glyphs: &[GlyphId::new(65536), GlyphId::new(65539)],
+        zero_context: false,
+    }));
+    assert!(!table.would_apply(&WouldApplyContext {
+        glyphs: &[GlyphId::new(65536), GlyphId::new(3)],
+        zero_context: false,
+    }));
+}
+
+#[test]
+fn ligature_subst2_resolves_large_ligature_offsets() {
+    let mut subtable = vec![0, 2, 0, 0, 0, 12, 0, 0, 1, 0, 0, 20];
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 1, 1, 0, 0]);
+    subtable.resize(20 + 65536, 0);
+    subtable.extend_from_slice(&[2, 0, 1, 0, 2, 1, 0, 2]);
+    let output = apply_subtable(4, true, &subtable, &[65536, 65538]);
+    assert_eq!(output.glyph_infos().len(), 1);
+    assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
+}
+
+#[test]
+fn ligature_subst2_keeps_wide_set_counts_and_coverage_indices() {
+    let count = 65537;
+    let coverage_offset = 9 + count * 3u32;
+    let mut subtable = vec![0, 2];
+    subtable.extend_from_slice(&coverage_offset.to_be_bytes());
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    subtable.resize(coverage_offset as usize - 3, 0);
+    subtable.extend_from_slice(&Uint24::new(coverage_offset + 14).to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 1, 0, 0, 5, 2, 0, 1, 0, 2, 1, 0, 2]);
+    let output = apply_subtable(4, true, &subtable, &[65536, 65538]);
+    assert_eq!(output.glyph_infos().len(), 1);
+    assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
+}
