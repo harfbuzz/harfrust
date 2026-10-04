@@ -14,7 +14,8 @@ use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
     ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
     ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
-    SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
+    SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat6, SequenceLookupRecord,
+    SequenceRule,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
 use read_fonts::FontData;
@@ -205,56 +206,63 @@ impl Apply for SequenceContextFormat2<'_> {
     }
 }
 
-impl WouldApply for SequenceContextFormat3<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        // Unlike formats 1 and 2, the coverage array includes the first
-        // glyph, so the sequence is as long as the array and glyph `i` is
-        // matched against coverage `i` (as in HarfBuzz and
-        // ChainedSequenceContextFormat3 below).
-        let coverages = self.coverages();
-        ctx.glyphs.len() == coverages.len()
-            && coverages
-                .iter()
-                .skip(1)
-                .enumerate()
-                .all(|(i, coverage)| covered(coverage, ctx.glyphs[i + 1]))
-    }
+macro_rules! impl_coverage_context {
+    ($format:ident) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                // Unlike formats 1 and 2, the coverage array includes the first
+                // glyph, so the sequence is as long as the array and glyph `i` is
+                // matched against coverage `i` (as in HarfBuzz and
+                // ChainedSequenceContextFormat3 below).
+                let coverages = self.coverages();
+                ctx.glyphs.len() == coverages.len()
+                    && coverages
+                        .iter()
+                        .skip(1)
+                        .enumerate()
+                        .all(|(i, coverage)| covered(coverage, ctx.glyphs[i + 1]))
+            }
+        }
+
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let input_coverages = self.coverages();
+                input_coverages.get(0).ok()?.get(glyph)?;
+                let input = |info: &mut GlyphInfo, index: u32| {
+                    input_coverages
+                        .get(index as usize + 1)
+                        .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
+                };
+                let mut match_end = 0;
+                if match_input(
+                    ctx,
+                    input_coverages.len() as u16 - 1,
+                    input,
+                    &mut match_end,
+                    None,
+                ) {
+                    ctx.buffer
+                        .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
+                    apply_lookup(
+                        ctx,
+                        input_coverages.len() - 1,
+                        match_end,
+                        self.seq_lookup_records(),
+                    );
+                    Some(())
+                } else {
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
+                    None
+                }
+            }
+        }
+    };
 }
 
-impl Apply for SequenceContextFormat3<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let input_coverages = self.coverages();
-        input_coverages.get(0).ok()?.get(glyph)?;
-        let input = |info: &mut GlyphInfo, index: u32| {
-            input_coverages
-                .get(index as usize + 1)
-                .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
-        };
-        let mut match_end = 0;
-        if match_input(
-            ctx,
-            input_coverages.len() as u16 - 1,
-            input,
-            &mut match_end,
-            None,
-        ) {
-            ctx.buffer
-                .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
-            apply_lookup(
-                ctx,
-                input_coverages.len() - 1,
-                match_end,
-                self.seq_lookup_records(),
-            );
-            Some(())
-        } else {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
-            None
-        }
-    }
-}
+impl_coverage_context!(SequenceContextFormat3);
+impl_coverage_context!(SequenceContextFormat6);
 
 impl WouldApply for ChainedSequenceContextFormat1<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {

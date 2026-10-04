@@ -26,6 +26,23 @@ fn apply_subtable_configured(
     };
     let lookup = LookupInfo::new(&host).unwrap();
     assert_eq!(lookup.subtables.len(), 1);
+    let layout = LayoutData {
+        ot: &EMPTY_OT_DATA,
+        aat: &aat::EMPTY_AAT_DATA,
+        units_per_em: 1000,
+        apply_trak: false,
+    };
+    apply_lookup_configured(&lookup, &bytes, layout, glyphs, configure)
+}
+
+fn apply_lookup_configured(
+    lookup: &LookupInfo,
+    bytes: &[u8],
+    layout: LayoutData,
+    glyphs: &[u32],
+    configure: impl FnOnce(&mut ApplyContext),
+) -> Buffer {
+    let is_subst = lookup.is_subst;
     let mut buffer = Buffer::new();
     assert!(buffer.set_length(glyphs.len()));
     buffer.set_direction(Direction::LeftToRight);
@@ -39,12 +56,6 @@ fn apply_subtable_configured(
     } else if !is_subst {
         buffer.clear_positions();
     }
-    let layout = LayoutData {
-        ot: &EMPTY_OT_DATA,
-        aat: &aat::EMPTY_AAT_DATA,
-        units_per_em: 1000,
-        apply_trak: false,
-    };
     let mut ctx = ApplyContext::new(
         if is_subst {
             LayoutTableKind::Gsub
@@ -61,11 +72,11 @@ fn apply_subtable_configured(
     if lookup.is_reverse() {
         for index in (0..ctx.buffer.len).rev() {
             ctx.buffer.idx = index;
-            lookup.apply(&mut ctx, &bytes, false);
+            lookup.apply(&mut ctx, bytes, false);
         }
     } else {
         while ctx.buffer.idx < ctx.buffer.len {
-            if lookup.apply(&mut ctx, &bytes, false).is_none() {
+            if lookup.apply(&mut ctx, bytes, false).is_none() {
                 ctx.buffer.next_glyph();
             }
         }
@@ -74,6 +85,61 @@ fn apply_subtable_configured(
         assert!(buffer.sync());
     }
     buffer
+}
+
+fn apply_nested_context(
+    lookup_type: u16,
+    is_subst: bool,
+    subtable: &[u8],
+    glyphs: &[u32],
+) -> Buffer {
+    let mut target = vec![0, 1, 0, 0, 0, 1, 0, 8];
+    if is_subst {
+        target.extend_from_slice(&[0, 3, 0, 0, 0, 9, 0, 0, 1]);
+    } else {
+        target.extend_from_slice(&[0, 3, 0, 0, 0, 10, 0, 4, 0, 10]);
+    }
+    target.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 1]);
+
+    let mut bytes = vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 10, 0, 2];
+    bytes.extend_from_slice(&(6 + target.len() as u16).to_be_bytes());
+    bytes.extend_from_slice(&6u16.to_be_bytes());
+    bytes.extend_from_slice(&target);
+    bytes.extend_from_slice(&lookup_type.to_be_bytes());
+    bytes.extend_from_slice(&[0, 0, 0, 1, 0, 8]);
+    bytes.extend_from_slice(subtable);
+
+    let data = FontData::new(&bytes);
+    let gsub = Gsub::read(data).unwrap();
+    let gpos = Gpos::read(data).unwrap();
+    let cache = if is_subst {
+        LookupCache::new(&gsub)
+    } else {
+        LookupCache::new(&gpos)
+    };
+    let mut ot = EMPTY_OT_DATA.clone();
+    let kind = if is_subst {
+        ot.gsub = Some(GsubTable {
+            table: gsub,
+            lookups: &cache,
+        });
+        LayoutTableKind::Gsub
+    } else {
+        ot.gpos = Some(GposTable {
+            table: gpos,
+            lookups: &cache,
+        });
+        LayoutTableKind::Gpos
+    };
+    let (table_data, lookup) = ot.table_data_and_lookup(kind, 0).unwrap();
+    assert_eq!(lookup.subtables.len(), 1);
+    let layout = LayoutData {
+        ot: &ot,
+        aat: &aat::EMPTY_AAT_DATA,
+        units_per_em: 1000,
+        apply_trak: false,
+    };
+    apply_lookup_configured(lookup, table_data, layout, glyphs, |_| {})
 }
 
 fn table_data(bytes: &[u8]) -> Vec<u8> {
@@ -921,4 +987,34 @@ fn mark_lig_pos2_rejects_empty_component_arrays() {
     subtable[56..58].fill(0);
     let output = apply_subtable(5, false, &subtable, &[65536, 65537]);
     assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+}
+
+#[test]
+fn context6_applies_nested_substitution_and_positioning() {
+    for large_offsets in [false, true] {
+        let coverage_offset = if large_offsets { 65536 } else { 16 };
+        let mut subtable = vec![0, 6, 0, 2, 0, 1];
+        subtable.extend_from_slice(&Uint24::new(coverage_offset).to_be_bytes());
+        subtable.extend_from_slice(&Uint24::new(coverage_offset + 8).to_be_bytes());
+        subtable.extend_from_slice(&[0, 1, 0, 1]); // Apply lookup 1 at the second glyph.
+        subtable.resize(coverage_offset as usize, 0);
+        subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+        subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 1]);
+        for (input, matches) in [
+            ([65536, 65537], true),
+            ([65536, 1], false),
+            ([1, 65537], false),
+        ] {
+            let output = apply_nested_context(5, true, &subtable, &input);
+            assert_eq!(
+                output.glyph_infos()[1].glyph_id,
+                if matches { 65538 } else { input[1] }
+            );
+            let output = apply_nested_context(7, false, &subtable, &input);
+            assert_eq!(
+                output.glyph_positions()[1].x_advance,
+                if matches { 10 } else { 0 }
+            );
+        }
+    }
 }

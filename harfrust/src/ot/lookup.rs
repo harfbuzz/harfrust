@@ -28,7 +28,7 @@ use read_fonts::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
             ChainedSequenceContextFormat3, ClassDef, CoverageTable, Lookup, LookupFlag,
             LookupListTable, SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
-            SequenceContextFormat3,
+            SequenceContextFormat3, SequenceContextFormat6,
         },
     },
     FontData, FontRead, Offset, ReadError,
@@ -409,6 +409,9 @@ impl LookupInfo {
                 SubtableKind::ContextFormat3 => {
                     SequenceContextFormat3::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::ContextFormat6 => {
+                    SequenceContextFormat6::read(data).map(|t| t.would_apply(ctx))
+                }
                 SubtableKind::ChainedContextFormat1 => {
                     ChainedSequenceContextFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
@@ -519,6 +522,14 @@ fn context_format2_digest(table: &SequenceContextFormat2) -> SetDigest {
 }
 
 fn context_format3_digest(table: &SequenceContextFormat3) -> SetDigest {
+    if table.coverages().len() <= 1 {
+        SetDigest::full()
+    } else {
+        coverage_digest(table.coverages().get(1))
+    }
+}
+
+fn context_format6_digest(table: &SequenceContextFormat6) -> SetDigest {
     if table.coverages().len() <= 1 {
         SetDigest::full()
     } else {
@@ -696,6 +707,7 @@ apply_fns!(mark_lig_pos2, mark_lig_pos2_cached, MarkLigPosFormat2);
 apply_fns!(context1, context1_cached, SequenceContextFormat1);
 apply_fns!(context2, context2_cached, SequenceContextFormat2);
 apply_fns!(context3, context3_cached, SequenceContextFormat3);
+apply_fns!(context6, context6_cached, SequenceContextFormat6);
 apply_fns!(
     chained_context1,
     chained_context1_cached,
@@ -754,6 +766,7 @@ pub enum SubtableKind {
     ContextFormat1,
     ContextFormat2,
     ContextFormat3,
+    ContextFormat6,
     ChainedContextFormat1,
     ChainedContextFormat2,
     ChainedContextFormat3,
@@ -959,6 +972,16 @@ impl SubtableInfo {
                     ),
                     [context3, context3_cached as _],
                     context_format3_digest(&s),
+                ),
+                SequenceContext::Format6(s) => (
+                    SubtableKind::ContextFormat6,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverages().get(0).ok()?,
+                    ),
+                    [context6, context6_cached as _],
+                    context_format6_digest(&s),
                 ),
                 _ => return None,
             },
