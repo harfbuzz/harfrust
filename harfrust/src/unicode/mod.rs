@@ -902,7 +902,7 @@ mod builtin {
             Some(r)
         } else if S_BASE <= l
             && l <= (S_BASE + S_COUNT - T_COUNT)
-            && T_BASE <= v
+            && T_BASE < v
             && v < (T_BASE + T_COUNT)
             && (l - S_BASE) % T_COUNT == 0
         {

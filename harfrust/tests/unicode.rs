@@ -8,3 +8,10 @@ fn public_unicode_queries() {
     assert_eq!(decompose(0x0041), None);
     assert_eq!(combining_class(0x05B0), 10);
 }
+
+#[test]
+fn hangul_composition_trailing_jamo_boundary() {
+    assert_eq!(compose(0x1100, 0x1161), Some(0xAC00));
+    assert_eq!(compose(0xAC00, 0x11A7), None);
+    assert_eq!(compose(0xAC00, 0x11A8), Some(0xAC01));
+}
