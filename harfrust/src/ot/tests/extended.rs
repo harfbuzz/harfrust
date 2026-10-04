@@ -600,3 +600,51 @@ fn pair_class_indices_cannot_alias_another_matrix_row() {
         assert_eq!(output.glyph_positions()[0].x_advance, 0);
     }
 }
+
+fn class_pair_pos4(large_offsets: bool) -> Vec<u8> {
+    let coverage_offset = if large_offsets { 65536u32 } else { 38 };
+    let mut subtable = vec![0, 4];
+    subtable.extend_from_slice(&coverage_offset.to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 2]); // X advance and Y placement.
+    subtable.extend_from_slice(&(coverage_offset + 11).to_be_bytes());
+    subtable.extend_from_slice(&(coverage_offset + 25).to_be_bytes());
+    subtable.extend_from_slice(&[0, 2, 0, 2]); // Class counts remain 16-bit.
+    subtable.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0xFF, 0xEC]);
+    subtable.resize(coverage_offset as usize, 0);
+    subtable.extend_from_slice(&[0, 3, 0, 0, 2, 1, 0, 0, 1, 0, 1]);
+    subtable.extend_from_slice(&[0, 3, 1, 0, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0]);
+    subtable.extend_from_slice(&[0, 3, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1]);
+    subtable
+}
+
+#[test]
+fn pair_pos4_applies_wide_class_pairs_with_both_cache_sizes() {
+    use super::apply::{Apply, SubtableExternalCache, SubtableExternalCacheMode};
+    for large_offsets in [false, true] {
+        let subtable = class_pair_pos4(large_offsets);
+        let output = apply_subtable(2, false, &subtable, &[65536, 65537]);
+        assert_eq!(output.glyph_positions()[0].x_advance, 100);
+        assert_eq!(output.glyph_positions()[1].y_offset, -20);
+
+        let table =
+            read_fonts::tables::gpos::PairPosFormat4::read(FontData::new(&subtable)).unwrap();
+        let SubtableExternalCache::PairPosFormat2SmallCache(cache) =
+            table.external_cache_create(SubtableExternalCacheMode::Small)
+        else {
+            panic!("missing small class-pair cache");
+        };
+        let data = table.offset_data();
+        assert_eq!(cache.coverage.index(&data, GlyphId::new(65536)), Some(0));
+        assert_eq!(cache.first.class(&data, GlyphId::new(65536)), 1);
+        assert_eq!(cache.second.class(&data, GlyphId::new(65537)), 1);
+    }
+}
+
+#[test]
+fn pair_pos4_does_not_truncate_wide_classes_to_matrix_indices() {
+    let mut subtable = class_pair_pos4(false);
+    subtable[57..60].copy_from_slice(&Uint24::new(65537).to_be_bytes());
+    let output = apply_subtable(2, false, &subtable, &[65536, 65537]);
+    assert_eq!(output.glyph_positions()[0].x_advance, 0);
+    assert_eq!(output.glyph_positions()[1].y_offset, 0);
+}

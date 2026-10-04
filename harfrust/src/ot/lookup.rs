@@ -13,7 +13,8 @@ use read_fonts::{
         gpos::{
             CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePosFormat1,
             MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1, PairPosFormat2,
-            SinglePos, SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4,
+            PairPosFormat4, SinglePos, SinglePosFormat1, SinglePosFormat2, SinglePosFormat3,
+            SinglePosFormat4,
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
@@ -665,6 +666,7 @@ apply_fns!(single_pos3, single_pos3_cached, SinglePosFormat3);
 apply_fns!(single_pos4, single_pos4_cached, SinglePosFormat4);
 apply_fns!(pair_pos1, pair_pos1_cached, PairPosFormat1);
 apply_fns!(pair_pos2, pair_pos2_cached, PairPosFormat2);
+apply_fns!(pair_pos4, pair_pos4_cached, PairPosFormat4);
 apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
 apply_fns!(cursive_pos2, cursive_pos2_cached, CursivePosFormat2);
 apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
@@ -718,6 +720,7 @@ pub enum SubtableKind {
     SinglePos4,
     PairPos1,
     PairPos2,
+    PairPos4,
     CursivePos1,
     CursivePos2,
     MarkBasePos1,
@@ -828,7 +831,13 @@ impl SubtableInfo {
                     [pair_pos2, pair_pos2_cached as _],
                     SetDigest::full(),
                 ),
-                _ => return None,
+                PairPos::Format4(s) => (
+                    SubtableKind::PairPos4,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [pair_pos4, pair_pos4_cached as _],
+                    SetDigest::full(),
+                ),
+                PairPos::Format3(_) => return None,
             },
             (true, 3) => match AlternateSubst::read(data).ok()? {
                 AlternateSubst::Format1(s) => (
