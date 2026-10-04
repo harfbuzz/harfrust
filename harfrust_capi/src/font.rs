@@ -74,7 +74,7 @@ impl Drop for PreparedFont {
     }
 }
 
-/// A font: a face with a scale, an optional point size, and variation
+/// A font: a face with a scale, optional pixel and point sizes, and variation
 /// settings applied.
 pub struct hr_font_t {
     header: ObjectHeader,
@@ -84,6 +84,8 @@ pub struct hr_font_t {
     prepared: Option<PreparedFont>,
     pub(crate) x_scale: c_int,
     pub(crate) y_scale: c_int,
+    pub(crate) x_ppem: c_uint,
+    pub(crate) y_ppem: c_uint,
     pub(crate) ptem: f32,
     /// Normalized coordinates in HarfBuzz's representation: 2.14 values widened
     /// to `int`, so `hr_font_get_var_coords_normalized` can hand back a
@@ -165,14 +167,6 @@ impl hr_font_t {
         unsafe { self.face.as_ref() }.map_or(1000, |face| face.upem() as c_int)
     }
 
-    /// How this font's own numbers become the numbers it reports.
-    ///
-    /// The same conversion shaping applies, so that asking about one glyph
-    /// and shaping a run of them cannot disagree.
-    pub(crate) fn scale(&self) -> harfrust::Scale {
-        harfrust::Scale::new(Some((self.x_scale, self.y_scale)), self.upem())
-    }
-
     fn builtin_shaping_font(&self) -> Option<ShaperFont<'static, 'static>> {
         let mut font = (*self.prepared.as_ref()?.shaper()?).clone();
         font.set_scale_separate(self.x_scale, self.y_scale);
@@ -235,12 +229,6 @@ impl hr_font_t {
     pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<GlyphName> {
         let shaper = self.prepared.as_ref()?.shaper()?;
         shaper.glyph_name(glyph.into())
-    }
-
-    /// How far above the baseline this face's text reaches, in design units.
-    pub(crate) fn ascender(&self) -> i32 {
-        // SAFETY: a font owns its reference to its face.
-        unsafe { self.face.as_ref() }.map_or(0, |face| face.ascender())
     }
 
     /// How many glyphs the face has, which bounds a search over their names.
@@ -323,6 +311,8 @@ impl Object for hr_font_t {
                     prepared: None,
                     x_scale: 0,
                     y_scale: 0,
+                    x_ppem: 0,
+                    y_ppem: 0,
                     ptem: 0.0,
                     coords: Vec::new(),
                     funcs: core::ptr::null_mut(),
@@ -364,6 +354,8 @@ pub unsafe extern "C" fn hr_font_create(face: *mut hr_face_t) -> *mut hr_font_t 
         prepared: None,
         x_scale: upem,
         y_scale: upem,
+        x_ppem: 0,
+        y_ppem: 0,
         ptem: 0.0,
         coords: Vec::new(),
         funcs: core::ptr::null_mut(),
@@ -376,8 +368,8 @@ pub unsafe extern "C" fn hr_font_create(face: *mut hr_face_t) -> *mut hr_font_t 
 
 /// Creates a font that starts out as a copy of `parent`.
 ///
-/// The sub-font holds a reference to its parent and inherits its scale, point
-/// size, variation settings and callbacks; changing the sub-font afterwards
+/// The sub-font holds a reference to its parent and inherits its scale, pixel
+/// and point sizes, variation settings and callbacks; changing it afterwards
 /// does not affect the parent.
 ///
 /// # Safety
@@ -397,6 +389,8 @@ pub unsafe extern "C" fn hr_font_create_sub_font(parent: *mut hr_font_t) -> *mut
         prepared: None,
         x_scale: parent_ref.x_scale,
         y_scale: parent_ref.y_scale,
+        x_ppem: parent_ref.x_ppem,
+        y_ppem: parent_ref.y_ppem,
         ptem: parent_ref.ptem,
         coords: Vec::new(),
         // Nothing of its own: a sub-font answers with whatever its parent
@@ -554,6 +548,38 @@ pub unsafe extern "C" fn hr_font_get_scale(
     }
     if let Some(out) = unsafe { y_scale.as_mut() } {
         *out = font.y_scale;
+    }
+}
+
+/// Sets a font's horizontal and vertical pixels per em. Zero leaves an axis
+/// unset. `BASE` device adjustments use the ppem for their coordinate axis.
+///
+/// # Safety
+/// `font` must be `NULL` or a live font.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_set_ppem(font: *mut hr_font_t, x_ppem: c_uint, y_ppem: c_uint) {
+    if let Some(font) = unsafe { object::as_mutable(font) } {
+        font.x_ppem = x_ppem;
+        font.y_ppem = y_ppem;
+    }
+}
+
+/// Returns a font's horizontal and vertical pixels per em.
+///
+/// # Safety
+/// `font` must be `NULL` or a live font; output pointers must be `NULL` or writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_ppem(
+    font: *mut hr_font_t,
+    x_ppem: *mut c_uint,
+    y_ppem: *mut c_uint,
+) {
+    let font = unsafe { object::or_empty(font.cast_const()) };
+    if let Some(out) = unsafe { x_ppem.as_mut() } {
+        *out = font.x_ppem;
+    }
+    if let Some(out) = unsafe { y_ppem.as_mut() } {
+        *out = font.y_ppem;
     }
 }
 
@@ -1196,7 +1222,13 @@ unsafe fn origin_for_direction(
     // Nothing says where it hangs from vertically, so HarfBuzz guesses from
     // the horizontal origin: the middle of the advance, at the ascender.
     let x = state.glyph_h_advance(font, glyph) / 2;
-    let y = state.scale().scale_y(state.ascender());
+    let y = state
+        .instance()
+        .and_then(|instance| instance.metrics().hhea_line)
+        .map_or(0, |line| {
+            (line.ascender.to_f64() * f64::from(state.y_scale) / f64::from(state.upem())).round()
+                as i32
+        });
     (x, y)
 }
 

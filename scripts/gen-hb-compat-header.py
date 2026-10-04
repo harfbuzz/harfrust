@@ -94,16 +94,19 @@ def names(source):
 def render(lower, upper):
     out = [HEADER]
 
-    def section(title, entries):
+    def section(title, entries, max_width=None):
         out.append("\n/* %s */\n\n" % title)
         width = max(len("hb_" + name[3:]) for name in entries)
+        if max_width is not None:
+            width = min(width, max_width)
         for name in entries:
             hb = ("hb_" if name.startswith("hr_") else "HB_") + name[3:]
             out.append("#define %-*s %s\n" % (width, hb, name))
 
     # Types and functions share a namespace in C, so one list covers both.
-    section("Types, functions and callbacks", lower)
-    section("Constants and macros", upper)
+    # Keep existing mappings aligned when a new API name exceeds this column.
+    section("Types, functions and callbacks", lower, max_width=48)
+    section("Constants and macros", upper, max_width=45)
     return "".join(out)
 
 

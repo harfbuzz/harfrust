@@ -169,6 +169,7 @@
 #define hb_font_get_nominal_glyph                        hr_font_get_nominal_glyph
 #define hb_font_get_nominal_glyph_func_t                 hr_font_get_nominal_glyph_func_t
 #define hb_font_get_parent                               hr_font_get_parent
+#define hb_font_get_ppem                                 hr_font_get_ppem
 #define hb_font_get_ptem                                 hr_font_get_ptem
 #define hb_font_get_scale                                hr_font_get_scale
 #define hb_font_get_user_data                            hr_font_get_user_data
@@ -181,6 +182,7 @@
 #define hb_font_make_immutable                           hr_font_make_immutable
 #define hb_font_reference                                hr_font_reference
 #define hb_font_set_funcs                                hr_font_set_funcs
+#define hb_font_set_ppem                                 hr_font_set_ppem
 #define hb_font_set_ptem                                 hr_font_set_ptem
 #define hb_font_set_scale                                hr_font_set_scale
 #define hb_font_set_user_data                            hr_font_set_user_data
@@ -203,6 +205,12 @@
 #define hb_mask_t                                        hr_mask_t
 #define hb_memory_mode_t                                 hr_memory_mode_t
 #define hb_ot_font_set_funcs                             hr_ot_font_set_funcs
+#define hb_ot_layout_baseline_tag_t                      hr_ot_layout_baseline_tag_t
+#define hb_ot_layout_get_baseline                        hr_ot_layout_get_baseline
+#define hb_ot_layout_get_baseline2                       hr_ot_layout_get_baseline2
+#define hb_ot_layout_get_baseline_with_fallback          hr_ot_layout_get_baseline_with_fallback
+#define hb_ot_layout_get_baseline_with_fallback2         hr_ot_layout_get_baseline_with_fallback2
+#define hb_ot_layout_get_horizontal_baseline_tag_for_script hr_ot_layout_get_horizontal_baseline_tag_for_script
 #define hb_position_t                                    hr_position_t
 #define hb_reference_table_func_t                        hr_reference_table_func_t
 #define hb_script_from_iso15924_tag                      hr_script_from_iso15924_tag
@@ -294,6 +302,15 @@
 #define HB_MEMORY_MODE_READONLY                       HR_MEMORY_MODE_READONLY
 #define HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE     HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE
 #define HB_MEMORY_MODE_WRITABLE                       HR_MEMORY_MODE_WRITABLE
+#define HB_OT_LAYOUT_BASELINE_TAG_HANGING             HR_OT_LAYOUT_BASELINE_TAG_HANGING
+#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT
+#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL  HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL
+#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT
+#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT
+#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL   HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL
+#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT
+#define HB_OT_LAYOUT_BASELINE_TAG_MATH                HR_OT_LAYOUT_BASELINE_TAG_MATH
+#define HB_OT_LAYOUT_BASELINE_TAG_ROMAN               HR_OT_LAYOUT_BASELINE_TAG_ROMAN
 #define HB_SCRIPT_ADLAM                               HR_SCRIPT_ADLAM
 #define HB_SCRIPT_AHOM                                HR_SCRIPT_AHOM
 #define HB_SCRIPT_ANATOLIAN_HIEROGLYPHS               HR_SCRIPT_ANATOLIAN_HIEROGLYPHS

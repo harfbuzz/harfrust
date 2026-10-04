@@ -88,6 +88,7 @@ pub use script::Script;
 pub use shaper_font::{
     Advances, FontFuncs, GlyphExtents, NominalGlyphs, RawAdvances, RawNominalGlyphs, ShaperFont,
 };
+pub use tag::ScriptTags;
 
 /// Font types supplied by `read-fonts`.
 pub mod font {

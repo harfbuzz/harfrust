@@ -280,6 +280,28 @@ fn all_tags_from_script(script: Option<Script>, tags: &mut ThreeTags) {
     }
 }
 
+/// OpenType script tags for a Unicode script, in preference order.
+///
+/// At most three tags are stored inline.
+#[derive(Clone, Debug)]
+pub struct ScriptTags(ThreeTags);
+
+impl ScriptTags {
+    /// Returns the tags, from most to least preferred.
+    pub fn as_slice(&self) -> &[Tag] {
+        &self.0
+    }
+}
+
+impl Script {
+    /// Returns the OpenType script tags corresponding to this Unicode script.
+    pub fn tags(self) -> ScriptTags {
+        let mut tags = ThreeTags::new();
+        all_tags_from_script(Some(self), &mut tags);
+        ScriptTags(tags)
+    }
+}
+
 fn new_tag_from_script(script: Script) -> Option<Tag> {
     match script {
         Script::BENGALI => Some(Tag::new(b"bng2")),
