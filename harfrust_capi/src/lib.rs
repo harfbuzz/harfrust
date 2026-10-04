@@ -9,9 +9,10 @@ as HarfBuzz itself without collisions.
 
 # Scope
 
-This covers shaping only: blobs, faces, fonts, buffers and `hr_shape`. It has
-no drawing or painting callbacks, no subsetting, no layout table introspection
-and no `hb_set` / `hb_map` containers, because HarfRust does not provide them.
+This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
+`BASE` baseline queries. It has no drawing or painting callbacks, no
+subsetting, no other layout table introspection and no `hb_set` / `hb_map`
+containers, because HarfRust does not provide them.
 
 # Object lifetime
 
@@ -34,6 +35,7 @@ pub mod face;
 pub mod font;
 pub mod font_funcs;
 pub mod object;
+pub mod ot_layout;
 mod plan;
 pub mod shape;
 pub mod shape_plan;
@@ -45,6 +47,7 @@ pub use face::*;
 pub use font::*;
 pub use font_funcs::*;
 pub use object::{hr_destroy_func_t, hr_user_data_key_t};
+pub use ot_layout::*;
 pub use shape::*;
 pub use shape_plan::*;
 

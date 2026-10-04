@@ -74,7 +74,7 @@ typedef struct hr_face_t hr_face_t;
 typedef struct hr_font_funcs_t hr_font_funcs_t;
 
 /**
- * A font: a face with a scale, an optional point size, and variation
+ * A font: a face with a scale, optional pixel and point sizes, and variation
  * settings applied.
  */
 typedef struct hr_font_t hr_font_t;
@@ -412,6 +412,11 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
                                                       hr_codepoint_t glyph,
                                                       struct hr_glyph_extents_t *extents,
                                                       void *user_data);
+
+/**
+ * A registered OpenType BASE baseline tag. The numeric value is the tag itself.
+ */
+typedef hr_tag_t hr_ot_layout_baseline_tag_t;
 
 /**
  * Copy the data. The caller keeps ownership of the original buffer.
@@ -1549,6 +1554,24 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
  */
 #define HR_SCRIPT_MYANMAR_ZAWGYI 1365336423
 
+#define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134
+
+#define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719
+
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT 1768121954
+
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT 1768121972
+
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL 1231251043
+
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT 1768187247
+
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT 1768191088
+
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL 1231315813
+
+#define HR_OT_LAYOUT_BASELINE_TAG_MATH 1835103336
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -2561,8 +2584,8 @@ struct hr_font_t *hr_font_create(struct hr_face_t *face);
 /**
  * Creates a font that starts out as a copy of `parent`.
  *
- * The sub-font holds a reference to its parent and inherits its scale, point
- * size, variation settings and callbacks; changing the sub-font afterwards
+ * The sub-font holds a reference to its parent and inherits its scale, pixel
+ * and point sizes, variation settings and callbacks; changing it afterwards
  * does not affect the parent.
  *
  * # Safety
@@ -2675,6 +2698,23 @@ void hr_font_set_scale(struct hr_font_t *font, int x_scale, int y_scale);
  * `NULL` or writable.
  */
 void hr_font_get_scale(struct hr_font_t *font, int *x_scale, int *y_scale);
+
+/**
+ * Sets a font's horizontal and vertical pixels per em. Zero leaves an axis
+ * unset. `BASE` device adjustments use the ppem for their coordinate axis.
+ *
+ * # Safety
+ * `font` must be `NULL` or a live font.
+ */
+void hr_font_set_ppem(struct hr_font_t *font, unsigned int x_ppem, unsigned int y_ppem);
+
+/**
+ * Returns a font's horizontal and vertical pixels per em.
+ *
+ * # Safety
+ * `font` must be `NULL` or a live font; output pointers must be `NULL` or writable.
+ */
+void hr_font_get_ppem(struct hr_font_t *font, unsigned int *x_ppem, unsigned int *y_ppem);
 
 /**
  * Sets a font's point size, used when applying the `trak` table.
@@ -3295,6 +3335,64 @@ void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
                                           hr_font_get_glyph_extents_func_t func,
                                           void *user_data,
                                           hr_destroy_func_t destroy);
+
+/**
+ * Returns the dominant horizontal baseline for a Unicode script.
+ */
+hr_ot_layout_baseline_tag_t hr_ot_layout_get_horizontal_baseline_tag_for_script(hr_script_t script);
+
+/**
+ * Reads a baseline from `BASE`. The language tag is currently unused.
+ * Returns false without changing `coord` when the font has no such baseline.
+ *
+ * # Safety
+ * `font` must be `NULL` or a live font, and `coord` must be `NULL` or writable.
+ */
+hr_bool_t hr_ot_layout_get_baseline(struct hr_font_t *font,
+                                    hr_ot_layout_baseline_tag_t baseline_tag,
+                                    hr_direction_t direction,
+                                    hr_tag_t script_tag,
+                                    hr_tag_t _language_tag,
+                                    hr_position_t *coord);
+
+/**
+ * Reads a baseline using a Unicode script instead of an OpenType script tag.
+ *
+ * # Safety
+ * As for [`hr_ot_layout_get_baseline`].
+ */
+hr_bool_t hr_ot_layout_get_baseline2(struct hr_font_t *font,
+                                     hr_ot_layout_baseline_tag_t baseline_tag,
+                                     hr_direction_t direction,
+                                     hr_script_t script,
+                                     hr_language_t _language,
+                                     hr_position_t *coord);
+
+/**
+ * Reads a baseline or synthesizes one when absent from `BASE`.
+ *
+ * # Safety
+ * `font` must be `NULL` or a live font; `coord` must point to writable storage.
+ */
+void hr_ot_layout_get_baseline_with_fallback(struct hr_font_t *font,
+                                             hr_ot_layout_baseline_tag_t baseline_tag,
+                                             hr_direction_t direction,
+                                             hr_tag_t script_tag,
+                                             hr_tag_t _language_tag,
+                                             hr_position_t *coord);
+
+/**
+ * Reads or synthesizes a baseline using a Unicode script.
+ *
+ * # Safety
+ * As for [`hr_ot_layout_get_baseline_with_fallback`].
+ */
+void hr_ot_layout_get_baseline_with_fallback2(struct hr_font_t *font,
+                                              hr_ot_layout_baseline_tag_t baseline_tag,
+                                              hr_direction_t direction,
+                                              hr_script_t script,
+                                              hr_language_t _language,
+                                              hr_position_t *coord);
 
 /**
  * Shapes a buffer with a font, applying the given features.

@@ -98,7 +98,10 @@ and can be frozen with `hr_*_make_immutable`, after which setters are ignored.
 
 Blobs, faces, fonts, font callbacks, buffers, shape plans and `hr_shape`,
 along with the tags, directions, scripts, languages, features and variations
-they need.
+they need. OpenType `BASE` baseline queries are available through
+`hr_ot_layout_get_baseline` and its related functions.
+Set `hr_font_set_ppem` when `BASE` device adjustments should apply; it is
+independent of the point size set by `hr_font_set_ptem`.
 
 Faces can be built two ways: over a blob with `hr_face_create`, or from a
 callback with `hr_face_create_for_tables`, which asks for one table at a time.
@@ -114,8 +117,8 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 
 - Drawing and painting callbacks (`hb_draw_funcs_t`, `hb_paint_funcs_t`).
 - Subsetting.
-- Layout table introspection (`hb_ot_layout_*`), and the `hb_set` / `hb_map`
-  containers it reports through.
+- Other layout table introspection (`hb_ot_layout_*`), and the `hb_set` /
+  `hb_map` containers it reports through.
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data
   is always used.
 - `hb_buffer_diff`, buffer message callbacks, and `hb_font_get_glyph_name`.

@@ -28,6 +28,182 @@ const PLAIN_UPEM: c_uint = 1024;
 /// A variable font, for exercising variation settings.
 const VARIABLE_FONT: &str = "Linefont.ttf";
 
+#[test]
+fn base_baselines_follow_script_and_font_scale() {
+    unsafe {
+        with_named_font("NotoSansCJK.subset1.otf", |_face, font| {
+            let mut coord = 999;
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT,
+                    HR_DIRECTION_LTR,
+                    u32::from_be_bytes(*b"hani"),
+                    0,
+                    &raw mut coord
+                ),
+                1
+            );
+            assert_eq!(coord, 834);
+            hr_font_set_scale(font, 2000, 2000);
+            assert_eq!(
+                hr_ot_layout_get_baseline2(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT,
+                    HR_DIRECTION_LTR,
+                    HR_SCRIPT_HAN,
+                    ptr::null(),
+                    &raw mut coord
+                ),
+                1
+            );
+            assert_eq!(coord, 1668);
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_HANGING,
+                    HR_DIRECTION_LTR,
+                    u32::from_be_bytes(*b"hani"),
+                    0,
+                    &raw mut coord
+                ),
+                0
+            );
+            assert_eq!(coord, 1668);
+        });
+    }
+}
+
+#[test]
+fn baseline_fallback_and_script_defaults() {
+    assert_eq!(
+        hr_ot_layout_get_horizontal_baseline_tag_for_script(HR_SCRIPT_LATIN),
+        HR_OT_LAYOUT_BASELINE_TAG_ROMAN
+    );
+    assert_eq!(
+        hr_ot_layout_get_horizontal_baseline_tag_for_script(HR_SCRIPT_DEVANAGARI),
+        HR_OT_LAYOUT_BASELINE_TAG_HANGING
+    );
+    assert_eq!(
+        hr_ot_layout_get_horizontal_baseline_tag_for_script(HR_SCRIPT_HAN),
+        HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT
+    );
+    unsafe {
+        with_font(|_face, font| {
+            let mut coord = 123;
+            hr_ot_layout_get_baseline_with_fallback(
+                font,
+                HR_OT_LAYOUT_BASELINE_TAG_ROMAN,
+                HR_DIRECTION_LTR,
+                u32::from_be_bytes(*b"latn"),
+                0,
+                &raw mut coord,
+            );
+            assert_eq!(coord, 0);
+            hr_ot_layout_get_baseline_with_fallback2(
+                font,
+                HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL,
+                HR_DIRECTION_LTR,
+                HR_SCRIPT_HAN,
+                ptr::null(),
+                &raw mut coord,
+            );
+            assert_ne!(coord, 123);
+        });
+    }
+}
+
+#[test]
+fn base_baseline2_selects_indic_opentype_script_tag() {
+    unsafe {
+        with_named_font("Rasa.subset1.otf", |_face, font| {
+            let mut coord = 0;
+            assert_eq!(
+                hr_ot_layout_get_baseline2(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT,
+                    HR_DIRECTION_LTR,
+                    HR_SCRIPT_GUJARATI,
+                    ptr::null(),
+                    &raw mut coord
+                ),
+                1
+            );
+            assert_eq!(coord, -236);
+        });
+    }
+}
+
+#[test]
+fn base_device_adjustment_uses_coordinate_axis_ppem() {
+    unsafe {
+        // Derived from NotoSansCJK.subset1.otf: the DFLT icfb coordinate has
+        // a format 3 Device table for sizes 12..=17, with deltas 1..=6.
+        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fonts/BaselineDevice.otf");
+        with_font_file(&fixture, |_face, font| {
+            let mut coord = 0;
+            let script = u32::from_be_bytes(*b"zzzz"); // Select the BASE default script.
+            hr_font_set_scale(font, 1200, 2400);
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT,
+                    HR_DIRECTION_LTR,
+                    script,
+                    0,
+                    &raw mut coord
+                ),
+                1
+            );
+            assert_eq!(coord, -178);
+
+            hr_font_set_ptem(font, 12.0);
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT,
+                    HR_DIRECTION_LTR,
+                    script,
+                    0,
+                    &raw mut coord,
+                ),
+                1
+            );
+            assert_eq!(coord, -178, "point size does not set pixels per em");
+
+            // Horizontal text reads a y coordinate, so x_ppem is irrelevant.
+            hr_font_set_ppem(font, 17, 12);
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT,
+                    HR_DIRECTION_LTR,
+                    script,
+                    0,
+                    &raw mut coord
+                ),
+                1
+            );
+            assert_eq!(coord, 22);
+
+            hr_font_set_ppem(font, 17, 17);
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT,
+                    HR_DIRECTION_LTR,
+                    script,
+                    0,
+                    &raw mut coord
+                ),
+                1
+            );
+            assert_eq!(coord, 669);
+        });
+    }
+}
+
 fn font_data() -> Vec<u8> {
     std::fs::read(font_path(PLAIN_FONT)).expect("failed to read test font")
 }
@@ -47,7 +223,11 @@ unsafe fn blob_over(data: &[u8]) -> *mut hr_blob_t {
 
 /// Runs `f` with a font built over the named test face.
 unsafe fn with_named_font(name: &str, f: impl FnOnce(*mut hr_face_t, *mut hr_font_t)) {
-    let data = std::fs::read(font_path(name)).expect("failed to read test font");
+    unsafe { with_font_file(&font_path(name), f) };
+}
+
+unsafe fn with_font_file(path: &std::path::Path, f: impl FnOnce(*mut hr_face_t, *mut hr_font_t)) {
+    let data = std::fs::read(path).expect("failed to read test font");
     unsafe {
         let blob = blob_over(&data);
         let face = hr_face_create(blob, 0);
@@ -216,6 +396,36 @@ fn font_scale_defaults_to_upem() {
             hr_font_get_scale(font, &raw mut x, &raw mut y);
             assert_eq!((x, y), (1000, 2000));
         });
+    }
+}
+
+#[test]
+fn font_ppem_defaults_inherits_and_respects_immutability() {
+    unsafe {
+        with_font(|_, font| {
+            let (mut x, mut y) = (99, 99);
+            hr_font_get_ppem(font, &raw mut x, &raw mut y);
+            assert_eq!((x, y), (0, 0));
+
+            hr_font_set_ppem(font, 12, 17);
+            let sub = hr_font_create_sub_font(font);
+            hr_font_get_ppem(sub, &raw mut x, &raw mut y);
+            assert_eq!((x, y), (12, 17));
+
+            hr_font_set_ppem(sub, 21, 28);
+            hr_font_get_ppem(font, &raw mut x, &raw mut y);
+            assert_eq!((x, y), (12, 17));
+
+            hr_font_make_immutable(sub);
+            hr_font_set_ppem(sub, 33, 44);
+            hr_font_get_ppem(sub, &raw mut x, &raw mut y);
+            assert_eq!((x, y), (21, 28));
+            hr_font_destroy(sub);
+        });
+
+        let (mut x, mut y) = (99, 99);
+        hr_font_get_ppem(ptr::null_mut(), &raw mut x, &raw mut y);
+        assert_eq!((x, y), (0, 0));
     }
 }
 
