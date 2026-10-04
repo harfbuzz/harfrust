@@ -787,7 +787,7 @@ fn mark_base_pos2_skips_marks_and_preserves_scaled_cross_offsets() {
     let subtable = mark_base_pos2(false);
     let output = apply_subtable_configured(4, false, &subtable, &[65536, 65538, 65537], |ctx| {
         for info in &mut ctx.buffer.glyph_infos_mut()[1..] {
-            info.set_glyph_props(buffer::GlyphPropsFlags::MARK.bits());
+            info.set_glyph_props(GlyphPropsFlags::MARK.bits());
         }
         ctx.scale = Scale::new(Some((2000, 500)), 1000);
         ctx.buffer.glyph_positions_mut()[0].y_offset = 30;
