@@ -5,6 +5,7 @@ use crate::ot::gpos::attach_type;
 use crate::ot::lookup_flags;
 use read_fonts::tables::gpos::{
     AnchorTable, MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPosFormat1,
+    MarkMarkPosFormat2,
 };
 
 fn resolve_cross_offset(
@@ -184,68 +185,77 @@ fn accept(buffer: &Buffer, idx: usize) -> bool {
             || buffer.info[idx].lig_comp() != buffer.info[idx - 1].lig_comp() + 1)
 }
 
-impl Apply for MarkMarkPosFormat1<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let mark1_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
-        let lookup_props = ctx.lookup_props;
-        // Now we search backwards for a suitable mark glyph until a non-mark glyph
-        let mut iter = SkippingIterator::new(ctx, false);
-        iter.reset_fast(iter.buffer.idx);
-        iter.set_lookup_props(lookup_props & !u32::from(lookup_flags::IGNORE_FLAGS));
+macro_rules! impl_mark_mark_pos {
+    ($format:ident) => {
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let mark1_glyph = ctx.buffer.cur(0).as_glyph();
+                let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
+                let lookup_props = ctx.lookup_props;
+                // Now we search backwards for a suitable mark glyph until a non-mark glyph
+                let mut iter = SkippingIterator::new(ctx, false);
+                iter.reset_fast(iter.buffer.idx);
+                iter.set_lookup_props(lookup_props & !u32::from(lookup_flags::IGNORE_FLAGS));
 
-        let mut unsafe_from = 0;
-        if !iter.prev(Some(&mut unsafe_from)) {
-            iter.buffer
-                .unsafe_to_concat_from_outbuffer(Some(unsafe_from), Some(iter.buffer.idx + 1));
-            return None;
+                let mut unsafe_from = 0;
+                if !iter.prev(Some(&mut unsafe_from)) {
+                    iter.buffer.unsafe_to_concat_from_outbuffer(
+                        Some(unsafe_from),
+                        Some(iter.buffer.idx + 1),
+                    );
+                    return None;
+                }
+
+                let iter_idx = iter.index();
+                if !ctx.buffer.info[iter_idx].is_mark() {
+                    ctx.buffer
+                        .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
+                    return None;
+                }
+
+                let id1 = ctx.buffer.cur(0).lig_id();
+                let id2 = ctx.buffer.info[iter_idx].lig_id();
+                let comp1 = ctx.buffer.cur(0).lig_comp();
+                let comp2 = ctx.buffer.info[iter_idx].lig_comp();
+
+                let matches = if id1 == id2 {
+                    // Marks belonging to the same base
+                    // or marks belonging to the same ligature component.
+                    id1 == 0 || comp1 == comp2
+                } else {
+                    // If ligature ids don't match, it may be the case that one of the marks
+                    // itself is a ligature.  In which case match.
+                    (id1 > 0 && comp1 == 0) || (id2 > 0 && comp2 == 0)
+                };
+
+                if !matches {
+                    ctx.buffer
+                        .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
+                    return None;
+                }
+
+                let mark2_glyph = ctx.buffer.info[iter_idx].as_glyph();
+                let mark2_index = self.mark2_coverage().ok()?.get(mark2_glyph)?;
+
+                let mark1_array = self.mark1_array().ok()?;
+                let mark1_record = mark1_array.mark_records().get(mark1_index as usize)?;
+                let mark1_anchor = mark1_record.mark_anchor(mark1_array.offset_data()).ok()?;
+
+                let base_array = self.mark2_array().ok()?;
+                let base_record = base_array.mark2_records().get(mark2_index as usize).ok()?;
+                let base_anchor = base_record
+                    .mark2_anchors(base_array.offset_data())
+                    .get(mark1_record.mark_class() as usize)?
+                    .ok()?;
+
+                apply_mark_attachment(ctx, &base_anchor, &mark1_anchor, iter_idx)
+            }
         }
-
-        let iter_idx = iter.index();
-        if !ctx.buffer.info[iter_idx].is_mark() {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
-            return None;
-        }
-
-        let id1 = ctx.buffer.cur(0).lig_id();
-        let id2 = ctx.buffer.info[iter_idx].lig_id();
-        let comp1 = ctx.buffer.cur(0).lig_comp();
-        let comp2 = ctx.buffer.info[iter_idx].lig_comp();
-
-        let matches = if id1 == id2 {
-            // Marks belonging to the same base
-            // or marks belonging to the same ligature component.
-            id1 == 0 || comp1 == comp2
-        } else {
-            // If ligature ids don't match, it may be the case that one of the marks
-            // itself is a ligature.  In which case match.
-            (id1 > 0 && comp1 == 0) || (id2 > 0 && comp2 == 0)
-        };
-
-        if !matches {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
-            return None;
-        }
-
-        let mark2_glyph = ctx.buffer.info[iter_idx].as_glyph();
-        let mark2_index = self.mark2_coverage().ok()?.get(mark2_glyph)?;
-
-        let mark1_array = self.mark1_array().ok()?;
-        let mark1_record = mark1_array.mark_records().get(mark1_index as usize)?;
-        let mark1_anchor = mark1_record.mark_anchor(mark1_array.offset_data()).ok()?;
-
-        let base_array = self.mark2_array().ok()?;
-        let base_record = base_array.mark2_records().get(mark2_index as usize).ok()?;
-        let base_anchor = base_record
-            .mark2_anchors(base_array.offset_data())
-            .get(mark1_record.mark_class() as usize)?
-            .ok()?;
-
-        apply_mark_attachment(ctx, &base_anchor, &mark1_anchor, iter_idx)
-    }
+    };
 }
+
+impl_mark_mark_pos!(MarkMarkPosFormat1);
+impl_mark_mark_pos!(MarkMarkPosFormat2);
 
 impl Apply for MarkLigPosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {

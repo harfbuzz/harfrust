@@ -796,3 +796,58 @@ fn mark_base_pos2_skips_marks_and_preserves_scaled_cross_offsets() {
     assert_eq!([pos.x_offset, pos.y_offset], [160, 50]);
     assert_eq!(pos.attach_chain(), -2);
 }
+
+fn mark_mark_pos2(large_offsets: bool) -> Vec<u8> {
+    let mut subtable = mark_base_pos2(large_offsets);
+    let array = FontData::new(&subtable).read_at::<u32>(16).unwrap() as usize;
+    let anchor = FontData::new(&subtable)
+        .read_at::<Uint24>(array + 3)
+        .unwrap();
+    // Unlike BaseArray2, Mark2Array2 retains a 16-bit count.
+    subtable[array..array + 2].copy_from_slice(&1u16.to_be_bytes());
+    subtable[array + 2..array + 5].copy_from_slice(&anchor.to_be_bytes());
+    subtable
+}
+
+#[test]
+fn mark_mark_pos2_preserves_ligature_component_matching() {
+    for large_offsets in [false, true] {
+        let subtable = mark_mark_pos2(large_offsets);
+        for (first, second, matches) in [
+            ((0, 0), (0, 0), true),
+            ((1, 2), (1, 2), true),
+            ((1, 1), (1, 2), false),
+            ((1, 1), (2, 1), false),
+            ((1, 0), (2, 1), true),
+        ] {
+            let output = apply_subtable_configured(6, false, &subtable, &[65536, 65537], |ctx| {
+                for (info, (id, component)) in
+                    ctx.buffer.glyph_infos_mut().iter_mut().zip([first, second])
+                {
+                    info.set_glyph_props(GlyphPropsFlags::MARK.bits());
+                    info.set_lig_props_for_mark(id, component);
+                }
+            });
+            let pos = &output.glyph_positions()[1];
+            assert_eq!(
+                [pos.x_offset, pos.y_offset],
+                if matches { [80, 40] } else { [0, 0] }
+            );
+            assert_eq!(pos.attach_chain(), if matches { -1 } else { 0 });
+        }
+    }
+}
+
+#[test]
+fn mark_mark_pos2_does_not_truncate_wide_mark2_indices() {
+    let mut subtable = mark_mark_pos2(false);
+    subtable.splice(28..36, [0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    subtable[12..16].copy_from_slice(&42u32.to_be_bytes());
+    subtable[16..20].copy_from_slice(&56u32.to_be_bytes());
+    let output = apply_subtable_configured(6, false, &subtable, &[65536, 65537], |ctx| {
+        for info in ctx.buffer.glyph_infos_mut() {
+            info.set_glyph_props(GlyphPropsFlags::MARK.bits());
+        }
+    });
+    assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+}

@@ -12,9 +12,10 @@ use read_fonts::{
     tables::{
         gpos::{
             CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePos,
-            MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPosFormat1, PairPos,
-            PairPosFormat1, PairPosFormat2, PairPosFormat3, PairPosFormat4, SinglePos,
-            SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4,
+            MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPos,
+            MarkMarkPosFormat1, MarkMarkPosFormat2, PairPos, PairPosFormat1, PairPosFormat2,
+            PairPosFormat3, PairPosFormat4, SinglePos, SinglePosFormat1, SinglePosFormat2,
+            SinglePosFormat3, SinglePosFormat4,
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
@@ -689,6 +690,7 @@ apply_fns!(cursive_pos2, cursive_pos2_cached, CursivePosFormat2);
 apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
 apply_fns!(mark_base_pos2, mark_base_pos2_cached, MarkBasePosFormat2);
 apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
+apply_fns!(mark_mark_pos2, mark_mark_pos2_cached, MarkMarkPosFormat2);
 apply_fns!(mark_lig_pos1, mark_lig_pos1_cached, MarkLigPosFormat1);
 apply_fns!(context1, context1_cached, SequenceContextFormat1);
 apply_fns!(context2, context2_cached, SequenceContextFormat2);
@@ -745,6 +747,7 @@ pub enum SubtableKind {
     MarkBasePos1,
     MarkBasePos2,
     MarkMarkPos1,
+    MarkMarkPos2,
     MarkLigPos1,
     ContextFormat1,
     ContextFormat2,
@@ -1010,9 +1013,8 @@ impl SubtableInfo {
                     cache_mode,
                 );
             }
-            (false, 6) => {
-                let s = MarkMarkPosFormat1::read(data).ok()?;
-                (
+            (false, 6) => match MarkMarkPos::read(data).ok()? {
+                MarkMarkPos::Format1(s) => (
                     SubtableKind::MarkMarkPos1,
                     (
                         maybe_external_cache(&s),
@@ -1021,8 +1023,18 @@ impl SubtableInfo {
                     ),
                     [mark_mark_pos1, mark_mark_pos1_cached as _],
                     coverage_digest(s.mark2_coverage()),
-                )
-            }
+                ),
+                MarkMarkPos::Format2(s) => (
+                    SubtableKind::MarkMarkPos2,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.mark1_coverage().ok()?,
+                    ),
+                    [mark_mark_pos2, mark_mark_pos2_cached as _],
+                    coverage_digest(s.mark2_coverage()),
+                ),
+            },
             (true, 8) => match ReverseChainSingleSubst::read(data).ok()? {
                 ReverseChainSingleSubst::Format1(s) => (
                     SubtableKind::ReverseChainContext,
