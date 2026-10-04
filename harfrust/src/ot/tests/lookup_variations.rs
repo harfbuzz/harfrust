@@ -317,6 +317,88 @@ fn variable_conditions_use_fractional_gdef_deltas() {
 }
 
 #[test]
+fn reused_plans_shape_correctly_across_lookup_variation_locations() {
+    for kind in [LayoutTableKind::Gsub, LayoutTableKind::Gpos] {
+        let font = font(kind, &variations(&conditional(&records(), false), true));
+        let mut plans = Vec::new();
+        for coord in [0.5, 0.75, -0.5, 0.0, 1.0, -1.0, 0.0, 0.5] {
+            let instance = instance(&font, coord);
+            let key = ShapePlanKey::new(&instance, None, Direction::LeftToRight);
+            let index = plans
+                .iter()
+                .position(|plan| key.matches(plan))
+                .unwrap_or_else(|| {
+                    plans.push(ShapePlan::new(
+                        &instance,
+                        Direction::LeftToRight,
+                        None,
+                        None,
+                        &[],
+                    ));
+                    plans.len() - 1
+                });
+            let mut reused = Buffer::new();
+            reused.push_str("a");
+            reused.set_direction(Direction::LeftToRight);
+            shape(
+                &ShaperFont::new(&instance),
+                &mut reused,
+                ShapeOptions::new().plan(Some(&plans[index])),
+            )
+            .unwrap();
+            let fresh = shape_a(&instance);
+            assert_eq!(reused.glyph_infos().len(), 1);
+            assert_eq!(
+                reused.glyph_infos()[0].glyph_id,
+                fresh.glyph_infos()[0].glyph_id
+            );
+            assert_eq!(
+                reused.glyph_infos()[0].cluster,
+                fresh.glyph_infos()[0].cluster
+            );
+            let actual = reused.glyph_positions()[0];
+            let expected = fresh.glyph_positions()[0];
+            assert_eq!(
+                (
+                    actual.x_advance,
+                    actual.y_advance,
+                    actual.x_offset,
+                    actual.y_offset
+                ),
+                (
+                    expected.x_advance,
+                    expected.y_advance,
+                    expected.x_offset,
+                    expected.y_offset
+                ),
+                "{kind:?}, coord {coord}"
+            );
+        }
+        assert_eq!(plans.len(), 3);
+        let key = ShapePlanKey::new(&font, None, Direction::LeftToRight);
+        let plan = plans.iter().find(|plan| key.matches(plan)).unwrap();
+        let mut buffer = Buffer::new();
+        buffer.push_str("a");
+        buffer.set_direction(Direction::LeftToRight);
+        shape(
+            &ShaperFont::new(&font),
+            &mut buffer,
+            ShapeOptions::new().plan(Some(plan)),
+        )
+        .unwrap();
+        let fresh = shape_a(&font);
+        assert_eq!(
+            buffer.glyph_infos()[0].glyph_id,
+            fresh.glyph_infos()[0].glyph_id
+        );
+        assert_eq!(
+            buffer.glyph_positions()[0].x_advance,
+            fresh.glyph_positions()[0].x_advance
+        );
+    }
+}
+
+#[test]
 fn malformed_lookup_tables_fall_back_but_malformed_conditions_do_not_match() {
     for kind in [LayoutTableKind::Gsub, LayoutTableKind::Gpos] {
         let valid = conditional(&[(None, vec![0])], false);
