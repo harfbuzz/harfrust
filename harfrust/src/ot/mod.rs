@@ -1,4 +1,5 @@
 use self::apply::{BinaryCache, MappingCache};
+use self::feature_variations::FeatureVariationState;
 use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
@@ -328,7 +329,7 @@ pub struct OtData<'a> {
     gdef_cache: &'a GdefCache,
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
-    pub feature_variations: [Option<u32>; 2],
+    pub variation_state: FeatureVariationState,
 }
 
 static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
@@ -343,7 +344,7 @@ pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
     gdef_cache: &EMPTY_GDEF_CACHE,
     coords: &[],
     var_store: None,
-    feature_variations: [None; 2],
+    variation_state: FeatureVariationState::EMPTY,
 };
 
 impl<'a> OtData<'a> {
@@ -371,7 +372,7 @@ impl<'a> OtData<'a> {
         font: &impl TableProvider<'a>,
         cache: &'a OtCache,
         coords: &'a [F2Dot14],
-        feature_variations: [Option<u32>; 2],
+        variation_state: FeatureVariationState,
     ) -> Self {
         let gsub = cache
             .has_gsub
@@ -411,7 +412,7 @@ impl<'a> OtData<'a> {
             gdef_cache: &cache.gdef,
             var_store,
             coords,
-            feature_variations,
+            variation_state,
         }
     }
 
