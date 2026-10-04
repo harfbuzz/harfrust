@@ -1018,3 +1018,77 @@ fn context6_applies_nested_substitution_and_positioning() {
         }
     }
 }
+
+fn context4(rule_set_offset: u32, coverage_index: u32) -> Vec<u8> {
+    let set_count = coverage_index + 1;
+    let coverage_offset = 9 + set_count * 3;
+    let mut subtable = vec![0, 4];
+    subtable.extend_from_slice(&coverage_offset.to_be_bytes());
+    subtable.extend_from_slice(&Uint24::new(set_count).to_be_bytes());
+    subtable.resize(coverage_offset as usize, 0);
+    let set_offset_pos = 9 + coverage_index as usize * 3;
+    subtable[set_offset_pos..set_offset_pos + 3]
+        .copy_from_slice(&Uint24::new(rule_set_offset).to_be_bytes());
+    // Coverage 4 allows a high coverage index without a long glyph array.
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0]);
+    subtable.extend_from_slice(&Uint24::new(coverage_index).to_be_bytes());
+    subtable.resize(rule_set_offset as usize, 0);
+    // Three rules: two fail on their first input glyph, the last succeeds.
+    // Rule offsets remain 16-bit in SequenceRuleSet2.
+    subtable.extend_from_slice(&[0, 3, 0, 8, 0, 22, 0, 36]);
+    for second in [65538, 65538, 65537] {
+        subtable.extend_from_slice(&[0, 3, 0, 1]);
+        subtable.extend_from_slice(&Uint24::new(second).to_be_bytes());
+        subtable.extend_from_slice(&Uint24::new(65539).to_be_bytes());
+        subtable.extend_from_slice(&[0, 1, 0, 1]);
+    }
+    subtable
+}
+
+#[test]
+fn context4_applies_full_width_glyph_rules() {
+    for (rule_set_offset, coverage_index) in [(26, 0), (65536, 0), (200_000, 65536)] {
+        let subtable = context4(rule_set_offset, coverage_index);
+        for (input, matches) in [
+            ([65536, 65537, 65539], true),
+            ([65536, 1, 65539], false),
+            ([65536, 65537, 3], false),
+            ([0, 65537, 65539], false),
+        ] {
+            use super::apply::{WouldApply, WouldApplyContext};
+            let table =
+                read_fonts::tables::layout::SequenceContextFormat4::read(FontData::new(&subtable))
+                    .unwrap();
+            assert_eq!(
+                table.would_apply(&WouldApplyContext {
+                    glyphs: &input.map(GlyphId::new),
+                    zero_context: true,
+                }),
+                matches
+            );
+            let output = apply_nested_context(5, true, &subtable, &input);
+            assert_eq!(
+                output.glyph_infos()[1].glyph_id,
+                if matches { 65538 } else { input[1] }
+            );
+            let output = apply_nested_context(7, false, &subtable, &input);
+            assert_eq!(
+                output.glyph_positions()[1].x_advance,
+                if matches { 10 } else { 0 }
+            );
+        }
+    }
+}
+
+#[test]
+fn context4_rejects_null_rule_sets_and_truncated_rules() {
+    let mut subtable = context4(26, 0);
+    subtable[9..12].fill(0);
+    let output = apply_nested_context(5, true, &subtable, &[65536, 65537, 65539]);
+    assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
+
+    let mut subtable = context4(26, 0);
+    subtable.truncate(subtable.len() - 6);
+    let output = apply_nested_context(5, true, &subtable, &[65536, 65537, 65539]);
+    assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
+}
