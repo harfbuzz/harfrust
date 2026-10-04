@@ -1295,3 +1295,141 @@ fn chain_context4_matches_wide_backtrack_input_and_lookahead() {
         }
     }
 }
+
+fn chain_context5(first_class: u16, large_offsets: bool, input_count: u16) -> Vec<u8> {
+    let set_count = first_class + 1;
+    let header_end = 20 + u32::from(set_count) * 3;
+    let coverage_offset = if large_offsets {
+        header_end.max(65536)
+    } else {
+        header_end
+    };
+    let backtrack_class_offset = coverage_offset + 8;
+    let input_class_offset = backtrack_class_offset + 32;
+    let lookahead_class_offset = input_class_offset + 32;
+    let rule_set_offset = lookahead_class_offset + 32;
+    let rule_offset = if large_offsets { 65536 } else { 11 };
+    let rule_len = 20 + u32::from(input_count - 1) * 2;
+    let mut subtable = vec![0, 5];
+    for offset in [
+        coverage_offset,
+        backtrack_class_offset,
+        input_class_offset,
+        lookahead_class_offset,
+    ] {
+        subtable.extend_from_slice(&offset.to_be_bytes());
+    }
+    // Unlike SequenceContext5, this rule-set count is still 16-bit.
+    subtable.extend_from_slice(&set_count.to_be_bytes());
+    subtable.resize(coverage_offset as usize, 0);
+    let set_offset_pos = 20 + usize::from(first_class) * 3;
+    subtable[set_offset_pos..set_offset_pos + 3]
+        .copy_from_slice(&Uint24::new(rule_set_offset).to_be_bytes());
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 1]);
+    for classes in [
+        [0, 0, 0, 0, 401, 402, 0, 0],
+        [0, u32::from(first_class), 201, 202, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 501, 502],
+    ] {
+        subtable.extend_from_slice(&[0, 3, 1, 0, 0, 0, 0, 8]);
+        for class in classes {
+            subtable.extend_from_slice(&Uint24::new(class).to_be_bytes());
+        }
+    }
+    subtable.extend_from_slice(&[0, 3]);
+    for offset in [
+        rule_offset,
+        rule_offset + rule_len,
+        rule_offset + 2 * rule_len,
+    ] {
+        subtable.extend_from_slice(&Uint24::new(offset).to_be_bytes());
+    }
+    subtable.resize((rule_set_offset + rule_offset) as usize, 0);
+    for matches in [false, false, true] {
+        subtable.extend_from_slice(&[0, 2, 1, 145, 1, 146]); // Backtrack classes 401/402.
+        subtable.extend_from_slice(&input_count.to_be_bytes());
+        for index in 1..input_count {
+            let class = if !matches && index == 1 {
+                202
+            } else {
+                200 + index
+            };
+            subtable.extend_from_slice(&class.to_be_bytes());
+        }
+        subtable.extend_from_slice(&[0, 2]);
+        let first_lookahead = if !matches && input_count == 1 {
+            502u16
+        } else {
+            501
+        };
+        subtable.extend_from_slice(&first_lookahead.to_be_bytes());
+        subtable.extend_from_slice(&502u16.to_be_bytes());
+        subtable.extend_from_slice(&[0, 1, 0, 0, 0, 1]);
+    }
+    subtable
+}
+
+#[test]
+fn chain_context5_matches_class_rules_with_wide_offsets() {
+    use super::apply::{WouldApply, WouldApplyContext};
+    for (first_class, large_offsets) in [(1, false), (300, true), (65534, true)] {
+        for input_count in 1..=3 {
+            let subtable = chain_context5(first_class, large_offsets, input_count);
+            let mut input = vec![65541, 65540];
+            input.extend((0..input_count).map(|index| 65537 + u32::from(index)));
+            input.extend([65542, 65543]);
+            let table = read_fonts::tables::layout::ChainedSequenceContextFormat5::read(
+                FontData::new(&subtable),
+            )
+            .unwrap();
+            let glyphs = input[2..2 + usize::from(input_count)]
+                .iter()
+                .copied()
+                .map(GlyphId::new)
+                .collect::<Vec<_>>();
+            assert!(table.would_apply(&WouldApplyContext {
+                glyphs: &glyphs,
+                zero_context: false,
+            }));
+            assert!(!table.would_apply(&WouldApplyContext {
+                glyphs: &glyphs,
+                zero_context: true,
+            }));
+            for use_hot_cache in [false, true] {
+                let output = apply_nested_context_cached(6, true, &subtable, &input, use_hot_cache);
+                assert_eq!(output.glyph_infos()[2].glyph_id, 65538);
+                let output =
+                    apply_nested_context_cached(8, false, &subtable, &input, use_hot_cache);
+                assert_eq!(output.glyph_positions()[2].x_advance, 10);
+                for mismatch in (0..input.len()).filter(|index| *index != 2) {
+                    let mut unmatched = input.clone();
+                    unmatched[mismatch] &= 0xFFFF;
+                    let output =
+                        apply_nested_context_cached(6, true, &subtable, &unmatched, use_hot_cache);
+                    assert_eq!(output.glyph_infos()[2].glyph_id, 65537);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn chain_context5_does_not_truncate_wide_classes() {
+    for (offset_pos, class_index, class) in [(10, 1, 1), (10, 2, 201), (6, 4, 401), (14, 6, 501)] {
+        let mut subtable = chain_context5(1, false, 2);
+        let class_offset =
+            u32::from_be_bytes(subtable[offset_pos..offset_pos + 4].try_into().unwrap()) as usize;
+        let pos = class_offset + 8 + class_index * 3;
+        subtable[pos..pos + 3].copy_from_slice(&Uint24::new(65536 + class).to_be_bytes());
+        for use_hot_cache in [false, true] {
+            let output = apply_nested_context_cached(
+                6,
+                true,
+                &subtable,
+                &[65541, 65540, 65537, 65538, 65542, 65543],
+                use_hot_cache,
+            );
+            assert_eq!(output.glyph_infos()[2].glyph_id, 65537);
+        }
+    }
+}

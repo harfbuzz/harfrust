@@ -14,10 +14,10 @@ use crate::ot::{ClassDefInfo, CoverageInfo};
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
     ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-    ChainedSequenceContextFormat3, ChainedSequenceContextFormat4, ChainedSequenceRule,
-    ClassSequenceRule, SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
-    SequenceContextFormat4, SequenceContextFormat5, SequenceContextFormat6, SequenceLookupRecord,
-    SequenceRule,
+    ChainedSequenceContextFormat3, ChainedSequenceContextFormat4, ChainedSequenceContextFormat5,
+    ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1, SequenceContextFormat2,
+    SequenceContextFormat3, SequenceContextFormat4, SequenceContextFormat5, SequenceContextFormat6,
+    SequenceLookupRecord, SequenceRule,
 };
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16, Offset24, Scalar, Uint24};
 use read_fonts::{FontData, Offset};
@@ -47,23 +47,30 @@ macro_rules! class_context_rule_set_digests {
 class_context_rule_set_digests!(context_rule_set_digests, SequenceContextFormat2);
 class_context_rule_set_digests!(context_rule_set_digests2, SequenceContextFormat5);
 
-fn chain_rule_set_digests(table: &ChainedSequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
-    table
-        .chained_class_seq_rule_sets()
-        .iter()
-        .map(|rule_set| match rule_set {
-            None => RuleSetDigest::default(),
-            Some(Err(_)) => RuleSetDigest::full(),
-            Some(Ok(rule_set)) => rule_set_digest(
-                rule_set.offset_data(),
-                rule_set.chained_class_seq_rule_offsets(),
-                chain_rule_data_at,
-                chain_rule_first_input,
-            ),
-        })
-        .collect::<Vec<_>>()
-        .into_boxed_slice()
+macro_rules! class_chain_context_rule_set_digests {
+    ($name:ident, $format:ident) => {
+        fn $name(table: &$format<'_>) -> Box<[RuleSetDigest]> {
+            table
+                .chained_class_seq_rule_sets()
+                .iter()
+                .map(|rule_set| match rule_set {
+                    None => RuleSetDigest::default(),
+                    Some(Err(_)) => RuleSetDigest::full(),
+                    Some(Ok(rule_set)) => rule_set_digest(
+                        rule_set.offset_data(),
+                        rule_set.chained_class_seq_rule_offsets(),
+                        chain_rule_data_at,
+                        chain_rule_first_input,
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        }
+    };
 }
+
+class_chain_context_rule_set_digests!(chain_rule_set_digests, ChainedSequenceContextFormat2);
+class_chain_context_rule_set_digests!(chain_rule_set_digests2, ChainedSequenceContextFormat5);
 
 macro_rules! impl_glyph_context {
     ($format:ident, $value:ty) => {
@@ -345,36 +352,43 @@ macro_rules! impl_glyph_chain_context {
 impl_glyph_chain_context!(ChainedSequenceContextFormat1, u16, Offset16);
 impl_glyph_chain_context!(ChainedSequenceContextFormat4, Uint24, Offset24);
 
-impl WouldApply for ChainedSequenceContextFormat2<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        let class_def = self.input_class_def().ok();
-        let match_fn = &match_class(&class_def);
-        let class = glyph_class(self.input_class_def(), ctx.glyphs[0]);
-        self.chained_class_seq_rule_sets()
-            .get(class as usize)
-            .transpose()
-            .ok()
-            .flatten()
-            .is_some_and(|set| {
-                set.chained_class_seq_rules().iter().any(|rule| {
-                    rule.is_ok_and(|rule| {
-                        let input = rule.input_sequence();
-                        (!ctx.zero_context
-                            || (rule.backtrack_glyph_count() == 0
-                                && rule.lookahead_glyph_count() == 0))
-                            && ctx.glyphs.len() == input.len() + 1
-                            && input.iter().enumerate().all(|(i, value)| {
-                                let mut info = GlyphInfo {
-                                    glyph_id: ctx.glyphs[i + 1].into(),
-                                    ..GlyphInfo::default()
-                                };
-                                match_fn(&mut info, value.get() as u32)
+macro_rules! impl_class_chain_would_apply {
+    ($format:ident) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                let class_def = self.input_class_def().ok();
+                let match_fn = &match_class(&class_def);
+                let class = glyph_class(self.input_class_def(), ctx.glyphs[0]);
+                self.chained_class_seq_rule_sets()
+                    .get(class as usize)
+                    .transpose()
+                    .ok()
+                    .flatten()
+                    .is_some_and(|set| {
+                        set.chained_class_seq_rules().iter().any(|rule| {
+                            rule.is_ok_and(|rule| {
+                                let input = rule.input_sequence();
+                                (!ctx.zero_context
+                                    || (rule.backtrack_glyph_count() == 0
+                                        && rule.lookahead_glyph_count() == 0))
+                                    && ctx.glyphs.len() == input.len() + 1
+                                    && input.iter().enumerate().all(|(i, value)| {
+                                        let mut info = GlyphInfo {
+                                            glyph_id: ctx.glyphs[i + 1].into(),
+                                            ..GlyphInfo::default()
+                                        };
+                                        match_fn(&mut info, value.get() as u32)
+                                    })
                             })
+                        })
                     })
-                })
-            })
-    }
+            }
+        }
+    };
 }
+
+impl_class_chain_would_apply!(ChainedSequenceContextFormat2);
+impl_class_chain_would_apply!(ChainedSequenceContextFormat5);
 
 /// Value represents glyph class.
 fn match_class<'a>(
@@ -439,133 +453,170 @@ fn match_class_cached2<'a>(
     move |info: &mut GlyphInfo, value| get_class_cached2(&class_def, info) == value
 }
 
-impl Apply for ChainedSequenceContextFormat2<'_> {
-    fn apply_with_external_cache(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
-        let class_caches = cache.class_caches.as_deref();
-        let index = class_caches.map_or_else(
-            || input_class(glyph),
-            |caches| glyph_class_cached(input_class, glyph, &caches.input),
-        ) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        if let Some(class_caches) = class_caches {
-            apply_chain_context_rules::<u16, Offset16>(
-                ctx,
-                set.offset_data(),
-                set.chained_class_seq_rule_offsets(),
-                (
-                    |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
-                    |info, val| {
-                        glyph_class_cached(input_class, info.as_glyph(), &class_caches.input) == val
-                    },
-                    |info, val| {
-                        glyph_class_cached(
-                            lookahead_class,
-                            info.as_glyph(),
-                            &class_caches.lookahead,
-                        ) == val
-                    },
-                ),
-                digest,
-                |info| glyph_class_cached(input_class, info.as_glyph(), &class_caches.input),
-            )
-        } else {
-            apply_chain_context_rules::<u16, Offset16>(
-                ctx,
-                set.offset_data(),
-                set.chained_class_seq_rule_offsets(),
-                (
-                    |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
-                    |info, val| input_class(info.as_glyph()) == val,
-                    |info, val| lookahead_class(info.as_glyph()) == val,
-                ),
-                digest,
-                |info| input_class(info.as_glyph()),
-            )
-        }
-    }
-    fn apply_cached(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
-        let index = get_class_cached2(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules::<u16, Offset16>(
-            ctx,
-            set.offset_data(),
-            set.chained_class_seq_rule_offsets(),
-            (
-                |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
-                match_class_cached2(&input_class),
-                match_class_cached1(&lookahead_class),
-            ),
-            digest,
-            |info| get_class_cached2(&input_class, info),
-        )
-    }
-    fn cache_cost(&self) -> u32 {
-        self.input_class_def()
-            .ok()
-            .map_or(0, |class_def| class_def.cost())
-            + self
-                .lookahead_class_def()
-                .ok()
-                .map_or(0, |class_def| class_def.cost())
-    }
+macro_rules! impl_class_chain_context {
+    ($format:ident, $offset:ty, $digests:ident) => {
+        impl Apply for $format<'_> {
+            fn apply_with_external_cache(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
+                let class_caches = cache.class_caches.as_deref();
+                let index = class_caches.map_or_else(
+                    || input_class(glyph),
+                    |caches| glyph_class_cached(input_class, glyph, &caches.input),
+                ) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+                if let Some(class_caches) = class_caches {
+                    apply_chain_context_rules::<u16, $offset>(
+                        ctx,
+                        set.offset_data(),
+                        set.chained_class_seq_rule_offsets(),
+                        (
+                            |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                            |info, val| {
+                                glyph_class_cached(
+                                    input_class,
+                                    info.as_glyph(),
+                                    &class_caches.input,
+                                ) == val
+                            },
+                            |info, val| {
+                                glyph_class_cached(
+                                    lookahead_class,
+                                    info.as_glyph(),
+                                    &class_caches.lookahead,
+                                ) == val
+                            },
+                        ),
+                        digest,
+                        |info| {
+                            glyph_class_cached(input_class, info.as_glyph(), &class_caches.input)
+                        },
+                    )
+                } else {
+                    apply_chain_context_rules::<u16, $offset>(
+                        ctx,
+                        set.offset_data(),
+                        set.chained_class_seq_rule_offsets(),
+                        (
+                            |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                            |info, val| input_class(info.as_glyph()) == val,
+                            |info, val| lookahead_class(info.as_glyph()) == val,
+                        ),
+                        digest,
+                        |info| input_class(info.as_glyph()),
+                    )
+                }
+            }
+            fn apply_cached(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
+                let index =
+                    get_class_cached2(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+                apply_chain_context_rules::<u16, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.chained_class_seq_rule_offsets(),
+                    (
+                        |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                        match_class_cached2(&input_class),
+                        match_class_cached1(&lookahead_class),
+                    ),
+                    digest,
+                    |info| get_class_cached2(&input_class, info),
+                )
+            }
+            fn cache_cost(&self) -> u32 {
+                self.input_class_def()
+                    .ok()
+                    .map_or(0, |class_def| class_def.cost())
+                    + self
+                        .lookahead_class_def()
+                        .ok()
+                        .map_or(0, |class_def| class_def.cost())
+            }
 
-    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
-        let data = self.offset_data();
-        SubtableExternalCache::ChainContextFormat2Cache(Box::new(ChainContextFormat2Cache {
-            coverage_cache: BinaryCache::new(),
-            coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            backtrack: ClassDefInfo::new(&data, self.backtrack_class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            input: ClassDefInfo::new(&data, self.input_class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            lookahead: ClassDefInfo::new(&data, self.lookahead_class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            class_caches: match mode {
-                SubtableExternalCacheMode::Full => Some(Box::new(ChainContextClassCaches {
-                    input: MappingCache::new(),
-                    lookahead: MappingCache::new(),
-                })),
-                SubtableExternalCacheMode::Small | SubtableExternalCacheMode::None => None,
-            },
-            rule_sets: chain_rule_set_digests(self),
-        }))
-    }
+            fn external_cache_create(
+                &self,
+                mode: SubtableExternalCacheMode,
+            ) -> SubtableExternalCache {
+                let data = self.offset_data();
+                SubtableExternalCache::ChainContextFormat2Cache(Box::new(
+                    ChainContextFormat2Cache {
+                        coverage_cache: BinaryCache::new(),
+                        coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32())
+                            .unwrap_or_default(),
+                        backtrack: ClassDefInfo::new(
+                            &data,
+                            self.backtrack_class_def_offset().to_u32(),
+                        )
+                        .unwrap_or_default(),
+                        input: ClassDefInfo::new(&data, self.input_class_def_offset().to_u32())
+                            .unwrap_or_default(),
+                        lookahead: ClassDefInfo::new(
+                            &data,
+                            self.lookahead_class_def_offset().to_u32(),
+                        )
+                        .unwrap_or_default(),
+                        class_caches: match mode {
+                            SubtableExternalCacheMode::Full => {
+                                Some(Box::new(ChainContextClassCaches {
+                                    input: MappingCache::new(),
+                                    lookahead: MappingCache::new(),
+                                }))
+                            }
+                            SubtableExternalCacheMode::Small | SubtableExternalCacheMode::None => {
+                                None
+                            }
+                        },
+                        rule_sets: $digests(self),
+                    },
+                ))
+            }
+        }
+    };
 }
+
+impl_class_chain_context!(
+    ChainedSequenceContextFormat2,
+    Offset16,
+    chain_rule_set_digests
+);
+impl_class_chain_context!(
+    ChainedSequenceContextFormat5,
+    Offset24,
+    chain_rule_set_digests2
+);
 
 impl WouldApply for ChainedSequenceContextFormat3<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {

@@ -26,10 +26,11 @@ use read_fonts::{
         },
         layout::{
             ChainedSequenceContext, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-            ChainedSequenceContextFormat3, ChainedSequenceContextFormat4, ClassDef, CoverageTable,
-            Lookup, LookupFlag, LookupListTable, SequenceContext, SequenceContextFormat1,
-            SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4,
-            SequenceContextFormat5, SequenceContextFormat6,
+            ChainedSequenceContextFormat3, ChainedSequenceContextFormat4,
+            ChainedSequenceContextFormat5, ClassDef, CoverageTable, Lookup, LookupFlag,
+            LookupListTable, SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
+            SequenceContextFormat3, SequenceContextFormat4, SequenceContextFormat5,
+            SequenceContextFormat6,
         },
     },
     FontData, FontRead, Offset, ReadError,
@@ -324,6 +325,7 @@ impl LookupInfo {
             SubtableKind::ContextFormat2
                 | SubtableKind::ContextFormat5
                 | SubtableKind::ChainedContextFormat2
+                | SubtableKind::ChainedContextFormat5
         ) {
             cache_enter(ctx)
         } else {
@@ -342,6 +344,7 @@ impl LookupInfo {
             SubtableKind::ContextFormat2
                 | SubtableKind::ContextFormat5
                 | SubtableKind::ChainedContextFormat2
+                | SubtableKind::ChainedContextFormat5
         ) {
             cache_leave(ctx);
         }
@@ -434,6 +437,9 @@ impl LookupInfo {
                 }
                 SubtableKind::ChainedContextFormat4 => {
                     ChainedSequenceContextFormat4::read(data).map(|t| t.would_apply(ctx))
+                }
+                SubtableKind::ChainedContextFormat5 => {
+                    ChainedSequenceContextFormat5::read(data).map(|t| t.would_apply(ctx))
                 }
                 _ => continue,
             };
@@ -602,34 +608,47 @@ glyph_chain_context_digest!(
     ChainedSequenceContextFormat4
 );
 
-fn chained_context_format2_digest(table: &ChainedSequenceContextFormat2) -> SetDigest {
-    let Ok(input_class_def) = table.input_class_def() else {
-        return SetDigest::full();
-    };
-    let Ok(lookahead_class_def) = table.lookahead_class_def() else {
-        return SetDigest::full();
-    };
-    let mut digest = SetDigest::new();
-    for rule_set in table.chained_class_seq_rule_sets().iter() {
-        let Some(rule_set) = rule_set else { continue };
-        let Ok(rule_set) = rule_set else {
-            return SetDigest::full();
-        };
-        for rule in rule_set.chained_class_seq_rules().iter() {
-            let Ok(rule) = rule else {
+macro_rules! class_chain_context_digest {
+    ($name:ident, $format:ident) => {
+        fn $name(table: &$format) -> SetDigest {
+            let Ok(input_class_def) = table.input_class_def() else {
                 return SetDigest::full();
             };
-            if let Some(second) = rule.input_sequence().first() {
-                add_class(&mut digest, &input_class_def, second.get());
-            } else if let Some(second) = rule.lookahead_sequence().first() {
-                add_class(&mut digest, &lookahead_class_def, second.get());
-            } else {
+            let Ok(lookahead_class_def) = table.lookahead_class_def() else {
                 return SetDigest::full();
+            };
+            let mut digest = SetDigest::new();
+            for rule_set in table.chained_class_seq_rule_sets().iter() {
+                let Some(rule_set) = rule_set else { continue };
+                let Ok(rule_set) = rule_set else {
+                    return SetDigest::full();
+                };
+                for rule in rule_set.chained_class_seq_rules().iter() {
+                    let Ok(rule) = rule else {
+                        return SetDigest::full();
+                    };
+                    if let Some(second) = rule.input_sequence().first() {
+                        add_class(&mut digest, &input_class_def, second.get());
+                    } else if let Some(second) = rule.lookahead_sequence().first() {
+                        add_class(&mut digest, &lookahead_class_def, second.get());
+                    } else {
+                        return SetDigest::full();
+                    }
+                }
             }
+            digest
         }
-    }
-    digest
+    };
 }
+
+class_chain_context_digest!(
+    chained_context_format2_digest,
+    ChainedSequenceContextFormat2
+);
+class_chain_context_digest!(
+    chained_context_format5_digest,
+    ChainedSequenceContextFormat5
+);
 
 fn chained_context_format3_digest(table: &ChainedSequenceContextFormat3) -> SetDigest {
     if table.input_coverages().len() > 1 {
@@ -772,6 +791,11 @@ apply_fns!(
     ChainedSequenceContextFormat4
 );
 apply_fns!(
+    chained_context5,
+    chained_context5_cached,
+    ChainedSequenceContextFormat5
+);
+apply_fns!(
     rev_chain_single_subst1,
     rev_chain_single_subst1_cached,
     ReverseChainSingleSubstFormat1
@@ -821,6 +845,7 @@ pub enum SubtableKind {
     ChainedContextFormat2,
     ChainedContextFormat3,
     ChainedContextFormat4,
+    ChainedContextFormat5,
     ReverseChainContext,
     ReverseChainContext2,
 }
@@ -1098,7 +1123,12 @@ impl SubtableInfo {
                     [chained_context4, chained_context4_cached as _],
                     chained_context_format4_digest(&s),
                 ),
-                ChainedSequenceContext::Format5(_) => return None,
+                ChainedSequenceContext::Format5(s) => (
+                    SubtableKind::ChainedContextFormat5,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [chained_context5, chained_context5_cached as _],
+                    chained_context_format5_digest(&s),
+                ),
             },
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<'_, ()>::read(data).ok()?;
