@@ -803,8 +803,8 @@ pub(crate) enum SubtableExternalCache {
     PairPosFormat1SmallCache(PairPosFormat1SmallCache),
     PairPosFormat2Cache(Box<PairPosFormat2Cache>),
     PairPosFormat2SmallCache(PairPosFormat2SmallCache),
-    ContextFormat2Cache(ContextFormat2Cache),
-    ChainContextFormat2Cache(ChainContextFormat2Cache),
+    ContextFormat2Cache(Box<ContextFormat2Cache>),
+    ChainContextFormat2Cache(Box<ChainContextFormat2Cache>),
 }
 
 /// Apply a lookup.

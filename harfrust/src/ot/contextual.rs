@@ -194,14 +194,14 @@ impl Apply for SequenceContextFormat2<'_> {
 
     fn external_cache_create(&self, _mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         let data = self.offset_data();
-        SubtableExternalCache::ContextFormat2Cache(ContextFormat2Cache {
+        SubtableExternalCache::ContextFormat2Cache(Box::new(ContextFormat2Cache {
             coverage_cache: BinaryCache::new(),
             coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
                 .unwrap_or_default(),
             input: ClassDefInfo::new(&data, self.class_def_offset().to_u32() as u16)
                 .unwrap_or_default(),
             rule_sets: context_rule_set_digests(self),
-        })
+        }))
     }
 }
 
@@ -511,7 +511,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
 
     fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
         let data = self.offset_data();
-        SubtableExternalCache::ChainContextFormat2Cache(ChainContextFormat2Cache {
+        SubtableExternalCache::ChainContextFormat2Cache(Box::new(ChainContextFormat2Cache {
             coverage_cache: BinaryCache::new(),
             coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
                 .unwrap_or_default(),
@@ -529,7 +529,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
                 SubtableExternalCacheMode::Small | SubtableExternalCacheMode::None => None,
             },
             rule_sets: chain_rule_set_digests(self),
-        })
+        }))
     }
 }
 
