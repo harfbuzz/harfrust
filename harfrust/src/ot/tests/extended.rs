@@ -34,9 +34,9 @@ fn apply_subtable_configured(
         info.glyph_id = *glyph;
         info.mask = 1;
     }
-    if is_subst {
+    if is_subst && !lookup.is_reverse() {
         buffer.clear_output();
-    } else {
+    } else if !is_subst {
         buffer.clear_positions();
     }
     let layout = LayoutData {
@@ -58,12 +58,19 @@ fn apply_subtable_configured(
     ctx.lookup_props = lookup.props();
     configure(&mut ctx);
     ctx.update_matchers();
-    while ctx.buffer.idx < ctx.buffer.len {
-        if lookup.apply(&mut ctx, &bytes, false).is_none() {
-            ctx.buffer.next_glyph();
+    if lookup.is_reverse() {
+        for index in (0..ctx.buffer.len).rev() {
+            ctx.buffer.idx = index;
+            lookup.apply(&mut ctx, &bytes, false);
+        }
+    } else {
+        while ctx.buffer.idx < ctx.buffer.len {
+            if lookup.apply(&mut ctx, &bytes, false).is_none() {
+                ctx.buffer.next_glyph();
+            }
         }
     }
-    if is_subst {
+    if is_subst && !lookup.is_reverse() {
         assert!(buffer.sync());
     }
     buffer
@@ -342,4 +349,57 @@ fn alternate_subst2_resolves_large_set_offsets() {
     subtable.extend_from_slice(&[0, 1, 2, 0, 1]);
     let output = apply_subtable(3, true, &subtable, &[65536]);
     assert_eq!(output.glyph_infos()[0].glyph_id, 131_073);
+}
+
+#[test]
+fn reverse_chain_subst2_matches_wide_backtrack_and_lookahead() {
+    let subtable = [
+        0, 2, 0, 0, 0, 22, // Header and coverage offset.
+        0, 1, 0, 0, 30, // Backtrack coverage.
+        0, 1, 0, 0, 38, // Lookahead coverage.
+        0, 0, 1, 2, 0, 1, // One replacement.
+        0, 3, 0, 0, 1, 1, 0, 0, // Input glyph.
+        0, 3, 0, 0, 1, 1, 0, 1, // Backtrack glyph.
+        0, 3, 0, 0, 1, 1, 0, 2, // Lookahead glyph.
+    ];
+    for (glyphs, expected) in [
+        ([65537, 65536, 65538], [65537, 131_073, 65538]),
+        ([1, 65536, 65538], [1, 65536, 65538]),
+        ([65537, 65536, 1], [65537, 65536, 1]),
+    ] {
+        let output = apply_subtable(8, true, &subtable, &glyphs);
+        assert_eq!(
+            output
+                .glyph_infos()
+                .iter()
+                .map(|info| info.glyph_id)
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+
+    let mut extension = vec![0, 1, 0, 8, 0, 0, 0, 8];
+    extension.extend_from_slice(&subtable);
+    let output = apply_subtable(7, true, &extension, &[65537, 65536, 65538]);
+    assert_eq!(output.glyph_infos()[1].glyph_id, 131_073);
+}
+
+#[test]
+fn reverse_chain_subst2_applies_in_reverse_order() {
+    let subtable = [
+        0, 2, 0, 0, 0, 19, // Header and coverage offset.
+        0, 0, // No backtrack glyphs.
+        0, 1, 0, 0, 19, // Lookahead uses the same coverage.
+        0, 0, 1, 1, 0, 1, // One replacement.
+        0, 3, 0, 0, 1, 1, 0, 0, // Coverage.
+    ];
+    let output = apply_subtable(8, true, &subtable, &[65536, 65536, 65536]);
+    assert_eq!(
+        output
+            .glyph_infos()
+            .iter()
+            .map(|info| info.glyph_id)
+            .collect::<Vec<_>>(),
+        [65536, 65537, 65536]
+    );
 }

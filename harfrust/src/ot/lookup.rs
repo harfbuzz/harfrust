@@ -17,7 +17,8 @@ use read_fonts::{
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
             Gsub, LigatureSubstFormat1, MultipleSubst, MultipleSubstFormat1, MultipleSubstFormat2,
-            ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
+            ReverseChainSingleSubst, ReverseChainSingleSubstFormat1,
+            ReverseChainSingleSubstFormat2, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
             SingleSubstFormat3, SingleSubstFormat4,
         },
         layout::{
@@ -390,6 +391,9 @@ impl LookupInfo {
                 SubtableKind::ReverseChainContext => {
                     ReverseChainSingleSubstFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
+                SubtableKind::ReverseChainContext2 => {
+                    ReverseChainSingleSubstFormat2::read(data).map(|t| t.would_apply(ctx))
+                }
                 SubtableKind::ContextFormat1 => {
                     SequenceContextFormat1::read(data).map(|t| t.would_apply(ctx))
                 }
@@ -677,6 +681,11 @@ apply_fns!(
     rev_chain_single_subst1_cached,
     ReverseChainSingleSubstFormat1
 );
+apply_fns!(
+    rev_chain_single_subst2,
+    rev_chain_single_subst2_cached,
+    ReverseChainSingleSubstFormat2
+);
 
 /// All possible subtables in a lookup.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -705,6 +714,7 @@ pub enum SubtableKind {
     ChainedContextFormat2,
     ChainedContextFormat3,
     ReverseChainContext,
+    ReverseChainContext2,
 }
 
 impl SubtableInfo {
@@ -929,15 +939,20 @@ impl SubtableInfo {
                     coverage_digest(s.mark2_coverage()),
                 )
             }
-            (true, 8) => {
-                let s = ReverseChainSingleSubstFormat1::read(data).ok()?;
-                (
+            (true, 8) => match ReverseChainSingleSubst::read(data).ok()? {
+                ReverseChainSingleSubst::Format1(s) => (
                     SubtableKind::ReverseChainContext,
                     (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
                     [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
                     SetDigest::full(),
-                )
-            }
+                ),
+                ReverseChainSingleSubst::Format2(s) => (
+                    SubtableKind::ReverseChainContext2,
+                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    [rev_chain_single_subst2, rev_chain_single_subst2_cached as _],
+                    SetDigest::full(),
+                ),
+            },
             _ => return None,
         };
         let mut digest = SetDigest::new();
