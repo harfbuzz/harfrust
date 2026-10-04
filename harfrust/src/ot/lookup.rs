@@ -11,10 +11,10 @@ use alloc::vec::Vec;
 use read_fonts::{
     tables::{
         gpos::{
-            CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePosFormat1,
-            MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1, PairPosFormat2,
-            PairPosFormat3, PairPosFormat4, SinglePos, SinglePosFormat1, SinglePosFormat2,
-            SinglePosFormat3, SinglePosFormat4,
+            CursivePos, CursivePosFormat1, CursivePosFormat2, Gpos, MarkBasePos,
+            MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPosFormat1, PairPos,
+            PairPosFormat1, PairPosFormat2, PairPosFormat3, PairPosFormat4, SinglePos,
+            SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4,
         },
         gsub::{
             AlternateSubst, AlternateSubstFormat1, AlternateSubstFormat2, ExtensionSubstFormat1,
@@ -687,6 +687,7 @@ apply_fns!(pair_pos4, pair_pos4_cached, PairPosFormat4);
 apply_fns!(cursive_pos1, cursive_pos1_cached, CursivePosFormat1);
 apply_fns!(cursive_pos2, cursive_pos2_cached, CursivePosFormat2);
 apply_fns!(mark_base_pos1, mark_base_pos1_cached, MarkBasePosFormat1);
+apply_fns!(mark_base_pos2, mark_base_pos2_cached, MarkBasePosFormat2);
 apply_fns!(mark_mark_pos1, mark_mark_pos1_cached, MarkMarkPosFormat1);
 apply_fns!(mark_lig_pos1, mark_lig_pos1_cached, MarkLigPosFormat1);
 apply_fns!(context1, context1_cached, SequenceContextFormat1);
@@ -742,6 +743,7 @@ pub enum SubtableKind {
     CursivePos1,
     CursivePos2,
     MarkBasePos1,
+    MarkBasePos2,
     MarkMarkPos1,
     MarkLigPos1,
     ContextFormat1,
@@ -908,9 +910,8 @@ impl SubtableInfo {
                     super::gsub::collect_seconds2(&s),
                 ),
             },
-            (false, 4) => {
-                let s = MarkBasePosFormat1::read(data).ok()?;
-                (
+            (false, 4) => match MarkBasePos::read(data).ok()? {
+                MarkBasePos::Format1(s) => (
                     SubtableKind::MarkBasePos1,
                     (
                         maybe_external_cache(&s),
@@ -919,8 +920,18 @@ impl SubtableInfo {
                     ),
                     [mark_base_pos1, mark_base_pos1_cached as _],
                     coverage_digest(s.base_coverage()),
-                )
-            }
+                ),
+                MarkBasePos::Format2(s) => (
+                    SubtableKind::MarkBasePos2,
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.mark_coverage().ok()?,
+                    ),
+                    [mark_base_pos2, mark_base_pos2_cached as _],
+                    coverage_digest(s.base_coverage()),
+                ),
+            },
             (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
                 SequenceContext::Format1(s) => (
                     SubtableKind::ContextFormat1,

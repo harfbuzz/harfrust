@@ -718,3 +718,81 @@ fn pair_pos3_keeps_wide_set_counts_and_small_cache_offsets() {
     );
     assert!(cache.pair_sets.is_empty());
 }
+
+fn mark_base_pos2(large_offsets: bool) -> Vec<u8> {
+    let mark_anchor = if large_offsets { 65536u32 } else { 8 };
+    let base_anchor = if large_offsets { 65536u32 } else { 6 };
+    let base_array = 36 + mark_anchor + 6;
+    let mut subtable = vec![0, 2, 0, 0, 0, 20, 0, 0, 0, 28, 0, 1, 0, 0, 0, 36];
+    subtable.extend_from_slice(&base_array.to_be_bytes());
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 1]);
+    subtable.extend_from_slice(&[0, 3, 0, 0, 1, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 0, 1, 0, 0]);
+    subtable.extend_from_slice(&Uint24::new(mark_anchor).to_be_bytes());
+    subtable.resize(36 + mark_anchor as usize, 0);
+    subtable.extend_from_slice(&[0, 1, 0, 20, 0, 10]);
+    subtable.extend_from_slice(&[0, 0, 1]);
+    subtable.extend_from_slice(&Uint24::new(base_anchor).to_be_bytes());
+    subtable.resize(base_array as usize + base_anchor as usize, 0);
+    subtable.extend_from_slice(&[0, 1, 0, 100, 0, 50]);
+    subtable
+}
+
+#[test]
+fn mark_base_pos2_attaches_wide_glyphs_and_resolves_large_anchors() {
+    for large_offsets in [false, true] {
+        let mut subtable = mark_base_pos2(large_offsets);
+        let output = apply_subtable(4, false, &subtable, &[65536, 65537]);
+        let pos = &output.glyph_positions()[1];
+        assert_eq!([pos.x_offset, pos.y_offset], [80, 40]);
+        assert_eq!(pos.attach_chain(), -1);
+        assert_eq!(pos.attach_type(), gpos::attach_type::MARK);
+
+        let base_array = FontData::new(&subtable).read_at::<u32>(16).unwrap() as usize;
+        subtable[base_array + 3..base_array + 6].fill(0);
+        let output = apply_subtable(4, false, &subtable, &[65536, 65537]);
+        assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+    }
+}
+
+#[test]
+fn mark_base_pos2_keeps_wide_mark_and_base_counts() {
+    let count = 65537;
+    let mark_array = 48u32;
+    let mark_anchor = 3 + count * 5;
+    let base_array = mark_array + mark_anchor + 6;
+    let base_anchor = 3 + count * 3;
+    let mut subtable = vec![0, 2, 0, 0, 0, 20, 0, 0, 0, 34, 0, 1];
+    subtable.extend_from_slice(&mark_array.to_be_bytes());
+    subtable.extend_from_slice(&base_array.to_be_bytes());
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0]);
+    subtable.extend_from_slice(&[0, 4, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    subtable.resize((mark_array + mark_anchor - 5) as usize, 0);
+    subtable.extend_from_slice(&[0, 0]);
+    subtable.extend_from_slice(&Uint24::new(mark_anchor).to_be_bytes());
+    subtable.extend_from_slice(&[0, 1, 0, 20, 0, 10]);
+    subtable.extend_from_slice(&Uint24::new(count).to_be_bytes());
+    subtable.resize((base_array + base_anchor - 3) as usize, 0);
+    subtable.extend_from_slice(&Uint24::new(base_anchor).to_be_bytes());
+    subtable.extend_from_slice(&[0, 1, 0, 100, 0, 50]);
+    let output = apply_subtable(4, false, &subtable, &[65536, 65537]);
+    let pos = &output.glyph_positions()[1];
+    assert_eq!([pos.x_offset, pos.y_offset], [80, 40]);
+    assert_eq!(pos.attach_chain(), -1);
+}
+
+#[test]
+fn mark_base_pos2_skips_marks_and_preserves_scaled_cross_offsets() {
+    let subtable = mark_base_pos2(false);
+    let output = apply_subtable_configured(4, false, &subtable, &[65536, 65538, 65537], |ctx| {
+        for info in &mut ctx.buffer.glyph_infos_mut()[1..] {
+            info.set_glyph_props(buffer::GlyphPropsFlags::MARK.bits());
+        }
+        ctx.scale = Scale::new(Some((2000, 500)), 1000);
+        ctx.buffer.glyph_positions_mut()[0].y_offset = 30;
+    });
+    let pos = &output.glyph_positions()[2];
+    assert_eq!([pos.x_offset, pos.y_offset], [160, 50]);
+    assert_eq!(pos.attach_chain(), -2);
+}

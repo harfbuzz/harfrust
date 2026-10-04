@@ -4,7 +4,7 @@ use crate::ot::apply::{Apply, MatchResult, SkippingIterator};
 use crate::ot::gpos::attach_type;
 use crate::ot::lookup_flags;
 use read_fonts::tables::gpos::{
-    AnchorTable, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
+    AnchorTable, MarkBasePosFormat1, MarkBasePosFormat2, MarkLigPosFormat1, MarkMarkPosFormat1,
 };
 
 fn resolve_cross_offset(
@@ -41,140 +41,133 @@ fn resolve_cross_offset(
     offset
 }
 
-trait MarkArrayExt {
-    fn apply(
-        &self,
-        ctx: &mut ApplyContext,
-        base_anchor: &AnchorTable,
-        mark_anchor: &AnchorTable,
-        glyph_pos: usize,
-    ) -> Option<()>;
-}
+fn apply_mark_attachment(
+    ctx: &mut ApplyContext,
+    base_anchor: &AnchorTable,
+    mark_anchor: &AnchorTable,
+    glyph_pos: usize,
+) -> Option<()> {
+    let (base_x, base_y) = ctx.layout.ot.resolve_anchor(base_anchor);
+    let (mark_x, mark_y) = ctx.layout.ot.resolve_anchor(mark_anchor);
+    let x_offset = ctx.scale_x(base_x - mark_x);
+    let y_offset = ctx.scale_y(base_y - mark_y);
 
-impl MarkArrayExt for MarkArray<'_> {
-    fn apply(
-        &self,
-        ctx: &mut ApplyContext,
-        base_anchor: &AnchorTable,
-        mark_anchor: &AnchorTable,
-        glyph_pos: usize,
-    ) -> Option<()> {
-        // If this subtable doesn't have an anchor for this base and this class
-        // return `None` such that the subsequent subtables have a chance at it.
+    ctx.buffer
+        .unsafe_to_break(Some(glyph_pos), Some(ctx.buffer.idx + 1));
 
-        let (base_x, base_y) = ctx.layout.ot.resolve_anchor(base_anchor);
-        let (mark_x, mark_y) = ctx.layout.ot.resolve_anchor(mark_anchor);
-        let x_offset = ctx.scale_x(base_x - mark_x);
-        let y_offset = ctx.scale_y(base_y - mark_y);
-
-        ctx.buffer
-            .unsafe_to_break(Some(glyph_pos), Some(ctx.buffer.idx + 1));
-
-        let base_offset = resolve_cross_offset(&ctx.buffer.pos, glyph_pos, ctx.buffer.direction);
-        let horizontal = ctx.buffer.direction.is_horizontal();
-        let idx = ctx.buffer.idx;
-        // If the distance to the base does not fit in the i16 chain field,
-        // leave the mark unattached. Matches HarfBuzz.
-        let Ok(chain) = i16::try_from(glyph_pos as isize - idx as isize) else {
-            ctx.buffer.cur_pos_mut().set_attach_chain(0);
-            ctx.buffer.idx += 1;
-            return Some(());
-        };
-        let pos = ctx.buffer.cur_pos_mut();
-        pos.x_offset = x_offset;
-        pos.y_offset = y_offset;
-        if horizontal {
-            pos.y_offset = pos.y_offset.saturating_add(base_offset);
-        } else {
-            pos.x_offset = pos.x_offset.saturating_add(base_offset);
-        }
-        pos.set_attach_type(attach_type::MARK);
-        pos.set_attach_chain(chain);
-
-        ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+    let base_offset = resolve_cross_offset(&ctx.buffer.pos, glyph_pos, ctx.buffer.direction);
+    let horizontal = ctx.buffer.direction.is_horizontal();
+    let idx = ctx.buffer.idx;
+    // If the distance to the base does not fit in the i16 chain field,
+    // leave the mark unattached. Matches HarfBuzz.
+    let Ok(chain) = i16::try_from(glyph_pos as isize - idx as isize) else {
+        ctx.buffer.cur_pos_mut().set_attach_chain(0);
         ctx.buffer.idx += 1;
-
-        Some(())
+        return Some(());
+    };
+    let pos = ctx.buffer.cur_pos_mut();
+    pos.x_offset = x_offset;
+    pos.y_offset = y_offset;
+    if horizontal {
+        pos.y_offset = pos.y_offset.saturating_add(base_offset);
+    } else {
+        pos.x_offset = pos.x_offset.saturating_add(base_offset);
     }
+    pos.set_attach_type(attach_type::MARK);
+    pos.set_attach_chain(chain);
+
+    ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+    ctx.buffer.idx += 1;
+
+    Some(())
 }
 
-impl Apply for MarkBasePosFormat1<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let mark_glyph = ctx.buffer.cur(0).as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
+macro_rules! impl_mark_base_pos {
+    ($format:ident) => {
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let mark_glyph = ctx.buffer.cur(0).as_glyph();
+                let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
 
-        let base_coverage = self.base_coverage().ok()?;
-        let last_base_until = ctx.last_base_until;
-        let mut last_base = ctx.last_base;
+                let base_coverage = self.base_coverage().ok()?;
+                let last_base_until = ctx.last_base_until;
+                let mut last_base = ctx.last_base;
 
-        // Due to borrowing rules, we have this piece of code before creating the
-        // iterator, unlike in harfbuzz.
-        if ctx.last_base_until > ctx.buffer.idx as u32 {
-            ctx.last_base_until = 0;
-            ctx.last_base = -1;
-        }
-
-        // Now we search backwards for a non-mark glyph
-        // We don't use skippy_iter.prev() to avoid O(n^2) behavior.
-        let mut iter = SkippingIterator::new(ctx, false);
-        iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
-
-        let mut j = iter.buffer.idx;
-        while j > last_base_until as usize {
-            let mut _match = iter.match_at(j - 1);
-            if _match == MatchResult::Match {
-                // https://github.com/harfbuzz/harfbuzz/issues/4124
-                if !accept(iter.buffer, j - 1)
-                    && base_coverage
-                        .get(iter.buffer.info[j - 1].as_glyph())
-                        .is_none()
-                {
-                    _match = MatchResult::Skip;
+                // Due to borrowing rules, we have this piece of code before creating the
+                // iterator, unlike in harfbuzz.
+                if ctx.last_base_until > ctx.buffer.idx as u32 {
+                    ctx.last_base_until = 0;
+                    ctx.last_base = -1;
                 }
+
+                // Now we search backwards for a non-mark glyph
+                // We don't use skippy_iter.prev() to avoid O(n^2) behavior.
+                let mut iter = SkippingIterator::new(ctx, false);
+                iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
+
+                let mut j = iter.buffer.idx;
+                while j > last_base_until as usize {
+                    let mut _match = iter.match_at(j - 1);
+                    if _match == MatchResult::Match {
+                        // https://github.com/harfbuzz/harfbuzz/issues/4124
+                        if !accept(iter.buffer, j - 1)
+                            && base_coverage
+                                .get(iter.buffer.info[j - 1].as_glyph())
+                                .is_none()
+                        {
+                            _match = MatchResult::Skip;
+                        }
+                    }
+
+                    if _match == MatchResult::Match {
+                        last_base = j as i32 - 1;
+                        break;
+                    }
+
+                    j -= 1;
+                }
+                ctx.last_base_until = ctx.buffer.idx as u32;
+                ctx.last_base = last_base;
+
+                if ctx.last_base == -1 {
+                    ctx.buffer
+                        .unsafe_to_concat_from_outbuffer(Some(0), Some(ctx.buffer.idx + 1));
+                    return None;
+                }
+
+                let idx = ctx.last_base as u32;
+
+                let info = &ctx.buffer.info;
+
+                // Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled
+                let base_glyph = info[idx as usize].as_glyph();
+                let Some(base_index) = base_coverage.get(base_glyph) else {
+                    ctx.buffer.unsafe_to_concat_from_outbuffer(
+                        Some(idx as usize),
+                        Some(ctx.buffer.idx + 1),
+                    );
+                    return None;
+                };
+
+                let mark_array = self.mark_array().ok()?;
+                let mark_record = mark_array.mark_records().get(mark_index as usize)?;
+                let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
+
+                let base_array = self.base_array().ok()?;
+                let base_record = base_array.base_records().get(base_index as usize).ok()?;
+                let base_anchor = base_record
+                    .base_anchors(base_array.offset_data())
+                    .get(mark_record.mark_class() as usize)?
+                    .ok()?;
+
+                apply_mark_attachment(ctx, &base_anchor, &mark_anchor, idx as usize)
             }
-
-            if _match == MatchResult::Match {
-                last_base = j as i32 - 1;
-                break;
-            }
-
-            j -= 1;
         }
-        ctx.last_base_until = ctx.buffer.idx as u32;
-        ctx.last_base = last_base;
-
-        if ctx.last_base == -1 {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(0), Some(ctx.buffer.idx + 1));
-            return None;
-        }
-
-        let idx = ctx.last_base as u32;
-
-        let info = &ctx.buffer.info;
-
-        // Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled
-        let base_glyph = info[idx as usize].as_glyph();
-        let Some(base_index) = base_coverage.get(base_glyph) else {
-            ctx.buffer
-                .unsafe_to_concat_from_outbuffer(Some(idx as usize), Some(ctx.buffer.idx + 1));
-            return None;
-        };
-
-        let mark_array = self.mark_array().ok()?;
-        let mark_record = mark_array.mark_records().get(mark_index as usize)?;
-        let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
-
-        let base_array = self.base_array().ok()?;
-        let base_record = base_array.base_records().get(base_index as usize).ok()?;
-        let base_anchor = base_record
-            .base_anchors(base_array.offset_data())
-            .get(mark_record.mark_class() as usize)?
-            .ok()?;
-
-        mark_array.apply(ctx, &base_anchor, &mark_anchor, idx as usize)
-    }
+    };
 }
+
+impl_mark_base_pos!(MarkBasePosFormat1);
+impl_mark_base_pos!(MarkBasePosFormat2);
 
 fn accept(buffer: &Buffer, idx: usize) -> bool {
     /* We only want to attach to the first of a MultipleSubst sequence.
@@ -250,7 +243,7 @@ impl Apply for MarkMarkPosFormat1<'_> {
             .get(mark1_record.mark_class() as usize)?
             .ok()?;
 
-        mark1_array.apply(ctx, &base_anchor, &mark1_anchor, iter_idx)
+        apply_mark_attachment(ctx, &base_anchor, &mark1_anchor, iter_idx)
     }
 }
 
@@ -353,7 +346,7 @@ impl Apply for MarkLigPosFormat1<'_> {
             .get(mark_record.mark_class() as usize)?
             .ok()?;
 
-        mark_array.apply(ctx, &base_anchor, &mark_anchor, idx)
+        apply_mark_attachment(ctx, &base_anchor, &mark_anchor, idx)
     }
 }
 
