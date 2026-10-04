@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject GSUB/GPOS lookups with an out-of-range `lookupType` instead of
+  truncating it to `u8`. A malformed font could have e.g. type 3586 dispatched
+  as MultipleSubst, expanding a single character into thousands of glyphs and
+  costing up to a second per `shape` call. HarfBuzz rejects such tables.
+
 ## [0.14.0] - 2026-10-03
 
 This release matches HarfBuzz [v14.5.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.5.1),

@@ -1808,6 +1808,54 @@ fn context_matching_008() {
 }
 
 #[test]
+fn context_matching_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/36f8e7f3b4f54efaa6bfd8225893022dc0041915.ttf",
+            "\u{0041}",
+            "",
+        ),
+        "[.notdef=0+900]"
+    );
+}
+
+#[test]
+fn context_matching_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/36f8e7f3b4f54efaa6bfd8225893022dc0041915.ttf",
+            "\u{0066}\u{0069}",
+            "",
+        ),
+        "[.notdef=0+900|.notdef=1+900]"
+    );
+}
+
+#[test]
+fn context_matching_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/ecc344a5fa31c4d69350231bb3b96cc693646089.ttf",
+            "\u{0041}",
+            "",
+        ),
+        "[.notdef=0+900]"
+    );
+}
+
+#[test]
+fn context_matching_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/ecc344a5fa31c4d69350231bb3b96cc693646089.ttf",
+            "\u{0066}\u{0069}",
+            "",
+        ),
+        "[.notdef=0+900|.notdef=1+900]"
+    );
+}
+
+#[test]
 fn cursive_positioning_001() {
     assert_eq!(
         shape(
