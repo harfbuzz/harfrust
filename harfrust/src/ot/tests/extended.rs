@@ -608,8 +608,16 @@ fn single_pos4_rejects_coverage_indices_outside_the_value_array() {
 }
 
 #[test]
-fn cursive_pos2_attaches_wide_glyphs_in_all_directions() {
-    let subtable = [
+fn cursive_pos_formats_attach_glyphs_in_all_directions() {
+    let narrow = [
+        0, 1, 0, 14, 0, 2, // Header and two records.
+        0, 0, 0, 22, // First glyph's exit anchor.
+        0, 28, 0, 0, // Second glyph's entry anchor.
+        0, 1, 0, 2, 0, 1, 0, 2, // Coverage.
+        0, 1, 0, 100, 0, 50, // Exit anchor.
+        0, 1, 0, 20, 0, 10, // Entry anchor.
+    ];
+    let wide = [
         0, 2, 0, 0, 0, 21, 0, 0, 2, // Header and two records.
         0, 0, 0, 0, 0, 32, // First glyph's exit anchor.
         0, 0, 38, 0, 0, 0, // Second glyph's entry anchor.
@@ -617,33 +625,38 @@ fn cursive_pos2_attaches_wide_glyphs_in_all_directions() {
         0, 1, 0, 100, 0, 50, // Exit anchor.
         0, 1, 0, 20, 0, 10, // Entry anchor.
     ];
-    for (direction, expected) in [
-        (Direction::LeftToRight, [[0, 0, 100, 0], [-20, 40, -20, 0]]),
-        (Direction::RightToLeft, [[-100, 0, -100, 0], [0, 40, 20, 0]]),
-        (Direction::TopToBottom, [[0, 0, 0, 50], [80, -10, 0, -10]]),
-        (Direction::BottomToTop, [[0, -50, 0, -50], [80, 0, 0, 10]]),
+    for (subtable, glyphs) in [
+        (narrow.as_slice(), [1, 2]),
+        (wide.as_slice(), [65536, 65537]),
     ] {
-        let output = apply_subtable_configured(3, false, &subtable, &[65536, 65537], |ctx| {
-            ctx.buffer.set_direction(direction);
-        });
-        for (pos, expected) in output.glyph_positions().iter().zip(expected) {
+        for (direction, expected) in [
+            (Direction::LeftToRight, [[0, 0, 100, 0], [-20, 40, -20, 0]]),
+            (Direction::RightToLeft, [[-100, 0, -100, 0], [0, 40, 20, 0]]),
+            (Direction::TopToBottom, [[0, 0, 0, 50], [80, -10, 0, -10]]),
+            (Direction::BottomToTop, [[0, -50, 0, -50], [80, 0, 0, 10]]),
+        ] {
+            let output = apply_subtable_configured(3, false, subtable, &glyphs, |ctx| {
+                ctx.buffer.set_direction(direction);
+            });
+            for (pos, expected) in output.glyph_positions().iter().zip(expected) {
+                assert_eq!(
+                    [pos.x_offset, pos.y_offset, pos.x_advance, pos.y_advance],
+                    expected
+                );
+            }
+            assert_eq!(output.glyph_positions()[1].attach_chain(), -1);
             assert_eq!(
-                [pos.x_offset, pos.y_offset, pos.x_advance, pos.y_advance],
-                expected
+                output.glyph_positions()[1].attach_type(),
+                gpos::attach_type::CURSIVE
             );
         }
-        assert_eq!(output.glyph_positions()[1].attach_chain(), -1);
-        assert_eq!(
-            output.glyph_positions()[1].attach_type(),
-            gpos::attach_type::CURSIVE
-        );
-    }
 
-    let output = apply_subtable_configured(3, false, &subtable, &[65536, 65537], |ctx| {
-        ctx.lookup_props |= u32::from(lookup_flags::RIGHT_TO_LEFT);
-    });
-    assert_eq!(output.glyph_positions()[0].attach_chain(), 1);
-    assert_eq!(output.glyph_positions()[0].y_offset, -40);
+        let output = apply_subtable_configured(3, false, subtable, &glyphs, |ctx| {
+            ctx.lookup_props |= u32::from(lookup_flags::RIGHT_TO_LEFT);
+        });
+        assert_eq!(output.glyph_positions()[0].attach_chain(), 1);
+        assert_eq!(output.glyph_positions()[0].y_offset, -40);
+    }
 }
 
 #[test]
