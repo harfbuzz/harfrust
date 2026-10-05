@@ -16,7 +16,7 @@
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, and MATH query APIs are covered.
+ * Shaping, BASE baseline, MATH, OpenType feature, and AAT feat queries are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
  * subsetting, other layout table introspection, hb_set and hb_map, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
@@ -33,6 +33,11 @@
 
 /* Types, functions and callbacks */
 
+#define hb_aat_layout_feature_selector_info_t            hr_aat_layout_feature_selector_info_t
+#define hb_aat_layout_feature_selector_t                 hr_aat_layout_feature_selector_t
+#define hb_aat_layout_feature_type_get_selector_infos    hr_aat_layout_feature_type_get_selector_infos
+#define hb_aat_layout_feature_type_t                     hr_aat_layout_feature_type_t
+#define hb_aat_layout_get_feature_types                  hr_aat_layout_get_feature_types
 #define hb_blob_copy_writable_or_fail                    hr_blob_copy_writable_or_fail
 #define hb_blob_create                                   hr_blob_create
 #define hb_blob_create_from_file                         hr_blob_create_from_file
@@ -211,6 +216,9 @@
 #define hb_ot_layout_get_baseline_with_fallback          hr_ot_layout_get_baseline_with_fallback
 #define hb_ot_layout_get_baseline_with_fallback2         hr_ot_layout_get_baseline_with_fallback2
 #define hb_ot_layout_get_horizontal_baseline_tag_for_script hr_ot_layout_get_horizontal_baseline_tag_for_script
+#define hb_ot_layout_language_find_feature               hr_ot_layout_language_find_feature
+#define hb_ot_layout_table_get_feature_tags              hr_ot_layout_table_get_feature_tags
+#define hb_ot_layout_table_select_script                 hr_ot_layout_table_select_script
 #define hb_ot_math_constant_t                            hr_ot_math_constant_t
 #define hb_ot_math_get_constant                          hr_ot_math_get_constant
 #define hb_ot_math_get_glyph_assembly                    hr_ot_math_get_glyph_assembly
@@ -266,6 +274,18 @@
 
 /* Constants and macros */
 
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_LOWER_CASE HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_LOWER_CASE
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_UPPER_CASE HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_UPPER_CASE
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_INVALID        HR_AAT_LAYOUT_FEATURE_SELECTOR_INVALID
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_PETITE_CAPS HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_PETITE_CAPS
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_SMALL_CAPS     HR_AAT_LAYOUT_FEATURE_SELECTOR_SMALL_CAPS
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_PETITE_CAPS HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_PETITE_CAPS
+#define HB_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_SMALL_CAPS HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_SMALL_CAPS
+#define HB_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE        HR_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE
+#define HB_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE         HR_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE
+#define HB_AAT_LAYOUT_FEATURE_TYPE_UPPER_CASE         HR_AAT_LAYOUT_FEATURE_TYPE_UPPER_CASE
+#define HB_AAT_LAYOUT_NO_SELECTOR_INDEX               HR_AAT_LAYOUT_NO_SELECTOR_INDEX
 #define HB_BUFFER_CLUSTER_LEVEL_CHARACTERS            HR_BUFFER_CLUSTER_LEVEL_CHARACTERS
 #define HB_BUFFER_CLUSTER_LEVEL_DEFAULT               HR_BUFFER_CLUSTER_LEVEL_DEFAULT
 #define HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES             HR_BUFFER_CLUSTER_LEVEL_GRAPHEMES
@@ -327,6 +347,9 @@
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT
 #define HB_OT_LAYOUT_BASELINE_TAG_MATH                HR_OT_LAYOUT_BASELINE_TAG_MATH
 #define HB_OT_LAYOUT_BASELINE_TAG_ROMAN               HR_OT_LAYOUT_BASELINE_TAG_ROMAN
+#define HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX           HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX
+#define HB_OT_LAYOUT_NO_FEATURE_INDEX                 HR_OT_LAYOUT_NO_FEATURE_INDEX
+#define HB_OT_LAYOUT_NO_SCRIPT_INDEX                  HR_OT_LAYOUT_NO_SCRIPT_INDEX
 #define HB_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT        HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT
 #define HB_OT_MATH_CONSTANT_AXIS_HEIGHT               HR_OT_MATH_CONSTANT_AXIS_HEIGHT
 #define HB_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT
@@ -388,6 +411,8 @@
 #define HB_OT_MATH_KERN_BOTTOM_RIGHT                  HR_OT_MATH_KERN_BOTTOM_RIGHT
 #define HB_OT_MATH_KERN_TOP_LEFT                      HR_OT_MATH_KERN_TOP_LEFT
 #define HB_OT_MATH_KERN_TOP_RIGHT                     HR_OT_MATH_KERN_TOP_RIGHT
+#define HB_OT_TAG_GPOS                                HR_OT_TAG_GPOS
+#define HB_OT_TAG_GSUB                                HR_OT_TAG_GSUB
 #define HB_OT_TAG_MATH                                HR_OT_TAG_MATH
 #define HB_OT_TAG_MATH_SCRIPT                         HR_OT_TAG_MATH_SCRIPT
 #define HB_SCRIPT_ADLAM                               HR_SCRIPT_ADLAM

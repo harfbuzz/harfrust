@@ -10,9 +10,10 @@ as HarfBuzz itself without collisions.
 # Scope
 
 This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
-`BASE` baseline and `MATH` queries. It has no drawing or painting callbacks, no
-subsetting, no other layout table introspection and no `hb_set` / `hb_map`
-containers, because HarfRust does not provide them.
+`BASE` baseline and `MATH` queries. OpenType script and feature queries and
+AAT `feat` queries are also available. Drawing and painting callbacks,
+subsetting, other layout introspection, and `hb_set` / `hb_map` containers
+remain outside this API.
 
 # Object lifetime
 
@@ -28,6 +29,7 @@ getter also accepts `NULL`, behaving as though it were passed the empty object.
 #![allow(non_upper_case_globals)]
 #![allow(clippy::missing_safety_doc)]
 
+pub mod aat_layout;
 pub mod blob;
 pub mod buffer;
 pub mod common;
@@ -41,6 +43,7 @@ mod plan;
 pub mod shape;
 pub mod shape_plan;
 
+pub use aat_layout::*;
 pub use blob::*;
 pub use buffer::*;
 pub use common::*;

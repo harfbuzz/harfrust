@@ -100,7 +100,9 @@ Blobs, faces, fonts, font callbacks, buffers, shape plans and `hr_shape`,
 along with the tags, directions, scripts, languages, features and variations
 they need. OpenType `BASE` baseline queries are available through
 `hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
-are available through `hr_ot_math_*` functions.
+are available through `hr_ot_math_*` functions. OpenType script selection and
+feature queries, plus AAT `feat` feature and selector queries, support caps
+probing and feature enumeration.
 Set `hr_font_set_ppem` when `BASE` or `MATH` device adjustments should apply; it is
 independent of the point size set by `hr_font_set_ptem`.
 

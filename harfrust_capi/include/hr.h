@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define HR_AAT_LAYOUT_NO_SELECTOR_INDEX 65535
+
 /**
  * Value applied to a feature that covers the whole buffer, as its start.
  */
@@ -34,6 +36,12 @@
  * generated header.
  */
 #define HR_FEATURE_GLOBAL_END 4294967295
+
+#define HR_OT_LAYOUT_NO_SCRIPT_INDEX 65535
+
+#define HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX 65535
+
+#define HR_OT_LAYOUT_NO_FEATURE_INDEX 65535
 
 /**
  * The major version of this library.
@@ -91,6 +99,17 @@ typedef struct hr_language_impl_t hr_language_impl_t;
  * A reusable plan for shaping text with given properties.
  */
 typedef struct hr_shape_plan_t hr_shape_plan_t;
+
+typedef unsigned int hr_aat_layout_feature_type_t;
+
+typedef unsigned int hr_aat_layout_feature_selector_t;
+
+typedef struct hr_aat_layout_feature_selector_info_t {
+  unsigned int name_id;
+  hr_aat_layout_feature_selector_t enable;
+  hr_aat_layout_feature_selector_t disable;
+  unsigned int reserved;
+} hr_aat_layout_feature_selector_info_t;
 
 /**
  * How a blob relates to the memory it was created over.
@@ -441,6 +460,28 @@ typedef struct hr_ot_math_glyph_part_t {
   hr_position_t full_advance;
   hr_ot_math_glyph_part_flags_t flags;
 } hr_ot_math_glyph_part_t;
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE 3
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE 37
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_UPPER_CASE 38
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INVALID 65535
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SMALL_CAPS 3
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_LOWER_CASE 0
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS 1
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_PETITE_CAPS 2
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_UPPER_CASE 0
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_SMALL_CAPS 1
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_PETITE_CAPS 2
 
 /**
  * Copy the data. The caller keeps ownership of the original buffer.
@@ -1578,6 +1619,10 @@ typedef struct hr_ot_math_glyph_part_t {
  */
 #define HR_SCRIPT_MYANMAR_ZAWGYI 1365336423
 
+#define HR_OT_TAG_GSUB 1196643650
+
+#define HR_OT_TAG_GPOS 1196445523
+
 #define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134
 
 #define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719
@@ -1725,6 +1770,32 @@ typedef struct hr_ot_math_glyph_part_t {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * Enumerates feature types in the AAT `feat` table.
+ *
+ * # Safety
+ * `face` must be NULL or live; `feature_count` must be writable when non-NULL,
+ * and `features` must have its input capacity when non-NULL.
+ */
+unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
+                                             unsigned int start_offset,
+                                             unsigned int *feature_count,
+                                             hr_aat_layout_feature_type_t *features);
+
+/**
+ * Enumerates selectors for an AAT feature type.
+ *
+ * # Safety
+ * `face` must be NULL or live; output pointers must be writable when non-NULL,
+ * and `selectors` must have `selector_count` entries of capacity when non-NULL.
+ */
+unsigned int hr_aat_layout_feature_type_get_selector_infos(struct hr_face_t *face,
+                                                           hr_aat_layout_feature_type_t feature_type,
+                                                           unsigned int start_offset,
+                                                           unsigned int *selector_count,
+                                                           struct hr_aat_layout_feature_selector_info_t *selectors,
+                                                           unsigned int *default_index);
 
 /**
  * Creates a blob over `length` bytes at `data`.
@@ -3485,6 +3556,47 @@ void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
                                           hr_font_get_glyph_extents_func_t func,
                                           void *user_data,
                                           hr_destroy_func_t destroy);
+
+/**
+ * Selects an OpenType script, falling back to DFLT, dflt, or latn.
+ *
+ * # Safety
+ * `face` must be NULL or live. `script_tags` must contain `script_count` tags
+ * when non-NULL; output pointers must be writable when non-NULL.
+ */
+hr_bool_t hr_ot_layout_table_select_script(struct hr_face_t *face,
+                                           hr_tag_t table_tag,
+                                           unsigned int script_count,
+                                           const hr_tag_t *script_tags,
+                                           unsigned int *script_index,
+                                           hr_tag_t *chosen_script);
+
+/**
+ * Finds a feature in one script's language system.
+ * Language index 0xFFFF selects its default language system.
+ *
+ * # Safety
+ * `face` must be NULL or live; `feature_index` must be writable when non-NULL.
+ */
+hr_bool_t hr_ot_layout_language_find_feature(struct hr_face_t *face,
+                                             hr_tag_t table_tag,
+                                             unsigned int script_index,
+                                             unsigned int language_index,
+                                             hr_tag_t feature_tag,
+                                             unsigned int *feature_index);
+
+/**
+ * Enumerates feature tags in their original table order, including duplicates.
+ *
+ * # Safety
+ * `face` must be NULL or live; `feature_count` must be writable when non-NULL,
+ * and `feature_tags` must have its input capacity when non-NULL.
+ */
+unsigned int hr_ot_layout_table_get_feature_tags(struct hr_face_t *face,
+                                                 hr_tag_t table_tag,
+                                                 unsigned int start_offset,
+                                                 unsigned int *feature_count,
+                                                 hr_tag_t *feature_tags);
 
 /**
  * Returns the dominant horizontal baseline for a Unicode script.

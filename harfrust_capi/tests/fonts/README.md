@@ -8,3 +8,6 @@ through 6. It tests that the C font's ppem settings affect baseline queries.
 `harfrust/tests/fonts/in-house/8d9c4b193808b8bde94389ba7831c1fc6f9e794e.ttf`
 by `make_math_query.py`. It adds one covered glyph for each MATH query and
 Device adjustments to AxisHeight and the kern height and value.
+
+`aat-feat.ttf` is copied from HarfBuzz's `test/api/fonts/aat-feat.ttf`.
+It exercises exclusive and nonexclusive records in the AAT `feat` table.

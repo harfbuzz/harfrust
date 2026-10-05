@@ -29,6 +29,171 @@ const PLAIN_UPEM: c_uint = 1024;
 const VARIABLE_FONT: &str = "Linefont.ttf";
 
 #[test]
+fn layout_script_selection_and_feature_queries() {
+    unsafe {
+        with_named_font("PT_Sans-Caption-Web-Regular.ttf", |face, _font| {
+            let gsub = u32::from_be_bytes(*b"GSUB");
+            let cyrl = u32::from_be_bytes(*b"cyrl");
+            let latn = u32::from_be_bytes(*b"latn");
+            let mut script_index = 99;
+            let mut chosen = 99;
+            assert_eq!(
+                hr_ot_layout_table_select_script(
+                    face,
+                    gsub,
+                    1,
+                    &raw const cyrl,
+                    &raw mut script_index,
+                    &raw mut chosen
+                ),
+                1
+            );
+            assert_eq!((script_index, chosen), (0, cyrl));
+            let absent = u32::from_be_bytes(*b"xxxx");
+            assert_eq!(
+                hr_ot_layout_table_select_script(
+                    face,
+                    gsub,
+                    1,
+                    &raw const absent,
+                    &raw mut script_index,
+                    &raw mut chosen
+                ),
+                0
+            );
+            assert_eq!((script_index, chosen), (1, latn));
+
+            let mut candidates = [absent; 18];
+            candidates[17] = cyrl;
+            assert_eq!(
+                hr_ot_layout_table_select_script(
+                    face,
+                    gsub,
+                    candidates.len() as c_uint,
+                    candidates.as_ptr(),
+                    &raw mut script_index,
+                    &raw mut chosen
+                ),
+                1
+            );
+            assert_eq!((script_index, chosen), (0, cyrl));
+
+            let liga = u32::from_be_bytes(*b"liga");
+            let mut feature_index = 99;
+            assert_eq!(
+                hr_ot_layout_language_find_feature(
+                    face,
+                    gsub,
+                    1,
+                    0xFFFF,
+                    liga,
+                    &raw mut feature_index
+                ),
+                1
+            );
+            assert_eq!(feature_index, 27);
+            assert_eq!(
+                hr_ot_layout_language_find_feature(face, gsub, 1, 0, liga, &raw mut feature_index),
+                1
+            );
+            assert_eq!(feature_index, 28);
+            assert_eq!(
+                hr_ot_layout_language_find_feature(
+                    face,
+                    gsub,
+                    1,
+                    0xFFFF,
+                    absent,
+                    &raw mut feature_index
+                ),
+                0
+            );
+            assert_eq!(feature_index, 0xFFFF);
+
+            let mut count = 2;
+            let mut tags = [0; 2];
+            assert_eq!(
+                hr_ot_layout_table_get_feature_tags(
+                    face,
+                    gsub,
+                    6,
+                    &raw mut count,
+                    tags.as_mut_ptr()
+                ),
+                46
+            );
+            assert_eq!(count, 2);
+            assert_eq!(tags, [u32::from_be_bytes(*b"ccmp"); 2]);
+        });
+    }
+}
+
+#[test]
+fn aat_feature_types_and_selector_infos() {
+    unsafe {
+        // This tiny feat font comes from HarfBuzz's test/api/fonts/aat-feat.ttf.
+        let path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/aat-feat.ttf");
+        with_font_file(&path, |face, _font| {
+            let mut count = 3;
+            let mut types = [0; 3];
+            assert_eq!(
+                hr_aat_layout_get_feature_types(face, 1, &raw mut count, types.as_mut_ptr()),
+                11
+            );
+            assert_eq!((count, types), (3, [3, 6, 8]));
+
+            let mut selectors = [hr_aat_layout_feature_selector_info_t::default(); 2];
+            let mut selector_count = 2;
+            let mut default_index = 99;
+            assert_eq!(
+                hr_aat_layout_feature_type_get_selector_infos(
+                    face,
+                    1,
+                    1,
+                    &raw mut selector_count,
+                    selectors.as_mut_ptr(),
+                    &raw mut default_index,
+                ),
+                3
+            );
+            assert_eq!((selector_count, default_index), (2, 0xFFFF));
+            assert_eq!(
+                (
+                    selectors[0].name_id,
+                    selectors[0].enable,
+                    selectors[0].disable
+                ),
+                (259, 4, 5)
+            );
+            assert_eq!(
+                (
+                    selectors[1].name_id,
+                    selectors[1].enable,
+                    selectors[1].disable
+                ),
+                (304, 10, 11)
+            );
+
+            selector_count = 1;
+            assert_eq!(
+                hr_aat_layout_feature_type_get_selector_infos(
+                    face,
+                    3,
+                    2,
+                    &raw mut selector_count,
+                    selectors.as_mut_ptr(),
+                    &raw mut default_index,
+                ),
+                3
+            );
+            assert_eq!((selector_count, default_index), (1, 0));
+            assert_eq!((selectors[0].enable, selectors[0].disable), (3, 0));
+        });
+    }
+}
+
+#[test]
 fn math_queries_scale_device_values_and_page() {
     unsafe {
         let path =

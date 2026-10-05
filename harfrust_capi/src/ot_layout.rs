@@ -1,7 +1,10 @@
-//! OpenType BASE baseline queries.
+//! OpenType layout and BASE queries.
+
+use core::ffi::c_uint;
 
 use harfrust::Tag;
 use read_fonts::tables::base::{BaseAxis, BaseInstance};
+use read_fonts::tables::layout::{FeatureList, ScriptList};
 use read_fonts::types::F48Dot16;
 use read_fonts::TableProvider;
 
@@ -10,8 +13,169 @@ use crate::common::{
     hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, script_to_rust,
     tag_from_rust, tag_to_rust, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
 };
+use crate::face::hr_face_t;
 use crate::font::{hr_font_get_glyph_extents, hr_font_get_nominal_glyph, hr_font_t};
 use crate::object;
+
+const GSUB_TAG: hr_tag_t = 0x4753_5542;
+const GPOS_TAG: hr_tag_t = 0x4750_4F53;
+const NO_INDEX: c_uint = 0xFFFF;
+
+pub const HR_OT_TAG_GSUB: hr_tag_t = 0x4753_5542;
+pub const HR_OT_TAG_GPOS: hr_tag_t = 0x4750_4F53;
+pub const HR_OT_LAYOUT_NO_SCRIPT_INDEX: c_uint = 0xFFFF;
+pub const HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX: c_uint = 0xFFFF;
+pub const HR_OT_LAYOUT_NO_FEATURE_INDEX: c_uint = 0xFFFF;
+
+fn script_list(face: &hr_face_t, table_tag: hr_tag_t) -> Option<ScriptList<'_>> {
+    let font = face.font()?;
+    match table_tag {
+        GSUB_TAG => font.tables().gsub().ok()?.script_list().ok(),
+        GPOS_TAG => font.tables().gpos().ok()?.script_list().ok(),
+        _ => None,
+    }
+}
+
+fn layout_lists(
+    face: &hr_face_t,
+    table_tag: hr_tag_t,
+) -> Option<(ScriptList<'_>, FeatureList<'_>)> {
+    let font = face.font()?;
+    match table_tag {
+        GSUB_TAG => {
+            let table = font.tables().gsub().ok()?;
+            Some((table.script_list().ok()?, table.feature_list().ok()?))
+        }
+        GPOS_TAG => {
+            let table = font.tables().gpos().ok()?;
+            Some((table.script_list().ok()?, table.feature_list().ok()?))
+        }
+        _ => None,
+    }
+}
+
+fn feature_list(face: &hr_face_t, table_tag: hr_tag_t) -> Option<FeatureList<'_>> {
+    let font = face.font()?;
+    match table_tag {
+        GSUB_TAG => font.tables().gsub().ok()?.feature_list().ok(),
+        GPOS_TAG => font.tables().gpos().ok()?.feature_list().ok(),
+        _ => None,
+    }
+}
+
+/// Selects an OpenType script, falling back to DFLT, dflt, or latn.
+///
+/// # Safety
+/// `face` must be NULL or live. `script_tags` must contain `script_count` tags
+/// when non-NULL; output pointers must be writable when non-NULL.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_table_select_script(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    script_count: c_uint,
+    script_tags: *const hr_tag_t,
+    script_index: *mut c_uint,
+    chosen_script: *mut hr_tag_t,
+) -> hr_bool_t {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let selected = script_list(face, table_tag).and_then(|list| {
+        const BATCH_SIZE: usize = 16;
+        let mut tags = [Tag::new(b"    "); BATCH_SIZE];
+        let mut fallback = None;
+        if !script_tags.is_null() {
+            let mut offset = 0;
+            while offset < script_count as usize {
+                let count = (script_count as usize - offset).min(BATCH_SIZE);
+                for (i, tag) in tags[..count].iter_mut().enumerate() {
+                    *tag = tag_to_rust(unsafe { *script_tags.add(offset + i) });
+                }
+                if let Some(found) = list.select(&tags[..count]) {
+                    if !found.is_fallback {
+                        return Some(found);
+                    }
+                    fallback = Some(found);
+                }
+                offset += count;
+            }
+        }
+        fallback.or_else(|| list.select(&[]))
+    });
+    if let Some(index) = unsafe { script_index.as_mut() } {
+        *index = selected.map_or(NO_INDEX, |value| c_uint::from(value.index));
+    }
+    if let Some(tag) = unsafe { chosen_script.as_mut() } {
+        *tag = selected.map_or(0, |value| tag_from_rust(value.tag));
+    }
+    selected.is_some_and(|value| !value.is_fallback).into()
+}
+
+/// Finds a feature in one script's language system.
+/// Language index 0xFFFF selects its default language system.
+///
+/// # Safety
+/// `face` must be NULL or live; `feature_index` must be writable when non-NULL.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_language_find_feature(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    script_index: c_uint,
+    language_index: c_uint,
+    feature_tag: hr_tag_t,
+    feature_index: *mut c_uint,
+) -> hr_bool_t {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let found = layout_lists(face, table_tag).and_then(|(scripts, features)| {
+        let script = scripts.get(u16::try_from(script_index).ok()?).ok()?;
+        let language = if language_index == NO_INDEX {
+            script.default_lang_sys()?.ok()?
+        } else {
+            script
+                .lang_sys(u16::try_from(language_index).ok()?)
+                .ok()?
+                .element
+        };
+        language.feature_index_for_tag(&features, tag_to_rust(feature_tag))
+    });
+    if let Some(index) = unsafe { feature_index.as_mut() } {
+        *index = found.map_or(NO_INDEX, c_uint::from);
+    }
+    found.is_some().into()
+}
+
+/// Enumerates feature tags in their original table order, including duplicates.
+///
+/// # Safety
+/// `face` must be NULL or live; `feature_count` must be writable when non-NULL,
+/// and `feature_tags` must have its input capacity when non-NULL.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    start_offset: c_uint,
+    feature_count: *mut c_uint,
+    feature_tags: *mut hr_tag_t,
+) -> c_uint {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let Some(features) = feature_list(face, table_tag) else {
+        if let Some(count) = unsafe { feature_count.as_mut() } {
+            *count = 0;
+        }
+        return 0;
+    };
+    let records = features.feature_records();
+    let total = records.len() as c_uint;
+    if let Some(count) = unsafe { feature_count.as_mut() } {
+        let start = (start_offset as usize).min(records.len());
+        let written = (*count as usize).min(records.len() - start);
+        if !feature_tags.is_null() {
+            for (i, record) in records[start..start + written].iter().enumerate() {
+                unsafe { *feature_tags.add(i) = tag_from_rust(record.feature_tag()) };
+            }
+        }
+        *count = written as c_uint;
+    }
+    total
+}
 
 /// A registered OpenType BASE baseline tag. The numeric value is the tag itself.
 pub type hr_ot_layout_baseline_tag_t = hr_tag_t;
