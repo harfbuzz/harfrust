@@ -2176,6 +2176,186 @@ fn font_funcs_override_advances() {
     }
 }
 
+unsafe extern "C" fn batch_advances(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    count: c_uint,
+    _first_glyph: *const hr_codepoint_t,
+    _glyph_stride: c_uint,
+    first_advance: *mut hr_position_t,
+    advance_stride: c_uint,
+    user_data: *mut c_void,
+) {
+    unsafe {
+        *user_data.cast::<u32>() += 1;
+        for i in 0..count as usize {
+            first_advance
+                .cast::<u8>()
+                .add(i * advance_stride as usize)
+                .cast::<hr_position_t>()
+                .write_unaligned(700 + i as i32);
+        }
+    }
+}
+
+unsafe extern "C" fn fixed_origin(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    _glyph: hr_codepoint_t,
+    x: *mut hr_position_t,
+    y: *mut hr_position_t,
+    _user_data: *mut c_void,
+) -> hr_bool_t {
+    unsafe {
+        *x = 12;
+        *y = 34;
+    }
+    1
+}
+
+unsafe extern "C" fn fixed_kerning(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    first: hr_codepoint_t,
+    second: hr_codepoint_t,
+    _user_data: *mut c_void,
+) -> hr_position_t {
+    first as i32 - second as i32
+}
+
+#[test]
+fn added_font_callbacks_answer_and_batch_shaping() {
+    unsafe {
+        with_font(|_, font| {
+            let funcs = hr_font_funcs_create();
+            let mut calls = 0u32;
+            hr_font_funcs_set_glyph_h_advances_func(
+                funcs,
+                Some(batch_advances),
+                (&raw mut calls).cast(),
+                None,
+            );
+            hr_font_funcs_set_glyph_h_origin_func(funcs, Some(fixed_origin), ptr::null_mut(), None);
+            hr_font_funcs_set_glyph_h_kerning_func(
+                funcs,
+                Some(fixed_kerning),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_funcs_set_glyph_v_kerning_func(
+                funcs,
+                Some(fixed_kerning),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
+
+            let buffer = buffer_with_text("AB");
+            hr_shape(font, buffer, ptr::null(), 0);
+            let mut len = 0;
+            let positions = hr_buffer_get_glyph_positions(buffer, &raw mut len);
+            assert_eq!(len, 2);
+            assert_eq!((*positions).x_advance, 700);
+            assert_eq!((*positions.add(1)).x_advance, 701);
+            assert!(calls > 0);
+
+            let glyphs = [1u32, 2];
+            let mut advances = [0i32; 2];
+            hr_font_get_glyph_h_advances(font, 2, glyphs.as_ptr(), 4, advances.as_mut_ptr(), 4);
+            assert_eq!(advances, [700, 701]);
+            assert_eq!(hr_font_get_glyph_h_advance(font, 1), 700);
+            let (mut x, mut y) = (0, 0);
+            assert_eq!(
+                hr_font_get_glyph_h_origin(font, 1, &raw mut x, &raw mut y),
+                1
+            );
+            assert_eq!((x, y), (12, 34));
+            assert_eq!(hr_font_get_glyph_h_kerning(font, 10, 3), 7);
+            assert_eq!(hr_font_get_glyph_v_kerning(font, 10, 3), 7);
+
+            hr_buffer_destroy(buffer);
+            hr_font_funcs_destroy(funcs);
+        });
+    }
+}
+
+#[test]
+fn added_font_callbacks_delegate_and_scale_through_subfonts() {
+    unsafe {
+        with_font(|_, parent| {
+            hr_font_set_scale(parent, 1000, 2000);
+            let funcs = hr_font_funcs_create();
+            let mut calls = 0u32;
+            hr_font_funcs_set_glyph_h_advances_func(
+                funcs,
+                Some(batch_advances),
+                (&raw mut calls).cast(),
+                None,
+            );
+            hr_font_funcs_set_glyph_h_origin_func(funcs, Some(fixed_origin), ptr::null_mut(), None);
+            hr_font_funcs_set_glyph_h_kerning_func(
+                funcs,
+                Some(fixed_kerning),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_funcs_set_glyph_v_kerning_func(
+                funcs,
+                Some(fixed_kerning),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(parent, funcs, ptr::null_mut(), None);
+            let child = hr_font_create_sub_font(parent);
+            hr_font_set_scale(child, 2000, 4000);
+
+            let glyphs = [1u32, 2];
+            let mut advances = [0i32; 2];
+            hr_font_get_glyph_h_advances(child, 2, glyphs.as_ptr(), 4, advances.as_mut_ptr(), 4);
+            assert_eq!(advances, [1400, 1402]);
+            let (mut x, mut y) = (0, 0);
+            assert_eq!(
+                hr_font_get_glyph_h_origin(child, 1, &raw mut x, &raw mut y),
+                1
+            );
+            assert_eq!((x, y), (24, 68));
+            assert_eq!(hr_font_get_glyph_h_kerning(child, 10, 3), 14);
+            assert_eq!(hr_font_get_glyph_v_kerning(child, 10, 3), 14);
+            assert!(calls > 0);
+
+            hr_font_destroy(child);
+            hr_font_funcs_destroy(funcs);
+        });
+    }
+}
+
+#[test]
+fn face_count_reads_single_fonts_and_collections() {
+    unsafe {
+        let single = std::fs::read(font_path(PLAIN_FONT)).unwrap();
+        let blob = blob_over(&single);
+        assert_eq!(hr_face_count(blob), 1);
+        hr_blob_destroy(blob);
+
+        let collection = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .unwrap()
+                .join("harfrust/tests/fonts/in-house/TTC.ttc"),
+        )
+        .unwrap();
+        let blob = blob_over(&collection);
+        assert!(hr_face_count(blob) > 1);
+        hr_blob_destroy(blob);
+
+        let type1 = b"%!PS-AdobeFont-1.0\n";
+        let blob = blob_over(type1);
+        assert_eq!(hr_face_count(blob), 0);
+        hr_blob_destroy(blob);
+        assert_eq!(hr_face_count(hr_blob_get_empty()), 0);
+    }
+}
+
 unsafe extern "C" fn always_glyph_777(
     _font: *mut hr_font_t,
     _font_data: *mut c_void,

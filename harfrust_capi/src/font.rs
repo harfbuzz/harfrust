@@ -1026,6 +1026,19 @@ unsafe fn advances(
         return;
     }
     let state = unsafe { object::or_empty(font.cast_const()) };
+    if horizontal
+        && unsafe {
+            crate::font_funcs::FontFuncsAdapter::new(font, state).call_h_advances(
+                count,
+                first_glyph,
+                glyph_stride,
+                first_advance,
+                advance_stride,
+            )
+        }
+    {
+        return;
+    }
     let mut glyph = first_glyph.cast::<u8>();
     let mut advance = first_advance.cast::<u8>();
     for _ in 0..count {
@@ -1062,14 +1075,53 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
     x: *mut hr_position_t,
     y: *mut hr_position_t,
 ) -> hr_bool_t {
-    let _ = (font, glyph);
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    let origin = crate::font_funcs::FontFuncsAdapter::new(font, state).call_h_origin(glyph);
     if let Some(out) = unsafe { x.as_mut() } {
-        *out = 0;
+        *out = origin.map_or(0, |origin| origin.0);
     }
     if let Some(out) = unsafe { y.as_mut() } {
-        *out = 0;
+        *out = origin.map_or(0, |origin| origin.1);
     }
-    true.into()
+    origin.is_some().into()
+}
+
+/// Returns the horizontal kerning supplied by font callbacks, or zero.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_h_kerning(
+    font: *mut hr_font_t,
+    first_glyph: hr_codepoint_t,
+    second_glyph: hr_codepoint_t,
+) -> hr_position_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    crate::font_funcs::FontFuncsAdapter::new(font, state).call_kerning(
+        first_glyph,
+        second_glyph,
+        false,
+    )
+}
+
+/// Returns the vertical kerning supplied by font callbacks, or zero.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_glyph_v_kerning(
+    font: *mut hr_font_t,
+    first_glyph: hr_codepoint_t,
+    second_glyph: hr_codepoint_t,
+) -> hr_position_t {
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    crate::font_funcs::FontFuncsAdapter::new(font, state).call_kerning(
+        first_glyph,
+        second_glyph,
+        true,
+    )
 }
 
 /// Where a glyph hangs from when text runs vertically, returning false when
@@ -1212,9 +1264,9 @@ unsafe fn origin_for_direction(
 ) -> (hr_position_t, hr_position_t) {
     let state = unsafe { object::or_empty(font.cast_const()) };
     if crate::common::hr_direction_is_horizontal(direction) != 0 {
-        // A glyph's horizontal origin is its own, and nothing is guessed for
-        // it from the vertical one.
-        return (0, 0);
+        return crate::font_funcs::FontFuncsAdapter::new(font, state)
+            .call_h_origin(glyph)
+            .unwrap_or((0, 0));
     }
     if let Some(origin) = state.glyph_v_origin(font, glyph) {
         return origin;

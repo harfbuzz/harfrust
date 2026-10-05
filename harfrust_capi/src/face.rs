@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{Blob, Font, TableFunction};
 use harfrust::Tag;
-use read_fonts::TableProvider;
+use read_fonts::{model::Format, TableProvider};
 
 use crate::blob::hr_blob_t;
 use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust};
@@ -140,6 +140,22 @@ impl Object for hr_face_t {
                 })
             })
             .get()
+    }
+}
+
+/// Returns the number of SFNT faces in a font blob, or zero otherwise.
+///
+/// # Safety
+///
+/// `blob` must be `NULL` or a live blob.
+#[no_mangle]
+pub unsafe extern "C" fn hr_face_count(blob: *mut hr_blob_t) -> c_uint {
+    let Some(blob) = (unsafe { blob.as_ref() }) else {
+        return 0;
+    };
+    match Format::new(blob.bytes()) {
+        Some(Format::Sfnt(count)) => count,
+        _ => 0,
     }
 }
 
