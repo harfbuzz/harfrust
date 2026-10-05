@@ -2005,6 +2005,36 @@ hr_bool_t hr_buffer_allocation_successful(struct hr_buffer_t *buffer);
 void hr_buffer_add(struct hr_buffer_t *buffer, hr_codepoint_t codepoint, unsigned int cluster);
 
 /**
+ * Appends UTF-16 text. Offsets and clusters count 16-bit code units.
+ * A negative `text_length` reads to a zero code unit; a negative
+ * `item_length` selects the rest of the text.
+ *
+ * # Safety
+ *
+ * `text` must point to `text_length` readable code units, or be zero-terminated.
+ */
+void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
+                         const uint16_t *text,
+                         int text_length,
+                         unsigned int item_offset,
+                         int item_length);
+
+/**
+ * Appends Latin-1 text. Offsets and clusters count bytes.
+ * A negative `text_length` reads to a zero byte; a negative `item_length`
+ * selects the rest of the text.
+ *
+ * # Safety
+ *
+ * `text` must point to `text_length` readable bytes, or be zero-terminated.
+ */
+void hr_buffer_add_latin1(struct hr_buffer_t *buffer,
+                          const char *text,
+                          int text_length,
+                          unsigned int item_offset,
+                          int item_length);
+
+/**
  * Appends UTF-8 text to a buffer.
  *
  * Only `text[item_offset .. item_offset + item_length]` is added; the text

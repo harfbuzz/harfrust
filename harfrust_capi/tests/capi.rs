@@ -849,6 +849,67 @@ fn add_utf8_uses_context_and_absolute_clusters() {
 }
 
 #[test]
+fn add_utf16_decodes_pairs_and_keeps_code_unit_clusters() {
+    unsafe {
+        let buffer = hr_buffer_create();
+        let text = [
+            b'a' as u16,
+            0xD83D,
+            0xDE00,
+            b'b' as u16,
+            0xD800,
+            b'c' as u16,
+            0,
+        ];
+        hr_buffer_add_utf16(buffer, text.as_ptr(), -1, 1, 5);
+        let mut len = 0;
+        let infos = std::slice::from_raw_parts(
+            hr_buffer_get_glyph_infos(buffer, &raw mut len),
+            len as usize,
+        );
+        let seen: Vec<_> = infos.iter().map(|i| (i.codepoint, i.cluster)).collect();
+        assert_eq!(
+            seen,
+            [
+                (0x1F600, 1),
+                (b'b' as u32, 3),
+                (0xFFFD, 4),
+                (b'c' as u32, 5)
+            ]
+        );
+        hr_buffer_destroy(buffer);
+
+        let buffer = hr_buffer_create();
+        // Splitting a surrogate pair at the item boundary makes the high
+        // surrogate an invalid item, rather than consuming its context.
+        hr_buffer_add_utf16(buffer, text.as_ptr(), 6, 1, 1);
+        let mut len = 0;
+        let infos = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+        assert_eq!(len, 1);
+        assert_eq!((*infos).codepoint, 0xFFFD);
+        assert_eq!((*infos).cluster, 1);
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn add_latin1_preserves_high_bytes_and_absolute_clusters() {
+    unsafe {
+        let buffer = hr_buffer_create();
+        let text = [b'a', 0xE9, b'b', 0];
+        hr_buffer_add_latin1(buffer, text.as_ptr().cast(), -1, 1, 2);
+        let mut len = 0;
+        let infos = std::slice::from_raw_parts(
+            hr_buffer_get_glyph_infos(buffer, &raw mut len),
+            len as usize,
+        );
+        let seen: Vec<_> = infos.iter().map(|i| (i.codepoint, i.cluster)).collect();
+        assert_eq!(seen, [(0xE9, 1), (b'b' as u32, 2)]);
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
 fn buffer_properties_round_trip() {
     unsafe {
         let buffer = hr_buffer_create();
