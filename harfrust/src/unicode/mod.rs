@@ -316,9 +316,9 @@ pub(crate) mod modified_combining_class {
     // Modify Telugu length marks (ccc=84, ccc=91).
     // These are the only matras in the main Indic scripts range that have
     // a non-zero ccc.  That makes them reorder with the Halant that is
-    // ccc=9.  Just zero them, we don't need them in our Indic shaper.
-    pub const CCC84: u8 = 0; // length mark
-    pub const CCC91: u8 = 0; // ai length mark
+    // ccc=9. Assign 4 and 5, which are otherwise unassigned.
+    pub const CCC84: u8 = 4; // length mark
+    pub const CCC91: u8 = 5; // ai length mark
 
     // Thai
     //
@@ -931,6 +931,16 @@ mod builtin {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn telugu_length_marks_reorder_before_virama() {
+        use super::CharExt;
+        assert_eq!(0x0C55u32.modified_combining_class(), 4);
+        assert_eq!(0x0C56u32.modified_combining_class(), 5);
+        assert_eq!(0x0C4Du32.modified_combining_class(), 9);
+        assert_eq!(super::combining_class(0x0C55), 84);
+        assert_eq!(super::combining_class(0x0C56), 91);
+    }
+
     #[cfg(not(feature = "icu"))]
     #[test]
     fn unicode_18_scripts() {

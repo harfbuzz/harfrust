@@ -563,9 +563,11 @@ fn form_clusters(buffer: &mut Buffer) {
 
 fn ensure_native_direction(buffer: &mut Buffer) {
     let dir = buffer.direction;
+    // Like HarfBuzz, use LTR when no script was detected; only explicitly
+    // directionless scripts should suppress native-direction conversion.
     let mut hor = buffer
         .script
-        .and_then(Direction::from_script)
+        .map_or(Some(Direction::LeftToRight), Direction::from_script)
         .unwrap_or_default();
 
     // Numeric runs in natively-RTL scripts are actually native-LTR, so we reset
@@ -811,4 +813,46 @@ fn propagate_flags(buffer: &mut Buffer) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod native_direction_tests {
+    use super::*;
+
+    #[test]
+    fn unspecified_script_keeps_emoji_graphemes_in_native_order() {
+        for script in [None, Some(Script::COMMON), Some(Script::UNKNOWN)] {
+            let mut buffer = Buffer::new();
+            buffer.push(0x1F44D, 0);
+            buffer.push(0x1F3FD, 4);
+            buffer.push(0x41, 8);
+            buffer.info[1].set_continuation(&mut buffer.scratch_flags);
+            buffer.script = script;
+            buffer.direction = Direction::RightToLeft;
+            ensure_native_direction(&mut buffer);
+            assert_eq!(buffer.direction, Direction::LeftToRight);
+            assert_eq!(buffer.info[0].glyph_id, 0x41);
+            assert_eq!(buffer.info[1].glyph_id, 0x1F44D);
+            assert_eq!(buffer.info[2].glyph_id, 0x1F3FD);
+        }
+    }
+
+    #[test]
+    fn explicitly_directionless_scripts_keep_requested_direction() {
+        for script in [
+            Script::OLD_HUNGARIAN,
+            Script::OLD_ITALIC,
+            Script::RUNIC,
+            Script::TIFINAGH,
+        ] {
+            let mut buffer = Buffer::new();
+            buffer.push_str("ab");
+            buffer.script = Some(script);
+            buffer.direction = Direction::RightToLeft;
+            ensure_native_direction(&mut buffer);
+            assert_eq!(buffer.direction, Direction::RightToLeft);
+            assert_eq!(buffer.info[0].glyph_id, 0x61);
+            assert_eq!(buffer.info[1].glyph_id, 0x62);
+        }
+    }
 }
