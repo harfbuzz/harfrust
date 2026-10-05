@@ -87,6 +87,8 @@ typedef struct hr_font_t hr_font_t;
  */
 typedef struct hr_language_impl_t hr_language_impl_t;
 
+typedef struct hr_set_t hr_set_t;
+
 /**
  * A reusable plan for shaping text with given properties.
  */
@@ -3487,6 +3489,45 @@ void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
                                           hr_destroy_func_t destroy);
 
 /**
+ * Returns whether the face has a readable GSUB table.
+ *
+ * # Safety
+ * `face` must be `NULL` or live.
+ */
+hr_bool_t hr_ot_layout_has_substitution(struct hr_face_t *face);
+
+/**
+ * Returns whether the face has a readable GPOS table.
+ *
+ * # Safety
+ * `face` must be `NULL` or live.
+ */
+hr_bool_t hr_ot_layout_has_positioning(struct hr_face_t *face);
+
+/**
+ * Returns the number of lookups in GSUB or GPOS.
+ *
+ * # Safety
+ * `face` must be `NULL` or live.
+ */
+unsigned int hr_ot_layout_table_get_lookup_count(struct hr_face_t *face, hr_tag_t table_tag);
+
+/**
+ * Collects glyphs touched by one GSUB or GPOS lookup into the supplied sets.
+ * Forms not yet enumerated conservatively include every OpenType glyph ID.
+ *
+ * # Safety
+ * `face` and each non-`NULL` set must be live. Output sets may be the same.
+ */
+void hr_ot_layout_lookup_collect_glyphs(struct hr_face_t *face,
+                                        hr_tag_t table_tag,
+                                        unsigned int lookup_index,
+                                        struct hr_set_t *glyphs_before,
+                                        struct hr_set_t *glyphs_input,
+                                        struct hr_set_t *glyphs_after,
+                                        struct hr_set_t *glyphs_output);
+
+/**
  * Returns the dominant horizontal baseline for a Unicode script.
  */
 hr_ot_layout_baseline_tag_t hr_ot_layout_get_horizontal_baseline_tag_for_script(hr_script_t script);
@@ -3637,6 +3678,62 @@ unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
                                            unsigned int *parts_count,
                                            struct hr_ot_math_glyph_part_t *parts,
                                            hr_position_t *italics_correction);
+
+struct hr_set_t *hr_set_create(void);
+
+struct hr_set_t *hr_set_get_empty(void);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+struct hr_set_t *hr_set_reference(struct hr_set_t *set);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live, and the caller must own its reference.
+ */
+void hr_set_destroy(struct hr_set_t *set);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live, and `key` must outlive it.
+ */
+hr_bool_t hr_set_set_user_data(struct hr_set_t *set,
+                               const struct hr_user_data_key_t *key,
+                               void *data,
+                               hr_destroy_func_t destroy,
+                               hr_bool_t replace);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void *hr_set_get_user_data(struct hr_set_t *set, const struct hr_user_data_key_t *key);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void hr_set_clear(struct hr_set_t *set);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void hr_set_add(struct hr_set_t *set, hr_codepoint_t value);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+hr_bool_t hr_set_has(const struct hr_set_t *set, hr_codepoint_t value);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+hr_bool_t hr_set_is_empty(const struct hr_set_t *set);
 
 /**
  * Shapes a buffer with a font, applying the given features.

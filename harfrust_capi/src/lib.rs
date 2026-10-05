@@ -10,9 +10,9 @@ as HarfBuzz itself without collisions.
 # Scope
 
 This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
-`BASE` baseline and `MATH` queries. It has no drawing or painting callbacks, no
-subsetting, no other layout table introspection and no `hb_set` / `hb_map`
-containers, because HarfRust does not provide them.
+`BASE` baseline and `MATH` queries. It also provides the layout lookup queries
+and sets used to inspect glyph participation. Drawing and painting callbacks,
+subsetting, and maps are outside this API.
 
 # Object lifetime
 
@@ -38,6 +38,7 @@ pub mod object;
 pub mod ot_layout;
 pub mod ot_math;
 mod plan;
+pub mod set;
 pub mod shape;
 pub mod shape_plan;
 
@@ -50,6 +51,7 @@ pub use font_funcs::*;
 pub use object::{hr_destroy_func_t, hr_user_data_key_t};
 pub use ot_layout::*;
 pub use ot_math::*;
+pub use set::*;
 pub use shape::*;
 pub use shape_plan::*;
 
