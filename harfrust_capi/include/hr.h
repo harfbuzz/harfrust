@@ -395,6 +395,20 @@ typedef hr_position_t (*hr_font_get_glyph_advance_func_t)(struct hr_font_t *font
                                                           void *user_data);
 
 /**
+ * Fills a strided run of horizontal glyph advances.
+ */
+typedef void (*hr_font_get_glyph_advances_func_t)(struct hr_font_t *font,
+                                                  void *font_data,
+                                                  unsigned int count,
+                                                  const hr_codepoint_t *first_glyph,
+                                                  unsigned int glyph_stride,
+                                                  hr_position_t *first_advance,
+                                                  unsigned int advance_stride,
+                                                  void *user_data);
+
+typedef hr_font_get_glyph_advances_func_t hr_font_get_glyph_h_advances_func_t;
+
+/**
  * Returns a glyph's origin along the current direction.
  */
 typedef hr_bool_t (*hr_font_get_glyph_origin_func_t)(struct hr_font_t *font,
@@ -403,6 +417,21 @@ typedef hr_bool_t (*hr_font_get_glyph_origin_func_t)(struct hr_font_t *font,
                                                      hr_position_t *x,
                                                      hr_position_t *y,
                                                      void *user_data);
+
+typedef hr_font_get_glyph_origin_func_t hr_font_get_glyph_h_origin_func_t;
+
+/**
+ * Returns the spacing adjustment for a pair of glyphs.
+ */
+typedef hr_position_t (*hr_font_get_glyph_kerning_func_t)(struct hr_font_t *font,
+                                                          void *font_data,
+                                                          hr_codepoint_t first_glyph,
+                                                          hr_codepoint_t second_glyph,
+                                                          void *user_data);
+
+typedef hr_font_get_glyph_kerning_func_t hr_font_get_glyph_h_kerning_func_t;
+
+typedef hr_font_get_glyph_kerning_func_t hr_font_get_glyph_v_kerning_func_t;
 
 /**
  * Returns a glyph's ink extents.
@@ -2590,6 +2619,15 @@ hr_bool_t hr_variation_from_string(const char *str_, int len, struct hr_variatio
 void hr_variation_to_string(const struct hr_variation_t *variation, char *buf, unsigned int size);
 
 /**
+ * Returns the number of faces in a font blob, or zero if it is invalid.
+ *
+ * # Safety
+ *
+ * `blob` must be `NULL` or a live blob.
+ */
+unsigned int hr_face_count(struct hr_blob_t *blob);
+
+/**
  * Creates a face over the font at `index` within `blob`.
  *
  * The face takes its own reference to the blob. Never returns `NULL`; a blob
@@ -3142,6 +3180,28 @@ hr_bool_t hr_font_get_glyph_h_origin(struct hr_font_t *font,
                                      hr_position_t *y);
 
 /**
+ * Returns the horizontal kerning supplied by font callbacks, or zero.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font.
+ */
+hr_position_t hr_font_get_glyph_h_kerning(struct hr_font_t *font,
+                                          hr_codepoint_t first_glyph,
+                                          hr_codepoint_t second_glyph);
+
+/**
+ * Returns the vertical kerning supplied by font callbacks, or zero.
+ *
+ * # Safety
+ *
+ * `font` must be `NULL` or a live font.
+ */
+hr_position_t hr_font_get_glyph_v_kerning(struct hr_font_t *font,
+                                          hr_codepoint_t first_glyph,
+                                          hr_codepoint_t second_glyph);
+
+/**
  * Where a glyph hangs from when text runs vertically, returning false when
  * nothing can say.
  *
@@ -3450,6 +3510,58 @@ void hr_font_funcs_set_variation_glyph_func(struct hr_font_funcs_t *ffuncs,
  */
 void hr_font_funcs_set_glyph_h_advance_func(struct hr_font_funcs_t *ffuncs,
                                             hr_font_get_glyph_advance_func_t func,
+                                            void *user_data,
+                                            hr_destroy_func_t destroy);
+
+/**
+ * Installs the batched horizontal advance callback.
+ * Takes ownership of `user_data`, including when the callback is cleared.
+ *
+ * # Safety
+ *
+ * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ */
+void hr_font_funcs_set_glyph_h_advances_func(struct hr_font_funcs_t *ffuncs,
+                                             hr_font_get_glyph_h_advances_func_t func,
+                                             void *user_data,
+                                             hr_destroy_func_t destroy);
+
+/**
+ * Installs the horizontal origin callback.
+ * Takes ownership of `user_data`, including when the callback is cleared.
+ *
+ * # Safety
+ *
+ * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ */
+void hr_font_funcs_set_glyph_h_origin_func(struct hr_font_funcs_t *ffuncs,
+                                           hr_font_get_glyph_h_origin_func_t func,
+                                           void *user_data,
+                                           hr_destroy_func_t destroy);
+
+/**
+ * Installs the horizontal kerning callback.
+ * Takes ownership of `user_data`, including when the callback is cleared.
+ *
+ * # Safety
+ *
+ * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ */
+void hr_font_funcs_set_glyph_h_kerning_func(struct hr_font_funcs_t *ffuncs,
+                                            hr_font_get_glyph_h_kerning_func_t func,
+                                            void *user_data,
+                                            hr_destroy_func_t destroy);
+
+/**
+ * Installs the vertical kerning callback.
+ * Takes ownership of `user_data`, including when the callback is cleared.
+ *
+ * # Safety
+ *
+ * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ */
+void hr_font_funcs_set_glyph_v_kerning_func(struct hr_font_funcs_t *ffuncs,
+                                            hr_font_get_glyph_v_kerning_func_t func,
                                             void *user_data,
                                             hr_destroy_func_t destroy);
 
