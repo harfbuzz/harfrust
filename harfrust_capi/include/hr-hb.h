@@ -53,6 +53,8 @@
 #define hb_bool_t                                        hr_bool_t
 #define hb_buffer_add                                    hr_buffer_add
 #define hb_buffer_add_codepoints                         hr_buffer_add_codepoints
+#define hb_buffer_add_latin1                             hr_buffer_add_latin1
+#define hb_buffer_add_utf16                              hr_buffer_add_utf16
 #define hb_buffer_add_utf32                              hr_buffer_add_utf32
 #define hb_buffer_add_utf8                               hr_buffer_add_utf8
 #define hb_buffer_allocation_successful                  hr_buffer_allocation_successful

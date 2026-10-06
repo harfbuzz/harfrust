@@ -517,6 +517,145 @@ fn set_post_context_utf8(buffer: &mut Buffer, bytes: &[u8]) {
     buffer.set_post_context_codepoints(&codepoints[..len]);
 }
 
+fn set_pre_context_utf16(buffer: &mut Buffer, units: &[u16]) {
+    let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+    let mut start = units.len();
+    for _ in 0..MAX_CONTEXT_CODEPOINTS {
+        if start == 0 {
+            break;
+        }
+        start -= 1;
+        if (0xDC00..=0xDFFF).contains(&units[start])
+            && start > 0
+            && (0xD800..=0xDBFF).contains(&units[start - 1])
+        {
+            start -= 1;
+        }
+    }
+    let mut len = 0;
+    for decoded in char::decode_utf16(units[start..].iter().copied()) {
+        codepoints[len] = decoded.unwrap_or(char::REPLACEMENT_CHARACTER) as u32;
+        len += 1;
+    }
+    codepoints[..len].reverse();
+    buffer.set_pre_context_codepoints(&codepoints[..len]);
+}
+
+fn set_post_context_utf16(buffer: &mut Buffer, units: &[u16]) {
+    let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+    let mut len = 0;
+    for decoded in char::decode_utf16(units.iter().copied()).take(MAX_CONTEXT_CODEPOINTS) {
+        codepoints[len] = decoded.unwrap_or(char::REPLACEMENT_CHARACTER) as u32;
+        len += 1;
+    }
+    buffer.set_post_context_codepoints(&codepoints[..len]);
+}
+
+/// Appends UTF-16 text. Offsets and clusters count 16-bit code units.
+/// A negative `text_length` reads to a zero code unit; a negative
+/// `item_length` selects the rest of the text.
+///
+/// # Safety
+///
+/// `text` must point to `text_length` readable code units, or be zero-terminated.
+#[no_mangle]
+pub unsafe extern "C" fn hr_buffer_add_utf16(
+    buffer: *mut hr_buffer_t,
+    text: *const u16,
+    text_length: c_int,
+    item_offset: c_uint,
+    item_length: c_int,
+) {
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
+        return;
+    };
+    if text.is_null() {
+        return;
+    }
+    let len = if text_length < 0 {
+        let mut len = 0;
+        while unsafe { *text.add(len) } != 0 {
+            len += 1;
+        }
+        len
+    } else {
+        text_length as usize
+    };
+    let units = unsafe { core::slice::from_raw_parts(text, len) };
+    let (start, end) = item_range(len, item_offset, item_length);
+    if buffer.buffer.is_empty() && start > 0 {
+        set_pre_context_utf16(&mut buffer.buffer, &units[..start]);
+    }
+    set_post_context_utf16(&mut buffer.buffer, &units[end..]);
+    let item = &units[start..end];
+    let count = char::decode_utf16(item.iter().copied()).count();
+    let capacity = buffer.buffer.len().saturating_add(count);
+    if !buffer.buffer.reserve(capacity) {
+        return;
+    }
+    let mut cluster = start;
+    for decoded in char::decode_utf16(item.iter().copied()) {
+        let (codepoint, width) = match decoded {
+            Ok(character) => (character as u32, character.len_utf16()),
+            Err(_) => (char::REPLACEMENT_CHARACTER as u32, 1),
+        };
+        buffer.buffer.push(codepoint, cluster as c_uint);
+        cluster += width;
+    }
+}
+
+/// Appends Latin-1 text. Offsets and clusters count bytes.
+/// A negative `text_length` reads to a zero byte; a negative `item_length`
+/// selects the rest of the text.
+///
+/// # Safety
+///
+/// `text` must point to `text_length` readable bytes, or be zero-terminated.
+#[no_mangle]
+pub unsafe extern "C" fn hr_buffer_add_latin1(
+    buffer: *mut hr_buffer_t,
+    text: *const c_char,
+    text_length: c_int,
+    item_offset: c_uint,
+    item_length: c_int,
+) {
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
+        return;
+    };
+    if text.is_null() {
+        return;
+    }
+    let bytes = if text_length < 0 {
+        unsafe { core::ffi::CStr::from_ptr(text) }.to_bytes()
+    } else {
+        unsafe { core::slice::from_raw_parts(text.cast::<u8>(), text_length as usize) }
+    };
+    let (start, end) = item_range(bytes.len(), item_offset, item_length);
+    if buffer.buffer.is_empty() && start > 0 {
+        let mut pre = [0; MAX_CONTEXT_CODEPOINTS];
+        let len = start.min(pre.len());
+        for (slot, &byte) in pre[..len].iter_mut().zip(bytes[..start].iter().rev()) {
+            *slot = u32::from(byte);
+        }
+        buffer.buffer.set_pre_context_codepoints(&pre[..len]);
+    }
+    let mut post = [0; MAX_CONTEXT_CODEPOINTS];
+    let len = (bytes.len() - end).min(post.len());
+    for (slot, &byte) in post[..len].iter_mut().zip(&bytes[end..]) {
+        *slot = u32::from(byte);
+    }
+    buffer.buffer.set_post_context_codepoints(&post[..len]);
+    let capacity = buffer.buffer.len().saturating_add(end - start);
+    if !buffer.buffer.reserve(capacity) {
+        return;
+    }
+    for (index, &byte) in bytes[start..end].iter().enumerate() {
+        buffer
+            .buffer
+            .push(u32::from(byte), (start + index) as c_uint);
+    }
+}
+
 /// Appends UTF-8 text to a buffer.
 ///
 /// Only `text[item_offset .. item_offset + item_length]` is added; the text
@@ -1554,6 +1693,50 @@ mod tests {
                 REPLACEMENT,
                 'a' as u32,
             ]
+        );
+    }
+
+    #[test]
+    fn decodes_utf16_context_in_codepoints() {
+        let units = [b'a' as u16, 0xD83D, 0xDE00, b'b' as u16, 0xD800, 0xDC00];
+        let mut buffer = Buffer::new();
+        set_pre_context_utf16(&mut buffer, &units);
+        assert_eq!(
+            buffer.pre_context_codepoints(),
+            &[0x10000, b'b' as u32, 0x1F600, b'a' as u32]
+        );
+        set_post_context_utf16(&mut buffer, &units);
+        assert_eq!(
+            buffer.post_context_codepoints(),
+            &[b'a' as u32, 0x1F600, b'b' as u32, 0x10000]
+        );
+
+        let broken = [0xD800, b'x' as u16, 0xDC00];
+        set_pre_context_utf16(&mut buffer, &broken);
+        assert_eq!(
+            buffer.pre_context_codepoints(),
+            &[REPLACEMENT, b'x' as u32, REPLACEMENT]
+        );
+        set_post_context_utf16(&mut buffer, &broken);
+        assert_eq!(
+            buffer.post_context_codepoints(),
+            &[REPLACEMENT, b'x' as u32, REPLACEMENT]
+        );
+
+        let long = [
+            b'0' as u16,
+            b'1' as u16,
+            b'2' as u16,
+            b'3' as u16,
+            b'4' as u16,
+            b'5' as u16,
+            0xD83D,
+            0xDE00,
+        ];
+        set_pre_context_utf16(&mut buffer, &long);
+        assert_eq!(
+            buffer.pre_context_codepoints(),
+            &[0x1F600, b'5' as u32, b'4' as u32, b'3' as u32, b'2' as u32]
         );
     }
 }
