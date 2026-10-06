@@ -854,6 +854,8 @@ pub struct WouldApplyContext<'a> {
     pub zero_context: bool,
 }
 
+// Keep the mark-specific checks shared across generic matching loops.
+#[inline(never)]
 fn match_properties_mark(
     ot: &OtData,
     info: &GlyphInfo,
