@@ -120,4 +120,3 @@ fn nominal_batches_preserve_strides_partial_results_and_parent_precedence() {
         hr_face_destroy(face);
     }
 }
-
