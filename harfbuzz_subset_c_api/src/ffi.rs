@@ -16,11 +16,25 @@ pub struct hr_set_t {
     _private: [u8; 0],
 }
 
+#[repr(C)]
+pub struct hr_map_t {
+    _private: [u8; 0],
+}
+
 pub type hr_subset_flags_t = c_uint;
 
-pub type Destroy = Option<unsafe extern "C" fn(*mut c_void)>;
+#[repr(C)]
+pub struct hr_user_data_key_t {
+    _private: [u8; 0],
+}
+
+pub type hr_destroy_func_t = Option<unsafe extern "C" fn(*mut c_void)>;
+pub type Destroy = hr_destroy_func_t;
 
 extern "C" {
+    pub fn hr_map_create() -> *mut hr_map_t;
+    pub fn hr_map_destroy(map: *mut hr_map_t);
+    pub fn hr_map_set(map: *mut hr_map_t, key: c_uint, value: c_uint);
     pub fn hr_set_create() -> *mut hr_set_t;
     pub fn hr_set_copy(set: *const hr_set_t) -> *mut hr_set_t;
     pub fn hr_set_is_inverted(set: *const hr_set_t) -> c_int;

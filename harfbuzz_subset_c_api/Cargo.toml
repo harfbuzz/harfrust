@@ -11,8 +11,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-skera = "0.8.0"
-write-fonts = { version = "0.54.0", default-features = false, features = ["read"] }
+skera = { git = "https://github.com/googlefonts/fontations", rev = "978c97cfae5cd30bb428f6731fc5768489b0bab6" }
+write-fonts = { git = "https://github.com/googlefonts/fontations", rev = "978c97cfae5cd30bb428f6731fc5768489b0bab6", default-features = false, features = ["read"] }
 
 [lib]
 name = "harfbuzz_subset_c"

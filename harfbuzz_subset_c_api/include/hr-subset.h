@@ -20,6 +20,13 @@
 typedef struct hr_subset_input_t hr_subset_input_t;
 
 /**
+ * An immutable subset plan owning its font bytes and borrowed output maps.
+ * Creating a plan snapshots its input. The input and original face can be
+ * released afterwards; execution may be repeated or run concurrently.
+ */
+typedef struct hr_subset_plan_t hr_subset_plan_t;
+
+/**
  * Identifies a configurable input set, with HarfBuzz's numeric values.
  */
 typedef unsigned int hr_subset_sets_t;
@@ -92,7 +99,7 @@ typedef unsigned int hr_subset_flags_t;
 #define HR_SUBSET_SETS_UNICODE 1
 
 /**
- * Tables to copy unchanged (currently the Skera default set only).
+ * Tables to copy unchanged.
  */
 #define HR_SUBSET_SETS_NO_SUBSET_TABLE_TAG 2
 
@@ -167,9 +174,6 @@ hr_set_t *hr_subset_input_unicode_set(struct hr_subset_input_t *input);
 /**
  * Returns a borrowed configurable input set, or `NULL` for an invalid selector.
  *
- * Changes to the no-subset table set currently cause subsetting to fail:
- * published Skera does not expose customization of that set yet.
- *
  * # Safety
  * `input` must be `NULL` or live; the returned set is borrowed from it.
  */
@@ -226,6 +230,111 @@ hr_face_t *hr_subset_or_fail(hr_face_t *face, const struct hr_subset_input_t *in
  * `face` must be `NULL` or live, with callbacks satisfying the core API contract.
  */
 hr_face_t *hr_subset_preprocess(hr_face_t *face);
+
+/**
+ * Creates a self-contained plan and its glyph mappings, or `NULL` on failure.
+ *
+ * # Safety
+ * `face` and `input` must be `NULL` or live. Input sets must not be mutated
+ * during this call; face callbacks must satisfy the core API contract.
+ */
+struct hr_subset_plan_t *hr_subset_plan_create_or_fail(hr_face_t *face,
+                                                       const struct hr_subset_input_t *input);
+
+/**
+ * Takes a reference to a subset plan. `NULL` stays `NULL`.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live.
+ */
+struct hr_subset_plan_t *hr_subset_plan_reference(struct hr_subset_plan_t *plan);
+
+/**
+ * Releases an owned plan reference. Accepts `NULL`.
+ *
+ * # Safety
+ * `plan` must be `NULL` or an owned reference.
+ */
+void hr_subset_plan_destroy(struct hr_subset_plan_t *plan);
+
+/**
+ * Executes a subset plan, returning an independent face or `NULL` on failure.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live; its borrowed maps must not be modified.
+ */
+hr_face_t *hr_subset_plan_execute_or_fail(struct hr_subset_plan_t *plan);
+
+/**
+ * Returns the borrowed original-to-subset map, including closure glyphs.
+ * Take a core map reference if it must outlive the plan.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live. The returned map is read-only.
+ */
+hr_map_t *hr_subset_plan_old_to_new_glyph_mapping(const struct hr_subset_plan_t *plan);
+
+/**
+ * Returns the borrowed subset-to-original map, including closure glyphs.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live. The returned map is read-only.
+ */
+hr_map_t *hr_subset_plan_new_to_old_glyph_mapping(const struct hr_subset_plan_t *plan);
+
+/**
+ * Returns the borrowed Unicode-to-original-glyph map.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live. The returned map is read-only.
+ */
+hr_map_t *hr_subset_plan_unicode_to_old_glyph_mapping(const struct hr_subset_plan_t *plan);
+
+/**
+ * Attaches owned metadata to a subset input; rejected data stays caller-owned.
+ * Replacing/removing metadata invokes its destructor outside the object lock.
+ *
+ * # Safety
+ * `input` must be `NULL` or live. The key must outlive the object, and the
+ * supplied data/destructor must be safe to release from any thread.
+ */
+int hr_subset_input_set_user_data(struct hr_subset_input_t *input,
+                                  const hr_user_data_key_t *key,
+                                  void *data,
+                                  hr_destroy_func_t destroy,
+                                  int replace);
+
+/**
+ * Retrieves attached metadata, or `NULL` when absent.
+ *
+ * # Safety
+ * `input` must be `NULL` or live. Concurrent replacement may invalidate the returned pointer.
+ */
+void *hr_subset_input_get_user_data(const struct hr_subset_input_t *input,
+                                    const hr_user_data_key_t *key);
+
+/**
+ * Attaches owned metadata to a subset plan; rejected data stays caller-owned.
+ * Replacing/removing metadata invokes its destructor outside the object lock.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live. The key must outlive the object, and the
+ * supplied data/destructor must be safe to release from any thread.
+ */
+int hr_subset_plan_set_user_data(struct hr_subset_plan_t *plan,
+                                 const hr_user_data_key_t *key,
+                                 void *data,
+                                 hr_destroy_func_t destroy,
+                                 int replace);
+
+/**
+ * Retrieves attached metadata, or `NULL` when absent.
+ *
+ * # Safety
+ * `plan` must be `NULL` or live. Concurrent replacement may invalidate the returned pointer.
+ */
+void *hr_subset_plan_get_user_data(const struct hr_subset_plan_t *plan,
+                                   const hr_user_data_key_t *key);
 
 #ifdef __cplusplus
 }  // extern "C"

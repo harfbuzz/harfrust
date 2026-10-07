@@ -14,7 +14,8 @@ parse_deps = false
 
 [export]
 exclude = [
-  "hr_blob_t", "hr_face_t", "hr_set_t", "Destroy",
+  "hr_blob_t", "hr_face_t", "hr_set_t", "hr_map_t", "hr_user_data_key_t", "hr_destroy_func_t", "Destroy",
+  "hr_map_create", "hr_map_destroy", "hr_map_set",
   "hr_set_create", "hr_set_destroy", "hr_set_next_range",
   "hr_set_copy", "hr_set_is_inverted", "hr_set_clear", "hr_set_invert", "hr_set_add", "hr_set_add_range", "hr_face_make_immutable",
   "hr_face_get_table_tags", "hr_face_reference_table", "hr_face_get_glyph_count",
