@@ -87,6 +87,8 @@ typedef struct hr_font_t hr_font_t;
  */
 typedef struct hr_language_impl_t hr_language_impl_t;
 
+typedef struct hr_map_t hr_map_t;
+
 typedef struct hr_set_t hr_set_t;
 
 /**
@@ -1609,6 +1611,11 @@ typedef struct hr_ot_math_glyph_part_t {
  */
 #define HR_SCRIPT_MYANMAR_ZAWGYI 1365336423
 
+/**
+ * Value returned for an absent map key.
+ */
+#define HR_MAP_VALUE_INVALID HR_CODEPOINT_INVALID
+
 #define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134
 
 #define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719
@@ -1752,6 +1759,11 @@ typedef struct hr_ot_math_glyph_part_t {
 #define HR_OT_TAG_MATH 1296127048
 
 #define HR_OT_TAG_MATH_SCRIPT 1835103336
+
+/**
+ * Unset set value, also used to start iteration.
+ */
+#define HR_SET_VALUE_INVALID HR_CODEPOINT_INVALID
 
 #ifdef __cplusplus
 extern "C" {
@@ -2621,7 +2633,7 @@ hr_bool_t hr_variation_from_string(const char *str_, int len, struct hr_variatio
 void hr_variation_to_string(const struct hr_variation_t *variation, char *buf, unsigned int size);
 
 /**
- * Returns the number of faces in a font blob, or zero if it is invalid.
+ * Returns the number of SFNT faces in a font blob, or zero otherwise.
  *
  * # Safety
  *
@@ -3630,6 +3642,154 @@ void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
                                           void *user_data,
                                           hr_destroy_func_t destroy);
 
+struct hr_map_t *hr_map_create(void);
+
+struct hr_map_t *hr_map_get_empty(void);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+struct hr_map_t *hr_map_reference(struct hr_map_t *map);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live, and the caller must own its reference.
+ */
+void hr_map_destroy(struct hr_map_t *map);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live, and `key` must outlive it.
+ */
+hr_bool_t hr_map_set_user_data(struct hr_map_t *map,
+                               const struct hr_user_data_key_t *key,
+                               void *data,
+                               hr_destroy_func_t destroy,
+                               hr_bool_t replace);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+void *hr_map_get_user_data(const struct hr_map_t *map, const struct hr_user_data_key_t *key);
+
+/**
+ * Returns false for the inert empty singleton. Rust allocation failures abort.
+ *
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+hr_bool_t hr_map_allocation_successful(const struct hr_map_t *map);
+
+/**
+ * Copies the contents, without copying user data.
+ *
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+struct hr_map_t *hr_map_copy(const struct hr_map_t *map);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+void hr_map_clear(struct hr_map_t *map);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+hr_bool_t hr_map_is_empty(const struct hr_map_t *map);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+unsigned int hr_map_get_population(const struct hr_map_t *map);
+
+/**
+ * # Safety
+ * Both maps must be `NULL` or live.
+ */
+hr_bool_t hr_map_is_equal(const struct hr_map_t *map, const struct hr_map_t *other);
+
+/**
+ * Equal maps have equal hashes, regardless of insertion order. The hash
+ * value is implementation dependent.
+ *
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+unsigned int hr_map_hash(const struct hr_map_t *map);
+
+/**
+ * Stores a key/value pair, replacing any previous value. All 32-bit keys and
+ * values are accepted, including `HR_MAP_VALUE_INVALID`.
+ *
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+void hr_map_set(struct hr_map_t *map, hr_codepoint_t key, hr_codepoint_t value);
+
+/**
+ * Returns the stored value, or `HR_MAP_VALUE_INVALID` when absent. Use
+ * `hr_map_has` to distinguish an absent key from a stored invalid value.
+ *
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+hr_codepoint_t hr_map_get(const struct hr_map_t *map, hr_codepoint_t key);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+void hr_map_del(struct hr_map_t *map, hr_codepoint_t key);
+
+/**
+ * # Safety
+ * `map` must be `NULL` or live.
+ */
+hr_bool_t hr_map_has(const struct hr_map_t *map, hr_codepoint_t key);
+
+/**
+ * Adds the source's entries, replacing values for keys already present.
+ *
+ * # Safety
+ * Both maps must be `NULL` or live.
+ */
+void hr_map_update(struct hr_map_t *map, const struct hr_map_t *other);
+
+/**
+ * Iterates entries in unspecified order. Start with `*idx = -1`;
+ * exhaustion resets it to -1 and leaves key and value unchanged.
+ *
+ * # Safety
+ * `map` must be `NULL` or live and must not be modified during iteration.
+ * `idx`, `key` and `value` must point to writable, nonoverlapping storage.
+ */
+hr_bool_t hr_map_next(const struct hr_map_t *map,
+                      int *idx,
+                      hr_codepoint_t *key,
+                      hr_codepoint_t *value);
+
+/**
+ * Adds the map's keys to the supplied set, preserving existing members.
+ *
+ * # Safety
+ * `map` and `keys` must be `NULL` or live.
+ */
+void hr_map_keys(const struct hr_map_t *map, struct hr_set_t *keys);
+
+/**
+ * Adds the map's values to the supplied set, preserving existing members.
+ *
+ * # Safety
+ * `map` and `values` must be `NULL` or live.
+ */
+void hr_map_values(const struct hr_map_t *map, struct hr_set_t *values);
+
 /**
  * Returns whether the face has a readable GSUB table.
  *
@@ -3851,7 +4011,7 @@ hr_bool_t hr_set_set_user_data(struct hr_set_t *set,
  * # Safety
  * `set` must be `NULL` or live.
  */
-void *hr_set_get_user_data(struct hr_set_t *set, const struct hr_user_data_key_t *key);
+void *hr_set_get_user_data(const struct hr_set_t *set, const struct hr_user_data_key_t *key);
 
 /**
  * # Safety
@@ -3876,6 +4036,202 @@ hr_bool_t hr_set_has(const struct hr_set_t *set, hr_codepoint_t value);
  * `set` must be `NULL` or live.
  */
 hr_bool_t hr_set_is_empty(const struct hr_set_t *set);
+
+/**
+ * Returns false for the inert empty singleton. Rust allocation failures abort.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+hr_bool_t hr_set_allocation_successful(const struct hr_set_t *set);
+
+/**
+ * Copies the contents, without copying user data.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+struct hr_set_t *hr_set_copy(const struct hr_set_t *set);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void hr_set_invert(struct hr_set_t *set);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+hr_bool_t hr_set_is_inverted(const struct hr_set_t *set);
+
+/**
+ * Adds the inclusive range. Reversed ranges are ignored. An invalid `last`
+ * is ignored for ordinary sets and extends to the end for inverted sets.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void hr_set_add_range(struct hr_set_t *set, hr_codepoint_t first, hr_codepoint_t last);
+
+/**
+ * Adds codepoints supplied in increasing order.
+ *
+ * # Safety
+ * `set` must be `NULL` or live. `sorted_codepoints` must point to
+ * `num_codepoints` readable elements, or be `NULL` when the count is zero.
+ */
+void hr_set_add_sorted_array(struct hr_set_t *set,
+                             const hr_codepoint_t *sorted_codepoints,
+                             unsigned int num_codepoints);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void hr_set_del(struct hr_set_t *set, hr_codepoint_t value);
+
+/**
+ * Deletes the inclusive range. An invalid `last` extends to the end for
+ * ordinary sets and is ignored for inverted sets.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+void hr_set_del_range(struct hr_set_t *set, hr_codepoint_t first, hr_codepoint_t last);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+hr_bool_t hr_set_is_equal(const struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+hr_bool_t hr_set_intersects(const struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * Equal sets have equal hashes. The hash value is implementation dependent.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+unsigned int hr_set_hash(const struct hr_set_t *set);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+hr_bool_t hr_set_is_subset(const struct hr_set_t *set, const struct hr_set_t *larger_set);
+
+/**
+ * Replaces the contents, retaining the destination's user data.
+ *
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+void hr_set_set(struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+void hr_set_union(struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+void hr_set_intersect(struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+void hr_set_subtract(struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * # Safety
+ * Both sets must be `NULL` or live.
+ */
+void hr_set_symmetric_difference(struct hr_set_t *set, const struct hr_set_t *other);
+
+/**
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+unsigned int hr_set_get_population(const struct hr_set_t *set);
+
+/**
+ * Returns the smallest value, or `HR_SET_VALUE_INVALID` if empty.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+hr_codepoint_t hr_set_get_min(const struct hr_set_t *set);
+
+/**
+ * Returns the largest value, or `HR_SET_VALUE_INVALID` if empty.
+ *
+ * # Safety
+ * `set` must be `NULL` or live.
+ */
+hr_codepoint_t hr_set_get_max(const struct hr_set_t *set);
+
+/**
+ * Finds the next value. Start with `HR_SET_VALUE_INVALID`; exhaustion writes
+ * that value again.
+ *
+ * # Safety
+ * `set` must be `NULL` or live. `codepoint` must be writable.
+ */
+hr_bool_t hr_set_next(const struct hr_set_t *set, hr_codepoint_t *codepoint);
+
+/**
+ * Finds the preceding value. Start with `HR_SET_VALUE_INVALID`; exhaustion
+ * writes that value again.
+ *
+ * # Safety
+ * `set` must be `NULL` or live. `codepoint` must be writable.
+ */
+hr_bool_t hr_set_previous(const struct hr_set_t *set, hr_codepoint_t *codepoint);
+
+/**
+ * Finds the next contiguous range after `*last`. Start with
+ * `HR_SET_VALUE_INVALID`; exhaustion writes it to both outputs.
+ *
+ * # Safety
+ * `set` must be `NULL` or live. `first` and `last` must be writable.
+ */
+hr_bool_t hr_set_next_range(const struct hr_set_t *set,
+                            hr_codepoint_t *first,
+                            hr_codepoint_t *last);
+
+/**
+ * Finds the preceding contiguous range before `*first`. Start with
+ * `HR_SET_VALUE_INVALID`; exhaustion writes it to both outputs.
+ *
+ * # Safety
+ * `set` must be `NULL` or live. `first` and `last` must be writable.
+ */
+hr_bool_t hr_set_previous_range(const struct hr_set_t *set,
+                                hr_codepoint_t *first,
+                                hr_codepoint_t *last);
+
+/**
+ * Writes at most `size` values after `codepoint`. Start with
+ * `HR_SET_VALUE_INVALID`. Returns the number written.
+ *
+ * # Safety
+ * `set` must be `NULL` or live. `out` must point to `size` writable elements,
+ * or be `NULL` when `size` is zero.
+ */
+unsigned int hr_set_next_many(const struct hr_set_t *set,
+                              hr_codepoint_t codepoint,
+                              hr_codepoint_t *out,
+                              unsigned int size);
 
 /**
  * Shapes a buffer with a font, applying the given features.
