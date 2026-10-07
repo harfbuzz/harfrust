@@ -80,3 +80,7 @@ mod skia_face_tests;
 #[cfg(test)]
 #[path = "../tests/skia_batch.rs"]
 mod skia_batch_tests;
+
+#[cfg(test)]
+#[path = "../tests/skia_version.rs"]
+mod skia_version_tests;

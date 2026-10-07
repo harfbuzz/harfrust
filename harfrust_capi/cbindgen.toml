@@ -1,5 +1,5 @@
 language = "C"
-pragma_once = true
+include_guard = "HARFRUST_H"
 cpp_compat = true
 documentation = true
 documentation_style = "doxy"
@@ -52,6 +52,12 @@ trailer = """
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
+
+/** The HarfBuzz release matched by the shaping implementation. */
+#define HR_HARFBUZZ_VERSION_STRING "14.5.1"
+
+/** True if the matched HarfBuzz version is at least the given version. */
+#define HR_HARFBUZZ_VERSION_ATLEAST(major, minor, micro) ((major) < HR_HARFBUZZ_VERSION_MAJOR || ((major) == HR_HARFBUZZ_VERSION_MAJOR && ((minor) < HR_HARFBUZZ_VERSION_MINOR || ((minor) == HR_HARFBUZZ_VERSION_MINOR && (micro) <= HR_HARFBUZZ_VERSION_MICRO))))
 """
 
 [parse]
