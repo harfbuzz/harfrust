@@ -707,6 +707,37 @@ pub(crate) unsafe fn language_to_rust(language: hr_language_t) -> Option<Languag
     unsafe { language.as_ref() }.map(|entry| entry.lang.clone())
 }
 
+/// # Safety
+/// `language` must be `NULL` or an interned language returned by this API.
+pub(crate) unsafe fn language_ref(language: hr_language_t) -> Option<&'static Language> {
+    unsafe { language.as_ref() }.map(|entry| &entry.lang)
+}
+
+pub(crate) fn language_from_owned(language: Option<Language>) -> hr_language_t {
+    let Some(language) = language else {
+        return core::ptr::null();
+    };
+    if let Ok(languages) = LANGUAGES.read() {
+        if let Some(found) = languages.iter().find(|entry| entry.lang == language) {
+            return *found as hr_language_t;
+        }
+    }
+    let Ok(mut languages) = LANGUAGES.write() else {
+        return core::ptr::null();
+    };
+    if let Some(found) = languages.iter().find(|entry| entry.lang == language) {
+        return *found as hr_language_t;
+    }
+    let mut name = language.as_bytes().to_vec();
+    name.push(0);
+    let entry: &'static hr_language_impl_t = Box::leak(Box::new(hr_language_impl_t {
+        lang: language,
+        name: name.into_boxed_slice(),
+    }));
+    languages.push(entry);
+    entry as hr_language_t
+}
+
 pub(crate) fn language_from_rust(language: Option<&Language>) -> hr_language_t {
     language.map_or(core::ptr::null(), intern_language)
 }

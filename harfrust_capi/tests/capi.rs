@@ -149,6 +149,77 @@ fn contextual_rule_and_class_formats_do_not_fall_back_to_all_glyphs() {
 }
 
 #[test]
+fn ot_tag_conversion_round_trips_and_pages() {
+    unsafe {
+        let dflt = u32::from_be_bytes(*b"dflt");
+        assert!(hr_ot_tag_to_language(dflt).is_null());
+        let arabic = hr_ot_tag_to_language(u32::from_be_bytes(*b"ARA "));
+        assert_eq!(
+            std::ffi::CStr::from_ptr(hr_language_to_string(arabic)).to_bytes(),
+            b"ar"
+        );
+
+        let unknown = u32::from_be_bytes(*b"ABC ");
+        let custom = hr_ot_tag_to_language(unknown);
+        assert_eq!(
+            std::ffi::CStr::from_ptr(hr_language_to_string(custom)).to_bytes(),
+            b"abc-x-hbot-41424320"
+        );
+        let mut script_count = 0;
+        let mut language_count = 1;
+        let mut language_tags = [0];
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_INVALID,
+            custom,
+            &raw mut script_count,
+            ptr::null_mut(),
+            &raw mut language_count,
+            language_tags.as_mut_ptr(),
+        );
+        assert_eq!((language_count, language_tags[0]), (1, unknown));
+
+        let chinese = hr_language_from_string(c"zh-Hant".as_ptr(), -1);
+        let mut scripts = [0; 3];
+        let mut languages = [0; 3];
+        script_count = 3;
+        language_count = 3;
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_DEVANAGARI,
+            chinese,
+            &raw mut script_count,
+            scripts.as_mut_ptr(),
+            &raw mut language_count,
+            languages.as_mut_ptr(),
+        );
+        assert_eq!(script_count, 3);
+        assert_eq!(
+            scripts,
+            [
+                u32::from_be_bytes(*b"dev3"),
+                u32::from_be_bytes(*b"dev2"),
+                u32::from_be_bytes(*b"deva")
+            ]
+        );
+        assert_eq!(
+            (language_count, languages[0]),
+            (1, u32::from_be_bytes(*b"ZHT "))
+        );
+
+        script_count = 1;
+        language_count = 1;
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_DEVANAGARI,
+            chinese,
+            &raw mut script_count,
+            ptr::null_mut(),
+            &raw mut language_count,
+            ptr::null_mut(),
+        );
+        assert_eq!((script_count, language_count), (1, 1));
+    }
+}
+
+#[test]
 fn math_queries_scale_device_values_and_page() {
     unsafe {
         let path =
@@ -2071,8 +2142,8 @@ fn disabling_a_feature_changes_the_result() {
             // changing the glyph count.
             let with_liga = shape_with(&[]);
             let without = shape_with(&[no_liga]);
-            assert!(!with_liga.is_empty());
-            assert!(!without.is_empty());
+            assert_ne!(with_liga, []);
+            assert_ne!(without, []);
         });
     }
 }
@@ -3004,7 +3075,7 @@ fn normalized_coordinates_can_be_set_directly() {
 
             let buffer = buffer_with_text(TEXT);
             hr_shape(font, buffer, ptr::null(), 0);
-            assert!(!glyph_ids(buffer).is_empty());
+            assert_ne!(glyph_ids(buffer), []);
             hr_buffer_destroy(buffer);
         });
     }
@@ -3309,7 +3380,7 @@ fn a_plan_that_applies_shapes_without_aborting() {
             hr_font_set_var_coords_normalized(font, coords.as_ptr(), coords.len() as c_uint);
             let buffer = buffer_with_text(TEXT);
             assert_ne!(hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0), 0);
-            assert!(!glyph_ids(buffer).is_empty());
+            assert_ne!(glyph_ids(buffer), []);
 
             hr_buffer_destroy(buffer);
             hr_shape_plan_destroy(plan);
@@ -3380,7 +3451,7 @@ fn shape_full_reports_only_whether_a_shaper_ran() {
                 let buffer = buffer_with_text(TEXT);
                 assert_ne!(hr_shape_full(font, buffer, ptr::null(), 0, list), 0);
                 assert_ne!(hr_buffer_allocation_successful(buffer), 0);
-                assert!(!glyph_ids(buffer).is_empty());
+                assert_ne!(glyph_ids(buffer), []);
                 hr_buffer_destroy(buffer);
             }
         });

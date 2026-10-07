@@ -16,7 +16,8 @@
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, MATH queries, and set and map APIs are covered.
+ * Shaping, BASE baseline, MATH, layout lookup, set, map, and OpenType tag
+ * conversion APIs are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
  * subsetting, other layout table introspection, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
@@ -268,6 +269,8 @@
 #define hb_ot_math_is_glyph_extended_shape               hr_ot_math_is_glyph_extended_shape
 #define hb_ot_math_kern_entry_t                          hr_ot_math_kern_entry_t
 #define hb_ot_math_kern_t                                hr_ot_math_kern_t
+#define hb_ot_tag_to_language                            hr_ot_tag_to_language
+#define hb_ot_tags_from_script_and_language              hr_ot_tags_from_script_and_language
 #define hb_position_t                                    hr_position_t
 #define hb_reference_table_func_t                        hr_reference_table_func_t
 #define hb_script_from_iso15924_tag                      hr_script_from_iso15924_tag
