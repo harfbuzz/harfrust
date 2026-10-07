@@ -100,10 +100,11 @@ Blobs, faces, fonts, font callbacks, buffers, shape plans and `hr_shape`,
 along with the tags, directions, scripts, languages, features and variations
 they need. OpenType `BASE` baseline queries are available through
 `hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
-are available through `hr_ot_math_*` functions. Sets and layout lookup queries
-support glyph participation checks. OpenType script and language tags can be
-converted with `hr_ot_tag_to_language` and
-`hr_ot_tags_from_script_and_language`.
+are available through `hr_ot_math_*` functions. Layout lookup queries support
+glyph participation checks. The complete HarfBuzz set and map APIs are available
+as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
+iteration. OpenType script and language tags can be converted with
+`hr_ot_tag_to_language` and `hr_ot_tags_from_script_and_language`.
 Set `hr_font_set_ppem` when `BASE` or `MATH` device adjustments should apply; it is
 independent of the point size set by `hr_font_set_ptem`.
 
@@ -122,7 +123,7 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 - Drawing and painting callbacks (`hb_draw_funcs_t`, `hb_paint_funcs_t`).
 - Subsetting.
 - Layout queries beyond the available GSUB/GPOS presence, lookup count, and
-  glyph collection functions; and the `hb_map` container.
+  glyph collection functions.
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data
   is always used.
 - `hb_buffer_diff`, buffer message callbacks, and `hb_font_get_glyph_name`.
@@ -130,6 +131,14 @@ HarfRust is a shaping library, so anything outside shaping is absent:
   invalid UTF is always replaced with U+FFFD, which is HarfBuzz's default.
 
 ## Deliberate differences from HarfBuzz
+
+- **Set and map hashes are implementation dependent.** Equal containers have
+  equal hashes, but the numeric values need not match HarfBuzz. Map iteration
+  order is unspecified, as in HarfBuzz.
+
+- **Allocation failure aborts** through Rust's allocator. Set and map
+  `allocation_successful` queries return true for ordinary objects and false
+  for the inert empty singletons; they do not provide allocation recovery.
 
 - **Table callbacks must be thread safe.** `hr_face_create_for_tables` may
   invoke its callback from whichever thread first touches a given table,
@@ -187,6 +196,9 @@ What is not shared is anything being written:
 
 - **A buffer belongs to one thread.** Shaping writes to it throughout, so two
   threads must not touch the same one. This matches HarfBuzz.
+- **Sets and maps must not be modified while another thread accesses them.**
+  Shared reads and reference counting are safe; mutations require exclusive
+  access.
 - **A font must not be modified while another thread shapes with it.**
   `hr_font_set_scale`, `hr_font_set_variations` and `hr_font_set_funcs` all
   write. Call them before sharing the font, then `hr_font_make_immutable` to

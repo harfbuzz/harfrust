@@ -16,10 +16,10 @@
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, MATH, layout lookup, set, and OpenType tag
+ * Shaping, BASE baseline, MATH, layout lookup, set, map, and OpenType tag
  * conversion APIs are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
- * subsetting, other layout table introspection, hb_map, custom Unicode
+ * subsetting, other layout table introspection, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
  * point: you find out at build time rather than at run time. The version
  * macros (HB_VERSION_MAJOR and friends) are also absent; call hr_version() or
@@ -218,6 +218,28 @@
 #define hb_language_matches                              hr_language_matches
 #define hb_language_t                                    hr_language_t
 #define hb_language_to_string                            hr_language_to_string
+#define hb_map_allocation_successful                     hr_map_allocation_successful
+#define hb_map_clear                                     hr_map_clear
+#define hb_map_copy                                      hr_map_copy
+#define hb_map_create                                    hr_map_create
+#define hb_map_del                                       hr_map_del
+#define hb_map_destroy                                   hr_map_destroy
+#define hb_map_get                                       hr_map_get
+#define hb_map_get_empty                                 hr_map_get_empty
+#define hb_map_get_population                            hr_map_get_population
+#define hb_map_get_user_data                             hr_map_get_user_data
+#define hb_map_has                                       hr_map_has
+#define hb_map_hash                                      hr_map_hash
+#define hb_map_is_empty                                  hr_map_is_empty
+#define hb_map_is_equal                                  hr_map_is_equal
+#define hb_map_keys                                      hr_map_keys
+#define hb_map_next                                      hr_map_next
+#define hb_map_reference                                 hr_map_reference
+#define hb_map_set                                       hr_map_set
+#define hb_map_set_user_data                             hr_map_set_user_data
+#define hb_map_t                                         hr_map_t
+#define hb_map_update                                    hr_map_update
+#define hb_map_values                                    hr_map_values
 #define hb_mask_t                                        hr_mask_t
 #define hb_memory_mode_t                                 hr_memory_mode_t
 #define hb_ot_font_set_funcs                             hr_ot_font_set_funcs
@@ -261,16 +283,41 @@
 #define hb_segment_properties_overlay                    hr_segment_properties_overlay
 #define hb_segment_properties_t                          hr_segment_properties_t
 #define hb_set_add                                       hr_set_add
+#define hb_set_add_range                                 hr_set_add_range
+#define hb_set_add_sorted_array                          hr_set_add_sorted_array
+#define hb_set_allocation_successful                     hr_set_allocation_successful
 #define hb_set_clear                                     hr_set_clear
+#define hb_set_copy                                      hr_set_copy
 #define hb_set_create                                    hr_set_create
+#define hb_set_del                                       hr_set_del
+#define hb_set_del_range                                 hr_set_del_range
 #define hb_set_destroy                                   hr_set_destroy
 #define hb_set_get_empty                                 hr_set_get_empty
+#define hb_set_get_max                                   hr_set_get_max
+#define hb_set_get_min                                   hr_set_get_min
+#define hb_set_get_population                            hr_set_get_population
 #define hb_set_get_user_data                             hr_set_get_user_data
 #define hb_set_has                                       hr_set_has
+#define hb_set_hash                                      hr_set_hash
+#define hb_set_intersect                                 hr_set_intersect
+#define hb_set_intersects                                hr_set_intersects
+#define hb_set_invert                                    hr_set_invert
 #define hb_set_is_empty                                  hr_set_is_empty
+#define hb_set_is_equal                                  hr_set_is_equal
+#define hb_set_is_inverted                               hr_set_is_inverted
+#define hb_set_is_subset                                 hr_set_is_subset
+#define hb_set_next                                      hr_set_next
+#define hb_set_next_many                                 hr_set_next_many
+#define hb_set_next_range                                hr_set_next_range
+#define hb_set_previous                                  hr_set_previous
+#define hb_set_previous_range                            hr_set_previous_range
 #define hb_set_reference                                 hr_set_reference
+#define hb_set_set                                       hr_set_set
 #define hb_set_set_user_data                             hr_set_set_user_data
+#define hb_set_subtract                                  hr_set_subtract
+#define hb_set_symmetric_difference                      hr_set_symmetric_difference
 #define hb_set_t                                         hr_set_t
+#define hb_set_union                                     hr_set_union
 #define hb_shape                                         hr_shape
 #define hb_shape_full                                    hr_shape_full
 #define hb_shape_list_shapers                            hr_shape_list_shapers
@@ -347,6 +394,7 @@
 #define HB_GLYPH_FLAG_UNSAFE_TO_BREAK                 HR_GLYPH_FLAG_UNSAFE_TO_BREAK
 #define HB_GLYPH_FLAG_UNSAFE_TO_CONCAT                HR_GLYPH_FLAG_UNSAFE_TO_CONCAT
 #define HB_LANGUAGE_INVALID                           HR_LANGUAGE_INVALID
+#define HB_MAP_VALUE_INVALID                          HR_MAP_VALUE_INVALID
 #define HB_MEMORY_MODE_DUPLICATE                      HR_MEMORY_MODE_DUPLICATE
 #define HB_MEMORY_MODE_READONLY                       HR_MEMORY_MODE_READONLY
 #define HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE     HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE
@@ -605,6 +653,7 @@
 #define HB_SCRIPT_YI                                  HR_SCRIPT_YI
 #define HB_SCRIPT_ZANABAZAR_SQUARE                    HR_SCRIPT_ZANABAZAR_SQUARE
 #define HB_SEGMENT_PROPERTIES_DEFAULT                 HR_SEGMENT_PROPERTIES_DEFAULT
+#define HB_SET_VALUE_INVALID                          HR_SET_VALUE_INVALID
 #define HB_TAG                                        HR_TAG
 #define HB_TAG_MAX                                    HR_TAG_MAX
 #define HB_TAG_MAX_SIGNED                             HR_TAG_MAX_SIGNED

@@ -722,8 +722,8 @@ mod tests {
         assert!(!first.eot_safe_high(128));
 
         let empty = accel.subtable(empty_subtable).unwrap();
-        assert!(empty.wouldbe.is_empty());
-        assert!(empty.eot_tail.is_empty());
+        assert_eq!(empty.wouldbe, []);
+        assert_eq!(empty.eot_tail, []);
 
         let last = accel.subtable(last_subtable).unwrap();
         assert!(last.wouldbe_matches(99, 9, false));

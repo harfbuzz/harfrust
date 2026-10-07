@@ -11,9 +11,8 @@ as HarfBuzz itself without collisions.
 
 This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
 `BASE` baseline and `MATH` queries. It also provides layout lookup queries,
-sets for inspecting glyph participation, and OpenType script and language tag
-conversion. Drawing and painting callbacks, subsetting, and maps are outside
-this API.
+OpenType script and language tag conversion, and the complete set and map
+container APIs. Drawing and painting callbacks and subsetting are outside this API.
 
 # Object lifetime
 
@@ -35,6 +34,7 @@ pub mod common;
 pub mod face;
 pub mod font;
 pub mod font_funcs;
+pub mod map;
 pub mod object;
 pub mod ot_layout;
 pub mod ot_math;
@@ -50,6 +50,7 @@ pub use common::*;
 pub use face::*;
 pub use font::*;
 pub use font_funcs::*;
+pub use map::*;
 pub use object::{hr_destroy_func_t, hr_user_data_key_t};
 pub use ot_layout::*;
 pub use ot_math::*;
@@ -61,6 +62,10 @@ pub use shape_plan::*;
 #[cfg(test)]
 #[path = "../tests/capi.rs"]
 mod capi_tests;
+
+#[cfg(test)]
+#[path = "../tests/containers.rs"]
+mod container_tests;
 
 #[cfg(test)]
 #[path = "../tests/headers.rs"]
