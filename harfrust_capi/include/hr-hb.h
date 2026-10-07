@@ -155,6 +155,7 @@
 #define hb_font_funcs_set_glyph_v_kerning_func           hr_font_funcs_set_glyph_v_kerning_func
 #define hb_font_funcs_set_glyph_v_origin_func            hr_font_funcs_set_glyph_v_origin_func
 #define hb_font_funcs_set_nominal_glyph_func             hr_font_funcs_set_nominal_glyph_func
+#define hb_font_funcs_set_nominal_glyphs_func            hr_font_funcs_set_nominal_glyphs_func
 #define hb_font_funcs_set_user_data                      hr_font_funcs_set_user_data
 #define hb_font_funcs_set_variation_glyph_func           hr_font_funcs_set_variation_glyph_func
 #define hb_font_funcs_t                                  hr_font_funcs_t
@@ -187,6 +188,8 @@
 #define hb_font_get_glyph_v_origin                       hr_font_get_glyph_v_origin
 #define hb_font_get_nominal_glyph                        hr_font_get_nominal_glyph
 #define hb_font_get_nominal_glyph_func_t                 hr_font_get_nominal_glyph_func_t
+#define hb_font_get_nominal_glyphs                       hr_font_get_nominal_glyphs
+#define hb_font_get_nominal_glyphs_func_t                hr_font_get_nominal_glyphs_func_t
 #define hb_font_get_parent                               hr_font_get_parent
 #define hb_font_get_ppem                                 hr_font_get_ppem
 #define hb_font_get_ptem                                 hr_font_get_ptem

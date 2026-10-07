@@ -220,3 +220,7 @@ the buffer being shaped.
 ## License
 
 MIT, the same as the rest of the project.
+
+Nominal glyph callbacks support both scalar and strided batch mapping. A batch
+callback supplies scalar queries when no scalar callback is installed; a local
+scalar callback also takes precedence over an inherited batch callback.

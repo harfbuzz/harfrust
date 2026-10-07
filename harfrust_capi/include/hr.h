@@ -398,6 +398,19 @@ typedef hr_bool_t (*hr_font_get_nominal_glyph_func_t)(struct hr_font_t *font,
                                                       void *user_data);
 
 /**
+ * Maps a strided batch of codepoints, stopping at the first missing glyph.
+ * Returns the number of consecutive entries mapped.
+ */
+typedef unsigned int (*hr_font_get_nominal_glyphs_func_t)(struct hr_font_t *font,
+                                                          void *font_data,
+                                                          unsigned int count,
+                                                          const hr_codepoint_t *first_unicode,
+                                                          unsigned int unicode_stride,
+                                                          hr_codepoint_t *first_glyph,
+                                                          unsigned int glyph_stride,
+                                                          void *user_data);
+
+/**
  * Maps a Unicode scalar value and variation selector to a glyph.
  */
 typedef hr_bool_t (*hr_font_get_variation_glyph_func_t)(struct hr_font_t *font,
@@ -3145,6 +3158,23 @@ hr_bool_t hr_font_get_nominal_glyph(struct hr_font_t *font,
                                     hr_codepoint_t *glyph);
 
 /**
+ * Maps a strided batch of Unicode codepoints to nominal glyphs.
+ *
+ * Stops at the first missing glyph and returns the number mapped. Zero
+ * strides may be used to read or write the same location repeatedly.
+ *
+ * # Safety
+ * `font` must be `NULL` or live. The arrays must be valid for `count`
+ * entries at their respective byte strides.
+ */
+unsigned int hr_font_get_nominal_glyphs(struct hr_font_t *font,
+                                        unsigned int count,
+                                        const hr_codepoint_t *first_unicode,
+                                        unsigned int unicode_stride,
+                                        hr_codepoint_t *first_glyph,
+                                        unsigned int glyph_stride);
+
+/**
  * Maps a Unicode scalar value and variation selector to a glyph, returning
  * false if the font has none.
  *
@@ -3542,6 +3572,22 @@ void hr_font_funcs_set_nominal_glyph_func(struct hr_font_funcs_t *ffuncs,
                                           hr_font_get_nominal_glyph_func_t func,
                                           void *user_data,
                                           hr_destroy_func_t destroy);
+
+/**
+ * Sets the callback mapping a strided batch of Unicode codepoints.
+ *
+ * Takes ownership of `user_data`, releasing it on replacement or destruction.
+ * An immutable funcs object rejects the callback and releases its data.
+ * A missing batch callback uses the scalar callback before asking the parent.
+ *
+ * # Safety
+ * `ffuncs` must be `NULL` or live, and the callback and data must be safe
+ * to invoke from any thread.
+ */
+void hr_font_funcs_set_nominal_glyphs_func(struct hr_font_funcs_t *ffuncs,
+                                           hr_font_get_nominal_glyphs_func_t func,
+                                           void *user_data,
+                                           hr_destroy_func_t destroy);
 
 /**
  * Sets the callback mapping a Unicode scalar value and variation selector
