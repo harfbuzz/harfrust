@@ -240,3 +240,15 @@ with the same face, blob, and set handles. Include `hr-subset.h` for the native
 API or `hr-hb-subset.h` for HarfBuzz spellings, and link both C libraries.
 See [the subset crate README](../harfbuzz_subset_c_api/README.md) for scope,
 linking, supported flags, and validation.
+
+## HarfBuzz C++ helpers
+
+Include `hr-hb-cplusplus.hh` in place of HarfBuzz's `hb-cplusplus.hh` for
+the C++11 `hb::shared_ptr<T>` and `hb::unique_ptr<T>` ownership helpers,
+their traits, and hash specializations. They adopt an existing reference;
+copying a shared pointer acquires another reference. Supported core types
+are blobs, buffers, faces, fonts, font functions, maps, sets, and shape plans.
+
+Including `hr-hb-subset.h` before or after the C++ header also enables
+subset inputs and plans. Link the separate subset library when using those
+objects. Objects without a complete HarfRust lifetime API have no vtable.

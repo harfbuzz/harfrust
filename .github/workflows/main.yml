@@ -45,6 +45,24 @@ jobs:
           -o /tmp/hr-subset
         /tmp/hr-subset harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
 
+    - name: HarfBuzz C++ ownership helpers
+      run: |
+        for standard in c++11 c++17; do
+          for order in CORE SUBSET_FIRST SUBSET_LAST; do
+            subset_library=""
+            if [ "$order" != CORE ]; then
+              subset_library="-lharfbuzz_subset_c"
+            fi
+            c++ -std="$standard" -pedantic-errors -Wall -Wextra -Werror \
+              -D"HR_TEST_$order" \
+              -Iharfrust_capi/include -Iharfbuzz_subset_c_api/include \
+              harfrust_capi/tests/cplusplus.cc -Ltarget/debug \
+              $subset_library -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+              -o /tmp/hr-cplusplus
+            /tmp/hr-cplusplus harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
+          done
+        done
+
     - name: Rustfmt
       run: cargo fmt --all -- --check
 
@@ -66,4 +84,3 @@ jobs:
 
       - name: cargo build harfrust
         run: cargo build -p harfrust --target thumbv7em-none-eabihf --no-default-features --features=libm
-        
