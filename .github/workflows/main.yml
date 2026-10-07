@@ -124,7 +124,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & target/debug/hr-subset.exe $font
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          foreach ($standard in @('c++11', 'c++17')) {
+          # The MSVC standard library requires C++14 or later.
+          foreach ($standard in @('c++14', 'c++17')) {
             foreach ($order in @('CORE', 'SUBSET_FIRST', 'SUBSET_LAST')) {
               [string[]]$linked = if ($order -eq 'CORE') { @('target/debug/harfrust_c.dll.lib') } else { $libraries }
               clang++ "-std=$standard" -pedantic-errors -Wall -Wextra -Werror "-DHR_TEST_$order" @includes harfrust_capi/tests/cplusplus.cc @linked -o target/debug/hr-cplusplus.exe
