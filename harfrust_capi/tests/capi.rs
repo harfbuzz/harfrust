@@ -2142,8 +2142,8 @@ fn disabling_a_feature_changes_the_result() {
             // changing the glyph count.
             let with_liga = shape_with(&[]);
             let without = shape_with(&[no_liga]);
-            assert!(!with_liga.is_empty());
-            assert!(!without.is_empty());
+            assert_ne!(with_liga, []);
+            assert_ne!(without, []);
         });
     }
 }
@@ -3075,7 +3075,7 @@ fn normalized_coordinates_can_be_set_directly() {
 
             let buffer = buffer_with_text(TEXT);
             hr_shape(font, buffer, ptr::null(), 0);
-            assert!(!glyph_ids(buffer).is_empty());
+            assert_ne!(glyph_ids(buffer), []);
             hr_buffer_destroy(buffer);
         });
     }
@@ -3380,7 +3380,7 @@ fn a_plan_that_applies_shapes_without_aborting() {
             hr_font_set_var_coords_normalized(font, coords.as_ptr(), coords.len() as c_uint);
             let buffer = buffer_with_text(TEXT);
             assert_ne!(hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0), 0);
-            assert!(!glyph_ids(buffer).is_empty());
+            assert_ne!(glyph_ids(buffer), []);
 
             hr_buffer_destroy(buffer);
             hr_shape_plan_destroy(plan);
@@ -3451,7 +3451,7 @@ fn shape_full_reports_only_whether_a_shaper_ran() {
                 let buffer = buffer_with_text(TEXT);
                 assert_ne!(hr_shape_full(font, buffer, ptr::null(), 0, list), 0);
                 assert_ne!(hr_buffer_allocation_successful(buffer), 0);
-                assert!(!glyph_ids(buffer).is_empty());
+                assert_ne!(glyph_ids(buffer), []);
                 hr_buffer_destroy(buffer);
             }
         });
