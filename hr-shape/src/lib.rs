@@ -628,7 +628,7 @@ mod tests {
     #[test]
     fn empty_output_format_is_accepted() {
         let args = Args::try_parse_from(["hr-shape", "font.ttf", "text", "-O", ""]).unwrap();
-        assert!(args.output_format.is_empty());
+        assert_eq!(args.output_format, "");
     }
 
     #[test]
