@@ -2621,7 +2621,7 @@ hr_bool_t hr_variation_from_string(const char *str_, int len, struct hr_variatio
 void hr_variation_to_string(const struct hr_variation_t *variation, char *buf, unsigned int size);
 
 /**
- * Returns the number of faces in a font blob, or zero if it is invalid.
+ * Returns the number of SFNT faces in a font blob, or zero otherwise.
  *
  * # Safety
  *
@@ -3820,6 +3820,25 @@ unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
                                            unsigned int *parts_count,
                                            struct hr_ot_math_glyph_part_t *parts,
                                            hr_position_t *italics_correction);
+
+/**
+ * Converts an OpenType language-system tag to an interned language.
+ */
+hr_language_t hr_ot_tag_to_language(hr_tag_t tag);
+
+/**
+ * Converts a script and language to their preferred OpenType tags.
+ *
+ * # Safety
+ * `language` must be NULL or an interned language returned by this API.
+ * Each non-NULL output array must have the capacity in its associated count.
+ */
+void hr_ot_tags_from_script_and_language(hr_script_t script,
+                                         hr_language_t language,
+                                         unsigned int *script_count,
+                                         hr_tag_t *script_tags,
+                                         unsigned int *language_count,
+                                         hr_tag_t *language_tags);
 
 struct hr_set_t *hr_set_create(void);
 

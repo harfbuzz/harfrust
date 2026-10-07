@@ -66,9 +66,10 @@ HEADER = """\
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, and MATH query APIs are covered.
+ * Shaping, BASE baseline, MATH, layout lookup, set, and OpenType tag
+ * conversion APIs are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
- * subsetting, other layout table introspection, hb_set and hb_map, custom Unicode
+ * subsetting, other layout table introspection, hb_map, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
  * point: you find out at build time rather than at run time. The version
  * macros (HB_VERSION_MAJOR and friends) are also absent; call hr_version() or

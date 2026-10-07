@@ -4,7 +4,7 @@ use core::ops::Range;
 
 use super::buffer::{Buffer, GlyphFlags};
 use super::layout::LayoutTableKind;
-use super::{tag, Language, Mask, Script, Tag};
+use super::{Language, Mask, Script, Tag};
 use crate::plan::ShapePlan;
 use crate::tag::TagExt;
 use crate::{LayoutData, ShaperFont};
@@ -223,7 +223,7 @@ impl<'a> OtMapBuilder<'a> {
     ) -> Self {
         // Fetch script/language indices for GSUB/GPOS.  We need these later to skip
         // features not available in either table and not waste precious bits for them.
-        let (script_tags, lang_tags) = tag::tags_from_script_and_language(script, language);
+        let (script_tags, lang_tags) = Script::tags_for_language(script, language);
 
         let mut found_script = [false; 2];
         let mut script_index = [None; 2];
@@ -231,12 +231,12 @@ impl<'a> OtMapBuilder<'a> {
         let mut lang_index = [None; 2];
 
         for (table_index, table) in layout.ot.layout_tables() {
-            if let Some((found, idx, tag)) = table.select_script(&script_tags) {
+            if let Some((found, idx, tag)) = table.select_script(script_tags.as_slice()) {
                 chosen_script[table_index] = Some(tag);
                 found_script[table_index] = found;
                 script_index[table_index] = Some(idx);
 
-                if let Some(idx) = table.select_script_language(idx, &lang_tags) {
+                if let Some(idx) = table.select_script_language(idx, lang_tags.as_slice()) {
                     lang_index[table_index] = Some(idx);
                 }
             }

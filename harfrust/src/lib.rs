@@ -57,6 +57,7 @@ pub(crate) mod set_digest;
 mod shape;
 mod shaper_font;
 mod tag;
+mod tag_reverse;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
@@ -88,7 +89,7 @@ pub use script::Script;
 pub use shaper_font::{
     Advances, FontFuncs, GlyphExtents, NominalGlyphs, RawAdvances, RawNominalGlyphs, ShaperFont,
 };
-pub use tag::ScriptTags;
+pub use tag::{LanguageTags, ScriptTags};
 
 /// Font types supplied by `read-fonts`.
 pub mod font {
