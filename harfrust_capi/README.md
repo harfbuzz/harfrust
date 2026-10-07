@@ -234,3 +234,9 @@ by HarfRust, currently 14.5.1. `HR_VERSION_*` and `hr_version*` continue to
 report the HarfRust package version. This lets source compatibility users
 select HarfBuzz API paths with version checks. It does not imply that every
 API from that HarfBuzz release is available; see the exclusions above.
+
+A separate `harfbuzz_subset_c_api` crate provides Skera-backed subsetting
+with the same face, blob, and set handles. Include `hr-subset.h` for the native
+API or `hr-hb-subset.h` for HarfBuzz spellings, and link both C libraries.
+See [the subset crate README](../harfbuzz_subset_c_api/README.md) for scope,
+linking, supported flags, and validation.

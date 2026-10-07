@@ -35,6 +35,16 @@ jobs:
     - name: Run tests with icu4x
       run: cargo test --verbose --features icu
 
+    - name: Subset C API shared-handle smoke test
+      run: |
+        cargo build -p harfrust_capi -p harfbuzz_subset_c_api
+        cc -std=c99 -pedantic-errors -Werror \
+          -Iharfrust_capi/include -Iharfbuzz_subset_c_api/include \
+          harfbuzz_subset_c_api/examples/subset.c -Ltarget/debug \
+          -lharfbuzz_subset_c -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+          -o /tmp/hr-subset
+        /tmp/hr-subset harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
+
     - name: Rustfmt
       run: cargo fmt --all -- --check
 

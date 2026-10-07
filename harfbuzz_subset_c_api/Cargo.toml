@@ -1,0 +1,23 @@
+[package]
+name = "harfbuzz_subset_c_api"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "HarfBuzz-compatible font subsetting C API backed by fontations skera."
+repository.workspace = true
+license.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+skera = "0.8.0"
+write-fonts = { version = "0.54.0", default-features = false, features = ["read"] }
+
+[lib]
+name = "harfbuzz_subset_c"
+crate-type = ["staticlib", "cdylib"]
+bench = false
+
+[lints]
+workspace = true
