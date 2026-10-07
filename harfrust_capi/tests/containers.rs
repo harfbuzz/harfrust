@@ -95,8 +95,8 @@ fn set_ranges_and_iteration() {
         assert_eq!(hr_set_get_population(set), 0);
         assert_eq!(hr_set_get_min(set), INVALID);
         assert_eq!(hr_set_get_max(set), INVALID);
-        assert!(ranges(set, false).is_empty());
-        assert!(ranges(set, true).is_empty());
+        assert_eq!(ranges(set, false), [] as [(u32, u32); 0]);
+        assert_eq!(ranges(set, true), [] as [(u32, u32); 0]);
         hr_set_destroy(set);
     }
 }
@@ -372,9 +372,9 @@ fn container_empty_singletons_and_null_arguments() {
             assert_eq!(hr_set_get_population(set), 0);
             assert_eq!(hr_set_get_min(set), INVALID);
             assert_eq!(hr_set_get_max(set), INVALID);
-            assert!(members(set).is_empty());
-            assert!(ranges(set, false).is_empty());
-            assert!(ranges(set, true).is_empty());
+            assert_eq!(members(set), [] as [u32; 0]);
+            assert_eq!(ranges(set, false), [] as [(u32, u32); 0]);
+            assert_eq!(ranges(set, true), [] as [(u32, u32); 0]);
             let copy = hr_set_copy(set);
             assert_eq!(hr_set_allocation_successful(copy), 1);
             hr_set_add(copy, 1);
