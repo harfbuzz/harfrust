@@ -16,6 +16,7 @@ parse_deps = false
 exclude = [
   "hr_blob_t", "hr_face_t", "hr_set_t", "Destroy",
   "hr_set_create", "hr_set_destroy", "hr_set_next_range",
+  "hr_set_copy", "hr_set_is_inverted", "hr_set_clear", "hr_set_invert", "hr_set_add", "hr_set_add_range", "hr_face_make_immutable",
   "hr_face_get_table_tags", "hr_face_reference_table", "hr_face_get_glyph_count",
   "hr_face_create_or_fail", "hr_blob_get_data", "hr_blob_create_or_fail", "hr_blob_destroy",
 ]

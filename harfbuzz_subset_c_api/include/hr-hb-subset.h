@@ -6,24 +6,43 @@
 
 /* Types, functions and callbacks */
 
-#define hb_face_t                      hr_face_t
-#define hb_set_t                       hr_set_t
-#define hb_subset_flags_t              hr_subset_flags_t
-#define hb_subset_input_create_or_fail hr_subset_input_create_or_fail
-#define hb_subset_input_destroy        hr_subset_input_destroy
-#define hb_subset_input_get_flags      hr_subset_input_get_flags
-#define hb_subset_input_glyph_set      hr_subset_input_glyph_set
-#define hb_subset_input_reference      hr_subset_input_reference
-#define hb_subset_input_set_flags      hr_subset_input_set_flags
-#define hb_subset_input_t              hr_subset_input_t
-#define hb_subset_input_unicode_set    hr_subset_input_unicode_set
-#define hb_subset_or_fail              hr_subset_or_fail
+#define hb_face_t                       hr_face_t
+#define hb_set_t                        hr_set_t
+#define hb_subset_flags_t               hr_subset_flags_t
+#define hb_subset_input_create_or_fail  hr_subset_input_create_or_fail
+#define hb_subset_input_destroy         hr_subset_input_destroy
+#define hb_subset_input_get_flags       hr_subset_input_get_flags
+#define hb_subset_input_glyph_set       hr_subset_input_glyph_set
+#define hb_subset_input_keep_everything hr_subset_input_keep_everything
+#define hb_subset_input_reference       hr_subset_input_reference
+#define hb_subset_input_set             hr_subset_input_set
+#define hb_subset_input_set_flags       hr_subset_input_set_flags
+#define hb_subset_input_t               hr_subset_input_t
+#define hb_subset_input_unicode_set     hr_subset_input_unicode_set
+#define hb_subset_or_fail               hr_subset_or_fail
+#define hb_subset_preprocess            hr_subset_preprocess
+#define hb_subset_sets_t                hr_subset_sets_t
 
 /* Constants and macros */
 
-#define HB_SUBSET_FLAGS_DEFAULT        HR_SUBSET_FLAGS_DEFAULT
-#define HB_SUBSET_FLAGS_NOTDEF_OUTLINE HR_SUBSET_FLAGS_NOTDEF_OUTLINE
-#define HB_SUBSET_FLAGS_NO_HINTING     HR_SUBSET_FLAGS_NO_HINTING
-#define HB_SUBSET_FLAGS_RETAIN_GIDS    HR_SUBSET_FLAGS_RETAIN_GIDS
+#define HB_SUBSET_FLAGS_DEFAULT                  HR_SUBSET_FLAGS_DEFAULT
+#define HB_SUBSET_FLAGS_GLYPH_NAMES              HR_SUBSET_FLAGS_GLYPH_NAMES
+#define HB_SUBSET_FLAGS_NAME_LEGACY              HR_SUBSET_FLAGS_NAME_LEGACY
+#define HB_SUBSET_FLAGS_NOTDEF_OUTLINE           HR_SUBSET_FLAGS_NOTDEF_OUTLINE
+#define HB_SUBSET_FLAGS_NO_BIDI_CLOSURE          HR_SUBSET_FLAGS_NO_BIDI_CLOSURE
+#define HB_SUBSET_FLAGS_NO_HINTING               HR_SUBSET_FLAGS_NO_HINTING
+#define HB_SUBSET_FLAGS_NO_LAYOUT_CLOSURE        HR_SUBSET_FLAGS_NO_LAYOUT_CLOSURE
+#define HB_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES  HR_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
+#define HB_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED HR_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED
+#define HB_SUBSET_FLAGS_RETAIN_GIDS              HR_SUBSET_FLAGS_RETAIN_GIDS
+#define HB_SUBSET_FLAGS_SET_OVERLAPS_FLAG        HR_SUBSET_FLAGS_SET_OVERLAPS_FLAG
+#define HB_SUBSET_SETS_DROP_TABLE_TAG            HR_SUBSET_SETS_DROP_TABLE_TAG
+#define HB_SUBSET_SETS_GLYPH_INDEX               HR_SUBSET_SETS_GLYPH_INDEX
+#define HB_SUBSET_SETS_LAYOUT_FEATURE_TAG        HR_SUBSET_SETS_LAYOUT_FEATURE_TAG
+#define HB_SUBSET_SETS_LAYOUT_SCRIPT_TAG         HR_SUBSET_SETS_LAYOUT_SCRIPT_TAG
+#define HB_SUBSET_SETS_NAME_ID                   HR_SUBSET_SETS_NAME_ID
+#define HB_SUBSET_SETS_NAME_LANG_ID              HR_SUBSET_SETS_NAME_LANG_ID
+#define HB_SUBSET_SETS_NO_SUBSET_TABLE_TAG       HR_SUBSET_SETS_NO_SUBSET_TABLE_TAG
+#define HB_SUBSET_SETS_UNICODE                   HR_SUBSET_SETS_UNICODE
 
 #endif /* HARFRUST_HB_SUBSET_H */

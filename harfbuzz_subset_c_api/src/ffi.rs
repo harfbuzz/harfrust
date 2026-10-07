@@ -22,6 +22,13 @@ pub type Destroy = Option<unsafe extern "C" fn(*mut c_void)>;
 
 extern "C" {
     pub fn hr_set_create() -> *mut hr_set_t;
+    pub fn hr_set_copy(set: *const hr_set_t) -> *mut hr_set_t;
+    pub fn hr_set_is_inverted(set: *const hr_set_t) -> c_int;
+    pub fn hr_set_clear(set: *mut hr_set_t);
+    pub fn hr_set_invert(set: *mut hr_set_t);
+    pub fn hr_set_add(set: *mut hr_set_t, value: c_uint);
+    pub fn hr_set_add_range(set: *mut hr_set_t, first: c_uint, last: c_uint);
+    pub fn hr_face_make_immutable(face: *mut hr_face_t);
     pub fn hr_set_destroy(set: *mut hr_set_t);
     pub fn hr_set_next_range(set: *const hr_set_t, first: *mut c_uint, last: *mut c_uint) -> c_int;
     pub fn hr_face_get_table_tags(

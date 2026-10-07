@@ -8,7 +8,9 @@ HarfBuzz's opaque handles cannot be passed to these functions.
 The initial API covers Skia's PDF workflow: create an input, select glyphs,
 set `RETAIN_GIDS | NOTDEF_OUTLINE`, subset a face, and reference its output
 blob. Unicode selection, reference-counted inputs, and `NO_HINTING` are also
-supported. Input sets start empty and are borrowed from their input;
+supported. Configurable input sets cover names, language IDs, layout features
+and scripts, and dropped tables. `hr_subset_input_keep_everything` configures
+all selections, with subsequent customization allowed. Glyph and Unicode sets start empty and are borrowed from their input;
 `hr_set_reference` keeps a set alive independently.
 
 Blob, TTC, and table-callback faces are accepted. Callback faces must install
@@ -45,6 +47,10 @@ cbindgen --config harfbuzz_subset_c_api/cbindgen.toml \
 python3 scripts/gen-hb-compat-header.py
 ```
 
+`hr_subset_preprocess` returns an immutable, self-contained copy of the face,
+so its callbacks and original data can be released. It currently adds no
+subsetting acceleration cache.
+
 ## Current scope
 
 The dependency is the published Skera 0.8 release series. CFF, CFF2, and VARC
@@ -52,8 +58,9 @@ fonts return `NULL`: this release does not rewrite those outline tables.
 Unsupported flag bits, missing enumeration, malformed inputs, and Skera
 errors also return `NULL`, allowing Skia to embed the full font instead.
 This is an initial API, not the complete HarfBuzz subset API: configurable
-table/layout/name sets, subset plans, axis pinning, and the remaining flags
-are not exposed yet. As with the shaping C API, allocation failure aborts.
+subset plans and axis pinning are not exposed yet. The configurable no-subset
+table set initially contains Skera's defaults; changing it returns failure
+until Skera exposes configuration of that set. As with the shaping C API, allocation failure aborts.
 
 ## Validation
 
@@ -70,3 +77,12 @@ python3 harfbuzz_subset_c_api/tests/compare_skia_hb.py \
 It compares blob, callback, and Unicode selections across five flag combinations
 and three fonts, including a variable font, and checks mappings, advances,
 outlines, retained holes, hinting, `.notdef`, input/output lifetimes, and failures.
+
+Additional implemented flags are `NAME_LEGACY`, `SET_OVERLAPS_FLAG`,
+`PASSTHROUGH_UNRECOGNIZED`, `GLYPH_NAMES`, `NO_PRUNE_UNICODE_RANGES`,
+`NO_LAYOUT_CLOSURE`, and `NO_BIDI_CLOSURE`. Desubroutinization and IUP delta
+optimization are not implemented by the dependency and remain unsupported.
+
+`tests/compare_controls_hb.py` takes the same library arguments and checks
+15 additional cases, input-set defaults, keep-everything, inverted sets,
+custom table passthrough, overlap flags, and preprocessing ownership.

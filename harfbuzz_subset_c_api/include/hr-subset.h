@@ -19,6 +19,11 @@
  */
 typedef struct hr_subset_input_t hr_subset_input_t;
 
+/**
+ * Identifies a configurable input set, with HarfBuzz's numeric values.
+ */
+typedef unsigned int hr_subset_sets_t;
+
 typedef unsigned int hr_subset_flags_t;
 
 /**
@@ -40,6 +45,81 @@ typedef unsigned int hr_subset_flags_t;
  * Preserve the outline of glyph zero.
  */
 #define HR_SUBSET_FLAGS_NOTDEF_OUTLINE 64
+
+/**
+ * Retain non-Unicode name records.
+ */
+#define HR_SUBSET_FLAGS_NAME_LEGACY 8
+
+/**
+ * Set the TrueType overlap flag on simple glyphs.
+ */
+#define HR_SUBSET_FLAGS_SET_OVERLAPS_FLAG 16
+
+/**
+ * Copy unrecognized tables unchanged.
+ */
+#define HR_SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED 32
+
+/**
+ * Retain PostScript glyph names.
+ */
+#define HR_SUBSET_FLAGS_GLYPH_NAMES 128
+
+/**
+ * Preserve the OS/2 Unicode range bits.
+ */
+#define HR_SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES 256
+
+/**
+ * Disable layout substitution glyph closure.
+ */
+#define HR_SUBSET_FLAGS_NO_LAYOUT_CLOSURE 512
+
+/**
+ * Disable mirrored Unicode closure.
+ */
+#define HR_SUBSET_FLAGS_NO_BIDI_CLOSURE 2048
+
+/**
+ * Glyph IDs to retain.
+ */
+#define HR_SUBSET_SETS_GLYPH_INDEX 0
+
+/**
+ * Unicode codepoints to retain.
+ */
+#define HR_SUBSET_SETS_UNICODE 1
+
+/**
+ * Tables to copy unchanged (currently the Skera default set only).
+ */
+#define HR_SUBSET_SETS_NO_SUBSET_TABLE_TAG 2
+
+/**
+ * Tables to omit from the output.
+ */
+#define HR_SUBSET_SETS_DROP_TABLE_TAG 3
+
+/**
+ * Name IDs to retain.
+ */
+#define HR_SUBSET_SETS_NAME_ID 4
+
+/**
+ * Name language IDs to retain.
+ */
+#define HR_SUBSET_SETS_NAME_LANG_ID 5
+
+/**
+ * Layout feature tags to retain.
+ */
+#define HR_SUBSET_SETS_LAYOUT_FEATURE_TAG 6
+
+/**
+ * Layout script tags to retain.
+ */
+#define HR_SUBSET_SETS_LAYOUT_SCRIPT_TAG 7
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,6 +165,27 @@ hr_set_t *hr_subset_input_glyph_set(struct hr_subset_input_t *input);
 hr_set_t *hr_subset_input_unicode_set(struct hr_subset_input_t *input);
 
 /**
+ * Returns a borrowed configurable input set, or `NULL` for an invalid selector.
+ *
+ * Changes to the no-subset table set currently cause subsetting to fail:
+ * published Skera does not expose customization of that set yet.
+ *
+ * # Safety
+ * `input` must be `NULL` or live; the returned set is borrowed from it.
+ */
+hr_set_t *hr_subset_input_set(struct hr_subset_input_t *input, hr_subset_sets_t set_type);
+
+/**
+ * Configures all glyphs, Unicodes, names, and layout items to be retained.
+ * The input can be tailored afterwards. Table passthrough and glyph names
+ * are enabled; no tables are explicitly dropped.
+ *
+ * # Safety
+ * `input` must be `NULL` or live and exclusively accessible.
+ */
+void hr_subset_input_keep_everything(struct hr_subset_input_t *input);
+
+/**
  * Sets the subset flags. Unsupported flag bits cause subsetting to fail.
  *
  * # Safety
@@ -113,6 +214,18 @@ hr_subset_flags_t hr_subset_input_get_flags(const struct hr_subset_input_t *inpu
  * threading contract.
  */
 hr_face_t *hr_subset_or_fail(hr_face_t *face, const struct hr_subset_input_t *input);
+
+/**
+ * Copies a font's tables into an immutable, self-contained face for reuse.
+ *
+ * This preserves the preprocessing API's ownership contract; it currently
+ * does not add a Skera acceleration cache. It accepts any readable SFNT,
+ * including outline formats that the subset operation cannot yet rewrite.
+ *
+ * # Safety
+ * `face` must be `NULL` or live, with callbacks satisfying the core API contract.
+ */
+hr_face_t *hr_subset_preprocess(hr_face_t *face);
 
 #ifdef __cplusplus
 }  // extern "C"
