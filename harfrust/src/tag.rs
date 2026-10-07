@@ -1,6 +1,6 @@
 use smallvec::SmallVec;
 
-use super::{tag_table, Language, Script, Tag};
+use super::{tag_reverse, tag_table, Language, Script, Tag};
 
 type ThreeTags = SmallVec<[Tag; 3]>;
 
@@ -19,71 +19,71 @@ impl<A: smallvec::Array> SmallVecExt for SmallVec<A> {
     }
 }
 
-/// Converts an `Script` and an `Language` to script and language tags.
-pub fn tags_from_script_and_language(
-    script: Option<Script>,
-    language: Option<&Language>,
-) -> (ThreeTags, ThreeTags) {
-    let mut needs_script = true;
-    let mut scripts = SmallVec::new();
-    let mut languages = SmallVec::new();
+impl Script {
+    /// Converts an optional script and language to preferred OpenType tags.
+    pub fn tags_for_language(
+        script: Option<Self>,
+        language: Option<&Language>,
+    ) -> (ScriptTags, LanguageTags) {
+        let mut needs_script = true;
+        let mut scripts = SmallVec::new();
+        let mut languages = SmallVec::new();
 
-    let mut private_use_subtag = None;
-    let mut prefix = b"" as &[u8];
-    if let Some(language) = language {
-        let language = language.as_bytes();
-        if language.starts_with(b"x-") {
-            private_use_subtag = Some(language);
-        } else {
-            let mut i = 1;
-            while i < language.len() {
-                if language.get(i - 1) == Some(&b'-') && language.get(i + 1) == Some(&b'-') {
-                    if language[i] == b'x' {
-                        private_use_subtag = Some(&language[i..]);
-                        if prefix.is_empty() {
+        let mut private_use_subtag = None;
+        let mut prefix = b"" as &[u8];
+        if let Some(language) = language {
+            let language = language.as_bytes();
+            if language.starts_with(b"x-") {
+                private_use_subtag = Some(language);
+            } else {
+                let mut i = 1;
+                while i < language.len() {
+                    if language.get(i - 1) == Some(&b'-') && language.get(i + 1) == Some(&b'-') {
+                        if language[i] == b'x' {
+                            private_use_subtag = Some(&language[i..]);
+                            if prefix.is_empty() {
+                                prefix = &language[..i - 1];
+                            }
+
+                            break;
+                        } else {
                             prefix = &language[..i - 1];
                         }
-
-                        break;
-                    } else {
-                        prefix = &language[..i - 1];
                     }
+
+                    i += 1;
                 }
 
-                i += 1;
+                if prefix.is_empty() {
+                    prefix = &language[..i];
+                }
             }
 
-            if prefix.is_empty() {
-                prefix = &language[..i];
-            }
-        }
+            needs_script = !parse_private_use_subtag(
+                private_use_subtag,
+                b"-hbsc",
+                u8::to_ascii_lowercase,
+                &mut scripts,
+            );
 
-        needs_script = !parse_private_use_subtag(
-            private_use_subtag,
-            b"-hbsc",
-            u8::to_ascii_lowercase,
-            &mut scripts,
-        );
+            let needs_language = !parse_private_use_subtag(
+                private_use_subtag,
+                b"-hbot",
+                u8::to_ascii_uppercase,
+                &mut languages,
+            );
 
-        let needs_language = !parse_private_use_subtag(
-            private_use_subtag,
-            b"-hbot",
-            u8::to_ascii_uppercase,
-            &mut languages,
-        );
-
-        if needs_language {
-            if let Some(language) = Language::new(prefix) {
-                tags_from_language(&language, &mut languages);
+            if needs_language && !prefix.is_empty() {
+                tags_from_language(prefix, &mut languages);
             }
         }
-    }
 
-    if needs_script {
-        all_tags_from_script(script, &mut scripts);
-    }
+        if needs_script {
+            all_tags_from_script(script, &mut scripts);
+        }
 
-    (scripts, languages)
+        (ScriptTags(scripts), LanguageTags(languages))
+    }
 }
 
 fn parse_private_use_subtag(
@@ -200,9 +200,7 @@ pub(super) fn strncmp(s1: impl AsRef<[u8]>, s2: impl AsRef<[u8]>, n: usize) -> b
     s1[..n1] == s2[..n2]
 }
 
-fn tags_from_language(language: &Language, tags: &mut ThreeTags) {
-    let language = language.as_bytes();
-
+fn tags_from_language(language: &[u8], tags: &mut ThreeTags) {
     // Check for matches of multiple subtags.
     if let Ok(language_str) = core::str::from_utf8(language) {
         if tag_table::tags_from_complex_language(language_str, tags) {
@@ -259,6 +257,46 @@ fn tags_from_language(language: &Language, tags: &mut ThreeTags) {
     }
 }
 
+impl Language {
+    /// Converts an OpenType language-system tag to a BCP 47 language.
+    ///
+    /// Unknown tags use HarfBuzz's private-use `x-hbot-` spelling so that they
+    /// round-trip through [`Script::tags_for_language`]. The `dflt` tag
+    /// returns `None`.
+    pub fn from_tag(tag: Tag) -> Option<Self> {
+        if tag == Tag::new(b"dflt") {
+            return None;
+        }
+
+        let bytes = tag.to_be_bytes();
+        if let Ok(index) = tag_reverse::OT_LANGUAGES_REVERSE
+            .binary_search_by_key(&bytes, |(candidate, _)| *candidate)
+        {
+            return Language::new(tag_reverse::OT_LANGUAGES_REVERSE[index].1);
+        }
+
+        let mut language = [0u8; 20];
+        let mut length = 0;
+        if bytes[..3].iter().all(u8::is_ascii_alphabetic) && bytes[3] == b' ' {
+            for byte in &bytes[..3] {
+                language[length] = byte.to_ascii_lowercase();
+                length += 1;
+            }
+            language[length] = b'-';
+            length += 1;
+        }
+        language[length..length + 7].copy_from_slice(b"x-hbot-");
+        length += 7;
+        for byte in bytes {
+            for nibble in [byte >> 4, byte & 0x0f] {
+                language[length] = b"0123456789abcdef"[nibble as usize];
+                length += 1;
+            }
+        }
+        Language::new(&language[..length])
+    }
+}
+
 fn all_tags_from_script(script: Option<Script>, tags: &mut ThreeTags) {
     if let Some(script) = script {
         if let Some(tag) = new_tag_from_script(script) {
@@ -293,6 +331,19 @@ impl ScriptTags {
     }
 }
 
+/// OpenType language-system tags for a BCP 47 language, in preference order.
+///
+/// At most three tags are stored inline.
+#[derive(Clone, Debug)]
+pub struct LanguageTags(ThreeTags);
+
+impl LanguageTags {
+    /// Returns the tags, from most to least preferred.
+    pub fn as_slice(&self) -> &[Tag] {
+        &self.0
+    }
+}
+
 impl Script {
     /// Returns the OpenType script tags corresponding to this Unicode script.
     pub fn tags(self) -> ScriptTags {
@@ -319,14 +370,12 @@ fn new_tag_from_script(script: Script) -> Option<Tag> {
 }
 
 fn old_tag_from_script(script: Script) -> Tag {
-    const KATAKANA_OR_HIRAGANA: Script = Script::from_bytes(b"Hrkt");
-
     // This seems to be accurate as of end of 2012.
     match script {
         Script::MATH => Tag::new(b"math"),
 
-        // Hiragana, Katakana, and their collective ISO 15924 script all map to 'kana'.
-        Script::HIRAGANA | KATAKANA_OR_HIRAGANA => Tag::new(b"kana"),
+        // Hiragana and Katakana both map to 'kana'.
+        Script::HIRAGANA => Tag::new(b"kana"),
 
         // Spaces at the end are preserved, unlike ISO 15924.
         Script::LAO => Tag::new(b"lao "),
@@ -476,9 +525,9 @@ mod tests {
     fn test_simple_tags(tag: &str, script: Script) {
         let tag = Tag::from_bytes_lossy(tag.as_bytes());
 
-        let (scripts, _) = tags_from_script_and_language(Some(script), None);
-        if !scripts.is_empty() {
-            assert_eq!(tag, scripts[0]);
+        let (scripts, _) = Script::tags_for_language(Some(script), None);
+        if !scripts.as_slice().is_empty() {
+            assert_eq!(tag, scripts.as_slice()[0]);
         } else {
             assert_eq!(tag, Tag::default_script());
         }
@@ -504,19 +553,30 @@ mod tests {
     fn script_degenerate() {
         assert_eq!(Tag::new(b"DFLT"), Tag::default_script());
 
-        // Hiragana, Katakana, and their collective ISO 15924 script all map to 'kana'.
+        // Hiragana and Katakana both map to 'kana'.
         test_simple_tags("kana", Script::KATAKANA);
 
-        let (scripts, _) = tags_from_script_and_language(Some(Script::HIRAGANA), None);
+        let (scripts, _) = Script::tags_for_language(Some(Script::HIRAGANA), None);
         assert_eq!(scripts.as_slice(), &[Tag::new(b"kana")]);
 
         let katakana_or_hiragana =
             Script::from_iso15924_tag(Tag::new(b"Hrkt")).unwrap();
-        let (scripts, _) = tags_from_script_and_language(Some(katakana_or_hiragana), None);
-        assert_eq!(scripts.as_slice(), &[Tag::new(b"kana")]);
+        let (scripts, _) = Script::tags_for_language(Some(katakana_or_hiragana), None);
+        assert_eq!(scripts.as_slice(), &[Tag::new(b"hrkt")]);
 
         // Spaces are replaced
         assert_eq!(tag_to_script(Tag::new(b"be  ")), Script::from_iso15924_tag(Tag::new(b"Beee")));
+    }
+
+    #[test]
+    fn script_tags_for_language() {
+        let language = Language::new("zh-Hant").unwrap();
+        let (scripts, languages) = Script::tags_for_language(Some(Script::DEVANAGARI), Some(&language));
+        assert_eq!(
+            scripts.as_slice(),
+            &[Tag::new(b"dev3"), Tag::new(b"dev2"), Tag::new(b"deva")]
+        );
+        assert_eq!(languages.as_slice(), &[Tag::new(b"ZHT ")]);
     }
 
     #[test]
@@ -556,8 +616,8 @@ mod tests {
             fn $name() {
                 let tag = Tag::from_bytes_lossy($tag.as_bytes());
                 let (scripts, _) =
-                    tags_from_script_and_language($script, Language::new($lang).as_ref());
-                if !scripts.is_empty() {
+                    Script::tags_for_language($script, Language::new($lang).as_ref());
+                if !scripts.as_slice().is_empty() {
                     assert_eq!(scripts.as_slice(), &[tag]);
                 }
             }
@@ -589,7 +649,7 @@ mod tests {
             let tag2 = Tag::from_bytes_lossy(tag2.as_bytes());
             let tag3 = Tag::from_bytes_lossy(tag3.as_bytes());
 
-            let (scripts, _) = tags_from_script_and_language(Some(script), None);
+            let (scripts, _) = Script::tags_for_language(Some(script), None);
             assert_eq!(scripts.as_slice(), &[tag1, tag2, tag3]);
             assert_eq!(tag_to_script(tag1), Some(script));
             assert_eq!(tag_to_script(tag2), Some(script));
@@ -613,12 +673,12 @@ mod tests {
             #[test]
             fn $name() {
                 let tag = Tag::from_bytes_lossy($tag.as_bytes());
-                let (_, languages) = tags_from_script_and_language(
+                let (_, languages) = Script::tags_for_language(
                     None,
                     Language::new(&$lang.to_lowercase()).as_ref(),
                 );
-                if !languages.is_empty() {
-                    assert_eq!(languages[0], tag);
+                if !languages.as_slice().is_empty() {
+                    assert_eq!(languages.as_slice()[0], tag);
                 }
             }
         };
@@ -798,7 +858,7 @@ mod tests {
             #[test]
             fn $name() {
                 let (scripts, languages) =
-                    tags_from_script_and_language($script, Language::new($lang).as_ref());
+                    Script::tags_for_language($script, Language::new($lang).as_ref());
 
                 let exp_scripts: Vec<Tag> = $scripts.iter().map(|v| Tag::from_bytes_lossy(*v)).collect();
                 let exp_langs: Vec<Tag> = $langs.iter().map(|v| Tag::from_bytes_lossy(*v)).collect();
@@ -842,7 +902,7 @@ mod tests {
             "+d4f4e54", "-d4f4e54", "4d4f4e5\u{e9}",
         ] {
             let language = alloc::format!("en-x-hbot-{hex}-hbsc-{hex}");
-            let (scripts, languages) = tags_from_script_and_language(
+            let (scripts, languages) = Script::tags_for_language(
                 Some(Script::LATIN), Language::new(&language).as_ref(),
             );
             assert_eq!(scripts.as_slice(), &[Tag::new(b"latn")], "{language}");
@@ -850,9 +910,9 @@ mod tests {
 
             let language = alloc::format!("x-hbot-{hex}-hbsc-{hex}");
             let (scripts, languages) =
-                tags_from_script_and_language(None, Language::new(&language).as_ref());
-            assert!(scripts.is_empty(), "{language}");
-            assert!(languages.is_empty(), "{language}");
+                Script::tags_for_language(None, Language::new(&language).as_ref());
+            assert!(scripts.as_slice().is_empty(), "{language}");
+            assert!(languages.as_slice().is_empty(), "{language}");
         }
     }
 

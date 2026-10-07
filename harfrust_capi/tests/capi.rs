@@ -149,6 +149,77 @@ fn contextual_rule_and_class_formats_do_not_fall_back_to_all_glyphs() {
 }
 
 #[test]
+fn ot_tag_conversion_round_trips_and_pages() {
+    unsafe {
+        let dflt = u32::from_be_bytes(*b"dflt");
+        assert!(hr_ot_tag_to_language(dflt).is_null());
+        let arabic = hr_ot_tag_to_language(u32::from_be_bytes(*b"ARA "));
+        assert_eq!(
+            std::ffi::CStr::from_ptr(hr_language_to_string(arabic)).to_bytes(),
+            b"ar"
+        );
+
+        let unknown = u32::from_be_bytes(*b"ABC ");
+        let custom = hr_ot_tag_to_language(unknown);
+        assert_eq!(
+            std::ffi::CStr::from_ptr(hr_language_to_string(custom)).to_bytes(),
+            b"abc-x-hbot-41424320"
+        );
+        let mut script_count = 0;
+        let mut language_count = 1;
+        let mut language_tags = [0];
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_INVALID,
+            custom,
+            &raw mut script_count,
+            ptr::null_mut(),
+            &raw mut language_count,
+            language_tags.as_mut_ptr(),
+        );
+        assert_eq!((language_count, language_tags[0]), (1, unknown));
+
+        let chinese = hr_language_from_string(c"zh-Hant".as_ptr(), -1);
+        let mut scripts = [0; 3];
+        let mut languages = [0; 3];
+        script_count = 3;
+        language_count = 3;
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_DEVANAGARI,
+            chinese,
+            &raw mut script_count,
+            scripts.as_mut_ptr(),
+            &raw mut language_count,
+            languages.as_mut_ptr(),
+        );
+        assert_eq!(script_count, 3);
+        assert_eq!(
+            scripts,
+            [
+                u32::from_be_bytes(*b"dev3"),
+                u32::from_be_bytes(*b"dev2"),
+                u32::from_be_bytes(*b"deva")
+            ]
+        );
+        assert_eq!(
+            (language_count, languages[0]),
+            (1, u32::from_be_bytes(*b"ZHT "))
+        );
+
+        script_count = 1;
+        language_count = 1;
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_DEVANAGARI,
+            chinese,
+            &raw mut script_count,
+            ptr::null_mut(),
+            &raw mut language_count,
+            ptr::null_mut(),
+        );
+        assert_eq!((script_count, language_count), (1, 1));
+    }
+}
+
+#[test]
 fn math_queries_scale_device_values_and_page() {
     unsafe {
         let path =
