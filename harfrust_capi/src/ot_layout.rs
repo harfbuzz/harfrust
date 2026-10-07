@@ -1,17 +1,505 @@
 //! OpenType BASE baseline queries.
 
+use core::ffi::c_uint;
+
 use harfrust::Tag;
 use read_fonts::tables::base::{BaseAxis, BaseInstance};
+use read_fonts::tables::gpos::{PairPos, PositionSubtables};
+use read_fonts::tables::gsub::{SingleSubst, SubstitutionLookupList, SubstitutionSubtables};
+use read_fonts::tables::layout::{
+    ChainedSequenceContext, ClassDef, CoverageTable, SequenceContext, SequenceLookupRecord,
+};
 use read_fonts::types::F48Dot16;
-use read_fonts::TableProvider;
+use read_fonts::{ReadError, TableProvider};
 
 use crate::common::hr_glyph_extents_t;
 use crate::common::{
     hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, script_to_rust,
     tag_from_rust, tag_to_rust, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
 };
+use crate::face::hr_face_t;
 use crate::font::{hr_font_get_glyph_extents, hr_font_get_nominal_glyph, hr_font_t};
 use crate::object;
+use crate::set::hr_set_t;
+
+const GSUB_TAG: hr_tag_t = 0x4753_5542;
+const GPOS_TAG: hr_tag_t = 0x4750_4F53;
+
+/// Returns whether the face has a readable GSUB table.
+///
+/// # Safety
+/// `face` must be `NULL` or live.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_has_substitution(face: *mut hr_face_t) -> hr_bool_t {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    face.font()
+        .is_some_and(|font| font.tables().gsub().is_ok())
+        .into()
+}
+
+/// Returns whether the face has a readable GPOS table.
+///
+/// # Safety
+/// `face` must be `NULL` or live.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_has_positioning(face: *mut hr_face_t) -> hr_bool_t {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    face.font()
+        .is_some_and(|font| font.tables().gpos().is_ok())
+        .into()
+}
+
+/// Returns the number of lookups in GSUB or GPOS.
+///
+/// # Safety
+/// `face` must be `NULL` or live.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_table_get_lookup_count(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+) -> c_uint {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let Some(font) = face.font() else { return 0 };
+    match table_tag {
+        GSUB_TAG => font
+            .tables()
+            .gsub()
+            .ok()
+            .and_then(|table| table.lookup_list().ok())
+            .map_or(0, |list| list.lookups().len() as c_uint),
+        GPOS_TAG => font
+            .tables()
+            .gpos()
+            .ok()
+            .and_then(|table| table.lookup_list().ok())
+            .map_or(0, |list| list.lookups().len() as c_uint),
+        _ => 0,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SetTarget(*mut hr_set_t);
+
+impl SetTarget {
+    fn add(self, glyph: u32) {
+        if let Some(set) = unsafe { object::as_mutable(self.0) } {
+            set.add(glyph);
+        }
+    }
+
+    fn include_all_glyphs(self) {
+        if let Some(set) = unsafe { object::as_mutable(self.0) } {
+            set.include_all_glyphs(65536);
+        }
+    }
+}
+
+fn add_coverage(set: SetTarget, coverage: CoverageTable<'_>) {
+    for glyph in coverage.iter() {
+        set.add(glyph.to_u32());
+    }
+}
+
+fn add_class_coverage(set: SetTarget, class_def: ClassDef<'_>) {
+    match class_def {
+        ClassDef::Format1(table) => {
+            let start = table.start_glyph_id().to_u32();
+            let mut previous_nonzero = false;
+            for (index, class) in table.class_value_array().iter().enumerate() {
+                let nonzero = class.get() != 0;
+                if nonzero || previous_nonzero {
+                    set.add(start + index as u32);
+                }
+                previous_nonzero = nonzero;
+            }
+            if previous_nonzero {
+                set.add(start + table.class_value_array().len() as u32);
+            }
+        }
+        ClassDef::Format2(table) => {
+            for (glyph, class) in table.iter() {
+                if class != 0 {
+                    set.add(glyph.to_u32());
+                }
+            }
+        }
+    }
+}
+
+fn add_class(set: SetTarget, class_def: &ClassDef<'_>, selected: u16) {
+    for (glyph, class) in class_def.iter() {
+        if class == selected {
+            set.add(glyph.to_u32());
+        }
+    }
+}
+
+fn collect_nested_substitutions(
+    records: &[SequenceLookupRecord],
+    lookup_list: &SubstitutionLookupList<'_>,
+    output: SetTarget,
+    depth: u8,
+) -> Result<bool, ReadError> {
+    for record in records {
+        let nested = lookup_list
+            .lookups()
+            .get(record.lookup_list_index() as usize)?;
+        if !collect_substitution(
+            nested,
+            lookup_list,
+            SetTarget(core::ptr::null_mut()),
+            SetTarget(core::ptr::null_mut()),
+            SetTarget(core::ptr::null_mut()),
+            output,
+            depth + 1,
+        )? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn collect_substitution(
+    lookup: read_fonts::tables::gsub::SubstitutionLookup<'_>,
+    lookup_list: &SubstitutionLookupList<'_>,
+    before: SetTarget,
+    input: SetTarget,
+    after: SetTarget,
+    output: SetTarget,
+    depth: u8,
+) -> Result<bool, ReadError> {
+    if depth >= 8 {
+        return Ok(false);
+    }
+    match lookup.subtables()? {
+        SubstitutionSubtables::Single(subtables) => {
+            for subtable in subtables.iter() {
+                match subtable? {
+                    SingleSubst::Format1(table) => {
+                        let coverage = table.coverage()?;
+                        for glyph in coverage.iter() {
+                            let id = glyph.to_u32();
+                            input.add(id);
+                            output.add((id as u16).wrapping_add_signed(table.delta_glyph_id()) as u32);
+                        }
+                    }
+                    SingleSubst::Format2(table) => {
+                        add_coverage(input, table.coverage()?);
+                        for glyph in table.substitute_glyph_ids() {
+                            output.add(glyph.get().to_u32());
+                        }
+                    }
+                }
+            }
+        }
+        SubstitutionSubtables::Multiple(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.coverage()?);
+                for sequence in table.sequences().iter() {
+                    for glyph in sequence?.substitute_glyph_ids() {
+                        output.add(glyph.get().to_u32());
+                    }
+                }
+            }
+        }
+        SubstitutionSubtables::Alternate(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.coverage()?);
+                for alternate in table.alternate_sets().iter() {
+                    for glyph in alternate?.alternate_glyph_ids() {
+                        output.add(glyph.get().to_u32());
+                    }
+                }
+            }
+        }
+        SubstitutionSubtables::Ligature(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.coverage()?);
+                for set in table.ligature_sets().iter() {
+                    for ligature in set?.ligatures().iter() {
+                        let ligature = ligature?;
+                        output.add(ligature.ligature_glyph().to_u32());
+                        for glyph in ligature.component_glyph_ids() {
+                            input.add(glyph.get().to_u32());
+                        }
+                    }
+                }
+            }
+        }
+        SubstitutionSubtables::Reverse(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.coverage()?);
+                for coverage in table.backtrack_coverages().iter() {
+                    add_coverage(before, coverage?);
+                }
+                for coverage in table.lookahead_coverages().iter() {
+                    add_coverage(after, coverage?);
+                }
+                for glyph in table.substitute_glyph_ids() {
+                    output.add(glyph.get().to_u32());
+                }
+            }
+        }
+        SubstitutionSubtables::Contextual(subtables) => {
+            for subtable in subtables.iter() {
+                match subtable? {
+                    SequenceContext::Format1(table) => {
+                        add_coverage(input, table.coverage()?);
+                        for rule_set in table.seq_rule_sets().iter().flatten() {
+                            for rule in rule_set?.seq_rules().iter() {
+                                let rule = rule?;
+                                for glyph in rule.input_sequence() {
+                                    input.add(glyph.get().to_u32());
+                                }
+                                if !collect_nested_substitutions(
+                                    rule.seq_lookup_records(),
+                                    lookup_list,
+                                    output,
+                                    depth,
+                                )? {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                    }
+                    SequenceContext::Format2(table) => {
+                        add_coverage(input, table.coverage()?);
+                        let class_def = table.class_def()?;
+                        for rule_set in table.class_seq_rule_sets().iter().flatten() {
+                            for rule in rule_set?.class_seq_rules().iter() {
+                                let rule = rule?;
+                                for class in rule.input_sequence() {
+                                    add_class(input, &class_def, class.get());
+                                }
+                                if !collect_nested_substitutions(
+                                    rule.seq_lookup_records(),
+                                    lookup_list,
+                                    output,
+                                    depth,
+                                )? {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                    }
+                    SequenceContext::Format3(table) => {
+                        for coverage in table.coverages().iter() {
+                            add_coverage(input, coverage?);
+                        }
+                        if !collect_nested_substitutions(
+                            table.seq_lookup_records(),
+                            lookup_list,
+                            output,
+                            depth,
+                        )? {
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+        }
+        SubstitutionSubtables::ChainContextual(subtables) => {
+            for subtable in subtables.iter() {
+                match subtable? {
+                    ChainedSequenceContext::Format1(table) => {
+                        add_coverage(input, table.coverage()?);
+                        for rule_set in table.chained_seq_rule_sets().iter().flatten() {
+                            for rule in rule_set?.chained_seq_rules().iter() {
+                                let rule = rule?;
+                                for glyph in rule.backtrack_sequence() {
+                                    before.add(glyph.get().to_u32());
+                                }
+                                for glyph in rule.input_sequence() {
+                                    input.add(glyph.get().to_u32());
+                                }
+                                for glyph in rule.lookahead_sequence() {
+                                    after.add(glyph.get().to_u32());
+                                }
+                                if !collect_nested_substitutions(
+                                    rule.seq_lookup_records(),
+                                    lookup_list,
+                                    output,
+                                    depth,
+                                )? {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                    }
+                    ChainedSequenceContext::Format2(table) => {
+                        add_coverage(input, table.coverage()?);
+                        let backtrack_class_def = table.backtrack_class_def()?;
+                        let input_class_def = table.input_class_def()?;
+                        let lookahead_class_def = table.lookahead_class_def()?;
+                        for rule_set in table.chained_class_seq_rule_sets().iter().flatten() {
+                            for rule in rule_set?.chained_class_seq_rules().iter() {
+                                let rule = rule?;
+                                for class in rule.backtrack_sequence() {
+                                    add_class(before, &backtrack_class_def, class.get());
+                                }
+                                for class in rule.input_sequence() {
+                                    add_class(input, &input_class_def, class.get());
+                                }
+                                for class in rule.lookahead_sequence() {
+                                    add_class(after, &lookahead_class_def, class.get());
+                                }
+                                if !collect_nested_substitutions(
+                                    rule.seq_lookup_records(),
+                                    lookup_list,
+                                    output,
+                                    depth,
+                                )? {
+                                    return Ok(false);
+                                }
+                            }
+                        }
+                    }
+                    ChainedSequenceContext::Format3(table) => {
+                        let mut coverages = table.input_coverages().iter();
+                        add_coverage(input, coverages.next().ok_or(ReadError::OutOfBounds)??);
+                        for coverage in coverages {
+                            add_coverage(input, coverage?);
+                        }
+                        for coverage in table.backtrack_coverages().iter() {
+                            add_coverage(before, coverage?);
+                        }
+                        for coverage in table.lookahead_coverages().iter() {
+                            add_coverage(after, coverage?);
+                        }
+                        if !collect_nested_substitutions(
+                            table.seq_lookup_records(),
+                            lookup_list,
+                            output,
+                            depth,
+                        )? {
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+        }
+        SubstitutionSubtables::EmptyExtension => {}
+    }
+    Ok(true)
+}
+
+fn collect_positioning(
+    lookup: read_fonts::tables::gpos::PositionLookup<'_>,
+    input: SetTarget,
+) -> Result<bool, ReadError> {
+    match lookup.subtables()? {
+        PositionSubtables::Single(subtables) => {
+            for table in subtables.iter() {
+                match table? {
+                    read_fonts::tables::gpos::SinglePos::Format1(table) => {
+                        add_coverage(input, table.coverage()?);
+                    }
+                    read_fonts::tables::gpos::SinglePos::Format2(table) => {
+                        add_coverage(input, table.coverage()?);
+                    }
+                }
+            }
+        }
+        PositionSubtables::Pair(subtables) => {
+            for table in subtables.iter() {
+                match table? {
+                    PairPos::Format1(table) => {
+                        add_coverage(input, table.coverage()?);
+                        for pair_set in table.pair_sets().iter() {
+                            for record in pair_set?.pair_value_records().iter() {
+                                input.add(record?.second_glyph().to_u32());
+                            }
+                        }
+                    }
+                    PairPos::Format2(table) => {
+                        add_coverage(input, table.coverage()?);
+                        add_class_coverage(input, table.class_def2()?);
+                    }
+                }
+            }
+        }
+        PositionSubtables::Cursive(subtables) => {
+            for table in subtables.iter() {
+                add_coverage(input, table?.coverage()?);
+            }
+        }
+        PositionSubtables::MarkToBase(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.mark_coverage()?);
+                add_coverage(input, table.base_coverage()?);
+            }
+        }
+        PositionSubtables::MarkToLig(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.mark_coverage()?);
+                add_coverage(input, table.ligature_coverage()?);
+            }
+        }
+        PositionSubtables::MarkToMark(subtables) => {
+            for table in subtables.iter() {
+                let table = table?;
+                add_coverage(input, table.mark1_coverage()?);
+                add_coverage(input, table.mark2_coverage()?);
+            }
+        }
+        PositionSubtables::EmptyExtension => {}
+        _ => return Ok(false),
+    }
+    Ok(true)
+}
+
+/// Collects glyphs touched by one GSUB or GPOS lookup into the supplied sets.
+/// Forms not yet enumerated conservatively include every OpenType glyph ID.
+///
+/// # Safety
+/// `face` and each non-`NULL` set must be live. Output sets may be the same.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    lookup_index: c_uint,
+    glyphs_before: *mut hr_set_t,
+    glyphs_input: *mut hr_set_t,
+    glyphs_after: *mut hr_set_t,
+    glyphs_output: *mut hr_set_t,
+) {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let Some(font) = face.font() else { return };
+    // Each insertion borrows its destination separately, so output pointers may alias.
+    let before = SetTarget(glyphs_before);
+    let input = SetTarget(glyphs_input);
+    let after = SetTarget(glyphs_after);
+    let output = SetTarget(glyphs_output);
+    let complete = match table_tag {
+        GSUB_TAG => font.tables().gsub().ok().and_then(|table| {
+            let list = table.lookup_list().ok()?;
+            let lookup = list.lookups().get(lookup_index as usize).ok()?;
+            Some(collect_substitution(
+                lookup, &list, before, input, after, output, 0,
+            ))
+        }),
+        GPOS_TAG => font
+            .tables()
+            .gpos()
+            .ok()
+            .and_then(|table| table.lookup_list().ok())
+            .and_then(|list| list.lookups().get(lookup_index as usize).ok())
+            .map(|lookup| collect_positioning(lookup, input)),
+        _ => None,
+    };
+    let Some(complete) = complete else { return };
+    if !matches!(complete, Ok(true)) {
+        for set in [before, input, after, output] {
+            set.include_all_glyphs();
+        }
+    }
+}
 
 /// A registered OpenType BASE baseline tag. The numeric value is the tag itself.
 pub type hr_ot_layout_baseline_tag_t = hr_tag_t;

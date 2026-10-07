@@ -29,6 +29,126 @@ const PLAIN_UPEM: c_uint = 1024;
 const VARIABLE_FONT: &str = "Linefont.ttf";
 
 #[test]
+fn set_and_layout_lookup_queries() {
+    unsafe {
+        let set = hr_set_create();
+        assert_eq!(hr_set_is_empty(set), 1);
+        hr_set_add(set, 32);
+        hr_set_add(set, HR_CODEPOINT_INVALID);
+        assert_eq!(hr_set_has(set, 32), 1);
+        assert_eq!(hr_set_has(set, HR_CODEPOINT_INVALID), 0);
+        hr_set_clear(set);
+        assert_eq!(hr_set_is_empty(set), 1);
+
+        with_named_font("PT_Sans-Caption-Web-Regular.ttf", |face, _font| {
+            const GSUB: u32 = 0x4753_5542;
+            const GPOS: u32 = 0x4750_4F53;
+            assert_eq!(hr_ot_layout_has_substitution(face), 1);
+            assert_eq!(hr_ot_layout_has_positioning(face), 1);
+            let count = hr_ot_layout_table_get_lookup_count(face, GSUB);
+            assert!(count > 0);
+            assert!(hr_ot_layout_table_get_lookup_count(face, GPOS) > 0);
+            assert_eq!(hr_ot_layout_table_get_lookup_count(face, 0), 0);
+            hr_ot_layout_lookup_collect_glyphs(face, GSUB, count, set, set, set, set);
+            assert_eq!(hr_set_is_empty(set), 1);
+            hr_ot_layout_lookup_collect_glyphs(face, GSUB, 0, set, set, set, set);
+            assert_eq!(hr_set_is_empty(set), 0);
+            assert_eq!(hr_set_has(set, 5), 1); // quotedbl, an input to lookup 0
+            assert_eq!(hr_set_has(set, 704), 1); // its substituted glyph
+            assert_eq!(hr_set_has(set, 3), 0); // space is outside this lookup
+        });
+        hr_set_destroy(set);
+    }
+}
+
+#[test]
+fn contextual_lookup_collects_each_glyph_role() {
+    unsafe {
+        with_named_font("PT_Sans-Caption-Web-Regular.ttf", |face, _font| {
+            let sets = [
+                hr_set_create(),
+                hr_set_create(),
+                hr_set_create(),
+                hr_set_create(),
+            ];
+            hr_ot_layout_lookup_collect_glyphs(
+                face,
+                0x4753_5542,
+                2,
+                sets[0],
+                sets[1],
+                sets[2],
+                sets[3],
+            );
+            assert_eq!(hr_set_has(sets[0], 36), 1); // backtrack A
+            assert_eq!(hr_set_has(sets[1], 311), 1); // contextual input
+            assert_eq!(hr_set_is_empty(sets[2]), 1); // no lookahead
+            assert_eq!(hr_set_has(sets[3], 609), 1); // nested substitution output
+            assert_eq!(hr_set_has(sets[0], 3), 0); // no all-glyph fallback
+            assert_eq!(hr_set_has(sets[1], 3), 0);
+            for set in sets {
+                hr_set_destroy(set);
+            }
+        });
+    }
+}
+
+#[test]
+fn pair_class_lookup_collects_the_second_glyph_class() {
+    unsafe {
+        with_named_font("PT_Sans-Caption-Web-Regular.ttf", |face, _font| {
+            let input = hr_set_create();
+            hr_ot_layout_lookup_collect_glyphs(
+                face,
+                0x4750_4F53,
+                2,
+                ptr::null_mut(),
+                input,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+            assert_eq!(hr_set_has(input, 695), 1);
+            assert_eq!(hr_set_has(input, 7), 0);
+            hr_set_destroy(input);
+        });
+    }
+}
+
+#[test]
+fn contextual_rule_and_class_formats_do_not_fall_back_to_all_glyphs() {
+    unsafe {
+        for (font_name, lookup) in [
+            ("NotoSansSinhala.subset1.otf", 3), // sequence context format 1
+            ("NotoSansMyanmarUI-Regular.subset1.otf", 3), // sequence context format 2
+            ("NotoSansMyanmarUI-Regular.subset1.otf", 5), // chained context format 2
+        ] {
+            with_named_font(font_name, |face, _font| {
+                let sets = [
+                    hr_set_create(),
+                    hr_set_create(),
+                    hr_set_create(),
+                    hr_set_create(),
+                ];
+                hr_ot_layout_lookup_collect_glyphs(
+                    face,
+                    0x4753_5542,
+                    lookup,
+                    sets[0],
+                    sets[1],
+                    sets[2],
+                    sets[3],
+                );
+                assert_eq!(hr_set_has(sets[1], 1), 1, "{font_name} lookup {lookup}");
+                for set in sets {
+                    assert_eq!(hr_set_has(set, 0), 0, "{font_name} lookup {lookup}");
+                    hr_set_destroy(set);
+                }
+            });
+        }
+    }
+}
+
+#[test]
 fn math_queries_scale_device_values_and_page() {
     unsafe {
         let path =

@@ -118,8 +118,8 @@ HarfRust is a shaping library, so anything outside shaping is absent:
 
 - Drawing and painting callbacks (`hb_draw_funcs_t`, `hb_paint_funcs_t`).
 - Subsetting.
-- Other layout table introspection (`hb_ot_layout_*`), and the `hb_set` /
-  `hb_map` containers it reports through.
+- Layout queries beyond the available GSUB/GPOS presence, lookup count, and
+  glyph collection functions; and the `hb_map` container.
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data
   is always used.
 - `hb_buffer_diff`, buffer message callbacks, and `hb_font_get_glyph_name`.
