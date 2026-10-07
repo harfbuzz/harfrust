@@ -63,11 +63,76 @@ jobs:
           done
         done
 
+    - name: Checkout HarfBuzz reference
+      if: runner.os == 'Linux'
+      uses: actions/checkout@v6
+      with:
+        repository: harfbuzz/harfbuzz
+        ref: 811d9a4d3e1b62899843119eda7a78ba1bb97c2c
+        path: .ci/harfbuzz
+        persist-credentials: false
+
+    - name: Compare subset behavior with HarfBuzz
+      if: runner.os == 'Linux'
+      run: |
+        python3 -m venv .ci/venv
+        .ci/venv/bin/pip install fonttools==4.60.1 meson==1.9.1
+        .ci/venv/bin/meson setup .ci/harfbuzz-build .ci/harfbuzz \
+          --auto-features=disabled --buildtype=release \
+          -Dsubset=enabled -Dtests=disabled -Dutilities=disabled -Ddocs=disabled \
+          -Draster=disabled -Dvector=disabled -Dgpu=disabled
+        .ci/venv/bin/meson compile -C .ci/harfbuzz-build
+        for test in compare_skia_hb compare_controls_hb compare_plans_hb; do
+          .ci/venv/bin/python "harfbuzz_subset_c_api/tests/$test.py" \
+            target/debug/libharfrust_c.so target/debug/libharfbuzz_subset_c.so \
+            .ci/harfbuzz-build/src/libharfbuzz.so \
+            .ci/harfbuzz-build/src/libharfbuzz-subset.so
+        done
+
     - name: Rustfmt
       run: cargo fmt --all -- --check
 
     - name: Clippy
       run: cargo clippy --all-features --all-targets -- -D warnings
+
+  windows-c-api:
+    name: Windows C API shared handles
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build core and subset DLLs
+        shell: pwsh
+        run: |
+          cargo build -p harfrust_capi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:HARFRUST_C_LIB_DIR = "$PWD/target/debug"
+          cargo build -p harfbuzz_subset_c_api
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run C and C++ consumers
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          & "$vs/Common7/Tools/Launch-VsDevShell.ps1" -SkipAutomaticLocation -Arch amd64 -HostArch amd64
+          $env:PATH = "$PWD/target/debug;$env:PATH"
+          $includes = @('-Iharfrust_capi/include', '-Iharfbuzz_subset_c_api/include')
+          $libraries = @('target/debug/harfbuzz_subset_c.dll.lib', 'target/debug/harfrust_c.dll.lib')
+          $font = 'harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf'
+          clang -std=c99 -pedantic-errors -Werror @includes harfbuzz_subset_c_api/examples/subset.c @libraries -o target/debug/hr-subset.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & target/debug/hr-subset.exe $font
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($standard in @('c++11', 'c++17')) {
+            foreach ($order in @('CORE', 'SUBSET_FIRST', 'SUBSET_LAST')) {
+              $linked = if ($order -eq 'CORE') { @('target/debug/harfrust_c.dll.lib') } else { $libraries }
+              clang++ "-std=$standard" -pedantic-errors -Wall -Wextra -Werror "-DHR_TEST_$order" @includes harfrust_capi/tests/cplusplus.cc @linked -o target/debug/hr-cplusplus.exe
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              & target/debug/hr-cplusplus.exe $font
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
 
   check-no-std:
     name: cargo check no std
