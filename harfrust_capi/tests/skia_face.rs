@@ -1,7 +1,7 @@
 //! Regression tests for Skia's face setup and callback arrangement.
 
 use crate::*;
-use core::ffi::{c_void};
+use core::ffi::c_void;
 use std::{
     ptr,
     sync::{
@@ -155,4 +155,3 @@ fn default_unicode_scripts_match_itemization_needs() {
         assert_eq!(hr_unicode_script(ptr::null_mut(), codepoint), script);
     }
 }
-
