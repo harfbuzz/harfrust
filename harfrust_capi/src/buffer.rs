@@ -40,25 +40,25 @@ pub const HR_BUFFER_CONTENT_TYPE_GLYPHS: hr_buffer_content_type_t = 2;
 pub type hr_buffer_flags_t = u32;
 
 /// No flags set.
-pub const HR_BUFFER_FLAG_DEFAULT: hr_buffer_flags_t = 0x0000_0000;
+pub const HR_BUFFER_FLAG_DEFAULT: hr_buffer_flags_t = 0x0000_0000u32;
 /// The buffer holds the start of a paragraph.
-pub const HR_BUFFER_FLAG_BOT: hr_buffer_flags_t = 0x0000_0001;
+pub const HR_BUFFER_FLAG_BOT: hr_buffer_flags_t = 0x0000_0001u32;
 /// The buffer holds the end of a paragraph.
-pub const HR_BUFFER_FLAG_EOT: hr_buffer_flags_t = 0x0000_0002;
+pub const HR_BUFFER_FLAG_EOT: hr_buffer_flags_t = 0x0000_0002u32;
 /// Show default-ignorable characters using the font's own glyphs.
-pub const HR_BUFFER_FLAG_PRESERVE_DEFAULT_IGNORABLES: hr_buffer_flags_t = 0x0000_0004;
+pub const HR_BUFFER_FLAG_PRESERVE_DEFAULT_IGNORABLES: hr_buffer_flags_t = 0x0000_0004u32;
 /// Remove default-ignorable characters entirely.
-pub const HR_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES: hr_buffer_flags_t = 0x0000_0008;
+pub const HR_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES: hr_buffer_flags_t = 0x0000_0008u32;
 /// Do not insert a dotted circle around invalid sequences.
-pub const HR_BUFFER_FLAG_DO_NOT_INSERT_DOTTED_CIRCLE: hr_buffer_flags_t = 0x0000_0010;
+pub const HR_BUFFER_FLAG_DO_NOT_INSERT_DOTTED_CIRCLE: hr_buffer_flags_t = 0x0000_0010u32;
 /// Verify the shaping result. Accepted but not yet acted on.
-pub const HR_BUFFER_FLAG_VERIFY: hr_buffer_flags_t = 0x0000_0020;
+pub const HR_BUFFER_FLAG_VERIFY: hr_buffer_flags_t = 0x0000_0020u32;
 /// Produce the unsafe-to-concat glyph flag, which costs extra work.
-pub const HR_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT: hr_buffer_flags_t = 0x0000_0040;
+pub const HR_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT: hr_buffer_flags_t = 0x0000_0040u32;
 /// Produce the safe-to-insert-tatweel glyph flag.
-pub const HR_BUFFER_FLAG_PRODUCE_SAFE_TO_INSERT_TATWEEL: hr_buffer_flags_t = 0x0000_0080;
+pub const HR_BUFFER_FLAG_PRODUCE_SAFE_TO_INSERT_TATWEEL: hr_buffer_flags_t = 0x0000_0080u32;
 /// Every flag defined above.
-pub const HR_BUFFER_FLAG_DEFINED: hr_buffer_flags_t = 0x0000_00FF;
+pub const HR_BUFFER_FLAG_DEFINED: hr_buffer_flags_t = 0x0000_00FFu32;
 
 /// How clusters are merged during shaping.
 ///
@@ -86,13 +86,13 @@ pub const HR_BUFFER_CLUSTER_LEVEL_DEFAULT: hr_buffer_cluster_level_t =
 pub type hr_glyph_flags_t = u32;
 
 /// Breaking the text at this cluster requires reshaping both sides.
-pub const HR_GLYPH_FLAG_UNSAFE_TO_BREAK: hr_glyph_flags_t = 0x0000_0001;
+pub const HR_GLYPH_FLAG_UNSAFE_TO_BREAK: hr_glyph_flags_t = 0x0000_0001u32;
 /// Changing the text on one side of this cluster may change the other.
-pub const HR_GLYPH_FLAG_UNSAFE_TO_CONCAT: hr_glyph_flags_t = 0x0000_0002;
+pub const HR_GLYPH_FLAG_UNSAFE_TO_CONCAT: hr_glyph_flags_t = 0x0000_0002u32;
 /// A tatweel may be inserted before this cluster to elongate the run.
-pub const HR_GLYPH_FLAG_SAFE_TO_INSERT_TATWEEL: hr_glyph_flags_t = 0x0000_0004;
+pub const HR_GLYPH_FLAG_SAFE_TO_INSERT_TATWEEL: hr_glyph_flags_t = 0x0000_0004u32;
 /// Every flag defined above.
-pub const HR_GLYPH_FLAG_DEFINED: hr_glyph_flags_t = 0x0000_0007;
+pub const HR_GLYPH_FLAG_DEFINED: hr_glyph_flags_t = 0x0000_0007u32;
 
 /// The format `hr_buffer_serialize_glyphs` writes.
 ///
@@ -103,11 +103,11 @@ pub const HR_GLYPH_FLAG_DEFINED: hr_glyph_flags_t = 0x0000_0007;
 pub type hr_buffer_serialize_format_t = hr_tag_t;
 
 /// A human-readable one-line form.
-pub const HR_BUFFER_SERIALIZE_FORMAT_TEXT: hr_buffer_serialize_format_t = 0x5445_5854;
+pub const HR_BUFFER_SERIALIZE_FORMAT_TEXT: hr_buffer_serialize_format_t = 0x5445_5854u32;
 /// JSON. Not supported by this library.
-pub const HR_BUFFER_SERIALIZE_FORMAT_JSON: hr_buffer_serialize_format_t = 0x4A53_4F4E;
+pub const HR_BUFFER_SERIALIZE_FORMAT_JSON: hr_buffer_serialize_format_t = 0x4A53_4F4Eu32;
 /// An unrecognised format.
-pub const HR_BUFFER_SERIALIZE_FORMAT_INVALID: hr_buffer_serialize_format_t = 0x0000_0000;
+pub const HR_BUFFER_SERIALIZE_FORMAT_INVALID: hr_buffer_serialize_format_t = 0x0000_0000u32;
 
 /// Flags controlling what `hr_buffer_serialize_glyphs` includes.
 ///
@@ -116,21 +116,21 @@ pub const HR_BUFFER_SERIALIZE_FORMAT_INVALID: hr_buffer_serialize_format_t = 0x0
 pub type hr_buffer_serialize_flags_t = u32;
 
 /// Include everything.
-pub const HR_BUFFER_SERIALIZE_FLAG_DEFAULT: hr_buffer_serialize_flags_t = 0x0000_0000;
+pub const HR_BUFFER_SERIALIZE_FLAG_DEFAULT: hr_buffer_serialize_flags_t = 0x0000_0000u32;
 /// Leave out cluster values.
-pub const HR_BUFFER_SERIALIZE_FLAG_NO_CLUSTERS: hr_buffer_serialize_flags_t = 0x0000_0001;
+pub const HR_BUFFER_SERIALIZE_FLAG_NO_CLUSTERS: hr_buffer_serialize_flags_t = 0x0000_0001u32;
 /// Leave out positions.
-pub const HR_BUFFER_SERIALIZE_FLAG_NO_POSITIONS: hr_buffer_serialize_flags_t = 0x0000_0002;
+pub const HR_BUFFER_SERIALIZE_FLAG_NO_POSITIONS: hr_buffer_serialize_flags_t = 0x0000_0002u32;
 /// Write glyph indices rather than names.
-pub const HR_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES: hr_buffer_serialize_flags_t = 0x0000_0004;
+pub const HR_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES: hr_buffer_serialize_flags_t = 0x0000_0004u32;
 /// Include each glyph's ink extents.
-pub const HR_BUFFER_SERIALIZE_FLAG_GLYPH_EXTENTS: hr_buffer_serialize_flags_t = 0x0000_0008;
+pub const HR_BUFFER_SERIALIZE_FLAG_GLYPH_EXTENTS: hr_buffer_serialize_flags_t = 0x0000_0008u32;
 /// Include each glyph's flags.
-pub const HR_BUFFER_SERIALIZE_FLAG_GLYPH_FLAGS: hr_buffer_serialize_flags_t = 0x0000_0010;
+pub const HR_BUFFER_SERIALIZE_FLAG_GLYPH_FLAGS: hr_buffer_serialize_flags_t = 0x0000_0010u32;
 /// Leave out advances, making offsets absolute.
-pub const HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES: hr_buffer_serialize_flags_t = 0x0000_0020;
+pub const HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES: hr_buffer_serialize_flags_t = 0x0000_0020u32;
 /// Every flag defined above.
-pub const HR_BUFFER_SERIALIZE_FLAG_DEFINED: hr_buffer_serialize_flags_t = 0x0000_003F;
+pub const HR_BUFFER_SERIALIZE_FLAG_DEFINED: hr_buffer_serialize_flags_t = 0x0000_003Fu32;
 
 /// One item in a buffer: an input character before shaping, a glyph after.
 #[repr(C)]

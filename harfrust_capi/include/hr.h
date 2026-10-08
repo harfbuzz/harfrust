@@ -26,7 +26,7 @@
 /**
  * Value applied to a feature that covers the whole buffer, as its start.
  */
-#define HR_FEATURE_GLOBAL_START 0
+#define HR_FEATURE_GLOBAL_START 0u
 
 /**
  * Value applied to a feature that covers the whole buffer, as its end.
@@ -34,7 +34,7 @@
  * Spelled as a literal rather than `c_uint::MAX` so that it reaches the
  * generated header.
  */
-#define HR_FEATURE_GLOBAL_END 4294967295
+#define HR_FEATURE_GLOBAL_END 4294967295u
 
 /**
  * The major version of this library.
@@ -559,52 +559,52 @@ typedef struct hr_ot_math_glyph_part_t {
 /**
  * No flags set.
  */
-#define HR_BUFFER_FLAG_DEFAULT 0
+#define HR_BUFFER_FLAG_DEFAULT 0u
 
 /**
  * The buffer holds the start of a paragraph.
  */
-#define HR_BUFFER_FLAG_BOT 1
+#define HR_BUFFER_FLAG_BOT 1u
 
 /**
  * The buffer holds the end of a paragraph.
  */
-#define HR_BUFFER_FLAG_EOT 2
+#define HR_BUFFER_FLAG_EOT 2u
 
 /**
  * Show default-ignorable characters using the font's own glyphs.
  */
-#define HR_BUFFER_FLAG_PRESERVE_DEFAULT_IGNORABLES 4
+#define HR_BUFFER_FLAG_PRESERVE_DEFAULT_IGNORABLES 4u
 
 /**
  * Remove default-ignorable characters entirely.
  */
-#define HR_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES 8
+#define HR_BUFFER_FLAG_REMOVE_DEFAULT_IGNORABLES 8u
 
 /**
  * Do not insert a dotted circle around invalid sequences.
  */
-#define HR_BUFFER_FLAG_DO_NOT_INSERT_DOTTED_CIRCLE 16
+#define HR_BUFFER_FLAG_DO_NOT_INSERT_DOTTED_CIRCLE 16u
 
 /**
  * Verify the shaping result. Accepted but not yet acted on.
  */
-#define HR_BUFFER_FLAG_VERIFY 32
+#define HR_BUFFER_FLAG_VERIFY 32u
 
 /**
  * Produce the unsafe-to-concat glyph flag, which costs extra work.
  */
-#define HR_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT 64
+#define HR_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT 64u
 
 /**
  * Produce the safe-to-insert-tatweel glyph flag.
  */
-#define HR_BUFFER_FLAG_PRODUCE_SAFE_TO_INSERT_TATWEEL 128
+#define HR_BUFFER_FLAG_PRODUCE_SAFE_TO_INSERT_TATWEEL 128u
 
 /**
  * Every flag defined above.
  */
-#define HR_BUFFER_FLAG_DEFINED 255
+#define HR_BUFFER_FLAG_DEFINED 255u
 
 /**
  * Merge clusters by grapheme, keeping cluster values monotonic.
@@ -634,77 +634,77 @@ typedef struct hr_ot_math_glyph_part_t {
 /**
  * Breaking the text at this cluster requires reshaping both sides.
  */
-#define HR_GLYPH_FLAG_UNSAFE_TO_BREAK 1
+#define HR_GLYPH_FLAG_UNSAFE_TO_BREAK 1u
 
 /**
  * Changing the text on one side of this cluster may change the other.
  */
-#define HR_GLYPH_FLAG_UNSAFE_TO_CONCAT 2
+#define HR_GLYPH_FLAG_UNSAFE_TO_CONCAT 2u
 
 /**
  * A tatweel may be inserted before this cluster to elongate the run.
  */
-#define HR_GLYPH_FLAG_SAFE_TO_INSERT_TATWEEL 4
+#define HR_GLYPH_FLAG_SAFE_TO_INSERT_TATWEEL 4u
 
 /**
  * Every flag defined above.
  */
-#define HR_GLYPH_FLAG_DEFINED 7
+#define HR_GLYPH_FLAG_DEFINED 7u
 
 /**
  * A human-readable one-line form.
  */
-#define HR_BUFFER_SERIALIZE_FORMAT_TEXT 1413830740
+#define HR_BUFFER_SERIALIZE_FORMAT_TEXT 1413830740u
 
 /**
  * JSON. Not supported by this library.
  */
-#define HR_BUFFER_SERIALIZE_FORMAT_JSON 1246973774
+#define HR_BUFFER_SERIALIZE_FORMAT_JSON 1246973774u
 
 /**
  * An unrecognised format.
  */
-#define HR_BUFFER_SERIALIZE_FORMAT_INVALID 0
+#define HR_BUFFER_SERIALIZE_FORMAT_INVALID 0u
 
 /**
  * Include everything.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_DEFAULT 0
+#define HR_BUFFER_SERIALIZE_FLAG_DEFAULT 0u
 
 /**
  * Leave out cluster values.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_NO_CLUSTERS 1
+#define HR_BUFFER_SERIALIZE_FLAG_NO_CLUSTERS 1u
 
 /**
  * Leave out positions.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_NO_POSITIONS 2
+#define HR_BUFFER_SERIALIZE_FLAG_NO_POSITIONS 2u
 
 /**
  * Write glyph indices rather than names.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES 4
+#define HR_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES 4u
 
 /**
  * Include each glyph's ink extents.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_GLYPH_EXTENTS 8
+#define HR_BUFFER_SERIALIZE_FLAG_GLYPH_EXTENTS 8u
 
 /**
  * Include each glyph's flags.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_GLYPH_FLAGS 16
+#define HR_BUFFER_SERIALIZE_FLAG_GLYPH_FLAGS 16u
 
 /**
  * Leave out advances, making offsets absolute.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES 32
+#define HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES 32u
 
 /**
  * Every flag defined above.
  */
-#define HR_BUFFER_SERIALIZE_FLAG_DEFINED 63
+#define HR_BUFFER_SERIALIZE_FLAG_DEFINED 63u
 
 /**
  * A codepoint that is not one, which stands for the absence of a glyph or a
@@ -715,42 +715,42 @@ typedef struct hr_ot_math_glyph_part_t {
 /**
  * The tag matching no script, language or feature.
  */
-#define HR_TAG_NONE 0
+#define HR_TAG_NONE 0u
 
 /**
  * The largest possible tag value.
  */
-#define HR_TAG_MAX 4294967295
+#define HR_TAG_MAX 4294967295u
 
 /**
  * The largest possible tag value that is still signed-safe.
  */
-#define HR_TAG_MAX_SIGNED 2147483647
+#define HR_TAG_MAX_SIGNED 2147483647u
 
 /**
  * Initial, unset direction.
  */
-#define HR_DIRECTION_INVALID 0
+#define HR_DIRECTION_INVALID 0u
 
 /**
  * Text is set horizontally from left to right.
  */
-#define HR_DIRECTION_LTR 4
+#define HR_DIRECTION_LTR 4u
 
 /**
  * Text is set horizontally from right to left.
  */
-#define HR_DIRECTION_RTL 5
+#define HR_DIRECTION_RTL 5u
 
 /**
  * Text is set vertically from top to bottom.
  */
-#define HR_DIRECTION_TTB 6
+#define HR_DIRECTION_TTB 6u
 
 /**
  * Text is set vertically from bottom to top.
  */
-#define HR_DIRECTION_BTT 7
+#define HR_DIRECTION_BTT 7u
 
 /**
  * The script matching no script at all.
@@ -760,1051 +760,1051 @@ typedef struct hr_ot_math_glyph_part_t {
 /**
  * The Common script (`Zyyy`).
  */
-#define HR_SCRIPT_COMMON 1517910393
+#define HR_SCRIPT_COMMON 1517910393u
 
 /**
  * The Inherited script (`Zinh`).
  */
-#define HR_SCRIPT_INHERITED 1516858984
+#define HR_SCRIPT_INHERITED 1516858984u
 
 /**
  * The Arabic script (`Arab`).
  */
-#define HR_SCRIPT_ARABIC 1098015074
+#define HR_SCRIPT_ARABIC 1098015074u
 
 /**
  * The Armenian script (`Armn`).
  */
-#define HR_SCRIPT_ARMENIAN 1098018158
+#define HR_SCRIPT_ARMENIAN 1098018158u
 
 /**
  * The Bengali script (`Beng`).
  */
-#define HR_SCRIPT_BENGALI 1113943655
+#define HR_SCRIPT_BENGALI 1113943655u
 
 /**
  * The Cyrillic script (`Cyrl`).
  */
-#define HR_SCRIPT_CYRILLIC 1132032620
+#define HR_SCRIPT_CYRILLIC 1132032620u
 
 /**
  * The Devanagari script (`Deva`).
  */
-#define HR_SCRIPT_DEVANAGARI 1147500129
+#define HR_SCRIPT_DEVANAGARI 1147500129u
 
 /**
  * The Georgian script (`Geor`).
  */
-#define HR_SCRIPT_GEORGIAN 1197830002
+#define HR_SCRIPT_GEORGIAN 1197830002u
 
 /**
  * The Greek script (`Grek`).
  */
-#define HR_SCRIPT_GREEK 1198679403
+#define HR_SCRIPT_GREEK 1198679403u
 
 /**
  * The Gujarati script (`Gujr`).
  */
-#define HR_SCRIPT_GUJARATI 1198877298
+#define HR_SCRIPT_GUJARATI 1198877298u
 
 /**
  * The Gurmukhi script (`Guru`).
  */
-#define HR_SCRIPT_GURMUKHI 1198879349
+#define HR_SCRIPT_GURMUKHI 1198879349u
 
 /**
  * The Hangul script (`Hang`).
  */
-#define HR_SCRIPT_HANGUL 1214344807
+#define HR_SCRIPT_HANGUL 1214344807u
 
 /**
  * The Han script (`Hani`).
  */
-#define HR_SCRIPT_HAN 1214344809
+#define HR_SCRIPT_HAN 1214344809u
 
 /**
  * The Hebrew script (`Hebr`).
  */
-#define HR_SCRIPT_HEBREW 1214603890
+#define HR_SCRIPT_HEBREW 1214603890u
 
 /**
  * The Hiragana script (`Hira`).
  */
-#define HR_SCRIPT_HIRAGANA 1214870113
+#define HR_SCRIPT_HIRAGANA 1214870113u
 
 /**
  * The Kannada script (`Knda`).
  */
-#define HR_SCRIPT_KANNADA 1265525857
+#define HR_SCRIPT_KANNADA 1265525857u
 
 /**
  * The Katakana script (`Kana`).
  */
-#define HR_SCRIPT_KATAKANA 1264676449
+#define HR_SCRIPT_KATAKANA 1264676449u
 
 /**
  * The Lao script (`Laoo`).
  */
-#define HR_SCRIPT_LAO 1281453935
+#define HR_SCRIPT_LAO 1281453935u
 
 /**
  * The Latin script (`Latn`).
  */
-#define HR_SCRIPT_LATIN 1281455214
+#define HR_SCRIPT_LATIN 1281455214u
 
 /**
  * The Malayalam script (`Mlym`).
  */
-#define HR_SCRIPT_MALAYALAM 1298954605
+#define HR_SCRIPT_MALAYALAM 1298954605u
 
 /**
  * The Oriya script (`Orya`).
  */
-#define HR_SCRIPT_ORIYA 1332902241
+#define HR_SCRIPT_ORIYA 1332902241u
 
 /**
  * The Tamil script (`Taml`).
  */
-#define HR_SCRIPT_TAMIL 1415671148
+#define HR_SCRIPT_TAMIL 1415671148u
 
 /**
  * The Telugu script (`Telu`).
  */
-#define HR_SCRIPT_TELUGU 1415933045
+#define HR_SCRIPT_TELUGU 1415933045u
 
 /**
  * The Thai script (`Thai`).
  */
-#define HR_SCRIPT_THAI 1416126825
+#define HR_SCRIPT_THAI 1416126825u
 
 /**
  * The Tibetan script (`Tibt`).
  */
-#define HR_SCRIPT_TIBETAN 1416192628
+#define HR_SCRIPT_TIBETAN 1416192628u
 
 /**
  * The Bopomofo script (`Bopo`).
  */
-#define HR_SCRIPT_BOPOMOFO 1114599535
+#define HR_SCRIPT_BOPOMOFO 1114599535u
 
 /**
  * The Braille script (`Brai`).
  */
-#define HR_SCRIPT_BRAILLE 1114792297
+#define HR_SCRIPT_BRAILLE 1114792297u
 
 /**
  * The Canadian Syllabics script (`Cans`).
  */
-#define HR_SCRIPT_CANADIAN_SYLLABICS 1130458739
+#define HR_SCRIPT_CANADIAN_SYLLABICS 1130458739u
 
 /**
  * The Cherokee script (`Cher`).
  */
-#define HR_SCRIPT_CHEROKEE 1130915186
+#define HR_SCRIPT_CHEROKEE 1130915186u
 
 /**
  * The Ethiopic script (`Ethi`).
  */
-#define HR_SCRIPT_ETHIOPIC 1165256809
+#define HR_SCRIPT_ETHIOPIC 1165256809u
 
 /**
  * The Khmer script (`Khmr`).
  */
-#define HR_SCRIPT_KHMER 1265134962
+#define HR_SCRIPT_KHMER 1265134962u
 
 /**
  * The Mongolian script (`Mong`).
  */
-#define HR_SCRIPT_MONGOLIAN 1299148391
+#define HR_SCRIPT_MONGOLIAN 1299148391u
 
 /**
  * The Myanmar script (`Mymr`).
  */
-#define HR_SCRIPT_MYANMAR 1299803506
+#define HR_SCRIPT_MYANMAR 1299803506u
 
 /**
  * The Ogham script (`Ogam`).
  */
-#define HR_SCRIPT_OGHAM 1332175213
+#define HR_SCRIPT_OGHAM 1332175213u
 
 /**
  * The Runic script (`Runr`).
  */
-#define HR_SCRIPT_RUNIC 1383427698
+#define HR_SCRIPT_RUNIC 1383427698u
 
 /**
  * The Sinhala script (`Sinh`).
  */
-#define HR_SCRIPT_SINHALA 1399418472
+#define HR_SCRIPT_SINHALA 1399418472u
 
 /**
  * The Syriac script (`Syrc`).
  */
-#define HR_SCRIPT_SYRIAC 1400468067
+#define HR_SCRIPT_SYRIAC 1400468067u
 
 /**
  * The Thaana script (`Thaa`).
  */
-#define HR_SCRIPT_THAANA 1416126817
+#define HR_SCRIPT_THAANA 1416126817u
 
 /**
  * The Yi script (`Yiii`).
  */
-#define HR_SCRIPT_YI 1500080489
+#define HR_SCRIPT_YI 1500080489u
 
 /**
  * The Deseret script (`Dsrt`).
  */
-#define HR_SCRIPT_DESERET 1148416628
+#define HR_SCRIPT_DESERET 1148416628u
 
 /**
  * The Gothic script (`Goth`).
  */
-#define HR_SCRIPT_GOTHIC 1198486632
+#define HR_SCRIPT_GOTHIC 1198486632u
 
 /**
  * The Old Italic script (`Ital`).
  */
-#define HR_SCRIPT_OLD_ITALIC 1232363884
+#define HR_SCRIPT_OLD_ITALIC 1232363884u
 
 /**
  * The Buhid script (`Buhd`).
  */
-#define HR_SCRIPT_BUHID 1114990692
+#define HR_SCRIPT_BUHID 1114990692u
 
 /**
  * The Hanunoo script (`Hano`).
  */
-#define HR_SCRIPT_HANUNOO 1214344815
+#define HR_SCRIPT_HANUNOO 1214344815u
 
 /**
  * The Tagalog script (`Tglg`).
  */
-#define HR_SCRIPT_TAGALOG 1416064103
+#define HR_SCRIPT_TAGALOG 1416064103u
 
 /**
  * The Tagbanwa script (`Tagb`).
  */
-#define HR_SCRIPT_TAGBANWA 1415669602
+#define HR_SCRIPT_TAGBANWA 1415669602u
 
 /**
  * The Cypriot script (`Cprt`).
  */
-#define HR_SCRIPT_CYPRIOT 1131442804
+#define HR_SCRIPT_CYPRIOT 1131442804u
 
 /**
  * The Limbu script (`Limb`).
  */
-#define HR_SCRIPT_LIMBU 1281977698
+#define HR_SCRIPT_LIMBU 1281977698u
 
 /**
  * The Linear B script (`Linb`).
  */
-#define HR_SCRIPT_LINEAR_B 1281977954
+#define HR_SCRIPT_LINEAR_B 1281977954u
 
 /**
  * The Osmanya script (`Osma`).
  */
-#define HR_SCRIPT_OSMANYA 1332964705
+#define HR_SCRIPT_OSMANYA 1332964705u
 
 /**
  * The Shavian script (`Shaw`).
  */
-#define HR_SCRIPT_SHAVIAN 1399349623
+#define HR_SCRIPT_SHAVIAN 1399349623u
 
 /**
  * The Tai Le script (`Tale`).
  */
-#define HR_SCRIPT_TAI_LE 1415670885
+#define HR_SCRIPT_TAI_LE 1415670885u
 
 /**
  * The Ugaritic script (`Ugar`).
  */
-#define HR_SCRIPT_UGARITIC 1432838514
+#define HR_SCRIPT_UGARITIC 1432838514u
 
 /**
  * The Buginese script (`Bugi`).
  */
-#define HR_SCRIPT_BUGINESE 1114990441
+#define HR_SCRIPT_BUGINESE 1114990441u
 
 /**
  * The Coptic script (`Copt`).
  */
-#define HR_SCRIPT_COPTIC 1131376756
+#define HR_SCRIPT_COPTIC 1131376756u
 
 /**
  * The Glagolitic script (`Glag`).
  */
-#define HR_SCRIPT_GLAGOLITIC 1198285159
+#define HR_SCRIPT_GLAGOLITIC 1198285159u
 
 /**
  * The Kharoshthi script (`Khar`).
  */
-#define HR_SCRIPT_KHAROSHTHI 1265131890
+#define HR_SCRIPT_KHAROSHTHI 1265131890u
 
 /**
  * The New Tai Lue script (`Talu`).
  */
-#define HR_SCRIPT_NEW_TAI_LUE 1415670901
+#define HR_SCRIPT_NEW_TAI_LUE 1415670901u
 
 /**
  * The Old Persian script (`Xpeo`).
  */
-#define HR_SCRIPT_OLD_PERSIAN 1483761007
+#define HR_SCRIPT_OLD_PERSIAN 1483761007u
 
 /**
  * The Syloti Nagri script (`Sylo`).
  */
-#define HR_SCRIPT_SYLOTI_NAGRI 1400466543
+#define HR_SCRIPT_SYLOTI_NAGRI 1400466543u
 
 /**
  * The Tifinagh script (`Tfng`).
  */
-#define HR_SCRIPT_TIFINAGH 1415999079
+#define HR_SCRIPT_TIFINAGH 1415999079u
 
 /**
  * The Unknown script (`Zzzz`).
  */
-#define HR_SCRIPT_UNKNOWN 1517976186
+#define HR_SCRIPT_UNKNOWN 1517976186u
 
 /**
  * The Balinese script (`Bali`).
  */
-#define HR_SCRIPT_BALINESE 1113681001
+#define HR_SCRIPT_BALINESE 1113681001u
 
 /**
  * The Cuneiform script (`Xsux`).
  */
-#define HR_SCRIPT_CUNEIFORM 1483961720
+#define HR_SCRIPT_CUNEIFORM 1483961720u
 
 /**
  * The Nko script (`Nkoo`).
  */
-#define HR_SCRIPT_NKO 1315663727
+#define HR_SCRIPT_NKO 1315663727u
 
 /**
  * The Phags Pa script (`Phag`).
  */
-#define HR_SCRIPT_PHAGS_PA 1349017959
+#define HR_SCRIPT_PHAGS_PA 1349017959u
 
 /**
  * The Phoenician script (`Phnx`).
  */
-#define HR_SCRIPT_PHOENICIAN 1349021304
+#define HR_SCRIPT_PHOENICIAN 1349021304u
 
 /**
  * The Carian script (`Cari`).
  */
-#define HR_SCRIPT_CARIAN 1130459753
+#define HR_SCRIPT_CARIAN 1130459753u
 
 /**
  * The Cham script (`Cham`).
  */
-#define HR_SCRIPT_CHAM 1130914157
+#define HR_SCRIPT_CHAM 1130914157u
 
 /**
  * The Kayah Li script (`Kali`).
  */
-#define HR_SCRIPT_KAYAH_LI 1264675945
+#define HR_SCRIPT_KAYAH_LI 1264675945u
 
 /**
  * The Lepcha script (`Lepc`).
  */
-#define HR_SCRIPT_LEPCHA 1281716323
+#define HR_SCRIPT_LEPCHA 1281716323u
 
 /**
  * The Lycian script (`Lyci`).
  */
-#define HR_SCRIPT_LYCIAN 1283023721
+#define HR_SCRIPT_LYCIAN 1283023721u
 
 /**
  * The Lydian script (`Lydi`).
  */
-#define HR_SCRIPT_LYDIAN 1283023977
+#define HR_SCRIPT_LYDIAN 1283023977u
 
 /**
  * The Ol Chiki script (`Olck`).
  */
-#define HR_SCRIPT_OL_CHIKI 1332503403
+#define HR_SCRIPT_OL_CHIKI 1332503403u
 
 /**
  * The Rejang script (`Rjng`).
  */
-#define HR_SCRIPT_REJANG 1382706791
+#define HR_SCRIPT_REJANG 1382706791u
 
 /**
  * The Saurashtra script (`Saur`).
  */
-#define HR_SCRIPT_SAURASHTRA 1398895986
+#define HR_SCRIPT_SAURASHTRA 1398895986u
 
 /**
  * The Sundanese script (`Sund`).
  */
-#define HR_SCRIPT_SUNDANESE 1400204900
+#define HR_SCRIPT_SUNDANESE 1400204900u
 
 /**
  * The Vai script (`Vaii`).
  */
-#define HR_SCRIPT_VAI 1449224553
+#define HR_SCRIPT_VAI 1449224553u
 
 /**
  * The Avestan script (`Avst`).
  */
-#define HR_SCRIPT_AVESTAN 1098281844
+#define HR_SCRIPT_AVESTAN 1098281844u
 
 /**
  * The Bamum script (`Bamu`).
  */
-#define HR_SCRIPT_BAMUM 1113681269
+#define HR_SCRIPT_BAMUM 1113681269u
 
 /**
  * The Egyptian Hieroglyphs script (`Egyp`).
  */
-#define HR_SCRIPT_EGYPTIAN_HIEROGLYPHS 1164409200
+#define HR_SCRIPT_EGYPTIAN_HIEROGLYPHS 1164409200u
 
 /**
  * The Imperial Aramaic script (`Armi`).
  */
-#define HR_SCRIPT_IMPERIAL_ARAMAIC 1098018153
+#define HR_SCRIPT_IMPERIAL_ARAMAIC 1098018153u
 
 /**
  * The Inscriptional Pahlavi script (`Phli`).
  */
-#define HR_SCRIPT_INSCRIPTIONAL_PAHLAVI 1349020777
+#define HR_SCRIPT_INSCRIPTIONAL_PAHLAVI 1349020777u
 
 /**
  * The Inscriptional Parthian script (`Prti`).
  */
-#define HR_SCRIPT_INSCRIPTIONAL_PARTHIAN 1349678185
+#define HR_SCRIPT_INSCRIPTIONAL_PARTHIAN 1349678185u
 
 /**
  * The Javanese script (`Java`).
  */
-#define HR_SCRIPT_JAVANESE 1247901281
+#define HR_SCRIPT_JAVANESE 1247901281u
 
 /**
  * The Kaithi script (`Kthi`).
  */
-#define HR_SCRIPT_KAITHI 1265920105
+#define HR_SCRIPT_KAITHI 1265920105u
 
 /**
  * The Lisu script (`Lisu`).
  */
-#define HR_SCRIPT_LISU 1281979253
+#define HR_SCRIPT_LISU 1281979253u
 
 /**
  * The Meetei Mayek script (`Mtei`).
  */
-#define HR_SCRIPT_MEETEI_MAYEK 1299473769
+#define HR_SCRIPT_MEETEI_MAYEK 1299473769u
 
 /**
  * The Old South Arabian script (`Sarb`).
  */
-#define HR_SCRIPT_OLD_SOUTH_ARABIAN 1398895202
+#define HR_SCRIPT_OLD_SOUTH_ARABIAN 1398895202u
 
 /**
  * The Old Turkic script (`Orkh`).
  */
-#define HR_SCRIPT_OLD_TURKIC 1332898664
+#define HR_SCRIPT_OLD_TURKIC 1332898664u
 
 /**
  * The Samaritan script (`Samr`).
  */
-#define HR_SCRIPT_SAMARITAN 1398893938
+#define HR_SCRIPT_SAMARITAN 1398893938u
 
 /**
  * The Tai Tham script (`Lana`).
  */
-#define HR_SCRIPT_TAI_THAM 1281453665
+#define HR_SCRIPT_TAI_THAM 1281453665u
 
 /**
  * The Tai Viet script (`Tavt`).
  */
-#define HR_SCRIPT_TAI_VIET 1415673460
+#define HR_SCRIPT_TAI_VIET 1415673460u
 
 /**
  * The Batak script (`Batk`).
  */
-#define HR_SCRIPT_BATAK 1113683051
+#define HR_SCRIPT_BATAK 1113683051u
 
 /**
  * The Brahmi script (`Brah`).
  */
-#define HR_SCRIPT_BRAHMI 1114792296
+#define HR_SCRIPT_BRAHMI 1114792296u
 
 /**
  * The Mandaic script (`Mand`).
  */
-#define HR_SCRIPT_MANDAIC 1298230884
+#define HR_SCRIPT_MANDAIC 1298230884u
 
 /**
  * The Chakma script (`Cakm`).
  */
-#define HR_SCRIPT_CHAKMA 1130457965
+#define HR_SCRIPT_CHAKMA 1130457965u
 
 /**
  * The Meroitic Cursive script (`Merc`).
  */
-#define HR_SCRIPT_MEROITIC_CURSIVE 1298494051
+#define HR_SCRIPT_MEROITIC_CURSIVE 1298494051u
 
 /**
  * The Meroitic Hieroglyphs script (`Mero`).
  */
-#define HR_SCRIPT_MEROITIC_HIEROGLYPHS 1298494063
+#define HR_SCRIPT_MEROITIC_HIEROGLYPHS 1298494063u
 
 /**
  * The Miao script (`Plrd`).
  */
-#define HR_SCRIPT_MIAO 1349284452
+#define HR_SCRIPT_MIAO 1349284452u
 
 /**
  * The Sharada script (`Shrd`).
  */
-#define HR_SCRIPT_SHARADA 1399353956
+#define HR_SCRIPT_SHARADA 1399353956u
 
 /**
  * The Sora Sompeng script (`Sora`).
  */
-#define HR_SCRIPT_SORA_SOMPENG 1399812705
+#define HR_SCRIPT_SORA_SOMPENG 1399812705u
 
 /**
  * The Takri script (`Takr`).
  */
-#define HR_SCRIPT_TAKRI 1415670642
+#define HR_SCRIPT_TAKRI 1415670642u
 
 /**
  * The Bassa Vah script (`Bass`).
  */
-#define HR_SCRIPT_BASSA_VAH 1113682803
+#define HR_SCRIPT_BASSA_VAH 1113682803u
 
 /**
  * The Caucasian Albanian script (`Aghb`).
  */
-#define HR_SCRIPT_CAUCASIAN_ALBANIAN 1097295970
+#define HR_SCRIPT_CAUCASIAN_ALBANIAN 1097295970u
 
 /**
  * The Duployan script (`Dupl`).
  */
-#define HR_SCRIPT_DUPLOYAN 1148547180
+#define HR_SCRIPT_DUPLOYAN 1148547180u
 
 /**
  * The Elbasan script (`Elba`).
  */
-#define HR_SCRIPT_ELBASAN 1164730977
+#define HR_SCRIPT_ELBASAN 1164730977u
 
 /**
  * The Grantha script (`Gran`).
  */
-#define HR_SCRIPT_GRANTHA 1198678382
+#define HR_SCRIPT_GRANTHA 1198678382u
 
 /**
  * The Khojki script (`Khoj`).
  */
-#define HR_SCRIPT_KHOJKI 1265135466
+#define HR_SCRIPT_KHOJKI 1265135466u
 
 /**
  * The Khudawadi script (`Sind`).
  */
-#define HR_SCRIPT_KHUDAWADI 1399418468
+#define HR_SCRIPT_KHUDAWADI 1399418468u
 
 /**
  * The Linear A script (`Lina`).
  */
-#define HR_SCRIPT_LINEAR_A 1281977953
+#define HR_SCRIPT_LINEAR_A 1281977953u
 
 /**
  * The Mahajani script (`Mahj`).
  */
-#define HR_SCRIPT_MAHAJANI 1298229354
+#define HR_SCRIPT_MAHAJANI 1298229354u
 
 /**
  * The Manichaean script (`Mani`).
  */
-#define HR_SCRIPT_MANICHAEAN 1298230889
+#define HR_SCRIPT_MANICHAEAN 1298230889u
 
 /**
  * The Mende Kikakui script (`Mend`).
  */
-#define HR_SCRIPT_MENDE_KIKAKUI 1298493028
+#define HR_SCRIPT_MENDE_KIKAKUI 1298493028u
 
 /**
  * The Modi script (`Modi`).
  */
-#define HR_SCRIPT_MODI 1299145833
+#define HR_SCRIPT_MODI 1299145833u
 
 /**
  * The Mro script (`Mroo`).
  */
-#define HR_SCRIPT_MRO 1299345263
+#define HR_SCRIPT_MRO 1299345263u
 
 /**
  * The Nabataean script (`Nbat`).
  */
-#define HR_SCRIPT_NABATAEAN 1315070324
+#define HR_SCRIPT_NABATAEAN 1315070324u
 
 /**
  * The Old North Arabian script (`Narb`).
  */
-#define HR_SCRIPT_OLD_NORTH_ARABIAN 1315009122
+#define HR_SCRIPT_OLD_NORTH_ARABIAN 1315009122u
 
 /**
  * The Old Permic script (`Perm`).
  */
-#define HR_SCRIPT_OLD_PERMIC 1348825709
+#define HR_SCRIPT_OLD_PERMIC 1348825709u
 
 /**
  * The Pahawh Hmong script (`Hmng`).
  */
-#define HR_SCRIPT_PAHAWH_HMONG 1215131239
+#define HR_SCRIPT_PAHAWH_HMONG 1215131239u
 
 /**
  * The Palmyrene script (`Palm`).
  */
-#define HR_SCRIPT_PALMYRENE 1348562029
+#define HR_SCRIPT_PALMYRENE 1348562029u
 
 /**
  * The Pau Cin Hau script (`Pauc`).
  */
-#define HR_SCRIPT_PAU_CIN_HAU 1348564323
+#define HR_SCRIPT_PAU_CIN_HAU 1348564323u
 
 /**
  * The Psalter Pahlavi script (`Phlp`).
  */
-#define HR_SCRIPT_PSALTER_PAHLAVI 1349020784
+#define HR_SCRIPT_PSALTER_PAHLAVI 1349020784u
 
 /**
  * The Siddham script (`Sidd`).
  */
-#define HR_SCRIPT_SIDDHAM 1399415908
+#define HR_SCRIPT_SIDDHAM 1399415908u
 
 /**
  * The Tirhuta script (`Tirh`).
  */
-#define HR_SCRIPT_TIRHUTA 1416196712
+#define HR_SCRIPT_TIRHUTA 1416196712u
 
 /**
  * The Warang Citi script (`Wara`).
  */
-#define HR_SCRIPT_WARANG_CITI 1466004065
+#define HR_SCRIPT_WARANG_CITI 1466004065u
 
 /**
  * The Ahom script (`Ahom`).
  */
-#define HR_SCRIPT_AHOM 1097363309
+#define HR_SCRIPT_AHOM 1097363309u
 
 /**
  * The Anatolian Hieroglyphs script (`Hluw`).
  */
-#define HR_SCRIPT_ANATOLIAN_HIEROGLYPHS 1215067511
+#define HR_SCRIPT_ANATOLIAN_HIEROGLYPHS 1215067511u
 
 /**
  * The Hatran script (`Hatr`).
  */
-#define HR_SCRIPT_HATRAN 1214346354
+#define HR_SCRIPT_HATRAN 1214346354u
 
 /**
  * The Multani script (`Mult`).
  */
-#define HR_SCRIPT_MULTANI 1299541108
+#define HR_SCRIPT_MULTANI 1299541108u
 
 /**
  * The Old Hungarian script (`Hung`).
  */
-#define HR_SCRIPT_OLD_HUNGARIAN 1215655527
+#define HR_SCRIPT_OLD_HUNGARIAN 1215655527u
 
 /**
  * The Signwriting script (`Sgnw`).
  */
-#define HR_SCRIPT_SIGNWRITING 1399287415
+#define HR_SCRIPT_SIGNWRITING 1399287415u
 
 /**
  * The Adlam script (`Adlm`).
  */
-#define HR_SCRIPT_ADLAM 1097100397
+#define HR_SCRIPT_ADLAM 1097100397u
 
 /**
  * The Bhaiksuki script (`Bhks`).
  */
-#define HR_SCRIPT_BHAIKSUKI 1114139507
+#define HR_SCRIPT_BHAIKSUKI 1114139507u
 
 /**
  * The Marchen script (`Marc`).
  */
-#define HR_SCRIPT_MARCHEN 1298231907
+#define HR_SCRIPT_MARCHEN 1298231907u
 
 /**
  * The Osage script (`Osge`).
  */
-#define HR_SCRIPT_OSAGE 1332963173
+#define HR_SCRIPT_OSAGE 1332963173u
 
 /**
  * The Tangut script (`Tang`).
  */
-#define HR_SCRIPT_TANGUT 1415671399
+#define HR_SCRIPT_TANGUT 1415671399u
 
 /**
  * The Newa script (`Newa`).
  */
-#define HR_SCRIPT_NEWA 1315272545
+#define HR_SCRIPT_NEWA 1315272545u
 
 /**
  * The Masaram Gondi script (`Gonm`).
  */
-#define HR_SCRIPT_MASARAM_GONDI 1198485101
+#define HR_SCRIPT_MASARAM_GONDI 1198485101u
 
 /**
  * The Nushu script (`Nshu`).
  */
-#define HR_SCRIPT_NUSHU 1316186229
+#define HR_SCRIPT_NUSHU 1316186229u
 
 /**
  * The Soyombo script (`Soyo`).
  */
-#define HR_SCRIPT_SOYOMBO 1399814511
+#define HR_SCRIPT_SOYOMBO 1399814511u
 
 /**
  * The Zanabazar Square script (`Zanb`).
  */
-#define HR_SCRIPT_ZANABAZAR_SQUARE 1516334690
+#define HR_SCRIPT_ZANABAZAR_SQUARE 1516334690u
 
 /**
  * The Dogra script (`Dogr`).
  */
-#define HR_SCRIPT_DOGRA 1148151666
+#define HR_SCRIPT_DOGRA 1148151666u
 
 /**
  * The Gunjala Gondi script (`Gong`).
  */
-#define HR_SCRIPT_GUNJALA_GONDI 1198485095
+#define HR_SCRIPT_GUNJALA_GONDI 1198485095u
 
 /**
  * The Hanifi Rohingya script (`Rohg`).
  */
-#define HR_SCRIPT_HANIFI_ROHINGYA 1383032935
+#define HR_SCRIPT_HANIFI_ROHINGYA 1383032935u
 
 /**
  * The Makasar script (`Maka`).
  */
-#define HR_SCRIPT_MAKASAR 1298230113
+#define HR_SCRIPT_MAKASAR 1298230113u
 
 /**
  * The Medefaidrin script (`Medf`).
  */
-#define HR_SCRIPT_MEDEFAIDRIN 1298490470
+#define HR_SCRIPT_MEDEFAIDRIN 1298490470u
 
 /**
  * The Old Sogdian script (`Sogo`).
  */
-#define HR_SCRIPT_OLD_SOGDIAN 1399809903
+#define HR_SCRIPT_OLD_SOGDIAN 1399809903u
 
 /**
  * The Sogdian script (`Sogd`).
  */
-#define HR_SCRIPT_SOGDIAN 1399809892
+#define HR_SCRIPT_SOGDIAN 1399809892u
 
 /**
  * The Elymaic script (`Elym`).
  */
-#define HR_SCRIPT_ELYMAIC 1164736877
+#define HR_SCRIPT_ELYMAIC 1164736877u
 
 /**
  * The Nandinagari script (`Nand`).
  */
-#define HR_SCRIPT_NANDINAGARI 1315008100
+#define HR_SCRIPT_NANDINAGARI 1315008100u
 
 /**
  * The Nyiakeng Puachue Hmong script (`Hmnp`).
  */
-#define HR_SCRIPT_NYIAKENG_PUACHUE_HMONG 1215131248
+#define HR_SCRIPT_NYIAKENG_PUACHUE_HMONG 1215131248u
 
 /**
  * The Wancho script (`Wcho`).
  */
-#define HR_SCRIPT_WANCHO 1466132591
+#define HR_SCRIPT_WANCHO 1466132591u
 
 /**
  * The Chorasmian script (`Chrs`).
  */
-#define HR_SCRIPT_CHORASMIAN 1130918515
+#define HR_SCRIPT_CHORASMIAN 1130918515u
 
 /**
  * The Dives Akuru script (`Diak`).
  */
-#define HR_SCRIPT_DIVES_AKURU 1147756907
+#define HR_SCRIPT_DIVES_AKURU 1147756907u
 
 /**
  * The Khitan Small Script script (`Kits`).
  */
-#define HR_SCRIPT_KHITAN_SMALL_SCRIPT 1265202291
+#define HR_SCRIPT_KHITAN_SMALL_SCRIPT 1265202291u
 
 /**
  * The Yezidi script (`Yezi`).
  */
-#define HR_SCRIPT_YEZIDI 1499822697
+#define HR_SCRIPT_YEZIDI 1499822697u
 
 /**
  * The Cypro Minoan script (`Cpmn`).
  */
-#define HR_SCRIPT_CYPRO_MINOAN 1131441518
+#define HR_SCRIPT_CYPRO_MINOAN 1131441518u
 
 /**
  * The Old Uyghur script (`Ougr`).
  */
-#define HR_SCRIPT_OLD_UYGHUR 1333094258
+#define HR_SCRIPT_OLD_UYGHUR 1333094258u
 
 /**
  * The Tangsa script (`Tnsa`).
  */
-#define HR_SCRIPT_TANGSA 1416524641
+#define HR_SCRIPT_TANGSA 1416524641u
 
 /**
  * The Toto script (`Toto`).
  */
-#define HR_SCRIPT_TOTO 1416590447
+#define HR_SCRIPT_TOTO 1416590447u
 
 /**
  * The Vithkuqi script (`Vith`).
  */
-#define HR_SCRIPT_VITHKUQI 1449751656
+#define HR_SCRIPT_VITHKUQI 1449751656u
 
 /**
  * The Kawi script (`Kawi`).
  */
-#define HR_SCRIPT_KAWI 1264678761
+#define HR_SCRIPT_KAWI 1264678761u
 
 /**
  * The Nag Mundari script (`Nagm`).
  */
-#define HR_SCRIPT_NAG_MUNDARI 1315006317
+#define HR_SCRIPT_NAG_MUNDARI 1315006317u
 
 /**
  * The Garay script (`Gara`).
  */
-#define HR_SCRIPT_GARAY 1197568609
+#define HR_SCRIPT_GARAY 1197568609u
 
 /**
  * The Gurung Khema script (`Gukh`).
  */
-#define HR_SCRIPT_GURUNG_KHEMA 1198877544
+#define HR_SCRIPT_GURUNG_KHEMA 1198877544u
 
 /**
  * The Kirat Rai script (`Krai`).
  */
-#define HR_SCRIPT_KIRAT_RAI 1265787241
+#define HR_SCRIPT_KIRAT_RAI 1265787241u
 
 /**
  * The Ol Onal script (`Onao`).
  */
-#define HR_SCRIPT_OL_ONAL 1332633967
+#define HR_SCRIPT_OL_ONAL 1332633967u
 
 /**
  * The Sunuwar script (`Sunu`).
  */
-#define HR_SCRIPT_SUNUWAR 1400204917
+#define HR_SCRIPT_SUNUWAR 1400204917u
 
 /**
  * The Todhri script (`Todr`).
  */
-#define HR_SCRIPT_TODHRI 1416586354
+#define HR_SCRIPT_TODHRI 1416586354u
 
 /**
  * The Tulu Tigalari script (`Tutg`).
  */
-#define HR_SCRIPT_TULU_TIGALARI 1416983655
+#define HR_SCRIPT_TULU_TIGALARI 1416983655u
 
 /**
  * The Beria Erfe script (`Berf`).
  */
-#define HR_SCRIPT_BERIA_ERFE 1113944678
+#define HR_SCRIPT_BERIA_ERFE 1113944678u
 
 /**
  * The Sidetic script (`Sidt`).
  */
-#define HR_SCRIPT_SIDETIC 1399415924
+#define HR_SCRIPT_SIDETIC 1399415924u
 
 /**
  * The Tai Yo script (`Tayo`).
  */
-#define HR_SCRIPT_TAI_YO 1415674223
+#define HR_SCRIPT_TAI_YO 1415674223u
 
 /**
  * The Tolong Siki script (`Tols`).
  */
-#define HR_SCRIPT_TOLONG_SIKI 1416588403
+#define HR_SCRIPT_TOLONG_SIKI 1416588403u
 
 /**
  * The Jurchen script (`Jurc`).
  */
-#define HR_SCRIPT_JURCHEN 1249210979
+#define HR_SCRIPT_JURCHEN 1249210979u
 
 /**
  * The Proto-Cuneiform script (`Pcun`).
  */
-#define HR_SCRIPT_PROTO_CUNEIFORM 1348695406
+#define HR_SCRIPT_PROTO_CUNEIFORM 1348695406u
 
 /**
  * The Seal script (`Seal`).
  */
-#define HR_SCRIPT_SEAL 1399153004
+#define HR_SCRIPT_SEAL 1399153004u
 
 /**
  * The Math script (`Zmth`).
  */
-#define HR_SCRIPT_MATH 1517122664
+#define HR_SCRIPT_MATH 1517122664u
 
 /**
  * The Myanmar Zawgyi script (`Qaag`).
  */
-#define HR_SCRIPT_MYANMAR_ZAWGYI 1365336423
+#define HR_SCRIPT_MYANMAR_ZAWGYI 1365336423u
 
 /**
  * Value returned for an absent map key.
  */
 #define HR_MAP_VALUE_INVALID HR_CODEPOINT_INVALID
 
-#define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134
+#define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719
+#define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT 1768121954
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT 1768121954u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT 1768121972
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT 1768121972u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL 1231251043
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL 1231251043u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT 1768187247
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT 1768187247u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT 1768191088
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT 1768191088u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL 1231315813
+#define HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL 1231315813u
 
-#define HR_OT_LAYOUT_BASELINE_TAG_MATH 1835103336
+#define HR_OT_LAYOUT_BASELINE_TAG_MATH 1835103336u
 
-#define HR_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN 0
+#define HR_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN 0u
 
-#define HR_OT_MATH_CONSTANT_SCRIPT_SCRIPT_PERCENT_SCALE_DOWN 1
+#define HR_OT_MATH_CONSTANT_SCRIPT_SCRIPT_PERCENT_SCALE_DOWN 1u
 
-#define HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT 2
+#define HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT 2u
 
-#define HR_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT 3
+#define HR_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT 3u
 
-#define HR_OT_MATH_CONSTANT_MATH_LEADING 4
+#define HR_OT_MATH_CONSTANT_MATH_LEADING 4u
 
-#define HR_OT_MATH_CONSTANT_AXIS_HEIGHT 5
+#define HR_OT_MATH_CONSTANT_AXIS_HEIGHT 5u
 
-#define HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT 6
+#define HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT 6u
 
-#define HR_OT_MATH_CONSTANT_FLATTENED_ACCENT_BASE_HEIGHT 7
+#define HR_OT_MATH_CONSTANT_FLATTENED_ACCENT_BASE_HEIGHT 7u
 
-#define HR_OT_MATH_CONSTANT_SUBSCRIPT_SHIFT_DOWN 8
+#define HR_OT_MATH_CONSTANT_SUBSCRIPT_SHIFT_DOWN 8u
 
-#define HR_OT_MATH_CONSTANT_SUBSCRIPT_TOP_MAX 9
+#define HR_OT_MATH_CONSTANT_SUBSCRIPT_TOP_MAX 9u
 
-#define HR_OT_MATH_CONSTANT_SUBSCRIPT_BASELINE_DROP_MIN 10
+#define HR_OT_MATH_CONSTANT_SUBSCRIPT_BASELINE_DROP_MIN 10u
 
-#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP 11
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP 11u
 
-#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP_CRAMPED 12
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP_CRAMPED 12u
 
-#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MIN 13
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MIN 13u
 
-#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BASELINE_DROP_MAX 14
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BASELINE_DROP_MAX 14u
 
-#define HR_OT_MATH_CONSTANT_SUB_SUPERSCRIPT_GAP_MIN 15
+#define HR_OT_MATH_CONSTANT_SUB_SUPERSCRIPT_GAP_MIN 15u
 
-#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MAX_WITH_SUBSCRIPT 16
+#define HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MAX_WITH_SUBSCRIPT 16u
 
-#define HR_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT 17
+#define HR_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT 17u
 
-#define HR_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN 18
+#define HR_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN 18u
 
-#define HR_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN 19
+#define HR_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN 19u
 
-#define HR_OT_MATH_CONSTANT_LOWER_LIMIT_GAP_MIN 20
+#define HR_OT_MATH_CONSTANT_LOWER_LIMIT_GAP_MIN 20u
 
-#define HR_OT_MATH_CONSTANT_LOWER_LIMIT_BASELINE_DROP_MIN 21
+#define HR_OT_MATH_CONSTANT_LOWER_LIMIT_BASELINE_DROP_MIN 21u
 
-#define HR_OT_MATH_CONSTANT_STACK_TOP_SHIFT_UP 22
+#define HR_OT_MATH_CONSTANT_STACK_TOP_SHIFT_UP 22u
 
-#define HR_OT_MATH_CONSTANT_STACK_TOP_DISPLAY_STYLE_SHIFT_UP 23
+#define HR_OT_MATH_CONSTANT_STACK_TOP_DISPLAY_STYLE_SHIFT_UP 23u
 
-#define HR_OT_MATH_CONSTANT_STACK_BOTTOM_SHIFT_DOWN 24
+#define HR_OT_MATH_CONSTANT_STACK_BOTTOM_SHIFT_DOWN 24u
 
-#define HR_OT_MATH_CONSTANT_STACK_BOTTOM_DISPLAY_STYLE_SHIFT_DOWN 25
+#define HR_OT_MATH_CONSTANT_STACK_BOTTOM_DISPLAY_STYLE_SHIFT_DOWN 25u
 
-#define HR_OT_MATH_CONSTANT_STACK_GAP_MIN 26
+#define HR_OT_MATH_CONSTANT_STACK_GAP_MIN 26u
 
-#define HR_OT_MATH_CONSTANT_STACK_DISPLAY_STYLE_GAP_MIN 27
+#define HR_OT_MATH_CONSTANT_STACK_DISPLAY_STYLE_GAP_MIN 27u
 
-#define HR_OT_MATH_CONSTANT_STRETCH_STACK_TOP_SHIFT_UP 28
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_TOP_SHIFT_UP 28u
 
-#define HR_OT_MATH_CONSTANT_STRETCH_STACK_BOTTOM_SHIFT_DOWN 29
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_BOTTOM_SHIFT_DOWN 29u
 
-#define HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_ABOVE_MIN 30
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_ABOVE_MIN 30u
 
-#define HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_BELOW_MIN 31
+#define HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_BELOW_MIN 31u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_SHIFT_UP 32
+#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_SHIFT_UP 32u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP 33
+#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP 33u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_SHIFT_DOWN 34
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_SHIFT_DOWN 34u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_DISPLAY_STYLE_SHIFT_DOWN 35
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_DISPLAY_STYLE_SHIFT_DOWN 35u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_GAP_MIN 36
+#define HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_GAP_MIN 36u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_NUM_DISPLAY_STYLE_GAP_MIN 37
+#define HR_OT_MATH_CONSTANT_FRACTION_NUM_DISPLAY_STYLE_GAP_MIN 37u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS 38
+#define HR_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS 38u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_GAP_MIN 39
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_GAP_MIN 39u
 
-#define HR_OT_MATH_CONSTANT_FRACTION_DENOM_DISPLAY_STYLE_GAP_MIN 40
+#define HR_OT_MATH_CONSTANT_FRACTION_DENOM_DISPLAY_STYLE_GAP_MIN 40u
 
-#define HR_OT_MATH_CONSTANT_SKEWED_FRACTION_HORIZONTAL_GAP 41
+#define HR_OT_MATH_CONSTANT_SKEWED_FRACTION_HORIZONTAL_GAP 41u
 
-#define HR_OT_MATH_CONSTANT_SKEWED_FRACTION_VERTICAL_GAP 42
+#define HR_OT_MATH_CONSTANT_SKEWED_FRACTION_VERTICAL_GAP 42u
 
-#define HR_OT_MATH_CONSTANT_OVERBAR_VERTICAL_GAP 43
+#define HR_OT_MATH_CONSTANT_OVERBAR_VERTICAL_GAP 43u
 
-#define HR_OT_MATH_CONSTANT_OVERBAR_RULE_THICKNESS 44
+#define HR_OT_MATH_CONSTANT_OVERBAR_RULE_THICKNESS 44u
 
-#define HR_OT_MATH_CONSTANT_OVERBAR_EXTRA_ASCENDER 45
+#define HR_OT_MATH_CONSTANT_OVERBAR_EXTRA_ASCENDER 45u
 
-#define HR_OT_MATH_CONSTANT_UNDERBAR_VERTICAL_GAP 46
+#define HR_OT_MATH_CONSTANT_UNDERBAR_VERTICAL_GAP 46u
 
-#define HR_OT_MATH_CONSTANT_UNDERBAR_RULE_THICKNESS 47
+#define HR_OT_MATH_CONSTANT_UNDERBAR_RULE_THICKNESS 47u
 
-#define HR_OT_MATH_CONSTANT_UNDERBAR_EXTRA_DESCENDER 48
+#define HR_OT_MATH_CONSTANT_UNDERBAR_EXTRA_DESCENDER 48u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP 49
+#define HR_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP 49u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_DISPLAY_STYLE_VERTICAL_GAP 50
+#define HR_OT_MATH_CONSTANT_RADICAL_DISPLAY_STYLE_VERTICAL_GAP 50u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_RULE_THICKNESS 51
+#define HR_OT_MATH_CONSTANT_RADICAL_RULE_THICKNESS 51u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_EXTRA_ASCENDER 52
+#define HR_OT_MATH_CONSTANT_RADICAL_EXTRA_ASCENDER 52u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE 53
+#define HR_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE 53u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE 54
+#define HR_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE 54u
 
-#define HR_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT 55
+#define HR_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT 55u
 
-#define HR_OT_MATH_KERN_TOP_RIGHT 0
+#define HR_OT_MATH_KERN_TOP_RIGHT 0u
 
-#define HR_OT_MATH_KERN_TOP_LEFT 1
+#define HR_OT_MATH_KERN_TOP_LEFT 1u
 
-#define HR_OT_MATH_KERN_BOTTOM_RIGHT 2
+#define HR_OT_MATH_KERN_BOTTOM_RIGHT 2u
 
-#define HR_OT_MATH_KERN_BOTTOM_LEFT 3
+#define HR_OT_MATH_KERN_BOTTOM_LEFT 3u
 
-#define HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER 1
+#define HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER 1u
 
-#define HR_OT_TAG_MATH 1296127048
+#define HR_OT_TAG_MATH 1296127048u
 
-#define HR_OT_TAG_MATH_SCRIPT 1835103336
+#define HR_OT_TAG_MATH_SCRIPT 1835103336u
 
 /**
  * Unset set value, also used to start iteration.
