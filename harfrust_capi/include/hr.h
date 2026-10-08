@@ -499,6 +499,11 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
                                                       void *user_data);
 
 /**
+ * Flags describing the backgrounds on which a palette is usable.
+ */
+typedef unsigned int hr_ot_color_palette_flags_t;
+
+/**
  * A registered OpenType BASE baseline tag. The numeric value is the tag itself.
  */
 typedef hr_tag_t hr_ot_layout_baseline_tag_t;
@@ -1667,6 +1672,21 @@ typedef struct hr_ot_math_glyph_part_t {
  * Value returned for an absent map key.
  */
 #define HR_MAP_VALUE_INVALID HR_CODEPOINT_INVALID
+
+/**
+ * No background preference.
+ */
+#define HR_OT_COLOR_PALETTE_FLAG_DEFAULT 0
+
+/**
+ * The palette is usable on a light background.
+ */
+#define HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND 1
+
+/**
+ * The palette is usable on a dark background.
+ */
+#define HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND 2
 
 #define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134
 
@@ -3936,6 +3956,46 @@ void hr_map_keys(const struct hr_map_t *map, struct hr_set_t *keys);
  * `map` and `values` must be `NULL` or live.
  */
 void hr_map_values(const struct hr_map_t *map, struct hr_set_t *values);
+
+/**
+ * Returns whether the face has a CPAL table with any palettes.
+ * # Safety
+ * `face` must be null or live.
+ */
+hr_bool_t hr_ot_color_has_palettes(struct hr_face_t *face);
+
+/**
+ * Returns the number of palettes in CPAL, or zero if absent.
+ * # Safety
+ * `face` must be null or live.
+ */
+unsigned int hr_ot_color_palette_get_count(struct hr_face_t *face);
+
+/**
+ * Returns a palette's background flags, or the default flags if unavailable.
+ * # Safety
+ * `face` must be null or live.
+ */
+hr_ot_color_palette_flags_t hr_ot_color_palette_get_flags(struct hr_face_t *face,
+                                                          unsigned int palette_index);
+
+/**
+ * Returns the total number of colors in a palette and copies a page of them.
+ *
+ * Colors are unpremultiplied sRGB values in `hr_color_t` packing. When both
+ * output pointers are non-null, `color_count` gives capacity on entry and
+ * the number written on return. A null array leaves the count unchanged for
+ * a valid palette. An invalid palette index returns zero and clears the count.
+ *
+ * # Safety
+ * `face` must be null or live; `color_count` must be null or writable;
+ * `colors` must hold the input capacity when non-null.
+ */
+unsigned int hr_ot_color_palette_get_colors(struct hr_face_t *face,
+                                            unsigned int palette_index,
+                                            unsigned int start_offset,
+                                            unsigned int *color_count,
+                                            hr_color_t *colors);
 
 /**
  * Returns whether the face has a readable GSUB table.

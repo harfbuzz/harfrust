@@ -37,6 +37,7 @@ pub mod font;
 pub mod font_funcs;
 pub mod map;
 pub mod object;
+pub mod ot_color;
 pub mod ot_layout;
 pub mod ot_math;
 pub mod ot_tag;
@@ -55,6 +56,7 @@ pub use font::*;
 pub use font_funcs::*;
 pub use map::*;
 pub use object::{hr_destroy_func_t, hr_user_data_key_t};
+pub use ot_color::*;
 pub use ot_layout::*;
 pub use ot_math::*;
 pub use ot_tag::*;
@@ -86,3 +88,11 @@ mod skia_batch_tests;
 #[cfg(test)]
 #[path = "../tests/skia_version.rs"]
 mod skia_version_tests;
+
+#[cfg(test)]
+#[path = "../tests/tables.rs"]
+mod table_tests;
+
+#[cfg(test)]
+#[path = "../tests/ot_color.rs"]
+mod ot_color_tests;

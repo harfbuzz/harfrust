@@ -5,6 +5,11 @@
 
 /* Types, functions and callbacks */
 
+#define hb_ot_color_has_palettes                         hr_ot_color_has_palettes
+#define hb_ot_color_palette_flags_t                      hr_ot_color_palette_flags_t
+#define hb_ot_color_palette_get_colors                   hr_ot_color_palette_get_colors
+#define hb_ot_color_palette_get_count                    hr_ot_color_palette_get_count
+#define hb_ot_color_palette_get_flags                    hr_ot_color_palette_get_flags
 #define hb_ot_font_set_funcs                             hr_ot_font_set_funcs
 #define hb_ot_layout_baseline_tag_t                      hr_ot_layout_baseline_tag_t
 #define hb_ot_layout_get_baseline                        hr_ot_layout_get_baseline
@@ -37,6 +42,9 @@
 
 /* Constants and macros */
 
+#define HB_OT_COLOR_PALETTE_FLAG_DEFAULT              HR_OT_COLOR_PALETTE_FLAG_DEFAULT
+#define HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND
+#define HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND
 #define HB_OT_LAYOUT_BASELINE_TAG_HANGING             HR_OT_LAYOUT_BASELINE_TAG_HANGING
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL  HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL
