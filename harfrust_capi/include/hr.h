@@ -12,7 +12,8 @@
  */
 
 
-#pragma once
+#ifndef HARFRUST_H
+#define HARFRUST_H
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -52,6 +53,21 @@
  * The micro version of this library.
  */
 #define HR_VERSION_MICRO 0
+
+/**
+ * The HarfBuzz release matched by the shaping implementation.
+ */
+#define HR_HARFBUZZ_VERSION_MAJOR 14
+
+/**
+ * The minor version of the matched HarfBuzz release.
+ */
+#define HR_HARFBUZZ_VERSION_MINOR 5
+
+/**
+ * The micro version of the matched HarfBuzz release.
+ */
+#define HR_HARFBUZZ_VERSION_MICRO 1
 
 /**
  * Binary data with a lifetime.
@@ -4424,6 +4440,27 @@ hr_bool_t hr_shape_full(struct hr_font_t *font,
 const char **hr_shape_list_shapers(void);
 
 /**
+ * Returns the HarfBuzz version matched by the shaping implementation.
+ *
+ * This is a behavior/version baseline, not a promise that every HarfBuzz
+ * API exists. The supported surface is declared in `hr.h`.
+ *
+ * # Safety
+ * Each output must be `NULL` or writable.
+ */
+void hr_harfbuzz_version(unsigned int *major, unsigned int *minor, unsigned int *micro);
+
+/**
+ * Returns the matched HarfBuzz version as a zero-terminated string.
+ */
+const char *hr_harfbuzz_version_string(void);
+
+/**
+ * Returns whether the matched HarfBuzz version is at least the given version.
+ */
+hr_bool_t hr_harfbuzz_version_atleast(unsigned int major, unsigned int minor, unsigned int micro);
+
+/**
  * Returns the version of the underlying HarfRust library.
  *
  * # Safety
@@ -4658,6 +4695,8 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 }  // extern "C"
 #endif  // __cplusplus
 
+#endif  /* HARFRUST_H */
+
 /* Convenience macros with no Rust counterpart, matching HarfBuzz's. */
 
 /** Builds a tag from four characters. */
@@ -4685,3 +4724,9 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
+
+/** The HarfBuzz release matched by the shaping implementation. */
+#define HR_HARFBUZZ_VERSION_STRING "14.5.1"
+
+/** True if the matched HarfBuzz version is at least the given version. */
+#define HR_HARFBUZZ_VERSION_ATLEAST(major, minor, micro) ((major) < HR_HARFBUZZ_VERSION_MAJOR || ((major) == HR_HARFBUZZ_VERSION_MAJOR && ((minor) < HR_HARFBUZZ_VERSION_MINOR || ((minor) == HR_HARFBUZZ_VERSION_MINOR && (micro) <= HR_HARFBUZZ_VERSION_MICRO))))

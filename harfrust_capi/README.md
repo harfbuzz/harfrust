@@ -224,3 +224,13 @@ MIT, the same as the rest of the project.
 Nominal glyph callbacks support both scalar and strided batch mapping. A batch
 callback supplies scalar queries when no scalar callback is installed; a local
 scalar callback also takes precedence over an inherited batch callback.
+
+HarfBuzz compatibility headers are `hr-hb.h` for core APIs and `hr-hb-ot.h`
+for OpenType APIs. The core header also includes the OpenType mappings for
+existing callers. Both may be included in either order.
+
+`HB_VERSION_*` and `hb_version*` report the HarfBuzz shaping release matched
+by HarfRust, currently 14.5.1. `HR_VERSION_*` and `hr_version*` continue to
+report the HarfRust package version. This lets source compatibility users
+select HarfBuzz API paths with version checks. It does not imply that every
+API from that HarfBuzz release is available; see the exclusions above.
