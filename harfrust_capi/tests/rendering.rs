@@ -495,7 +495,7 @@ mod painting {
                     hr_font_paint_glyph_or_fail(font, glyph, funcs, data, 0, 0xaabb_ccff),
                     1
                 );
-                assert!(s.scopes.is_empty());
+                assert_eq!(s.scopes, [] as [u8; 0]);
             }
             assert_eq!(s.gradients, [0, 1, 2]);
             for stops in s.stops.chunks_exact(2) {
@@ -512,12 +512,12 @@ mod painting {
                 }
             }
             assert_eq!(hr_font_paint_glyph_or_fail(font, 4, funcs, data, 0, 0), 0);
-            assert!(s.scopes.is_empty());
+            assert_eq!(s.scopes, [] as [u8; 0]);
             assert_eq!(
                 hr_font_paint_glyph_or_fail(font, u32::MAX, funcs, data, 0, 0),
                 0
             );
-            assert!(s.scopes.is_empty());
+            assert_eq!(s.scopes, [] as [u8; 0]);
             hr_paint_funcs_destroy(funcs);
             hr_font_destroy(font);
         }
@@ -583,7 +583,7 @@ mod painting {
             );
             assert_eq!(s.colors, [(1, 0x1234_5678)]);
             assert_eq!(s.transforms, [(2.0, -0.5)]);
-            assert!(s.scopes.is_empty());
+            assert_eq!(s.scopes, [] as [u8; 0]);
             hr_font_funcs_set_paint_glyph_func(
                 callbacks,
                 Some(legacy_font_paint),
