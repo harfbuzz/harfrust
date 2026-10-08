@@ -2,7 +2,10 @@
 //! can fall behind the source they are generated from.
 
 const HR_H: &str = include_str!("../include/hr.h");
-const HR_HB_H: &str = include_str!("../include/hr-hb.h");
+const HR_HB_H: &str = concat!(
+    include_str!("../include/hr-hb.h"),
+    include_str!("../include/hr-hb-ot.h"),
+);
 
 #[test]
 fn shape_list_shapers_matches_harfbuzz_signature() {
@@ -78,6 +81,9 @@ const HARFRUST_ONLY: &[&str] = &[
     "hr_direction_is_vertical",
     "hr_direction_reverse",
     "hr_shape_plan_get_segment_properties",
+    "hr_harfbuzz_version",
+    "hr_harfbuzz_version_atleast",
+    "hr_harfbuzz_version_string",
 ];
 
 #[test]
@@ -85,6 +91,7 @@ fn the_compatibility_header_covers_every_name() {
     let missing: Vec<String> = declared_names(HR_H)
         .into_iter()
         .filter(|name| !HARFRUST_ONLY.contains(&name.as_str()))
+        .filter(|name| !name.starts_with("HR_HARFBUZZ_"))
         .filter(|name| {
             let hb = match (name.strip_prefix("hr_"), name.strip_prefix("HR_")) {
                 (Some(rest), _) => format!("hb_{rest}"),

@@ -12,7 +12,8 @@
  */
 
 
-#pragma once
+#ifndef HARFRUST_H
+#define HARFRUST_H
 
 #include <stdarg.h>
 #include <stdbool.h>
@@ -52,6 +53,21 @@
  * The micro version of this library.
  */
 #define HR_VERSION_MICRO 0
+
+/**
+ * The HarfBuzz release matched by the shaping implementation.
+ */
+#define HR_HARFBUZZ_VERSION_MAJOR 14
+
+/**
+ * The minor version of the matched HarfBuzz release.
+ */
+#define HR_HARFBUZZ_VERSION_MINOR 5
+
+/**
+ * The micro version of the matched HarfBuzz release.
+ */
+#define HR_HARFBUZZ_VERSION_MICRO 1
 
 /**
  * Binary data with a lifetime.
@@ -396,6 +412,19 @@ typedef hr_bool_t (*hr_font_get_nominal_glyph_func_t)(struct hr_font_t *font,
                                                       hr_codepoint_t unicode,
                                                       hr_codepoint_t *glyph,
                                                       void *user_data);
+
+/**
+ * Maps a strided batch of codepoints, stopping at the first missing glyph.
+ * Returns the number of consecutive entries mapped.
+ */
+typedef unsigned int (*hr_font_get_nominal_glyphs_func_t)(struct hr_font_t *font,
+                                                          void *font_data,
+                                                          unsigned int count,
+                                                          const hr_codepoint_t *first_unicode,
+                                                          unsigned int unicode_stride,
+                                                          hr_codepoint_t *first_glyph,
+                                                          unsigned int glyph_stride,
+                                                          void *user_data);
 
 /**
  * Maps a Unicode scalar value and variation selector to a glyph.
@@ -3145,6 +3174,23 @@ hr_bool_t hr_font_get_nominal_glyph(struct hr_font_t *font,
                                     hr_codepoint_t *glyph);
 
 /**
+ * Maps a strided batch of Unicode codepoints to nominal glyphs.
+ *
+ * Stops at the first missing glyph and returns the number mapped. Zero
+ * strides may be used to read or write the same location repeatedly.
+ *
+ * # Safety
+ * `font` must be `NULL` or live. The arrays must be valid for `count`
+ * entries at their respective byte strides.
+ */
+unsigned int hr_font_get_nominal_glyphs(struct hr_font_t *font,
+                                        unsigned int count,
+                                        const hr_codepoint_t *first_unicode,
+                                        unsigned int unicode_stride,
+                                        hr_codepoint_t *first_glyph,
+                                        unsigned int glyph_stride);
+
+/**
  * Maps a Unicode scalar value and variation selector to a glyph, returning
  * false if the font has none.
  *
@@ -3542,6 +3588,22 @@ void hr_font_funcs_set_nominal_glyph_func(struct hr_font_funcs_t *ffuncs,
                                           hr_font_get_nominal_glyph_func_t func,
                                           void *user_data,
                                           hr_destroy_func_t destroy);
+
+/**
+ * Sets the callback mapping a strided batch of Unicode codepoints.
+ *
+ * Takes ownership of `user_data`, releasing it on replacement or destruction.
+ * An immutable funcs object rejects the callback and releases its data.
+ * A missing batch callback uses the scalar callback before asking the parent.
+ *
+ * # Safety
+ * `ffuncs` must be `NULL` or live, and the callback and data must be safe
+ * to invoke from any thread.
+ */
+void hr_font_funcs_set_nominal_glyphs_func(struct hr_font_funcs_t *ffuncs,
+                                           hr_font_get_nominal_glyphs_func_t func,
+                                           void *user_data,
+                                           hr_destroy_func_t destroy);
 
 /**
  * Sets the callback mapping a Unicode scalar value and variation selector
@@ -4378,6 +4440,27 @@ hr_bool_t hr_shape_full(struct hr_font_t *font,
 const char **hr_shape_list_shapers(void);
 
 /**
+ * Returns the HarfBuzz version matched by the shaping implementation.
+ *
+ * This is a behavior/version baseline, not a promise that every HarfBuzz
+ * API exists. The supported surface is declared in `hr.h`.
+ *
+ * # Safety
+ * Each output must be `NULL` or writable.
+ */
+void hr_harfbuzz_version(unsigned int *major, unsigned int *minor, unsigned int *micro);
+
+/**
+ * Returns the matched HarfBuzz version as a zero-terminated string.
+ */
+const char *hr_harfbuzz_version_string(void);
+
+/**
+ * Returns whether the matched HarfBuzz version is at least the given version.
+ */
+hr_bool_t hr_harfbuzz_version_atleast(unsigned int major, unsigned int minor, unsigned int micro);
+
+/**
  * Returns the version of the underlying HarfRust library.
  *
  * # Safety
@@ -4612,6 +4695,8 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 }  // extern "C"
 #endif  // __cplusplus
 
+#endif  /* HARFRUST_H */
+
 /* Convenience macros with no Rust counterpart, matching HarfBuzz's. */
 
 /** Builds a tag from four characters. */
@@ -4639,3 +4724,9 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
+
+/** The HarfBuzz release matched by the shaping implementation. */
+#define HR_HARFBUZZ_VERSION_STRING "14.5.1"
+
+/** True if the matched HarfBuzz version is at least the given version. */
+#define HR_HARFBUZZ_VERSION_ATLEAST(major, minor, micro) ((major) < HR_HARFBUZZ_VERSION_MAJOR || ((major) == HR_HARFBUZZ_VERSION_MAJOR && ((minor) < HR_HARFBUZZ_VERSION_MINOR || ((minor) == HR_HARFBUZZ_VERSION_MINOR && (micro) <= HR_HARFBUZZ_VERSION_MICRO))))

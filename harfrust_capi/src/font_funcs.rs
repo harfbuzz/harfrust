@@ -11,7 +11,7 @@ use core::ptr;
 use std::sync::OnceLock;
 
 use harfrust::ShaperFont;
-use harfrust::{Advances, FontFuncs};
+use harfrust::{Advances, FontFuncs, NominalGlyphs};
 use harfrust::{GlyphExtents, GlyphId};
 
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_glyph_extents_t, hr_position_t};
@@ -27,6 +27,21 @@ pub type hr_font_get_nominal_glyph_func_t = Option<
         glyph: *mut hr_codepoint_t,
         user_data: *mut c_void,
     ) -> hr_bool_t,
+>;
+
+/// Maps a strided batch of codepoints, stopping at the first missing glyph.
+/// Returns the number of consecutive entries mapped.
+pub type hr_font_get_nominal_glyphs_func_t = Option<
+    unsafe extern "C" fn(
+        font: *mut hr_font_t,
+        font_data: *mut c_void,
+        count: c_uint,
+        first_unicode: *const hr_codepoint_t,
+        unicode_stride: c_uint,
+        first_glyph: *mut hr_codepoint_t,
+        glyph_stride: c_uint,
+        user_data: *mut c_void,
+    ) -> c_uint,
 >;
 
 /// Maps a Unicode scalar value and variation selector to a glyph.
@@ -149,6 +164,7 @@ fn callback_taking<F>(
 pub struct hr_font_funcs_t {
     header: ObjectHeader,
     nominal_glyph: Option<Callback<hr_font_get_nominal_glyph_func_t>>,
+    nominal_glyphs: Option<Callback<hr_font_get_nominal_glyphs_func_t>>,
     variation_glyph: Option<Callback<hr_font_get_variation_glyph_func_t>>,
     h_advance: Option<Callback<hr_font_get_glyph_advance_func_t>>,
     h_advances: Option<Callback<hr_font_get_glyph_h_advances_func_t>>,
@@ -318,6 +334,31 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
         return;
     };
     ffuncs.nominal_glyph = callback_taking(func, user_data, destroy);
+}
+
+/// Sets the callback mapping a strided batch of Unicode codepoints.
+///
+/// Takes ownership of `user_data`, releasing it on replacement or destruction.
+/// An immutable funcs object rejects the callback and releases its data.
+/// A missing batch callback uses the scalar callback before asking the parent.
+///
+/// # Safety
+/// `ffuncs` must be `NULL` or live, and the callback and data must be safe
+/// to invoke from any thread.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyphs_func(
+    ffuncs: *mut hr_font_funcs_t,
+    func: hr_font_get_nominal_glyphs_func_t,
+    user_data: *mut c_void,
+    destroy: hr_destroy_func_t,
+) {
+    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
+        if let Some(destroy) = destroy {
+            unsafe { destroy(user_data) };
+        }
+        return;
+    };
+    ffuncs.nominal_glyphs = callback_taking(func, user_data, destroy);
 }
 
 /// Sets the callback mapping a Unicode scalar value and variation selector
@@ -597,6 +638,12 @@ enum Resolved<'c, F> {
     },
 }
 
+enum NominalFuncs<'a> {
+    Builtin,
+    Missing,
+    Found(*mut hr_font_t, &'a hr_font_t, &'a hr_font_funcs_t),
+}
+
 /// Finds the nearest font in the chain whose callbacks answer for one field.
 ///
 /// A funcs object that does not carry the callback delegates to the parent,
@@ -664,27 +711,137 @@ impl<'a> FontFuncsAdapter<'a> {
         Self { state, font }
     }
 
+    // Scalar and batch callbacks are alternatives at each font in the chain.
+    // A child's scalar callback must take precedence over a parent's batch.
+    fn nominal_funcs(&self) -> NominalFuncs<'_> {
+        let mut font = self.font;
+        let mut state = self.state;
+        loop {
+            if state.funcs == builtin_funcs() {
+                return NominalFuncs::Builtin;
+            }
+            if let Some(funcs) = unsafe { state.funcs.as_ref() } {
+                if funcs.nominal_glyph.is_some() || funcs.nominal_glyphs.is_some() {
+                    return NominalFuncs::Found(font, state, funcs);
+                }
+            }
+            match unsafe { state.parent.as_ref() } {
+                Some(parent) => {
+                    font = state.parent;
+                    state = parent;
+                }
+                None => {
+                    return if state.funcs.is_null() {
+                        NominalFuncs::Builtin
+                    } else {
+                        NominalFuncs::Missing
+                    }
+                }
+            }
+        }
+    }
+
     /// What the installed nominal-glyph callback answers, or `None` when
     /// there is no such callback to ask.
     ///
     /// Shaping and the public getters both go through here, so that a font
     /// answers the same whichever of them is asking.
     pub(crate) fn call_nominal_glyph(&self, c: u32) -> Option<Answer<hr_codepoint_t>> {
-        let (font, data, cb) = match resolve!(self, nominal_glyph) {
-            Resolved::Builtin => return Some(Answer::Builtin),
-            Resolved::Missing => return None,
-            Resolved::Found {
-                font,
-                data,
-                callback,
-                ..
-            } => (font, data, callback),
+        let (font, state, funcs) = match self.nominal_funcs() {
+            NominalFuncs::Builtin => return Some(Answer::Builtin),
+            NominalFuncs::Missing => return None,
+            NominalFuncs::Found(font, state, funcs) => (font, state, funcs),
         };
-        let func = cb.func?;
         let mut glyph: hr_codepoint_t = 0;
-        // SAFETY: the callback was registered by the caller for this purpose.
-        let found = unsafe { func(font, data, c, ptr::from_mut(&mut glyph), cb.user_data) };
+        let found = if let Some(cb) = &funcs.nominal_glyph {
+            unsafe {
+                cb.func?(
+                    font,
+                    state.callback_data(),
+                    c,
+                    ptr::from_mut(&mut glyph),
+                    cb.user_data,
+                )
+            }
+        } else {
+            let cb = funcs.nominal_glyphs.as_ref()?;
+            (unsafe {
+                cb.func?(
+                    font,
+                    state.callback_data(),
+                    1,
+                    &raw const c,
+                    0,
+                    &raw mut glyph,
+                    0,
+                    cb.user_data,
+                )
+            }) as i32
+        };
         (found != 0).then_some(Answer::Value(glyph))
+    }
+
+    /// Maps a raw batch through the nearest scalar or batch callback.
+    ///
+    /// # Safety
+    /// The strided arrays must be valid for `count` entries.
+    pub(crate) unsafe fn call_nominal_glyphs(
+        &self,
+        count: c_uint,
+        unicodes: *const u32,
+        unicode_stride: c_uint,
+        glyphs: *mut u32,
+        glyph_stride: c_uint,
+    ) -> c_uint {
+        let resolved = self.nominal_funcs();
+        if let NominalFuncs::Found(font, state, funcs) = &resolved {
+            if let Some(cb) = &funcs.nominal_glyphs {
+                return unsafe {
+                    cb.func.unwrap()(
+                        *font,
+                        state.callback_data(),
+                        count,
+                        unicodes,
+                        unicode_stride,
+                        glyphs,
+                        glyph_stride,
+                        cb.user_data,
+                    )
+                }
+                .min(count);
+            }
+        }
+        for i in 0..count as usize {
+            let unicode = unsafe {
+                unicodes
+                    .byte_add(i * unicode_stride as usize)
+                    .read_unaligned()
+            };
+            let output = glyphs.wrapping_byte_add(i * glyph_stride as usize);
+            let glyph = match &resolved {
+                NominalFuncs::Builtin => self.state.builtin_nominal_glyph(unicode),
+                NominalFuncs::Missing => None,
+                NominalFuncs::Found(font, state, funcs) => {
+                    let cb = funcs.nominal_glyph.as_ref().unwrap();
+                    let mut glyph = 0;
+                    let found = unsafe {
+                        cb.func.unwrap()(
+                            *font,
+                            state.callback_data(),
+                            unicode,
+                            &raw mut glyph,
+                            cb.user_data,
+                        )
+                    };
+                    (found != 0).then_some(glyph)
+                }
+            };
+            let Some(glyph) = glyph else {
+                return i as c_uint;
+            };
+            unsafe { output.write_unaligned(glyph) };
+        }
+        count
     }
 
     /// As [`FontFuncsAdapter::call_nominal_glyph`], for a variation
@@ -939,6 +1096,19 @@ impl FontFuncs for FontFuncsAdapter<'_> {
             Answer::Builtin => font.default_nominal_glyph(c),
             Answer::Value(glyph) => Some(GlyphId::from(glyph)),
         }
+    }
+
+    fn nominal_glyphs(&self, _font: &ShaperFont, glyphs: NominalGlyphs<'_>) -> usize {
+        let raw = glyphs.into_raw();
+        (unsafe {
+            self.call_nominal_glyphs(
+                raw.len as c_uint,
+                raw.codepoints,
+                raw.codepoint_stride as c_uint,
+                raw.glyphs,
+                raw.glyph_stride as c_uint,
+            )
+        }) as usize
     }
 
     fn variation_glyph(&self, font: &ShaperFont, c: u32, vs: u32) -> Option<GlyphId> {

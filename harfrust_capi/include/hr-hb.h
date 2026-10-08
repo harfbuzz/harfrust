@@ -21,14 +21,16 @@
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
  * subsetting, other layout table introspection, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
- * point: you find out at build time rather than at run time. The version
- * macros (HB_VERSION_MAJOR and friends) are also absent; call hr_version() or
- * hb_version() instead.
+ * point: you find out at build time rather than at run time. OpenType
+ * mappings live in hr-hb-ot.h, included here for backward compatibility.
+ * HarfBuzz version names report the release matched by shaping; hr_version()
+ * and HR_VERSION_* continue to report the HarfRust package version.
  *
  * Behaviour differences that survive the renaming are listed in the README.
  */
 
-#pragma once
+#ifndef HARFRUST_HB_H
+#define HARFRUST_HB_H
 
 #include "hr.h"
 
@@ -155,6 +157,7 @@
 #define hb_font_funcs_set_glyph_v_kerning_func           hr_font_funcs_set_glyph_v_kerning_func
 #define hb_font_funcs_set_glyph_v_origin_func            hr_font_funcs_set_glyph_v_origin_func
 #define hb_font_funcs_set_nominal_glyph_func             hr_font_funcs_set_nominal_glyph_func
+#define hb_font_funcs_set_nominal_glyphs_func            hr_font_funcs_set_nominal_glyphs_func
 #define hb_font_funcs_set_user_data                      hr_font_funcs_set_user_data
 #define hb_font_funcs_set_variation_glyph_func           hr_font_funcs_set_variation_glyph_func
 #define hb_font_funcs_t                                  hr_font_funcs_t
@@ -187,6 +190,8 @@
 #define hb_font_get_glyph_v_origin                       hr_font_get_glyph_v_origin
 #define hb_font_get_nominal_glyph                        hr_font_get_nominal_glyph
 #define hb_font_get_nominal_glyph_func_t                 hr_font_get_nominal_glyph_func_t
+#define hb_font_get_nominal_glyphs                       hr_font_get_nominal_glyphs
+#define hb_font_get_nominal_glyphs_func_t                hr_font_get_nominal_glyphs_func_t
 #define hb_font_get_parent                               hr_font_get_parent
 #define hb_font_get_ppem                                 hr_font_get_ppem
 #define hb_font_get_ptem                                 hr_font_get_ptem
@@ -246,35 +251,6 @@
 #define hb_map_values                                    hr_map_values
 #define hb_mask_t                                        hr_mask_t
 #define hb_memory_mode_t                                 hr_memory_mode_t
-#define hb_ot_font_set_funcs                             hr_ot_font_set_funcs
-#define hb_ot_layout_baseline_tag_t                      hr_ot_layout_baseline_tag_t
-#define hb_ot_layout_get_baseline                        hr_ot_layout_get_baseline
-#define hb_ot_layout_get_baseline2                       hr_ot_layout_get_baseline2
-#define hb_ot_layout_get_baseline_with_fallback          hr_ot_layout_get_baseline_with_fallback
-#define hb_ot_layout_get_baseline_with_fallback2         hr_ot_layout_get_baseline_with_fallback2
-#define hb_ot_layout_get_horizontal_baseline_tag_for_script hr_ot_layout_get_horizontal_baseline_tag_for_script
-#define hb_ot_layout_has_positioning                     hr_ot_layout_has_positioning
-#define hb_ot_layout_has_substitution                    hr_ot_layout_has_substitution
-#define hb_ot_layout_lookup_collect_glyphs               hr_ot_layout_lookup_collect_glyphs
-#define hb_ot_layout_table_get_lookup_count              hr_ot_layout_table_get_lookup_count
-#define hb_ot_math_constant_t                            hr_ot_math_constant_t
-#define hb_ot_math_get_constant                          hr_ot_math_get_constant
-#define hb_ot_math_get_glyph_assembly                    hr_ot_math_get_glyph_assembly
-#define hb_ot_math_get_glyph_italics_correction          hr_ot_math_get_glyph_italics_correction
-#define hb_ot_math_get_glyph_kerning                     hr_ot_math_get_glyph_kerning
-#define hb_ot_math_get_glyph_kernings                    hr_ot_math_get_glyph_kernings
-#define hb_ot_math_get_glyph_top_accent_attachment       hr_ot_math_get_glyph_top_accent_attachment
-#define hb_ot_math_get_glyph_variants                    hr_ot_math_get_glyph_variants
-#define hb_ot_math_get_min_connector_overlap             hr_ot_math_get_min_connector_overlap
-#define hb_ot_math_glyph_part_flags_t                    hr_ot_math_glyph_part_flags_t
-#define hb_ot_math_glyph_part_t                          hr_ot_math_glyph_part_t
-#define hb_ot_math_glyph_variant_t                       hr_ot_math_glyph_variant_t
-#define hb_ot_math_has_data                              hr_ot_math_has_data
-#define hb_ot_math_is_glyph_extended_shape               hr_ot_math_is_glyph_extended_shape
-#define hb_ot_math_kern_entry_t                          hr_ot_math_kern_entry_t
-#define hb_ot_math_kern_t                                hr_ot_math_kern_t
-#define hb_ot_tag_to_language                            hr_ot_tag_to_language
-#define hb_ot_tags_from_script_and_language              hr_ot_tags_from_script_and_language
 #define hb_position_t                                    hr_position_t
 #define hb_reference_table_func_t                        hr_reference_table_func_t
 #define hb_script_from_iso15924_tag                      hr_script_from_iso15924_tag
@@ -347,9 +323,9 @@
 #define hb_variation_from_string                         hr_variation_from_string
 #define hb_variation_t                                   hr_variation_t
 #define hb_variation_to_string                           hr_variation_to_string
-#define hb_version                                       hr_version
-#define hb_version_atleast                               hr_version_atleast
-#define hb_version_string                                hr_version_string
+#define hb_version                                       hr_harfbuzz_version
+#define hb_version_atleast                               hr_harfbuzz_version_atleast
+#define hb_version_string                                hr_harfbuzz_version_string
 
 /* Constants and macros */
 
@@ -406,78 +382,6 @@
 #define HB_MEMORY_MODE_READONLY                       HR_MEMORY_MODE_READONLY
 #define HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE     HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE
 #define HB_MEMORY_MODE_WRITABLE                       HR_MEMORY_MODE_WRITABLE
-#define HB_OT_LAYOUT_BASELINE_TAG_HANGING             HR_OT_LAYOUT_BASELINE_TAG_HANGING
-#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT
-#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL  HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL
-#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT
-#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT
-#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL   HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL
-#define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT
-#define HB_OT_LAYOUT_BASELINE_TAG_MATH                HR_OT_LAYOUT_BASELINE_TAG_MATH
-#define HB_OT_LAYOUT_BASELINE_TAG_ROMAN               HR_OT_LAYOUT_BASELINE_TAG_ROMAN
-#define HB_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT        HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT
-#define HB_OT_MATH_CONSTANT_AXIS_HEIGHT               HR_OT_MATH_CONSTANT_AXIS_HEIGHT
-#define HB_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT
-#define HB_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT HR_OT_MATH_CONSTANT_DISPLAY_OPERATOR_MIN_HEIGHT
-#define HB_OT_MATH_CONSTANT_FLATTENED_ACCENT_BASE_HEIGHT HR_OT_MATH_CONSTANT_FLATTENED_ACCENT_BASE_HEIGHT
-#define HB_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_DISPLAY_STYLE_SHIFT_DOWN HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_DISPLAY_STYLE_SHIFT_DOWN
-#define HB_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_GAP_MIN HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_GAP_MIN
-#define HB_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_SHIFT_DOWN HR_OT_MATH_CONSTANT_FRACTION_DENOMINATOR_SHIFT_DOWN
-#define HB_OT_MATH_CONSTANT_FRACTION_DENOM_DISPLAY_STYLE_GAP_MIN HR_OT_MATH_CONSTANT_FRACTION_DENOM_DISPLAY_STYLE_GAP_MIN
-#define HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_DISPLAY_STYLE_SHIFT_UP
-#define HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_GAP_MIN HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_GAP_MIN
-#define HB_OT_MATH_CONSTANT_FRACTION_NUMERATOR_SHIFT_UP HR_OT_MATH_CONSTANT_FRACTION_NUMERATOR_SHIFT_UP
-#define HB_OT_MATH_CONSTANT_FRACTION_NUM_DISPLAY_STYLE_GAP_MIN HR_OT_MATH_CONSTANT_FRACTION_NUM_DISPLAY_STYLE_GAP_MIN
-#define HB_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS   HR_OT_MATH_CONSTANT_FRACTION_RULE_THICKNESS
-#define HB_OT_MATH_CONSTANT_LOWER_LIMIT_BASELINE_DROP_MIN HR_OT_MATH_CONSTANT_LOWER_LIMIT_BASELINE_DROP_MIN
-#define HB_OT_MATH_CONSTANT_LOWER_LIMIT_GAP_MIN       HR_OT_MATH_CONSTANT_LOWER_LIMIT_GAP_MIN
-#define HB_OT_MATH_CONSTANT_MATH_LEADING              HR_OT_MATH_CONSTANT_MATH_LEADING
-#define HB_OT_MATH_CONSTANT_OVERBAR_EXTRA_ASCENDER    HR_OT_MATH_CONSTANT_OVERBAR_EXTRA_ASCENDER
-#define HB_OT_MATH_CONSTANT_OVERBAR_RULE_THICKNESS    HR_OT_MATH_CONSTANT_OVERBAR_RULE_THICKNESS
-#define HB_OT_MATH_CONSTANT_OVERBAR_VERTICAL_GAP      HR_OT_MATH_CONSTANT_OVERBAR_VERTICAL_GAP
-#define HB_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT HR_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT
-#define HB_OT_MATH_CONSTANT_RADICAL_DISPLAY_STYLE_VERTICAL_GAP HR_OT_MATH_CONSTANT_RADICAL_DISPLAY_STYLE_VERTICAL_GAP
-#define HB_OT_MATH_CONSTANT_RADICAL_EXTRA_ASCENDER    HR_OT_MATH_CONSTANT_RADICAL_EXTRA_ASCENDER
-#define HB_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE HR_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE
-#define HB_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE HR_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE
-#define HB_OT_MATH_CONSTANT_RADICAL_RULE_THICKNESS    HR_OT_MATH_CONSTANT_RADICAL_RULE_THICKNESS
-#define HB_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP      HR_OT_MATH_CONSTANT_RADICAL_VERTICAL_GAP
-#define HB_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN HR_OT_MATH_CONSTANT_SCRIPT_PERCENT_SCALE_DOWN
-#define HB_OT_MATH_CONSTANT_SCRIPT_SCRIPT_PERCENT_SCALE_DOWN HR_OT_MATH_CONSTANT_SCRIPT_SCRIPT_PERCENT_SCALE_DOWN
-#define HB_OT_MATH_CONSTANT_SKEWED_FRACTION_HORIZONTAL_GAP HR_OT_MATH_CONSTANT_SKEWED_FRACTION_HORIZONTAL_GAP
-#define HB_OT_MATH_CONSTANT_SKEWED_FRACTION_VERTICAL_GAP HR_OT_MATH_CONSTANT_SKEWED_FRACTION_VERTICAL_GAP
-#define HB_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT        HR_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT
-#define HB_OT_MATH_CONSTANT_STACK_BOTTOM_DISPLAY_STYLE_SHIFT_DOWN HR_OT_MATH_CONSTANT_STACK_BOTTOM_DISPLAY_STYLE_SHIFT_DOWN
-#define HB_OT_MATH_CONSTANT_STACK_BOTTOM_SHIFT_DOWN   HR_OT_MATH_CONSTANT_STACK_BOTTOM_SHIFT_DOWN
-#define HB_OT_MATH_CONSTANT_STACK_DISPLAY_STYLE_GAP_MIN HR_OT_MATH_CONSTANT_STACK_DISPLAY_STYLE_GAP_MIN
-#define HB_OT_MATH_CONSTANT_STACK_GAP_MIN             HR_OT_MATH_CONSTANT_STACK_GAP_MIN
-#define HB_OT_MATH_CONSTANT_STACK_TOP_DISPLAY_STYLE_SHIFT_UP HR_OT_MATH_CONSTANT_STACK_TOP_DISPLAY_STYLE_SHIFT_UP
-#define HB_OT_MATH_CONSTANT_STACK_TOP_SHIFT_UP        HR_OT_MATH_CONSTANT_STACK_TOP_SHIFT_UP
-#define HB_OT_MATH_CONSTANT_STRETCH_STACK_BOTTOM_SHIFT_DOWN HR_OT_MATH_CONSTANT_STRETCH_STACK_BOTTOM_SHIFT_DOWN
-#define HB_OT_MATH_CONSTANT_STRETCH_STACK_GAP_ABOVE_MIN HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_ABOVE_MIN
-#define HB_OT_MATH_CONSTANT_STRETCH_STACK_GAP_BELOW_MIN HR_OT_MATH_CONSTANT_STRETCH_STACK_GAP_BELOW_MIN
-#define HB_OT_MATH_CONSTANT_STRETCH_STACK_TOP_SHIFT_UP HR_OT_MATH_CONSTANT_STRETCH_STACK_TOP_SHIFT_UP
-#define HB_OT_MATH_CONSTANT_SUBSCRIPT_BASELINE_DROP_MIN HR_OT_MATH_CONSTANT_SUBSCRIPT_BASELINE_DROP_MIN
-#define HB_OT_MATH_CONSTANT_SUBSCRIPT_SHIFT_DOWN      HR_OT_MATH_CONSTANT_SUBSCRIPT_SHIFT_DOWN
-#define HB_OT_MATH_CONSTANT_SUBSCRIPT_TOP_MAX         HR_OT_MATH_CONSTANT_SUBSCRIPT_TOP_MAX
-#define HB_OT_MATH_CONSTANT_SUB_SUPERSCRIPT_GAP_MIN   HR_OT_MATH_CONSTANT_SUB_SUPERSCRIPT_GAP_MIN
-#define HB_OT_MATH_CONSTANT_SUPERSCRIPT_BASELINE_DROP_MAX HR_OT_MATH_CONSTANT_SUPERSCRIPT_BASELINE_DROP_MAX
-#define HB_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MAX_WITH_SUBSCRIPT HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MAX_WITH_SUBSCRIPT
-#define HB_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MIN    HR_OT_MATH_CONSTANT_SUPERSCRIPT_BOTTOM_MIN
-#define HB_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP      HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP
-#define HB_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP_CRAMPED HR_OT_MATH_CONSTANT_SUPERSCRIPT_SHIFT_UP_CRAMPED
-#define HB_OT_MATH_CONSTANT_UNDERBAR_EXTRA_DESCENDER  HR_OT_MATH_CONSTANT_UNDERBAR_EXTRA_DESCENDER
-#define HB_OT_MATH_CONSTANT_UNDERBAR_RULE_THICKNESS   HR_OT_MATH_CONSTANT_UNDERBAR_RULE_THICKNESS
-#define HB_OT_MATH_CONSTANT_UNDERBAR_VERTICAL_GAP     HR_OT_MATH_CONSTANT_UNDERBAR_VERTICAL_GAP
-#define HB_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN HR_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN
-#define HB_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN       HR_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN
-#define HB_OT_MATH_GLYPH_PART_FLAG_EXTENDER           HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER
-#define HB_OT_MATH_KERN_BOTTOM_LEFT                   HR_OT_MATH_KERN_BOTTOM_LEFT
-#define HB_OT_MATH_KERN_BOTTOM_RIGHT                  HR_OT_MATH_KERN_BOTTOM_RIGHT
-#define HB_OT_MATH_KERN_TOP_LEFT                      HR_OT_MATH_KERN_TOP_LEFT
-#define HB_OT_MATH_KERN_TOP_RIGHT                     HR_OT_MATH_KERN_TOP_RIGHT
-#define HB_OT_TAG_MATH                                HR_OT_TAG_MATH
-#define HB_OT_TAG_MATH_SCRIPT                         HR_OT_TAG_MATH_SCRIPT
 #define HB_SCRIPT_ADLAM                               HR_SCRIPT_ADLAM
 #define HB_SCRIPT_AHOM                                HR_SCRIPT_AHOM
 #define HB_SCRIPT_ANATOLIAN_HIEROGLYPHS               HR_SCRIPT_ANATOLIAN_HIEROGLYPHS
@@ -666,8 +570,13 @@
 #define HB_TAG_MAX_SIGNED                             HR_TAG_MAX_SIGNED
 #define HB_TAG_NONE                                   HR_TAG_NONE
 #define HB_UNTAG                                      HR_UNTAG
-#define HB_VERSION_ATLEAST                            HR_VERSION_ATLEAST
-#define HB_VERSION_MAJOR                              HR_VERSION_MAJOR
-#define HB_VERSION_MICRO                              HR_VERSION_MICRO
-#define HB_VERSION_MINOR                              HR_VERSION_MINOR
-#define HB_VERSION_STRING                             HR_VERSION_STRING
+#define HB_VERSION_ATLEAST                            HR_HARFBUZZ_VERSION_ATLEAST
+#define HB_VERSION_MAJOR                              HR_HARFBUZZ_VERSION_MAJOR
+#define HB_VERSION_MICRO                              HR_HARFBUZZ_VERSION_MICRO
+#define HB_VERSION_MINOR                              HR_HARFBUZZ_VERSION_MINOR
+#define HB_VERSION_STRING                             HR_HARFBUZZ_VERSION_STRING
+
+/* Kept for existing consumers of the combined compatibility header. */
+#include "hr-hb-ot.h"
+
+#endif /* HARFRUST_HB_H */

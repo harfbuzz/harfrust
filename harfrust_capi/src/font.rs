@@ -845,6 +845,38 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     true.into()
 }
 
+/// Maps a strided batch of Unicode codepoints to nominal glyphs.
+///
+/// Stops at the first missing glyph and returns the number mapped. Zero
+/// strides may be used to read or write the same location repeatedly.
+///
+/// # Safety
+/// `font` must be `NULL` or live. The arrays must be valid for `count`
+/// entries at their respective byte strides.
+#[no_mangle]
+pub unsafe extern "C" fn hr_font_get_nominal_glyphs(
+    font: *mut hr_font_t,
+    count: c_uint,
+    first_unicode: *const hr_codepoint_t,
+    unicode_stride: c_uint,
+    first_glyph: *mut hr_codepoint_t,
+    glyph_stride: c_uint,
+) -> c_uint {
+    if count == 0 || first_unicode.is_null() || first_glyph.is_null() {
+        return 0;
+    }
+    let state = unsafe { object::or_empty(font.cast_const()) };
+    unsafe {
+        crate::font_funcs::FontFuncsAdapter::new(font, state).call_nominal_glyphs(
+            count,
+            first_unicode,
+            unicode_stride,
+            first_glyph,
+            glyph_stride,
+        )
+    }
+}
+
 /// Maps a Unicode scalar value and variation selector to a glyph, returning
 /// false if the font has none.
 ///

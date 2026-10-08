@@ -262,6 +262,58 @@ pub const HR_VERSION_MICRO: c_uint = 0;
 /// The version of this library, as a string.
 pub const HR_VERSION_STRING: &str = "0.14.0";
 
+/// The HarfBuzz release matched by the shaping implementation.
+pub const HR_HARFBUZZ_VERSION_MAJOR: c_uint = 14;
+/// The minor version of the matched HarfBuzz release.
+pub const HR_HARFBUZZ_VERSION_MINOR: c_uint = 5;
+/// The micro version of the matched HarfBuzz release.
+pub const HR_HARFBUZZ_VERSION_MICRO: c_uint = 1;
+
+/// Returns the HarfBuzz version matched by the shaping implementation.
+///
+/// This is a behavior/version baseline, not a promise that every HarfBuzz
+/// API exists. The supported surface is declared in `hr.h`.
+///
+/// # Safety
+/// Each output must be `NULL` or writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_harfbuzz_version(
+    major: *mut c_uint,
+    minor: *mut c_uint,
+    micro: *mut c_uint,
+) {
+    for (out, value) in [
+        (major, HR_HARFBUZZ_VERSION_MAJOR),
+        (minor, HR_HARFBUZZ_VERSION_MINOR),
+        (micro, HR_HARFBUZZ_VERSION_MICRO),
+    ] {
+        if let Some(out) = unsafe { out.as_mut() } {
+            *out = value;
+        }
+    }
+}
+
+/// Returns the matched HarfBuzz version as a zero-terminated string.
+#[no_mangle]
+pub extern "C" fn hr_harfbuzz_version_string() -> *const c_char {
+    c"14.5.1".as_ptr()
+}
+
+/// Returns whether the matched HarfBuzz version is at least the given version.
+#[no_mangle]
+pub extern "C" fn hr_harfbuzz_version_atleast(
+    major: c_uint,
+    minor: c_uint,
+    micro: c_uint,
+) -> hr_bool_t {
+    ([
+        HR_HARFBUZZ_VERSION_MAJOR,
+        HR_HARFBUZZ_VERSION_MINOR,
+        HR_HARFBUZZ_VERSION_MICRO,
+    ] >= [major, minor, micro])
+    .into()
+}
+
 /// Returns the version of the underlying HarfRust library.
 ///
 /// # Safety
