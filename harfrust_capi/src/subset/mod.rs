@@ -1,13 +1,13 @@
 //! Font subsetting through fontations' skera, using HarfRust C API handles.
 //!
-//! Link this library together with `harfrust_c`. The `hr_` prefix keeps
+//! Enable the `subset` feature of `harfrust_capi`. The `hr_` prefix keeps
 //! symbols separate from the C++ HarfBuzz subsetter. `hr-hb-subset.h` provides
 //! HarfBuzz source aliases, not compatibility with HarfBuzz's opaque objects.
 
-#![allow(non_camel_case_types)]
+use crate::{hr_blob_t, hr_face_t, hr_set_t};
 
-mod ffi;
-pub use ffi::{hr_blob_t, hr_face_t, hr_set_t, hr_subset_flags_t};
+/// Font subsetting flags, matching HarfBuzz.
+pub type hr_subset_flags_t = c_uint;
 
 use core::{ffi::c_uint, ptr};
 use std::{
@@ -46,8 +46,8 @@ pub struct hr_subset_input_t {
 impl Drop for hr_subset_input_t {
     fn drop(&mut self) {
         unsafe {
-            ffi::hr_set_destroy(self.glyphs);
-            ffi::hr_set_destroy(self.unicodes);
+            crate::hr_set_destroy(self.glyphs);
+            crate::hr_set_destroy(self.unicodes);
         }
     }
 }
@@ -59,8 +59,8 @@ impl Drop for hr_subset_input_t {
 pub extern "C" fn hr_subset_input_create_or_fail() -> *mut hr_subset_input_t {
     Box::into_raw(Box::new(hr_subset_input_t {
         references: AtomicUsize::new(1),
-        glyphs: unsafe { ffi::hr_set_create() },
-        unicodes: unsafe { ffi::hr_set_create() },
+        glyphs: crate::hr_set_create(),
+        unicodes: crate::hr_set_create(),
         flags: HR_SUBSET_FLAGS_DEFAULT,
     }))
 }
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn hr_subset_input_get_flags(
 struct Blob(*mut hr_blob_t);
 impl Drop for Blob {
     fn drop(&mut self) {
-        unsafe { ffi::hr_blob_destroy(self.0) };
+        unsafe { crate::hr_blob_destroy(self.0) };
     }
 }
 
@@ -148,22 +148,22 @@ unsafe fn font_bytes(face: *mut hr_face_t) -> Option<Vec<u8>> {
     // Enumeration also handles callback-only fonts and TTC faces, regardless
     // of the face's separately writable index metadata.
     let mut count = 0;
-    let total = unsafe { ffi::hr_face_get_table_tags(face, 0, &raw mut count, ptr::null_mut()) };
+    let total = unsafe { crate::hr_face_get_table_tags(face, 0, &raw mut count, ptr::null_mut()) };
     if total == 0 || total > u16::MAX as u32 {
         return None;
     }
     let mut tags = vec![0; total as usize];
     count = total;
     let enumerated =
-        unsafe { ffi::hr_face_get_table_tags(face, 0, &raw mut count, tags.as_mut_ptr()) };
+        unsafe { crate::hr_face_get_table_tags(face, 0, &raw mut count, tags.as_mut_ptr()) };
     if enumerated != total || count != total {
         return None;
     }
     let mut builder = FontBuilder::new();
     for tag in tags {
-        let blob = Blob(unsafe { ffi::hr_face_reference_table(face, tag) });
+        let blob = Blob(unsafe { crate::hr_face_reference_table(face, tag) });
         let mut len = 0;
-        let data = unsafe { ffi::hr_blob_get_data(blob.0, &raw mut len) };
+        let data = unsafe { crate::hr_blob_get_data(blob.0, &raw mut len) };
         if data.is_null() && len != 0 {
             return None;
         }
@@ -180,7 +180,7 @@ unsafe fn font_bytes(face: *mut hr_face_t) -> Option<Vec<u8>> {
 unsafe fn ranges(set: *mut hr_set_t, max: u32) -> IntSet<u32> {
     let mut result = IntSet::empty();
     let (mut first, mut last) = (u32::MAX, u32::MAX);
-    while unsafe { ffi::hr_set_next_range(set, &raw mut first, &raw mut last) } != 0 {
+    while unsafe { crate::hr_set_next_range(set, &raw mut first, &raw mut last) } != 0 {
         if first > max {
             break;
         }
@@ -193,7 +193,7 @@ unsafe fn subset(face: *mut hr_face_t, input: &hr_subset_input_t) -> Option<Vec<
     if input.flags & !SUPPORTED_FLAGS != 0 {
         return None;
     }
-    let count = unsafe { ffi::hr_face_get_glyph_count(face) };
+    let count = unsafe { crate::hr_face_get_glyph_count(face) };
     if count == 0 {
         return None;
     }
@@ -261,7 +261,13 @@ pub unsafe extern "C" fn hr_subset_or_fail(
         return ptr::null_mut();
     };
     let blob = Blob(unsafe {
-        ffi::hr_blob_create_or_fail(bytes.as_ptr().cast(), len, 0, ptr::null_mut(), None)
+        crate::hr_blob_create_or_fail(
+            bytes.as_ptr().cast(),
+            len,
+            crate::HR_MEMORY_MODE_DUPLICATE,
+            ptr::null_mut(),
+            None,
+        )
     });
-    unsafe { ffi::hr_face_create_or_fail(blob.0, 0) }
+    unsafe { crate::hr_face_create_or_fail(blob.0, 0) }
 }
