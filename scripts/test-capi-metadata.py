@@ -21,6 +21,10 @@ class AxisInfo(C.Structure):
                 ("max_value", C.c_float), ("reserved", U)]
 
 
+class SelectorInfo(C.Structure):
+    _fields_ = [("name_id", U), ("enable", U), ("disable", U), ("reserved", U)]
+
+
 class NameEntry(C.Structure):
     _fields_ = [("name_id", U), ("var", U), ("language", P)]
 
@@ -56,6 +60,9 @@ class Api:
         self.face_create = self.bind("face_create", P, [P, U])
         self.face_destroy = self.bind("face_destroy", None, [P])
         self.face_count = self.bind("face_count", U, [P])
+        self.feature_types = self.bind("aat_layout_get_feature_types", U, [P, U, UP, UP])
+        self.selectors = self.bind("aat_layout_feature_type_get_selector_infos", U,
+                                   [P, U, U, UP, C.POINTER(SelectorInfo), UP])
         self.axis_count = self.bind("ot_var_get_axis_count", U, [P])
         self.axes = self.bind("ot_var_get_axis_infos", U, [P, U, UP, C.POINTER(AxisInfo)])
         self.language = self.bind("language_from_string", P, [C.c_char_p, C.c_int])
@@ -102,7 +109,32 @@ def name_text(api, face, name_id, language, capacity):
     return total, size.value, list(output)
 
 
+def feature_types(api, face, start, capacity, array=True, count=True):
+    size = U(capacity)
+    output = (U * (capacity + 1))(*([0xDEADBEEF] * (capacity + 1)))
+    total = api.feature_types(face, start, C.byref(size) if count else None,
+                              output if array else None)
+    return total, size.value, list(output)
+
+
+def selectors(api, face, feature, start, capacity, array=True, count=True):
+    size, default = U(capacity), U(123)
+    output = (SelectorInfo * (capacity + 1))()
+    C.memset(output, 0xCD, C.sizeof(output))
+    total = api.selectors(face, feature, start, C.byref(size) if count else None,
+                          output if array else None, C.byref(default))
+    return total, size.value, default.value, bytes(output)
+
+
 def synthetic_fonts():
+    feat = struct.pack(">IHHI", 0x10000, 4, 0, 0)
+    for feature, count, offset, flags, name_id in [
+        (0, 1, 60, 0, 260), (1, 1, 64, 0, 256),
+        (3, 3, 68, 0x8000, 262), (6, 2, 80, 0xC001, 258),
+    ]:
+        feat += struct.pack(">HHIHH", feature, count, offset, flags, name_id)
+    feat += struct.pack(">14H", 0, 261, 2, 257, 0, 268, 3, 264, 4, 265, 0, 259, 1, 260)
+    yield "synthetic AAT features", sfnt("feat", feat)
     fvar = struct.pack(">HHHHHHHH", 1, 0, 16, 2, 2, 20, 0, 12)
     for axis, low, default, high, flags, name_id in [
         ("wght", 100, 400, 900, 0, 256), ("ital", 0, 0, 1, 1, 257),
@@ -168,6 +200,28 @@ def main():
             hrf, hbf = hr.face(data, index), hb.face(data, index)
             faces += 1
             try:
+                feature_total = hb.feature_types(hbf, 0, None, None)
+                for start, capacity, array, count in [
+                    (0, feature_total, True, True), (0, 1, True, True),
+                    (1, 3, True, True), (feature_total, 2, True, True),
+                    (0xFFFFFFFF, 2, True, True), (0, 99, False, True),
+                    (0, 99, True, False), (0, 0, True, True),
+                ]:
+                    equal((name, "feature_types", start, capacity, array, count),
+                          feature_types(hr, hrf, start, capacity, array, count),
+                          feature_types(hb, hbf, start, capacity, array, count))
+                types = feature_types(hb, hbf, 0, feature_total)[2][:-1]
+                for feature in {*types, 0, 3, 37, 38, 0xFFFF, 0x10000, 0xFFFFFFFF}:
+                    total = hb.selectors(hbf, feature, 0, None, None, None)
+                    for start, capacity, array, count in [
+                        (0, total, True, True), (0, 1, True, True),
+                        (1, 3, True, True), (total, 2, True, True),
+                        (0xFFFFFFFF, 2, True, True), (0, 99, False, True),
+                        (0, 99, True, False), (0, 0, True, True),
+                    ]:
+                        equal((name, "selectors", feature, start, capacity, array, count),
+                              selectors(hr, hrf, feature, start, capacity, array, count),
+                              selectors(hb, hbf, feature, start, capacity, array, count))
                 axis_count = hb.axis_count(hbf)
                 equal((name, "axis_count"), hr.axis_count(hrf), axis_count)
                 for start, capacity, array, count in [

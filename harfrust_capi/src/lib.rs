@@ -28,6 +28,7 @@ getter also accepts `NULL`, behaving as though it were passed the empty object.
 #![allow(non_upper_case_globals)]
 #![allow(clippy::missing_safety_doc)]
 
+pub mod aat_layout;
 pub mod blob;
 pub mod buffer;
 pub mod color;
@@ -49,6 +50,7 @@ pub mod shape;
 pub mod shape_plan;
 pub mod unicode;
 
+pub use aat_layout::*;
 pub use blob::*;
 pub use buffer::*;
 pub use color::*;
@@ -104,3 +106,7 @@ mod ot_color_tests;
 #[cfg(test)]
 #[path = "../tests/axis_names.rs"]
 mod axis_name_tests;
+
+#[cfg(test)]
+#[path = "../tests/aat_metadata.rs"]
+mod aat_metadata_tests;
