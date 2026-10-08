@@ -96,8 +96,8 @@ jobs:
           -Draster=disabled -Dvector=disabled -Dgpu=disabled
         .ci/venv/bin/meson compile -C .ci/harfbuzz-build
         for test in compare_skia_hb compare_controls_hb compare_plans_hb; do
-          .ci/venv/bin/python "harfbuzz_subset_c_api/tests/$test.py" \
-            target/debug/libharfrust_c.so target/debug/libharfbuzz_subset_c.so \
+          .ci/venv/bin/python "harfrust_capi/tests/subset/$test.py" \
+            target/debug/libharfrust_c.so \
             .ci/harfbuzz-build/src/libharfbuzz.so \
             .ci/harfbuzz-build/src/libharfbuzz-subset.so
         done
@@ -109,18 +109,17 @@ jobs:
       run: cargo clippy --all-features --all-targets -- -D warnings
 
   windows-c-api:
-    name: Windows C API shared handles
+    name: Windows C API optional subset feature
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Build core and subset DLLs
+      - name: Build default and subset-enabled DLLs
         shell: pwsh
         run: |
-          cargo build -p harfrust_capi
+          cargo build -p harfrust_capi --no-default-features --target-dir target/capi-default
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:HARFRUST_C_LIB_DIR = "$PWD/target/debug"
-          cargo build -p harfbuzz_subset_c_api
+          cargo build -p harfrust_capi --features subset
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Run C and C++ consumers
@@ -130,20 +129,21 @@ jobs:
           $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           & "$vs/Common7/Tools/Launch-VsDevShell.ps1" -SkipAutomaticLocation -Arch amd64 -HostArch amd64
           $env:PATH = "$PWD/target/debug;$env:PATH"
-          $includes = @('-Iharfrust_capi/include', '-Iharfbuzz_subset_c_api/include')
-          $libraries = @('target/debug/harfbuzz_subset_c.dll.lib', 'target/debug/harfrust_c.dll.lib')
+          $includes = @('-Iharfrust_capi/include')
+          $libraries = @('target/debug/harfrust_c.dll.lib')
           $font = 'harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf'
-          clang -std=c99 -pedantic-errors -Werror @includes harfbuzz_subset_c_api/examples/subset.c @libraries -o target/debug/hr-subset.exe
+          clang -std=c99 -pedantic-errors -Werror @includes harfrust_capi/examples/subset.c @libraries -o target/debug/hr-subset.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & target/debug/hr-subset.exe $font
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           # The MSVC standard library requires C++14 or later.
           foreach ($standard in @('c++14', 'c++17')) {
             foreach ($order in @('CORE', 'SUBSET_FIRST', 'SUBSET_LAST')) {
-              [string[]]$linked = if ($order -eq 'CORE') { @('target/debug/harfrust_c.dll.lib') } else { $libraries }
-              clang++ "-std=$standard" -pedantic-errors -Wall -Wextra -Werror "-DHR_TEST_$order" @includes harfrust_capi/tests/cplusplus.cc @linked -o target/debug/hr-cplusplus.exe
+              $directory = if ($order -eq 'CORE') { 'target/capi-default/debug' } else { 'target/debug' }
+              [string[]]$linked = @("$directory/harfrust_c.dll.lib")
+              clang++ "-std=$standard" -pedantic-errors -Wall -Wextra -Werror "-DHR_TEST_$order" @includes harfrust_capi/tests/cplusplus.cc @linked -o "$directory/hr-cplusplus.exe"
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              & target/debug/hr-cplusplus.exe $font
+              & "$directory/hr-cplusplus.exe" $font
               if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
           }
