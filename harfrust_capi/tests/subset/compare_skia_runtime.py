@@ -19,7 +19,7 @@ from fontTools.ttLib import TTFont
 
 from compare_skia_hb import compare
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def run(command):
@@ -33,8 +33,7 @@ def run(command):
 def build(args, backend):
     includes = [args.hb_build / "src", args.hb_source / "src"]
     if backend == "hr":
-        includes = [args.output / "include", ROOT / "harfrust_capi/include",
-                    ROOT / "harfbuzz_subset_c_api/include"]
+        includes = [args.output / "include", ROOT / "harfrust_capi/include"]
     shaper = args.skia / "modules/skshaper/src/SkShaper_harfbuzz.cpp"
     if backend == "hb-upem":
         shaper = args.hb_upem_shaper
@@ -58,7 +57,7 @@ def build(args, backend):
         libraries = [str(args.hb_build / "src/libharfbuzz-subset.so"),
                      str(args.hb_build / "src/libharfbuzz.so")]
     else:
-        libraries = [str(args.hr_subset), str(args.hr_core)]
+        libraries = [str(args.hr)]
     rpaths = sorted({str(Path(lib).parent) for lib in libraries})
     executable = args.output / ("skia-" + backend)
     run([args.compiler, "-Wl,--gc-sections", "-Wl,--start-group", *objects,
@@ -97,7 +96,7 @@ def font_result(path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ["skia", "skia-build", "hb-source", "hb-build", "hr-core", "hr-subset", "output"]:
+    for name in ["skia", "skia-build", "hb-source", "hb-build", "hr", "output"]:
         parser.add_argument("--" + name, type=lambda p: Path(p).resolve(), required=True)
     parser.add_argument("--compiler", default="c++")
     parser.add_argument("--allow-variable-pixel-differences", action="store_true",

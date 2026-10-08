@@ -1,6 +1,6 @@
 """Differential tests for input controls, flags, and preprocessing.
 
-Uses the same four library arguments as compare_skia_hb.py.
+Uses the same three library arguments as compare_skia_hb.py.
 """
 import argparse
 import ctypes as c
@@ -86,11 +86,11 @@ def normalized(font):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ["hr_core", "hr_subset", "hb_core", "hb_subset"]:
+    for name in ["hr", "hb_core", "hb_subset"]:
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
-    hr, hb = [api(getattr(args, prefix + "_core"), getattr(args, prefix + "_subset"), prefix + "_")
-              for prefix in ["hr", "hb"]]
+    hr = api(args.hr, args.hr, "hr_")
+    hb = api(args.hb_core, args.hb_subset, "hb_")
     hi, bi = hr["subset_input_create_or_fail"](), hb["subset_input_create_or_fail"]()
     for selector in range(8):
         assert set_ranges(hr, hr["subset_input_set"](hi, selector)) == set_ranges(hb, hb["subset_input_set"](bi, selector)), selector

@@ -6,7 +6,7 @@ import ctypes as c
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 P, U, I = c.c_void_p, c.c_uint, c.c_int
 class Var(c.Structure):
     _fields_ = [('tag', U), ('value', c.c_float)]
