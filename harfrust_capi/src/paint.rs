@@ -1,6 +1,7 @@
 //! Paint callbacks with HarfBuzz-compatible ownership and dispatch.
 // The C drawing/painting ABI uses f32 coordinates, including integer font scales.
 #![allow(clippy::cast_precision_loss)]
+use crate::color::hr_color_t;
 use crate::draw::hr_draw_funcs_t;
 use crate::font_funcs::{callback_taking, Callback};
 use crate::object::{self, Empty, Object, ObjectHeader};
@@ -1040,8 +1041,6 @@ pub unsafe extern "C" fn hr_paint_custom_palette_color(
     0
 }
 
-/// Unpremultiplied BGRA color, matching HarfBuzz.
-pub type hr_color_t = u32;
 /// Gradient extend mode.
 pub type hr_paint_extend_t = c_uint;
 /// PNG image bytes, decoded by the client.
@@ -1354,24 +1353,4 @@ pub unsafe extern "C" fn hr_font_paint_glyph(
     foreground: hr_color_t,
 ) {
     unsafe { hr_font_paint_glyph_or_fail(font, glyph, funcs, data, palette, foreground) };
-}
-/// Extracts the blue byte of an unpremultiplied BGRA color.
-#[no_mangle]
-pub extern "C" fn hr_color_get_blue(color: hr_color_t) -> u8 {
-    (color >> 24) as u8
-}
-/// Extracts the green byte.
-#[no_mangle]
-pub extern "C" fn hr_color_get_green(color: hr_color_t) -> u8 {
-    (color >> 16) as u8
-}
-/// Extracts the red byte.
-#[no_mangle]
-pub extern "C" fn hr_color_get_red(color: hr_color_t) -> u8 {
-    (color >> 8) as u8
-}
-/// Extracts the alpha byte.
-#[no_mangle]
-pub extern "C" fn hr_color_get_alpha(color: hr_color_t) -> u8 {
-    color as u8
 }

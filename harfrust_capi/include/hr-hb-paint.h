@@ -10,10 +10,6 @@
 #define hb_blob_t                                    hr_blob_t
 #define hb_bool_t                                    hr_bool_t
 #define hb_codepoint_t                               hr_codepoint_t
-#define hb_color_get_alpha                           hr_color_get_alpha
-#define hb_color_get_blue                            hr_color_get_blue
-#define hb_color_get_green                           hr_color_get_green
-#define hb_color_get_red                             hr_color_get_red
 #define hb_color_line_get_color_stops                hr_color_line_get_color_stops
 #define hb_color_line_get_color_stops_func_t         hr_color_line_get_color_stops_func_t
 #define hb_color_line_get_extend                     hr_color_line_get_extend
@@ -104,7 +100,6 @@
 
 /* Constants and macros */
 
-#define HB_COLOR                               HR_COLOR
 #define HB_PAINT_COMPOSITE_MODE_CLEAR          HR_PAINT_COMPOSITE_MODE_CLEAR
 #define HB_PAINT_COMPOSITE_MODE_COLOR_BURN     HR_PAINT_COMPOSITE_MODE_COLOR_BURN
 #define HB_PAINT_COMPOSITE_MODE_COLOR_DODGE    HR_PAINT_COMPOSITE_MODE_COLOR_DODGE

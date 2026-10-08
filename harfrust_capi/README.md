@@ -136,6 +136,10 @@ python3 scripts/gen-hb-compat-header.py
 C99 consumer. `tests/compare_draw_hb.py` and `tests/compare_paint_hb.py` take
 HarfRust and HarfBuzz shared library paths for differential checks.
 
+Packed colors use `hr_color_t` and `HR_COLOR(b, g, r, a)`, with channel
+accessors `hr_color_get_blue/green/red/alpha`. These common definitions are
+available without enabling painting.
+
 ## Object lifetime
 
 Objects are reference counted. Constructors return a new reference the caller

@@ -88,11 +88,6 @@ typedef void (*hr_paint_pop_clip_func_t)(struct hr_paint_funcs_t *funcs,
                                          void *user_data);
 
 /**
- * Unpremultiplied BGRA color, matching HarfBuzz.
- */
-typedef uint32_t hr_color_t;
-
-/**
  * Callback for color; data must be safe to use on any thread.
  */
 typedef void (*hr_paint_color_func_t)(struct hr_paint_funcs_t *funcs,
@@ -768,30 +763,8 @@ void hr_font_paint_glyph(hr_font_t *font,
                          unsigned int palette,
                          hr_color_t foreground);
 
-/**
- * Extracts the blue byte of an unpremultiplied BGRA color.
- */
-uint8_t hr_color_get_blue(hr_color_t color);
-
-/**
- * Extracts the green byte.
- */
-uint8_t hr_color_get_green(hr_color_t color);
-
-/**
- * Extracts the red byte.
- */
-uint8_t hr_color_get_red(hr_color_t color);
-
-/**
- * Extracts the alpha byte.
- */
-uint8_t hr_color_get_alpha(hr_color_t color);
-
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
 
 #endif  /* HARFRUST_PAINT_H */
-
-#define HR_COLOR(b,g,r,a) ((hr_color_t)((((uint32_t)(b) & 0xffu) << 24) | (((uint32_t)(g) & 0xffu) << 16) | (((uint32_t)(r) & 0xffu) << 8) | ((uint32_t)(a) & 0xffu)))

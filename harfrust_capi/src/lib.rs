@@ -31,6 +31,7 @@ getter also accepts `NULL`, behaving as though it were passed the empty object.
 
 pub mod blob;
 pub mod buffer;
+pub mod color;
 pub mod common;
 pub mod face;
 pub mod font;
@@ -61,6 +62,7 @@ pub mod subset;
 
 pub use blob::*;
 pub use buffer::*;
+pub use color::*;
 pub use common::*;
 #[cfg(feature = "draw")]
 pub use draw::*;
