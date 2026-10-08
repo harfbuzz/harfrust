@@ -2887,6 +2887,18 @@ struct hr_blob_t *hr_face_reference_blob(struct hr_face_t *face);
 struct hr_blob_t *hr_face_reference_table(struct hr_face_t *face, hr_tag_t tag);
 
 /**
+ * Adds the face's nominal cmap coverage to `out`, preserving existing entries.
+ *
+ * Uses the selected cmap subtable's stored character codes, without the symbol
+ * fallback or Mac Roman conversion applied by nominal glyph lookup. Variation
+ * sequences are not included. A missing cmap adds nothing.
+ * # Safety
+ * `face` must be null or live; `out` must be null or live and must not be
+ * accessed concurrently while it is being modified.
+ */
+void hr_face_collect_unicodes(struct hr_face_t *face, struct hr_set_t *out);
+
+/**
  * Creates a font over a face.
  *
  * The font takes its own reference to the face. Its scale starts at the

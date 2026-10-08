@@ -117,6 +117,7 @@ callback with `hr_face_create_for_tables`, which asks for one table at a time.
 Use `hr_face_set_get_table_tags_func` to enumerate the tables of a callback
 face; blob faces enumerate their SFNT directory automatically.
 `hr_face_set_index` changes the reported index without selecting new tables.
+`hr_face_collect_unicodes` adds the selected cmap subtable's coverage to a set.
 
 `hr_shape` already reuses shape plans through a per-face cache, the way
 `hb_shape` does internally, so reach for `hr_shape_plan_create` only when you

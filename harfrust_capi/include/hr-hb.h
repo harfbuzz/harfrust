@@ -114,6 +114,7 @@
 #define hb_direction_from_string                         hr_direction_from_string
 #define hb_direction_t                                   hr_direction_t
 #define hb_direction_to_string                           hr_direction_to_string
+#define hb_face_collect_unicodes                         hr_face_collect_unicodes
 #define hb_face_count                                    hr_face_count
 #define hb_face_create                                   hr_face_create
 #define hb_face_create_for_tables                        hr_face_create_for_tables
