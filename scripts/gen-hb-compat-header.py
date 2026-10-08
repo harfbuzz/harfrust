@@ -19,8 +19,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, "harfrust_capi", "include", "hr.h")
 TARGET = os.path.join(ROOT, "harfrust_capi", "include", "hr-hb.h")
 OT_TARGET = os.path.join(ROOT, "harfrust_capi", "include", "hr-hb-ot.h")
-SUBSET_SOURCE = os.path.join(ROOT, "harfbuzz_subset_c_api", "include", "hr-subset.h")
-SUBSET_TARGET = os.path.join(ROOT, "harfbuzz_subset_c_api", "include", "hr-hb-subset.h")
+SUBSET_SOURCE = os.path.join(ROOT, "harfrust_capi", "include", "hr-subset.h")
+SUBSET_TARGET = os.path.join(ROOT, "harfrust_capi", "include", "hr-hb-subset.h")
 
 # Comments hold prose that happens to mention `hr_` names; only declarations
 # should contribute mappings.
@@ -75,10 +75,12 @@ HEADER = """\
  * Shaping, BASE baseline, MATH, layout lookup, set, map, and OpenType tag
  * conversion APIs are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
- * subsetting, other layout table introspection, custom Unicode
+ * other layout table introspection, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
  * point: you find out at build time rather than at run time. OpenType
  * mappings live in hr-hb-ot.h, included here for backward compatibility.
+ * Optional subsetting mappings are in hr-hb-subset.h and require a library
+ * built with the subset feature.
  * HarfBuzz version names report the release matched by shaping; hr_version()
  * and HR_VERSION_* continue to report the HarfRust package version.
  *

@@ -11,9 +11,15 @@ readme = "README.md"
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+default = []
+subset = ["dep:skera", "dep:write-fonts"]
+
 [dependencies]
 harfrust = { workspace = true, features = ["std"] }
 read-fonts.workspace = true
+skera = { git = "https://github.com/googlefonts/fontations", rev = "978c97cfae5cd30bb428f6731fc5768489b0bab6", optional = true }
+write-fonts = { git = "https://github.com/googlefonts/fontations", rev = "978c97cfae5cd30bb428f6731fc5768489b0bab6", default-features = false, features = ["read"], optional = true }
 
 [lib]
 name = "harfrust_c"

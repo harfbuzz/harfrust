@@ -35,13 +35,26 @@ jobs:
     - name: Run tests with icu4x
       run: cargo test --verbose --features icu
 
-    - name: Subset C API shared-handle smoke test
+    - name: Build core C API without subsetting
+      run: cargo build -p harfrust_capi --no-default-features --target-dir target/capi-default
+
+    - name: Subset C API smoke test
       run: |
-        cargo build -p harfrust_capi -p harfbuzz_subset_c_api
+        cargo build -p harfrust_capi --features subset
+        cargo test -p harfrust_capi --features subset
+        python3 - <<'PY'
+        import ctypes, sys
+        suffix = "dylib" if sys.platform == "darwin" else "so"
+        core = ctypes.CDLL(f"target/capi-default/debug/libharfrust_c.{suffix}")
+        assert hasattr(core, "hr_shape")
+        assert not hasattr(core, "hr_subset_or_fail")
+        subset = ctypes.CDLL(f"target/debug/libharfrust_c.{suffix}")
+        assert hasattr(subset, "hr_shape") and hasattr(subset, "hr_subset_or_fail")
+        PY
         cc -std=c99 -pedantic-errors -Werror \
-          -Iharfrust_capi/include -Iharfbuzz_subset_c_api/include \
-          harfbuzz_subset_c_api/examples/subset.c -Ltarget/debug \
-          -lharfbuzz_subset_c -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+          -Iharfrust_capi/include \
+          harfrust_capi/examples/subset.c -Ltarget/debug \
+          -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
           -o /tmp/hr-subset
         /tmp/hr-subset harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
 
@@ -49,15 +62,15 @@ jobs:
       run: |
         for standard in c++11 c++17; do
           for order in CORE SUBSET_FIRST SUBSET_LAST; do
-            subset_library=""
-            if [ "$order" != CORE ]; then
-              subset_library="-lharfbuzz_subset_c"
+            library_directory=target/debug
+            if [ "$order" = CORE ]; then
+              library_directory=target/capi-default/debug
             fi
             c++ -std="$standard" -pedantic-errors -Wall -Wextra -Werror \
               -D"HR_TEST_$order" \
-              -Iharfrust_capi/include -Iharfbuzz_subset_c_api/include \
-              harfrust_capi/tests/cplusplus.cc -Ltarget/debug \
-              $subset_library -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+              -Iharfrust_capi/include \
+              harfrust_capi/tests/cplusplus.cc -L"$library_directory" \
+              -lharfrust_c -Wl,-rpath,"$PWD/$library_directory" \
               -o /tmp/hr-cplusplus
             /tmp/hr-cplusplus harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
           done
