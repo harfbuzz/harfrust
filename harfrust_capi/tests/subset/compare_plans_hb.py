@@ -147,11 +147,11 @@ def metadata(api, path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ["hr_core", "hr_subset", "hb_core", "hb_subset"]:
+    for name in ["hr", "hb_core", "hb_subset"]:
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
-    hr, hb = [bind(getattr(args, prefix + "_core"), getattr(args, prefix + "_subset"), prefix + "_")
-              for prefix in ["hr", "hb"]]
+    hr = bind(args.hr, args.hr, "hr_")
+    hb = bind(args.hb_core, args.hb_subset, "hb_")
     cases = 0
     for name in ["PT_Sans-Caption-Web-Regular.ttf", "LaBelleAurore.ttf"]:
         path = ROOT / "harfrust/tests/fonts/rb_custom" / name

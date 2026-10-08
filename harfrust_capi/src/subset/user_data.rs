@@ -1,5 +1,5 @@
 //! Owned object metadata, with destruction outside the lock for reentrancy.
-use crate::ffi::{hr_destroy_func_t, hr_user_data_key_t};
+use crate::{hr_destroy_func_t, hr_user_data_key_t};
 use core::ffi::c_void;
 use std::sync::Mutex;
 

@@ -1,6 +1,6 @@
 """Compare the shared-handle Skia subset workflow against HarfBuzz.
 
-Build both C libraries, then pass HR_CORE HR_SUBSET HB_CORE HB_SUBSET.
+Build harfrust_capi with --features subset, then pass HR HB_CORE HB_SUBSET.
 Requires fontTools. Fonts are existing HarfRust regression fixtures.
 """
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fontTools.ttLib import TTCollection, TTFont
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 PTR, UINT = c.c_void_p, c.c_uint
 OUT = c.POINTER(UINT)
 TABLE = c.CFUNCTYPE(PTR, PTR, UINT, PTR)
@@ -188,10 +188,10 @@ def failure_cases(api):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ["hr_core", "hr_subset", "hb_core", "hb_subset"]:
+    for name in ["hr", "hb_core", "hb_subset"]:
         parser.add_argument(name, type=Path)
     args = parser.parse_args()
-    hr = bind(args.hr_core, args.hr_subset, "hr_")
+    hr = bind(args.hr, args.hr, "hr_")
     hb = bind(args.hb_core, args.hb_subset, "hb_")
     cases = 0
     for name in ["PT_Sans-Caption-Web-Regular.ttf", "LaBelleAurore.ttf", "Linefont.ttf"]:
