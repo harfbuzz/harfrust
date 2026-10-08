@@ -53,6 +53,18 @@ pub fn combining_class(codepoint: u32) -> u8 {
     combining_class_for(codepoint)
 }
 
+/// The Unicode script of a code point, using the same data as shaping.
+///
+/// Values outside the Unicode range have the unknown script.
+#[inline]
+pub fn script(codepoint: u32) -> Script {
+    if codepoint > 0x10_FFFF {
+        Script::UNKNOWN
+    } else {
+        script_for(codepoint)
+    }
+}
+
 // Space estimates based on:
 // https://unicode.org/charts/PDF/U2000.pdf
 // https://docs.microsoft.com/en-us/typography/develop/character-design-standards/whitespace

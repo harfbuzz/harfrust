@@ -43,6 +43,7 @@ mod plan;
 pub mod set;
 pub mod shape;
 pub mod shape_plan;
+pub mod unicode;
 
 pub use blob::*;
 pub use buffer::*;
@@ -58,6 +59,7 @@ pub use ot_tag::*;
 pub use set::*;
 pub use shape::*;
 pub use shape_plan::*;
+pub use unicode::*;
 
 #[cfg(test)]
 #[path = "../tests/capi.rs"]
@@ -70,3 +72,7 @@ mod container_tests;
 #[cfg(test)]
 #[path = "../tests/headers.rs"]
 mod header_tests;
+
+#[cfg(test)]
+#[path = "../tests/skia_face.rs"]
+mod skia_face_tests;

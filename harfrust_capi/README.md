@@ -108,8 +108,15 @@ iteration. OpenType script and language tags can be converted with
 Set `hr_font_set_ppem` when `BASE` or `MATH` device adjustments should apply; it is
 independent of the point size set by `hr_font_set_ptem`.
 
+The default Unicode provider exposes script lookup through
+`hr_unicode_funcs_get_default` and `hr_unicode_script`, using the same data
+as shaping. Custom Unicode callbacks remain unsupported.
+
 Faces can be built two ways: over a blob with `hr_face_create`, or from a
 callback with `hr_face_create_for_tables`, which asks for one table at a time.
+Use `hr_face_set_get_table_tags_func` to enumerate the tables of a callback
+face; blob faces enumerate their SFNT directory automatically.
+`hr_face_set_index` changes the reported index without selecting new tables.
 
 `hr_shape` already reuses shape plans through a per-face cache, the way
 `hb_shape` does internally, so reach for `hr_shape_plan_create` only when you

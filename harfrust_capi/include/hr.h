@@ -97,6 +97,11 @@ typedef struct hr_set_t hr_set_t;
 typedef struct hr_shape_plan_t hr_shape_plan_t;
 
 /**
+ * The immutable default Unicode provider.
+ */
+typedef struct hr_unicode_funcs_t hr_unicode_funcs_t;
+
+/**
  * How a blob relates to the memory it was created over.
  *
  * An integer typedef rather than an enumeration. A value arriving from C need
@@ -348,6 +353,18 @@ typedef struct hr_variation_t {
 typedef struct hr_blob_t *(*hr_reference_table_func_t)(struct hr_face_t *face,
                                                        hr_tag_t tag,
                                                        void *user_data);
+
+/**
+ * Lists a face's table tags. Returns the total number of available tags.
+ *
+ * `table_count` gives the output capacity on entry and the number written
+ * on return. A null output array asks only for the total.
+ */
+typedef unsigned int (*hr_get_table_tags_func_t)(const struct hr_face_t *face,
+                                                 unsigned int start_offset,
+                                                 unsigned int *table_count,
+                                                 hr_tag_t *table_tags,
+                                                 void *user_data);
 
 /**
  * The ink extents of a glyph, in the font's scaled units.
@@ -2755,6 +2772,48 @@ hr_bool_t hr_face_is_immutable(struct hr_face_t *face);
 unsigned int hr_face_get_index(struct hr_face_t *face);
 
 /**
+ * Assigns the index metadata returned by [`hr_face_get_index`].
+ *
+ * This does not change which font's tables the face reads. An immutable
+ * face ignores the assignment.
+ *
+ * # Safety
+ * `face` must be `NULL` or live, and must not be accessed concurrently.
+ */
+void hr_face_set_index(struct hr_face_t *face, unsigned int index);
+
+/**
+ * Installs the table enumeration callback, taking ownership of `user_data`.
+ *
+ * Replacing a callback releases its data. Immutable faces reject the callback
+ * and release the supplied data immediately.
+ *
+ * # Safety
+ * `face` must be `NULL` or live and must not be accessed concurrently.
+ * The callback and its data must be safe to invoke from any thread.
+ */
+void hr_face_set_get_table_tags_func(struct hr_face_t *face,
+                                     hr_get_table_tags_func_t func,
+                                     void *user_data,
+                                     hr_destroy_func_t destroy);
+
+/**
+ * Lists the table tags of a face, beginning at `start_offset`.
+ *
+ * Returns the total number of tags. A null output array asks only for the
+ * total, without changing `table_count`. Callback-created faces require a
+ * callback installed with [`hr_face_set_get_table_tags_func`].
+ *
+ * # Safety
+ * `face` must be `NULL` or live. Non-null outputs must be writable for their
+ * advertised capacity.
+ */
+unsigned int hr_face_get_table_tags(const struct hr_face_t *face,
+                                    unsigned int start_offset,
+                                    unsigned int *table_count,
+                                    hr_tag_t *table_tags);
+
+/**
  * Returns a face's design units per em, or 1000 if it has no `head` table.
  *
  * # Safety
@@ -4535,6 +4594,19 @@ hr_bool_t hr_shape_plan_execute(struct hr_shape_plan_t *shape_plan,
                                 struct hr_buffer_t *buffer,
                                 const struct hr_feature_t *features,
                                 unsigned int num_features);
+
+/**
+ * Returns the immutable Unicode provider used by shaping.
+ */
+struct hr_unicode_funcs_t *hr_unicode_funcs_get_default(void);
+
+/**
+ * Returns the Unicode script for `unicode`.
+ *
+ * `ufuncs` must be the default provider or `NULL`, which also selects it.
+ * Values outside the Unicode range return the unknown script.
+ */
+hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t unicode);
 
 #ifdef __cplusplus
 }  // extern "C"

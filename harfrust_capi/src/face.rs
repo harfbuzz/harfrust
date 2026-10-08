@@ -25,6 +25,34 @@ pub type hr_reference_table_func_t = Option<
     ) -> *mut hr_blob_t,
 >;
 
+/// Lists a face's table tags. Returns the total number of available tags.
+///
+/// `table_count` gives the output capacity on entry and the number written
+/// on return. A null output array asks only for the total.
+pub type hr_get_table_tags_func_t = Option<
+    unsafe extern "C" fn(
+        face: *const hr_face_t,
+        start_offset: c_uint,
+        table_count: *mut c_uint,
+        table_tags: *mut hr_tag_t,
+        user_data: *mut c_void,
+    ) -> c_uint,
+>;
+
+struct TableTagsFunc {
+    func: hr_get_table_tags_func_t,
+    user_data: *mut c_void,
+    destroy: hr_destroy_func_t,
+}
+
+impl Drop for TableTagsFunc {
+    fn drop(&mut self) {
+        if let Some(destroy) = self.destroy {
+            unsafe { destroy(self.user_data) };
+        }
+    }
+}
+
 /// A table callback together with the data it was registered with.
 struct TableFunc {
     func: hr_reference_table_func_t,
@@ -75,14 +103,18 @@ enum FaceSource {
     /// No data at all; only the immortal empty face uses this.
     Empty,
     /// A blob, over which this face owns a reference.
-    Blob(*mut hr_blob_t),
+    Blob {
+        blob: *mut hr_blob_t,
+        /// The selected font is independent of the writable index metadata.
+        index: c_uint,
+    },
     /// A caller-supplied table callback.
     Function(Arc<TableFunc>),
 }
 
 impl Drop for FaceSource {
     fn drop(&mut self) {
-        if let FaceSource::Blob(blob) = *self {
+        if let FaceSource::Blob { blob, .. } = *self {
             // SAFETY: the face owns this reference.
             unsafe { object::destroy(blob) };
         }
@@ -96,6 +128,7 @@ pub struct hr_face_t {
     pub(crate) font: Option<Font>,
     index: c_uint,
     source: FaceSource,
+    table_tags: Option<TableTagsFunc>,
     /// Shape plans built over this face, reused across `hr_shape` calls the way
     /// HarfBuzz's cached shape plans are.
     pub(crate) plans: PlanCache,
@@ -136,6 +169,7 @@ impl Object for hr_face_t {
                     font: None,
                     index: 0,
                     source: FaceSource::Empty,
+                    table_tags: None,
                     plans: PlanCache::default(),
                 })
             })
@@ -198,7 +232,8 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         header: ObjectHeader::new(),
         font: Some(font),
         index,
-        source: FaceSource::Blob(owned),
+        source: FaceSource::Blob { blob: owned, index },
+        table_tags: None,
         plans: PlanCache::default(),
     })
 }
@@ -249,6 +284,7 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
         font: Some(font),
         index: 0,
         source: FaceSource::Function(Arc::clone(&state)),
+        table_tags: None,
         plans: PlanCache::default(),
     });
     // Now that the face exists, let the callback see it. This is a plain
@@ -343,6 +379,98 @@ pub unsafe extern "C" fn hr_face_get_index(face: *mut hr_face_t) -> c_uint {
     unsafe { object::or_empty(face.cast_const()) }.index
 }
 
+/// Assigns the index metadata returned by [`hr_face_get_index`].
+///
+/// This does not change which font's tables the face reads. An immutable
+/// face ignores the assignment.
+///
+/// # Safety
+/// `face` must be `NULL` or live, and must not be accessed concurrently.
+#[no_mangle]
+pub unsafe extern "C" fn hr_face_set_index(face: *mut hr_face_t, index: c_uint) {
+    if let Some(face) = unsafe { object::as_mutable(face) } {
+        face.index = index;
+    }
+}
+
+/// Installs the table enumeration callback, taking ownership of `user_data`.
+///
+/// Replacing a callback releases its data. Immutable faces reject the callback
+/// and release the supplied data immediately.
+///
+/// # Safety
+/// `face` must be `NULL` or live and must not be accessed concurrently.
+/// The callback and its data must be safe to invoke from any thread.
+#[no_mangle]
+pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
+    face: *mut hr_face_t,
+    func: hr_get_table_tags_func_t,
+    user_data: *mut c_void,
+    destroy: hr_destroy_func_t,
+) {
+    let callback = TableTagsFunc {
+        func,
+        user_data,
+        destroy,
+    };
+    if let Some(face) = unsafe { object::as_mutable(face) } {
+        let old = face.table_tags.replace(callback);
+        drop(old);
+    }
+}
+
+/// Lists the table tags of a face, beginning at `start_offset`.
+///
+/// Returns the total number of tags. A null output array asks only for the
+/// total, without changing `table_count`. Callback-created faces require a
+/// callback installed with [`hr_face_set_get_table_tags_func`].
+///
+/// # Safety
+/// `face` must be `NULL` or live. Non-null outputs must be writable for their
+/// advertised capacity.
+#[no_mangle]
+pub unsafe extern "C" fn hr_face_get_table_tags(
+    face: *const hr_face_t,
+    start_offset: c_uint,
+    table_count: *mut c_uint,
+    table_tags: *mut hr_tag_t,
+) -> c_uint {
+    let state = unsafe { object::or_empty(face) };
+    if let Some(callback) = &state.table_tags {
+        if let Some(func) = callback.func {
+            return unsafe {
+                func(
+                    face,
+                    start_offset,
+                    table_count,
+                    table_tags,
+                    callback.user_data,
+                )
+            };
+        }
+    } else if let FaceSource::Blob { blob, index } = state.source {
+        let blob = unsafe { object::or_empty(blob.cast_const()) };
+        if let Ok(font) = read_fonts::FontRef::from_index(blob.bytes(), index) {
+            let records = font.table_directory().table_records();
+            if !table_tags.is_null() {
+                if let Some(count) = unsafe { table_count.as_mut() } {
+                    let start = (start_offset as usize).min(records.len());
+                    let len = (*count as usize).min(records.len() - start);
+                    for (i, record) in records[start..start + len].iter().enumerate() {
+                        unsafe { table_tags.add(i).write(tag_from_rust(record.tag())) };
+                    }
+                    *count = len as c_uint;
+                }
+            }
+            return records.len() as c_uint;
+        }
+    }
+    if let Some(count) = unsafe { table_count.as_mut() } {
+        *count = 0;
+    }
+    0
+}
+
 /// Returns a face's design units per em, or 1000 if it has no `head` table.
 ///
 /// # Safety
@@ -375,7 +503,7 @@ pub unsafe extern "C" fn hr_face_get_glyph_count(face: *mut hr_face_t) -> c_uint
 pub unsafe extern "C" fn hr_face_reference_blob(face: *mut hr_face_t) -> *mut hr_blob_t {
     let face = unsafe { object::or_empty(face.cast_const()) };
     match &face.source {
-        FaceSource::Blob(blob) => unsafe { object::reference(*blob) },
+        FaceSource::Blob { blob, .. } => unsafe { object::reference(*blob) },
         FaceSource::Empty => hr_blob_t::empty(),
         // The whole font is what the none tag asks a table callback for,
         // which is how a face built from one hands its bytes back.
@@ -413,12 +541,12 @@ pub unsafe extern "C" fn hr_face_reference_table(
             Some(data) => hr_blob_t::new(data),
             None => hr_blob_t::empty(),
         },
-        FaceSource::Blob(blob) => {
+        FaceSource::Blob { blob, index } => {
             let Some(blob_ref) = (unsafe { blob.as_ref() }) else {
                 return hr_blob_t::empty();
             };
             let bytes = blob_ref.bytes();
-            let Ok(font_ref) = read_fonts::FontRef::from_index(bytes, face_ref.index) else {
+            let Ok(font_ref) = read_fonts::FontRef::from_index(bytes, *index) else {
                 return hr_blob_t::empty();
             };
             let Some(table) = font_ref.data_for_tag(tag_to_rust(tag)) else {

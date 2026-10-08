@@ -120,6 +120,7 @@
 #define hb_face_get_empty                                hr_face_get_empty
 #define hb_face_get_glyph_count                          hr_face_get_glyph_count
 #define hb_face_get_index                                hr_face_get_index
+#define hb_face_get_table_tags                           hr_face_get_table_tags
 #define hb_face_get_upem                                 hr_face_get_upem
 #define hb_face_get_user_data                            hr_face_get_user_data
 #define hb_face_is_immutable                             hr_face_is_immutable
@@ -127,6 +128,8 @@
 #define hb_face_reference                                hr_face_reference
 #define hb_face_reference_blob                           hr_face_reference_blob
 #define hb_face_reference_table                          hr_face_reference_table
+#define hb_face_set_get_table_tags_func                  hr_face_set_get_table_tags_func
+#define hb_face_set_index                                hr_face_set_index
 #define hb_face_set_user_data                            hr_face_set_user_data
 #define hb_face_t                                        hr_face_t
 #define hb_feature_from_string                           hr_feature_from_string
@@ -207,6 +210,7 @@
 #define hb_font_set_variations                           hr_font_set_variations
 #define hb_font_subtract_glyph_origin_for_direction      hr_font_subtract_glyph_origin_for_direction
 #define hb_font_t                                        hr_font_t
+#define hb_get_table_tags_func_t                         hr_get_table_tags_func_t
 #define hb_glyph_extents_t                               hr_glyph_extents_t
 #define hb_glyph_flags_t                                 hr_glyph_flags_t
 #define hb_glyph_info_get_glyph_flags                    hr_glyph_info_get_glyph_flags
@@ -336,6 +340,9 @@
 #define hb_tag_from_string                               hr_tag_from_string
 #define hb_tag_t                                         hr_tag_t
 #define hb_tag_to_string                                 hr_tag_to_string
+#define hb_unicode_funcs_get_default                     hr_unicode_funcs_get_default
+#define hb_unicode_funcs_t                               hr_unicode_funcs_t
+#define hb_unicode_script                                hr_unicode_script
 #define hb_user_data_key_t                               hr_user_data_key_t
 #define hb_variation_from_string                         hr_variation_from_string
 #define hb_variation_t                                   hr_variation_t
