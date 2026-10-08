@@ -37,6 +37,21 @@
 #define HR_FEATURE_GLOBAL_END 4294967295
 
 /**
+ * No script was selected.
+ */
+#define HR_OT_LAYOUT_NO_SCRIPT_INDEX 65535
+
+/**
+ * No feature was found.
+ */
+#define HR_OT_LAYOUT_NO_FEATURE_INDEX 65535
+
+/**
+ * Selects a script's default language system.
+ */
+#define HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX 65535
+
+/**
  * The major version of this library.
  *
  * These are literals so that they reach the generated header, and a test
@@ -1662,6 +1677,26 @@ typedef struct hr_ot_math_glyph_part_t {
  */
 #define HR_MAP_VALUE_INVALID HR_CODEPOINT_INVALID
 
+/**
+ * The OpenType substitution table tag.
+ */
+#define HR_OT_TAG_GSUB 1196643650
+
+/**
+ * The OpenType positioning table tag.
+ */
+#define HR_OT_TAG_GPOS 1196445523
+
+/**
+ * The default OpenType script tag, `DFLT`.
+ */
+#define HR_OT_TAG_DEFAULT_SCRIPT 1145457748
+
+/**
+ * The default OpenType language tag, `dflt`.
+ */
+#define HR_OT_TAG_DEFAULT_LANGUAGE 1684434036
+
 #define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134
 
 #define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719
@@ -1801,6 +1836,11 @@ typedef struct hr_ot_math_glyph_part_t {
 #define HR_OT_MATH_KERN_BOTTOM_LEFT 3
 
 #define HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER 1
+
+/**
+ * Deprecated HarfBuzz spelling of `HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER`.
+ */
+#define HR_MATH_GLYPH_PART_FLAG_EXTENDER HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER
 
 #define HR_OT_TAG_MATH 1296127048
 
@@ -3910,6 +3950,58 @@ void hr_map_keys(const struct hr_map_t *map, struct hr_set_t *keys);
  * `map` and `values` must be `NULL` or live.
  */
 void hr_map_values(const struct hr_map_t *map, struct hr_set_t *values);
+
+/**
+ * Selects the first available requested script in GSUB or GPOS.
+ *
+ * If none matches, tries `DFLT`, `dflt`, then `latn`. Returns true only for
+ * a requested script, even when a fallback was selected. With no match,
+ * writes `HR_OT_LAYOUT_NO_SCRIPT_INDEX` and a zero tag to the outputs.
+ *
+ * # Safety
+ * `face` must be null or live; `script_tags` must hold `script_count` tags
+ * when non-null. Both output pointers must be null or writable.
+ */
+hr_bool_t hr_ot_layout_table_select_script(struct hr_face_t *face,
+                                           hr_tag_t table_tag,
+                                           unsigned int script_count,
+                                           const hr_tag_t *script_tags,
+                                           unsigned int *script_index,
+                                           hr_tag_t *chosen_script);
+
+/**
+ * Returns the total number of feature records in GSUB or GPOS.
+ *
+ * Copies tags starting at `start_offset`, including duplicates. When both
+ * array and count are non-null, the count gives capacity on entry and the
+ * number written on return. A null array leaves the count unchanged.
+ *
+ * # Safety
+ * `face` must be null or live; `feature_count` must be null or writable;
+ * `feature_tags` must hold the input capacity when non-null.
+ */
+unsigned int hr_ot_layout_table_get_feature_tags(struct hr_face_t *face,
+                                                 hr_tag_t table_tag,
+                                                 unsigned int start_offset,
+                                                 unsigned int *feature_count,
+                                                 hr_tag_t *feature_tags);
+
+/**
+ * Finds an optional feature in a script's language system in GSUB or GPOS.
+ *
+ * Use `HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX` for the default language system.
+ * A required feature is not included in this search. Writes the feature's
+ * table-wide index, or `HR_OT_LAYOUT_NO_FEATURE_INDEX` on failure.
+ *
+ * # Safety
+ * `face` must be null or live; `feature_index` must be null or writable.
+ */
+hr_bool_t hr_ot_layout_language_find_feature(struct hr_face_t *face,
+                                             hr_tag_t table_tag,
+                                             unsigned int script_index,
+                                             unsigned int language_index,
+                                             hr_tag_t feature_tag,
+                                             unsigned int *feature_index);
 
 /**
  * Returns whether the face has a readable GSUB table.

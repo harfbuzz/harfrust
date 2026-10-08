@@ -16,7 +16,7 @@
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, MATH, layout lookup, set, map, and OpenType tag
+ * Shaping, BASE baseline, MATH, layout script/feature/lookup, set, map, and OpenType tag
  * conversion APIs are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
  * subsetting, other layout table introspection, custom Unicode
@@ -378,6 +378,7 @@
 #define HB_GLYPH_FLAG_UNSAFE_TO_CONCAT                HR_GLYPH_FLAG_UNSAFE_TO_CONCAT
 #define HB_LANGUAGE_INVALID                           HR_LANGUAGE_INVALID
 #define HB_MAP_VALUE_INVALID                          HR_MAP_VALUE_INVALID
+#define HB_MATH_GLYPH_PART_FLAG_EXTENDER              HR_MATH_GLYPH_PART_FLAG_EXTENDER
 #define HB_MEMORY_MODE_DUPLICATE                      HR_MEMORY_MODE_DUPLICATE
 #define HB_MEMORY_MODE_READONLY                       HR_MEMORY_MODE_READONLY
 #define HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE     HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE

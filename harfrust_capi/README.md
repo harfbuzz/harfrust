@@ -101,7 +101,10 @@ along with the tags, directions, scripts, languages, features and variations
 they need. OpenType `BASE` baseline queries are available through
 `hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
 are available through `hr_ot_math_*` functions. Layout lookup queries support
-glyph participation checks. The complete HarfBuzz set and map APIs are available
+glyph participation checks. Script selection and language-specific feature lookup
+are available with `hr_ot_layout_table_select_script` and
+`hr_ot_layout_language_find_feature`; `hr_ot_layout_table_get_feature_tags`
+enumerates all feature records, including duplicate tags. The complete HarfBuzz set and map APIs are available
 as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
 iteration. OpenType script and language tags can be converted with
 `hr_ot_tag_to_language` and `hr_ot_tags_from_script_and_language`.

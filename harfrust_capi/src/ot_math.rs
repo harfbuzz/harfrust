@@ -81,6 +81,10 @@ pub const HR_OT_MATH_KERN_TOP_LEFT: hr_ot_math_kern_t = 1;
 pub const HR_OT_MATH_KERN_BOTTOM_RIGHT: hr_ot_math_kern_t = 2;
 pub const HR_OT_MATH_KERN_BOTTOM_LEFT: hr_ot_math_kern_t = 3;
 pub const HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER: hr_ot_math_glyph_part_flags_t = 1;
+
+/// Deprecated HarfBuzz spelling of `HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER`.
+pub const HR_MATH_GLYPH_PART_FLAG_EXTENDER: hr_ot_math_glyph_part_flags_t =
+    HR_OT_MATH_GLYPH_PART_FLAG_EXTENDER;
 pub const HR_OT_TAG_MATH: hr_tag_t = 0x4D41_5448;
 pub const HR_OT_TAG_MATH_SCRIPT: hr_tag_t = 0x6D61_7468;
 

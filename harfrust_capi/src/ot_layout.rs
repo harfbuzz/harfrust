@@ -1,4 +1,4 @@
-//! OpenType BASE baseline queries.
+//! OpenType layout metadata, lookup glyph collection, and BASE baseline queries.
 
 use core::ffi::c_uint;
 
@@ -7,7 +7,8 @@ use read_fonts::tables::base::{BaseAxis, BaseInstance};
 use read_fonts::tables::gpos::{PairPos, PositionSubtables};
 use read_fonts::tables::gsub::{SingleSubst, SubstitutionLookupList, SubstitutionSubtables};
 use read_fonts::tables::layout::{
-    ChainedSequenceContext, ClassDef, CoverageTable, SequenceContext, SequenceLookupRecord,
+    ChainedSequenceContext, ClassDef, CoverageTable, FeatureList, ScriptList, SequenceContext,
+    SequenceLookupRecord,
 };
 use read_fonts::types::F48Dot16;
 use read_fonts::{ReadError, TableProvider};
@@ -22,8 +23,183 @@ use crate::font::{hr_font_get_glyph_extents, hr_font_get_nominal_glyph, hr_font_
 use crate::object;
 use crate::set::hr_set_t;
 
-const GSUB_TAG: hr_tag_t = 0x4753_5542;
-const GPOS_TAG: hr_tag_t = 0x4750_4F53;
+/// The OpenType substitution table tag.
+pub const HR_OT_TAG_GSUB: hr_tag_t = 0x4753_5542;
+/// The OpenType positioning table tag.
+pub const HR_OT_TAG_GPOS: hr_tag_t = 0x4750_4F53;
+/// The default OpenType script tag, `DFLT`.
+pub const HR_OT_TAG_DEFAULT_SCRIPT: hr_tag_t = 0x4446_4C54;
+/// The default OpenType language tag, `dflt`.
+pub const HR_OT_TAG_DEFAULT_LANGUAGE: hr_tag_t = 0x6466_6C74;
+/// No script was selected.
+pub const HR_OT_LAYOUT_NO_SCRIPT_INDEX: c_uint = 0xFFFF;
+/// No feature was found.
+pub const HR_OT_LAYOUT_NO_FEATURE_INDEX: c_uint = 0xFFFF;
+/// Selects a script's default language system.
+pub const HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX: c_uint = 0xFFFF;
+
+const GSUB_TAG: hr_tag_t = HR_OT_TAG_GSUB;
+const GPOS_TAG: hr_tag_t = HR_OT_TAG_GPOS;
+
+fn script_list(face: &hr_face_t, table_tag: hr_tag_t) -> Option<ScriptList<'_>> {
+    let font = face.font()?;
+    match table_tag {
+        GSUB_TAG => font.tables().gsub().ok()?.script_list().ok(),
+        GPOS_TAG => font.tables().gpos().ok()?.script_list().ok(),
+        _ => None,
+    }
+}
+
+fn feature_list(face: &hr_face_t, table_tag: hr_tag_t) -> Option<FeatureList<'_>> {
+    let font = face.font()?;
+    match table_tag {
+        GSUB_TAG => font.tables().gsub().ok()?.feature_list().ok(),
+        GPOS_TAG => font.tables().gpos().ok()?.feature_list().ok(),
+        _ => None,
+    }
+}
+
+/// Selects the first available requested script in GSUB or GPOS.
+///
+/// If none matches, tries `DFLT`, `dflt`, then `latn`. Returns true only for
+/// a requested script, even when a fallback was selected. With no match,
+/// writes `HR_OT_LAYOUT_NO_SCRIPT_INDEX` and a zero tag to the outputs.
+///
+/// # Safety
+/// `face` must be null or live; `script_tags` must hold `script_count` tags
+/// when non-null. Both output pointers must be null or writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_table_select_script(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    script_count: c_uint,
+    script_tags: *const hr_tag_t,
+    script_index: *mut c_uint,
+    chosen_script: *mut hr_tag_t,
+) -> hr_bool_t {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let list = script_list(face, table_tag);
+    let records = list.as_ref().map_or(&[][..], |list| list.script_records());
+    let requested = if script_tags.is_null() {
+        &[][..]
+    } else {
+        unsafe { core::slice::from_raw_parts(script_tags, script_count as usize) }
+    };
+    let fallbacks = [
+        HR_OT_TAG_DEFAULT_SCRIPT,
+        HR_OT_TAG_DEFAULT_LANGUAGE,
+        u32::from_be_bytes(*b"latn"),
+    ];
+    let selected = requested
+        .iter()
+        .map(|tag| (*tag, true))
+        .chain(fallbacks.into_iter().map(|tag| (tag, false)))
+        .find_map(|(tag, requested)| {
+            records
+                .binary_search_by_key(&tag_to_rust(tag), |record| record.script_tag())
+                .ok()
+                .map(|index| (index as c_uint, tag, requested))
+        });
+    let (index, tag, requested) = selected.unwrap_or((HR_OT_LAYOUT_NO_SCRIPT_INDEX, 0, false));
+    if let Some(output) = unsafe { script_index.as_mut() } {
+        *output = index;
+    }
+    if let Some(output) = unsafe { chosen_script.as_mut() } {
+        *output = tag;
+    }
+    requested.into()
+}
+
+/// Returns the total number of feature records in GSUB or GPOS.
+///
+/// Copies tags starting at `start_offset`, including duplicates. When both
+/// array and count are non-null, the count gives capacity on entry and the
+/// number written on return. A null array leaves the count unchanged.
+///
+/// # Safety
+/// `face` must be null or live; `feature_count` must be null or writable;
+/// `feature_tags` must hold the input capacity when non-null.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    start_offset: c_uint,
+    feature_count: *mut c_uint,
+    feature_tags: *mut hr_tag_t,
+) -> c_uint {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let list = feature_list(face, table_tag);
+    let records = list.as_ref().map_or(&[][..], |list| list.feature_records());
+    if !feature_tags.is_null() {
+        if let Some(count) = unsafe { feature_count.as_mut() } {
+            let mut written = 0;
+            for record in records
+                .iter()
+                .skip(start_offset as usize)
+                .take(*count as usize)
+            {
+                unsafe {
+                    feature_tags
+                        .add(written)
+                        .write(tag_from_rust(record.feature_tag()));
+                };
+                written += 1;
+            }
+            *count = written as c_uint;
+        }
+    }
+    records.len() as c_uint
+}
+
+/// Finds an optional feature in a script's language system in GSUB or GPOS.
+///
+/// Use `HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX` for the default language system.
+/// A required feature is not included in this search. Writes the feature's
+/// table-wide index, or `HR_OT_LAYOUT_NO_FEATURE_INDEX` on failure.
+///
+/// # Safety
+/// `face` must be null or live; `feature_index` must be null or writable.
+#[no_mangle]
+pub unsafe extern "C" fn hr_ot_layout_language_find_feature(
+    face: *mut hr_face_t,
+    table_tag: hr_tag_t,
+    script_index: c_uint,
+    language_index: c_uint,
+    feature_tag: hr_tag_t,
+    feature_index: *mut c_uint,
+) -> hr_bool_t {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let found = (|| {
+        let scripts = script_list(face, table_tag)?;
+        let script = scripts
+            .script_records()
+            .get(script_index as usize)?
+            .script(scripts.offset_data())
+            .ok()?;
+        let language = if language_index == HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX {
+            script.default_lang_sys()?.ok()?
+        } else {
+            script
+                .lang_sys_records()
+                .get(language_index as usize)?
+                .lang_sys(script.offset_data())
+                .ok()?
+        };
+        let features = feature_list(face, table_tag)?;
+        language.feature_indices().iter().find_map(|index| {
+            let index = index.get() as usize;
+            let tag = features
+                .feature_records()
+                .get(index)
+                .map_or(0, |record| tag_from_rust(record.feature_tag()));
+            (tag == feature_tag).then_some(index as c_uint)
+        })
+    })();
+    if let Some(output) = unsafe { feature_index.as_mut() } {
+        *output = found.unwrap_or(HR_OT_LAYOUT_NO_FEATURE_INDEX);
+    }
+    found.is_some().into()
+}
 
 /// Returns whether the face has a readable GSUB table.
 ///
