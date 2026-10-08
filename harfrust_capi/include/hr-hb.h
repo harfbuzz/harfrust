@@ -110,6 +110,11 @@
 #define hb_buffer_set_user_data                          hr_buffer_set_user_data
 #define hb_buffer_t                                      hr_buffer_t
 #define hb_codepoint_t                                   hr_codepoint_t
+#define hb_color_get_alpha                               hr_color_get_alpha
+#define hb_color_get_blue                                hr_color_get_blue
+#define hb_color_get_green                               hr_color_get_green
+#define hb_color_get_red                                 hr_color_get_red
+#define hb_color_t                                       hr_color_t
 #define hb_destroy_func_t                                hr_destroy_func_t
 #define hb_direction_from_string                         hr_direction_from_string
 #define hb_direction_t                                   hr_direction_t
@@ -359,6 +364,7 @@
 #define HB_BUFFER_SERIALIZE_FORMAT_JSON               HR_BUFFER_SERIALIZE_FORMAT_JSON
 #define HB_BUFFER_SERIALIZE_FORMAT_TEXT               HR_BUFFER_SERIALIZE_FORMAT_TEXT
 #define HB_CODEPOINT_INVALID                          HR_CODEPOINT_INVALID
+#define HB_COLOR                                      HR_COLOR
 #define HB_DIRECTION_BTT                              HR_DIRECTION_BTT
 #define HB_DIRECTION_INVALID                          HR_DIRECTION_INVALID
 #define HB_DIRECTION_IS_BACKWARD                      HR_DIRECTION_IS_BACKWARD

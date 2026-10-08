@@ -80,6 +80,10 @@ cbindgen --config harfrust_capi/cbindgen.toml \
 
 Regenerate it after changing any `pub extern "C"` item.
 
+Packed colors use `hr_color_t` and `HR_COLOR(b, g, r, a)`, with channel
+accessors `hr_color_get_blue/green/red/alpha`. These common definitions are
+available without enabling painting.
+
 ## Object lifetime
 
 Objects are reference counted. Constructors return a new reference the caller

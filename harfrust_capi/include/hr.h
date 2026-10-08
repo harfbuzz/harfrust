@@ -325,6 +325,12 @@ typedef hr_tag_t hr_buffer_serialize_format_t;
 typedef uint32_t hr_buffer_serialize_flags_t;
 
 /**
+ * An unpremultiplied sRGB color, packed as blue/green/red/alpha from the
+ * most significant byte to the least significant byte.
+ */
+typedef uint32_t hr_color_t;
+
+/**
  * A feature tag with the value to apply and the range to apply it over.
  */
 typedef struct hr_feature_t {
@@ -2509,6 +2515,26 @@ unsigned int hr_buffer_serialize_glyphs(struct hr_buffer_t *buffer,
                                         struct hr_font_t *font,
                                         hr_buffer_serialize_format_t format,
                                         hr_buffer_serialize_flags_t flags);
+
+/**
+ * Returns the blue channel of a packed color.
+ */
+uint8_t hr_color_get_blue(hr_color_t color);
+
+/**
+ * Returns the green channel of a packed color.
+ */
+uint8_t hr_color_get_green(hr_color_t color);
+
+/**
+ * Returns the red channel of a packed color.
+ */
+uint8_t hr_color_get_red(hr_color_t color);
+
+/**
+ * Returns the alpha channel of a packed color.
+ */
+uint8_t hr_color_get_alpha(hr_color_t color);
 
 /**
  * Converts a string into a tag, padding with spaces and truncating past four
@@ -4704,6 +4730,9 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 
 /** Expands a tag into its four characters, as separate arguments. */
 #define HR_UNTAG(tag) (uint8_t)(((tag) >> 24) & 0xFF), (uint8_t)(((tag) >> 16) & 0xFF), (uint8_t)(((tag) >> 8) & 0xFF), (uint8_t)((tag) & 0xFF)
+
+/** Packs unpremultiplied sRGB blue, green, red, and alpha channels. */
+#define HR_COLOR(b,g,r,a) ((hr_color_t)((((uint32_t)(b) & 0xffu) << 24) | (((uint32_t)(g) & 0xffu) << 16) | (((uint32_t)(r) & 0xffu) << 8) | ((uint32_t)(a) & 0xffu)))
 
 /** An unset language. */
 #define HR_LANGUAGE_INVALID ((hr_language_t) 0)
