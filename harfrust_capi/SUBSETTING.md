@@ -1,7 +1,8 @@
 # HarfBuzz subset C API for HarfRust
 
-A separate C library backed by fontations' `skera`, sharing `hr_face_t`,
-`hr_blob_t`, and `hr_set_t` handles with the HarfRust shaping C library.
+The optional `subset` feature of `harfrust_capi` adds font subsetting backed
+by fontations' `skera` to the same C library as shaping. It uses the existing
+`hr_face_t`, `hr_blob_t`, and `hr_set_t` handles.
 It exports `hr_subset_*`, with source aliases in `hr-hb-subset.h`.
 HarfBuzz's opaque handles cannot be passed to these functions.
 
@@ -21,35 +22,38 @@ after a successful call. Zero-length tables are accepted.
 ## Building and linking
 
 ```sh
-cargo build -p harfrust_capi -p harfbuzz_subset_c_api
-cc -std=c99 -Iharfrust_capi/include -Iharfbuzz_subset_c_api/include \
-  harfbuzz_subset_c_api/examples/subset.c -Ltarget/debug \
-  -lharfbuzz_subset_c -lharfrust_c -Wl,-rpath,"$PWD/target/debug" -o /tmp/hr-subset
+cargo build -p harfrust_capi --features subset
+cc -std=c99 -Iharfrust_capi/include \
+  harfrust_capi/examples/subset.c -Ltarget/debug \
+  -lharfrust_c -Wl,-rpath,"$PWD/target/debug" -o /tmp/hr-subset
 /tmp/hr-subset harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
 ```
 
-Link both libraries. The subset crate deliberately imports the core C ABI
-instead of linking another copy of the shaping crate into its output. Linux
-and macOS shared builds resolve core symbols from the consumer. An explicit
-shared-core dependency can be selected with `HARFRUST_C_LIB_DIR`; on Windows,
-build `harfrust_capi` first and set that variable to its output directory
-(containing its import library) when building this crate. Windows and macOS
-runtime behavior has not been validated locally.
+Link only `harfrust_c` for both shaping and subsetting. The `subset` feature
+is disabled by default; default builds have no Skera or write-fonts dependency
+and export no subset symbols. The subset headers remain available to consumers,
+but using their functions requires a library built with `--features subset`.
+The same feature applies to static and shared libraries on all platforms.
 
-For static linking, put `libharfbuzz_subset_c.a` before `libharfrust_c.a` and
-include the platform's Rust system libraries (on Linux: `-ldl -lpthread -lm`).
+For static linking, use `libharfrust_c.a` and the platform's Rust system
+libraries (on Linux: `-ldl -lpthread -lm`). Windows consumers link the matching
+static library or DLL import library; no separate subset DLL is needed.
 
 Regenerate headers with:
 
 ```sh
-cbindgen --config harfbuzz_subset_c_api/cbindgen.toml \
-  --crate harfbuzz_subset_c_api --output harfbuzz_subset_c_api/include/hr-subset.h
+cbindgen --config harfrust_capi/cbindgen.toml \
+  --crate harfrust_capi --output harfrust_capi/include/hr.h
+cbindgen --config harfrust_capi/cbindgen-subset.toml \
+  harfrust_capi/src/subset/mod.rs --output harfrust_capi/include/hr-subset.h
 python3 scripts/gen-hb-compat-header.py
 ```
 
 `hr_subset_preprocess` returns an immutable, self-contained copy of the face,
 so its callbacks and original data can be released. It currently adds no
 subsetting acceleration cache.
+The subset header is generated separately from its module so `hr.h` stays
+independent of optional APIs.
 
 ## Current scope
 
@@ -70,8 +74,8 @@ The differential test requires `fontTools` and a HarfBuzz build with the subset
 library and table-enumeration callback API:
 
 ```sh
-python3 harfbuzz_subset_c_api/tests/compare_skia_hb.py \
-  target/debug/libharfrust_c.so target/debug/libharfbuzz_subset_c.so \
+python3 harfrust_capi/tests/subset/compare_skia_hb.py \
+  target/debug/libharfrust_c.so \
   /path/to/libharfbuzz.so /path/to/libharfbuzz-subset.so
 ```
 
@@ -84,7 +88,7 @@ Additional implemented flags are `NAME_LEGACY`, `SET_OVERLAPS_FLAG`,
 `NO_LAYOUT_CLOSURE`, and `NO_BIDI_CLOSURE`. Desubroutinization and IUP delta
 optimization are not implemented by the dependency and remain unsupported.
 
-`tests/compare_controls_hb.py` takes the same library arguments and checks
+`tests/subset/compare_controls_hb.py` takes the same library arguments and checks
 15 additional cases, input-set defaults, keep-everything, inverted sets,
 custom table passthrough, overlap flags, and preprocessing ownership.
 
@@ -95,7 +99,7 @@ be mutated; `hr_map_reference` retains them independently of a plan.
 Configurable no-subset table tags now pass through unchanged; explicit table
 drops and hint removal take precedence.
 
-`tests/compare_plans_hb.py` accepts the same library arguments. It compares
+`tests/subset/compare_plans_hb.py` accepts the same library arguments. It compares
 16 combinations of plan mappings and executes plans after changing/destroying
 their inputs, retaining borrowed maps past plan destruction, and configuring
 table passthrough.

@@ -125,10 +125,9 @@ same cache.
 
 ## What is not
 
-HarfRust is a shaping library, so anything outside shaping is absent:
+The following HarfBuzz APIs are not exposed:
 
 - Drawing and painting callbacks (`hb_draw_funcs_t`, `hb_paint_funcs_t`).
-- Subsetting.
 - Layout queries beyond the available GSUB/GPOS presence, lookup count, and
   glyph collection functions.
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data
@@ -235,11 +234,10 @@ report the HarfRust package version. This lets source compatibility users
 select HarfBuzz API paths with version checks. It does not imply that every
 API from that HarfBuzz release is available; see the exclusions above.
 
-A separate `harfbuzz_subset_c_api` crate provides Skera-backed subsetting
-with the same face, blob, and set handles. Include `hr-subset.h` for the native
-API or `hr-hb-subset.h` for HarfBuzz spellings, and link both C libraries.
-See [the subset crate README](../harfbuzz_subset_c_api/README.md) for scope,
-linking, supported flags, and validation.
+Enable the optional `subset` feature for Skera-backed subsetting in the same
+C library, using the existing face, blob, and set handles. Include `hr-subset.h`
+for the native API or `hr-hb-subset.h` for HarfBuzz spellings. See
+[SUBSETTING.md](SUBSETTING.md) for building, supported flags, and validation.
 
 ## HarfBuzz C++ helpers
 
@@ -250,5 +248,5 @@ copying a shared pointer acquires another reference. Supported core types
 are blobs, buffers, faces, fonts, font functions, maps, sets, and shape plans.
 
 Including `hr-hb-subset.h` before or after the C++ header also enables
-subset inputs and plans. Link the separate subset library when using those
-objects. Objects without a complete HarfRust lifetime API have no vtable.
+subset inputs and plans. Build `harfrust_capi` with `--features subset`
+when using those objects. Objects without a complete HarfRust lifetime API have no vtable.
