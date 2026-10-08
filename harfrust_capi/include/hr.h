@@ -533,6 +533,38 @@ typedef struct hr_ot_math_glyph_part_t {
 } hr_ot_math_glyph_part_t;
 
 /**
+ * An OpenType name-table identifier.
+ */
+typedef unsigned int hr_ot_name_id_t;
+
+/**
+ * Flags on an OpenType variation axis.
+ */
+typedef unsigned int hr_ot_var_axis_flags_t;
+
+/**
+ * Metadata for an axis in the font's `fvar` table.
+ */
+typedef struct hr_ot_var_axis_info_t {
+  unsigned int axis_index;
+  hr_tag_t tag;
+  hr_ot_name_id_t name_id;
+  hr_ot_var_axis_flags_t flags;
+  float min_value;
+  float default_value;
+  float max_value;
+  /**
+   * Reserved; always zero.
+   */
+  unsigned int reserved;
+} hr_ot_var_axis_info_t;
+
+/**
+ * Predefined OpenType name-table identifiers.
+ */
+typedef unsigned int hr_ot_name_id_predefined_t;
+
+/**
  * Copy the data. The caller keeps ownership of the original buffer.
  */
 #define HR_MEMORY_MODE_DUPLICATE 0
@@ -1831,6 +1863,63 @@ typedef struct hr_ot_math_glyph_part_t {
 #define HR_OT_TAG_MATH 1296127048
 
 #define HR_OT_TAG_MATH_SCRIPT 1835103336
+
+#define HR_OT_NAME_ID_COPYRIGHT 0
+
+#define HR_OT_NAME_ID_FONT_FAMILY 1
+
+#define HR_OT_NAME_ID_FONT_SUBFAMILY 2
+
+#define HR_OT_NAME_ID_UNIQUE_ID 3
+
+#define HR_OT_NAME_ID_FULL_NAME 4
+
+#define HR_OT_NAME_ID_VERSION_STRING 5
+
+#define HR_OT_NAME_ID_POSTSCRIPT_NAME 6
+
+#define HR_OT_NAME_ID_TRADEMARK 7
+
+#define HR_OT_NAME_ID_MANUFACTURER 8
+
+#define HR_OT_NAME_ID_DESIGNER 9
+
+#define HR_OT_NAME_ID_DESCRIPTION 10
+
+#define HR_OT_NAME_ID_VENDOR_URL 11
+
+#define HR_OT_NAME_ID_DESIGNER_URL 12
+
+#define HR_OT_NAME_ID_LICENSE 13
+
+#define HR_OT_NAME_ID_LICENSE_URL 14
+
+#define HR_OT_NAME_ID_TYPOGRAPHIC_FAMILY 16
+
+#define HR_OT_NAME_ID_TYPOGRAPHIC_SUBFAMILY 17
+
+#define HR_OT_NAME_ID_MAC_FULL_NAME 18
+
+#define HR_OT_NAME_ID_SAMPLE_TEXT 19
+
+#define HR_OT_NAME_ID_CID_FINDFONT_NAME 20
+
+#define HR_OT_NAME_ID_WWS_FAMILY 21
+
+#define HR_OT_NAME_ID_WWS_SUBFAMILY 22
+
+#define HR_OT_NAME_ID_LIGHT_BACKGROUND 23
+
+#define HR_OT_NAME_ID_DARK_BACKGROUND 24
+
+#define HR_OT_NAME_ID_VARIATIONS_PS_PREFIX 25
+
+#define HR_OT_NAME_ID_INVALID 65535
+
+/**
+ * The axis should not be exposed directly in user interfaces.
+ */
+#define HR_OT_VAR_AXIS_FLAG_HIDDEN 1
 
 /**
  * Unset set value, also used to start iteration.
@@ -4189,6 +4278,26 @@ unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
                                            hr_position_t *italics_correction);
 
 /**
+ * Returns a localized name's full UTF-16 length, excluding the terminator.
+ *
+ * A null language requests English. Exact language matches take precedence
+ * over a matching parent language. With nonzero input capacity, copies a
+ * complete-codepoint prefix, reserves one unit for a terminating zero, and
+ * sets `text_size` to the units written, excluding that zero. With zero
+ * capacity or a null count, only returns the required length.
+ *
+ * # Safety
+ * `face` must be null or live; `language` must be null or interned;
+ * `text_size` must be null or writable; `text` must hold the input capacity
+ * when non-null. A null text array does not copy any units.
+ */
+unsigned int hr_ot_name_get_utf16(struct hr_face_t *face,
+                                  hr_ot_name_id_t name_id,
+                                  hr_language_t language,
+                                  unsigned int *text_size,
+                                  uint16_t *text);
+
+/**
  * Converts an OpenType language-system tag to an interned language.
  */
 hr_language_t hr_ot_tag_to_language(hr_tag_t tag);
@@ -4206,6 +4315,28 @@ void hr_ot_tags_from_script_and_language(hr_script_t script,
                                          hr_tag_t *script_tags,
                                          unsigned int *language_count,
                                          hr_tag_t *language_tags);
+
+/**
+ * Returns the number of variation axes, or zero without readable `fvar` data.
+ * # Safety
+ * `face` must be null or live.
+ */
+unsigned int hr_ot_var_get_axis_count(struct hr_face_t *face);
+
+/**
+ * Returns the total axis count and copies axis metadata from `start_offset`.
+ *
+ * When both output pointers are non-null, `axes_count` gives the capacity on
+ * entry and the number written on return. A null array leaves the count
+ * unchanged. Axis indices remain relative to the full `fvar` axis array.
+ * # Safety
+ * `face` must be null or live; `axes_count` must be null or writable;
+ * `axes_array` must hold the input capacity when non-null.
+ */
+unsigned int hr_ot_var_get_axis_infos(struct hr_face_t *face,
+                                      unsigned int start_offset,
+                                      unsigned int *axes_count,
+                                      struct hr_ot_var_axis_info_t *axes_array);
 
 struct hr_set_t *hr_set_create(void);
 

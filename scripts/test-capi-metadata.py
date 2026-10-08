@@ -15,13 +15,36 @@ P = C.c_void_p
 UP = C.POINTER(U)
 
 
+class AxisInfo(C.Structure):
+    _fields_ = [("axis_index", U), ("tag", U), ("name_id", U), ("flags", U),
+                ("min_value", C.c_float), ("default_value", C.c_float),
+                ("max_value", C.c_float), ("reserved", U)]
+
+
+class NameEntry(C.Structure):
+    _fields_ = [("name_id", U), ("var", U), ("language", P)]
+
+
 def tag(value):
     return int.from_bytes(value.encode("ascii"), "big")
 
 
 def sfnt(table, data):
-    return struct.pack(">IHHHH4sIII", 0x10000, 1, 16, 0, 0, table.encode("ascii"),
-                       0, 28, len(data)) + data
+    return sfnt_tables({table: data})
+
+
+def sfnt_tables(tables):
+    count = len(tables)
+    power = count.bit_length() - 1
+    result = struct.pack(">IHHHH", 0x10000, count, 16 << power, power, count * 16 - (16 << power))
+    offset = 12 + 16 * count
+    records, storage = b"", b""
+    for table, data in sorted(tables.items()):
+        records += struct.pack(">4sIII", table.encode("ascii"), 0, offset, len(data))
+        padded = data + bytes((-len(data)) % 4)
+        storage += padded
+        offset += len(padded)
+    return result + records + storage
 
 
 class Api:
@@ -33,6 +56,10 @@ class Api:
         self.face_create = self.bind("face_create", P, [P, U])
         self.face_destroy = self.bind("face_destroy", None, [P])
         self.face_count = self.bind("face_count", U, [P])
+        self.axis_count = self.bind("ot_var_get_axis_count", U, [P])
+        self.axes = self.bind("ot_var_get_axis_infos", U, [P, U, UP, C.POINTER(AxisInfo)])
+        self.language = self.bind("language_from_string", P, [C.c_char_p, C.c_int])
+        self.name = self.bind("ot_name_get_utf16", U, [P, U, P, UP, C.POINTER(C.c_uint16)])
         self.palettes = self.bind("ot_color_has_palettes", C.c_int, [P])
         self.palette_count = self.bind("ot_color_palette_get_count", U, [P])
         self.palette_flags = self.bind("ot_color_palette_get_flags", U, [P, U])
@@ -59,7 +86,47 @@ def colors(api, face, palette, start, capacity, array=True, count=True):
     return total, size.value, list(output)
 
 
+def axes(api, face, start, capacity, array=True, count=True):
+    size = U(capacity)
+    output = (AxisInfo * (capacity + 1))()
+    C.memset(output, 0xCD, C.sizeof(output))
+    total = api.axes(face, start, C.byref(size) if count else None, output if array else None)
+    return total, size.value, bytes(output)
+
+
+def name_text(api, face, name_id, language, capacity):
+    size = U(capacity)
+    output = (C.c_uint16 * (capacity + 1))(*([0xDEAD] * (capacity + 1)))
+    language = api.language(language, -1) if language else None
+    total = api.name(face, name_id, language, C.byref(size), output)
+    return total, size.value, list(output)
+
+
 def synthetic_fonts():
+    fvar = struct.pack(">HHHHHHHH", 1, 0, 16, 2, 2, 20, 0, 12)
+    for axis, low, default, high, flags, name_id in [
+        ("wght", 100, 400, 900, 0, 256), ("ital", 0, 0, 1, 1, 257),
+    ]:
+        fvar += struct.pack(">4siiiHH", axis.encode("ascii"), low * 65536,
+                            default * 65536, high * 65536, flags, name_id)
+    yield "synthetic axes", sfnt("fvar", fvar)
+    records = [
+        (3, 1, 1033, 256, "Weight".encode("utf-16-be")),
+        (3, 10, 1033, 256, "Wide Weight".encode("utf-16-be")),
+        (1, 0, 0, 256, b"Mac Weight"),
+        (0, 4, 0, 256, "Unicode Weight".encode("utf-16-be")),
+        (3, 1, 1036, 256, "Graisse".encode("utf-16-be")),
+        (3, 1, 1033, 258, "A😀B".encode("utf-16-be")),
+        (1, 0, 0, 257, b"X\x80"),
+        (0, 4, 1, 259, "Unicode name".encode("utf-16-be")),
+    ]
+    name = struct.pack(">HHH", 0, len(records), 6 + 12 * len(records))
+    storage = b""
+    for platform, encoding, language, name_id, text in sorted(records):
+        name += struct.pack(">HHHHHH", platform, encoding, language, name_id, len(text), len(storage))
+        storage += text
+    ltag = struct.pack(">IIIHHHH", 1, 0, 2, 20, 5, 25, 2) + b"en-USen"
+    yield "synthetic localized names", sfnt_tables({"name": name + storage, "ltag": ltag})
     for version in [0, 1]:
         color_offset = 16 if version == 0 else 28
         data = struct.pack(">HHHHIHH", version, 3, 2, 5, color_offset, 0, 2)
@@ -81,6 +148,8 @@ def main():
     version = hb.bind("version_atleast", C.c_int, [U, U, U])
     if not version(14, 5, 1):
         parser.error("use HarfBuzz >= 14.5.1 for nullable pagination tests")
+    list_names = hb.bind("ot_name_list_names", C.POINTER(NameEntry), [P, UP])
+    language_text = hb.bind("language_to_string", C.c_char_p, [P])
     checks = faces = 0
 
     def equal(label, actual, expected):
@@ -99,6 +168,29 @@ def main():
             hrf, hbf = hr.face(data, index), hb.face(data, index)
             faces += 1
             try:
+                axis_count = hb.axis_count(hbf)
+                equal((name, "axis_count"), hr.axis_count(hrf), axis_count)
+                for start, capacity, array, count in [
+                    (0, axis_count, True, True), (0, 1, True, True),
+                    (1, 3, True, True), (axis_count, 2, True, True),
+                    (0xFFFFFFFF, 2, True, True), (0, 99, False, True),
+                    (0, 99, True, False), (0, 0, True, True),
+                ]:
+                    equal((name, "axes", start, capacity, array, count),
+                          axes(hr, hrf, start, capacity, array, count),
+                          axes(hb, hbf, start, capacity, array, count))
+                n = U()
+                entries = list_names(hbf, C.byref(n))
+                requests = {(entry.name_id, language_text(entry.language))
+                            for entry in entries[:n.value]}
+                requests.update((name_id, language) for name_id in [1, 2, 256, 0xFFFF]
+                                for language in [None, b"en", b"en-us", b"fr", b"fr-fr", b"zz"])
+                for name_id, language in sorted(requests, key=lambda entry: (entry[0], entry[1] or b"")):
+                    required = name_text(hb, hbf, name_id, language, 0)[0]
+                    for capacity in {0, 1, 2, 3, required, required + 1}:
+                        equal((name, "name", name_id, language, capacity),
+                              name_text(hr, hrf, name_id, language, capacity),
+                              name_text(hb, hbf, name_id, language, capacity))
                 equal((name, "has_palettes"), hr.palettes(hrf), hb.palettes(hbf))
                 total = hb.palette_count(hbf)
                 equal((name, "palette_count"), hr.palette_count(hrf), total)

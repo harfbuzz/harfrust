@@ -106,7 +106,12 @@ they need. OpenType `BASE` baseline queries are available through
 `hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
 are available through `hr_ot_math_*` functions. Layout lookup queries support
 glyph participation checks. CPAL palette queries are exposed through
-`hr_ot_color_has_palettes` and `hr_ot_color_palette_get_count/flags/colors`. The complete HarfBuzz set and map APIs are available
+`hr_ot_color_has_palettes` and `hr_ot_color_palette_get_count/flags/colors`.
+Variation-axis metadata is exposed by `hr_ot_var_get_axis_count/infos`;
+`hr_ot_name_get_utf16` retrieves localized names with HarfBuzz's encoding
+preferences, platform language IDs, and UTF-16 buffer sizing. Unicode-platform
+names can use Apple's `ltag` table; Mac Roman names follow HarfBuzz's ASCII
+interpretation. The complete HarfBuzz set and map APIs are available
 as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
 iteration. OpenType script and language tags can be converted with
 `hr_ot_tag_to_language` and `hr_ot_tags_from_script_and_language`.
