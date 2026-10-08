@@ -2118,7 +2118,7 @@ void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
  * `text` must point to `text_length` readable bytes, or be zero-terminated.
  */
 void hr_buffer_add_latin1(struct hr_buffer_t *buffer,
-                          const char *text,
+                          const uint8_t *text,
                           int text_length,
                           unsigned int item_offset,
                           int item_length);
@@ -4712,12 +4712,12 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 #define HR_SEGMENT_PROPERTIES_DEFAULT { HR_DIRECTION_INVALID, HR_SCRIPT_INVALID, HR_LANGUAGE_INVALID, (void *) 0, (void *) 0 }
 
 /* Spelled as macros because HarfBuzz spells them that way. */
-#define HR_DIRECTION_IS_VALID(dir) hr_direction_is_valid(dir)
-#define HR_DIRECTION_IS_HORIZONTAL(dir) hr_direction_is_horizontal(dir)
-#define HR_DIRECTION_IS_VERTICAL(dir) hr_direction_is_vertical(dir)
-#define HR_DIRECTION_IS_FORWARD(dir) hr_direction_is_forward(dir)
-#define HR_DIRECTION_IS_BACKWARD(dir) hr_direction_is_backward(dir)
-#define HR_DIRECTION_REVERSE(dir) hr_direction_reverse(dir)
+#define HR_DIRECTION_IS_VALID(dir) ((((unsigned int) (dir)) & ~3U) == 4U)
+#define HR_DIRECTION_IS_HORIZONTAL(dir) ((((unsigned int) (dir)) & ~1U) == 4U)
+#define HR_DIRECTION_IS_VERTICAL(dir) ((((unsigned int) (dir)) & ~1U) == 6U)
+#define HR_DIRECTION_IS_FORWARD(dir) ((((unsigned int) (dir)) & ~2U) == 4U)
+#define HR_DIRECTION_IS_BACKWARD(dir) ((((unsigned int) (dir)) & ~2U) == 5U)
+#define HR_DIRECTION_REVERSE(dir) ((hr_direction_t) (((unsigned int) (dir)) ^ 1U))
 
 /** The version of this library, as a string. */
 #define HR_VERSION_STRING "0.14.0"

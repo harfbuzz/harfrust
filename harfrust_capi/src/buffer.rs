@@ -614,7 +614,7 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_latin1(
     buffer: *mut hr_buffer_t,
-    text: *const c_char,
+    text: *const u8,
     text_length: c_int,
     item_offset: c_uint,
     item_length: c_int,
@@ -626,9 +626,9 @@ pub unsafe extern "C" fn hr_buffer_add_latin1(
         return;
     }
     let bytes = if text_length < 0 {
-        unsafe { core::ffi::CStr::from_ptr(text) }.to_bytes()
+        unsafe { core::ffi::CStr::from_ptr(text.cast()) }.to_bytes()
     } else {
-        unsafe { core::slice::from_raw_parts(text.cast::<u8>(), text_length as usize) }
+        unsafe { core::slice::from_raw_parts(text, text_length as usize) }
     };
     let (start, end) = item_range(bytes.len(), item_offset, item_length);
     if buffer.buffer.is_empty() && start > 0 {
