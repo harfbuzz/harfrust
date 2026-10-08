@@ -63,4 +63,3 @@ jobs:
 
       - name: cargo build harfrust
         run: cargo build -p harfrust --target thumbv7em-none-eabihf --no-default-features --features=libm
-        
