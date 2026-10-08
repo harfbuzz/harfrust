@@ -119,9 +119,9 @@ pub type hr_font_get_glyph_extents_func_t = Option<
 >;
 
 /// One callback and the data it was registered with.
-struct Callback<F> {
-    func: F,
-    user_data: *mut c_void,
+pub(crate) struct Callback<F> {
+    pub(crate) func: F,
+    pub(crate) user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 }
 
@@ -140,7 +140,7 @@ impl<F> Drop for Callback<F> {
 /// Every setter takes ownership of `user_data`, including the ones clearing a
 /// callback: HarfBuzz runs the destructor either way, and a caller that had
 /// to know which calls take ownership could not free anything safely.
-fn callback_taking<F>(
+pub(crate) fn callback_taking<F>(
     func: Option<F>,
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
@@ -174,6 +174,14 @@ pub struct hr_font_funcs_t {
     h_kerning: Option<Callback<hr_font_get_glyph_h_kerning_func_t>>,
     v_kerning: Option<Callback<hr_font_get_glyph_v_kerning_func_t>>,
     extents: Option<Callback<hr_font_get_glyph_extents_func_t>>,
+    #[cfg(feature = "draw")]
+    pub(crate) draw_glyph: Option<Callback<crate::draw::hr_font_draw_glyph_or_fail_func_t>>,
+    #[cfg(feature = "draw")]
+    pub(crate) draw_glyph_legacy: Option<Callback<crate::draw::hr_font_draw_glyph_func_t>>,
+    #[cfg(feature = "paint")]
+    pub(crate) paint_glyph: Option<Callback<crate::paint::hr_font_paint_glyph_or_fail_func_t>>,
+    #[cfg(feature = "paint")]
+    pub(crate) paint_glyph_legacy: Option<Callback<crate::paint::hr_font_paint_glyph_func_t>>,
 }
 
 // SAFETY: `hr_font_set_funcs` documents that callbacks and their user data
