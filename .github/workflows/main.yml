@@ -61,6 +61,39 @@ jobs:
     - name: Rustfmt
       run: cargo fmt --all -- --check
 
+    - name: Draw and paint C API
+      run: |
+        cargo build -p harfrust_capi --features draw --target-dir target/capi-draw
+        cargo test -p harfrust_capi --features draw
+        cargo +1.85 check -p harfrust_capi --features draw,paint
+        cargo build -p harfrust_capi --features subset,paint
+        cargo test -p harfrust_capi --features subset,paint
+        python3 - <<'PY'
+        import ctypes, sys
+        suffix = "dylib" if sys.platform == "darwin" else "so"
+        for directory, draw, paint, subset in [
+            ("capi-default", False, False, False),
+            ("capi-draw", True, False, False),
+            (None, True, True, True),
+        ]:
+            base = f"target/{directory}/debug" if directory else "target/debug"
+            lib = ctypes.CDLL(f"{base}/libharfrust_c.{suffix}")
+            assert hasattr(lib, "hr_shape")
+            assert hasattr(lib, "hr_font_draw_glyph_or_fail") == draw
+            assert hasattr(lib, "hr_font_paint_glyph_or_fail") == paint
+            assert hasattr(lib, "hr_subset_or_fail") == subset
+        PY
+        cc -std=c99 -pedantic-errors -Wall -Wextra -Werror \
+          -Iharfrust_capi/include harfrust_capi/examples/rendering.c \
+          -Ltarget/debug -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+          -o /tmp/hr-rendering
+        /tmp/hr-rendering harfrust_capi/tests/fonts/Rendering.ttf
+        c++ -x c++ -std=c++11 -pedantic-errors -Wall -Wextra -Werror \
+          -Iharfrust_capi/include harfrust_capi/examples/rendering.c \
+          -Ltarget/debug -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+          -o /tmp/hr-rendering-cpp
+        /tmp/hr-rendering-cpp harfrust_capi/tests/fonts/Rendering.ttf
+
     - name: AAT C++ source compatibility
       run: |
         c++ -std=c++11 -pedantic-errors -Wall -Wextra -Werror \

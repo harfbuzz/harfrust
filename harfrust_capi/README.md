@@ -80,6 +80,62 @@ cbindgen --config harfrust_capi/cbindgen.toml \
 
 Regenerate it after changing any `pub extern "C"` item.
 
+## Optional drawing and painting
+
+Enable `draw` for Skrifa-backed outline extraction, or `paint` for color glyph
+painting (`paint` also enables `draw`):
+
+```sh
+cargo build -p harfrust_capi --release --features draw,paint
+```
+
+These features are off by default. They use the same `hr_font_t`, `hr_face_t`
+and C library as shaping. Include `hr-draw.h` or `hr-paint.h` for native names,
+or `hr-hb-draw.h` / `hr-hb-paint.h` for HarfBuzz source compatibility. The paint
+header includes drawing. Subsetting can be enabled alongside either feature.
+
+`hr_font_draw_glyph_or_fail` extracts unhinted glyf, CFF, CFF2 and VARC outlines
+at the font's current normalized variation coordinates and independent X/Y
+scales. Draw callbacks receive HarfBuzz-style contour state, with quadratic
+to cubic fallback. Both the legacy custom font callbacks and callbacks that
+return success are supported, including inheritance from a parent font with
+different scales.
+
+`hr_font_paint_glyph_or_fail` traverses COLRv0/v1 paint graphs, including
+palettes, gradients, transforms, clips, composites and cached color glyph
+callbacks. SVG documents and CBDT/sbix PNG or BGRA images are delivered to the
+client's image callback. The client renders those formats and can retain an
+image with `hr_blob_reference`; gradient color lines are only valid during
+their callback. Missing `fill_glyph` and `push_group_for` callbacks use the
+HarfBuzz defaults. Malformed paint graphs return false and unwind open
+transforms, clips and groups.
+
+Rendering reads known tables directly and caches an assembled SFNT once per
+face. Callback faces work without table enumeration. This cache copies the
+rendering tables, so the feature has a per-face memory cost beyond shaping.
+
+Skrifa's outlines are geometrically compatible with HarfBuzz; redundant
+closing lines and CFF composite contour order can differ. VARC transform
+precision and bitmap extent rounding can also differ slightly. Hinting,
+bitmap masks, draw shape helpers, configurable draw/paint budgets, gradient
+preprocessing/tiling helpers and
+the deprecated `hb_font_get_glyph_shape` names are not exposed. Skrifa's own
+paint traversal limits remain in effect.
+
+Regenerate these headers and their aliases after changing the feature APIs:
+
+```sh
+cbindgen --config harfrust_capi/cbindgen-draw.toml \
+         harfrust_capi/src/draw.rs --output harfrust_capi/include/hr-draw.h
+cbindgen --config harfrust_capi/cbindgen-paint.toml \
+         harfrust_capi/src/paint.rs --output harfrust_capi/include/hr-paint.h
+python3 scripts/gen-hb-compat-header.py
+```
+
+[`examples/rendering.c`](examples/rendering.c) exercises both features as a
+C99 consumer. `tests/compare_draw_hb.py` and `tests/compare_paint_hb.py` take
+HarfRust and HarfBuzz shared library paths for differential checks.
+
 Packed colors use `hr_color_t` and `HR_COLOR(b, g, r, a)`, with channel
 accessors `hr_color_get_blue/green/red/alpha`. These common definitions are
 available without enabling painting.
@@ -145,7 +201,6 @@ same cache.
 
 The following HarfBuzz APIs are not exposed:
 
-- Drawing and painting callbacks (`hb_draw_funcs_t`, `hb_paint_funcs_t`).
 - Layout queries beyond the available GSUB/GPOS presence, lookup count, and
   glyph collection functions.
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data

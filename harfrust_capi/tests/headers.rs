@@ -116,6 +116,34 @@ fn the_compatibility_header_covers_every_name() {
 }
 
 #[test]
+fn optional_rendering_headers_cover_their_declarations() {
+    for (native, compatibility) in [
+        (
+            include_str!("../include/hr-draw.h"),
+            include_str!("../include/hr-hb-draw.h"),
+        ),
+        (
+            include_str!("../include/hr-paint.h"),
+            include_str!("../include/hr-hb-paint.h"),
+        ),
+    ] {
+        for name in declared_names(native) {
+            let hb = if let Some(rest) = name.strip_prefix("hr_") {
+                format!("hb_{rest}")
+            } else {
+                format!("HB_{}", name.strip_prefix("HR_").unwrap())
+            };
+            assert!(
+                compatibility
+                    .lines()
+                    .any(|line| line.starts_with(&format!("#define {hb} "))),
+                "missing {hb}"
+            );
+        }
+    }
+}
+
+#[test]
 fn the_compatibility_header_maps_nothing_that_does_not_exist() {
     let declared = declared_names(HR_H);
     let stray: Vec<&str> = HR_HB_H
