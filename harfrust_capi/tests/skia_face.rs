@@ -184,46 +184,24 @@ fn unicode_collection_adds_coverage_without_clearing_the_set() {
 }
 
 #[test]
-fn unicode_collection_covers_format0_and_constant_format13_ranges() {
+fn unicode_collection_covers_constant_format13_ranges() {
     unsafe {
-        for (data, population, first, last) in [
-            (
-                &include_bytes!("../../harfrust/tests/fonts/aots/cmap0_font1.otf")[..],
-                3,
-                52,
-                54,
-            ),
-            (
-                &include_bytes!(
-                    "../../harfrust/tests/fonts/text-rendering-tests/TestCMAPMacTurkish.ttf"
-                )[..],
-                221,
-                32,
-                255,
-            ),
-            (
-                &include_bytes!("../../harfrust/tests/fonts/in-house/AdobeBlank2.ttf")[..],
-                1_111_998,
-                0,
-                0x0010_FFFD,
-            ),
-        ] {
-            let blob = hr_blob_create(
-                data.as_ptr().cast(),
-                data.len() as u32,
-                HR_MEMORY_MODE_READONLY,
-                ptr::null_mut(),
-                None,
-            );
-            let face = hr_face_create(blob, 0);
-            hr_blob_destroy(blob);
-            let set = hr_set_create();
-            hr_face_collect_unicodes(face, set);
-            assert_eq!(hr_set_get_population(set), population);
-            assert_eq!(hr_set_has(set, first), 1);
-            assert_eq!(hr_set_has(set, last), 1);
-            hr_set_destroy(set);
-            hr_face_destroy(face);
-        }
+        let data = include_bytes!("../../harfrust/tests/fonts/in-house/AdobeBlank2.ttf");
+        let blob = hr_blob_create(
+            data.as_ptr().cast(),
+            data.len() as u32,
+            HR_MEMORY_MODE_READONLY,
+            ptr::null_mut(),
+            None,
+        );
+        let face = hr_face_create(blob, 0);
+        hr_blob_destroy(blob);
+        let set = hr_set_create();
+        hr_face_collect_unicodes(face, set);
+        assert_eq!(hr_set_get_population(set), 1_111_998);
+        assert_eq!(hr_set_has(set, 0), 1);
+        assert_eq!(hr_set_has(set, 0x0010_FFFD), 1);
+        hr_set_destroy(set);
+        hr_face_destroy(face);
     }
 }

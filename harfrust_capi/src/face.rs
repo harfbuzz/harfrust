@@ -594,41 +594,29 @@ pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mu
     let Some(out) = (unsafe { object::as_mutable(out) }) else {
         return;
     };
-    match subtable {
-        // Temporary workaround for read-fonts 0.45. Remove once we can use
-        // https://github.com/googlefonts/fontations/pull/2265.
-        CmapSubtable::Format0(table) => {
-            for (codepoint, &glyph) in table.glyph_id_array().iter().enumerate() {
-                if glyph != 0 {
-                    out.add(codepoint as u32);
-                }
+    // A format 13 group maps an entire range to one glyph. Insert ranges
+    // directly, both to bound malformed glyph IDs and to avoid iterating
+    // over a million characters in a last-resort font.
+    if let CmapSubtable::Format13(table) = subtable {
+        for group in table.groups() {
+            let first = group.start_char_code();
+            let last = group.end_char_code().min(0x0010_FFFF);
+            let glyph = group.glyph_id();
+            if first <= last && glyph != 0 && glyph < font.num_glyphs() {
+                out.values.insert_range(first..=last);
             }
         }
-        // A format 13 group maps an entire range to one glyph. Insert ranges
-        // directly, both to bound malformed glyph IDs and to avoid iterating
-        // over a million characters in a last-resort font.
-        CmapSubtable::Format13(table) => {
-            for group in table.groups() {
-                let first = group.start_char_code();
-                let last = group.end_char_code().min(0x0010_FFFF);
-                let glyph = group.glyph_id();
-                if first <= last && glyph != 0 && glyph < font.num_glyphs() {
-                    out.values.insert_range(first..=last);
-                }
-            }
-        }
-        _ => {
-            let limits = CmapIterLimits {
-                // The iterator's character limit is exclusive.
-                max_char: 0x0011_0000,
-                glyph_count: font.num_glyphs(),
-            };
-            let is_format4 = matches!(subtable, CmapSubtable::Format4(_));
-            for (codepoint, glyph) in subtable.iter_with_limits(limits) {
-                // Format 4's final U+FFFF segment is a sentinel.
-                if glyph.to_u32() != 0 && !(is_format4 && codepoint == 0xFFFF) {
-                    out.add(codepoint);
-                }
+    } else {
+        let limits = CmapIterLimits {
+            // The iterator's character limit is exclusive.
+            max_char: 0x0011_0000,
+            glyph_count: font.num_glyphs(),
+        };
+        let is_format4 = matches!(subtable, CmapSubtable::Format4(_));
+        for (codepoint, glyph) in subtable.iter_with_limits(limits) {
+            // Format 4's final U+FFFF segment is a sentinel.
+            if glyph.to_u32() != 0 && !(is_format4 && codepoint == 0xFFFF) {
+                out.add(codepoint);
             }
         }
     }
