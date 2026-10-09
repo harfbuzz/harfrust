@@ -38,6 +38,11 @@ jobs:
     - name: Rustfmt
       run: cargo fmt --all -- --check
 
+    - name: AAT C++ source compatibility
+      run: |
+        c++ -std=c++11 -pedantic-errors -Wall -Wextra -Werror \
+          -Iharfrust_capi/include -fsyntax-only harfrust_capi/tests/aat_source_compat.cc
+
     - name: Clippy
       run: cargo clippy --all-features --all-targets -- -D warnings
 
@@ -56,4 +61,3 @@ jobs:
 
       - name: cargo build harfrust
         run: cargo build -p harfrust --target thumbv7em-none-eabihf --no-default-features --features=libm
-        
