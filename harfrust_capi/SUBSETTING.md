@@ -109,3 +109,41 @@ the object only after a successful setter call; replacement and destruction
 release it once, with callbacks invoked outside the lock for reentrancy.
 The plan test compares these semantics with HarfBuzz and executes plans
 concurrently.
+
+### Actual Skia runtime checks
+
+`tests/subset/compare_skia_runtime.py` compiles Skia's actual HarfBuzz shaper and PDF
+subsetter twice, using either HarfBuzz or the HarfRust compatibility headers.
+It requires a matching Linux GN static Skia build with PDF, FreeType, ICU,
+and HarfBuzz enabled, plus fontTools and Poppler's `pdffonts`, `pdftotext`, and
+`pdftoppm`. Apply [Skia change 1387436](https://skia-review.googlesource.com/c/skia/+/1387436)
+to remove the UPEM setter first. Build the GN targets `skia`,
+`modules/skshaper:skshaper`, and `modules/skunicode:skunicode_icu`.
+
+```sh
+python3 harfrust_capi/tests/subset/compare_skia_runtime.py \
+  --skia /path/to/patched/skia --skia-build /path/to/skia/out/Runtime \
+  --hb-source /path/to/harfbuzz --hb-build /path/to/harfbuzz/build \
+  --hr "$PWD/target/debug/libharfrust_c.so" \
+  --output /path/to/runtime-results
+```
+
+Eight cases cover three fonts, stream and table-callback access, and a
+nondefault variable instance. Each checks four font size/horizontal scale
+combinations, glyph IDs, clusters, positions, both glyph-0 subset policies,
+hint programs, retained GIDs, and actual PDF embedding, text extraction,
+and raster output. Skia's variable-font PDFs use its Type3 fallback.
+
+The callback proxy disables both stream methods for shaping and direct
+subsetting. During PDF creation it supplies the stream required by Skia's
+font-descriptor code; the PDF subsetter still uses table callbacks because
+`openExistingStream` remains unavailable.
+
+The nondefault Linefont instance exposes fractional GPOS positioning drift
+of about 0.00024 pixels and PDF raster differences. Glyph/cluster checks stay
+exact; variable positions allow an accumulated 16.16 position unit per glyph.
+Pixel comparisons fail by default. `--allow-variable-pixel-differences`
+acknowledges and reports those two known raster exceptions while checking
+the other cases. Optional `--hb-upem-shaper /path/to/original/SkShaper_harfbuzz.cpp`
+also checks HarfBuzz's original setter against the removal, with strict
+position and pixel comparisons for all eight cases.
