@@ -80,6 +80,10 @@ cbindgen --config harfrust_capi/cbindgen.toml \
 
 Regenerate it after changing any `pub extern "C"` item.
 
+Packed colors use `hr_color_t` and `HR_COLOR(b, g, r, a)`, with channel
+accessors `hr_color_get_blue/green/red/alpha`. These common definitions are
+available without enabling painting.
+
 ## Object lifetime
 
 Objects are reference counted. Constructors return a new reference the caller
@@ -101,8 +105,21 @@ along with the tags, directions, scripts, languages, features and variations
 they need. OpenType `BASE` baseline queries are available through
 `hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
 are available through `hr_ot_math_*` functions. Layout lookup queries support
-glyph participation checks. The complete HarfBuzz set and map APIs are available
-as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
+glyph participation checks. Script selection and language-specific feature lookup
+are available with `hr_ot_layout_table_select_script` and
+`hr_ot_layout_language_find_feature`; `hr_ot_layout_table_get_feature_tags`
+enumerates all feature records, including duplicate tags. CPAL palette queries
+are exposed through `hr_ot_color_has_palettes` and
+`hr_ot_color_palette_get_count/flags/colors`.
+Variation-axis metadata is exposed by `hr_ot_var_get_axis_count/infos`;
+`hr_ot_name_get_utf16` retrieves localized names with HarfBuzz's encoding
+preferences, platform language IDs, and UTF-16 buffer sizing. Unicode-platform
+names can use Apple's `ltag` table; Mac Roman names follow HarfBuzz's ASCII
+interpretation. AAT feat-table metadata is exposed by
+`hr_aat_layout_get_feature_types` and
+`hr_aat_layout_feature_type_get_selector_infos`, including exclusive defaults
+and non-exclusive enable/disable pairs. The complete HarfBuzz set and map APIs
+are available as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
 iteration. OpenType script and language tags can be converted with
 `hr_ot_tag_to_language` and `hr_ot_tags_from_script_and_language`.
 Set `hr_font_set_ppem` when `BASE` or `MATH` device adjustments should apply; it is
@@ -227,8 +244,8 @@ callback supplies scalar queries when no scalar callback is installed; a local
 scalar callback also takes precedence over an inherited batch callback.
 
 HarfBuzz compatibility headers are `hr-hb.h` for core APIs and `hr-hb-ot.h`
-for OpenType APIs. The core header also includes the OpenType mappings for
-existing callers. Both may be included in either order.
+for OpenType APIs, and `hr-hb-aat.h` for AAT feature metadata. The core header also includes the OpenType mappings for
+existing callers. The compatibility headers may be included in either order.
 
 `HB_VERSION_*` and `hb_version*` report the HarfBuzz shaping release matched
 by HarfRust, currently 14.5.1. `HR_VERSION_*` and `hr_version*` continue to

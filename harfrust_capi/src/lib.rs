@@ -10,7 +10,7 @@ as HarfBuzz itself without collisions.
 # Scope
 
 This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
-`BASE` baseline and `MATH` queries. It also provides layout lookup queries,
+`BASE` baseline and `MATH` queries. It also provides layout script/feature and lookup queries,
 OpenType script and language tag conversion, and the complete set and map
 container APIs. Drawing and painting callbacks and subsetting are outside this API.
 
@@ -28,34 +28,44 @@ getter also accepts `NULL`, behaving as though it were passed the empty object.
 #![allow(non_upper_case_globals)]
 #![allow(clippy::missing_safety_doc)]
 
+pub mod aat_layout;
 pub mod blob;
 pub mod buffer;
+pub mod color;
 pub mod common;
 pub mod face;
 pub mod font;
 pub mod font_funcs;
 pub mod map;
 pub mod object;
+pub mod ot_color;
 pub mod ot_layout;
 pub mod ot_math;
+pub mod ot_name;
 pub mod ot_tag;
+pub mod ot_var;
 mod plan;
 pub mod set;
 pub mod shape;
 pub mod shape_plan;
 pub mod unicode;
 
+pub use aat_layout::*;
 pub use blob::*;
 pub use buffer::*;
+pub use color::*;
 pub use common::*;
 pub use face::*;
 pub use font::*;
 pub use font_funcs::*;
 pub use map::*;
 pub use object::{hr_destroy_func_t, hr_user_data_key_t};
+pub use ot_color::*;
 pub use ot_layout::*;
 pub use ot_math::*;
+pub use ot_name::*;
 pub use ot_tag::*;
+pub use ot_var::*;
 pub use set::*;
 pub use shape::*;
 pub use shape_plan::*;
@@ -84,3 +94,23 @@ mod skia_batch_tests;
 #[cfg(test)]
 #[path = "../tests/skia_version.rs"]
 mod skia_version_tests;
+
+#[cfg(test)]
+#[path = "../tests/tables.rs"]
+mod table_tests;
+
+#[cfg(test)]
+#[path = "../tests/ot_queries.rs"]
+mod ot_query_tests;
+
+#[cfg(test)]
+#[path = "../tests/ot_color.rs"]
+mod ot_color_tests;
+
+#[cfg(test)]
+#[path = "../tests/axis_names.rs"]
+mod axis_name_tests;
+
+#[cfg(test)]
+#[path = "../tests/aat_metadata.rs"]
+mod aat_metadata_tests;

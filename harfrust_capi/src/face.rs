@@ -595,7 +595,8 @@ pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mu
         return;
     };
     match subtable {
-        // The generic Fontations iterator does not implement format 0.
+        // Temporary workaround for read-fonts 0.45. Remove once we can use
+        // https://github.com/googlefonts/fontations/pull/2265.
         CmapSubtable::Format0(table) => {
             for (codepoint, &glyph) in table.glyph_id_array().iter().enumerate() {
                 if glyph != 0 {
