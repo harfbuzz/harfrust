@@ -5,6 +5,11 @@
 
 /* Types, functions and callbacks */
 
+#define hb_ot_color_has_palettes                         hr_ot_color_has_palettes
+#define hb_ot_color_palette_flags_t                      hr_ot_color_palette_flags_t
+#define hb_ot_color_palette_get_colors                   hr_ot_color_palette_get_colors
+#define hb_ot_color_palette_get_count                    hr_ot_color_palette_get_count
+#define hb_ot_color_palette_get_flags                    hr_ot_color_palette_get_flags
 #define hb_ot_font_set_funcs                             hr_ot_font_set_funcs
 #define hb_ot_layout_baseline_tag_t                      hr_ot_layout_baseline_tag_t
 #define hb_ot_layout_get_baseline                        hr_ot_layout_get_baseline
@@ -14,8 +19,11 @@
 #define hb_ot_layout_get_horizontal_baseline_tag_for_script hr_ot_layout_get_horizontal_baseline_tag_for_script
 #define hb_ot_layout_has_positioning                     hr_ot_layout_has_positioning
 #define hb_ot_layout_has_substitution                    hr_ot_layout_has_substitution
+#define hb_ot_layout_language_find_feature               hr_ot_layout_language_find_feature
 #define hb_ot_layout_lookup_collect_glyphs               hr_ot_layout_lookup_collect_glyphs
+#define hb_ot_layout_table_get_feature_tags              hr_ot_layout_table_get_feature_tags
 #define hb_ot_layout_table_get_lookup_count              hr_ot_layout_table_get_lookup_count
+#define hb_ot_layout_table_select_script                 hr_ot_layout_table_select_script
 #define hb_ot_math_constant_t                            hr_ot_math_constant_t
 #define hb_ot_math_get_constant                          hr_ot_math_get_constant
 #define hb_ot_math_get_glyph_assembly                    hr_ot_math_get_glyph_assembly
@@ -32,11 +40,21 @@
 #define hb_ot_math_is_glyph_extended_shape               hr_ot_math_is_glyph_extended_shape
 #define hb_ot_math_kern_entry_t                          hr_ot_math_kern_entry_t
 #define hb_ot_math_kern_t                                hr_ot_math_kern_t
+#define hb_ot_name_get_utf16                             hr_ot_name_get_utf16
+#define hb_ot_name_id_predefined_t                       hr_ot_name_id_predefined_t
+#define hb_ot_name_id_t                                  hr_ot_name_id_t
 #define hb_ot_tag_to_language                            hr_ot_tag_to_language
 #define hb_ot_tags_from_script_and_language              hr_ot_tags_from_script_and_language
+#define hb_ot_var_axis_flags_t                           hr_ot_var_axis_flags_t
+#define hb_ot_var_axis_info_t                            hr_ot_var_axis_info_t
+#define hb_ot_var_get_axis_count                         hr_ot_var_get_axis_count
+#define hb_ot_var_get_axis_infos                         hr_ot_var_get_axis_infos
 
 /* Constants and macros */
 
+#define HB_OT_COLOR_PALETTE_FLAG_DEFAULT              HR_OT_COLOR_PALETTE_FLAG_DEFAULT
+#define HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND
+#define HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND
 #define HB_OT_LAYOUT_BASELINE_TAG_HANGING             HR_OT_LAYOUT_BASELINE_TAG_HANGING
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL  HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL
@@ -46,6 +64,9 @@
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT
 #define HB_OT_LAYOUT_BASELINE_TAG_MATH                HR_OT_LAYOUT_BASELINE_TAG_MATH
 #define HB_OT_LAYOUT_BASELINE_TAG_ROMAN               HR_OT_LAYOUT_BASELINE_TAG_ROMAN
+#define HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX           HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX
+#define HB_OT_LAYOUT_NO_FEATURE_INDEX                 HR_OT_LAYOUT_NO_FEATURE_INDEX
+#define HB_OT_LAYOUT_NO_SCRIPT_INDEX                  HR_OT_LAYOUT_NO_SCRIPT_INDEX
 #define HB_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT        HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT
 #define HB_OT_MATH_CONSTANT_AXIS_HEIGHT               HR_OT_MATH_CONSTANT_AXIS_HEIGHT
 #define HB_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT
@@ -107,7 +128,38 @@
 #define HB_OT_MATH_KERN_BOTTOM_RIGHT                  HR_OT_MATH_KERN_BOTTOM_RIGHT
 #define HB_OT_MATH_KERN_TOP_LEFT                      HR_OT_MATH_KERN_TOP_LEFT
 #define HB_OT_MATH_KERN_TOP_RIGHT                     HR_OT_MATH_KERN_TOP_RIGHT
+#define HB_OT_NAME_ID_CID_FINDFONT_NAME               HR_OT_NAME_ID_CID_FINDFONT_NAME
+#define HB_OT_NAME_ID_COPYRIGHT                       HR_OT_NAME_ID_COPYRIGHT
+#define HB_OT_NAME_ID_DARK_BACKGROUND                 HR_OT_NAME_ID_DARK_BACKGROUND
+#define HB_OT_NAME_ID_DESCRIPTION                     HR_OT_NAME_ID_DESCRIPTION
+#define HB_OT_NAME_ID_DESIGNER                        HR_OT_NAME_ID_DESIGNER
+#define HB_OT_NAME_ID_DESIGNER_URL                    HR_OT_NAME_ID_DESIGNER_URL
+#define HB_OT_NAME_ID_FONT_FAMILY                     HR_OT_NAME_ID_FONT_FAMILY
+#define HB_OT_NAME_ID_FONT_SUBFAMILY                  HR_OT_NAME_ID_FONT_SUBFAMILY
+#define HB_OT_NAME_ID_FULL_NAME                       HR_OT_NAME_ID_FULL_NAME
+#define HB_OT_NAME_ID_INVALID                         HR_OT_NAME_ID_INVALID
+#define HB_OT_NAME_ID_LICENSE                         HR_OT_NAME_ID_LICENSE
+#define HB_OT_NAME_ID_LICENSE_URL                     HR_OT_NAME_ID_LICENSE_URL
+#define HB_OT_NAME_ID_LIGHT_BACKGROUND                HR_OT_NAME_ID_LIGHT_BACKGROUND
+#define HB_OT_NAME_ID_MAC_FULL_NAME                   HR_OT_NAME_ID_MAC_FULL_NAME
+#define HB_OT_NAME_ID_MANUFACTURER                    HR_OT_NAME_ID_MANUFACTURER
+#define HB_OT_NAME_ID_POSTSCRIPT_NAME                 HR_OT_NAME_ID_POSTSCRIPT_NAME
+#define HB_OT_NAME_ID_SAMPLE_TEXT                     HR_OT_NAME_ID_SAMPLE_TEXT
+#define HB_OT_NAME_ID_TRADEMARK                       HR_OT_NAME_ID_TRADEMARK
+#define HB_OT_NAME_ID_TYPOGRAPHIC_FAMILY              HR_OT_NAME_ID_TYPOGRAPHIC_FAMILY
+#define HB_OT_NAME_ID_TYPOGRAPHIC_SUBFAMILY           HR_OT_NAME_ID_TYPOGRAPHIC_SUBFAMILY
+#define HB_OT_NAME_ID_UNIQUE_ID                       HR_OT_NAME_ID_UNIQUE_ID
+#define HB_OT_NAME_ID_VARIATIONS_PS_PREFIX            HR_OT_NAME_ID_VARIATIONS_PS_PREFIX
+#define HB_OT_NAME_ID_VENDOR_URL                      HR_OT_NAME_ID_VENDOR_URL
+#define HB_OT_NAME_ID_VERSION_STRING                  HR_OT_NAME_ID_VERSION_STRING
+#define HB_OT_NAME_ID_WWS_FAMILY                      HR_OT_NAME_ID_WWS_FAMILY
+#define HB_OT_NAME_ID_WWS_SUBFAMILY                   HR_OT_NAME_ID_WWS_SUBFAMILY
+#define HB_OT_TAG_DEFAULT_LANGUAGE                    HR_OT_TAG_DEFAULT_LANGUAGE
+#define HB_OT_TAG_DEFAULT_SCRIPT                      HR_OT_TAG_DEFAULT_SCRIPT
+#define HB_OT_TAG_GPOS                                HR_OT_TAG_GPOS
+#define HB_OT_TAG_GSUB                                HR_OT_TAG_GSUB
 #define HB_OT_TAG_MATH                                HR_OT_TAG_MATH
 #define HB_OT_TAG_MATH_SCRIPT                         HR_OT_TAG_MATH_SCRIPT
+#define HB_OT_VAR_AXIS_FLAG_HIDDEN                    HR_OT_VAR_AXIS_FLAG_HIDDEN
 
 #endif /* HARFRUST_HB_OT_H */
