@@ -6,22 +6,37 @@
 
 /* Types, functions and callbacks */
 
-#define hb_face_t                       hr_face_t
-#define hb_set_t                        hr_set_t
-#define hb_subset_flags_t               hr_subset_flags_t
-#define hb_subset_input_create_or_fail  hr_subset_input_create_or_fail
-#define hb_subset_input_destroy         hr_subset_input_destroy
-#define hb_subset_input_get_flags       hr_subset_input_get_flags
-#define hb_subset_input_glyph_set       hr_subset_input_glyph_set
-#define hb_subset_input_keep_everything hr_subset_input_keep_everything
-#define hb_subset_input_reference       hr_subset_input_reference
-#define hb_subset_input_set             hr_subset_input_set
-#define hb_subset_input_set_flags       hr_subset_input_set_flags
-#define hb_subset_input_t               hr_subset_input_t
-#define hb_subset_input_unicode_set     hr_subset_input_unicode_set
-#define hb_subset_or_fail               hr_subset_or_fail
-#define hb_subset_preprocess            hr_subset_preprocess
-#define hb_subset_sets_t                hr_subset_sets_t
+#define hb_destroy_func_t                           hr_destroy_func_t
+#define hb_face_t                                   hr_face_t
+#define hb_map_t                                    hr_map_t
+#define hb_set_t                                    hr_set_t
+#define hb_subset_flags_t                           hr_subset_flags_t
+#define hb_subset_input_create_or_fail              hr_subset_input_create_or_fail
+#define hb_subset_input_destroy                     hr_subset_input_destroy
+#define hb_subset_input_get_flags                   hr_subset_input_get_flags
+#define hb_subset_input_get_user_data               hr_subset_input_get_user_data
+#define hb_subset_input_glyph_set                   hr_subset_input_glyph_set
+#define hb_subset_input_keep_everything             hr_subset_input_keep_everything
+#define hb_subset_input_reference                   hr_subset_input_reference
+#define hb_subset_input_set                         hr_subset_input_set
+#define hb_subset_input_set_flags                   hr_subset_input_set_flags
+#define hb_subset_input_set_user_data               hr_subset_input_set_user_data
+#define hb_subset_input_t                           hr_subset_input_t
+#define hb_subset_input_unicode_set                 hr_subset_input_unicode_set
+#define hb_subset_or_fail                           hr_subset_or_fail
+#define hb_subset_plan_create_or_fail               hr_subset_plan_create_or_fail
+#define hb_subset_plan_destroy                      hr_subset_plan_destroy
+#define hb_subset_plan_execute_or_fail              hr_subset_plan_execute_or_fail
+#define hb_subset_plan_get_user_data                hr_subset_plan_get_user_data
+#define hb_subset_plan_new_to_old_glyph_mapping     hr_subset_plan_new_to_old_glyph_mapping
+#define hb_subset_plan_old_to_new_glyph_mapping     hr_subset_plan_old_to_new_glyph_mapping
+#define hb_subset_plan_reference                    hr_subset_plan_reference
+#define hb_subset_plan_set_user_data                hr_subset_plan_set_user_data
+#define hb_subset_plan_t                            hr_subset_plan_t
+#define hb_subset_plan_unicode_to_old_glyph_mapping hr_subset_plan_unicode_to_old_glyph_mapping
+#define hb_subset_preprocess                        hr_subset_preprocess
+#define hb_subset_sets_t                            hr_subset_sets_t
+#define hb_user_data_key_t                          hr_user_data_key_t
 
 /* Constants and macros */
 

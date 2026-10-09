@@ -57,14 +57,15 @@ independent of optional APIs.
 
 ## Current scope
 
-The dependency is the published Skera 0.8 release series. CFF, CFF2, and VARC
+This extension temporarily pins Skera/write-fonts to the Plan API changes
+in [Fontations #2234](https://github.com/googlefonts/fontations/pull/2234).
+Restore published dependencies when that API is released. CFF, CFF2, and VARC
 fonts return `NULL`: this release does not rewrite those outline tables.
 Unsupported flag bits, missing enumeration, malformed inputs, and Skera
 errors also return `NULL`, allowing Skia to embed the full font instead.
-This is an initial API, not the complete HarfBuzz subset API: configurable
-subset plans and axis pinning are not exposed yet. The configurable no-subset
-table set initially contains Skera's defaults; changing it returns failure
-until Skera exposes configuration of that set. As with the shaping C API, allocation failure aborts.
+This is an initial API, not the complete HarfBuzz subset API. Axis pinning,
+user-specified glyph renumbering, name overrides, and unimplemented flags are
+not exposed yet. As with the shaping C API, allocation failure aborts.
 
 ## Validation
 
@@ -90,3 +91,21 @@ optimization are not implemented by the dependency and remain unsupported.
 `tests/subset/compare_controls_hb.py` takes the same library arguments and checks
 15 additional cases, input-set defaults, keep-everything, inverted sets,
 custom table passthrough, overlap flags, and preprocessing ownership.
+
+Subset plans snapshot input sets and font bytes. They can be executed repeatedly
+after releasing the original face and input, and expose old-to-new, new-to-old,
+and Unicode-to-original glyph maps. Returned maps are borrowed and must not
+be mutated; `hr_map_reference` retains them independently of a plan.
+Configurable no-subset table tags now pass through unchanged; explicit table
+drops and hint removal take precedence.
+
+`tests/subset/compare_plans_hb.py` accepts the same library arguments. It compares
+16 combinations of plan mappings and executes plans after changing/destroying
+their inputs, retaining borrowed maps past plan destruction, and configuring
+table passthrough.
+
+Inputs and plans also support address-keyed user data. Metadata belongs to
+the object only after a successful setter call; replacement and destruction
+release it once, with callbacks invoked outside the lock for reentrancy.
+The plan test compares these semantics with HarfBuzz and executes plans
+concurrently.
