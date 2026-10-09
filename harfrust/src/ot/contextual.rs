@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, vec::Vec};
+use core::marker::PhantomData;
 
 use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
 use crate::buffer::GlyphInfo;
@@ -13,326 +14,381 @@ use crate::ot::{ClassDefInfo, CoverageInfo};
 use read_fonts::tables::gsub::ClassDef;
 use read_fonts::tables::layout::{
     ChainedClassSequenceRule, ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
-    ChainedSequenceContextFormat3, ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1,
-    SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord, SequenceRule,
+    ChainedSequenceContextFormat3, ChainedSequenceContextFormat4, ChainedSequenceContextFormat5,
+    ChainedSequenceRule, ClassSequenceRule, SequenceContextFormat1, SequenceContextFormat2,
+    SequenceContextFormat3, SequenceContextFormat4, SequenceContextFormat5, SequenceContextFormat6,
+    SequenceLookupRecord, SequenceRule,
 };
-use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
-use read_fonts::FontData;
+use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16, Offset24, Scalar, Uint24};
+use read_fonts::{FontData, Offset};
 
-fn context_rule_set_digests(table: &SequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
-    table
-        .class_seq_rule_sets()
-        .iter()
-        .map(|rule_set| match rule_set {
-            None => RuleSetDigest::default(),
-            Some(Err(_)) => RuleSetDigest::full(),
-            Some(Ok(rule_set)) => rule_set_digest(
-                rule_set.offset_data(),
-                rule_set.class_seq_rule_offsets(),
-                plain_rule_data_at,
-                plain_rule_first_input,
-            ),
-        })
-        .collect::<Vec<_>>()
-        .into_boxed_slice()
-}
-
-fn chain_rule_set_digests(table: &ChainedSequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
-    table
-        .chained_class_seq_rule_sets()
-        .iter()
-        .map(|rule_set| match rule_set {
-            None => RuleSetDigest::default(),
-            Some(Err(_)) => RuleSetDigest::full(),
-            Some(Ok(rule_set)) => rule_set_digest(
-                rule_set.offset_data(),
-                rule_set.chained_class_seq_rule_offsets(),
-                chain_rule_data_at,
-                chain_rule_first_input,
-            ),
-        })
-        .collect::<Vec<_>>()
-        .into_boxed_slice()
-}
-
-impl WouldApply for SequenceContextFormat1<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        coverage_index(self.coverage(), ctx.glyphs[0])
-            .and_then(|index| {
-                self.seq_rule_sets()
-                    .get(index as usize)
-                    .transpose()
-                    .ok()
-                    .flatten()
-            })
-            .is_some_and(|set| {
-                set.seq_rules().iter().any(|rule| {
-                    rule.is_ok_and(|rule| {
-                        let input = rule.input_sequence();
-                        ctx.glyphs.len() == input.len() + 1
-                            && input.iter().enumerate().all(|(i, value)| {
-                                let mut info = GlyphInfo {
-                                    glyph_id: ctx.glyphs[i + 1].into(),
-                                    ..GlyphInfo::default()
-                                };
-                                match_glyph(&mut info, value.get().to_u32())
-                            })
-                    })
-                })
-            })
-    }
-}
-
-impl Apply for SequenceContextFormat1<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let set = self.seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules(
-            ctx,
-            set.offset_data(),
-            set.seq_rule_offsets(),
-            match_glyph,
-            None,
-            |_| 0,
-        )
-    }
-}
-
-impl WouldApply for SequenceContextFormat2<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        let class_def = self.class_def().ok();
-        let match_fn = &match_class(&class_def);
-        let class = glyph_class(self.class_def(), ctx.glyphs[0]);
-        self.class_seq_rule_sets()
-            .get(class as usize)
-            .transpose()
-            .ok()
-            .flatten()
-            .is_some_and(|set| {
-                set.class_seq_rules().iter().any(|rule| {
-                    rule.is_ok_and(|rule| {
-                        let input = rule.input_sequence();
-                        ctx.glyphs.len() == input.len() + 1
-                            && input.iter().enumerate().all(|(i, value)| {
-                                let mut info = GlyphInfo {
-                                    glyph_id: ctx.glyphs[i + 1].into(),
-                                    ..GlyphInfo::default()
-                                };
-                                match_fn(&mut info, value.get() as u32)
-                            })
-                    })
-                })
-            })
-    }
-}
-
-impl Apply for SequenceContextFormat2<'_> {
-    fn apply_with_external_cache(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let index = input_class(glyph) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules(
-            ctx,
-            set.offset_data(),
-            set.class_seq_rule_offsets(),
-            |info, value| u32::from(input_class(info.as_glyph())) == value,
-            digest,
-            |info| input_class(info.as_glyph()),
-        )
-    }
-
-    fn apply_cached(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let index = get_class_cached(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.class_seq_rule_sets().get(index)?.ok()?;
-        apply_context_rules(
-            ctx,
-            set.offset_data(),
-            set.class_seq_rule_offsets(),
-            |info, value| u32::from(get_class_cached(&input_class, info)) == value,
-            digest,
-            |info| get_class_cached(&input_class, info),
-        )
-    }
-
-    fn cache_cost(&self) -> u32 {
-        self.class_def()
-            .ok()
-            .map_or(0, |class_def| class_def.cost())
-    }
-
-    fn external_cache_create(&self, _mode: SubtableExternalCacheMode) -> SubtableExternalCache {
-        let data = self.offset_data();
-        SubtableExternalCache::ContextFormat2Cache(Box::new(ContextFormat2Cache {
-            coverage_cache: BinaryCache::new(),
-            coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            input: ClassDefInfo::new(&data, self.class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            rule_sets: context_rule_set_digests(self),
-        }))
-    }
-}
-
-impl WouldApply for SequenceContextFormat3<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        // Unlike formats 1 and 2, the coverage array includes the first
-        // glyph, so the sequence is as long as the array and glyph `i` is
-        // matched against coverage `i` (as in HarfBuzz and
-        // ChainedSequenceContextFormat3 below).
-        let coverages = self.coverages();
-        ctx.glyphs.len() == coverages.len()
-            && coverages
+macro_rules! class_context_rule_set_digests {
+    ($name:ident, $format:ident) => {
+        fn $name(table: &$format<'_>) -> Box<[RuleSetDigest]> {
+            table
+                .class_seq_rule_sets()
                 .iter()
-                .skip(1)
-                .enumerate()
-                .all(|(i, coverage)| covered(coverage, ctx.glyphs[i + 1]))
-    }
-}
-
-impl Apply for SequenceContextFormat3<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let input_coverages = self.coverages();
-        input_coverages.get(0).ok()?.get(glyph)?;
-        let input = |info: &mut GlyphInfo, index: u32| {
-            input_coverages
-                .get(index as usize + 1)
-                .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
-        };
-        let mut match_end = 0;
-        if match_input(
-            ctx,
-            input_coverages.len() as u16 - 1,
-            input,
-            &mut match_end,
-            None,
-        ) {
-            ctx.buffer
-                .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
-            apply_lookup(
-                ctx,
-                input_coverages.len() - 1,
-                match_end,
-                self.seq_lookup_records(),
-            );
-            Some(())
-        } else {
-            ctx.buffer
-                .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
-            None
+                .map(|rule_set| match rule_set {
+                    None => RuleSetDigest::default(),
+                    Some(Err(_)) => RuleSetDigest::full(),
+                    Some(Ok(rule_set)) => rule_set_digest(
+                        rule_set.offset_data(),
+                        rule_set.class_seq_rule_offsets(),
+                        plain_rule_data_at,
+                        plain_rule_first_input,
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
         }
-    }
+    };
 }
 
-impl WouldApply for ChainedSequenceContextFormat1<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        coverage_index(self.coverage(), ctx.glyphs[0])
-            .and_then(|index| {
-                self.chained_seq_rule_sets()
-                    .get(index as usize)
+class_context_rule_set_digests!(context_rule_set_digests, SequenceContextFormat2);
+class_context_rule_set_digests!(context_rule_set_digests2, SequenceContextFormat5);
+
+macro_rules! class_chain_context_rule_set_digests {
+    ($name:ident, $format:ident) => {
+        fn $name(table: &$format<'_>) -> Box<[RuleSetDigest]> {
+            table
+                .chained_class_seq_rule_sets()
+                .iter()
+                .map(|rule_set| match rule_set {
+                    None => RuleSetDigest::default(),
+                    Some(Err(_)) => RuleSetDigest::full(),
+                    Some(Ok(rule_set)) => rule_set_digest(
+                        rule_set.offset_data(),
+                        rule_set.chained_class_seq_rule_offsets(),
+                        chain_rule_data_at,
+                        chain_rule_first_input,
+                    ),
+                })
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        }
+    };
+}
+
+class_chain_context_rule_set_digests!(chain_rule_set_digests, ChainedSequenceContextFormat2);
+class_chain_context_rule_set_digests!(chain_rule_set_digests2, ChainedSequenceContextFormat5);
+
+macro_rules! impl_glyph_context {
+    ($format:ident, $value:ty) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                coverage_index(self.coverage(), ctx.glyphs[0])
+                    .and_then(|index| {
+                        self.seq_rule_sets()
+                            .get(index as usize)
+                            .transpose()
+                            .ok()
+                            .flatten()
+                    })
+                    .is_some_and(|set| {
+                        set.seq_rules().iter().any(|rule| {
+                            rule.is_ok_and(|rule| {
+                                let input = rule.input_sequence();
+                                ctx.glyphs.len() == input.len() + 1
+                                    && input.iter().enumerate().all(|(i, value)| {
+                                        let mut info = GlyphInfo {
+                                            glyph_id: ctx.glyphs[i + 1].into(),
+                                            ..GlyphInfo::default()
+                                        };
+                                        match_glyph(&mut info, value.get().to_u32())
+                                    })
+                            })
+                        })
+                    })
+            }
+        }
+
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let index = self.coverage().ok()?.get(glyph)? as usize;
+                let set = self.seq_rule_sets().get(index)?.ok()?;
+                apply_context_rules::<$value, Offset16>(
+                    ctx,
+                    set.offset_data(),
+                    set.seq_rule_offsets(),
+                    match_glyph,
+                    None,
+                    |_| 0,
+                )
+            }
+        }
+    };
+}
+
+impl_glyph_context!(SequenceContextFormat1, u16);
+impl_glyph_context!(SequenceContextFormat4, Uint24);
+
+macro_rules! impl_class_context {
+    ($format:ident, $offset:ty, $digests:ident) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                let class_def = self.class_def().ok();
+                let match_fn = &match_class(&class_def);
+                let class = glyph_class(self.class_def(), ctx.glyphs[0]);
+                self.class_seq_rule_sets()
+                    .get(class as usize)
                     .transpose()
                     .ok()
                     .flatten()
-            })
-            .is_some_and(|set| {
-                set.chained_seq_rules().iter().any(|rule| {
-                    rule.is_ok_and(|rule| {
-                        let input = rule.input_sequence();
-                        (!ctx.zero_context
-                            || (rule.backtrack_glyph_count() == 0
-                                && rule.lookahead_glyph_count() == 0))
-                            && ctx.glyphs.len() == input.len() + 1
-                            && input.iter().enumerate().all(|(i, value)| {
-                                let mut info = GlyphInfo {
-                                    glyph_id: ctx.glyphs[i + 1].into(),
-                                    ..GlyphInfo::default()
-                                };
-                                match_glyph(&mut info, value.get().to_u32())
+                    .is_some_and(|set| {
+                        set.class_seq_rules().iter().any(|rule| {
+                            rule.is_ok_and(|rule| {
+                                let input = rule.input_sequence();
+                                ctx.glyphs.len() == input.len() + 1
+                                    && input.iter().enumerate().all(|(i, value)| {
+                                        let mut info = GlyphInfo {
+                                            glyph_id: ctx.glyphs[i + 1].into(),
+                                            ..GlyphInfo::default()
+                                        };
+                                        match_fn(&mut info, value.get() as u32)
+                                    })
                             })
+                        })
                     })
-                })
-            })
-    }
+            }
+        }
+
+        impl Apply for $format<'_> {
+            fn apply_with_external_cache(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let index = input_class(glyph) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.class_seq_rule_sets().get(index)?.ok()?;
+                apply_context_rules::<u16, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.class_seq_rule_offsets(),
+                    |info, value| input_class(info.as_glyph()) == value,
+                    digest,
+                    |info| input_class(info.as_glyph()),
+                )
+            }
+
+            fn apply_cached(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let index =
+                    get_class_cached(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.class_seq_rule_sets().get(index)?.ok()?;
+                apply_context_rules::<u16, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.class_seq_rule_offsets(),
+                    |info, value| get_class_cached(&input_class, info) == value,
+                    digest,
+                    |info| get_class_cached(&input_class, info),
+                )
+            }
+
+            fn cache_cost(&self) -> u32 {
+                self.class_def()
+                    .ok()
+                    .map_or(0, |class_def| class_def.cost())
+            }
+
+            fn external_cache_create(
+                &self,
+                _mode: SubtableExternalCacheMode,
+            ) -> SubtableExternalCache {
+                let data = self.offset_data();
+                SubtableExternalCache::ContextFormat2Cache(Box::new(ContextFormat2Cache {
+                    coverage_cache: BinaryCache::new(),
+                    coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32())
+                        .unwrap_or_default(),
+                    input: ClassDefInfo::new(&data, self.class_def_offset().to_u32())
+                        .unwrap_or_default(),
+                    rule_sets: $digests(self),
+                }))
+            }
+        }
+    };
 }
 
-impl Apply for ChainedSequenceContextFormat1<'_> {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let set = self.chained_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules(
-            ctx,
-            set.offset_data(),
-            set.chained_seq_rule_offsets(),
-            (match_glyph, match_glyph, match_glyph),
-            None,
-            |_| 0,
-        )
-    }
+impl_class_context!(SequenceContextFormat2, Offset16, context_rule_set_digests);
+impl_class_context!(SequenceContextFormat5, Offset24, context_rule_set_digests2);
+
+macro_rules! impl_coverage_context {
+    ($format:ident) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                // Unlike formats 1 and 2, the coverage array includes the first
+                // glyph, so the sequence is as long as the array and glyph `i` is
+                // matched against coverage `i` (as in HarfBuzz and
+                // ChainedSequenceContextFormat3 below).
+                let coverages = self.coverages();
+                ctx.glyphs.len() == coverages.len()
+                    && coverages
+                        .iter()
+                        .skip(1)
+                        .enumerate()
+                        .all(|(i, coverage)| covered(coverage, ctx.glyphs[i + 1]))
+            }
+        }
+
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let input_coverages = self.coverages();
+                input_coverages.get(0).ok()?.get(glyph)?;
+                let input = |info: &mut GlyphInfo, index: u32| {
+                    input_coverages
+                        .get(index as usize + 1)
+                        .is_ok_and(|cov| cov.get(info.glyph_id).is_some())
+                };
+                let mut match_end = 0;
+                if match_input(
+                    ctx,
+                    input_coverages.len() as u16 - 1,
+                    input,
+                    &mut match_end,
+                    None,
+                ) {
+                    ctx.buffer
+                        .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
+                    apply_lookup(
+                        ctx,
+                        input_coverages.len() - 1,
+                        match_end,
+                        self.seq_lookup_records(),
+                    );
+                    Some(())
+                } else {
+                    ctx.buffer
+                        .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
+                    None
+                }
+            }
+        }
+    };
 }
 
-impl WouldApply for ChainedSequenceContextFormat2<'_> {
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        let class_def = self.input_class_def().ok();
-        let match_fn = &match_class(&class_def);
-        let class = glyph_class(self.input_class_def(), ctx.glyphs[0]);
-        self.chained_class_seq_rule_sets()
-            .get(class as usize)
-            .transpose()
-            .ok()
-            .flatten()
-            .is_some_and(|set| {
-                set.chained_class_seq_rules().iter().any(|rule| {
-                    rule.is_ok_and(|rule| {
-                        let input = rule.input_sequence();
-                        (!ctx.zero_context
-                            || (rule.backtrack_glyph_count() == 0
-                                && rule.lookahead_glyph_count() == 0))
-                            && ctx.glyphs.len() == input.len() + 1
-                            && input.iter().enumerate().all(|(i, value)| {
-                                let mut info = GlyphInfo {
-                                    glyph_id: ctx.glyphs[i + 1].into(),
-                                    ..GlyphInfo::default()
-                                };
-                                match_fn(&mut info, value.get() as u32)
-                            })
+impl_coverage_context!(SequenceContextFormat3);
+impl_coverage_context!(SequenceContextFormat6);
+
+macro_rules! impl_glyph_chain_context {
+    ($format:ident, $value:ty, $offset:ty) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                coverage_index(self.coverage(), ctx.glyphs[0])
+                    .and_then(|index| {
+                        self.chained_seq_rule_sets()
+                            .get(index as usize)
+                            .transpose()
+                            .ok()
+                            .flatten()
                     })
-                })
-            })
-    }
+                    .is_some_and(|set| {
+                        set.chained_seq_rules().iter().any(|rule| {
+                            rule.is_ok_and(|rule| {
+                                let input = rule.input_sequence();
+                                (!ctx.zero_context
+                                    || (rule.backtrack_glyph_count() == 0
+                                        && rule.lookahead_glyph_count() == 0))
+                                    && ctx.glyphs.len() == input.len() + 1
+                                    && input.iter().enumerate().all(|(i, value)| {
+                                        let mut info = GlyphInfo {
+                                            glyph_id: ctx.glyphs[i + 1].into(),
+                                            ..GlyphInfo::default()
+                                        };
+                                        match_glyph(&mut info, value.get().to_u32())
+                                    })
+                            })
+                        })
+                    })
+            }
+        }
+
+        impl Apply for $format<'_> {
+            fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let index = self.coverage().ok()?.get(glyph)? as usize;
+                let set = self.chained_seq_rule_sets().get(index)?.ok()?;
+                apply_chain_context_rules::<$value, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.chained_seq_rule_offsets(),
+                    (match_glyph, match_glyph, match_glyph),
+                    None,
+                    |_| 0,
+                )
+            }
+        }
+    };
 }
+
+impl_glyph_chain_context!(ChainedSequenceContextFormat1, u16, Offset16);
+impl_glyph_chain_context!(ChainedSequenceContextFormat4, Uint24, Offset24);
+
+macro_rules! impl_class_chain_would_apply {
+    ($format:ident) => {
+        impl WouldApply for $format<'_> {
+            fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+                let class_def = self.input_class_def().ok();
+                let match_fn = &match_class(&class_def);
+                let class = glyph_class(self.input_class_def(), ctx.glyphs[0]);
+                self.chained_class_seq_rule_sets()
+                    .get(class as usize)
+                    .transpose()
+                    .ok()
+                    .flatten()
+                    .is_some_and(|set| {
+                        set.chained_class_seq_rules().iter().any(|rule| {
+                            rule.is_ok_and(|rule| {
+                                let input = rule.input_sequence();
+                                (!ctx.zero_context
+                                    || (rule.backtrack_glyph_count() == 0
+                                        && rule.lookahead_glyph_count() == 0))
+                                    && ctx.glyphs.len() == input.len() + 1
+                                    && input.iter().enumerate().all(|(i, value)| {
+                                        let mut info = GlyphInfo {
+                                            glyph_id: ctx.glyphs[i + 1].into(),
+                                            ..GlyphInfo::default()
+                                        };
+                                        match_fn(&mut info, value.get() as u32)
+                                    })
+                            })
+                        })
+                    })
+            }
+        }
+    };
+}
+
+impl_class_chain_would_apply!(ChainedSequenceContextFormat2);
+impl_class_chain_would_apply!(ChainedSequenceContextFormat5);
 
 /// Value represents glyph class.
 fn match_class<'a>(
@@ -341,12 +397,12 @@ fn match_class<'a>(
     |&mut info, value| {
         class_def
             .as_ref()
-            .is_some_and(|class_def| u32::from(class_def.get(info.as_glyph())) == value)
+            .is_some_and(|class_def| class_def.get(info.as_glyph()) == value)
     }
 }
 
-fn get_class_cached(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
-    let mut klass = info.syllable() as u16;
+fn get_class_cached(class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
+    let mut klass = u32::from(info.syllable());
     if klass < 255 {
         return klass;
     }
@@ -358,8 +414,8 @@ fn get_class_cached(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -
     klass
 }
 
-fn get_class_cached1(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
-    let mut klass = (info.syllable() & 0x0F) as u16;
+fn get_class_cached1(class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
+    let mut klass = u32::from(info.syllable() & 0x0F);
     if klass < 15 {
         return klass;
     }
@@ -374,13 +430,13 @@ fn get_class_cached1(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) 
 }
 
 fn match_class_cached1<'a>(
-    class_def: impl Fn(GlyphId) -> u16 + 'a,
+    class_def: impl Fn(GlyphId) -> u32 + 'a,
 ) -> impl Fn(&mut GlyphInfo, u32) -> bool + 'a {
-    move |info: &mut GlyphInfo, value| u32::from(get_class_cached1(&class_def, info)) == value
+    move |info: &mut GlyphInfo, value| get_class_cached1(&class_def, info) == value
 }
 
-fn get_class_cached2(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
-    let mut klass = (info.syllable() & 0xF0) as u16 >> 4;
+fn get_class_cached2(class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
+    let mut klass = u32::from(info.syllable() & 0xF0) >> 4;
     if klass < 15 {
         return klass;
     }
@@ -392,146 +448,175 @@ fn get_class_cached2(class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) 
 }
 
 fn match_class_cached2<'a>(
-    class_def: impl Fn(GlyphId) -> u16 + 'a,
+    class_def: impl Fn(GlyphId) -> u32 + 'a,
 ) -> impl Fn(&mut GlyphInfo, u32) -> bool + 'a {
-    move |info: &mut GlyphInfo, value| u32::from(get_class_cached2(&class_def, info)) == value
+    move |info: &mut GlyphInfo, value| get_class_cached2(&class_def, info) == value
 }
 
-impl Apply for ChainedSequenceContextFormat2<'_> {
-    fn apply_with_external_cache(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
-        let class_caches = cache.class_caches.as_deref();
-        let index = class_caches.map_or_else(
-            || input_class(glyph),
-            |caches| glyph_class_cached(input_class, glyph, &caches.input),
-        ) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        if let Some(class_caches) = class_caches {
-            apply_chain_context_rules(
-                ctx,
-                set.offset_data(),
-                set.chained_class_seq_rule_offsets(),
-                (
-                    |info, val| {
-                        u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val
+macro_rules! impl_class_chain_context {
+    ($format:ident, $offset:ty, $digests:ident) => {
+        impl Apply for $format<'_> {
+            fn apply_with_external_cache(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
+                let class_caches = cache.class_caches.as_deref();
+                let index = class_caches.map_or_else(
+                    || input_class(glyph),
+                    |caches| glyph_class_cached(input_class, glyph, &caches.input),
+                ) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+                if let Some(class_caches) = class_caches {
+                    apply_chain_context_rules::<u16, $offset>(
+                        ctx,
+                        set.offset_data(),
+                        set.chained_class_seq_rule_offsets(),
+                        (
+                            |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                            |info, val| {
+                                glyph_class_cached(
+                                    input_class,
+                                    info.as_glyph(),
+                                    &class_caches.input,
+                                ) == val
+                            },
+                            |info, val| {
+                                glyph_class_cached(
+                                    lookahead_class,
+                                    info.as_glyph(),
+                                    &class_caches.lookahead,
+                                ) == val
+                            },
+                        ),
+                        digest,
+                        |info| {
+                            glyph_class_cached(input_class, info.as_glyph(), &class_caches.input)
+                        },
+                    )
+                } else {
+                    apply_chain_context_rules::<u16, $offset>(
+                        ctx,
+                        set.offset_data(),
+                        set.chained_class_seq_rule_offsets(),
+                        (
+                            |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                            |info, val| input_class(info.as_glyph()) == val,
+                            |info, val| lookahead_class(info.as_glyph()) == val,
+                        ),
+                        digest,
+                        |info| input_class(info.as_glyph()),
+                    )
+                }
+            }
+            fn apply_cached(
+                &self,
+                ctx: &mut ApplyContext,
+                external_cache: &SubtableExternalCache,
+            ) -> Option<()> {
+                let glyph = ctx.buffer.cur(0).as_glyph();
+                let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
+                    return None;
+                };
+                let offset_data = self.offset_data();
+                coverage_binary_cached(
+                    |gid| cache.coverage.index(&offset_data, gid),
+                    glyph,
+                    &cache.coverage_cache,
+                )?;
+                let input_class = |gid| cache.input.class(&offset_data, gid);
+                let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
+                let index =
+                    get_class_cached2(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+                let digest = cache.rule_sets.get(index).copied();
+                let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+                apply_chain_context_rules::<u16, $offset>(
+                    ctx,
+                    set.offset_data(),
+                    set.chained_class_seq_rule_offsets(),
+                    (
+                        |info, val| cache.backtrack.class(&offset_data, info.as_glyph()) == val,
+                        match_class_cached2(&input_class),
+                        match_class_cached1(&lookahead_class),
+                    ),
+                    digest,
+                    |info| get_class_cached2(&input_class, info),
+                )
+            }
+            fn cache_cost(&self) -> u32 {
+                self.input_class_def()
+                    .ok()
+                    .map_or(0, |class_def| class_def.cost())
+                    + self
+                        .lookahead_class_def()
+                        .ok()
+                        .map_or(0, |class_def| class_def.cost())
+            }
+
+            fn external_cache_create(
+                &self,
+                mode: SubtableExternalCacheMode,
+            ) -> SubtableExternalCache {
+                let data = self.offset_data();
+                SubtableExternalCache::ChainContextFormat2Cache(Box::new(
+                    ChainContextFormat2Cache {
+                        coverage_cache: BinaryCache::new(),
+                        coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32())
+                            .unwrap_or_default(),
+                        backtrack: ClassDefInfo::new(
+                            &data,
+                            self.backtrack_class_def_offset().to_u32(),
+                        )
+                        .unwrap_or_default(),
+                        input: ClassDefInfo::new(&data, self.input_class_def_offset().to_u32())
+                            .unwrap_or_default(),
+                        lookahead: ClassDefInfo::new(
+                            &data,
+                            self.lookahead_class_def_offset().to_u32(),
+                        )
+                        .unwrap_or_default(),
+                        class_caches: match mode {
+                            SubtableExternalCacheMode::Full => {
+                                Some(Box::new(ChainContextClassCaches {
+                                    input: MappingCache::new(),
+                                    lookahead: MappingCache::new(),
+                                }))
+                            }
+                            SubtableExternalCacheMode::Small | SubtableExternalCacheMode::None => {
+                                None
+                            }
+                        },
+                        rule_sets: $digests(self),
                     },
-                    |info, val| {
-                        u32::from(glyph_class_cached(
-                            input_class,
-                            info.as_glyph(),
-                            &class_caches.input,
-                        )) == val
-                    },
-                    |info, val| {
-                        u32::from(glyph_class_cached(
-                            lookahead_class,
-                            info.as_glyph(),
-                            &class_caches.lookahead,
-                        )) == val
-                    },
-                ),
-                digest,
-                |info| glyph_class_cached(input_class, info.as_glyph(), &class_caches.input),
-            )
-        } else {
-            apply_chain_context_rules(
-                ctx,
-                set.offset_data(),
-                set.chained_class_seq_rule_offsets(),
-                (
-                    |info, val| {
-                        u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val
-                    },
-                    |info, val| u32::from(input_class(info.as_glyph())) == val,
-                    |info, val| u32::from(lookahead_class(info.as_glyph())) == val,
-                ),
-                digest,
-                |info| input_class(info.as_glyph()),
-            )
+                ))
+            }
         }
-    }
-    fn apply_cached(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
-            return None;
-        };
-        let offset_data = self.offset_data();
-        coverage_binary_cached(
-            |gid| cache.coverage.index(&offset_data, gid),
-            glyph,
-            &cache.coverage_cache,
-        )?;
-        let input_class = |gid| cache.input.class(&offset_data, gid);
-        let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
-        let index = get_class_cached2(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
-        let digest = cache.rule_sets.get(index).copied();
-        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
-        apply_chain_context_rules(
-            ctx,
-            set.offset_data(),
-            set.chained_class_seq_rule_offsets(),
-            (
-                |info, val| u32::from(cache.backtrack.class(&offset_data, info.as_glyph())) == val,
-                match_class_cached2(&input_class),
-                match_class_cached1(&lookahead_class),
-            ),
-            digest,
-            |info| get_class_cached2(&input_class, info),
-        )
-    }
-    fn cache_cost(&self) -> u32 {
-        self.input_class_def()
-            .ok()
-            .map_or(0, |class_def| class_def.cost())
-            + self
-                .lookahead_class_def()
-                .ok()
-                .map_or(0, |class_def| class_def.cost())
-    }
-
-    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
-        let data = self.offset_data();
-        SubtableExternalCache::ChainContextFormat2Cache(Box::new(ChainContextFormat2Cache {
-            coverage_cache: BinaryCache::new(),
-            coverage: CoverageInfo::new(&data, self.coverage_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            backtrack: ClassDefInfo::new(&data, self.backtrack_class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            input: ClassDefInfo::new(&data, self.input_class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            lookahead: ClassDefInfo::new(&data, self.lookahead_class_def_offset().to_u32() as u16)
-                .unwrap_or_default(),
-            class_caches: match mode {
-                SubtableExternalCacheMode::Full => Some(Box::new(ChainContextClassCaches {
-                    input: MappingCache::new(),
-                    lookahead: MappingCache::new(),
-                })),
-                SubtableExternalCacheMode::Small | SubtableExternalCacheMode::None => None,
-            },
-            rule_sets: chain_rule_set_digests(self),
-        }))
-    }
+    };
 }
+
+impl_class_chain_context!(
+    ChainedSequenceContextFormat2,
+    Offset16,
+    chain_rule_set_digests
+);
+impl_class_chain_context!(
+    ChainedSequenceContextFormat5,
+    Offset24,
+    chain_rule_set_digests2
+);
 
 impl WouldApply for ChainedSequenceContextFormat3<'_> {
     fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
@@ -638,21 +723,21 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
 /// The generated getters re-derive the positions of all preceding fields on
 /// every call, so fetching fields individually in the rule-matching loops
 /// re-reads the leading counts many times over; this parses the whole rule
-/// once instead. Glyph ids and classes are both read as raw u16s.
+/// once instead. Glyph IDs are read as raw u16s or Uint24s; classes remain u16s.
 #[derive(Clone, Copy, Default)]
-struct ParsedRule<'a> {
-    backtrack: &'a [BigEndian<u16>],
-    input: &'a [BigEndian<u16>],
-    lookahead: &'a [BigEndian<u16>],
+struct ParsedRule<'a, T: Scalar = u16> {
+    backtrack: &'a [BigEndian<T>],
+    input: &'a [BigEndian<T>],
+    lookahead: &'a [BigEndian<T>],
     records: &'a [SequenceLookupRecord],
 }
 
-impl<'a> ParsedRule<'a> {
+impl<'a, T: Scalar + Copy + Default + Into<u32> + 'static> ParsedRule<'a, T> {
     /// Parse a SequenceRule or ClassSequenceRule.
     fn from_rule_data(data: FontData<'a>) -> Option<Self> {
         let glyph_count = usize::from(data.read_at::<u16>(0).ok()?);
         let record_count = usize::from(data.read_at::<u16>(2).ok()?);
-        let input_end = 4 + glyph_count.saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let input_end = 4 + glyph_count.saturating_sub(1) * T::RAW_BYTE_LEN;
         let records_end = input_end + record_count * SequenceLookupRecord::RAW_BYTE_LEN;
         Some(ParsedRule {
             input: data.read_array(4..input_end).ok()?,
@@ -664,11 +749,11 @@ impl<'a> ParsedRule<'a> {
     /// Parse a ChainedSequenceRule or ChainedClassSequenceRule.
     fn from_chain_rule_data(data: FontData<'a>) -> Option<Self> {
         let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
-        let backtrack_end = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+        let backtrack_end = 2 + backtrack_count * T::RAW_BYTE_LEN;
         let input_count = usize::from(data.read_at::<u16>(backtrack_end).ok()?);
-        let input_end = backtrack_end + 2 + input_count.saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let input_end = backtrack_end + 2 + input_count.saturating_sub(1) * T::RAW_BYTE_LEN;
         let lookahead_count = usize::from(data.read_at::<u16>(input_end).ok()?);
-        let lookahead_end = input_end + 2 + lookahead_count * u16::RAW_BYTE_LEN;
+        let lookahead_end = input_end + 2 + lookahead_count * T::RAW_BYTE_LEN;
         let record_count = usize::from(data.read_at::<u16>(lookahead_end).ok()?);
         let records_end = lookahead_end + 2 + record_count * SequenceLookupRecord::RAW_BYTE_LEN;
         Some(ParsedRule {
@@ -692,7 +777,7 @@ impl<'a> ParsedRule<'a> {
         let match_func = |info: &mut GlyphInfo, index| {
             inputs
                 .get(index as usize)
-                .is_some_and(|value| match_func(info, value.get() as u32))
+                .is_some_and(|value| match_func(info, value.get().into()))
         };
 
         let mut match_end = 0;
@@ -712,7 +797,7 @@ impl<'a> ParsedRule<'a> {
 /// The glyph count is at offset 0 and the input sequence starts at offset 4,
 /// after the lookup record count. (The input sequence's first entry covers
 /// the *second* glyph of the matched sequence.)
-fn plain_rule_first_input(data: &FontData) -> Option<u16> {
+fn plain_rule_first_input<T: Scalar>(data: &FontData) -> Option<T> {
     let glyph_count: u16 = data.read_at(0).ok()?;
     if glyph_count <= 1 {
         return None;
@@ -722,21 +807,21 @@ fn plain_rule_first_input(data: &FontData) -> Option<u16> {
 
 /// `second_input` for SequenceRule/ClassSequenceRule; see
 /// [`plain_rule_first_input`] for the layout.
-fn plain_rule_second_input(data: &FontData) -> Option<u16> {
+fn plain_rule_second_input<T: Scalar>(data: &FontData) -> Option<T> {
     let glyph_count: u16 = data.read_at(0).ok()?;
     if glyph_count <= 2 {
         return None;
     }
-    data.read_at(6).ok()
+    data.read_at(4 + T::RAW_BYTE_LEN).ok()
 }
 
 /// `first_input` for ChainedSequenceRule/ChainedClassSequenceRule.
 ///
 /// The input glyph count follows the variable-length backtrack sequence, and
 /// the input sequence follows it directly.
-fn chain_rule_first_input(data: &FontData) -> Option<u16> {
+fn chain_rule_first_input<T: Scalar>(data: &FontData) -> Option<T> {
     let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
-    let count_pos = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+    let count_pos = 2 + backtrack_count * T::RAW_BYTE_LEN;
     let input_count: u16 = data.read_at(count_pos).ok()?;
     if input_count <= 1 {
         return None;
@@ -746,25 +831,27 @@ fn chain_rule_first_input(data: &FontData) -> Option<u16> {
 
 /// Positional probes into a chain rule's raw data, reading only the values
 /// the rule pre-match needs instead of parsing the whole rule.
-struct ChainRuleProbe<'a> {
+struct ChainRuleProbe<'a, T: Scalar> {
     data: FontData<'a>,
     count_pos: usize,
     input_end: usize,
     input_count: u16,
+    value_type: PhantomData<T>,
 }
 
-impl<'a> ChainRuleProbe<'a> {
+impl<'a, T: Scalar> ChainRuleProbe<'a, T> {
     fn new(data: FontData<'a>) -> Option<Self> {
         let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
-        let count_pos = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+        let count_pos = 2 + backtrack_count * T::RAW_BYTE_LEN;
         let input_count: u16 = data.read_at(count_pos).ok()?;
         let input_end =
-            count_pos + 2 + usize::from(input_count).saturating_sub(1) * u16::RAW_BYTE_LEN;
+            count_pos + 2 + usize::from(input_count).saturating_sub(1) * T::RAW_BYTE_LEN;
         Some(Self {
             data,
             count_pos,
             input_end,
             input_count,
+            value_type: PhantomData,
         })
     }
 
@@ -776,9 +863,9 @@ impl<'a> ChainRuleProbe<'a> {
 
     /// The input value at `index`. Callers must keep `index` within the
     /// input array (`index + 1 < input_count`).
-    fn input(&self, index: usize) -> Option<u16> {
+    fn input(&self, index: usize) -> Option<T> {
         self.data
-            .read_at(self.count_pos + 2 + index * u16::RAW_BYTE_LEN)
+            .read_at(self.count_pos + 2 + index * T::RAW_BYTE_LEN)
             .ok()
     }
 
@@ -788,9 +875,9 @@ impl<'a> ChainRuleProbe<'a> {
 
     /// The lookahead value at `index`. Callers must keep `index` within
     /// `lookahead_len()`.
-    fn lookahead(&self, index: usize) -> Option<u16> {
+    fn lookahead(&self, index: usize) -> Option<T> {
         self.data
-            .read_at(self.input_end + 2 + index * u16::RAW_BYTE_LEN)
+            .read_at(self.input_end + 2 + index * T::RAW_BYTE_LEN)
             .ok()
     }
 }
@@ -803,36 +890,36 @@ const _: () = assert!(ChainedSequenceRule::MIN_SIZE == ChainedClassSequenceRule:
 /// data lets the rule walks below probe rules without constructing rule
 /// tables for the ones they discard, which is most of them.
 #[inline]
-fn plain_rule_data_at<'a>(
+fn plain_rule_data_at<'a, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    off: &BigEndian<Offset16>,
+    off: &BigEndian<O>,
 ) -> Option<FontData<'a>> {
-    let data = set_data.split_off(off.get().to_u32() as usize)?;
+    let data = set_data.split_off(off.get().to_usize())?;
     (data.len() >= SequenceRule::MIN_SIZE).then_some(data)
 }
 
 #[inline]
-fn parse_plain_rule_at<'a>(
+fn parse_plain_rule_at<'a, T: Scalar + Copy + Default + Into<u32> + 'static, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    off: &BigEndian<Offset16>,
-) -> Option<ParsedRule<'a>> {
+    off: &BigEndian<O>,
+) -> Option<ParsedRule<'a, T>> {
     plain_rule_data_at(set_data, off).map(|d| ParsedRule::from_rule_data(d).unwrap_or_default())
 }
 
 /// [plain_rule_data_at] for chained rules.
 #[inline]
-fn chain_rule_data_at<'a>(
+fn chain_rule_data_at<'a, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    off: &BigEndian<Offset16>,
+    off: &BigEndian<O>,
 ) -> Option<FontData<'a>> {
-    let data = set_data.split_off(off.get().to_u32() as usize)?;
+    let data = set_data.split_off(off.get().to_usize())?;
     (data.len() >= ChainedSequenceRule::MIN_SIZE).then_some(data)
 }
 
-fn rule_set_digest<'a>(
+fn rule_set_digest<'a, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    rule_offsets: &[BigEndian<Offset16>],
-    rule_data_at: fn(FontData<'a>, &BigEndian<Offset16>) -> Option<FontData<'a>>,
+    rule_offsets: &[BigEndian<O>],
+    rule_data_at: fn(FontData<'a>, &BigEndian<O>) -> Option<FontData<'a>>,
     first_input: fn(&FontData<'a>) -> Option<u16>,
 ) -> RuleSetDigest {
     let mut digest = RuleSetDigest::default();
@@ -849,21 +936,24 @@ fn rule_set_digest<'a>(
 }
 
 #[inline]
-fn parse_chain_rule_at<'a>(
+fn parse_chain_rule_at<'a, T: Scalar + Copy + Default + Into<u32> + 'static, O: Scalar + Offset>(
     set_data: FontData<'a>,
-    off: &BigEndian<Offset16>,
-) -> Option<ParsedRule<'a>> {
+    off: &BigEndian<O>,
+) -> Option<ParsedRule<'a, T>> {
     chain_rule_data_at(set_data, off)
         .map(|d| ParsedRule::from_chain_rule_data(d).unwrap_or_default())
 }
 
-fn apply_context_rules(
+fn apply_context_rules<
+    T: Scalar + Copy + Default + Into<u32> + Eq + 'static,
+    O: Scalar + Offset,
+>(
     ctx: &mut ApplyContext,
     set_data: FontData<'_>,
-    rule_offsets: &[BigEndian<Offset16>],
+    rule_offsets: &[BigEndian<O>],
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     rule_set_digest: Option<RuleSetDigest>,
-    first_value: impl Fn(&mut GlyphInfo) -> u16,
+    first_value: impl Fn(&mut GlyphInfo) -> u32,
 ) -> Option<()> {
     // HarfBuzz bypasses the first/second-component pre-match below for rule
     // sets of at most 4 rules, because its pre-match setup costs more than
@@ -891,7 +981,7 @@ fn apply_context_rules(
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
-                let Some(rule) = parse_plain_rule_at(set_data, off) else {
+                let Some(rule) = parse_plain_rule_at::<T, O>(set_data, off) else {
                     continue;
                 };
                 if rule.apply(ctx, &match_func).is_some() {
@@ -915,7 +1005,7 @@ fn apply_context_rules(
     } else {
         let mut unsafe_to_concat = false;
         for off in rule_offsets {
-            let Some(rule) = parse_plain_rule_at(set_data, off) else {
+            let Some(rule) = parse_plain_rule_at::<T, O>(set_data, off) else {
                 continue;
             };
             if !rule.input.is_empty() {
@@ -945,7 +1035,7 @@ fn apply_context_rules(
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
-                let Some(rule) = parse_plain_rule_at(set_data, off) else {
+                let Some(rule) = parse_plain_rule_at::<T, O>(set_data, off) else {
                     continue;
                 };
                 if rule.apply(ctx, &match_func).is_some() {
@@ -964,13 +1054,13 @@ fn apply_context_rules(
         // Probe the first two input values without parsing the whole rule;
         // most visited rules are rejected on these probes and never pay for
         // a full parse — nor for constructing a rule table.
-        let first_value = plain_rule_first_input(&data);
-        if first_value.is_none_or(|v| match_func(&mut ctx.buffer.info[first], u32::from(v))) {
+        let first_value = plain_rule_first_input::<T>(&data);
+        if first_value.is_none_or(|v| match_func(&mut ctx.buffer.info[first], v.into())) {
             if second.is_none()
-                || plain_rule_second_input(&data)
-                    .is_none_or(|v| match_func(&mut ctx.buffer.info[second.unwrap()], u32::from(v)))
+                || plain_rule_second_input::<T>(&data)
+                    .is_none_or(|v| match_func(&mut ctx.buffer.info[second.unwrap()], v.into()))
             {
-                if ParsedRule::from_rule_data(data)
+                if ParsedRule::<T>::from_rule_data(data)
                     .unwrap_or_default()
                     .apply(ctx, &match_func)
                     .is_some()
@@ -1014,19 +1104,20 @@ fn apply_context_rules(
 }
 
 fn apply_chain_with_sequences<
+    T: Scalar + Into<u32>,
     F1: Fn(&mut GlyphInfo, u32) -> bool,
     F2: Fn(&mut GlyphInfo, u32) -> bool,
     F3: Fn(&mut GlyphInfo, u32) -> bool,
 >(
     ctx: &mut ApplyContext,
-    rule: &ParsedRule<'_>,
+    rule: &ParsedRule<'_, T>,
     match_funcs: &(F1, F2, F3),
 ) -> Option<()> {
     let input = rule.input;
     let f3 = |info: &mut GlyphInfo, index| {
         input
             .get(index as usize)
-            .is_some_and(|value| match_funcs.1(info, value.get() as u32))
+            .is_some_and(|value| match_funcs.1(info, value.get().into()))
     };
 
     let mut end_index = ctx.buffer.idx;
@@ -1046,7 +1137,7 @@ fn apply_chain_with_sequences<
     let f2 = |info: &mut GlyphInfo, index| {
         lookahead
             .get(index as usize)
-            .is_some_and(|value| match_funcs.2(info, value.get() as u32))
+            .is_some_and(|value| match_funcs.2(info, value.get().into()))
     };
 
     if !match_lookahead(ctx, lookahead.len() as u16, f2, match_end, &mut end_index) {
@@ -1061,7 +1152,7 @@ fn apply_chain_with_sequences<
     let f1 = |info: &mut GlyphInfo, index| {
         backtrack
             .get(index as usize)
-            .is_some_and(|value| match_funcs.0(info, value.get() as u32))
+            .is_some_and(|value| match_funcs.0(info, value.get().into()))
     };
 
     if !match_backtrack(ctx, backtrack.len() as u16, f1, &mut start_index) {
@@ -1080,17 +1171,19 @@ fn apply_chain_with_sequences<
 // Keep this large generic matcher out of the format-specific dispatchers.
 #[inline(never)]
 fn apply_chain_context_rules<
-    F1: Fn(&mut GlyphInfo, u32) -> bool,
-    F2: Fn(&mut GlyphInfo, u32) -> bool,
-    F3: Fn(&mut GlyphInfo, u32) -> bool,
-    F4: Fn(&mut GlyphInfo) -> u16,
+    T: Scalar + Copy + Default + Into<u32> + Eq + 'static,
+    O: Scalar + Offset,
 >(
     ctx: &mut ApplyContext,
     set_data: FontData<'_>,
-    rule_offsets: &[BigEndian<Offset16>],
-    match_funcs: (F1, F2, F3),
+    rule_offsets: &[BigEndian<O>],
+    match_funcs: (
+        impl Fn(&mut GlyphInfo, u32) -> bool,
+        impl Fn(&mut GlyphInfo, u32) -> bool,
+        impl Fn(&mut GlyphInfo, u32) -> bool,
+    ),
     rule_set_digest: Option<RuleSetDigest>,
-    first_input_value: F4,
+    first_input_value: impl Fn(&mut GlyphInfo) -> u32,
 ) -> Option<()> {
     // No small-rule-set bypass here either; see apply_context_rules.
     //
@@ -1114,7 +1207,7 @@ fn apply_chain_context_rules<
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
-                let Some(rule) = parse_chain_rule_at(set_data, off) else {
+                let Some(rule) = parse_chain_rule_at::<T, O>(set_data, off) else {
                     continue;
                 };
                 if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
@@ -1139,7 +1232,7 @@ fn apply_chain_context_rules<
     } else {
         let mut unsafe_to_concat = false;
         for off in rule_offsets {
-            let Some(rule) = parse_chain_rule_at(set_data, off) else {
+            let Some(rule) = parse_chain_rule_at::<T, O>(set_data, off) else {
                 continue;
             };
             if !rule.input.is_empty() || !rule.lookahead.is_empty() {
@@ -1169,7 +1262,7 @@ fn apply_chain_context_rules<
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
-                let Some(rule) = parse_chain_rule_at(set_data, off) else {
+                let Some(rule) = parse_chain_rule_at::<T, O>(set_data, off) else {
                     continue;
                 };
                 if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
@@ -1188,10 +1281,10 @@ fn apply_chain_context_rules<
         // Probe the values the pre-match needs without parsing the whole
         // rule; most visited rules are rejected on these probes and never
         // pay for a full parse — nor for constructing a rule table.
-        let Some(probe) = ChainRuleProbe::new(data) else {
+        let Some(probe) = ChainRuleProbe::<T>::new(data) else {
             // Unreadable rule header; the full parse treats it as an empty
             // rule, same as the parse-first code did.
-            let rule = ParsedRule::from_chain_rule_data(data).unwrap_or_default();
+            let rule = ParsedRule::<T>::from_chain_rule_data(data).unwrap_or_default();
             if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
                 if let Some(unsafe_to) = unsafe_to {
                     ctx.buffer
@@ -1206,30 +1299,30 @@ fn apply_chain_context_rules<
         let matched_first = if len_p1 > 1 {
             probe
                 .input(0)
-                .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[first], u32::from(v)))
+                .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[first], v.into()))
         } else {
             probe.lookahead_len() == 0
                 || probe
                     .lookahead(0)
-                    .is_some_and(|v| match_funcs.2(&mut ctx.buffer.info[first], u32::from(v)))
+                    .is_some_and(|v| match_funcs.2(&mut ctx.buffer.info[first], v.into()))
         };
         if matched_first {
             let matched_second = if let Some(second) = second {
                 if len_p1 > 2 {
                     probe
                         .input(1)
-                        .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[second], u32::from(v)))
+                        .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[second], v.into()))
                 } else {
                     (probe.lookahead_len() <= 2 - len_p1)
-                        || probe.lookahead(2 - len_p1).is_some_and(|v| {
-                            match_funcs.2(&mut ctx.buffer.info[second], u32::from(v))
-                        })
+                        || probe
+                            .lookahead(2 - len_p1)
+                            .is_some_and(|v| match_funcs.2(&mut ctx.buffer.info[second], v.into()))
                 }
             } else {
                 true
             };
             if matched_second {
-                let rule = ParsedRule::from_chain_rule_data(data).unwrap_or_default();
+                let rule = ParsedRule::<T>::from_chain_rule_data(data).unwrap_or_default();
                 if apply_chain_with_sequences(ctx, &rule, &match_funcs).is_some() {
                     if let Some(unsafe_to) = unsafe_to {
                         ctx.buffer

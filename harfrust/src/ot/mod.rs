@@ -1,4 +1,5 @@
 use self::apply::{BinaryCache, MappingCache};
+use self::feature_variations::FeatureVariationState;
 use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
@@ -6,7 +7,7 @@ use crate::Tag;
 use alloc::vec::Vec;
 use lookup::{LookupCache, LookupInfo};
 use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
-use read_fonts::types::GlyphId16;
+use read_fonts::types::{GlyphId16, GlyphId24, Uint24};
 use read_fonts::{
     tables::{
         gdef::Gdef,
@@ -22,12 +23,17 @@ use read_fonts::{
 
 pub(crate) mod apply;
 pub mod contextual;
+pub(crate) mod feature_variations;
 pub mod gpos;
 pub mod gsub;
 pub(crate) mod layout;
 pub mod lookup;
 pub(crate) mod map;
 pub(crate) mod shaper;
+
+#[cfg(test)]
+#[path = "tests/extended.rs"]
+mod extended_tests;
 
 #[allow(unused_imports)]
 use super::{aat, buffer, cache, set_digest, tag};
@@ -88,6 +94,18 @@ impl MarkGlyphSetBitmap {
                     }
                 }
             }
+            CoverageTable::Format3(table) => {
+                for glyph in table.glyph_array() {
+                    add_glyph(glyph.get().to_u32())?;
+                }
+            }
+            CoverageTable::Format4(table) => {
+                for range in table.range_records() {
+                    for glyph in range.start_glyph_id().to_u32()..=range.end_glyph_id().to_u32() {
+                        add_glyph(glyph)?;
+                    }
+                }
+            }
         }
         Some(bits)
     }
@@ -109,6 +127,16 @@ impl MarkGlyphSetBitmap {
                         u32::from(max.end_glyph_id()),
                     )
                 }),
+            CoverageTable::Format3(table) => table
+                .glyph_array()
+                .first()
+                .zip(table.glyph_array().last())
+                .map(|(min, max)| (min.get().to_u32(), max.get().to_u32())),
+            CoverageTable::Format4(table) => table
+                .range_records()
+                .first()
+                .zip(table.range_records().last())
+                .map(|(min, max)| (min.start_glyph_id().to_u32(), max.end_glyph_id().to_u32())),
         };
 
         if let Some((min_gid, max_gid)) = bounds {
@@ -202,21 +230,17 @@ impl GdefCache {
 
     fn new(gdef: &Gdef) -> Self {
         let data = gdef.offset_data();
-        let classes = ClassDefInfo::new(
-            &data,
-            gdef.glyph_class_def_offset().offset().to_u32() as u16,
-        );
-        let mark_classes = ClassDefInfo::new(
-            &data,
-            gdef.mark_attach_class_def_offset().offset().to_u32() as u16,
-        );
+        let class_info = |table: Option<Result<ClassDef, ReadError>>| {
+            let table = table?.ok()?;
+            let offset = data.len().checked_sub(table.offset_data().len())?;
+            ClassDefInfo::new(&data, u32::try_from(offset).ok()?)
+        };
+        let classes = class_info(gdef.glyph_class_def());
+        let mark_classes = class_info(gdef.mark_attach_class_def());
         let mut mark_set_offsets = Vec::new();
         let mut mark_set_bitmaps = Vec::new();
-        if let Some((base, Ok(mark_sets))) = gdef
-            .mark_glyph_sets_def_offset()
-            .map(|offset| offset.offset().to_u32())
-            .zip(gdef.mark_glyph_sets_def())
-        {
+        if let Some(Ok(mark_sets)) = gdef.mark_glyph_sets_def() {
+            let base = data.len().saturating_sub(mark_sets.offset_data().len()) as u32;
             mark_set_offsets.extend(
                 mark_sets
                     .coverage_offsets()
@@ -305,7 +329,7 @@ pub struct OtData<'a> {
     gdef_cache: &'a GdefCache,
     pub coords: &'a [F2Dot14],
     pub var_store: Option<ItemVariationStore<'a>>,
-    pub feature_variations: [Option<u32>; 2],
+    pub variation_state: FeatureVariationState,
 }
 
 static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
@@ -320,7 +344,7 @@ pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
     gdef_cache: &EMPTY_GDEF_CACHE,
     coords: &[],
     var_store: None,
-    feature_variations: [None; 2],
+    variation_state: FeatureVariationState::EMPTY,
 };
 
 impl<'a> OtData<'a> {
@@ -348,7 +372,7 @@ impl<'a> OtData<'a> {
         font: &impl TableProvider<'a>,
         cache: &'a OtCache,
         coords: &'a [F2Dot14],
-        feature_variations: [Option<u32>; 2],
+        variation_state: FeatureVariationState,
     ) -> Self {
         let gsub = cache
             .has_gsub
@@ -388,7 +412,7 @@ impl<'a> OtData<'a> {
             gdef_cache: &cache.gdef,
             var_store,
             coords,
-            feature_variations,
+            variation_state,
         }
     }
 
@@ -396,7 +420,7 @@ impl<'a> OtData<'a> {
         self.gdef_cache.classes.is_some()
     }
 
-    pub fn glyph_class(&self, glyph_id: u32) -> u16 {
+    pub fn glyph_class(&self, glyph_id: u32) -> u32 {
         self.gdef_cache
             .classes
             .as_ref()
@@ -406,7 +430,7 @@ impl<'a> OtData<'a> {
             })
     }
 
-    pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
+    pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u32 {
         self.gdef_cache
             .mark_classes
             .as_ref()
@@ -428,7 +452,7 @@ impl<'a> OtData<'a> {
             2 => GlyphPropsFlags::LIGATURE.bits(),
             3 => {
                 let class = self.glyph_mark_attachment_class(glyph);
-                (class << 8) | GlyphPropsFlags::MARK.bits()
+                ((class << 8) as u16) | GlyphPropsFlags::MARK.bits()
             }
             _ => 0,
         };
@@ -687,26 +711,27 @@ impl<'a> LayoutTable<'a> {
     }
 }
 
-fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> Option<u16> {
+fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> Option<u32> {
     coverage.ok().and_then(|coverage| coverage.get(gid))
 }
 
 fn coverage_index_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
+    coverage: impl Fn(GlyphId) -> Option<u32>,
     gid: GlyphId,
     cache: &MappingCache,
-) -> Option<u16> {
+) -> Option<u32> {
     if let Some(index) = cache.get(gid.into()) {
         if index == MappingCache::MAX_VALUE {
             None
         } else {
-            Some(index as u16)
+            Some(index)
         }
     } else {
         let index = coverage(gid);
         if let Some(index) = index {
-            if (index as u32) < MappingCache::MAX_VALUE {
-                cache.set(gid.into(), index as u32);
+            // Wide indices bypass the compact cache rather than being truncated.
+            if index < MappingCache::MAX_VALUE {
+                cache.set(gid.into(), index);
             }
             Some(index)
         } else {
@@ -717,7 +742,7 @@ fn coverage_index_cached(
 }
 
 fn coverage_binary_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
+    coverage: impl Fn(GlyphId) -> Option<u32>,
     gid: GlyphId,
     cache: &BinaryCache,
 ) -> Option<bool> {
@@ -743,43 +768,46 @@ fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
     coverage_index(coverage, gid).is_some()
 }
 
-fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
+fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u32 {
     class_def
         .map(|class_def| class_def.get(gid))
         .unwrap_or_default()
 }
 
 fn glyph_class_cached(
-    class_def: impl Fn(GlyphId) -> u16,
+    class_def: impl Fn(GlyphId) -> u32,
     gid: GlyphId,
     cache: &MappingCache,
-) -> u16 {
+) -> u32 {
     if let Some(index) = cache.get(gid.into()) {
-        index as u16
+        index
     } else {
         let index = class_def(gid);
-        cache.set(gid.into(), index as u32);
+        cache.set(gid.into(), index);
         index
     }
 }
 
 #[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct CoverageInfo {
-    pub offset: u16,
+    pub offset: u32,
     pub format: u16,
-    pub count: u16,
+    pub count: u32,
 }
 
 impl CoverageInfo {
-    pub fn new(parent_data: &FontData, offset: u16) -> Option<Self> {
+    pub fn new(parent_data: &FontData, offset: impl Into<u32>) -> Option<Self> {
+        let offset = offset.into();
         if offset == 0 {
             return None;
         }
-        let format = parent_data.read_at::<u16>(offset as usize).ok()?;
-        if format != 1 && format != 2 {
-            return None;
-        }
-        let count = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
+        let table_data = parent_data.split_off(offset as usize)?;
+        let format = table_data.read_at::<u16>(0).ok()?;
+        let count = match format {
+            1 | 2 => u32::from(table_data.read_at::<u16>(2).ok()?),
+            3 | 4 => table_data.read_at::<Uint24>(2).ok()?.to_u32(),
+            _ => return None,
+        };
         Some(Self {
             offset,
             format,
@@ -787,9 +815,14 @@ impl CoverageInfo {
         })
     }
 
-    pub fn index(&self, parent_data: &FontData, gid: GlyphId) -> Option<u16> {
+    pub fn index(&self, parent_data: &FontData, gid: GlyphId) -> Option<u32> {
         if self.offset == 0 {
             return None;
+        }
+        if self.format >= 3 {
+            return CoverageTable::read(parent_data.split_off(self.offset as usize)?)
+                .ok()?
+                .get(gid);
         }
         let gid = gid.to_u32();
         let data_offset = self.offset as usize + 4;
@@ -820,9 +853,11 @@ impl CoverageInfo {
                     }
                 })
                 .ok()
-                .map(|idx| {
+                .and_then(|idx| {
                     let rec = &records[idx];
-                    (rec.start_coverage_index() as u32 + gid - rec.start_glyph_id().to_u32()) as u16
+                    rec.start_coverage_index()
+                        .checked_add((gid - rec.start_glyph_id().to_u32()) as u16)
+                        .map(u32::from)
                 })
         }
     }
@@ -830,29 +865,35 @@ impl CoverageInfo {
 
 #[derive(Copy, Clone, Default, Debug)]
 pub(crate) struct ClassDefInfo {
-    pub offset: u16,
+    pub offset: u32,
     pub format: u16,
     // For format 1 only
-    pub start_glyph_id: u16,
-    pub count: u16,
+    pub start_glyph_id: u32,
+    pub count: u32,
 }
 
 impl ClassDefInfo {
-    pub fn new(parent_data: &FontData, offset: u16) -> Option<Self> {
+    pub fn new(parent_data: &FontData, offset: impl Into<u32>) -> Option<Self> {
+        let offset = offset.into();
         if offset == 0 {
             return None;
         }
-        let format = parent_data.read_at::<u16>(offset as usize).ok()?;
-        if format != 1 && format != 2 {
-            return None;
-        }
+        let table_data = parent_data.split_off(offset as usize)?;
+        let format = table_data.read_at::<u16>(0).ok()?;
         let (start_glyph_id, count) = if format == 1 {
-            let start_glyph_id = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
-            let count = parent_data.read_at::<u16>(offset as usize + 4).ok()?;
-            (start_glyph_id, count)
+            let start_glyph_id = table_data.read_at::<u16>(2).ok()?;
+            let count = table_data.read_at::<u16>(4).ok()?;
+            (u32::from(start_glyph_id), u32::from(count))
         } else if format == 2 {
-            let count = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
-            (0, count)
+            let count = table_data.read_at::<u16>(2).ok()?;
+            (0, u32::from(count))
+        } else if format == 3 {
+            let start_glyph_id = table_data.read_at::<GlyphId24>(2).ok()?;
+            let count = table_data.read_at::<Uint24>(5).ok()?;
+            (start_glyph_id.to_u32(), count.to_u32())
+        } else if format == 4 {
+            let count = table_data.read_at::<Uint24>(2).ok()?;
+            (0, count.to_u32())
         } else {
             return None;
         };
@@ -864,22 +905,29 @@ impl ClassDefInfo {
         })
     }
 
-    pub fn class(&self, parent_data: &FontData, gid: GlyphId) -> u16 {
+    pub fn class(&self, parent_data: &FontData, gid: GlyphId) -> u32 {
         let offset = self.offset as usize;
         if offset == 0 {
             return 0;
         }
+        if self.format >= 3 {
+            return parent_data
+                .split_off(offset)
+                .and_then(|data| ClassDef::read(data).ok())
+                .map_or(0, |class_def| class_def.get(gid));
+        }
         let gid = gid.to_u32();
         if self.format == 1 {
-            let Some(idx) = gid.checked_sub(self.start_glyph_id as u32) else {
+            let Some(idx) = gid.checked_sub(self.start_glyph_id) else {
                 return 0;
             };
-            if idx >= self.count as u32 {
+            if idx >= self.count {
                 return 0;
             }
             parent_data
                 .read_at::<u16>(offset + 6 + idx as usize * 2)
                 .unwrap_or(0)
+                .into()
         } else {
             use core::cmp::Ordering;
             let start = offset + 4;
@@ -898,7 +946,7 @@ impl ClassDefInfo {
                     }
                 })
                 .ok()
-                .map_or(0, |idx| records[idx].class())
+                .map_or(0, |idx| u32::from(records[idx].class()))
         }
     }
 }

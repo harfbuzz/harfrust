@@ -3,6 +3,7 @@ use core::cmp::Ordering;
 use core::ops::Range;
 
 use super::buffer::{Buffer, GlyphFlags};
+use super::feature_variations::FeatureVariationState;
 use super::layout::LayoutTableKind;
 use super::{Language, Mask, Script, Tag};
 use crate::plan::ShapePlan;
@@ -19,7 +20,7 @@ pub struct OtMap {
     features: Vec<FeatureMap>,
     lookups: [Vec<LookupMap>; 2],
     stages: [Vec<StageMap>; 2],
-    feature_variations: [Option<u32>; 2],
+    variation_state: FeatureVariationState,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -163,8 +164,8 @@ impl OtMap {
         start..end
     }
 
-    pub fn feature_variations(&self) -> &[Option<u32>; 2] {
-        &self.feature_variations
+    pub fn variation_state(&self) -> &FeatureVariationState {
+        &self.variation_state
     }
 }
 
@@ -352,7 +353,7 @@ impl<'a> OtMapBuilder<'a> {
             features,
             lookups,
             stages,
-            feature_variations: self.layout.ot.feature_variations,
+            variation_state: self.layout.ot.variation_state.clone(),
         }
     }
 
@@ -502,7 +503,7 @@ impl<'a> OtMapBuilder<'a> {
             let mut stage_index = 0;
             let mut last_lookup = 0;
 
-            let variation_index = self.layout.ot.feature_variations[table_index as usize];
+            let variation_index = self.layout.ot.variation_state.indices[table_index as usize];
 
             for stage in 0..self.current_stage[table_index] {
                 if let Some(feature_index) = required_feature_index[table_index] {
@@ -594,15 +595,7 @@ impl<'a> OtMapBuilder<'a> {
         let table = self.layout.ot.layout_table(table_index)?;
 
         let lookup_count = table.lookup_count();
-        let feature = match variation_index {
-            Some(idx) => table
-                .feature_substitution(idx, feature_index)
-                .or_else(|| table.feature(feature_index))?,
-            None => table.feature(feature_index)?,
-        };
-
-        for index in feature.lookup_list_indices() {
-            let index = index.get();
+        let mut add_lookup = |index| {
             if index < lookup_count {
                 lookups.push(LookupMap {
                     index,
@@ -612,6 +605,27 @@ impl<'a> OtMapBuilder<'a> {
                     mask,
                     per_syllable,
                 });
+            }
+        };
+        if let Some(indices) = self
+            .layout
+            .ot
+            .variation_state
+            .lookup_indices(table_index, feature_index)
+        {
+            // A present empty set replaces the default feature's lookups too.
+            for index in indices {
+                add_lookup(*index);
+            }
+        } else {
+            let feature = match variation_index {
+                Some(idx) => table
+                    .feature_substitution(idx, feature_index)
+                    .or_else(|| table.feature(feature_index))?,
+                None => table.feature(feature_index)?,
+            };
+            for index in feature.lookup_list_indices() {
+                add_lookup(index.get());
             }
         }
 

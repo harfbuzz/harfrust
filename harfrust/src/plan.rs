@@ -112,19 +112,19 @@ pub struct ShapePlanKey<'a> {
     script: Option<Script>,
     direction: Direction,
     language: Option<&'a Language>,
-    pub(crate) feature_variations: [Option<u32>; 2],
+    variation_state: crate::ot::feature_variations::FeatureVariationState,
     features: &'a [Feature],
 }
 
 impl<'a> ShapePlanKey<'a> {
     /// Creates a key for a font, script, and direction.
     pub fn new(font: &Font, script: Option<Script>, direction: Direction) -> Self {
-        let variations = font.feature_variations();
+        let variation_state = crate::ot::feature_variations::variation_state(font);
         Self {
             script,
             direction,
             language: None,
-            feature_variations: [variations.gsub, variations.gpos],
+            variation_state,
             features: &[],
         }
     }
@@ -146,7 +146,7 @@ impl<'a> ShapePlanKey<'a> {
         self.script == plan.script
             && self.direction == plan.direction
             && self.language == plan.language.as_ref()
-            && self.feature_variations == *plan.ot_map.feature_variations()
+            && self.variation_state == *plan.ot_map.variation_state()
             && features_equivalent(self.features, &plan.user_features)
     }
 }

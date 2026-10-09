@@ -45,14 +45,9 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
             let tables = font.tables();
             let coords = font.normalized_coords();
-            let feature_variations = if coords.is_empty() {
-                [None; 2]
-            } else {
-                let variations = font.feature_variations();
-                [variations.gsub, variations.gpos]
-            };
+            let variation_state = crate::ot::feature_variations::variation_state(font);
             (
-                OtData::from_tables(&tables, &cache.ot, coords, feature_variations),
+                OtData::from_tables(&tables, &cache.ot, coords, variation_state),
                 AatData::from_tables(&tables, &cache.aat),
                 cache.apply_trak,
                 Some(&cache.cmap),
@@ -730,7 +725,12 @@ mod tests {
 
         loads.store(0, Ordering::Relaxed);
         let tables = font.tables();
-        let ot_data = OtData::from_tables(&tables, &cache.ot, &[], [None; 2]);
+        let ot_data = OtData::from_tables(
+            &tables,
+            &cache.ot,
+            &[],
+            crate::ot::feature_variations::FeatureVariationState::EMPTY,
+        );
         let aat_data = AatData::from_tables(&tables, &cache.aat);
 
         assert!(ot_data.gsub.is_some());

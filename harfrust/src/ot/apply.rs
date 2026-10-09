@@ -790,7 +790,7 @@ impl RuleSetDigest {
         self.0 == u64::MAX
     }
 
-    pub fn may_have(self, value: u16) -> bool {
+    pub fn may_have(self, value: u32) -> bool {
         self.0 & (1 << (value & 63)) != 0
     }
 }

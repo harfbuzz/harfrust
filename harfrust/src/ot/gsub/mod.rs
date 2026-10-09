@@ -2,7 +2,7 @@
 
 mod alternate;
 mod ligature;
-pub(crate) use ligature::collect_seconds;
+pub(crate) use ligature::{collect_seconds, collect_seconds2};
 mod multiple;
 mod reverse_chain;
 mod single;
