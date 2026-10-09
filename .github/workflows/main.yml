@@ -35,6 +35,29 @@ jobs:
     - name: Run tests with icu4x
       run: cargo test --verbose --features icu
 
+    - name: Build core C API without subsetting
+      run: cargo build -p harfrust_capi --no-default-features --target-dir target/capi-default
+
+    - name: Subset C API smoke test
+      run: |
+        cargo build -p harfrust_capi --features subset
+        cargo test -p harfrust_capi --features subset
+        python3 - <<'PY'
+        import ctypes, sys
+        suffix = "dylib" if sys.platform == "darwin" else "so"
+        core = ctypes.CDLL(f"target/capi-default/debug/libharfrust_c.{suffix}")
+        assert hasattr(core, "hr_shape")
+        assert not hasattr(core, "hr_subset_or_fail")
+        subset = ctypes.CDLL(f"target/debug/libharfrust_c.{suffix}")
+        assert hasattr(subset, "hr_shape") and hasattr(subset, "hr_subset_or_fail")
+        PY
+        cc -std=c99 -pedantic-errors -Werror \
+          -Iharfrust_capi/include \
+          harfrust_capi/examples/subset.c -Ltarget/debug \
+          -lharfrust_c -Wl,-rpath,"$PWD/target/debug" \
+          -o /tmp/hr-subset
+        /tmp/hr-subset harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf
+
     - name: Rustfmt
       run: cargo fmt --all -- --check
 
