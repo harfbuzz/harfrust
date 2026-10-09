@@ -24,19 +24,19 @@ use crate::object;
 use crate::set::hr_set_t;
 
 /// The OpenType substitution table tag.
-pub const HR_OT_TAG_GSUB: hr_tag_t = 0x4753_5542;
+pub const HR_OT_TAG_GSUB: hr_tag_t = 0x4753_5542u32;
 /// The OpenType positioning table tag.
-pub const HR_OT_TAG_GPOS: hr_tag_t = 0x4750_4F53;
+pub const HR_OT_TAG_GPOS: hr_tag_t = 0x4750_4F53u32;
 /// The default OpenType script tag, `DFLT`.
-pub const HR_OT_TAG_DEFAULT_SCRIPT: hr_tag_t = 0x4446_4C54;
+pub const HR_OT_TAG_DEFAULT_SCRIPT: hr_tag_t = 0x4446_4C54u32;
 /// The default OpenType language tag, `dflt`.
-pub const HR_OT_TAG_DEFAULT_LANGUAGE: hr_tag_t = 0x6466_6C74;
+pub const HR_OT_TAG_DEFAULT_LANGUAGE: hr_tag_t = 0x6466_6C74u32;
 /// No script was selected.
-pub const HR_OT_LAYOUT_NO_SCRIPT_INDEX: c_uint = 0xFFFF;
+pub const HR_OT_LAYOUT_NO_SCRIPT_INDEX: c_uint = 0xFFFFu32;
 /// No feature was found.
-pub const HR_OT_LAYOUT_NO_FEATURE_INDEX: c_uint = 0xFFFF;
+pub const HR_OT_LAYOUT_NO_FEATURE_INDEX: c_uint = 0xFFFFu32;
 /// Selects a script's default language system.
-pub const HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX: c_uint = 0xFFFF;
+pub const HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX: c_uint = 0xFFFFu32;
 
 const GSUB_TAG: hr_tag_t = HR_OT_TAG_GSUB;
 const GPOS_TAG: hr_tag_t = HR_OT_TAG_GPOS;
@@ -680,19 +680,20 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
 /// A registered OpenType BASE baseline tag. The numeric value is the tag itself.
 pub type hr_ot_layout_baseline_tag_t = hr_tag_t;
 
-pub const HR_OT_LAYOUT_BASELINE_TAG_ROMAN: hr_ot_layout_baseline_tag_t = 0x726F_6D6E;
-pub const HR_OT_LAYOUT_BASELINE_TAG_HANGING: hr_ot_layout_baseline_tag_t = 0x6861_6E67;
+pub const HR_OT_LAYOUT_BASELINE_TAG_ROMAN: hr_ot_layout_baseline_tag_t = 0x726F_6D6Eu32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_HANGING: hr_ot_layout_baseline_tag_t = 0x6861_6E67u32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT: hr_ot_layout_baseline_tag_t =
-    0x6963_6662;
+    0x6963_6662u32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT: hr_ot_layout_baseline_tag_t =
-    0x6963_6674;
-pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL: hr_ot_layout_baseline_tag_t = 0x4963_6663;
+    0x6963_6674u32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL: hr_ot_layout_baseline_tag_t = 0x4963_6663u32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT: hr_ot_layout_baseline_tag_t =
-    0x6964_656F;
+    0x6964_656Fu32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT: hr_ot_layout_baseline_tag_t =
-    0x6964_7470;
-pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL: hr_ot_layout_baseline_tag_t = 0x4964_6365;
-pub const HR_OT_LAYOUT_BASELINE_TAG_MATH: hr_ot_layout_baseline_tag_t = 0x6D61_7468;
+    0x6964_7470u32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL: hr_ot_layout_baseline_tag_t =
+    0x4964_6365u32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_MATH: hr_ot_layout_baseline_tag_t = 0x6D61_7468u32;
 
 /// Returns the dominant horizontal baseline for a Unicode script.
 #[no_mangle]
