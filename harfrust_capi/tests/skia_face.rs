@@ -155,3 +155,53 @@ fn default_unicode_scripts_match_itemization_needs() {
         assert_eq!(hr_unicode_script(ptr::null_mut(), codepoint), script);
     }
 }
+
+#[test]
+fn unicode_collection_adds_coverage_without_clearing_the_set() {
+    unsafe {
+        let face = face();
+        let set = hr_set_create();
+        hr_set_add(set, 0x0010_FFFF);
+        hr_face_collect_unicodes(face, set);
+        for codepoint in ['A', 'a', 'b'] {
+            assert_eq!(hr_set_has(set, codepoint as u32), 1);
+        }
+        assert_eq!(hr_set_has(set, 0x0010_FFFF), 1);
+        let population = hr_set_get_population(set);
+        assert!(population > 3);
+        hr_face_collect_unicodes(face, set);
+        hr_face_collect_unicodes(ptr::null_mut(), set);
+        hr_face_collect_unicodes(face, ptr::null_mut());
+        hr_face_collect_unicodes(face, hr_set_get_empty());
+        assert_eq!(hr_set_get_population(set), population);
+        hr_set_invert(set);
+        hr_set_del(set, 'a' as u32);
+        hr_face_collect_unicodes(face, set);
+        assert_eq!(hr_set_has(set, 'a' as u32), 1);
+        hr_set_destroy(set);
+        hr_face_destroy(face);
+    }
+}
+
+#[test]
+fn unicode_collection_covers_constant_format13_ranges() {
+    unsafe {
+        let data = include_bytes!("../../harfrust/tests/fonts/in-house/AdobeBlank2.ttf");
+        let blob = hr_blob_create(
+            data.as_ptr().cast(),
+            data.len() as u32,
+            HR_MEMORY_MODE_READONLY,
+            ptr::null_mut(),
+            None,
+        );
+        let face = hr_face_create(blob, 0);
+        hr_blob_destroy(blob);
+        let set = hr_set_create();
+        hr_face_collect_unicodes(face, set);
+        assert_eq!(hr_set_get_population(set), 1_111_998);
+        assert_eq!(hr_set_has(set, 0), 1);
+        assert_eq!(hr_set_has(set, 0x0010_FFFD), 1);
+        hr_set_destroy(set);
+        hr_face_destroy(face);
+    }
+}
