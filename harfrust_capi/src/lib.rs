@@ -10,7 +10,7 @@ as HarfBuzz itself without collisions.
 # Scope
 
 This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
-`BASE` baseline and `MATH` queries. It also provides layout lookup queries,
+`BASE` baseline and `MATH` queries. It also provides layout script/feature and lookup queries,
 OpenType script and language tag conversion, and the complete set and map
 container APIs. Drawing and painting callbacks and subsetting are outside this API.
 
@@ -98,6 +98,10 @@ mod skia_version_tests;
 #[cfg(test)]
 #[path = "../tests/tables.rs"]
 mod table_tests;
+
+#[cfg(test)]
+#[path = "../tests/ot_queries.rs"]
+mod ot_query_tests;
 
 #[cfg(test)]
 #[path = "../tests/ot_color.rs"]

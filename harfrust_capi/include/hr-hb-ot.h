@@ -19,8 +19,11 @@
 #define hb_ot_layout_get_horizontal_baseline_tag_for_script hr_ot_layout_get_horizontal_baseline_tag_for_script
 #define hb_ot_layout_has_positioning                     hr_ot_layout_has_positioning
 #define hb_ot_layout_has_substitution                    hr_ot_layout_has_substitution
+#define hb_ot_layout_language_find_feature               hr_ot_layout_language_find_feature
 #define hb_ot_layout_lookup_collect_glyphs               hr_ot_layout_lookup_collect_glyphs
+#define hb_ot_layout_table_get_feature_tags              hr_ot_layout_table_get_feature_tags
 #define hb_ot_layout_table_get_lookup_count              hr_ot_layout_table_get_lookup_count
+#define hb_ot_layout_table_select_script                 hr_ot_layout_table_select_script
 #define hb_ot_math_constant_t                            hr_ot_math_constant_t
 #define hb_ot_math_get_constant                          hr_ot_math_get_constant
 #define hb_ot_math_get_glyph_assembly                    hr_ot_math_get_glyph_assembly
@@ -61,6 +64,9 @@
 #define HB_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT
 #define HB_OT_LAYOUT_BASELINE_TAG_MATH                HR_OT_LAYOUT_BASELINE_TAG_MATH
 #define HB_OT_LAYOUT_BASELINE_TAG_ROMAN               HR_OT_LAYOUT_BASELINE_TAG_ROMAN
+#define HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX           HR_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX
+#define HB_OT_LAYOUT_NO_FEATURE_INDEX                 HR_OT_LAYOUT_NO_FEATURE_INDEX
+#define HB_OT_LAYOUT_NO_SCRIPT_INDEX                  HR_OT_LAYOUT_NO_SCRIPT_INDEX
 #define HB_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT        HR_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT
 #define HB_OT_MATH_CONSTANT_AXIS_HEIGHT               HR_OT_MATH_CONSTANT_AXIS_HEIGHT
 #define HB_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT HR_OT_MATH_CONSTANT_DELIMITED_SUB_FORMULA_MIN_HEIGHT
@@ -148,6 +154,10 @@
 #define HB_OT_NAME_ID_VERSION_STRING                  HR_OT_NAME_ID_VERSION_STRING
 #define HB_OT_NAME_ID_WWS_FAMILY                      HR_OT_NAME_ID_WWS_FAMILY
 #define HB_OT_NAME_ID_WWS_SUBFAMILY                   HR_OT_NAME_ID_WWS_SUBFAMILY
+#define HB_OT_TAG_DEFAULT_LANGUAGE                    HR_OT_TAG_DEFAULT_LANGUAGE
+#define HB_OT_TAG_DEFAULT_SCRIPT                      HR_OT_TAG_DEFAULT_SCRIPT
+#define HB_OT_TAG_GPOS                                HR_OT_TAG_GPOS
+#define HB_OT_TAG_GSUB                                HR_OT_TAG_GSUB
 #define HB_OT_TAG_MATH                                HR_OT_TAG_MATH
 #define HB_OT_TAG_MATH_SCRIPT                         HR_OT_TAG_MATH_SCRIPT
 #define HB_OT_VAR_AXIS_FLAG_HIDDEN                    HR_OT_VAR_AXIS_FLAG_HIDDEN
