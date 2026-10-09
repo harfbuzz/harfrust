@@ -5,6 +5,7 @@ const HR_H: &str = include_str!("../include/hr.h");
 const HR_HB_H: &str = concat!(
     include_str!("../include/hr-hb.h"),
     include_str!("../include/hr-hb-ot.h"),
+    include_str!("../include/hr-hb-aat.h"),
 );
 
 #[test]

@@ -6,12 +6,17 @@ use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{Blob, Font, TableFunction};
 use harfrust::Tag;
-use read_fonts::{model::Format, TableProvider};
+use read_fonts::{
+    model::Format,
+    tables::cmap::{CmapIterLimits, CmapSubtable},
+    TableProvider,
+};
 
 use crate::blob::hr_blob_t;
 use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 use crate::plan::PlanCache;
+use crate::set::hr_set_t;
 
 /// Callback returning the data for one table of a face.
 ///
@@ -570,6 +575,57 @@ pub unsafe extern "C" fn hr_face_reference_table(
                 return hr_blob_t::empty();
             };
             hr_blob_t::sub(&blob_ref.blob, start, end)
+        }
+    }
+}
+
+/// Adds the face's nominal cmap coverage to `out`, preserving existing entries.
+///
+/// Uses the selected cmap subtable's stored character codes, without the symbol
+/// fallback or Mac Roman conversion applied by nominal glyph lookup. Variation
+/// sequences are not included. A missing cmap adds nothing.
+/// # Safety
+/// `face` must be null or live; `out` must be null or live and must not be
+/// accessed concurrently while it is being modified.
+#[no_mangle]
+pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mut hr_set_t) {
+    let face = unsafe { object::or_empty(face.cast_const()) };
+    let Some(font) = face.font() else { return };
+    let Some((_, _, subtable)) = font
+        .tables()
+        .cmap()
+        .ok()
+        .and_then(|table| table.best_subtable())
+    else {
+        return;
+    };
+    let Some(out) = (unsafe { object::as_mutable(out) }) else {
+        return;
+    };
+    // A format 13 group maps an entire range to one glyph. Insert ranges
+    // directly, both to bound malformed glyph IDs and to avoid iterating
+    // over a million characters in a last-resort font.
+    if let CmapSubtable::Format13(table) = subtable {
+        for group in table.groups() {
+            let first = group.start_char_code();
+            let last = group.end_char_code().min(0x0010_FFFF);
+            let glyph = group.glyph_id();
+            if first <= last && glyph != 0 && glyph < font.num_glyphs() {
+                out.values.insert_range(first..=last);
+            }
+        }
+    } else {
+        let limits = CmapIterLimits {
+            // The iterator's character limit is exclusive.
+            max_char: 0x0011_0000,
+            glyph_count: font.num_glyphs(),
+        };
+        let is_format4 = matches!(subtable, CmapSubtable::Format4(_));
+        for (codepoint, glyph) in subtable.iter_with_limits(limits) {
+            // Format 4's final U+FFFF segment is a sentinel.
+            if glyph.to_u32() != 0 && !(is_format4 && codepoint == 0xFFFF) {
+                out.add(codepoint);
+            }
         }
     }
 }

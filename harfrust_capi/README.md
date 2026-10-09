@@ -161,8 +161,21 @@ along with the tags, directions, scripts, languages, features and variations
 they need. OpenType `BASE` baseline queries are available through
 `hr_ot_layout_get_baseline` and its related functions. OpenType `MATH` queries
 are available through `hr_ot_math_*` functions. Layout lookup queries support
-glyph participation checks. The complete HarfBuzz set and map APIs are available
-as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
+glyph participation checks. Script selection and language-specific feature lookup
+are available with `hr_ot_layout_table_select_script` and
+`hr_ot_layout_language_find_feature`; `hr_ot_layout_table_get_feature_tags`
+enumerates all feature records, including duplicate tags. CPAL palette queries
+are exposed through `hr_ot_color_has_palettes` and
+`hr_ot_color_palette_get_count/flags/colors`.
+Variation-axis metadata is exposed by `hr_ot_var_get_axis_count/infos`;
+`hr_ot_name_get_utf16` retrieves localized names with HarfBuzz's encoding
+preferences, platform language IDs, and UTF-16 buffer sizing. Unicode-platform
+names can use Apple's `ltag` table; Mac Roman names follow HarfBuzz's ASCII
+interpretation. AAT feat-table metadata is exposed by
+`hr_aat_layout_get_feature_types` and
+`hr_aat_layout_feature_type_get_selector_infos`, including exclusive defaults
+and non-exclusive enable/disable pairs. The complete HarfBuzz set and map APIs
+are available as `hr_set_*` and `hr_map_*`, including inverted sets, ranges, set algebra, and
 iteration. OpenType script and language tags can be converted with
 `hr_ot_tag_to_language` and `hr_ot_tags_from_script_and_language`.
 Set `hr_font_set_ppem` when `BASE` or `MATH` device adjustments should apply; it is
@@ -177,6 +190,7 @@ callback with `hr_face_create_for_tables`, which asks for one table at a time.
 Use `hr_face_set_get_table_tags_func` to enumerate the tables of a callback
 face; blob faces enumerate their SFNT directory automatically.
 `hr_face_set_index` changes the reported index without selecting new tables.
+`hr_face_collect_unicodes` adds the selected cmap subtable's coverage to a set.
 
 `hr_shape` already reuses shape plans through a per-face cache, the way
 `hb_shape` does internally, so reach for `hr_shape_plan_create` only when you
@@ -284,8 +298,8 @@ callback supplies scalar queries when no scalar callback is installed; a local
 scalar callback also takes precedence over an inherited batch callback.
 
 HarfBuzz compatibility headers are `hr-hb.h` for core APIs and `hr-hb-ot.h`
-for OpenType APIs. The core header also includes the OpenType mappings for
-existing callers. Both may be included in either order.
+for OpenType APIs, and `hr-hb-aat.h` for AAT feature metadata. The core header also includes the OpenType mappings for
+existing callers. The compatibility headers may be included in either order.
 
 `HB_VERSION_*` and `hb_version*` report the HarfBuzz shaping release matched
 by HarfRust, currently 14.5.1. `HR_VERSION_*` and `hr_version*` continue to

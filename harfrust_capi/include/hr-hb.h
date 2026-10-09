@@ -16,8 +16,9 @@
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, MATH, layout lookup, set, map, and OpenType tag
- * conversion APIs are covered.
+ * Shaping, BASE baseline, MATH, CPAL palettes, axis/name and AAT metadata,
+ * layout script/feature/lookup, set, map, and OpenType tag conversion APIs
+ * are covered.
  * Other layout table introspection and custom Unicode
  * callbacks have no mapping here and will fail to compile, which is the
  * point: you find out at build time rather than at run time. OpenType
@@ -122,6 +123,7 @@
 #define hb_direction_from_string                         hr_direction_from_string
 #define hb_direction_t                                   hr_direction_t
 #define hb_direction_to_string                           hr_direction_to_string
+#define hb_face_collect_unicodes                         hr_face_collect_unicodes
 #define hb_face_count                                    hr_face_count
 #define hb_face_create                                   hr_face_create
 #define hb_face_create_for_tables                        hr_face_create_for_tables
@@ -387,6 +389,7 @@
 #define HB_GLYPH_FLAG_UNSAFE_TO_CONCAT                HR_GLYPH_FLAG_UNSAFE_TO_CONCAT
 #define HB_LANGUAGE_INVALID                           HR_LANGUAGE_INVALID
 #define HB_MAP_VALUE_INVALID                          HR_MAP_VALUE_INVALID
+#define HB_MATH_GLYPH_PART_FLAG_EXTENDER              HR_MATH_GLYPH_PART_FLAG_EXTENDER
 #define HB_MEMORY_MODE_DUPLICATE                      HR_MEMORY_MODE_DUPLICATE
 #define HB_MEMORY_MODE_READONLY                       HR_MEMORY_MODE_READONLY
 #define HB_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE     HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE
@@ -587,5 +590,6 @@
 
 /* Kept for existing consumers of the combined compatibility header. */
 #include "hr-hb-ot.h"
+#include "hr-hb-aat.h"
 
 #endif /* HARFRUST_HB_H */
