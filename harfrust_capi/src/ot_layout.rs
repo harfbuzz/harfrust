@@ -504,19 +504,20 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
 /// A registered OpenType BASE baseline tag. The numeric value is the tag itself.
 pub type hr_ot_layout_baseline_tag_t = hr_tag_t;
 
-pub const HR_OT_LAYOUT_BASELINE_TAG_ROMAN: hr_ot_layout_baseline_tag_t = 0x726F_6D6E;
-pub const HR_OT_LAYOUT_BASELINE_TAG_HANGING: hr_ot_layout_baseline_tag_t = 0x6861_6E67;
+pub const HR_OT_LAYOUT_BASELINE_TAG_ROMAN: hr_ot_layout_baseline_tag_t = 0x726F_6D6Eu32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_HANGING: hr_ot_layout_baseline_tag_t = 0x6861_6E67u32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT: hr_ot_layout_baseline_tag_t =
-    0x6963_6662;
+    0x6963_6662u32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT: hr_ot_layout_baseline_tag_t =
-    0x6963_6674;
-pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL: hr_ot_layout_baseline_tag_t = 0x4963_6663;
+    0x6963_6674u32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_CENTRAL: hr_ot_layout_baseline_tag_t = 0x4963_6663u32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_BOTTOM_OR_LEFT: hr_ot_layout_baseline_tag_t =
-    0x6964_656F;
+    0x6964_656Fu32;
 pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_TOP_OR_RIGHT: hr_ot_layout_baseline_tag_t =
-    0x6964_7470;
-pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL: hr_ot_layout_baseline_tag_t = 0x4964_6365;
-pub const HR_OT_LAYOUT_BASELINE_TAG_MATH: hr_ot_layout_baseline_tag_t = 0x6D61_7468;
+    0x6964_7470u32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_IDEO_EMBOX_CENTRAL: hr_ot_layout_baseline_tag_t =
+    0x4964_6365u32;
+pub const HR_OT_LAYOUT_BASELINE_TAG_MATH: hr_ot_layout_baseline_tag_t = 0x6D61_7468u32;
 
 /// Returns the dominant horizontal baseline for a Unicode script.
 #[no_mangle]
