@@ -16,8 +16,9 @@
  * macros below would rewrite HarfBuzz's own declarations. Include one or the
  * other.
  *
- * Shaping, BASE baseline, MATH, layout script/feature/lookup, set, map, and OpenType tag
- * conversion APIs are covered.
+ * Shaping, BASE baseline, MATH, CPAL palettes, axis/name and AAT metadata,
+ * layout script/feature/lookup, set, map, and OpenType tag conversion APIs
+ * are covered.
  * Anything else HarfBuzz offers -- drawing and painting callbacks,
  * subsetting, other layout table introspection, custom Unicode
  * callbacks -- has no mapping here and will fail to compile, which is the
@@ -110,6 +111,11 @@
 #define hb_buffer_set_user_data                          hr_buffer_set_user_data
 #define hb_buffer_t                                      hr_buffer_t
 #define hb_codepoint_t                                   hr_codepoint_t
+#define hb_color_get_alpha                               hr_color_get_alpha
+#define hb_color_get_blue                                hr_color_get_blue
+#define hb_color_get_green                               hr_color_get_green
+#define hb_color_get_red                                 hr_color_get_red
+#define hb_color_t                                       hr_color_t
 #define hb_destroy_func_t                                hr_destroy_func_t
 #define hb_direction_from_string                         hr_direction_from_string
 #define hb_direction_t                                   hr_direction_t
@@ -359,6 +365,7 @@
 #define HB_BUFFER_SERIALIZE_FORMAT_JSON               HR_BUFFER_SERIALIZE_FORMAT_JSON
 #define HB_BUFFER_SERIALIZE_FORMAT_TEXT               HR_BUFFER_SERIALIZE_FORMAT_TEXT
 #define HB_CODEPOINT_INVALID                          HR_CODEPOINT_INVALID
+#define HB_COLOR                                      HR_COLOR
 #define HB_DIRECTION_BTT                              HR_DIRECTION_BTT
 #define HB_DIRECTION_INVALID                          HR_DIRECTION_INVALID
 #define HB_DIRECTION_IS_BACKWARD                      HR_DIRECTION_IS_BACKWARD
@@ -579,5 +586,6 @@
 
 /* Kept for existing consumers of the combined compatibility header. */
 #include "hr-hb-ot.h"
+#include "hr-hb-aat.h"
 
 #endif /* HARFRUST_HB_H */

@@ -33,6 +33,9 @@ trailer = """
 /** Expands a tag into its four characters, as separate arguments. */
 #define HR_UNTAG(tag) (uint8_t)(((tag) >> 24) & 0xFF), (uint8_t)(((tag) >> 16) & 0xFF), (uint8_t)(((tag) >> 8) & 0xFF), (uint8_t)((tag) & 0xFF)
 
+/** Packs unpremultiplied sRGB blue, green, red, and alpha channels. */
+#define HR_COLOR(b,g,r,a) ((hr_color_t)((((uint32_t)(b) & 0xffu) << 24) | (((uint32_t)(g) & 0xffu) << 16) | (((uint32_t)(r) & 0xffu) << 8) | ((uint32_t)(a) & 0xffu)))
+
 /** An unset language. */
 #define HR_LANGUAGE_INVALID ((hr_language_t) 0)
 
