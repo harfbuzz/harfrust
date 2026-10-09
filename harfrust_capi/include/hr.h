@@ -24,6 +24,11 @@
 #include <stddef.h>
 
 /**
+ * No exclusive default selector is available.
+ */
+#define HR_AAT_LAYOUT_NO_SELECTOR_INDEX 65535u
+
+/**
  * Value applied to a feature that covers the whole buffer, as its start.
  */
 #define HR_FEATURE_GLOBAL_START 0u
@@ -116,6 +121,34 @@ typedef struct hr_shape_plan_t hr_shape_plan_t;
  * The immutable default Unicode provider.
  */
 typedef struct hr_unicode_funcs_t hr_unicode_funcs_t;
+
+/**
+ * An AAT feature type.
+ */
+typedef unsigned int hr_aat_layout_feature_type_t;
+
+/**
+ * An OpenType name-table identifier.
+ */
+typedef unsigned int hr_ot_name_id_t;
+
+/**
+ * An AAT feature selector.
+ */
+typedef unsigned int hr_aat_layout_feature_selector_t;
+
+/**
+ * A named selector and the values that enable and disable it.
+ */
+typedef struct hr_aat_layout_feature_selector_info_t {
+  hr_ot_name_id_t name_id;
+  hr_aat_layout_feature_selector_t enable;
+  hr_aat_layout_feature_selector_t disable;
+  /**
+   * Reserved; always zero.
+   */
+  unsigned int reserved;
+} hr_aat_layout_feature_selector_info_t;
 
 /**
  * How a blob relates to the memory it was created over.
@@ -325,6 +358,12 @@ typedef hr_tag_t hr_buffer_serialize_format_t;
 typedef uint32_t hr_buffer_serialize_flags_t;
 
 /**
+ * An unpremultiplied sRGB color, packed as blue/green/red/alpha from the
+ * most significant byte to the least significant byte.
+ */
+typedef uint32_t hr_color_t;
+
+/**
  * A feature tag with the value to apply and the range to apply it over.
  */
 typedef struct hr_feature_t {
@@ -493,6 +532,11 @@ typedef hr_bool_t (*hr_font_get_glyph_extents_func_t)(struct hr_font_t *font,
                                                       void *user_data);
 
 /**
+ * Flags describing the backgrounds on which a palette is usable.
+ */
+typedef unsigned int hr_ot_color_palette_flags_t;
+
+/**
  * A registered OpenType BASE baseline tag. The numeric value is the tag itself.
  */
 typedef hr_tag_t hr_ot_layout_baseline_tag_t;
@@ -520,6 +564,615 @@ typedef struct hr_ot_math_glyph_part_t {
   hr_position_t full_advance;
   hr_ot_math_glyph_part_flags_t flags;
 } hr_ot_math_glyph_part_t;
+
+/**
+ * Flags on an OpenType variation axis.
+ */
+typedef unsigned int hr_ot_var_axis_flags_t;
+
+/**
+ * Metadata for an axis in the font's `fvar` table.
+ */
+typedef struct hr_ot_var_axis_info_t {
+  unsigned int axis_index;
+  hr_tag_t tag;
+  hr_ot_name_id_t name_id;
+  hr_ot_var_axis_flags_t flags;
+  float min_value;
+  float default_value;
+  float max_value;
+  /**
+   * Reserved; always zero.
+   */
+  unsigned int reserved;
+} hr_ot_var_axis_info_t;
+
+/**
+ * Predefined OpenType name-table identifiers.
+ */
+typedef unsigned int hr_ot_name_id_predefined_t;
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_INVALID 65535u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_ALL_TYPOGRAPHIC 0u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LIGATURES 1u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CURSIVE_CONNECTION 2u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE 3u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_VERTICAL_SUBSTITUTION 4u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LINGUISTIC_REARRANGEMENT 5u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_NUMBER_SPACING 6u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_SMART_SWASH_TYPE 8u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_DIACRITICS_TYPE 9u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_VERTICAL_POSITION 10u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_FRACTIONS 11u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_OVERLAPPING_CHARACTERS_TYPE 13u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_TYPOGRAPHIC_EXTRAS 14u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_MATHEMATICAL_EXTRAS 15u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_ORNAMENT_SETS_TYPE 16u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES 17u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_DESIGN_COMPLEXITY_TYPE 18u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_STYLE_OPTIONS 19u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_SHAPE 20u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_NUMBER_CASE 21u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_TEXT_SPACING 22u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_TRANSLITERATION 23u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_ANNOTATION_TYPE 24u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_KANA_SPACING_TYPE 25u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_IDEOGRAPHIC_SPACING_TYPE 26u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_UNICODE_DECOMPOSITION_TYPE 27u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_RUBY_KANA 28u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CJK_SYMBOL_ALTERNATIVES_TYPE 29u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_IDEOGRAPHIC_ALTERNATIVES_TYPE 30u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CJK_VERTICAL_ROMAN_PLACEMENT_TYPE 31u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_ITALIC_CJK_ROMAN 32u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CASE_SENSITIVE_LAYOUT 33u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_ALTERNATE_KANA 34u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_STYLISTIC_ALTERNATIVES 35u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CONTEXTUAL_ALTERNATIVES 36u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE 37u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_UPPER_CASE 38u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_LANGUAGE_TAG_TYPE 39u
+
+#define HR_AAT_LAYOUT_FEATURE_TYPE_CJK_ROMAN_SPACING_TYPE 103u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INVALID 65535u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALL_TYPE_FEATURES_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALL_TYPE_FEATURES_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_REQUIRED_LIGATURES_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_REQUIRED_LIGATURES_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_COMMON_LIGATURES_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_COMMON_LIGATURES_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_RARE_LIGATURES_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_RARE_LIGATURES_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOGOS_ON 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOGOS_OFF 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_REBUS_PICTURES_ON 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_REBUS_PICTURES_OFF 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DIPHTHONG_LIGATURES_ON 10u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DIPHTHONG_LIGATURES_OFF 11u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SQUARED_LIGATURES_ON 12u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SQUARED_LIGATURES_OFF 13u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ABBREV_SQUARED_LIGATURES_ON 14u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ABBREV_SQUARED_LIGATURES_OFF 15u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SYMBOL_LIGATURES_ON 16u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SYMBOL_LIGATURES_OFF 17u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CONTEXTUAL_LIGATURES_ON 18u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CONTEXTUAL_LIGATURES_OFF 19u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HISTORICAL_LIGATURES_ON 20u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HISTORICAL_LIGATURES_OFF 21u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UNCONNECTED 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PARTIALLY_CONNECTED 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CURSIVE 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_AND_LOWER_CASE 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALL_CAPS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALL_LOWER_CASE 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SMALL_CAPS 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INITIAL_CAPS 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INITIAL_CAPS_AND_SMALL_CAPS 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SUBSTITUTE_VERTICAL_FORMS_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SUBSTITUTE_VERTICAL_FORMS_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LINGUISTIC_REARRANGEMENT_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LINGUISTIC_REARRANGEMENT_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_MONOSPACED_NUMBERS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PROPORTIONAL_NUMBERS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_THIRD_WIDTH_NUMBERS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_QUARTER_WIDTH_NUMBERS 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_WORD_INITIAL_SWASHES_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_WORD_INITIAL_SWASHES_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_WORD_FINAL_SWASHES_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_WORD_FINAL_SWASHES_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LINE_INITIAL_SWASHES_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LINE_INITIAL_SWASHES_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LINE_FINAL_SWASHES_ON 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LINE_FINAL_SWASHES_OFF 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NON_FINAL_SWASHES_ON 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NON_FINAL_SWASHES_OFF 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SHOW_DIACRITICS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HIDE_DIACRITICS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DECOMPOSE_DIACRITICS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NORMAL_POSITION 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SUPERIORS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INFERIORS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ORDINALS 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SCIENTIFIC_INFERIORS 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_FRACTIONS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_VERTICAL_FRACTIONS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DIAGONAL_FRACTIONS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PREVENT_OVERLAP_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PREVENT_OVERLAP_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HYPHENS_TO_EM_DASH_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HYPHENS_TO_EM_DASH_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HYPHEN_TO_EN_DASH_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HYPHEN_TO_EN_DASH_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SLASHED_ZERO_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SLASHED_ZERO_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_FORM_INTERROBANG_ON 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_FORM_INTERROBANG_OFF 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SMART_QUOTES_ON 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SMART_QUOTES_OFF 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PERIODS_TO_ELLIPSIS_ON 10u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PERIODS_TO_ELLIPSIS_OFF 11u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HYPHEN_TO_MINUS_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HYPHEN_TO_MINUS_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ASTERISK_TO_MULTIPLY_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ASTERISK_TO_MULTIPLY_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SLASH_TO_DIVIDE_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SLASH_TO_DIVIDE_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INEQUALITY_LIGATURES_ON 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INEQUALITY_LIGATURES_OFF 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_EXPONENTS_ON 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_EXPONENTS_OFF 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_MATHEMATICAL_GREEK_ON 10u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_MATHEMATICAL_GREEK_OFF 11u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_ORNAMENTS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DINGBATS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PI_CHARACTERS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_FLEURONS 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DECORATIVE_BORDERS 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INTERNATIONAL_SYMBOLS 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_MATH_SYMBOLS 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_ALTERNATES 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DESIGN_LEVEL1 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DESIGN_LEVEL2 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DESIGN_LEVEL3 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DESIGN_LEVEL4 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DESIGN_LEVEL5 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_STYLE_OPTIONS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DISPLAY_TEXT 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ENGRAVED_TEXT 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ILLUMINATED_CAPS 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TITLING_CAPS 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TALL_CAPS 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_CHARACTERS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SIMPLIFIED_CHARACTERS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_JIS1978_CHARACTERS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_JIS1983_CHARACTERS 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_JIS1990_CHARACTERS 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_ALT_ONE 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_ALT_TWO 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_ALT_THREE 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_ALT_FOUR 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_ALT_FIVE 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_EXPERT_CHARACTERS 10u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_JIS2004_CHARACTERS 11u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HOJO_CHARACTERS 12u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NLCCHARACTERS 13u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRADITIONAL_NAMES_CHARACTERS 14u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_NUMBERS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_NUMBERS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PROPORTIONAL_TEXT 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_MONOSPACED_TEXT 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HALF_WIDTH_TEXT 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_THIRD_WIDTH_TEXT 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_QUARTER_WIDTH_TEXT 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALT_PROPORTIONAL_TEXT 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALT_HALF_WIDTH_TEXT 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_TRANSLITERATION 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HANJA_TO_HANGUL 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HIRAGANA_TO_KATAKANA 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_KATAKANA_TO_HIRAGANA 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_KANA_TO_ROMANIZATION 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ROMANIZATION_TO_HIRAGANA 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ROMANIZATION_TO_KATAKANA 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HANJA_TO_HANGUL_ALT_ONE 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HANJA_TO_HANGUL_ALT_TWO 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HANJA_TO_HANGUL_ALT_THREE 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_ANNOTATION 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_BOX_ANNOTATION 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ROUNDED_BOX_ANNOTATION 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CIRCLE_ANNOTATION 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INVERTED_CIRCLE_ANNOTATION 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PARENTHESIS_ANNOTATION 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PERIOD_ANNOTATION 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ROMAN_NUMERAL_ANNOTATION 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DIAMOND_ANNOTATION 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INVERTED_BOX_ANNOTATION 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_INVERTED_ROUNDED_BOX_ANNOTATION 10u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_FULL_WIDTH_KANA 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PROPORTIONAL_KANA 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_FULL_WIDTH_IDEOGRAPHS 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PROPORTIONAL_IDEOGRAPHS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HALF_WIDTH_IDEOGRAPHS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CANONICAL_COMPOSITION_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CANONICAL_COMPOSITION_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_COMPATIBILITY_COMPOSITION_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_COMPATIBILITY_COMPOSITION_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRANSCODING_COMPOSITION_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_TRANSCODING_COMPOSITION_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_RUBY_KANA 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_RUBY_KANA 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_RUBY_KANA_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_RUBY_KANA_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_CJK_SYMBOL_ALTERNATIVES 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_SYMBOL_ALT_ONE 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_SYMBOL_ALT_TWO 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_SYMBOL_ALT_THREE 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_SYMBOL_ALT_FOUR 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_SYMBOL_ALT_FIVE 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_IDEOGRAPHIC_ALTERNATIVES 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_IDEOGRAPHIC_ALT_ONE 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_IDEOGRAPHIC_ALT_TWO 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_IDEOGRAPHIC_ALT_THREE 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_IDEOGRAPHIC_ALT_FOUR 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_IDEOGRAPHIC_ALT_FIVE 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_VERTICAL_ROMAN_CENTERED 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_VERTICAL_ROMAN_HBASELINE 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_CJK_ITALIC_ROMAN 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_ITALIC_ROMAN 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_ITALIC_ROMAN_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CJK_ITALIC_ROMAN_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CASE_SENSITIVE_LAYOUT_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CASE_SENSITIVE_LAYOUT_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CASE_SENSITIVE_SPACING_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CASE_SENSITIVE_SPACING_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALTERNATE_HORIZ_KANA_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALTERNATE_HORIZ_KANA_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALTERNATE_VERT_KANA_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_ALTERNATE_VERT_KANA_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_NO_STYLISTIC_ALTERNATES 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_ONE_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_ONE_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TWO_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TWO_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_THREE_ON 6u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_THREE_OFF 7u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FOUR_ON 8u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FOUR_OFF 9u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FIVE_ON 10u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FIVE_OFF 11u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SIX_ON 12u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SIX_OFF 13u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SEVEN_ON 14u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SEVEN_OFF 15u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_EIGHT_ON 16u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_EIGHT_OFF 17u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_NINE_ON 18u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_NINE_OFF 19u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TEN_ON 20u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TEN_OFF 21u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_ELEVEN_ON 22u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_ELEVEN_OFF 23u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TWELVE_ON 24u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TWELVE_OFF 25u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_THIRTEEN_ON 26u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_THIRTEEN_OFF 27u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FOURTEEN_ON 28u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FOURTEEN_OFF 29u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FIFTEEN_ON 30u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_FIFTEEN_OFF 31u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SIXTEEN_ON 32u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SIXTEEN_OFF 33u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SEVENTEEN_ON 34u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_SEVENTEEN_OFF 35u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_EIGHTEEN_ON 36u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_EIGHTEEN_OFF 37u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_NINETEEN_ON 38u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_NINETEEN_OFF 39u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TWENTY_ON 40u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_STYLISTIC_ALT_TWENTY_OFF 41u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CONTEXTUAL_ALTERNATES_ON 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CONTEXTUAL_ALTERNATES_OFF 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SWASH_ALTERNATES_ON 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_SWASH_ALTERNATES_OFF 3u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CONTEXTUAL_SWASH_ALTERNATES_ON 4u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_CONTEXTUAL_SWASH_ALTERNATES_OFF 5u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_LOWER_CASE 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_PETITE_CAPS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_UPPER_CASE 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_SMALL_CAPS 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_UPPER_CASE_PETITE_CAPS 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_HALF_WIDTH_CJK_ROMAN 0u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_PROPORTIONAL_CJK_ROMAN 1u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_DEFAULT_CJK_ROMAN 2u
+
+#define HR_AAT_LAYOUT_FEATURE_SELECTOR_FULL_WIDTH_CJK_ROMAN 3u
 
 /**
  * Copy the data. The caller keeps ownership of the original buffer.
@@ -1662,6 +2315,21 @@ typedef struct hr_ot_math_glyph_part_t {
  */
 #define HR_MAP_VALUE_INVALID HR_CODEPOINT_INVALID
 
+/**
+ * No background preference.
+ */
+#define HR_OT_COLOR_PALETTE_FLAG_DEFAULT 0
+
+/**
+ * The palette is usable on a light background.
+ */
+#define HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND 1
+
+/**
+ * The palette is usable on a dark background.
+ */
+#define HR_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND 2
+
 #define HR_OT_LAYOUT_BASELINE_TAG_ROMAN 1919905134u
 
 #define HR_OT_LAYOUT_BASELINE_TAG_HANGING 1751215719u
@@ -1806,6 +2474,63 @@ typedef struct hr_ot_math_glyph_part_t {
 
 #define HR_OT_TAG_MATH_SCRIPT 1835103336u
 
+#define HR_OT_NAME_ID_COPYRIGHT 0
+
+#define HR_OT_NAME_ID_FONT_FAMILY 1
+
+#define HR_OT_NAME_ID_FONT_SUBFAMILY 2
+
+#define HR_OT_NAME_ID_UNIQUE_ID 3
+
+#define HR_OT_NAME_ID_FULL_NAME 4
+
+#define HR_OT_NAME_ID_VERSION_STRING 5
+
+#define HR_OT_NAME_ID_POSTSCRIPT_NAME 6
+
+#define HR_OT_NAME_ID_TRADEMARK 7
+
+#define HR_OT_NAME_ID_MANUFACTURER 8
+
+#define HR_OT_NAME_ID_DESIGNER 9
+
+#define HR_OT_NAME_ID_DESCRIPTION 10
+
+#define HR_OT_NAME_ID_VENDOR_URL 11
+
+#define HR_OT_NAME_ID_DESIGNER_URL 12
+
+#define HR_OT_NAME_ID_LICENSE 13
+
+#define HR_OT_NAME_ID_LICENSE_URL 14
+
+#define HR_OT_NAME_ID_TYPOGRAPHIC_FAMILY 16
+
+#define HR_OT_NAME_ID_TYPOGRAPHIC_SUBFAMILY 17
+
+#define HR_OT_NAME_ID_MAC_FULL_NAME 18
+
+#define HR_OT_NAME_ID_SAMPLE_TEXT 19
+
+#define HR_OT_NAME_ID_CID_FINDFONT_NAME 20
+
+#define HR_OT_NAME_ID_WWS_FAMILY 21
+
+#define HR_OT_NAME_ID_WWS_SUBFAMILY 22
+
+#define HR_OT_NAME_ID_LIGHT_BACKGROUND 23
+
+#define HR_OT_NAME_ID_DARK_BACKGROUND 24
+
+#define HR_OT_NAME_ID_VARIATIONS_PS_PREFIX 25
+
+#define HR_OT_NAME_ID_INVALID 65535
+
+/**
+ * The axis should not be exposed directly in user interfaces.
+ */
+#define HR_OT_VAR_AXIS_FLAG_HIDDEN 1
+
 /**
  * Unset set value, also used to start iteration.
  */
@@ -1814,6 +2539,39 @@ typedef struct hr_ot_math_glyph_part_t {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * Returns the total number of feature types in the face's AAT feat table.
+ *
+ * When both output pointers are non-null, `feature_count` gives capacity on
+ * entry and the number written on return. A null array leaves the count
+ * unchanged. Results preserve the order in the table.
+ * # Safety
+ * `face` must be null or live; `feature_count` must be null or writable;
+ * `features` must hold the input capacity when non-null.
+ */
+unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
+                                             unsigned int start_offset,
+                                             unsigned int *feature_count,
+                                             hr_aat_layout_feature_type_t *features);
+
+/**
+ * Returns the total number of selectors for an AAT feature and copies a page.
+ *
+ * For exclusive features, `default_index` is relative to the entire selector
+ * array and each disable value is the default selector's value. Otherwise
+ * the index is `HR_AAT_LAYOUT_NO_SELECTOR_INDEX` and each disable value is
+ * its enable value plus one. A null selector array leaves the count unchanged.
+ * # Safety
+ * `face` must be null or live; `selector_count` and `default_index` must be
+ * null or writable; `selectors` must hold the input capacity when non-null.
+ */
+unsigned int hr_aat_layout_feature_type_get_selector_infos(struct hr_face_t *face,
+                                                           hr_aat_layout_feature_type_t feature_type,
+                                                           unsigned int start_offset,
+                                                           unsigned int *selector_count,
+                                                           struct hr_aat_layout_feature_selector_info_t *selectors,
+                                                           unsigned int *default_index);
 
 /**
  * Creates a blob over `length` bytes at `data`.
@@ -2509,6 +3267,26 @@ unsigned int hr_buffer_serialize_glyphs(struct hr_buffer_t *buffer,
                                         struct hr_font_t *font,
                                         hr_buffer_serialize_format_t format,
                                         hr_buffer_serialize_flags_t flags);
+
+/**
+ * Returns the blue channel of a packed color.
+ */
+uint8_t hr_color_get_blue(hr_color_t color);
+
+/**
+ * Returns the green channel of a packed color.
+ */
+uint8_t hr_color_get_green(hr_color_t color);
+
+/**
+ * Returns the red channel of a packed color.
+ */
+uint8_t hr_color_get_red(hr_color_t color);
+
+/**
+ * Returns the alpha channel of a packed color.
+ */
+uint8_t hr_color_get_alpha(hr_color_t color);
 
 /**
  * Converts a string into a tag, padding with spaces and truncating past four
@@ -3912,6 +4690,46 @@ void hr_map_keys(const struct hr_map_t *map, struct hr_set_t *keys);
 void hr_map_values(const struct hr_map_t *map, struct hr_set_t *values);
 
 /**
+ * Returns whether the face has a CPAL table with any palettes.
+ * # Safety
+ * `face` must be null or live.
+ */
+hr_bool_t hr_ot_color_has_palettes(struct hr_face_t *face);
+
+/**
+ * Returns the number of palettes in CPAL, or zero if absent.
+ * # Safety
+ * `face` must be null or live.
+ */
+unsigned int hr_ot_color_palette_get_count(struct hr_face_t *face);
+
+/**
+ * Returns a palette's background flags, or the default flags if unavailable.
+ * # Safety
+ * `face` must be null or live.
+ */
+hr_ot_color_palette_flags_t hr_ot_color_palette_get_flags(struct hr_face_t *face,
+                                                          unsigned int palette_index);
+
+/**
+ * Returns the total number of colors in a palette and copies a page of them.
+ *
+ * Colors are unpremultiplied sRGB values in `hr_color_t` packing. When both
+ * output pointers are non-null, `color_count` gives capacity on entry and
+ * the number written on return. A null array leaves the count unchanged for
+ * a valid palette. An invalid palette index returns zero and clears the count.
+ *
+ * # Safety
+ * `face` must be null or live; `color_count` must be null or writable;
+ * `colors` must hold the input capacity when non-null.
+ */
+unsigned int hr_ot_color_palette_get_colors(struct hr_face_t *face,
+                                            unsigned int palette_index,
+                                            unsigned int start_offset,
+                                            unsigned int *color_count,
+                                            hr_color_t *colors);
+
+/**
  * Returns whether the face has a readable GSUB table.
  *
  * # Safety
@@ -4103,6 +4921,26 @@ unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
                                            hr_position_t *italics_correction);
 
 /**
+ * Returns a localized name's full UTF-16 length, excluding the terminator.
+ *
+ * A null language requests English. Exact language matches take precedence
+ * over a matching parent language. With nonzero input capacity, copies a
+ * complete-codepoint prefix, reserves one unit for a terminating zero, and
+ * sets `text_size` to the units written, excluding that zero. With zero
+ * capacity or a null count, only returns the required length.
+ *
+ * # Safety
+ * `face` must be null or live; `language` must be null or interned;
+ * `text_size` must be null or writable; `text` must hold the input capacity
+ * when non-null. A null text array does not copy any units.
+ */
+unsigned int hr_ot_name_get_utf16(struct hr_face_t *face,
+                                  hr_ot_name_id_t name_id,
+                                  hr_language_t language,
+                                  unsigned int *text_size,
+                                  uint16_t *text);
+
+/**
  * Converts an OpenType language-system tag to an interned language.
  */
 hr_language_t hr_ot_tag_to_language(hr_tag_t tag);
@@ -4120,6 +4958,28 @@ void hr_ot_tags_from_script_and_language(hr_script_t script,
                                          hr_tag_t *script_tags,
                                          unsigned int *language_count,
                                          hr_tag_t *language_tags);
+
+/**
+ * Returns the number of variation axes, or zero without readable `fvar` data.
+ * # Safety
+ * `face` must be null or live.
+ */
+unsigned int hr_ot_var_get_axis_count(struct hr_face_t *face);
+
+/**
+ * Returns the total axis count and copies axis metadata from `start_offset`.
+ *
+ * When both output pointers are non-null, `axes_count` gives the capacity on
+ * entry and the number written on return. A null array leaves the count
+ * unchanged. Axis indices remain relative to the full `fvar` axis array.
+ * # Safety
+ * `face` must be null or live; `axes_count` must be null or writable;
+ * `axes_array` must hold the input capacity when non-null.
+ */
+unsigned int hr_ot_var_get_axis_infos(struct hr_face_t *face,
+                                      unsigned int start_offset,
+                                      unsigned int *axes_count,
+                                      struct hr_ot_var_axis_info_t *axes_array);
 
 struct hr_set_t *hr_set_create(void);
 
@@ -4704,6 +5564,9 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 
 /** Expands a tag into its four characters, as separate arguments. */
 #define HR_UNTAG(tag) (uint8_t)(((tag) >> 24) & 0xFF), (uint8_t)(((tag) >> 16) & 0xFF), (uint8_t)(((tag) >> 8) & 0xFF), (uint8_t)((tag) & 0xFF)
+
+/** Packs unpremultiplied sRGB blue, green, red, and alpha channels. */
+#define HR_COLOR(b,g,r,a) ((hr_color_t)((((uint32_t)(b) & 0xffu) << 24) | (((uint32_t)(g) & 0xffu) << 16) | (((uint32_t)(r) & 0xffu) << 8) | ((uint32_t)(a) & 0xffu)))
 
 /** An unset language. */
 #define HR_LANGUAGE_INVALID ((hr_language_t) 0)
