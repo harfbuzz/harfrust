@@ -60,4 +60,11 @@
 #define HB_SUBSET_SETS_NO_SUBSET_TABLE_TAG       HR_SUBSET_SETS_NO_SUBSET_TABLE_TAG
 #define HB_SUBSET_SETS_UNICODE                   HR_SUBSET_SETS_UNICODE
 
+#if defined(__cplusplus) && defined(HARFRUST_HB_CPLUSPLUS_HH)
+namespace hb {
+HB_DEFINE_VTABLE (subset_input, nullptr);
+HB_DEFINE_VTABLE (subset_plan, nullptr);
+} // namespace hb
+#endif
+
 #endif /* HARFRUST_HB_SUBSET_H */

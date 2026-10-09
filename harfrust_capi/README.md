@@ -256,3 +256,15 @@ Enable the optional `subset` feature for Skera-backed subsetting in the same
 C library, using the existing face, blob, and set handles. Include `hr-subset.h`
 for the native API or `hr-hb-subset.h` for HarfBuzz spellings. See
 [SUBSETTING.md](SUBSETTING.md) for building, supported flags, and validation.
+
+## HarfBuzz C++ helpers
+
+Include `hr-hb-cplusplus.hh` in place of HarfBuzz's `hb-cplusplus.hh` for
+the C++11 `hb::shared_ptr<T>` and `hb::unique_ptr<T>` ownership helpers,
+their traits, and hash specializations. They adopt an existing reference;
+copying a shared pointer acquires another reference. Supported core types
+are blobs, buffers, faces, fonts, font functions, maps, sets, and shape plans.
+
+Including `hr-hb-subset.h` before or after the C++ header also enables
+subset inputs and plans. Build `harfrust_capi` with `--features subset`
+when using those objects. Objects without a complete HarfRust lifetime API have no vtable.
