@@ -143,7 +143,7 @@ fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffe
     let mut ret = false;
     if !buffer_message!(buffer, font, "start reordering khmer") {
         buffer.deallocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
-        return ret;
+        return Some(ret);
     }
 
     if insert_dotted_circles(
@@ -171,6 +171,7 @@ fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffe
 
     buffer.deallocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
 
+    buffer_message!(buffer, font, "end reordering khmer");
     Some(ret)
 }
 

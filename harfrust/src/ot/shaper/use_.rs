@@ -385,7 +385,7 @@ fn reorder_use(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) ->
     let mut ret = false;
     if !buffer_message!(buffer, font, "start reordering USE") {
         buffer.deallocate_var(GlyphInfo::USE_CATEGORY_VAR);
-        return ret;
+        return Some(ret);
     }
 
     if insert_dotted_circles(
@@ -411,6 +411,7 @@ fn reorder_use(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) ->
 
     buffer.deallocate_var(GlyphInfo::USE_CATEGORY_VAR);
 
+    buffer_message!(buffer, font, "end reordering USE");
     Some(ret)
 }
 

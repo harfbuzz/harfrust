@@ -56,14 +56,17 @@ harfrust = { version = "0.14", features = ["tracing"] }
 Install a callback before shaping with `buffer.set_message_function`. It receives
 the public `Buffer`, `ShaperFont`, and message text, and can inspect or serialize
 intermediate Unicode and glyph contents. Return `true` to continue shaping, or
-`false` from a `start` message to skip that operation. Mutable closures are
-supported; callbacks own their captures and must be `Send + Sync + 'static`.
+`false` from a skippable `start` message to skip that operation. Per-glyph and
+recursion messages are informational and ignore the return value. Mutable closures
+are supported; callbacks own their captures and must be `Send + Sync + 'static`.
 Use `buffer.clear_message_function()` to remove a callback.
 
 Tracing also works with `no_std` and `libm`. Without the `tracing` feature, the
 callback storage, message formatting, and intermediate snapshots compile out.
-The `hr-shape` tool enables tracing and exposes `--trace` to print messages
-alongside intermediate buffer contents.
+The `hr-shape` tool enables tracing and exposes `--trace` to print messages and
+intermediate buffer contents to stderr. Its library rendering API includes traces
+in the returned string. Per-glyph messages follow HarfBuzz's detailed trace mode
+(`HB_BUFFER_MESSAGE_MORE=1`), which release builds of HarfBuzz normally disable.
 
 ## Notes about the port
 

@@ -50,6 +50,8 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             break;
         };
         subtable_idx += 1;
+        #[cfg(feature = "tracing")]
+        let message_index = subtable_idx - 1;
 
         if c.buffer.direction.is_horizontal() != subtable.is_horizontal() {
             continue;
@@ -64,15 +66,15 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         if !c.buffer_intersects_machine() {
             message!(
                 c,
-                "skipping kerning subtable {} because no glyph matches",
-                subtable_idx
+                "skipped subtable {} because no glyph matches",
+                message_index
             );
             continue;
         }
 
         let reverse = c.buffer.direction.is_backward();
 
-        message_continue!(c, "start subtable {}", subtable_idx);
+        message_continue!(c, "start subtable {}", message_index);
 
         if !seen_cross_stream && subtable.is_cross_stream() {
             seen_cross_stream = true;
@@ -101,10 +103,9 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
         match &kind {
             SubtableKind::Format0(format0) => {
-                if !c.plan.requested_kerning {
-                    continue;
+                if c.plan.requested_kerning {
+                    apply_simple_kerning(c, &subtable, format0);
                 }
-                apply_simple_kerning(c, &subtable, format0);
             }
             SubtableKind::Format1(format1) => {
                 let mut driver = Driver1 {
@@ -124,10 +125,9 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 }
             }
             SubtableKind::Format2(format2) => {
-                if !c.plan.requested_kerning {
-                    continue;
+                if c.plan.requested_kerning {
+                    apply_simple_kerning(c, &subtable, format2);
                 }
-                apply_simple_kerning(c, &subtable, format2);
             }
             SubtableKind::Format4(format4) => {
                 let mut driver = Driver4 {
@@ -148,13 +148,12 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 }
             }
             SubtableKind::Format6(format6) => {
-                if !c.plan.requested_kerning {
-                    continue;
+                if c.plan.requested_kerning {
+                    apply_simple_kerning(c, &subtable, format6);
                 }
-                apply_simple_kerning(c, &subtable, format6);
             }
         }
-        message!(c, "end subtable {}", subtable_idx);
+        message!(c, "end subtable {}", message_index);
     }
 
     if c.buffer_is_reversed {
@@ -233,6 +232,7 @@ impl SimpleKerning for Subtable6<'_> {
 }
 
 fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
+    message_return!(c, "start kern");
     let scale = c.scale;
     let mut ctx = ApplyContext::new(
         LayoutTableKind::Gpos,
@@ -309,6 +309,7 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
 
         i = j;
     }
+    message!(ctx, "end kern");
 }
 
 pub(crate) trait KerxStateEntryExt {

@@ -64,6 +64,27 @@ pub struct LookupMap {
     pub feature_tag: Tag,
 }
 
+// HarfBuzz prints tag bytes directly, whereas Tag's Display escapes them.
+#[cfg(feature = "tracing")]
+pub(crate) struct MessageTag(pub Option<Tag>);
+
+#[cfg(feature = "tracing")]
+impl core::fmt::Display for MessageTag {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use core::fmt::Write;
+        if let Some(tag) = self.0 {
+            for &byte in tag.as_ref() {
+                // Script tags use a C string; feature tags use four %c fields.
+                if f.alternate() && byte == 0 {
+                    break;
+                }
+                f.write_char(char::from(byte))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct StageMap {
     // Cumulative
@@ -519,6 +540,8 @@ impl<'a> OtMapBuilder<'a> {
                             true,
                             false,
                             false,
+                            #[cfg(feature = "tracing")]
+                            Tag::new(b"    "),
                         );
                     }
                 }
@@ -536,6 +559,8 @@ impl<'a> OtMapBuilder<'a> {
                                 feature.auto_zwj,
                                 feature.random,
                                 feature.per_syllable,
+                                #[cfg(feature = "tracing")]
+                                feature.tag,
                             );
                         }
                     }
@@ -592,13 +617,10 @@ impl<'a> OtMapBuilder<'a> {
         auto_zwj: bool,
         random: bool,
         per_syllable: bool,
+        #[cfg(feature = "tracing")] feature_tag: Tag,
     ) -> Option<()> {
         let table = self.layout.ot.layout_table(table_index)?;
 
-        #[cfg(feature = "tracing")]
-        let feature_tag = table
-            .feature_tag(feature_index)
-            .unwrap_or(Tag::new(b"DFLT"));
         let lookup_count = table.lookup_count();
         let feature = match variation_index {
             Some(idx) => table

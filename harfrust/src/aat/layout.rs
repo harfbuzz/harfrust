@@ -522,7 +522,13 @@ pub fn substitute(
         #[cfg(feature = "tracing")]
         font,
     );
-    message_return!(c, "start table morx");
+    #[cfg(feature = "tracing")]
+    let table = if layout.aat.morx.is_some() {
+        "morx"
+    } else {
+        "mort"
+    };
+    message_return!(c, "start table {table}");
     morx::apply(
         &mut c,
         if features.is_empty() {
@@ -531,7 +537,7 @@ pub fn substitute(
             &aat_map
         },
     );
-    message!(c, "end table morx");
+    message!(c, "end table {table}");
 }
 
 fn is_deleted_glyph(info: &GlyphInfo) -> bool {

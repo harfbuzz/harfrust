@@ -22,7 +22,11 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
             .unwrap_or_else(|err| panic!("hr-shape tracing failed: {err}"));
         let result = traced
             .lines()
-            .filter(|line| !line.starts_with("trace: "))
+            .filter(|line| {
+                !line
+                    .trim_start_matches(|c: char| c.is_ascii_digit() || c == ':' || c == ' ')
+                    .starts_with("trace: ")
+            })
             .collect::<Vec<_>>()
             .join("\n");
         assert_eq!(

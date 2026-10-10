@@ -584,7 +584,7 @@ fn initial_reordering(
 
     let mut ret = false;
     if !buffer_message!(buffer, font, "start reordering indic initial") {
-        return ret;
+        return Some(ret);
     }
 
     let indic_plan = plan.data::<IndicShapePlan>();
@@ -611,6 +611,7 @@ fn initial_reordering(
         end = buffer.next_syllable(start);
     }
 
+    buffer_message!(buffer, font, "end reordering indic initial");
     Some(ret)
 }
 
@@ -1306,11 +1307,14 @@ fn final_reordering(
         return Some(false);
     }
 
-    foreach_syllable!(buffer, start, end, {
-        if final_reordering_impl(plan, font, start, end, buffer).is_none() {
-            buffer.index_failed();
-        }
-    });
+    if buffer_message!(buffer, font, "start reordering indic final") {
+        foreach_syllable!(buffer, start, end, {
+            if final_reordering_impl(plan, font, start, end, buffer).is_none() {
+                buffer.index_failed();
+            }
+        });
+        buffer_message!(buffer, font, "end reordering indic final");
+    }
 
     buffer.deallocate_var(GlyphInfo::INDIC_CATEGORY_VAR);
     buffer.deallocate_var(GlyphInfo::INDIC_POSITION_VAR);
