@@ -251,6 +251,7 @@ static use_syllable_machine_start: i32 = 1;
 static use_syllable_machine_first_final: i32 = 1;
 static use_syllable_machine_error: i32 = -1;
 static use_syllable_machine_en_main: i32 = 1;
+
 #[derive(Clone, Copy)]
 pub enum SyllableType {
     IndependentCluster,
@@ -312,7 +313,7 @@ pub fn find_syllables(buffer: &mut Buffer) {
                         if (_use_syllable_machine_eof_trans[(cs) as usize] > 0) {
                             {
                                 _trans =
-                                    (_use_syllable_machine_eof_trans)[(cs) as usize] as u32 - 1;
+                                    (_use_syllable_machine_eof_trans[(cs) as usize]) as u32 - 1;
                             }
                         }
                     }
@@ -322,13 +323,13 @@ pub fn find_syllables(buffer: &mut Buffer) {
                         _inds = (_use_syllable_machine_index_offsets[(cs) as usize]) as i32;
                         if ((infos[p.index()].get().use_category() as u8) <= 56) {
                             {
-                                _ic = (_use_syllable_machine_char_class)[((infos[p.index()]
+                                _ic = (_use_syllable_machine_char_class[((infos[p.index()]
                                     .get()
                                     .use_category()
                                     as u8)
                                     as i32
                                     - 0)
-                                    as usize] as i32;
+                                    as usize]) as i32;
                                 if (_ic
                                     <= (_use_syllable_machine_trans_keys[(_keys + 1) as usize])
                                         as i32
@@ -344,19 +345,19 @@ pub fn find_syllables(buffer: &mut Buffer) {
                                         as usize])
                                         as u32;
                                 } else {
-                                    _trans = (_use_syllable_machine_index_defaults)[(cs) as usize]
+                                    _trans = (_use_syllable_machine_index_defaults[(cs) as usize])
                                         as u32;
                                 }
                             }
                         } else {
                             {
                                 _trans =
-                                    (_use_syllable_machine_index_defaults)[(cs) as usize] as u32;
+                                    (_use_syllable_machine_index_defaults[(cs) as usize]) as u32;
                             }
                         }
                     }
                 }
-                cs = (_use_syllable_machine_cond_targs)[(_trans) as usize] as i32;
+                cs = (_use_syllable_machine_cond_targs[(_trans) as usize]) as i32;
                 if (_use_syllable_machine_cond_actions[(_trans) as usize] != 0) {
                     {
                         match (_use_syllable_machine_cond_actions[(_trans) as usize]) {
