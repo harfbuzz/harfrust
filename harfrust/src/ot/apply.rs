@@ -577,16 +577,20 @@ pub(crate) fn apply_lookup(
 
         message!(
             ctx,
-            "recursing to lookup {} at {}",
+            "start recursing to lookup {} at {}",
             record.lookup_list_index.get(),
             ctx.buffer.message_idx()
         );
 
-        if ctx.recurse(record.lookup_list_index.get()).is_none() {
+        let applied = ctx.recurse(record.lookup_list_index.get()).is_some();
+        message!(
+            ctx,
+            "end recursing to lookup {}",
+            record.lookup_list_index.get(),
+        );
+        if !applied {
             continue;
         }
-
-        message!(ctx, "recursed to lookup {}", record.lookup_list_index.get(),);
 
         let new_len = ctx.buffer.backtrack_len() + ctx.buffer.lookahead_len();
         let mut delta = new_len as isize - orig_len as isize;

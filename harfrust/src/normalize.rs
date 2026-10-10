@@ -324,7 +324,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
 
     // First round, decompose
     let mut all_simple = true;
-    {
+    if message!(ctx, "start decompose") {
         ctx.buffer.clear_output();
         let count = ctx.buffer.len;
         ctx.buffer.idx = 0;
@@ -373,6 +373,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
         }
 
         ctx.buffer.sync();
+        message!(ctx, "end decompose");
     }
 
     // Second round, reorder (inplace)
@@ -425,6 +426,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
         && ctx.buffer.successful
         && (mode == NormalizationMode::ComposedDiacritics
             || mode == NormalizationMode::ComposedDiacriticsNoShortCircuit)
+        && message!(ctx, "start compose")
     {
         // As noted in the comment earlier, we don't try to combine
         // ccc=0 chars with their previous Starter.
@@ -481,5 +483,6 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
         }
 
         ctx.buffer.sync();
+        message!(ctx, "end compose");
     }
 }

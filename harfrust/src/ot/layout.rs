@@ -181,7 +181,7 @@ pub fn apply_layout_table<T: LayoutTable>(
                     ctx,
                     "start lookup {} feature '{}'",
                     lookup_map.index,
-                    lookup_map.feature_tag
+                    crate::ot::map::MessageTag(Some(lookup_map.feature_tag))
                 );
 
                 if lookup.digest().may_intersect(&ctx.buffer.digest)
@@ -199,27 +199,20 @@ pub fn apply_layout_table<T: LayoutTable>(
                     ctx.random = lookup_map.random;
                     ctx.per_syllable = lookup_map.per_syllable;
 
-                    if !apply_string::<T>(&mut ctx, lookup) {
-                        message!(
-                            ctx,
-                            "skipped lookup {} feature '{}' because no glyph matches",
-                            lookup_map.index,
-                            lookup_map.feature_tag
-                        );
-                    }
+                    apply_string::<T>(&mut ctx, lookup);
                 } else {
                     message!(
                         ctx,
                         "skipped lookup {} feature '{}' because no glyph matches",
                         lookup_map.index,
-                        lookup_map.feature_tag
+                        crate::ot::map::MessageTag(Some(lookup_map.feature_tag))
                     );
                 }
                 message!(
                     ctx,
                     "end lookup {} feature '{}'",
                     lookup_map.index,
-                    lookup_map.feature_tag
+                    crate::ot::map::MessageTag(Some(lookup_map.feature_tag))
                 );
             }
         }

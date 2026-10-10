@@ -121,9 +121,9 @@ impl OtShapeContext<'_, '_, '_> {
         ensure_native_direction(self.buffer);
 
         if let Some(func) = self.plan.shaper.preprocess_text {
-            if buffer_message!(self.buffer, self.font, "start preprocess text") {
+            if buffer_message!(self.buffer, self.font, "start preprocess-text") {
                 func(self.plan, self.font, self.buffer);
-                message!(self, "end preprocess text");
+                message!(self, "end preprocess-text");
             }
         }
 
@@ -161,9 +161,9 @@ impl OtShapeContext<'_, '_, '_> {
         hide_default_ignorables(self.buffer, self.font);
 
         if let Some(func) = self.plan.shaper.postprocess_glyphs {
-            if buffer_message!(self.buffer, self.font, "start postprocess glyphs") {
+            if buffer_message!(self.buffer, self.font, "start postprocess-glyphs") {
                 func(self.plan, self.font, self.buffer);
-                message!(self, "end postprocess glyphs");
+                message!(self, "end postprocess-glyphs");
             }
         }
     }

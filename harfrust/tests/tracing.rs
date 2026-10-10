@@ -49,6 +49,28 @@ fn callback_observes_unicode_glyphs_and_positions() {
     });
     shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
     let messages = messages.lock().unwrap();
+    assert_eq!(messages[0].1, "start decompose");
+    assert_eq!(messages[0].4, "<U+006F=0|U+0301=0|U+0066=3|U+0066=4|U+0069=5|U+0063=6|U+0065=7|U+0020=8|U+0041=9|U+0056=10>");
+    let normalization: Vec<_> = messages
+        .iter()
+        .filter(|(_, message, ..)| {
+            message.ends_with("decompose")
+                || message.ends_with("reorder")
+                || message.ends_with("compose")
+        })
+        .map(|(_, message, ..)| message.as_str())
+        .collect();
+    assert_eq!(
+        normalization,
+        [
+            "start decompose",
+            "end decompose",
+            "start reorder",
+            "end reorder",
+            "start compose",
+            "end compose"
+        ]
+    );
     assert!(messages
         .iter()
         .any(|(_, message, content, positioned, snapshot)| {
@@ -212,5 +234,152 @@ fn tracing_preserves_results_at_the_shaping_limit() {
             .zip(expected.bytes())
             .position(|(a, b)| a != b),
         None
+    );
+}
+
+#[test]
+fn rejecting_composition_keeps_decomposed_glyphs() {
+    let instance = instance();
+    let font = ShaperFont::new(&instance);
+    let mut normal = buffer("o\u{0301}");
+    // GSUB can compose the pair through ccmp independently of normalization.
+    normal.set_message_function(|_, _, message| !message.starts_with("start table GSUB"));
+    shape(&font, &mut normal, ShapeOptions::new()).unwrap();
+    let mut skipped = buffer("o\u{0301}");
+    let messages = Arc::new(Mutex::new(Vec::new()));
+    let captured = messages.clone();
+    skipped.set_message_function(move |_, _, message| {
+        captured.lock().unwrap().push(message.to_string());
+        message != "start compose" && !message.starts_with("start table GSUB")
+    });
+    shape(&font, &mut skipped, ShapeOptions::new()).unwrap();
+    assert_eq!(normal.len(), 1);
+    assert_eq!(skipped.len(), 2);
+    let messages = messages.lock().unwrap();
+    assert!(messages.iter().any(|m| m == "start compose"));
+    assert!(!messages.iter().any(|m| m == "end compose"));
+}
+
+#[test]
+fn recursion_notifications_are_balanced_and_informational() {
+    let instance = Font::new(
+        include_bytes!("fonts/aots/gsub_context1_simple_f1.otf").to_vec(),
+        0,
+    )
+    .unwrap()
+    .instance_builder()
+    .build();
+    let font = ShaperFont::new(&instance);
+    let features = ["test".parse::<Feature>().unwrap()];
+    let mut buffer = buffer("\0\u{0014}\u{0015}\u{0016}\0");
+    let messages = Arc::new(Mutex::new(Vec::new()));
+    let captured = messages.clone();
+    buffer.set_message_function(move |_, _, message| {
+        if message.contains("recursing") {
+            captured.lock().unwrap().push(message.to_string());
+        }
+        !message.starts_with("start recursing")
+    });
+    shape(&font, &mut buffer, ShapeOptions::new().features(&features)).unwrap();
+    let ids: Vec<_> = buffer
+        .glyph_infos()
+        .iter()
+        .map(|info| info.glyph_id)
+        .collect();
+    assert_eq!(ids, [0, 60, 61, 62, 0]);
+    assert_eq!(
+        *messages.lock().unwrap(),
+        [
+            "start recursing to lookup 0 at 1",
+            "end recursing to lookup 0",
+            "start recursing to lookup 0 at 2",
+            "end recursing to lookup 0",
+            "start recursing to lookup 0 at 3",
+            "end recursing to lookup 0",
+        ]
+    );
+}
+
+fn cli_trace(font: &str, text: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fonts")
+        .join(font);
+    hr_shape::shape(path.to_str().unwrap(), text, "--trace").unwrap()
+}
+
+#[test]
+fn kern_subtable_and_machine_messages_nest_and_can_skip() {
+    let output = cli_trace("text-rendering-tests/TestKERNOne.otf", "uT");
+    let messages: Vec<_> = output
+        .lines()
+        .filter_map(|line| line.strip_prefix("trace: ")?.split_once("\tbuffer: "))
+        .map(|(message, _)| message)
+        .filter(|message| message.contains("kern") || message.contains("subtable"))
+        .collect();
+    assert_eq!(
+        messages,
+        [
+            "start table kern",
+            "start subtable 0",
+            "start kern",
+            "end kern",
+            "end subtable 0",
+            "end table kern"
+        ]
+    );
+    // Missing layout tables are reported with an empty chosen-script tag.
+    assert!(output.contains("start table GSUB script tag ''\tbuffer: "));
+    let instance = Font::new(
+        include_bytes!("fonts/text-rendering-tests/TestKERNOne.otf").to_vec(),
+        0,
+    )
+    .unwrap()
+    .instance_builder()
+    .build();
+    let font = ShaperFont::new(&instance);
+    let mut skipped = buffer("uT");
+    skipped.set_message_function(|_, _, message| message != "start kern");
+    shape(&font, &mut skipped, ShapeOptions::new()).unwrap();
+    let mut disabled = buffer("uT");
+    let features = ["kern=0".parse::<Feature>().unwrap()];
+    shape(
+        &font,
+        &mut disabled,
+        ShapeOptions::new().features(&features),
+    )
+    .unwrap();
+    assert_eq!(
+        skipped.serialize(Some(&font), SerializeFlags::default()),
+        disabled.serialize(Some(&font), SerializeFlags::default())
+    );
+}
+
+#[test]
+fn mort_trace_uses_the_mort_table_name() {
+    let output = cli_trace("text-rendering-tests/TestAATMort.ttf", "ABCEFGX");
+    assert!(output.contains("trace: start table mort\tbuffer: "));
+    assert!(output.contains("trace: end table mort\tbuffer: "));
+    assert!(!output.contains("table morx"));
+}
+
+#[test]
+fn required_features_use_blank_trace_tags() {
+    let output = cli_trace(
+        "in-house/a59fd13f1525a91cbe529c882e93d9d1fbb80463.ttf",
+        "AB",
+    );
+    assert!(output.contains("trace: start lookup 0 feature '    '\tbuffer: "));
+    assert!(output.contains("trace: end lookup 0 feature '    '\tbuffer: "));
+}
+
+#[test]
+fn unavailable_glyph_extents_are_omitted() {
+    let instance = instance();
+    let font = ShaperFont::new(&instance);
+    let mut buffer = buffer("ffi");
+    shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
+    assert_eq!(
+        buffer.serialize(None, SerializeFlags::GLYPH_EXTENTS),
+        buffer.serialize(None, SerializeFlags::default())
     );
 }

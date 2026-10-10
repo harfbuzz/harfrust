@@ -96,7 +96,7 @@ impl Apply for PairPosFormat1<'_> {
                 if flag1 || flag2 {
                     message!(
                         ctx,
-                        "kerned glyphs at {} and {second_glyph_index}",
+                        "kerned glyphs at {},{second_glyph_index}",
                         ctx.buffer.idx
                     );
                     ctx.buffer
@@ -109,7 +109,7 @@ impl Apply for PairPosFormat1<'_> {
                 }
                 message!(
                     ctx,
-                    "tried kerning glyphs at {} and {second_glyph_index}",
+                    "tried kerning glyphs at {},{second_glyph_index}",
                     ctx.buffer.idx
                 );
                 finish(ctx, iter_index, has_record2)
@@ -147,7 +147,7 @@ impl Apply for PairPosFormat1<'_> {
             } else {
                 message!(
                     ctx,
-                    "try kerning glyphs at {} and {second_glyph_index}",
+                    "try kerning glyphs at {},{second_glyph_index}",
                     ctx.buffer.idx
                 );
                 let has_record2 = !format2.is_empty();
@@ -248,7 +248,7 @@ impl Apply for PairPosFormat2<'_> {
                 if flag1 || flag2 {
                     message!(
                         ctx,
-                        "kerned glyphs at {} and {second_glyph_index}",
+                        "kerned glyphs at {},{second_glyph_index}",
                         ctx.buffer.idx
                     );
                     ctx.buffer
@@ -259,7 +259,7 @@ impl Apply for PairPosFormat2<'_> {
                 }
                 message!(
                     ctx,
-                    "tried kerning glyphs at {} and {second_glyph_index}",
+                    "tried kerning glyphs at {},{second_glyph_index}",
                     ctx.buffer.idx
                 );
                 finish(ctx, iter_index, has_record2)
@@ -299,7 +299,7 @@ impl Apply for PairPosFormat2<'_> {
         let has_record2 = !format2.is_empty();
         message!(
             ctx,
-            "try kerning glyphs at {} and {second_glyph_index}",
+            "try kerning glyphs at {},{second_glyph_index}",
             ctx.buffer.idx
         );
         let worked1 = !format1.is_empty()

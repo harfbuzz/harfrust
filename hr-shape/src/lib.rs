@@ -254,9 +254,13 @@ pub fn try_main() -> Result<(), String> {
 /// Returns an error string if shaping or output writing fails.
 pub fn run_and_write(args: Args) -> Result<(), String> {
     let output_file = args.output_file.clone();
-    let output = render(args)?;
-    write_output(&output, output_file.as_ref())?;
-    Ok(())
+    let mut trace = Vec::new();
+    let output = render_with_trace(args, Some(&mut trace))?;
+    io::stderr()
+        .lock()
+        .write_all(&trace)
+        .map_err(|err| format!("Error: cannot write trace output: {err}"))?;
+    write_output(&output, output_file.as_ref())
 }
 
 /// Parses `hr-shape` arguments from an iterator and returns the rendered output.
@@ -309,12 +313,22 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> Result<String, Strin
     run_from_args(args)
 }
 
-/// Renders `hr-shape` output for a parsed argument struct without writing to stdout.
+/// Renders `hr-shape` output without writing to stdout or stderr.
+///
+/// With `--trace`, messages are included in the returned string. The command-line
+/// tool writes those messages to stderr, like `hb-shape`.
 ///
 /// # Errors
 ///
 /// Returns an error string if font loading, input loading, or shaping fails.
-pub fn render(mut args: Args) -> Result<String, String> {
+pub fn render(args: Args) -> Result<String, String> {
+    render_with_trace(args, None)
+}
+
+fn render_with_trace(
+    mut args: Args,
+    mut trace_sink: Option<&mut Vec<u8>>,
+) -> Result<String, String> {
     normalize_args(&mut args);
 
     let mut font_set_as_free_arg = false;
@@ -414,13 +428,17 @@ pub fn render(mut args: Args) -> Result<String, String> {
         .then(|| std::sync::Arc::new(std::sync::Mutex::new(Vec::new())));
     if let Some(trace_output) = &trace_output {
         let trace_output = trace_output.clone();
+        let serialize_trace = !args.output_format.is_empty();
         reusable_buffer.set_message_function(move |buffer, font, message| {
-            let snapshot =
-                buffer.serialize(Some(font), SerializeFlags::from_bits_truncate(format_flags));
+            let snapshot = if serialize_trace {
+                buffer.serialize(Some(font), SerializeFlags::from_bits_truncate(format_flags))
+            } else {
+                String::new()
+            };
             trace_output
                 .lock()
                 .unwrap()
-                .push(format!("trace: {message}\t{snapshot}\n"));
+                .push(format!("trace: {message}\tbuffer: {snapshot}\n"));
             true
         });
     }
@@ -524,7 +542,11 @@ pub fn render(mut args: Args) -> Result<String, String> {
                 .map_err(|e| format!("Error: {e}"))?;
                 if let Some(trace_output) = &trace_output {
                     for trace in trace_output.lock().unwrap().drain(..) {
-                        output.extend_from_slice(trace.as_bytes());
+                        let sink = trace_sink.as_deref_mut().unwrap_or(&mut output);
+                        if args.show_line_num {
+                            write!(sink, "{line_no}: ").unwrap();
+                        }
+                        sink.extend_from_slice(trace.as_bytes());
                     }
                 }
             }
@@ -648,6 +670,42 @@ fn serialize_unicode(text: &str, utf8_clusters: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trace_stream_has_harfbuzz_prefix_and_line_numbers() {
+        let font = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/benches/fonts/Roboto-Regular.ttf"
+        );
+        let args = Args::try_parse_from([
+            "hr-shape",
+            font,
+            "ffi",
+            "--trace",
+            "--show-line-num",
+            "--no-glyph-names",
+        ])
+        .unwrap();
+        let mut trace = Vec::new();
+        let output = render_with_trace(args.clone(), Some(&mut trace)).unwrap();
+        let trace = String::from_utf8(trace).unwrap();
+        assert!(!output.contains("trace: "));
+        assert!(output.starts_with("1: ["));
+        assert!(
+            trace.starts_with("1: trace: start decompose\tbuffer: <U+0066=0|U+0066=1|U+0069=2>\n")
+        );
+        assert!(trace.lines().all(|line| line.starts_with("1: trace: ")));
+        let combined = render(args.clone()).unwrap();
+        assert!(combined.contains(&trace));
+        assert!(combined.ends_with(&output));
+        let mut args = args;
+        args.output_format.clear();
+        let mut trace = Vec::new();
+        let output = render_with_trace(args, Some(&mut trace)).unwrap();
+        assert_eq!(output, "1: \n");
+        let trace = String::from_utf8(trace).unwrap();
+        assert!(trace.lines().all(|line| line.ends_with("\tbuffer: ")));
+    }
 
     #[test]
     fn empty_output_format_is_accepted() {

@@ -2132,9 +2132,10 @@ impl Buffer {
     /// Sets the callback used to trace shaping operations.
     ///
     /// The callback receives the current buffer, shaping font, and a HarfBuzz
-    /// tracing message. Return `false` from a `start` message to skip that
-    /// operation; return values from other messages are ignored. Message text
-    /// may change as shaping algorithms evolve.
+    /// tracing message. Return `false` from a skippable `start` message to skip
+    /// that operation. Per-glyph and recursion messages are informational and
+    /// ignore the return value. Message text may change as shaping algorithms
+    /// evolve.
     ///
     /// The callback can inspect [`Self::content_type`], [`Self::glyph_infos`],
     /// [`Self::glyph_positions`], or [`Self::serialize`]. Positions are empty
@@ -2159,6 +2160,12 @@ impl Buffer {
 
     #[cfg(feature = "tracing")]
     pub(crate) fn message(&mut self, font: &crate::ShaperFont<'_, '_>, msg: &str) -> bool {
+        // HarfBuzz formats into a 100-byte C string, including its terminator.
+        let mut end = msg.find('\0').unwrap_or(msg.len()).min(99);
+        while !msg.is_char_boundary(end) {
+            end -= 1;
+        }
+        let msg = &msg[..end];
         if let Some(mut function) = self.message_function.take() {
             // Substitution keeps separate input/output cursors. Present the
             // emitted prefix followed by the remaining input without syncing
@@ -2223,14 +2230,14 @@ impl Buffer {
         let info = self.glyph_infos();
         if self.content_type == Some(ContentType::Unicode) {
             for info in info {
-                s.push(if s.is_empty() { '[' } else { '|' });
+                s.push(if s.is_empty() { '<' } else { '|' });
                 write!(&mut s, "U+{:04X}", info.glyph_id)?;
                 if !flags.contains(SerializeFlags::NO_CLUSTERS) {
                     write!(&mut s, "={}", info.cluster)?;
                 }
             }
             if !s.is_empty() {
-                s.push(']');
+                s.push('>');
             }
             return Ok(s);
         }
@@ -2277,14 +2284,13 @@ impl Buffer {
             }
 
             if flags.contains(SerializeFlags::GLYPH_EXTENTS) {
-                let extents = font
-                    .and_then(|font| font.glyph_extents(info.as_glyph()))
-                    .unwrap_or_default();
-                write!(
-                    &mut s,
-                    "<{},{},{},{}>",
-                    extents.x_bearing, extents.y_bearing, extents.width, extents.height
-                )?;
+                if let Some(extents) = font.and_then(|font| font.glyph_extents(info.as_glyph())) {
+                    write!(
+                        &mut s,
+                        "<{},{},{},{}>",
+                        extents.x_bearing, extents.y_bearing, extents.width, extents.height
+                    )?;
+                }
             }
 
             if flags.contains(SerializeFlags::NO_ADVANCES) {
