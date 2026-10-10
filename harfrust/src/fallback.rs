@@ -102,8 +102,6 @@ pub fn recategorize_marks(buffer: &mut Buffer) {
             class = recategorize_combining_class(info.glyph_id, class);
             info.set_modified_combining_class(class);
         }
-
-        buffer_message!(buffer, font, "end fallback mark");
     }
 }
 
