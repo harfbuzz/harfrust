@@ -191,6 +191,9 @@ static indic_syllable_machine_start: i32 = 31;
 static indic_syllable_machine_first_final: i32 = 31;
 static indic_syllable_machine_error: i32 = -1;
 static indic_syllable_machine_en_main: i32 = 31;
+
+// IMPORTANT: Before updating any values here, make sure to read the comment in `category`.
+
 #[derive(Clone, Copy)]
 pub enum SyllableType {
     ConsonantSyllable = 0,
