@@ -37,7 +37,7 @@ fn callback_observes_unicode_glyphs_and_positions() {
             buffer.glyph_positions().is_empty() || buffer.glyph_positions().len() == buffer.len()
         );
         let snapshot = buffer.serialize(Some(font), SerializeFlags::default());
-        assert!(!snapshot.is_empty());
+        assert_ne!(snapshot, "");
         captured.lock().unwrap().push((
             calls,
             message.to_string(),
