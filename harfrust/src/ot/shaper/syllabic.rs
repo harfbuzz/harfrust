@@ -20,6 +20,15 @@ pub fn insert_dotted_circles(
     }
 
     if (buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE) == 0 {
+        buffer_message!(
+            buffer,
+            font,
+            "skipped inserting dotted-circles because there is no broken syllables",
+        );
+        return false;
+    }
+
+    if !buffer_message!(buffer, font, "start inserting dotted-circles") {
         return false;
     }
 
@@ -69,6 +78,8 @@ pub fn insert_dotted_circles(
     }
 
     buffer.sync();
+
+    buffer_message!(buffer, font, "end inserting dotted-circles");
 
     true
 }

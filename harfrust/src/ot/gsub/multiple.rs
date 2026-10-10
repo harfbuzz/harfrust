@@ -1,6 +1,8 @@
 use crate::buffer::GlyphPropsFlags;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
+#[cfg(feature = "tracing")]
+use alloc::string::String;
 use read_fonts::tables::gsub::MultipleSubstFormat1;
 
 impl WouldApply for MultipleSubstFormat1<'_> {
@@ -20,13 +22,38 @@ impl Apply for MultipleSubstFormat1<'_> {
         match substs.len() {
             // Spec disallows this, but Uniscribe allows it.
             // https://github.com/harfbuzz/harfbuzz/issues/253
-            0 => ctx.buffer.delete_glyph(),
+            0 => {
+                message!(
+                    ctx,
+                    "deleting glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx()
+                );
+                ctx.buffer.delete_glyph();
+                message!(
+                    ctx,
+                    "deleted glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx(),
+                );
+            }
 
             // Special-case to make it in-place and not consider this
             // as a "multiplied" substitution.
-            1 => ctx.replace_glyph(substs.first()?.get().into()),
+            1 => {
+                message!(
+                    ctx,
+                    "replacing glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx()
+                );
+                ctx.replace_glyph(substs.first()?.get().into());
+                message!(
+                    ctx,
+                    "replaced glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx() - 1,
+                );
+            }
 
             _ => {
+                message!(ctx, "multiplying glyph at {}", ctx.buffer.message_idx());
                 let class = if ctx.buffer.cur(0).is_ligature() {
                     GlyphPropsFlags::BASE_GLYPH
                 } else {
@@ -46,6 +73,21 @@ impl Apply for MultipleSubstFormat1<'_> {
                 }
 
                 ctx.buffer.skip_glyph();
+
+                #[cfg(feature = "tracing")]
+                if ctx.buffer.messaging() && ctx.buffer.successful {
+                    let count = substs.len();
+                    let end = ctx.buffer.message_idx();
+                    let mut msg = String::from("multiplied glyphs at ");
+                    for i in (end - count)..end {
+                        if i > (end - count) {
+                            msg.push(',');
+                        }
+                        use core::fmt::Write;
+                        let _ = write!(msg, "{i}");
+                    }
+                    ctx.buffer.message(ctx.font, &msg);
+                }
             }
         }
         Some(())

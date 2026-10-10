@@ -8,6 +8,8 @@ use crate::ot::apply::{
 use crate::ot::{coverage_index, coverage_index_cached, CoverageInfo};
 use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
+#[cfg(feature = "tracing")]
+use alloc::string::String;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
 
@@ -34,7 +36,17 @@ impl Apply for Ligature<'_> {
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
         if components.is_empty() {
+            message!(
+                ctx,
+                "replacing glyph at {} (ligature substitution)",
+                ctx.buffer.message_idx()
+            );
             ctx.replace_glyph(self.ligature_glyph().into());
+            message!(
+                ctx,
+                "replaced glyph at {} (ligature substitution)",
+                ctx.buffer.message_idx() - 1,
+            );
             Some(())
         } else {
             let f = |info: &mut GlyphInfo, index| {
@@ -57,6 +69,22 @@ impl Apply for Ligature<'_> {
                 return None;
             }
             let count = components.len() + 1;
+            #[cfg(feature = "tracing")]
+            let mut pos = 0;
+            #[cfg(feature = "tracing")]
+            if ctx.buffer.messaging() {
+                pos = ctx.buffer.message_idx();
+                let mut msg = String::from("ligating glyphs at ");
+                for i in 0..count {
+                    let index = ctx.match_positions[i] as usize - ctx.buffer.idx + pos;
+                    if i > 0 {
+                        msg.push(',');
+                    }
+                    use core::fmt::Write;
+                    let _ = write!(msg, "{index}");
+                }
+                ctx.buffer.message(ctx.font, &msg);
+            }
             ligate_input(
                 ctx,
                 count,
@@ -64,6 +92,7 @@ impl Apply for Ligature<'_> {
                 total_component_count,
                 self.ligature_glyph().into(),
             );
+            message!(ctx, "ligated glyph at {}", pos);
             Some(())
         }
     }

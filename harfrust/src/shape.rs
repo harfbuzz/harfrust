@@ -121,7 +121,10 @@ impl OtShapeContext<'_, '_, '_> {
         ensure_native_direction(self.buffer);
 
         if let Some(func) = self.plan.shaper.preprocess_text {
-            func(self.plan, self.font, self.buffer);
+            if buffer_message!(self.buffer, self.font, "start preprocess-text") {
+                func(self.plan, self.font, self.buffer);
+                message!(self, "end preprocess-text");
+            }
         }
 
         self.substitute_pre();
@@ -158,7 +161,10 @@ impl OtShapeContext<'_, '_, '_> {
         hide_default_ignorables(self.buffer, self.font);
 
         if let Some(func) = self.plan.shaper.postprocess_glyphs {
-            func(self.plan, self.font, self.buffer);
+            if buffer_message!(self.buffer, self.font, "start postprocess-glyphs") {
+                func(self.plan, self.font, self.buffer);
+                message!(self, "end postprocess-glyphs");
+            }
         }
     }
 
@@ -179,6 +185,7 @@ impl OtShapeContext<'_, '_, '_> {
         }
 
         map_glyphs_fast(self.buffer);
+        self.buffer.content_type = Some(ContentType::Glyphs);
 
         self.buffer
             .deallocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
@@ -193,7 +200,14 @@ impl OtShapeContext<'_, '_, '_> {
                 synthesize_glyph_classes(self.buffer);
             }
 
-            aat::layout::substitute(self.plan, self.font.layout(), self.buffer, self.features);
+            aat::layout::substitute(
+                self.plan,
+                self.font.layout(),
+                self.buffer,
+                self.features,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
             // The digest is only read by the OT lookup-apply loop; without
             // GPOS ahead, nothing consumes it.
             if self.plan.apply_gpos {
@@ -299,10 +313,24 @@ impl OtShapeContext<'_, '_, '_> {
         if plan.apply_gpos {
             gpos::position(plan, self.font, buffer);
         } else if plan.apply_kerx {
-            aat::layout::position(plan, layout, self.font.scale, buffer);
+            aat::layout::position(
+                plan,
+                layout,
+                self.font.scale,
+                buffer,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
         }
         if plan.apply_kern {
-            aat::kern::apply(plan, layout, self.font.scale, buffer);
+            aat::kern::apply(
+                plan,
+                layout,
+                self.font.scale,
+                buffer,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
         } else if plan.apply_fallback_kern {
             fallback::fallback_kern(plan, buffer);
         }

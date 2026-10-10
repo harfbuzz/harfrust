@@ -358,7 +358,7 @@ pub struct SkippingIterator<'f, 'c, F> {
 }
 
 impl<'f, 'c> SkippingIterator<'f, 'c, fn(&mut GlyphInfo, u32) -> bool> {
-    pub fn new(ctx: &'c mut ApplyContext<'f>, context_match: bool) -> Self {
+    pub fn new(ctx: &'c mut ApplyContext<'f, '_, '_>, context_match: bool) -> Self {
         Self::with_match_fn(ctx, context_match, None)
     }
 }
@@ -368,7 +368,7 @@ where
     F: Fn(&mut GlyphInfo, u32) -> bool,
 {
     pub fn with_match_fn(
-        ctx: &'c mut ApplyContext<'f>,
+        ctx: &'c mut ApplyContext<'f, '_, '_>,
         context_match: bool,
         match_fn: Option<F>,
     ) -> Self {
@@ -575,7 +575,20 @@ pub(crate) fn apply_lookup(
             break;
         }
 
-        if ctx.recurse(record.lookup_list_index.get()).is_none() {
+        message!(
+            ctx,
+            "start recursing to lookup {} at {}",
+            record.lookup_list_index.get(),
+            ctx.buffer.message_idx()
+        );
+
+        let applied = ctx.recurse(record.lookup_list_index.get()).is_some();
+        message!(
+            ctx,
+            "end recursing to lookup {}",
+            record.lookup_list_index.get(),
+        );
+        if !applied {
             continue;
         }
 
@@ -895,10 +908,14 @@ pub fn check_glyph_property(ot: &OtData, info: &GlyphInfo, match_props: u32) -> 
     true
 }
 
-pub struct ApplyContext<'a> {
+pub struct ApplyContext<'a, 'f, 'c> {
     pub table_index: LayoutTableKind,
     pub layout: crate::LayoutData<'a>,
     pub scale: Scale,
+    #[cfg(feature = "tracing")]
+    pub font: &'a crate::ShaperFont<'f, 'c>,
+    #[cfg(not(feature = "tracing"))]
+    font_lifetimes: core::marker::PhantomData<(&'f (), &'c ())>,
     pub buffer: &'a mut Buffer,
     lookup_mask: Mask,
     pub per_syllable: bool,
@@ -918,18 +935,23 @@ pub struct ApplyContext<'a> {
     pub(crate) match_positions: MatchPositions,
 }
 
-impl<'a> ApplyContext<'a> {
+impl<'a, 'f, 'c> ApplyContext<'a, 'f, 'c> {
     pub fn new(
         table_index: LayoutTableKind,
         layout: crate::LayoutData<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
+        #[cfg(feature = "tracing")] font: &'a crate::ShaperFont<'f, 'c>,
     ) -> Self {
         Self {
             table_index,
             layout,
             scale,
+            #[cfg(not(feature = "tracing"))]
+            font_lifetimes: core::marker::PhantomData,
             buffer,
+            #[cfg(feature = "tracing")]
+            font,
             lookup_mask: 1,
             per_syllable: false,
             lookup_index: u16::MAX,

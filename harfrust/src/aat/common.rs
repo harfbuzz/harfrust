@@ -37,10 +37,14 @@ pub(crate) fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout-common.hh#L108>
 #[doc(alias = "hb_aat_apply_context_t")]
-pub struct AatApplyContext<'a> {
+pub struct AatApplyContext<'a, 'f, 'c> {
     pub plan: &'a ShapePlan,
     pub layout: LayoutData<'a>,
     pub scale: Scale,
+    #[cfg(feature = "tracing")]
+    pub font: &'a crate::ShaperFont<'f, 'c>,
+    #[cfg(not(feature = "tracing"))]
+    font_lifetimes: core::marker::PhantomData<(&'f (), &'c ())>,
     pub buffer: &'a mut Buffer,
     pub has_glyph_classes: bool,
     pub range_flags: Option<&'a [RangeFlags]>,
@@ -55,18 +59,23 @@ pub struct AatApplyContext<'a> {
     pub(crate) safe_to_break: SafeToBreak<'a>,
 }
 
-impl<'a> AatApplyContext<'a> {
+impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
     pub fn new(
         plan: &'a ShapePlan,
         layout: LayoutData<'a>,
         scale: Scale,
         buffer: &'a mut Buffer,
+        #[cfg(feature = "tracing")] font: &'a crate::ShaperFont<'f, 'c>,
     ) -> Self {
         Self {
             plan,
             layout,
             scale,
+            #[cfg(not(feature = "tracing"))]
+            font_lifetimes: core::marker::PhantomData,
             buffer,
+            #[cfg(feature = "tracing")]
+            font,
             has_glyph_classes: layout.ot.has_glyph_classes(),
             range_flags: None,
             subtable_flags: 0,
@@ -744,8 +753,14 @@ mod tests {
         buffer.clear_output();
         buffer.next_glyph();
 
-        let mut context =
-            AatApplyContext::new(&plan, shaper_font.layout(), Scale::default(), &mut buffer);
+        let mut context = AatApplyContext::new(
+            &plan,
+            shaper_font.layout(),
+            Scale::default(),
+            &mut buffer,
+            #[cfg(feature = "tracing")]
+            &shaper_font,
+        );
         context.output_glyph(DELETED_GLYPH);
 
         assert_eq!(context.buffer.out_len, 2);
