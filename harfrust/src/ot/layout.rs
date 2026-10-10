@@ -161,7 +161,14 @@ pub fn apply_layout_table<T: LayoutTable>(
     buffer: &mut Buffer,
     table: Option<&T>,
 ) {
-    let mut ctx = ApplyContext::new(T::KIND, font.layout(), font.scale, buffer, #[cfg(feature = "tracing")] font);
+    let mut ctx = ApplyContext::new(
+        T::KIND,
+        font.layout(),
+        font.scale,
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
 
     for (stage_index, stage) in plan.ot_map.stages(T::KIND).iter().enumerate() {
         if let Some(table) = table {
@@ -170,7 +177,12 @@ pub fn apply_layout_table<T: LayoutTable>(
                     continue;
                 };
 
-                message_continue!(ctx, "start lookup {}", lookup_map.index);
+                message_continue!(
+                    ctx,
+                    "start lookup {} feature '{}'",
+                    lookup_map.index,
+                    lookup_map.feature_tag
+                );
 
                 if lookup.digest().may_intersect(&ctx.buffer.digest)
                     && (ctx
@@ -188,12 +200,27 @@ pub fn apply_layout_table<T: LayoutTable>(
                     ctx.per_syllable = lookup_map.per_syllable;
 
                     if !apply_string::<T>(&mut ctx, lookup) {
-                        message!(ctx, "skipped lookup {} because no glyph matches", lookup_map.index);
+                        message!(
+                            ctx,
+                            "skipped lookup {} feature '{}' because no glyph matches",
+                            lookup_map.index,
+                            lookup_map.feature_tag
+                        );
                     }
                 } else {
-                    message!(ctx, "skipped lookup {} because no glyph matches", lookup_map.index);
+                    message!(
+                        ctx,
+                        "skipped lookup {} feature '{}' because no glyph matches",
+                        lookup_map.index,
+                        lookup_map.feature_tag
+                    );
                 }
-                message!(ctx, "end lookup {}", lookup_map.index);
+                message!(
+                    ctx,
+                    "end lookup {} feature '{}'",
+                    lookup_map.index,
+                    lookup_map.feature_tag
+                );
             }
         }
 

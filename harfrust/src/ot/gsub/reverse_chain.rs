@@ -62,18 +62,18 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
                 ctx.buffer.idx + 1,
                 &mut end_index,
             ) {
-                message_sync!(
+                message!(
                     ctx,
                     "replacing glyph at {} (reverse chaining substitution)",
-                    ctx.buffer.idx
+                    ctx.buffer.message_idx()
                 );
                 ctx.buffer
                     .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
                 ctx.replace_glyph_inplace(subst.into());
-                message_sync!(
+                message!(
                     ctx,
                     "replaced glyph at {} (reverse chaining substitution)",
-                    ctx.buffer.idx
+                    ctx.buffer.message_idx()
                 );
                 // Note: We DON'T decrease buffer.idx.  The main loop does it
                 // for us.  This is useful for preventing surprises if someone

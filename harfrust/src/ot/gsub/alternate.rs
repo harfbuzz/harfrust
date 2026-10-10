@@ -26,16 +26,16 @@ impl Apply for AlternateSet<'_> {
 
         let idx = u16::try_from(alt_index).ok()?.checked_sub(1)?;
 
-        message_sync!(
+        message!(
             ctx,
             "replacing glyph at {} (alternate substitution)",
-            ctx.buffer.idx,
+            ctx.buffer.message_idx(),
         );
         ctx.replace_glyph(alternates.get(idx as usize)?.get().into());
-        message_sync!(
+        message!(
             ctx,
             "replaced glyph at {} (alternate substitution)",
-            ctx.buffer.idx - 1,
+            ctx.buffer.message_idx() - 1,
         );
 
         Some(())

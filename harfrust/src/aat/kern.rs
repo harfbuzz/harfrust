@@ -41,9 +41,18 @@ pub fn apply(
     buffer: &mut Buffer,
     #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
 ) -> Option<()> {
-    let mut c = AatApplyContext::new(plan, layout, scale, buffer, #[cfg(feature = "tracing")] font);
+    let mut c = AatApplyContext::new(
+        plan,
+        layout,
+        scale,
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
 
-    if !buffer_message!(c.buffer, font, "start table kern") { return None; }
+    if !buffer_message!(c.buffer, font, "start table kern") {
+        return None;
+    }
 
     c.setup_buffer_glyph_set();
 
@@ -143,7 +152,14 @@ fn machine_kern<F>(
     F: Fn(u32, u32) -> i32,
 {
     buffer.unsafe_to_concat(None, None);
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, layout, scale, buffer, #[cfg(feature = "tracing")] font);
+    let mut ctx = ApplyContext::new(
+        LayoutTableKind::Gpos,
+        layout,
+        scale,
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
     ctx.set_lookup_mask(kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();

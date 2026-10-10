@@ -753,8 +753,14 @@ mod tests {
         buffer.clear_output();
         buffer.next_glyph();
 
-        let mut context =
-            AatApplyContext::new(&plan, shaper_font.layout(), Scale::default(), &mut buffer, #[cfg(feature = "tracing")] &shaper_font);
+        let mut context = AatApplyContext::new(
+            &plan,
+            shaper_font.layout(),
+            Scale::default(),
+            &mut buffer,
+            #[cfg(feature = "tracing")]
+            &shaper_font,
+        );
         context.output_glyph(DELETED_GLYPH);
 
         assert_eq!(context.buffer.out_len, 2);

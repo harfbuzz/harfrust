@@ -4,9 +4,9 @@ use crate::set_digest::SetDigest;
 use crate::unicode::{CharExt, Codepoint};
 use crate::U32Set;
 use crate::{BufferFlags, ClusterLevel, Direction, Language, Script, SerializeFlags};
-use alloc::{string::String, vec::Vec};
 #[cfg(feature = "tracing")]
 use alloc::boxed::Box;
+use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 use read_fonts::types::{GlyphId, GlyphId16};
 
@@ -1284,25 +1284,6 @@ impl Buffer {
         true
     }
 
-    // Make the output produced so far visible to callbacks without ending the
-    // current substitution pass. The input cursor can move in either direction.
-    #[cfg(feature = "tracing")]
-    pub(crate) fn sync_so_far(&mut self) -> isize {
-        if !self.have_output || !self.successful {
-            return 0;
-        }
-        let old_idx = self.idx;
-        let out_idx = self.out_len;
-        if !self.sync() {
-            return 0;
-        }
-        self.idx = out_idx;
-        self.have_output = true;
-        self.out_len = out_idx;
-        debug_assert!(self.idx <= self.len);
-        self.idx as isize - old_idx as isize
-    }
-
     pub(crate) fn clear_output(&mut self) {
         self.have_output = true;
         self.have_positions = false;
@@ -2179,11 +2160,48 @@ impl Buffer {
     #[cfg(feature = "tracing")]
     pub(crate) fn message(&mut self, font: &crate::ShaperFont<'_, '_>, msg: &str) -> bool {
         if let Some(mut function) = self.message_function.take() {
-            let ret = function(self, font, msg);
+            // Substitution keeps separate input/output cursors. Present the
+            // emitted prefix followed by the remaining input without syncing
+            // the live buffer, which could change its allocation-limit behavior.
+            let ret = if self.have_output && (self.have_separate_output || self.out_len != self.idx)
+            {
+                let mut info = Vec::with_capacity(self.out_len + self.len - self.idx);
+                info.extend_from_slice(&self.out_info()[..self.out_len]);
+                info.extend_from_slice(&self.info[self.idx..self.len]);
+                let snapshot = Buffer {
+                    flags: self.flags,
+                    cluster_level: self.cluster_level,
+                    invisible: self.invisible,
+                    not_found_variation_selector: self.not_found_variation_selector,
+                    content_type: self.content_type,
+                    direction: self.direction,
+                    script: self.script,
+                    language: self.language.clone(),
+                    successful: self.successful,
+                    len: info.len(),
+                    info,
+                    context: self.context,
+                    context_len: self.context_len,
+                    ..Buffer::new()
+                };
+                function(&snapshot, font, msg)
+            } else {
+                function(self, font, msg)
+            };
             self.message_function = Some(function);
             ret
         } else {
             true
+        }
+    }
+
+    // The cursor position in the logical buffer shown to message callbacks.
+    #[cfg(feature = "tracing")]
+    pub(crate) fn message_idx(&self) -> usize {
+        if self.have_output {
+            self.out_len
+        } else {
+            self.idx
         }
     }
 
@@ -2211,7 +2229,9 @@ impl Buffer {
                     write!(&mut s, "={}", info.cluster)?;
                 }
             }
-            if !s.is_empty() { s.push(']'); }
+            if !s.is_empty() {
+                s.push(']');
+            }
             return Ok(s);
         }
         let pos = self.glyph_positions();
@@ -2322,16 +2342,6 @@ macro_rules! message {
     ($ctx:expr, $($arg:tt)*) => {
         buffer_message!($ctx.buffer, $ctx.font, $($arg)*)
     };
-}
-
-macro_rules! message_sync {
-    ($ctx:expr, $($arg:tt)*) => {{
-        #[cfg(feature = "tracing")]
-        if $ctx.buffer.messaging() {
-            $ctx.buffer.sync_so_far();
-            message!($ctx, $($arg)*);
-        }
-    }};
 }
 
 macro_rules! message_return {

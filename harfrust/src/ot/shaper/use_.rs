@@ -379,7 +379,10 @@ fn reorder_use(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) ->
     use super::use_machine::SyllableType;
 
     let mut ret = false;
-    if !buffer_message!(buffer, font, "start reordering USE") { return ret; }
+    if !buffer_message!(buffer, font, "start reordering USE") {
+        buffer.deallocate_var(GlyphInfo::USE_CATEGORY_VAR);
+        return ret;
+    }
 
     if insert_dotted_circles(
         font,

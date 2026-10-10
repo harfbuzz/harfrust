@@ -1,5 +1,3 @@
-#[cfg(feature = "tracing")]
-use alloc::string::String;
 use crate::buffer::GlyphInfo;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
@@ -10,6 +8,8 @@ use crate::ot::apply::{
 use crate::ot::{coverage_index, coverage_index_cached, CoverageInfo};
 use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
+#[cfg(feature = "tracing")]
+use alloc::string::String;
 use read_fonts::tables::gsub::{Ligature, LigatureSet, LigatureSubstFormat1};
 use read_fonts::types::GlyphId;
 
@@ -36,16 +36,16 @@ impl Apply for Ligature<'_> {
         // as a "ligated" substitution.
         let components = self.component_glyph_ids();
         if components.is_empty() {
-            message_sync!(
+            message!(
                 ctx,
                 "replacing glyph at {} (ligature substitution)",
-                ctx.buffer.idx
+                ctx.buffer.message_idx()
             );
             ctx.replace_glyph(self.ligature_glyph().into());
-            message_sync!(
+            message!(
                 ctx,
                 "replaced glyph at {} (ligature substitution)",
-                ctx.buffer.idx - 1,
+                ctx.buffer.message_idx() - 1,
             );
             Some(())
         } else {
@@ -73,18 +73,15 @@ impl Apply for Ligature<'_> {
             let mut pos = 0;
             #[cfg(feature = "tracing")]
             if ctx.buffer.messaging() {
-                let delta = ctx.buffer.sync_so_far();
-                pos = ctx.buffer.idx;
-                let count = components.len();
-                match_end = match_end.checked_add_signed(delta)?;
+                pos = ctx.buffer.message_idx();
                 let mut msg = String::from("ligating glyphs at ");
-                for i in 0..=count {
-                    ctx.match_positions[i] = (ctx.match_positions[i] as usize).checked_add_signed(delta)? as u32;
+                for i in 0..count {
+                    let index = ctx.match_positions[i] as usize - ctx.buffer.idx + pos;
                     if i > 0 {
                         msg.push(',');
                     }
                     use core::fmt::Write;
-                    let _ = write!(msg, "{}", ctx.match_positions[i]);
+                    let _ = write!(msg, "{index}");
                 }
                 ctx.buffer.message(ctx.font, &msg);
             }
@@ -95,7 +92,7 @@ impl Apply for Ligature<'_> {
                 total_component_count,
                 self.ligature_glyph().into(),
             );
-            message_sync!(ctx, "ligated glyph at {}", pos);
+            message!(ctx, "ligated glyph at {}", pos);
             Some(())
         }
     }

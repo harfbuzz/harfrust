@@ -181,7 +181,7 @@ impl OtShapeContext<'_, '_, '_> {
 
         // This is unfortunate to go here, but necessary...
         if self.plan.fallback_mark_positioning {
-            fallback::recategorize_marks(self.buffer, #[cfg(feature = "tracing")] self.font);
+            fallback::recategorize_marks(self.buffer);
         }
 
         map_glyphs_fast(self.buffer);
@@ -200,7 +200,14 @@ impl OtShapeContext<'_, '_, '_> {
                 synthesize_glyph_classes(self.buffer);
             }
 
-            aat::layout::substitute(self.plan, self.font.layout(), self.buffer, self.features, #[cfg(feature = "tracing")] self.font);
+            aat::layout::substitute(
+                self.plan,
+                self.font.layout(),
+                self.buffer,
+                self.features,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
             // The digest is only read by the OT lookup-apply loop; without
             // GPOS ahead, nothing consumes it.
             if self.plan.apply_gpos {
@@ -306,10 +313,24 @@ impl OtShapeContext<'_, '_, '_> {
         if plan.apply_gpos {
             gpos::position(plan, self.font, buffer);
         } else if plan.apply_kerx {
-            aat::layout::position(plan, layout, self.font.scale, buffer, #[cfg(feature = "tracing")] self.font);
+            aat::layout::position(
+                plan,
+                layout,
+                self.font.scale,
+                buffer,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
         }
         if plan.apply_kern {
-            aat::kern::apply(plan, layout, self.font.scale, buffer, #[cfg(feature = "tracing")] self.font);
+            aat::kern::apply(
+                plan,
+                layout,
+                self.font.scale,
+                buffer,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
         } else if plan.apply_fallback_kern {
             fallback::fallback_kern(plan, buffer);
         }

@@ -60,6 +60,8 @@ pub struct LookupMap {
     pub random: bool,
     pub mask: Mask,
     pub per_syllable: bool,
+    #[cfg(feature = "tracing")]
+    pub feature_tag: Tag,
 }
 
 #[derive(Clone, Copy)]
@@ -593,6 +595,10 @@ impl<'a> OtMapBuilder<'a> {
     ) -> Option<()> {
         let table = self.layout.ot.layout_table(table_index)?;
 
+        #[cfg(feature = "tracing")]
+        let feature_tag = table
+            .feature_tag(feature_index)
+            .unwrap_or(Tag::new(b"DFLT"));
         let lookup_count = table.lookup_count();
         let feature = match variation_index {
             Some(idx) => table
@@ -611,6 +617,8 @@ impl<'a> OtMapBuilder<'a> {
                     random,
                     mask,
                     per_syllable,
+                    #[cfg(feature = "tracing")]
+                    feature_tag,
                 });
             }
         }

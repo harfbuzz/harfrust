@@ -514,7 +514,14 @@ pub fn substitute(
         builder.compile(layout.aat, &mut aat_map);
     }
 
-    let mut c = AatApplyContext::new(plan, layout, Scale::default(), buffer, #[cfg(feature = "tracing")] font);
+    let mut c = AatApplyContext::new(
+        plan,
+        layout,
+        Scale::default(),
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
     message_return!(c, "start table morx");
     morx::apply(
         &mut c,
@@ -545,8 +552,21 @@ pub fn remove_deleted_glyphs(buffer: &mut Buffer) {
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-layout.cc#L363>
 #[doc(alias = "hb_aat_layout_position")]
-pub fn position(plan: &ShapePlan, layout: LayoutData<'_>, scale: Scale, buffer: &mut Buffer, #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>) {
-    let mut c = AatApplyContext::new(plan, layout, scale, buffer, #[cfg(feature = "tracing")] font);
+pub fn position(
+    plan: &ShapePlan,
+    layout: LayoutData<'_>,
+    scale: Scale,
+    buffer: &mut Buffer,
+    #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
+) {
+    let mut c = AatApplyContext::new(
+        plan,
+        layout,
+        scale,
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
     message_return!(c, "start table kerx");
     kerx::apply(&mut c);
     message!(c, "end table kerx");

@@ -241,7 +241,11 @@ fn apply_table<'a>(
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         if !c.buffer_intersects_machine() {
-            message!(c, "skipped chainsubtable {} because no glyph matches", subtable_idx);
+            message!(
+                c,
+                "skipped chainsubtable {} because no glyph matches",
+                subtable_idx
+            );
             continue;
         }
         message_continue!(c, "start chainsubtable {}", subtable_idx);

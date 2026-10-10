@@ -223,7 +223,14 @@ impl SimpleKerning for Subtable6<'_> {
 
 fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Subtable, kind: &T) {
     let scale = c.scale;
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, c.layout, c.scale, c.buffer, #[cfg(feature = "tracing")] c.font);
+    let mut ctx = ApplyContext::new(
+        LayoutTableKind::Gpos,
+        c.layout,
+        c.scale,
+        c.buffer,
+        #[cfg(feature = "tracing")]
+        c.font,
+    );
     ctx.set_lookup_mask(c.plan.kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();

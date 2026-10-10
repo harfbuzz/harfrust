@@ -45,6 +45,26 @@ HarfRust is less than 25% slower than HarfBuzz on most common fonts. For a compa
 You can run `cargo bench` to see the performance of HarfRust on your machine.
 
 
+## Tracing shaping
+
+Enable the opt-in `tracing` Cargo feature to receive HarfBuzz shaping messages:
+
+```toml
+harfrust = { version = "0.14", features = ["tracing"] }
+```
+
+Install a callback before shaping with `buffer.set_message_function`. It receives
+the public `Buffer`, `ShaperFont`, and message text, and can inspect or serialize
+intermediate Unicode and glyph contents. Return `true` to continue shaping, or
+`false` from a `start` message to skip that operation. Mutable closures are
+supported; callbacks own their captures and must be `Send + Sync + 'static`.
+Use `buffer.clear_message_function()` to remove a callback.
+
+Tracing also works with `no_std` and `libm`. Without the `tracing` feature, the
+callback storage, message formatting, and intermediate snapshots compile out.
+The `hr-shape` tool enables tracing and exposes `--trace` to print messages
+alongside intermediate buffer contents.
+
 ## Notes about the port
 
 HarfRust is not a full port of HarfBuzz. HarfBuzz (C++ edition) can roughly be split into 6 parts:
