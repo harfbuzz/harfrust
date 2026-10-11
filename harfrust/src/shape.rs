@@ -678,6 +678,7 @@ fn zero_width_default_ignorables(buffer: &mut Buffer) {
     }
 }
 
+// hb_ot_deal_with_variation_selectors: <https://github.com/harfbuzz/harfbuzz/blob/14.5.1/src/hb-ot-shape.cc#L795>
 fn deal_with_variation_selectors(buffer: &mut Buffer) {
     if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK == 0 {
         return;
@@ -689,18 +690,15 @@ fn deal_with_variation_selectors(buffer: &mut Buffer) {
         return;
     };
 
-    let count = buffer.len;
-    let info = &mut buffer.info;
-    let pos = &mut buffer.pos;
-
-    for i in 0..count {
-        if info[i].is_variation_selector() {
-            info[i].glyph_id = nf;
-            pos[i].x_advance = 0;
-            pos[i].y_advance = 0;
-            pos[i].x_offset = 0;
-            pos[i].y_offset = 0;
-            info[0].set_variation_selector(false);
+    let len = buffer.len;
+    for (info, pos) in buffer.info[..len].iter_mut().zip(&mut buffer.pos[..len]) {
+        if info.is_variation_selector() {
+            info.glyph_id = nf;
+            pos.x_advance = 0;
+            pos.y_advance = 0;
+            pos.x_offset = 0;
+            pos.y_offset = 0;
+            info.set_variation_selector(false);
         }
     }
 }
@@ -854,5 +852,82 @@ mod native_direction_tests {
             assert_eq!(buffer.info[0].glyph_id, 0x61);
             assert_eq!(buffer.info[1].glyph_id, 0x62);
         }
+    }
+}
+
+#[cfg(test)]
+mod variation_selector_tests {
+    use super::*;
+
+    const NOT_FOUND_GLYPH: u32 = 64000;
+    const SELECTORS: [usize; 2] = [1, 3];
+    const BASES: [usize; 2] = [0, 2];
+
+    /// Builds the state normalization leaves behind for "x" + VS1 + "y" +
+    /// VS17 when the font has no glyph for either variation sequence.
+    fn buffer_with_unsupported_selectors(not_found: Option<u32>) -> Buffer {
+        let mut buffer = Buffer::new();
+        buffer.push_str("x\u{FE00}y\u{E0100}");
+        buffer.not_found_variation_selector = not_found;
+        let mut flags = buffer.scratch_flags;
+        for info in &mut buffer.info[..buffer.len] {
+            info.init_unicode_props(&mut flags);
+        }
+        buffer.scratch_flags = flags | HB_BUFFER_SCRATCH_FLAG_HAS_VARIATION_SELECTOR_FALLBACK;
+        for i in SELECTORS {
+            buffer.info[i].set_variation_selector(true);
+            if not_found.is_some() {
+                buffer.info[i].clear_default_ignorable();
+            }
+            buffer.pos[i] = GlyphPosition {
+                x_advance: 500,
+                y_advance: 500,
+                x_offset: 50,
+                y_offset: 50,
+                ..GlyphPosition::default()
+            };
+        }
+        buffer
+    }
+
+    #[test]
+    fn unsupported_selectors_use_not_found_glyph() {
+        let mut buffer = buffer_with_unsupported_selectors(Some(NOT_FOUND_GLYPH));
+        let base_props = BASES.map(|i| buffer.info[i].unicode_props());
+
+        deal_with_variation_selectors(&mut buffer);
+
+        for i in SELECTORS {
+            let info = &buffer.info[i];
+            assert_eq!(info.glyph_id, NOT_FOUND_GLYPH);
+            assert!(!info.is_variation_selector());
+            assert!(!info.is_default_ignorable());
+            assert_eq!(info.general_category(), GeneralCategory::NON_SPACING_MARK);
+            let pos = &buffer.pos[i];
+            assert_eq!(
+                (pos.x_advance, pos.y_advance, pos.x_offset, pos.y_offset),
+                (0, 0, 0, 0)
+            );
+        }
+        // Only the selectors may be reset; base characters keep their props.
+        assert_eq!(BASES.map(|i| buffer.info[i].unicode_props()), base_props);
+    }
+
+    #[test]
+    fn unsupported_selectors_are_kept_without_not_found_glyph() {
+        let mut buffer = buffer_with_unsupported_selectors(None);
+        let props: [_; 4] = core::array::from_fn(|i| buffer.info[i].unicode_props());
+
+        deal_with_variation_selectors(&mut buffer);
+
+        for (i, codepoint) in SELECTORS.into_iter().zip([0xFE00, 0xE0100]) {
+            assert_eq!(buffer.info[i].glyph_id, codepoint);
+            assert!(buffer.info[i].is_variation_selector());
+            assert_eq!(buffer.pos[i].x_advance, 500);
+        }
+        assert_eq!(
+            core::array::from_fn(|i| buffer.info[i].unicode_props()),
+            props
+        );
     }
 }

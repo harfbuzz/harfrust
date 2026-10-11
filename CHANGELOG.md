@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   truncating it to `u8`. A malformed font could have e.g. type 3586 dispatched
   as MultipleSubst, expanding a single character into thousands of glyphs and
   costing up to a second per `shape` call. HarfBuzz rejects such tables.
+- When a variation selector is replaced by the not-found variation selector glyph, reset that selector's Unicode properties instead of the first glyph's, matching HarfBuzz.
 
 ## [0.14.0] - 2026-10-03
 
