@@ -8,11 +8,13 @@ use harfrust::{
 };
 
 fn test_instance() -> Font {
+    font_instance("rb_custom/OpenSans.subset1.ttf")
+}
+
+fn font_instance(name: &str) -> Font {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fonts")
-        .join("rb_custom")
-        .join("OpenSans.subset1.ttf");
+        .join("tests/fonts")
+        .join(name);
     let data = fs::read(path).expect("failed to read test font");
     let font = Font::new(data, 0).expect("failed to parse test font");
     font.instance_builder().build()
@@ -268,4 +270,19 @@ fn shape_errors_describe_themselves() {
         .to_string(),
         "buffer direction does not match plan direction: LeftToRight != RightToLeft"
     );
+}
+
+#[test]
+fn not_found_variation_selector_glyph_is_not_limited_to_u16() {
+    // The font has no glyph for U+0066 U+FE00.
+    let instance = font_instance("in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf");
+
+    for glyph in [u32::from(u16::MAX) + 1, 1_000_000] {
+        let mut buffer = unicode_buffer("f\u{FE00}");
+        buffer.set_not_found_variation_selector_glyph(Some(glyph));
+        shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+
+        assert_eq!(ids_and_clusters(buffer.glyph_infos()), [(2, 0), (glyph, 0)]);
+        assert_eq!(buffer.glyph_positions()[1].x_advance, 0);
+    }
 }
