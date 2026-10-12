@@ -67,8 +67,13 @@ impl GlyphPosition {
 pub struct GlyphInfo {
     // NOTE: Stores a Unicode codepoint before shaping and a glyph ID after.
     //       Just like harfbuzz, we are using the same variable for two purposes.
-    //       Occupies u32 as a codepoint and u16 as a glyph id.
     /// Unicode codepoint before shaping; glyph ID after shaping.
+    ///
+    /// Glyph IDs are not confined to `u16`. User-provided glyphs (e.g.
+    /// `Buffer::set_invisible_glyph`,
+    /// `Buffer::set_not_found_variation_selector_glyph`, or custom
+    /// `FontFuncs` (see crate::FontFuncs)) are provided as is and can be larger than `u16::MAX`
+    /// or the number of glyphs in the font.
     pub glyph_id: u32,
     pub(crate) mask: Mask,
     /// Index into the original input text for this glyph's cluster.
@@ -896,6 +901,16 @@ impl Buffer {
     }
 
     /// Sets the glyph used to replace not-found variation-selector characters.
+    ///
+    /// A variation selector is not present if there is no glyph in the font for
+    /// the combination with the previous character. If None then the
+    /// selector is treated as a default ignorable character. If Some(glyph)
+    /// then the selector is preserved but replaced with glyph with zero
+    /// advance to allow callers to know about missing glyph combinations.
+    /// E.g., fall back to another font.
+    ///
+    /// glyph is taken as is and does not have to be present in the font;
+    /// any u32 value, even above u16::MAX, is accepted.
     #[inline]
     pub fn set_not_found_variation_selector_glyph(&mut self, glyph: Option<u32>) {
         self.not_found_variation_selector = glyph;
