@@ -70,7 +70,7 @@ pub struct GlyphInfo {
     /// Unicode codepoint before shaping; glyph ID after shaping.
     ///
     /// Glyph IDs are not confined to `u16`. User-provided glyphs (e.g.
-    /// `Buffer::set_invisible_glyph`, 
+    /// `Buffer::set_invisible_glyph`,
     /// `Buffer::set_not_found_variation_selector_glyph`, or custom
     /// `FontFuncs` (see crate::FontFuncs)) are provided as is and can be larger than `u16::MAX`
     /// or the number of glyphs in the font.
