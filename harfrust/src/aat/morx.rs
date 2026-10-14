@@ -5,6 +5,7 @@ use crate::aat::common::{
     AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs,
     START_OF_TEXT,
 };
+use crate::buffer::{get, get_mut};
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::tag::lang_matches;
 use crate::U32Set;
@@ -750,7 +751,7 @@ fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) {
             }
         }
 
-        if let Some(glyph) = ac.buffer.info[i].as_gid16() {
+        if let Some(glyph) = get(&ac.buffer.info, i).as_gid16() {
             if let Ok(replacement) = lookup.value(glyph.to_u16()) {
                 ac.replace_glyph_inplace(i, replacement.into());
             }
@@ -837,29 +838,31 @@ impl DriverContext<NoPayload> for RearrangementCtx {
                 let mut buf = [GlyphInfo::default(); 4];
 
                 for (i, glyph_info) in buf[..l].iter_mut().enumerate() {
-                    *glyph_info = buffer.info[self.start + i];
+                    *glyph_info = *get(&buffer.info, self.start + i);
                 }
 
                 for i in 0..r {
-                    buf[i + 2] = buffer.info[self.end - r + i];
+                    buf[i + 2] = *get(&buffer.info, self.end - r + i);
                 }
 
                 if l > r {
                     for i in 0..(self.end - self.start - l - r) {
-                        buffer.info[self.start + r + i] = buffer.info[self.start + l + i];
+                        *get_mut(&mut buffer.info, self.start + r + i) =
+                            *get(&buffer.info, self.start + l + i);
                     }
                 } else if l < r {
                     for i in (0..(self.end - self.start - l - r)).rev() {
-                        buffer.info[self.start + r + i] = buffer.info[self.start + l + i];
+                        *get_mut(&mut buffer.info, self.start + r + i) =
+                            *get(&buffer.info, self.start + l + i);
                     }
                 }
 
                 for i in 0..r {
-                    buffer.info[self.start + i] = buf[2 + i];
+                    *get_mut(&mut buffer.info, self.start + i) = buf[2 + i];
                 }
 
                 for i in 0..l {
-                    buffer.info[self.end - l + i] = buf[i];
+                    *get_mut(&mut buffer.info, self.end - l + i) = buf[i];
                 }
 
                 if reverse_l {
@@ -991,7 +994,7 @@ where
         let mut replacement = None;
 
         if T::mark_action(&entry.payload) {
-            if let Some(gid) = ac.buffer.info[self.mark].as_gid16() {
+            if let Some(gid) = get(&ac.buffer.info, self.mark).as_gid16() {
                 replacement = self.table.mark_replacement(&entry.payload, gid);
             }
         }
@@ -1007,7 +1010,7 @@ where
         replacement = None;
         let idx = ac.buffer.idx.min(ac.buffer.len - 1);
         if T::current_action(&entry.payload) {
-            if let Some(gid) = ac.buffer.info[idx].as_gid16() {
+            if let Some(gid) = get(&ac.buffer.info, idx).as_gid16() {
                 replacement = self.table.current_replacement(&entry.payload, gid);
             }
         }

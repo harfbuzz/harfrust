@@ -32,10 +32,10 @@ fn propagate_attachment_offsets(
 ) {
     // Adjusts offsets of attached glyphs (both cursive and mark) to accumulate
     // offset of glyph they are attached to.
-    let chain = pos[i].attach_chain();
-    let kind = pos[i].attach_type();
+    let chain = get(pos, i).attach_chain();
+    let kind = get(pos, i).attach_type();
 
-    pos[i].set_attach_chain(0);
+    get_mut(pos, i).set_attach_chain(0);
 
     let j = (i as isize + isize::from(chain)) as usize;
     if j >= len {
@@ -46,16 +46,18 @@ fn propagate_attachment_offsets(
         return;
     }
 
-    if pos[j].attach_chain() != 0 {
+    if get(pos, j).attach_chain() != 0 {
         propagate_attachment_offsets(pos, len, j, direction, nesting_level - 1);
     }
 
     match kind {
         attach_type::MARK => {
             if direction.is_horizontal() {
-                pos[i].x_offset = pos[i].x_offset.saturating_add(pos[j].x_offset);
+                get_mut(pos, i).x_offset =
+                    get(pos, i).x_offset.saturating_add(get(pos, j).x_offset);
             } else {
-                pos[i].y_offset = pos[i].y_offset.saturating_add(pos[j].y_offset);
+                get_mut(pos, i).y_offset =
+                    get(pos, i).y_offset.saturating_add(get(pos, j).y_offset);
             }
 
             // i is the position of the mark; j is the base.
@@ -64,13 +66,17 @@ fn propagate_attachment_offsets(
                 // And currently the only way in OpenType.
                 if direction.is_forward() {
                     for k in j..i {
-                        pos[i].x_offset = pos[i].x_offset.saturating_sub(pos[k].x_advance);
-                        pos[i].y_offset = pos[i].y_offset.saturating_sub(pos[k].y_advance);
+                        get_mut(pos, i).x_offset =
+                            get(pos, i).x_offset.saturating_sub(get(pos, k).x_advance);
+                        get_mut(pos, i).y_offset =
+                            get(pos, i).y_offset.saturating_sub(get(pos, k).y_advance);
                     }
                 } else {
                     for k in j + 1..i + 1 {
-                        pos[i].x_offset = pos[i].x_offset.saturating_add(pos[k].x_advance);
-                        pos[i].y_offset = pos[i].y_offset.saturating_add(pos[k].y_advance);
+                        get_mut(pos, i).x_offset =
+                            get(pos, i).x_offset.saturating_add(get(pos, k).x_advance);
+                        get_mut(pos, i).y_offset =
+                            get(pos, i).y_offset.saturating_add(get(pos, k).y_advance);
                     }
                 }
             } else {
@@ -78,22 +84,28 @@ fn propagate_attachment_offsets(
                 // to a base after it in the logical order.
                 if direction.is_forward() {
                     for k in i..j {
-                        pos[i].x_offset = pos[i].x_offset.saturating_add(pos[k].x_advance);
-                        pos[i].y_offset = pos[i].y_offset.saturating_add(pos[k].y_advance);
+                        get_mut(pos, i).x_offset =
+                            get(pos, i).x_offset.saturating_add(get(pos, k).x_advance);
+                        get_mut(pos, i).y_offset =
+                            get(pos, i).y_offset.saturating_add(get(pos, k).y_advance);
                     }
                 } else {
                     for k in i + 1..j + 1 {
-                        pos[i].x_offset = pos[i].x_offset.saturating_sub(pos[k].x_advance);
-                        pos[i].y_offset = pos[i].y_offset.saturating_sub(pos[k].y_advance);
+                        get_mut(pos, i).x_offset =
+                            get(pos, i).x_offset.saturating_sub(get(pos, k).x_advance);
+                        get_mut(pos, i).y_offset =
+                            get(pos, i).y_offset.saturating_sub(get(pos, k).y_advance);
                     }
                 }
             }
         }
         attach_type::CURSIVE => {
             if direction.is_horizontal() {
-                pos[i].y_offset = pos[i].y_offset.saturating_add(pos[j].y_offset);
+                get_mut(pos, i).y_offset =
+                    get(pos, i).y_offset.saturating_add(get(pos, j).y_offset);
             } else {
-                pos[i].x_offset = pos[i].x_offset.saturating_add(pos[j].x_offset);
+                get_mut(pos, i).x_offset =
+                    get(pos, i).x_offset.saturating_add(get(pos, j).x_offset);
             }
         }
         _ => {}
@@ -102,7 +114,7 @@ fn propagate_attachment_offsets(
 
 pub fn position_start(buffer: &mut Buffer) {
     let len = buffer.len;
-    for pos in &mut buffer.pos[..len] {
+    for pos in get_mut(&mut buffer.pos, ..len) {
         pos.set_attach_chain(0);
         pos.set_attach_type(0);
     }
@@ -123,7 +135,7 @@ pub fn position_finish_offsets(buffer: &mut Buffer) {
         // https://github.com/harfbuzz/harfbuzz/issues/5514
         if buffer.direction.is_forward() {
             for i in 0..len {
-                if buffer.pos[i].attach_chain() != 0 {
+                if get(&buffer.pos, i).attach_chain() != 0 {
                     propagate_attachment_offsets(
                         &mut buffer.pos,
                         len,
@@ -135,7 +147,7 @@ pub fn position_finish_offsets(buffer: &mut Buffer) {
             }
         } else {
             for i in (0..len).rev() {
-                if buffer.pos[i].attach_chain() != 0 {
+                if get(&buffer.pos, i).attach_chain() != 0 {
                     propagate_attachment_offsets(
                         &mut buffer.pos,
                         len,

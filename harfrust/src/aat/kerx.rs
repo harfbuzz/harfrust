@@ -3,6 +3,7 @@ use crate::aat::common::{
     get_class, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
     TypedCollectGlyphs, START_OF_TEXT,
 };
+use crate::buffer::{get, get_mut};
 use crate::U32Set;
 use crate::{
     buffer::*,
@@ -231,7 +232,7 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
     let mut i = 0;
     let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
-        if (iter.buffer.info[i].mask & c.plan.kern_mask) == 0 {
+        if (get(&iter.buffer.info, i).mask & c.plan.kern_mask) == 0 {
             i += 1;
             continue;
         }
@@ -248,8 +249,8 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
         let j = iter.index();
 
         let info = &iter.buffer.info;
-        let a = info[i].as_glyph();
-        let b = info[j].as_glyph();
+        let a = get(info, i).as_glyph();
+        let b = get(info, j).as_glyph();
         let kern = if !first_set.contains(a.to_u32()) || !second_set.contains(b.to_u32()) {
             0
         } else {
@@ -267,25 +268,25 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
         if kern != 0 {
             if horizontal {
                 if cross_stream {
-                    pos[j].y_offset = kern;
+                    get_mut(pos, j).y_offset = kern;
                     iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
-                    pos[i].x_advance = pos[i].x_advance.saturating_add(kern1);
-                    pos[j].x_advance = pos[j].x_advance.saturating_add(kern2);
-                    pos[j].x_offset = pos[j].x_offset.saturating_add(kern2);
+                    get_mut(pos, i).x_advance = get(pos, i).x_advance.saturating_add(kern1);
+                    get_mut(pos, j).x_advance = get(pos, j).x_advance.saturating_add(kern2);
+                    get_mut(pos, j).x_offset = get(pos, j).x_offset.saturating_add(kern2);
                 }
             } else {
                 if cross_stream {
-                    pos[j].x_offset = kern;
+                    get_mut(pos, j).x_offset = kern;
                     iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
-                    pos[i].y_advance = pos[i].y_advance.saturating_add(kern1);
-                    pos[j].y_advance = pos[j].y_advance.saturating_add(kern2);
-                    pos[j].y_offset = pos[j].y_offset.saturating_add(kern2);
+                    get_mut(pos, i).y_advance = get(pos, i).y_advance.saturating_add(kern1);
+                    get_mut(pos, j).y_advance = get(pos, j).y_advance.saturating_add(kern2);
+                    get_mut(pos, j).y_offset = get(pos, j).y_offset.saturating_add(kern2);
                 }
             }
 
@@ -612,8 +613,8 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                 // NOT seem to accumulate as otherwise implied by specs.
 
                 let mut has_gpos_attachment = false;
-                let glyph_mask = c.buffer.info[idx].mask;
-                let pos = &mut c.buffer.pos[idx];
+                let glyph_mask = get(&c.buffer.info, idx).mask;
+                let pos = get_mut(&mut c.buffer.pos, idx);
 
                 if c.buffer.direction.is_horizontal() {
                     if has_cross_stream {
@@ -681,7 +682,7 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                     let action_idx = entry.action_index() as usize * 2;
                     let mark_action_idx = ankr_data.get(action_idx)?.get() as usize;
                     let curr_action_idx = ankr_data.get(action_idx + 1)?.get() as usize;
-                    let mark_idx = c.buffer.info[self.mark].as_glyph();
+                    let mark_idx = get(&c.buffer.info, self.mark).as_glyph();
                     let mark_anchor = ankr_table
                         .anchor_points(mark_idx)
                         .ok()

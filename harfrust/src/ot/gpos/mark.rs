@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
+use crate::buffer::{get, Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, MatchResult, SkippingIterator};
 use crate::ot::gpos::attach_type;
@@ -14,13 +14,13 @@ fn resolve_cross_offset(
 ) -> i32 {
     let horizontal = direction.is_horizontal();
     let mut offset = if horizontal {
-        pos[glyph_pos].y_offset
+        get(pos, glyph_pos).y_offset
     } else {
-        pos[glyph_pos].x_offset
+        get(pos, glyph_pos).x_offset
     };
 
-    while pos[glyph_pos].attach_type() & attach_type::CURSIVE != 0 {
-        let chain = pos[glyph_pos].attach_chain();
+    while get(pos, glyph_pos).attach_type() & attach_type::CURSIVE != 0 {
+        let chain = get(pos, glyph_pos).attach_chain();
         if chain == 0 {
             break;
         }
@@ -32,9 +32,9 @@ fn resolve_cross_offset(
 
         glyph_pos = parent as usize;
         offset = offset.saturating_add(if horizontal {
-            pos[glyph_pos].y_offset
+            get(pos, glyph_pos).y_offset
         } else {
-            pos[glyph_pos].x_offset
+            get(pos, glyph_pos).x_offset
         });
     }
 
@@ -126,7 +126,7 @@ impl Apply for MarkBasePosFormat1<'_> {
                 // https://github.com/harfbuzz/harfbuzz/issues/4124
                 if !accept(iter.buffer, j - 1)
                     && base_coverage
-                        .get(iter.buffer.info[j - 1].as_glyph())
+                        .get(get(&iter.buffer.info, j - 1).as_glyph())
                         .is_none()
                 {
                     _match = MatchResult::Skip;
@@ -154,7 +154,7 @@ impl Apply for MarkBasePosFormat1<'_> {
         let info = &ctx.buffer.info;
 
         // Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled
-        let base_glyph = info[idx as usize].as_glyph();
+        let base_glyph = get(info, idx as usize).as_glyph();
         let Some(base_index) = base_coverage.get(base_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx as usize), Some(ctx.buffer.idx + 1));
@@ -182,13 +182,13 @@ fn accept(buffer: &Buffer, idx: usize) -> bool {
      * Reject others...
      * ...but stop if we find a mark in the MultipleSubst sequence:
      * https://github.com/harfbuzz/harfbuzz/issues/1020 */
-    !buffer.info[idx].multiplied()
-        || 0 == buffer.info[idx].lig_comp()
+    !get(&buffer.info, idx).multiplied()
+        || 0 == get(&buffer.info, idx).lig_comp()
         || (idx == 0
-            || buffer.info[idx - 1].is_mark()
-            || !buffer.info[idx - 1].multiplied()
-            || buffer.info[idx].lig_id() != buffer.info[idx - 1].lig_id()
-            || buffer.info[idx].lig_comp() != buffer.info[idx - 1].lig_comp() + 1)
+            || get(&buffer.info, idx - 1).is_mark()
+            || !get(&buffer.info, idx - 1).multiplied()
+            || get(&buffer.info, idx).lig_id() != get(&buffer.info, idx - 1).lig_id()
+            || get(&buffer.info, idx).lig_comp() != get(&buffer.info, idx - 1).lig_comp() + 1)
 }
 
 impl Apply for MarkMarkPosFormat1<'_> {
@@ -209,16 +209,16 @@ impl Apply for MarkMarkPosFormat1<'_> {
         }
 
         let iter_idx = iter.index();
-        if !ctx.buffer.info[iter_idx].is_mark() {
+        if !get(&ctx.buffer.info, iter_idx).is_mark() {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
             return None;
         }
 
         let id1 = ctx.buffer.cur(0).lig_id();
-        let id2 = ctx.buffer.info[iter_idx].lig_id();
+        let id2 = get(&ctx.buffer.info, iter_idx).lig_id();
         let comp1 = ctx.buffer.cur(0).lig_comp();
-        let comp2 = ctx.buffer.info[iter_idx].lig_comp();
+        let comp2 = get(&ctx.buffer.info, iter_idx).lig_comp();
 
         let matches = if id1 == id2 {
             // Marks belonging to the same base
@@ -236,7 +236,7 @@ impl Apply for MarkMarkPosFormat1<'_> {
             return None;
         }
 
-        let mark2_glyph = ctx.buffer.info[iter_idx].as_glyph();
+        let mark2_glyph = get(&ctx.buffer.info, iter_idx).as_glyph();
         let mark2_index = self.mark2_coverage().ok()?.get(mark2_glyph)?;
 
         let mark1_array = self.mark1_array().ok()?;
@@ -280,7 +280,7 @@ impl Apply for MarkLigPosFormat1<'_> {
             if _match == MatchResult::Match
                 && !accept_mark_ligature(iter.buffer, j - 1)
                 && ligature_coverage
-                    .get(iter.buffer.info[j - 1].as_glyph())
+                    .get(get(&iter.buffer.info, j - 1).as_glyph())
                     .is_none()
             {
                 _match = MatchResult::Skip;
@@ -305,7 +305,7 @@ impl Apply for MarkLigPosFormat1<'_> {
 
         // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
 
-        let lig_glyph = ctx.buffer.info[idx].as_glyph();
+        let lig_glyph = get(&ctx.buffer.info, idx).as_glyph();
         let Some(lig_index) = ligature_coverage.get(lig_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx), Some(ctx.buffer.idx + 1));
@@ -330,7 +330,7 @@ impl Apply for MarkLigPosFormat1<'_> {
         // is identical to the ligature ID of the found ligature.  If yes, we
         // can directly use the component index.  If not, we attach the mark
         // glyph to the last component of the ligature.
-        let lig_id = ctx.buffer.info[idx].lig_id();
+        let lig_id = get(&ctx.buffer.info, idx).lig_id();
         let mark_id = ctx.buffer.cur(0).lig_id();
         let mark_comp = u16::from(ctx.buffer.cur(0).lig_comp());
         let matches = lig_id != 0 && lig_id == mark_id && mark_comp > 0;
@@ -362,5 +362,5 @@ fn accept_mark_ligature(buffer: &Buffer, idx: usize) -> bool {
     // which might have been ligated into a preceding ligature, and in that
     // case the mark should attach to that ligature.
     // https://github.com/harfbuzz/harfbuzz/issues/4969
-    !buffer.info[idx].multiplied() || buffer.info[idx].lig_comp() == 0
+    !get(&buffer.info, idx).multiplied() || get(&buffer.info, idx).lig_comp() == 0
 }

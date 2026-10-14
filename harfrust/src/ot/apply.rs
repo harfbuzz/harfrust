@@ -1,7 +1,7 @@
 //! Matching of glyph patterns.
 
 use super::buffer::GlyphInfo;
-use super::buffer::{Buffer, GlyphPropsFlags};
+use super::buffer::{get, get_mut, Buffer, GlyphPropsFlags};
 use super::cache::Cache;
 use super::layout::*;
 use super::lookup_flags;
@@ -98,7 +98,7 @@ pub fn match_input(
 
         iter.set_match_position(i, iter.index());
 
-        let this = iter.buffer.info[iter.index()];
+        let this = *get(&iter.buffer.info, iter.index());
         let this_lig_id = this.lig_id();
         let this_lig_comp = this.lig_comp();
 
@@ -113,8 +113,8 @@ pub fn match_input(
                     let out = iter.buffer.out_info();
                     let mut j = iter.buffer.out_len;
                     let mut found = false;
-                    while j > 0 && out[j - 1].lig_id() == first_lig_id {
-                        if out[j - 1].lig_comp() == 0 {
+                    while j > 0 && get(out, j - 1).lig_id() == first_lig_id {
+                        if get(out, j - 1).lig_comp() == 0 {
                             j -= 1;
                             found = true;
                             break;
@@ -122,7 +122,7 @@ pub fn match_input(
                         j -= 1;
                     }
 
-                    ligbase = if found && iter.may_skip(&out[j]) == MaySkip::Yes {
+                    ligbase = if found && iter.may_skip(get(out, j)) == MaySkip::Yes {
                         Ligbase::MaySkip
                     } else {
                         Ligbase::MayNotSkip
@@ -451,14 +451,14 @@ where
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
         let stop: usize = 0;
         let start = self.buf_idx;
-        let out_info = &mut self.buffer.out_info_mut()[..start];
+        let out_info = get_mut(self.buffer.out_info_mut(), ..start);
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
 
             match match_info(
                 self.matcher,
-                &mut out_info[self.buf_idx],
+                get_mut(out_info, self.buf_idx),
                 self.ot,
                 self.lookup_props,
                 self.glyph_data,
@@ -513,7 +513,7 @@ where
 
     #[inline]
     pub fn match_at(&mut self, idx: usize) -> MatchResult {
-        let info = &mut self.buffer.info[idx];
+        let info = get_mut(&mut self.buffer.info, idx);
         match_info(
             self.matcher,
             info,
@@ -1133,10 +1133,11 @@ pub fn ligate_input(
 
     ctx.buffer.merge_clusters(ctx.buffer.idx, match_end);
 
-    let mut is_base_ligature = ctx.buffer.info[ctx.match_positions[0] as usize].is_base_glyph();
-    let mut is_mark_ligature = ctx.buffer.info[ctx.match_positions[0] as usize].is_mark();
+    let mut is_base_ligature =
+        get(&ctx.buffer.info, ctx.match_positions[0] as usize).is_base_glyph();
+    let mut is_mark_ligature = get(&ctx.buffer.info, ctx.match_positions[0] as usize).is_mark();
     for i in 1..count {
-        if !ctx.buffer.info[ctx.match_positions[i] as usize].is_mark() {
+        if !get(&ctx.buffer.info, ctx.match_positions[i] as usize).is_mark() {
             is_base_ligature = false;
             is_mark_ligature = false;
         }
@@ -1196,7 +1197,7 @@ pub fn ligate_input(
     if !is_mark_ligature && last_lig_id != 0 {
         // Re-adjust components for any marks following.
         for i in ctx.buffer.idx..ctx.buffer.len {
-            let info = &mut ctx.buffer.info[i];
+            let info = get_mut(&mut ctx.buffer.info, i);
             if last_lig_id != info.lig_id() {
                 break;
             }

@@ -1,6 +1,6 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
-use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
+use crate::buffer::{get_mut, Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::ot::apply::MappingCache;
 use crate::plan::ShapePlan;
 use crate::LayoutData;
@@ -187,16 +187,17 @@ impl<'a> AatApplyContext<'a> {
 
     #[inline(always)]
     pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
-        self.buffer.info[i].glyph_id = glyph;
+        get_mut(&mut self.buffer.info, i).glyph_id = glyph;
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            self.buffer.info[i].set_aat_deleted();
+            get_mut(&mut self.buffer.info, i).set_aat_deleted();
         }
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
         if self.has_glyph_classes {
-            self.buffer.info[i].set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
+            get_mut(&mut self.buffer.info, i)
+                .set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
     }
 }

@@ -150,7 +150,7 @@ fn machine_kern<F>(
     let mut i = 0;
     let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
-        if (iter.buffer.info[i].mask & kern_mask) == 0 {
+        if (get(&iter.buffer.info, i).mask & kern_mask) == 0 {
             i += 1;
             continue;
         }
@@ -166,7 +166,7 @@ fn machine_kern<F>(
         let j = iter.index();
 
         let info = &iter.buffer.info;
-        let kern = get_kerning(info[i].glyph_id, info[j].glyph_id);
+        let kern = get_kerning(get(info, i).glyph_id, get(info, j).glyph_id);
         let kern = if use_x_scale {
             scale.scale_x(kern)
         } else {
@@ -176,25 +176,25 @@ fn machine_kern<F>(
         if kern != 0 {
             if horizontal {
                 if cross_stream {
-                    pos[j].y_offset = kern;
+                    get_mut(pos, j).y_offset = kern;
                     iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
-                    pos[i].x_advance = pos[i].x_advance.saturating_add(kern1);
-                    pos[j].x_advance = pos[j].x_advance.saturating_add(kern2);
-                    pos[j].x_offset = pos[j].x_offset.saturating_add(kern2);
+                    get_mut(pos, i).x_advance = get(pos, i).x_advance.saturating_add(kern1);
+                    get_mut(pos, j).x_advance = get(pos, j).x_advance.saturating_add(kern2);
+                    get_mut(pos, j).x_offset = get(pos, j).x_offset.saturating_add(kern2);
                 }
             } else {
                 if cross_stream {
-                    pos[j].x_offset = kern;
+                    get_mut(pos, j).x_offset = kern;
                     iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
                 } else {
                     let kern1 = kern >> 1;
                     let kern2 = kern - kern1;
-                    pos[i].y_advance = pos[i].y_advance.saturating_add(kern1);
-                    pos[j].y_advance = pos[j].y_advance.saturating_add(kern2);
-                    pos[j].y_offset = pos[j].y_offset.saturating_add(kern2);
+                    get_mut(pos, i).y_advance = get(pos, i).y_advance.saturating_add(kern1);
+                    get_mut(pos, j).y_advance = get(pos, j).y_advance.saturating_add(kern2);
+                    get_mut(pos, j).y_offset = get(pos, j).y_offset.saturating_add(kern2);
                 }
             }
 
@@ -507,8 +507,8 @@ fn state_machine_transition(
             // NOT seem to accumulate as otherwise implied by specs.
 
             let mut has_gpos_attachment = false;
-            let glyph_mask = buffer.info[idx].mask;
-            let pos = &mut buffer.pos[idx];
+            let glyph_mask = get(&buffer.info, idx).mask;
+            let pos = get_mut(&mut buffer.pos, idx);
 
             if buffer.direction.is_horizontal() {
                 if is_cross_stream {

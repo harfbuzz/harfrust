@@ -1,7 +1,7 @@
 use read_fonts::types::GlyphId;
 
 use super::plan::ShapePlan;
-use crate::buffer::{Buffer, GlyphPosition};
+use crate::buffer::{get, get_mut, Buffer, GlyphPosition};
 use crate::unicode::*;
 use crate::Direction;
 use crate::{GlyphExtents, Scale, ShaperFont};
@@ -97,7 +97,7 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
 
 pub fn recategorize_marks(buffer: &mut Buffer) {
     let len = buffer.len;
-    for info in &mut buffer.info[..len] {
+    for info in get_mut(&mut buffer.info, ..len) {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
             let mut class = info.modified_combining_class();
             class = recategorize_combining_class(info.glyph_id, class);
@@ -112,9 +112,9 @@ fn zero_mark_advances(
     end: usize,
     adjust_offsets_when_zeroing: bool,
 ) {
-    for (info, pos) in buffer.info[start..end]
+    for (info, pos) in get(&buffer.info, start..end)
         .iter()
-        .zip(&mut buffer.pos[start..end])
+        .zip(get_mut(&mut buffer.pos, start..end))
     {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
             if adjust_offsets_when_zeroing {
@@ -272,8 +272,8 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     let units_per_em = ctx.units_per_em;
     ctx.buffer.unsafe_to_break(Some(base), Some(end));
 
-    let base_info = ctx.buffer.info[base];
-    let base_pos = ctx.buffer.pos[base];
+    let base_info = *get(&ctx.buffer.info, base);
+    let base_pos = *get(&ctx.buffer.pos, base);
     let base_glyph = base_info.as_glyph();
 
     let Some(mut base_extents) = ctx.font.glyph_extents(base_glyph) else {
@@ -306,9 +306,9 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     let direction = ctx.buffer.direction;
     let font = ctx.font;
 
-    for (info, pos) in ctx.buffer.info[base + 1..end]
+    for (info, pos) in get(&ctx.buffer.info, base + 1..end)
         .iter()
-        .zip(&mut ctx.buffer.pos[base + 1..end])
+        .zip(get_mut(&mut ctx.buffer.pos, base + 1..end))
     {
         if info.modified_combining_class() != 0 {
             if num_lig_components > 1 {
@@ -389,13 +389,13 @@ fn position_cluster_impl(ctx: &mut FallbackShapeContext, start: usize, end: usiz
     // Find the base glyph
     let mut i = start;
     while i < end {
-        if !ctx.buffer.info[i].is_unicode_mark() {
+        if !get(&ctx.buffer.info, i).is_unicode_mark() {
             // Find mark glyphs
             let mut j = i + 1;
             while j < end
-                && (ctx.buffer.info[j].is_hidden()
-                    || ctx.buffer.info[j].is_default_ignorable()
-                    || ctx.buffer.info[j].is_unicode_mark())
+                && (get(&ctx.buffer.info, j).is_hidden()
+                    || get(&ctx.buffer.info, j).is_default_ignorable()
+                    || get(&ctx.buffer.info, j).is_unicode_mark())
             {
                 j += 1;
             }
@@ -436,9 +436,9 @@ pub fn position_marks<'x>(
     let mut start = 0;
     let len = ctx.buffer.len;
     for i in 1..len {
-        if !ctx.buffer.info[i].is_unicode_mark()
-            && !ctx.buffer.info[i].is_hidden()
-            && !ctx.buffer.info[i].is_default_ignorable()
+        if !get(&ctx.buffer.info, i).is_unicode_mark()
+            && !get(&ctx.buffer.info, i).is_hidden()
+            && !get(&ctx.buffer.info, i).is_default_ignorable()
         {
             position_cluster(&mut ctx, start, i);
             start = i;
@@ -460,7 +460,10 @@ pub fn fallback_spaces(shaping_font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     let font = shaping_font;
     let len = buffer.len;
     let horizontal = buffer.direction.is_horizontal();
-    for (info, pos) in buffer.info[..len].iter().zip(&mut buffer.pos[..len]) {
+    for (info, pos) in get(&buffer.info, ..len)
+        .iter()
+        .zip(get_mut(&mut buffer.pos, ..len))
+    {
         if info.is_unicode_space() && !info.ligated() {
             let space_type = info.unicode_space_fallback_type();
             match space_type {

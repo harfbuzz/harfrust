@@ -1,3 +1,4 @@
+use crate::buffer::{get, get_mut};
 use alloc::boxed::Box;
 use core::cmp;
 use core::ops::Range;
@@ -700,7 +701,7 @@ fn initial_reordering_syllable(
 ) {
     use super::indic_machine::SyllableType;
 
-    let syllable_type = match buffer.info[start].syllable() & 0x0F {
+    let syllable_type = match get(&buffer.info, start).syllable() & 0x0F {
         0 => SyllableType::ConsonantSyllable,
         1 => SyllableType::VowelSyllable,
         2 => SyllableType::StandaloneCluster,
@@ -739,9 +740,9 @@ fn initial_reordering_consonant_syllable(
     // Ra+h+ZWJ must behave like Ra+ZWJ+h...
     if buffer.script == Some(Script::KANNADA)
         && start + 3 <= end
-        && buffer.info[start].is_one_of(category_flag(category::OT_Ra))
-        && buffer.info[start + 1].is_one_of(category_flag(category::OT_H))
-        && buffer.info[start + 2].is_one_of(category_flag(category::OT_ZWJ))
+        && get(&buffer.info, start).is_one_of(category_flag(category::OT_Ra))
+        && get(&buffer.info, start + 1).is_one_of(category_flag(category::OT_H))
+        && get(&buffer.info, start + 2).is_one_of(category_flag(category::OT_ZWJ))
     {
         buffer.merge_clusters(start + 1, start + 3);
         buffer.info.swap(start + 1, start + 2);
@@ -771,16 +772,16 @@ fn initial_reordering_consonant_syllable(
         if indic_plan.mask_array[indic_feature::RPHF] != 0
             && start + 3 <= end
             && ((indic_plan.config.reph_mode == RephMode::Implicit
-                && !buffer.info[start + 2].is_joiner())
+                && !get(&buffer.info, start + 2).is_joiner())
                 || (indic_plan.config.reph_mode == RephMode::Explicit
-                    && buffer.info[start + 2].indic_category() == category::OT_ZWJ))
+                    && get(&buffer.info, start + 2).indic_category() == category::OT_ZWJ))
         {
             // See if it matches the 'rphf' feature.
             let glyphs = &[
-                buffer.info[start].as_glyph(),
-                buffer.info[start + 1].as_glyph(),
+                get(&buffer.info, start).as_glyph(),
+                get(&buffer.info, start + 1).as_glyph(),
                 if indic_plan.config.reph_mode == RephMode::Explicit {
-                    buffer.info[start + 2].as_glyph()
+                    get(&buffer.info, start + 2).as_glyph()
                 } else {
                     GlyphId::NOTDEF
                 },
@@ -792,17 +793,17 @@ fn initial_reordering_consonant_syllable(
                     && indic_plan.rphf.would_substitute(&plan.ot_map, ot, glyphs))
             {
                 limit += 2;
-                while limit < end && buffer.info[limit].is_joiner() {
+                while limit < end && get(&buffer.info, limit).is_joiner() {
                     limit += 1;
                 }
                 base = start;
                 has_reph = true;
             }
         } else if indic_plan.config.reph_mode == RephMode::LogRepha
-            && buffer.info[start].indic_category() == category::OT_Repha
+            && get(&buffer.info, start).indic_category() == category::OT_Repha
         {
             limit += 1;
-            while limit < end && buffer.info[limit].is_joiner() {
+            while limit < end && get(&buffer.info, limit).is_joiner() {
                 limit += 1;
             }
             base = start;
@@ -816,16 +817,17 @@ fn initial_reordering_consonant_syllable(
             loop {
                 i -= 1;
                 // -> until a consonant is found
-                if buffer.info[i].is_consonant() {
+                if get(&buffer.info, i).is_consonant() {
                     // -> that does not have a below-base or post-base form
                     // (post-base forms have to follow below-base forms),
-                    if buffer.info[i].indic_position() != position::POS_BELOW_C
-                        && (buffer.info[i].indic_position() != position::POS_POST_C || seen_below)
+                    if get(&buffer.info, i).indic_position() != position::POS_BELOW_C
+                        && (get(&buffer.info, i).indic_position() != position::POS_POST_C
+                            || seen_below)
                     {
                         base = i;
                         break;
                     }
-                    if buffer.info[i].indic_position() == position::POS_BELOW_C {
+                    if get(&buffer.info, i).indic_position() == position::POS_BELOW_C {
                         seen_below = true;
                     }
 
@@ -846,8 +848,8 @@ fn initial_reordering_consonant_syllable(
                     // search continues.  This is particularly important for Bengali
                     // sequence Ra,H,Ya that should form Ya-Phalaa by subjoining Ya.
                     if start < i
-                        && buffer.info[i].indic_category() == category::OT_ZWJ
-                        && buffer.info[i - 1].indic_category() == category::OT_H
+                        && get(&buffer.info, i).indic_category() == category::OT_ZWJ
+                        && get(&buffer.info, i - 1).indic_category() == category::OT_H
                     {
                         break;
                     }
@@ -901,17 +903,17 @@ fn initial_reordering_consonant_syllable(
     // Reorder characters
 
     for i in start..base {
-        let pos = buffer.info[i].indic_position();
-        buffer.info[i].set_indic_position(cmp::min(position::POS_PRE_C, pos));
+        let pos = get(&buffer.info, i).indic_position();
+        get_mut(&mut buffer.info, i).set_indic_position(cmp::min(position::POS_PRE_C, pos));
     }
 
     if base < end {
-        buffer.info[base].set_indic_position(position::POS_BASE_C);
+        get_mut(&mut buffer.info, base).set_indic_position(position::POS_BASE_C);
     }
 
     // Handle beginning Ra
     if has_reph {
-        buffer.info[start].set_indic_position(position::POS_RA_TO_BECOME_REPH);
+        get_mut(&mut buffer.info, start).set_indic_position(position::POS_RA_TO_BECOME_REPH);
     }
 
     // For old-style Indic script tags, move the first post-base Halant after
@@ -944,12 +946,12 @@ fn initial_reordering_consonant_syllable(
     if indic_plan.is_old_spec {
         let disallow_double_halants = buffer.script == Some(Script::KANNADA);
         for i in base + 1..end {
-            if buffer.info[i].indic_category() == category::OT_H {
+            if get(&buffer.info, i).indic_category() == category::OT_H {
                 let mut j = end - 1;
                 while j > i {
-                    if buffer.info[j].is_consonant()
+                    if get(&buffer.info, j).is_consonant()
                         || (disallow_double_halants
-                            && buffer.info[j].indic_category() == category::OT_H)
+                            && get(&buffer.info, j).indic_category() == category::OT_H)
                     {
                         break;
                     }
@@ -957,13 +959,13 @@ fn initial_reordering_consonant_syllable(
                     j -= 1;
                 }
 
-                if buffer.info[j].indic_category() != category::OT_H && j > i {
+                if get(&buffer.info, j).indic_category() != category::OT_H && j > i {
                     // Move Halant to after last consonant.
-                    let t = buffer.info[i];
+                    let t = *get(&buffer.info, i);
                     for k in 0..j - i {
-                        buffer.info[k + i] = buffer.info[k + i + 1];
+                        *get_mut(&mut buffer.info, k + i) = *get(&buffer.info, k + i + 1);
                     }
-                    buffer.info[j] = t;
+                    *get_mut(&mut buffer.info, j) = t;
                 }
 
                 break;
@@ -975,7 +977,7 @@ fn initial_reordering_consonant_syllable(
     {
         let mut last_pos = position::POS_START;
         for i in start..end {
-            let ok = rb_flag_unsafe(buffer.info[i].indic_category() as u32)
+            let ok = rb_flag_unsafe(get(&buffer.info, i).indic_category() as u32)
                 & (category_flag(category::OT_ZWJ)
                     | category_flag(category::OT_ZWNJ)
                     | category_flag(category::OT_N)
@@ -984,32 +986,32 @@ fn initial_reordering_consonant_syllable(
                     | category_flag(category::OT_H))
                 != 0;
             if ok {
-                buffer.info[i].set_indic_position(last_pos);
+                get_mut(&mut buffer.info, i).set_indic_position(last_pos);
 
-                if buffer.info[i].indic_category() == category::OT_H
-                    && buffer.info[i].indic_position() == position::POS_PRE_M
+                if get(&buffer.info, i).indic_category() == category::OT_H
+                    && get(&buffer.info, i).indic_position() == position::POS_PRE_M
                 {
                     // Uniscribe doesn't move the Halant with Left Matra.
                     // TEST: U+092B,U+093F,U+094DE
                     // We follow.
                     for j in (start + 1..=i).rev() {
-                        if buffer.info[j - 1].indic_position() != position::POS_PRE_M {
-                            let pos = buffer.info[j - 1].indic_position();
-                            buffer.info[i].set_indic_position(pos);
+                        if get(&buffer.info, j - 1).indic_position() != position::POS_PRE_M {
+                            let pos = get(&buffer.info, j - 1).indic_position();
+                            get_mut(&mut buffer.info, i).set_indic_position(pos);
                             break;
                         }
                     }
                 }
-            } else if buffer.info[i].indic_position() != position::POS_SMVD {
-                if buffer.info[i].indic_category() == category::OT_MPst
+            } else if get(&buffer.info, i).indic_position() != position::POS_SMVD {
+                if get(&buffer.info, i).indic_category() == category::OT_MPst
                     && i > start
-                    && buffer.info[i - 1].indic_category() == category::OT_SM
+                    && get(&buffer.info, i - 1).indic_category() == category::OT_SM
                 {
-                    let val = buffer.info[i].indic_position();
-                    buffer.info[i - 1].set_indic_position(val);
+                    let val = get(&buffer.info, i).indic_position();
+                    get_mut(&mut buffer.info, i - 1).set_indic_position(val);
                 }
 
-                last_pos = buffer.info[i].indic_position();
+                last_pos = get(&buffer.info, i).indic_position();
             }
         }
     }
@@ -1018,16 +1020,16 @@ fn initial_reordering_consonant_syllable(
     {
         let mut last = base;
         for i in base + 1..end {
-            if buffer.info[i].is_consonant() {
+            if get(&buffer.info, i).is_consonant() {
                 for j in last + 1..i {
-                    if buffer.info[j].indic_position() < position::POS_SMVD {
-                        let pos = buffer.info[i].indic_position();
-                        buffer.info[j].set_indic_position(pos);
+                    if get(&buffer.info, j).indic_position() < position::POS_SMVD {
+                        let pos = get(&buffer.info, i).indic_position();
+                        get_mut(&mut buffer.info, j).set_indic_position(pos);
                     }
                 }
 
                 last = i;
-            } else if (rb_flag_unsafe(buffer.info[i].indic_category() as u32)
+            } else if (rb_flag_unsafe(get(&buffer.info, i).indic_category() as u32)
                 & (rb_flag(category::OT_M as u32) | rb_flag(category::OT_MPst as u32)))
                 != 0
             {
@@ -1038,14 +1040,14 @@ fn initial_reordering_consonant_syllable(
 
     {
         // Use syllable() for sort accounting temporarily.
-        let syllable = buffer.info[start].syllable();
+        let syllable = get(&buffer.info, start).syllable();
         for i in start..end {
             // We don't care about overflow here as we won't actually use these
             // values if `end - start > 127`.
-            buffer.info[i].set_syllable((i - start) as u8);
+            get_mut(&mut buffer.info, i).set_syllable((i - start) as u8);
         }
 
-        stable_sort_by(&mut buffer.info[start..end], |a, b| {
+        stable_sort_by(get_mut(&mut buffer.info, start..end), |a, b| {
             a.indic_position().cmp(&b.indic_position())
         });
 
@@ -1055,10 +1057,10 @@ fn initial_reordering_consonant_syllable(
         base = end;
 
         for i in start..end {
-            if buffer.info[i].indic_position() == position::POS_BASE_C {
+            if get(&buffer.info, i).indic_position() == position::POS_BASE_C {
                 base = i;
                 break;
-            } else if buffer.info[i].indic_position() == position::POS_PRE_M {
+            } else if get(&buffer.info, i).indic_position() == position::POS_PRE_M {
                 if first_left_mantra == end {
                     first_left_mantra = i;
                 }
@@ -1075,7 +1077,7 @@ fn initial_reordering_consonant_syllable(
             let mut i = first_left_mantra;
 
             for j in i..=last_left_mantra {
-                if (rb_flag_unsafe(buffer.info[j].indic_category() as u32)
+                if (rb_flag_unsafe(get(&buffer.info, j).indic_category() as u32)
                     & (rb_flag(category::OT_M as u32) | rb_flag(category::OT_MPst as u32)))
                     != 0
                 {
@@ -1121,15 +1123,15 @@ fn initial_reordering_consonant_syllable(
         } else {
             // Note! syllable() is a one-byte field.
             for i in base..end {
-                if buffer.info[i].syllable() != 255 {
+                if get(&buffer.info, i).syllable() != 255 {
                     let mut min = i;
                     let mut max = i;
-                    let mut j = start + buffer.info[i].syllable() as usize;
+                    let mut j = start + get(&buffer.info, i).syllable() as usize;
                     while j != i {
                         min = cmp::min(min, j);
                         max = cmp::max(max, j);
-                        let next = start + buffer.info[j].syllable() as usize;
-                        buffer.info[j].set_syllable(255); // So we don't process j later again.
+                        let next = start + get(&buffer.info, j).syllable() as usize;
+                        get_mut(&mut buffer.info, j).set_syllable(255); // So we don't process j later again.
                         j = next;
                     }
 
@@ -1139,7 +1141,7 @@ fn initial_reordering_consonant_syllable(
         }
 
         // Put syllable back in.
-        for info in &mut buffer.info[start..end] {
+        for info in get_mut(&mut buffer.info, start..end) {
             info.set_syllable(syllable);
         }
     }
@@ -1148,7 +1150,7 @@ fn initial_reordering_consonant_syllable(
 
     {
         // Reph
-        for info in &mut buffer.info[start..end] {
+        for info in get_mut(&mut buffer.info, start..end) {
             if info.indic_position() != position::POS_RA_TO_BECOME_REPH {
                 break;
             }
@@ -1162,14 +1164,14 @@ fn initial_reordering_consonant_syllable(
             mask |= indic_plan.mask_array[indic_feature::BLWF];
         }
 
-        for info in &mut buffer.info[start..base] {
+        for info in get_mut(&mut buffer.info, start..base) {
             info.mask |= mask;
         }
 
         // Base
         mask = 0;
         if base < end {
-            buffer.info[base].mask |= mask;
+            get_mut(&mut buffer.info, base).mask |= mask;
         }
 
         // Post-base
@@ -1177,7 +1179,7 @@ fn initial_reordering_consonant_syllable(
             | indic_plan.mask_array[indic_feature::ABVF]
             | indic_plan.mask_array[indic_feature::PSTF];
         for i in base + 1..end {
-            buffer.info[i].mask |= mask;
+            get_mut(&mut buffer.info, i).mask |= mask;
         }
     }
 
@@ -1200,12 +1202,12 @@ fn initial_reordering_consonant_syllable(
         //
         // Test case: U+0924,U+094D,U+0930,U+094d,U+200D,U+0915
         for i in start..base.saturating_sub(1) {
-            if buffer.info[i].indic_category() == category::OT_Ra
-                && buffer.info[i + 1].indic_category() == category::OT_H
-                && (i + 2 == base || buffer.info[i + 2].indic_category() != category::OT_ZWJ)
+            if get(&buffer.info, i).indic_category() == category::OT_Ra
+                && get(&buffer.info, i + 1).indic_category() == category::OT_H
+                && (i + 2 == base || get(&buffer.info, i + 2).indic_category() != category::OT_ZWJ)
             {
-                buffer.info[i].mask |= indic_plan.mask_array[indic_feature::BLWF];
-                buffer.info[i + 1].mask |= indic_plan.mask_array[indic_feature::BLWF];
+                get_mut(&mut buffer.info, i).mask |= indic_plan.mask_array[indic_feature::BLWF];
+                get_mut(&mut buffer.info, i + 1).mask |= indic_plan.mask_array[indic_feature::BLWF];
             }
         }
     }
@@ -1214,10 +1216,13 @@ fn initial_reordering_consonant_syllable(
     if indic_plan.mask_array[indic_feature::PREF] != 0 && base + pref_len < end {
         // Find a Halant,Ra sequence and mark it for pre-base-reordering processing.
         for i in base + 1..end - pref_len + 1 {
-            let glyphs = &[buffer.info[i + 0].as_glyph(), buffer.info[i + 1].as_glyph()];
+            let glyphs = &[
+                get(&buffer.info, i + 0).as_glyph(),
+                get(&buffer.info, i + 1).as_glyph(),
+            ];
             if indic_plan.pref.would_substitute(&plan.ot_map, ot, glyphs) {
-                buffer.info[i + 0].mask |= indic_plan.mask_array[indic_feature::PREF];
-                buffer.info[i + 1].mask |= indic_plan.mask_array[indic_feature::PREF];
+                get_mut(&mut buffer.info, i + 0).mask |= indic_plan.mask_array[indic_feature::PREF];
+                get_mut(&mut buffer.info, i + 1).mask |= indic_plan.mask_array[indic_feature::PREF];
                 break;
             }
         }
@@ -1225,8 +1230,8 @@ fn initial_reordering_consonant_syllable(
 
     // Apply ZWJ/ZWNJ effects
     for i in start + 1..end {
-        if buffer.info[i].is_joiner() {
-            let non_joiner = buffer.info[i].indic_category() == category::OT_ZWNJ;
+        if get(&buffer.info, i).is_joiner() {
+            let non_joiner = get(&buffer.info, i).indic_category() == category::OT_ZWNJ;
             let mut j = i;
 
             loop {
@@ -1238,10 +1243,11 @@ fn initial_reordering_consonant_syllable(
 
                 // A ZWNJ disables HALF.
                 if non_joiner {
-                    buffer.info[j].mask &= !indic_plan.mask_array[indic_feature::HALF];
+                    get_mut(&mut buffer.info, j).mask &=
+                        !indic_plan.mask_array[indic_feature::HALF];
                 }
 
-                if j <= start || buffer.info[j].is_consonant() {
+                if j <= start || get(&buffer.info, j).is_consonant() {
                     break;
                 }
             }
@@ -1301,7 +1307,7 @@ fn final_reordering_impl(
     }
 
     if let Some(virama_glyph) = virama_glyph {
-        for info in &mut buffer.info[start..end] {
+        for info in get_mut(&mut buffer.info, start..end) {
             if info.glyph_id == virama_glyph && info.ligated() && info.multiplied() {
                 // This will make sure that this glyph passes is_halant() test.
                 info.set_indic_category(category::OT_H);
@@ -1321,22 +1327,24 @@ fn final_reordering_impl(
 
     let mut base = start;
     while base < end {
-        if buffer.info[base].indic_position() as u32 >= position::POS_BASE_C as u32 {
+        if get(&buffer.info, base).indic_position() as u32 >= position::POS_BASE_C as u32 {
             if try_pref && base + 1 < end {
                 for i in base + 1..end {
-                    if (buffer.info[i].mask & indic_plan.mask_array[indic_feature::PREF]) != 0 {
-                        if !(buffer.info[i].substituted()
-                            && buffer.info[i].ligated_and_didnt_multiply())
+                    if (get(&buffer.info, i).mask & indic_plan.mask_array[indic_feature::PREF]) != 0
+                    {
+                        if !(get(&buffer.info, i).substituted()
+                            && get(&buffer.info, i).ligated_and_didnt_multiply())
                         {
                             // Ok, this was a 'pref' candidate but didn't form any.
                             // Base is around here...
                             base = i;
-                            while base < end && buffer.info[base].is_halant() {
+                            while base < end && get(&buffer.info, base).is_halant() {
                                 base += 1;
                             }
 
                             if base < end {
-                                buffer.info[base].set_indic_position(position::POS_BASE_C);
+                                get_mut(&mut buffer.info, base)
+                                    .set_indic_position(position::POS_BASE_C);
                             }
 
                             try_pref = false;
@@ -1355,26 +1363,26 @@ fn final_reordering_impl(
             if buffer.script == Some(Script::MALAYALAM) {
                 let mut i = base + 1;
                 while i < end {
-                    while i < end && buffer.info[i].is_joiner() {
+                    while i < end && get(&buffer.info, i).is_joiner() {
                         i += 1;
                     }
 
-                    if i == end || !buffer.info[i].is_halant() {
+                    if i == end || !get(&buffer.info, i).is_halant() {
                         break;
                     }
 
                     i += 1; // Skip halant.
 
-                    while i < end && buffer.info[i].is_joiner() {
+                    while i < end && get(&buffer.info, i).is_joiner() {
                         i += 1;
                     }
 
                     if i < end
-                        && buffer.info[i].is_consonant()
-                        && buffer.info[i].indic_position() == position::POS_BELOW_C
+                        && get(&buffer.info, i).is_consonant()
+                        && get(&buffer.info, i).indic_position() == position::POS_BELOW_C
                     {
                         base = i;
-                        buffer.info[base].set_indic_position(position::POS_BASE_C);
+                        get_mut(&mut buffer.info, base).set_indic_position(position::POS_BASE_C);
                     }
 
                     i += 1;
@@ -1382,7 +1390,7 @@ fn final_reordering_impl(
             }
 
             if start < base
-                && buffer.info[base].indic_position() as u32 > position::POS_BASE_C as u32
+                && get(&buffer.info, base).indic_position() as u32 > position::POS_BASE_C as u32
             {
                 base -= 1;
             }
@@ -1395,14 +1403,14 @@ fn final_reordering_impl(
 
     if base == end
         && start < base
-        && buffer.info[base - 1].is_one_of(rb_flag(category::OT_ZWJ as u32))
+        && get(&buffer.info, base - 1).is_one_of(rb_flag(category::OT_ZWJ as u32))
     {
         base -= 1;
     }
 
     if base < end {
         while start < base
-            && buffer.info[base]
+            && get(&buffer.info, base)
                 .is_one_of(rb_flag(category::OT_N as u32) | rb_flag(category::OT_H as u32))
         {
             base -= 1;
@@ -1447,7 +1455,7 @@ fn final_reordering_impl(
         if buffer.script != Some(Script::MALAYALAM) && buffer.script != Some(Script::TAMIL) {
             loop {
                 while new_pos > start
-                    && !buffer.info[new_pos].is_one_of(
+                    && !get(&buffer.info, new_pos).is_one_of(
                         rb_flag(category::OT_M as u32)
                             | rb_flag(category::OT_MPst as u32)
                             | rb_flag(category::OT_H as u32),
@@ -1459,12 +1467,12 @@ fn final_reordering_impl(
                 // If we found no Halant we are done.
                 // Otherwise only proceed if the Halant does
                 // not belong to the Matra itself!
-                if buffer.info[new_pos].is_halant()
-                    && buffer.info[new_pos].indic_position() != position::POS_PRE_M
+                if get(&buffer.info, new_pos).is_halant()
+                    && get(&buffer.info, new_pos).indic_position() != position::POS_PRE_M
                 {
                     if new_pos + 1 < end {
                         // -> If ZWJ follows this halant, matra is NOT repositioned after this halant.
-                        if buffer.info[new_pos + 1].indic_category() == category::OT_ZWJ {
+                        if get(&buffer.info, new_pos + 1).indic_category() == category::OT_ZWJ {
                             // Keep searching.
                             if new_pos > start {
                                 new_pos -= 1;
@@ -1488,21 +1496,22 @@ fn final_reordering_impl(
             }
         }
 
-        if start < new_pos && buffer.info[new_pos].indic_position() != position::POS_PRE_M {
+        if start < new_pos && get(&buffer.info, new_pos).indic_position() != position::POS_PRE_M {
             // Now go see if there's actually any matras...
             for i in (start + 1..=new_pos).rev() {
-                if buffer.info[i - 1].indic_position() == position::POS_PRE_M {
+                if get(&buffer.info, i - 1).indic_position() == position::POS_PRE_M {
                     let old_pos = i - 1;
                     // Shouldn't actually happen.
                     if old_pos < base && base <= new_pos {
                         base -= 1;
                     }
 
-                    let tmp = buffer.info[old_pos];
+                    let tmp = *get(&buffer.info, old_pos);
                     for i in 0..new_pos - old_pos {
-                        buffer.info[i + old_pos] = buffer.info[i + old_pos + 1];
+                        *get_mut(&mut buffer.info, i + old_pos) =
+                            *get(&buffer.info, i + old_pos + 1);
                     }
-                    buffer.info[new_pos] = tmp;
+                    *get_mut(&mut buffer.info, new_pos) = tmp;
 
                     // Note: this merge_clusters() is intentionally *after* the reordering.
                     // Indic matra reordering is special and tricky...
@@ -1513,7 +1522,7 @@ fn final_reordering_impl(
             }
         } else {
             for i in start..base {
-                if buffer.info[i].indic_position() == position::POS_PRE_M {
+                if get(&buffer.info, i).indic_position() == position::POS_PRE_M {
                     buffer.merge_clusters(i, cmp::min(end, base + 1));
                     break;
                 }
@@ -1539,9 +1548,9 @@ fn final_reordering_impl(
     //   to make it work without the reordering.
 
     if start + 1 < end
-        && buffer.info[start].indic_position() == position::POS_RA_TO_BECOME_REPH
-        && (buffer.info[start].indic_category() == category::OT_Repha)
-            ^ buffer.info[start].ligated_and_didnt_multiply()
+        && get(&buffer.info, start).indic_position() == position::POS_RA_TO_BECOME_REPH
+        && (get(&buffer.info, start).indic_category() == category::OT_Repha)
+            ^ get(&buffer.info, start).ligated_and_didnt_multiply()
     {
         let mut new_reph_pos;
         'reph: {
@@ -1562,13 +1571,15 @@ fn final_reordering_impl(
                 //    will be found on this step.
                 {
                     new_reph_pos = start + 1;
-                    while new_reph_pos < base && !buffer.info[new_reph_pos].is_halant() {
+                    while new_reph_pos < base && !get(&buffer.info, new_reph_pos).is_halant() {
                         new_reph_pos += 1;
                     }
 
-                    if new_reph_pos < base && buffer.info[new_reph_pos].is_halant() {
+                    if new_reph_pos < base && get(&buffer.info, new_reph_pos).is_halant() {
                         // ->If ZWJ or ZWNJ are following this halant, position is moved after it.
-                        if new_reph_pos + 1 < base && buffer.info[new_reph_pos + 1].is_joiner() {
+                        if new_reph_pos + 1 < base
+                            && get(&buffer.info, new_reph_pos + 1).is_joiner()
+                        {
                             new_reph_pos += 1;
                         }
 
@@ -1582,7 +1593,7 @@ fn final_reordering_impl(
                 if reph_pos == RephPosition::AfterMain {
                     new_reph_pos = base;
                     while new_reph_pos + 1 < end
-                        && buffer.info[new_reph_pos + 1].indic_position()
+                        && get(&buffer.info, new_reph_pos + 1).indic_position()
                             <= position::POS_AFTER_MAIN
                     {
                         new_reph_pos += 1;
@@ -1602,10 +1613,11 @@ fn final_reordering_impl(
                 if reph_pos == RephPosition::AfterSub {
                     new_reph_pos = base;
                     while new_reph_pos + 1 < end
-                        && (rb_flag_unsafe(buffer.info[new_reph_pos + 1].indic_position() as u32)
-                            & (rb_flag(position::POS_POST_C as u32)
-                                | rb_flag(position::POS_AFTER_POST as u32)
-                                | rb_flag(position::POS_SMVD as u32)))
+                        && (rb_flag_unsafe(
+                            get(&buffer.info, new_reph_pos + 1).indic_position() as u32
+                        ) & (rb_flag(position::POS_POST_C as u32)
+                            | rb_flag(position::POS_AFTER_POST as u32)
+                            | rb_flag(position::POS_SMVD as u32)))
                             == 0
                     {
                         new_reph_pos += 1;
@@ -1626,13 +1638,13 @@ fn final_reordering_impl(
             //
             // Copied from step 2.
             new_reph_pos = start + 1;
-            while new_reph_pos < base && !buffer.info[new_reph_pos].is_halant() {
+            while new_reph_pos < base && !get(&buffer.info, new_reph_pos).is_halant() {
                 new_reph_pos += 1;
             }
 
-            if new_reph_pos < base && buffer.info[new_reph_pos].is_halant() {
+            if new_reph_pos < base && get(&buffer.info, new_reph_pos).is_halant() {
                 /* ->If ZWJ or ZWNJ are following this halant, position is moved after it. */
-                if new_reph_pos + 1 < base && buffer.info[new_reph_pos + 1].is_joiner() {
+                if new_reph_pos + 1 < base && get(&buffer.info, new_reph_pos + 1).is_joiner() {
                     new_reph_pos += 1;
                 }
 
@@ -1644,7 +1656,7 @@ fn final_reordering_impl(
             {
                 new_reph_pos = end - 1;
                 while new_reph_pos > start
-                    && buffer.info[new_reph_pos].indic_position() == position::POS_SMVD
+                    && get(&buffer.info, new_reph_pos).indic_position() == position::POS_SMVD
                 {
                     new_reph_pos -= 1;
                 }
@@ -1654,8 +1666,8 @@ fn final_reordering_impl(
                 // However, if it's a plain Consonant,Halant we shouldn't do that.
                 // Uniscribe doesn't do this.
                 // TEST: U+0930,U+094D,U+0915,U+094B,U+094D
-                if buffer.info[new_reph_pos].is_halant() {
-                    for info in &buffer.info[base + 1..new_reph_pos] {
+                if get(&buffer.info, new_reph_pos).is_halant() {
+                    for info in get(&buffer.info, base + 1..new_reph_pos) {
                         if (rb_flag_unsafe(info.indic_category() as u32)
                             & (rb_flag(category::OT_M as u32) | rb_flag(category::OT_MPst as u32)))
                             != 0
@@ -1673,11 +1685,11 @@ fn final_reordering_impl(
         // Move
         buffer.merge_clusters(start, new_reph_pos + 1);
 
-        let reph = buffer.info[start];
+        let reph = *get(&buffer.info, start);
         for i in 0..new_reph_pos - start {
-            buffer.info[i + start] = buffer.info[i + start + 1];
+            *get_mut(&mut buffer.info, i + start) = *get(&buffer.info, i + start + 1);
         }
-        buffer.info[new_reph_pos] = reph;
+        *get_mut(&mut buffer.info, new_reph_pos) = reph;
 
         if start < base && base <= new_reph_pos {
             base -= 1;
@@ -1692,7 +1704,7 @@ fn final_reordering_impl(
     // Otherwise there can't be any pre-base-reordering Ra.
     if try_pref && base + 1 < end {
         for i in base + 1..end {
-            if (buffer.info[i].mask & indic_plan.mask_array[indic_feature::PREF]) != 0 {
+            if (get(&buffer.info, i).mask & indic_plan.mask_array[indic_feature::PREF]) != 0 {
                 // 1. Only reorder a glyph produced by substitution during application
                 //    of the <pref> feature. (Note that a font may shape a Ra consonant with
                 //    the feature generally but block it in certain contexts.)
@@ -1701,7 +1713,7 @@ fn final_reordering_impl(
                 // the <pref> feature actually did it...
                 //
                 // Reorder pref only if it ligated.
-                if buffer.info[i].ligated_and_didnt_multiply() {
+                if get(&buffer.info, i).ligated_and_didnt_multiply() {
                     // 2. Try to find a target position the same way as for pre-base matra.
                     //    If it is found, reorder pre-base consonant glyph.
                     //
@@ -1715,7 +1727,7 @@ fn final_reordering_impl(
                         && buffer.script != Some(Script::TAMIL)
                     {
                         while new_pos > start
-                            && !buffer.info[new_pos - 1].is_one_of(
+                            && !get(&buffer.info, new_pos - 1).is_one_of(
                                 rb_flag(category::OT_M as u32)
                                     | rb_flag(category::OT_MPst as u32)
                                     | rb_flag(category::OT_H as u32),
@@ -1725,9 +1737,9 @@ fn final_reordering_impl(
                         }
                     }
 
-                    if new_pos > start && buffer.info[new_pos - 1].is_halant() {
+                    if new_pos > start && get(&buffer.info, new_pos - 1).is_halant() {
                         // -> If ZWJ or ZWNJ follow this halant, position is moved after it.
-                        if new_pos < end && buffer.info[new_pos].is_joiner() {
+                        if new_pos < end && get(&buffer.info, new_pos).is_joiner() {
                             new_pos += 1;
                         }
                     }
@@ -1736,11 +1748,12 @@ fn final_reordering_impl(
                         let old_pos = i;
 
                         buffer.merge_clusters(new_pos, old_pos + 1);
-                        let tmp = buffer.info[old_pos];
+                        let tmp = *get(&buffer.info, old_pos);
                         for i in (0..old_pos - new_pos).rev() {
-                            buffer.info[i + new_pos + 1] = buffer.info[i + new_pos];
+                            *get_mut(&mut buffer.info, i + new_pos + 1) =
+                                *get(&buffer.info, i + new_pos);
                         }
-                        buffer.info[new_pos] = tmp;
+                        *get_mut(&mut buffer.info, new_pos) = tmp;
 
                         if new_pos <= base && base < old_pos {
                             // TODO: investigate
@@ -1758,13 +1771,13 @@ fn final_reordering_impl(
     }
 
     // Apply 'init' to the Left Matra if it's a word start.
-    if buffer.info[start].indic_position() == position::POS_PRE_M {
+    if get(&buffer.info, start).indic_position() == position::POS_PRE_M {
         if start == 0
-            || !buffer.info[start - 1]
+            || !get(&buffer.info, start - 1)
                 .general_category()
                 .in_range_inclusive(GeneralCategory::FORMAT, GeneralCategory::NON_SPACING_MARK)
         {
-            buffer.info[start].mask |= indic_plan.mask_array[indic_feature::INIT];
+            get_mut(&mut buffer.info, start).mask |= indic_plan.mask_array[indic_feature::INIT];
         } else {
             buffer.unsafe_to_break(Some(start - 1), Some(start + 1));
         }

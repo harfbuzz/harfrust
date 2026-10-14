@@ -7,6 +7,7 @@ use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;
 
+use crate::buffer::{get, get_mut};
 use crate::LayoutData;
 use crate::{buffer::Buffer, plan::ShapePlan, Scale};
 
@@ -35,11 +36,13 @@ pub fn apply(
 
     foreach_grapheme!(buffer, start, end, {
         if buffer.direction.is_horizontal() {
-            buffer.pos[start].x_advance =
-                buffer.pos[start].x_advance.saturating_add(advance_to_add);
+            get_mut(&mut buffer.pos, start).x_advance = get(&buffer.pos, start)
+                .x_advance
+                .saturating_add(advance_to_add);
         } else {
-            buffer.pos[start].y_advance =
-                buffer.pos[start].y_advance.saturating_add(advance_to_add);
+            get_mut(&mut buffer.pos, start).y_advance = get(&buffer.pos, start)
+                .y_advance
+                .saturating_add(advance_to_add);
         }
     });
 
