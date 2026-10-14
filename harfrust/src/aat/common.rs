@@ -440,6 +440,12 @@ impl SafeToBreakSubtable {
     }
 }
 
+// Keep one closure type for the morx and kerx class-set filters so that
+// their lookup collectors share a monomorphization.
+pub(crate) fn class_set_filter(classes: &U32Set) -> impl Fn(u16) -> bool + '_ {
+    |class| classes.contains(u32::from(class))
+}
+
 pub trait TypedCollectGlyphs<T: LookupValue> {
     /// Add all indices into `set`.
     fn collect_glyphs(&self, set: &mut U32Set, num_glyphs: u32) {
@@ -500,6 +506,8 @@ impl CollectGlyphs for Lookup<'_> {
             Lookup::Format10(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
         }
     }
+    // Keep the shared collector out of the state-machine cache constructors.
+    #[inline(never)]
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
     where
         T: LookupValue,
