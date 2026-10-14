@@ -19,6 +19,9 @@ use read_fonts::tables::layout::{
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
 use read_fonts::FontData;
 
+type MatchFunc<'a> = &'a dyn Fn(&mut GlyphInfo, u32) -> bool;
+type MatchFuncs<'a> = (MatchFunc<'a>, MatchFunc<'a>, MatchFunc<'a>);
+
 fn context_rule_set_digests(table: &SequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
     table
         .class_seq_rule_sets()
@@ -865,6 +868,26 @@ fn apply_context_rules(
     rule_set_digest: Option<RuleSetDigest>,
     first_value: impl Fn(&mut GlyphInfo) -> u16,
 ) -> Option<()> {
+    apply_context_rules_dyn(
+        ctx,
+        set_data,
+        rule_offsets,
+        &match_func,
+        rule_set_digest,
+        &first_value,
+    )
+}
+
+// Compile the rule scanner once for all matching callbacks.
+#[inline(never)]
+fn apply_context_rules_dyn(
+    ctx: &mut ApplyContext,
+    set_data: FontData<'_>,
+    rule_offsets: &[BigEndian<Offset16>],
+    match_func: MatchFunc<'_>,
+    rule_set_digest: Option<RuleSetDigest>,
+    first_value: &dyn Fn(&mut GlyphInfo) -> u16,
+) -> Option<()> {
     // HarfBuzz bypasses the first/second-component pre-match below for rule
     // sets of at most 4 rules, because its pre-match setup costs more than
     // it saves there. For us the pre-match loop rejects rules on one or two
@@ -1091,6 +1114,26 @@ fn apply_chain_context_rules<
     match_funcs: (F1, F2, F3),
     rule_set_digest: Option<RuleSetDigest>,
     first_input_value: F4,
+) -> Option<()> {
+    apply_chain_context_rules_dyn(
+        ctx,
+        set_data,
+        rule_offsets,
+        (&match_funcs.0, &match_funcs.1, &match_funcs.2),
+        rule_set_digest,
+        &first_input_value,
+    )
+}
+
+// Keep callback types out of the large chained rule scanner.
+#[inline(never)]
+fn apply_chain_context_rules_dyn(
+    ctx: &mut ApplyContext,
+    set_data: FontData<'_>,
+    rule_offsets: &[BigEndian<Offset16>],
+    match_funcs: MatchFuncs<'_>,
+    rule_set_digest: Option<RuleSetDigest>,
+    first_input_value: &dyn Fn(&mut GlyphInfo) -> u16,
 ) -> Option<()> {
     // No small-rule-set bypass here either; see apply_context_rules.
     //
