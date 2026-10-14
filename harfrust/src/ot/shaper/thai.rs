@@ -409,7 +409,8 @@ fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buf
             // Move Nikhahit (end-2) to the beginning
             buffer.merge_out_clusters(start, end);
             let t = *get(buffer.out_info(), end - 2);
-            for i in 0..(end - start - 2) {
+            // Shift from the end so each mark moves before it is overwritten.
+            for i in (0..(end - start - 2)).rev() {
                 *get_mut(buffer.out_info_mut(), i + start + 1) = *get(buffer.out_info(), i + start);
             }
             *get_mut(buffer.out_info_mut(), start) = t;
