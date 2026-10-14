@@ -201,12 +201,12 @@ impl<'a> AatApplyContext<'a> {
     }
 }
 
-/// Per-face acceleration for the drive loops' safe-to-break computation.
+/// Per-table acceleration for the drive loops' safe-to-break computation.
 ///
-/// The data for every AAT state-machine subtable is stored in two packed
-/// vectors. Each top-level subtable cache carries a compact descriptor for
-/// its ranges. This avoids two `Vec` allocations in every subtable cache
-/// while retaining O(classes) + O(states) storage.
+/// The data for every state-machine subtable in one AAT table is stored in
+/// two packed vectors. Each top-level subtable cache carries a compact
+/// descriptor for its ranges. This avoids two `Vec` allocations in every
+/// subtable cache while retaining O(classes) + O(states) storage.
 #[derive(Default)]
 pub(crate) struct SafeToBreakAccel {
     wouldbe: Vec<u16>,

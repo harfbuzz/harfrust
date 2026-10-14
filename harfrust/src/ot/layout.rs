@@ -65,7 +65,6 @@ pub fn has_kerning(aat: &AatData) -> bool {
 pub fn has_machine_kerning(aat: &AatData) -> bool {
     match aat.kern {
         Some(ref kern) => kern
-            .0
             .subtables()
             .filter_map(Result::ok)
             .any(|s| s.is_state_machine()),
@@ -76,7 +75,6 @@ pub fn has_machine_kerning(aat: &AatData) -> bool {
 pub fn has_cross_kerning(aat: &AatData) -> bool {
     match aat.kern {
         Some(ref kern) => kern
-            .0
             .subtables()
             .filter_map(Result::ok)
             .any(|s| s.is_cross_stream()),

@@ -31,8 +31,10 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    let (kerx, subtable_caches) = c.layout.aat.kerx.as_ref()?;
-    let safe_to_break = c.layout.aat.safe_to_break?;
+    let kerx = c.layout.aat.kerx.as_ref()?;
+    let cache = c.layout.aat.kerx_cache()?;
+    let subtable_caches = &cache.subtables;
+    let safe_to_break = &cache.safe_to_break;
 
     let mut subtable_idx = 0;
 

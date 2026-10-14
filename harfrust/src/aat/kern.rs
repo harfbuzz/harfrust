@@ -44,8 +44,10 @@ pub fn apply(
 
     c.setup_buffer_glyph_set();
 
-    let (kern, subtable_caches) = layout.aat.kern.as_ref()?;
-    let safe_to_break = layout.aat.safe_to_break?;
+    let kern = layout.aat.kern.as_ref()?;
+    let cache = layout.aat.kern_cache()?;
+    let subtable_caches = &cache.subtables;
+    let safe_to_break = &cache.safe_to_break;
 
     let mut subtable_idx = 0;
 
