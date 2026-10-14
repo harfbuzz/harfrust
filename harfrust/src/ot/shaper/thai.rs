@@ -1,4 +1,5 @@
 use super::*;
+use crate::buffer::{get, get_mut};
 use crate::normalize::NormalizationMode;
 use crate::ot::layout::*;
 use crate::plan::ShapePlan;
@@ -276,10 +277,10 @@ fn do_pua_shaping(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     let mut base = 0;
 
     for i in 0..buffer.len {
-        let mt = get_mark_type(buffer.info[i].glyph_id);
+        let mt = get_mark_type(get(&buffer.info, i).glyph_id);
 
         if mt == Mark::NotMark {
-            let ct = get_consonant_type(buffer.info[i].glyph_id);
+            let ct = get_consonant_type(get(&buffer.info, i).glyph_id);
             above_state = ABOVE_START_STATE[ct as usize];
             below_state = BELOW_START_STATE[ct as usize];
             base = i;
@@ -300,9 +301,11 @@ fn do_pua_shaping(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
 
         buffer.unsafe_to_break(Some(base), Some(i));
         if action == Action::RD {
-            buffer.info[base].glyph_id = pua_shape(buffer.info[base].glyph_id, action, font);
+            get_mut(&mut buffer.info, base).glyph_id =
+                pua_shape(get(&buffer.info, base).glyph_id, action, font);
         } else {
-            buffer.info[i].glyph_id = pua_shape(buffer.info[i].glyph_id, action, font);
+            get_mut(&mut buffer.info, i).glyph_id =
+                pua_shape(get(&buffer.info, i).glyph_id, action, font);
         }
     }
 }
@@ -385,7 +388,7 @@ fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buf
         buffer.output_glyph(nikhahit_from_sara_am(u));
         {
             let out_idx = buffer.out_len - 1;
-            let mut info = buffer.out_info_mut()[out_idx];
+            let mut info = *get(buffer.out_info_mut(), out_idx);
             info.set_continuation(&mut buffer.scratch_flags);
         }
         buffer.replace_glyph(sara_aa_from_sara_am(u));
@@ -393,22 +396,23 @@ fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buf
         // Make Nikhahit be recognized as a ccc=0 mark when zeroing widths.
         let end = buffer.out_len;
 
-        buffer.out_info_mut()[end - 2].set_general_category(GeneralCategory::NON_SPACING_MARK);
+        get_mut(buffer.out_info_mut(), end - 2)
+            .set_general_category(GeneralCategory::NON_SPACING_MARK);
 
         // Ok, let's see...
         let mut start = end - 2;
-        while start > 0 && is_above_base_mark(buffer.out_info()[start - 1].glyph_id) {
+        while start > 0 && is_above_base_mark(get(buffer.out_info(), start - 1).glyph_id) {
             start -= 1;
         }
 
         if start + 2 < end {
             // Move Nikhahit (end-2) to the beginning
             buffer.merge_out_clusters(start, end);
-            let t = buffer.out_info()[end - 2];
+            let t = *get(buffer.out_info(), end - 2);
             for i in 0..(end - start - 2) {
-                buffer.out_info_mut()[i + start + 1] = buffer.out_info()[i + start];
+                *get_mut(buffer.out_info_mut(), i + start + 1) = *get(buffer.out_info(), i + start);
             }
-            buffer.out_info_mut()[start] = t;
+            *get_mut(buffer.out_info_mut(), start) = t;
         }
 
         // Since we decomposed, and NIKHAHIT is combining, merge clusters with the

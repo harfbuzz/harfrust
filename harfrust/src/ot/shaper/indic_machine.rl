@@ -12,7 +12,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
+use crate::buffer::{get, get_mut, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
 
 %%{
   machine indic_syllable_machine;
@@ -110,7 +110,7 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
 
     %%{
         write init;
-        getkey (buffer.info[p].indic_category() as u8);
+        getkey (get(&buffer.info, p).indic_category() as u8);
         write exec;
     }%%
 }
@@ -124,7 +124,7 @@ fn found_syllable(
     buffer: &mut Buffer,
 ) {
     for i in start..end {
-        buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);
+        get_mut(&mut buffer.info, i).set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

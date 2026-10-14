@@ -15,7 +15,7 @@
 
 use core::cell::Cell;
 
-use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::buffer::{get, Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 use crate::GlyphInfo;
 use super::machine_cursor::MachineCursor;
 use super::use_::category;
@@ -190,7 +190,7 @@ pub fn find_syllables(buffer: &mut Buffer) {
 
     %%{
         write init;
-        getkey (infos[p.index()].get().use_category() as u8);
+        getkey (get(infos, p.index()).get().use_category() as u8);
         write exec;
     }%%
 }
@@ -204,9 +204,9 @@ fn found_syllable(
     buffer: &[Cell<GlyphInfo>],
 ) {
     for i in start..end {
-        let mut glyph = buffer[i].get();
+        let mut glyph = get(buffer, i).get();
         glyph.set_syllable((*syllable_serial << 4) | kind as u8);
-        buffer[i].set(glyph);
+        get(buffer, i).set(glyph);
     }
 
     *syllable_serial += 1;
@@ -221,12 +221,12 @@ fn not_ccs_default_ignorable(i: &GlyphInfo) -> bool {
 }
 
 fn included(infos: &[Cell<GlyphInfo>], i: usize) -> bool {
-    let glyph = infos[i].get();
+    let glyph = get(infos, i).get();
     if !not_ccs_default_ignorable(&glyph) {
         return false;
     }
     if glyph.use_category() == category::ZWNJ {
-        for glyph2 in &infos[i + 1..] {
+        for glyph2 in get(infos, i + 1..) {
             if not_ccs_default_ignorable(&glyph2.get()) {
                 return !glyph2.get().is_unicode_mark();
             }

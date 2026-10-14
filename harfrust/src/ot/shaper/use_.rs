@@ -2,6 +2,7 @@ use super::arabic::ArabicShapePlan;
 use super::syllabic::*;
 use super::*;
 use crate::algs::*;
+use crate::buffer::{get, get_mut};
 use crate::ot::layout::*;
 use crate::ot::map::*;
 use crate::plan::ShapePlan;
@@ -258,14 +259,14 @@ fn setup_rphf_mask(plan: &ShapePlan, buffer: &mut Buffer) -> bool {
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
-        let limit = if buffer.info[start].use_category() == category::R {
+        let limit = if get(&buffer.info, start).use_category() == category::R {
             1
         } else {
             core::cmp::min(3, end - start)
         };
 
         for i in start..start + limit {
-            buffer.info[i].mask |= mask;
+            get_mut(&mut buffer.info, i).mask |= mask;
         }
 
         start = end;
@@ -304,7 +305,7 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) {
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
-        let syllable = buffer.info[start].syllable() & 0x0F;
+        let syllable = get(&buffer.info, start).syllable() & 0x0F;
         if syllable == SyllableType::HieroglyphCluster as u8
             || syllable == SyllableType::NonCluster as u8
         {
@@ -322,8 +323,8 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) {
                 };
 
                 for i in last_start..start {
-                    buffer.info[i].mask =
-                        (buffer.info[i].mask & other_masks) | masks[form as usize];
+                    get_mut(&mut buffer.info, i).mask =
+                        (get(&buffer.info, i).mask & other_masks) | masks[form as usize];
                 }
             }
 
@@ -335,7 +336,8 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) {
             };
             last_form = Some(form);
             for i in start..end {
-                buffer.info[i].mask = (buffer.info[i].mask & other_masks) | masks[form as usize];
+                get_mut(&mut buffer.info, i).mask =
+                    (get(&buffer.info, i).mask & other_masks) | masks[form as usize];
             }
         }
 
@@ -358,12 +360,12 @@ fn record_rphf(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) ->
     while start < buffer.len {
         // Mark a substituted repha as USE_R.
         for i in start..end {
-            if buffer.info[i].mask & mask == 0 {
+            if get(&buffer.info, i).mask & mask == 0 {
                 break;
             }
 
-            if buffer.info[i].substituted() {
-                buffer.info[i].set_use_category(category::R);
+            if get(&buffer.info, i).substituted() {
+                get_mut(&mut buffer.info, i).set_use_category(category::R);
                 break;
             }
         }
@@ -434,7 +436,7 @@ const POST_BASE_FLAGS: u64 = category_flag64(category::FAbv)
 fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
     use super::use_machine::SyllableType;
 
-    let syllable_type = (buffer.info[start].syllable() & 0x0F) as u32;
+    let syllable_type = (get(&buffer.info, start).syllable() & 0x0F) as u32;
     // Only a few syllable types need reordering.
     if (rb_flag_unsafe(syllable_type)
         & (rb_flag(SyllableType::ViramaTerminatedCluster as u32)
@@ -449,12 +451,13 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
     }
 
     // Move things forward.
-    if buffer.info[start].use_category() == category::R && end - start > 1 {
+    if get(&buffer.info, start).use_category() == category::R && end - start > 1 {
         // Got a repha.  Reorder it towards the end, but before the first post-base glyph.
         for i in start + 1..end {
-            let is_post_base_glyph =
-                (rb_flag64_unsafe(buffer.info[i].use_category() as u32) & POST_BASE_FLAGS) != 0
-                    || buffer.info[i].is_halant_use();
+            let is_post_base_glyph = (rb_flag64_unsafe(get(&buffer.info, i).use_category() as u32)
+                & POST_BASE_FLAGS)
+                != 0
+                || get(&buffer.info, i).is_halant_use();
 
             if is_post_base_glyph || i == end - 1 {
                 // If we hit a post-base glyph, move before it; otherwise move to the
@@ -466,11 +469,11 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
                 }
 
                 buffer.merge_clusters(start, i + 1);
-                let t = buffer.info[start];
+                let t = *get(&buffer.info, start);
                 for k in 0..i - start {
-                    buffer.info[k + start] = buffer.info[k + start + 1];
+                    *get_mut(&mut buffer.info, k + start) = *get(&buffer.info, k + start + 1);
                 }
-                buffer.info[i] = t;
+                *get_mut(&mut buffer.info, i) = t;
 
                 break;
             }
@@ -480,22 +483,22 @@ fn reorder_syllable_use(start: usize, end: usize, buffer: &mut Buffer) {
     // Move things back.
     let mut j = start;
     for i in start..end {
-        let flag = rb_flag_unsafe(buffer.info[i].use_category() as u32);
-        if buffer.info[i].is_halant_use() {
+        let flag = rb_flag_unsafe(get(&buffer.info, i).use_category() as u32);
+        if get(&buffer.info, i).is_halant_use() {
             // If we hit a halant, move after it; otherwise move to the beginning, and
             // shift things in between forward.
             j = i + 1;
         } else if (flag & (category_flag(category::VPre) | category_flag(category::VMPre))) != 0
-            && buffer.info[i].lig_comp() == 0
+            && get(&buffer.info, i).lig_comp() == 0
             && j < i
         {
             // Only move the first component of a MultipleSubst.
             buffer.merge_clusters(j, i + 1);
-            let t = buffer.info[i];
+            let t = *get(&buffer.info, i);
             for k in (0..i - j).rev() {
-                buffer.info[k + j + 1] = buffer.info[k + j];
+                *get_mut(&mut buffer.info, k + j + 1) = *get(&buffer.info, k + j);
             }
-            buffer.info[j] = t;
+            *get_mut(&mut buffer.info, j) = t;
         }
     }
 }
@@ -506,8 +509,8 @@ fn record_pref(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bo
     while start < buffer.len {
         // Mark a substituted pref as VPre, as they behave the same way.
         for i in start..end {
-            if buffer.info[i].substituted() {
-                buffer.info[i].set_use_category(category::VPre);
+            if get(&buffer.info, i).substituted() {
+                get_mut(&mut buffer.info, i).set_use_category(category::VPre);
                 break;
             }
         }

@@ -1,6 +1,6 @@
 use super::Tag;
 use super::*;
-use crate::buffer::Buffer;
+use crate::buffer::{get, Buffer};
 use crate::plan::ShapePlan;
 use crate::unicode::{self, combining_class, modified_combining_class, Codepoint};
 
@@ -22,9 +22,9 @@ pub const HEBREW_SHAPER: OtShaper = OtShaper {
 
 fn reorder_marks_hebrew(_: &ShapePlan, buffer: &mut Buffer, start: usize, end: usize) {
     for i in start + 2..end {
-        let c0 = buffer.info[i - 2];
-        let c1 = buffer.info[i - 1];
-        let c2 = buffer.info[i - 0];
+        let c0 = *get(&buffer.info, i - 2);
+        let c1 = *get(&buffer.info, i - 1);
+        let c2 = *get(&buffer.info, i - 0);
 
         if (c0.modified_combining_class() == modified_combining_class::CCC17
                 || c0.modified_combining_class() == modified_combining_class::CCC18) /* patach or qamats */

@@ -1,3 +1,4 @@
+use crate::buffer::get;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
@@ -66,7 +67,7 @@ impl Apply for PairPosFormat1<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = get(&iter.buffer.info, second_glyph_index).as_glyph();
 
         if pair_set_digests
             .and_then(|digests| digests.get(first_glyph_coverage_index as usize))
@@ -212,7 +213,7 @@ impl Apply for PairPosFormat2<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = get(&iter.buffer.info, second_glyph_index).as_glyph();
 
         let finish = |ctx: &mut ApplyContext, iter_index: &mut usize, has_record2| {
             if has_record2 {

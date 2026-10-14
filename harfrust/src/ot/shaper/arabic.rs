@@ -1,4 +1,5 @@
 use super::*;
+use crate::buffer::{get, get_mut};
 use crate::normalize::NormalizationMode;
 use crate::once::Once;
 use crate::ot::map::*;
@@ -318,18 +319,18 @@ fn arabic_joining(buffer: &mut Buffer) {
 
     for i in 0..buffer.len {
         let this_type = get_joining_type(
-            buffer.info[i].as_codepoint(),
-            buffer.info[i].general_category(),
+            get(&buffer.info, i).as_codepoint(),
+            get(&buffer.info, i).general_category(),
         );
         if this_type == ArabicJoiningType::T {
-            buffer.info[i].set_arabic_shaping_action(arabic_action::NONE);
+            get_mut(&mut buffer.info, i).set_arabic_shaping_action(arabic_action::NONE);
             continue;
         }
 
         let entry = &STATE_TABLE[state][this_type as usize];
         if entry.0 != arabic_action::NONE && prev.is_some() {
             if let Some(prev) = prev {
-                buffer.info[prev].set_arabic_shaping_action(entry.0);
+                get_mut(&mut buffer.info, prev).set_arabic_shaping_action(entry.0);
                 buffer.safe_to_insert_tatweel(Some(prev), Some(i + 1));
             }
         }
@@ -346,7 +347,7 @@ fn arabic_joining(buffer: &mut Buffer) {
             }
         }
 
-        buffer.info[i].set_arabic_shaping_action(entry.1);
+        get_mut(&mut buffer.info, i).set_arabic_shaping_action(entry.1);
 
         prev = Some(i);
         state = entry.2 as usize;
@@ -362,7 +363,7 @@ fn arabic_joining(buffer: &mut Buffer) {
         let entry = &STATE_TABLE[state][this_type as usize];
         if entry.0 != arabic_action::NONE && prev.is_some() {
             if let Some(prev) = prev {
-                buffer.info[prev].set_arabic_shaping_action(entry.0);
+                get_mut(&mut buffer.info, prev).set_arabic_shaping_action(entry.0);
                 buffer.safe_to_insert_tatweel(Some(prev), Some(buffer.len));
             }
         }
@@ -382,9 +383,9 @@ fn mongolian_variation_selectors(buffer: &mut Buffer) {
     let len = buffer.len;
     let info = &mut buffer.info;
     for i in 1..len {
-        if (0x180B..=0x180D).contains(&info[i].glyph_id) || info[i].glyph_id == 0x180F {
-            let a = info[i - 1].arabic_shaping_action();
-            info[i].set_arabic_shaping_action(a);
+        if (0x180B..=0x180D).contains(&get(info, i).glyph_id) || get(info, i).glyph_id == 0x180F {
+            let a = get(info, i - 1).arabic_shaping_action();
+            get_mut(info, i).set_arabic_shaping_action(a);
         }
     }
 }
@@ -445,7 +446,7 @@ fn record_stch(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) ->
     let len = buffer.len;
     let info = &mut buffer.info;
     let mut has_stch = false;
-    for glyph_info in &mut info[..len] {
+    for glyph_info in get_mut(info, ..len) {
         if glyph_info.multiplied() {
             let comp = if glyph_info.lig_comp() % 2 != 0 {
                 arabic_action::STRETCHING_REPEATING
@@ -490,11 +491,11 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
         let mut i = buffer.len;
         let mut j = new_len;
         while i != 0 {
-            if !arabic_action::is_stch(buffer.info[i - 1].arabic_shaping_action()) {
+            if !arabic_action::is_stch(get(&buffer.info, i - 1).arabic_shaping_action()) {
                 if step == CUT {
                     j -= 1;
-                    buffer.info[j] = buffer.info[i - 1];
-                    buffer.pos[j] = buffer.pos[i - 1];
+                    *get_mut(&mut buffer.info, j) = *get(&buffer.info, i - 1);
+                    *get_mut(&mut buffer.pos, j) = *get(&buffer.pos, i - 1);
                 }
 
                 i -= 1;
@@ -509,11 +510,12 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
             let mut n_repeating: i32 = 0;
 
             let end = i;
-            while i != 0 && arabic_action::is_stch(buffer.info[i - 1].arabic_shaping_action()) {
+            while i != 0 && arabic_action::is_stch(get(&buffer.info, i - 1).arabic_shaping_action())
+            {
                 i -= 1;
-                let width = font.glyph_h_advance(buffer.info[i].as_glyph());
+                let width = font.glyph_h_advance(get(&buffer.info, i).as_glyph());
 
-                if buffer.info[i].arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
+                if get(&buffer.info, i).arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
                 } else {
                     w_repeating = w_repeating.saturating_add(width);
@@ -524,12 +526,12 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
             let start = i;
             let mut context = i;
             while context != 0
-                && !arabic_action::is_stch(buffer.info[context - 1].arabic_shaping_action())
-                && (buffer.info[context - 1].is_default_ignorable()
-                    || is_word_category(buffer.info[context - 1].general_category()))
+                && !arabic_action::is_stch(get(&buffer.info, context - 1).arabic_shaping_action())
+                && (get(&buffer.info, context - 1).is_default_ignorable()
+                    || is_word_category(get(&buffer.info, context - 1).general_category()))
             {
                 context -= 1;
-                w_total = w_total.saturating_add(buffer.pos[context].x_advance);
+                w_total = w_total.saturating_add(get(&buffer.pos, context).x_advance);
             }
 
             i += 1; // Don't touch i again.
@@ -563,16 +565,16 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
                 for k in (start + 1..=end).rev() {
-                    let width = font.glyph_h_advance(buffer.info[k - 1].as_glyph());
+                    let width = font.glyph_h_advance(get(&buffer.info, k - 1).as_glyph());
 
                     let mut repeat = 1;
-                    if buffer.info[k - 1].arabic_shaping_action()
+                    if get(&buffer.info, k - 1).arabic_shaping_action()
                         == arabic_action::STRETCHING_REPEATING
                     {
                         repeat += n_copies;
                     }
 
-                    buffer.pos[k - 1].x_advance = 0;
+                    get_mut(&mut buffer.pos, k - 1).x_advance = 0;
 
                     for n in 0..repeat {
                         if rtl {
@@ -582,12 +584,12 @@ fn apply_stch(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
                             }
                         }
 
-                        buffer.pos[k - 1].x_offset = x_offset;
+                        get_mut(&mut buffer.pos, k - 1).x_offset = x_offset;
 
                         // Append copy.
                         j -= 1;
-                        buffer.info[j] = buffer.info[k - 1];
-                        buffer.pos[j] = buffer.pos[k - 1];
+                        *get_mut(&mut buffer.info, j) = *get(&buffer.info, k - 1);
+                        *get_mut(&mut buffer.pos, j) = *get(&buffer.pos, k - 1);
 
                         if !rtl {
                             x_offset = x_offset.saturating_add(width);
@@ -643,7 +645,7 @@ static MODIFIER_COMBINING_MARKS: &[u32] = &[
 fn reorder_marks_arabic(_: &ShapePlan, buffer: &mut Buffer, mut start: usize, end: usize) {
     let mut i = start;
     for cc in [220u8, 230] {
-        while i < end && buffer.info[i].modified_combining_class() < cc {
+        while i < end && get(&buffer.info, i).modified_combining_class() < cc {
             i += 1;
         }
 
@@ -651,14 +653,14 @@ fn reorder_marks_arabic(_: &ShapePlan, buffer: &mut Buffer, mut start: usize, en
             break;
         }
 
-        if buffer.info[i].modified_combining_class() > cc {
+        if get(&buffer.info, i).modified_combining_class() > cc {
             continue;
         }
 
         let mut j = i;
         while j < end
-            && buffer.info[j].modified_combining_class() == cc
-            && MODIFIER_COMBINING_MARKS.contains(&buffer.info[j].glyph_id)
+            && get(&buffer.info, j).modified_combining_class() == cc
+            && MODIFIER_COMBINING_MARKS.contains(&get(&buffer.info, j).glyph_id)
         {
             j += 1;
         }
@@ -672,13 +674,13 @@ fn reorder_marks_arabic(_: &ShapePlan, buffer: &mut Buffer, mut start: usize, en
         debug_assert!(j - i <= MAX_COMBINING_MARKS);
         buffer.merge_clusters(start, j);
 
-        temp[..j - i].copy_from_slice(&buffer.info[i..j]);
+        temp[..j - i].copy_from_slice(get(&buffer.info, i..j));
 
         for k in (0..i - start).rev() {
-            buffer.info[k + start + j - i] = buffer.info[k + start];
+            *get_mut(&mut buffer.info, k + start + j - i) = *get(&buffer.info, k + start);
         }
 
-        buffer.info[start..][..j - i].copy_from_slice(&temp[..j - i]);
+        get_mut(get_mut(&mut buffer.info, start..), ..j - i).copy_from_slice(&temp[..j - i]);
 
         // Renumber CC such that the reordered sequence is still sorted.
         // 22 and 26 are chosen because they are smaller than all Arabic categories,
@@ -699,7 +701,7 @@ fn reorder_marks_arabic(_: &ShapePlan, buffer: &mut Buffer, mut start: usize, en
         };
 
         while start < new_start {
-            buffer.info[start].set_modified_combining_class(new_cc);
+            get_mut(&mut buffer.info, start).set_modified_combining_class(new_cc);
             start += 1;
         }
 

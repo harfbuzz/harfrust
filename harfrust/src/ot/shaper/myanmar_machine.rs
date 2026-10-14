@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::buffer::{get, get_mut, Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 
 static _myanmar_syllable_machine_trans_keys: [u8; 108] = [
     0, 22, 1, 22, 3, 22, 3, 22, 1, 22, 3, 22, 1, 22, 1, 22, 1, 22, 1, 22, 1, 22, 3, 22, 0, 8, 1,
@@ -171,11 +171,11 @@ pub fn find_syllables_myanmar(buffer: &mut Buffer) {
                     {
                         _keys = (cs << 1) as i32;
                         _inds = (_myanmar_syllable_machine_index_offsets[(cs) as usize]) as i32;
-                        if ((buffer.info[p].myanmar_category() as u8) <= 57
-                            && (buffer.info[p].myanmar_category() as u8) >= 1)
+                        if ((get(&buffer.info, p).myanmar_category() as u8) <= 57
+                            && (get(&buffer.info, p).myanmar_category() as u8) >= 1)
                         {
                             {
-                                _ic = (_myanmar_syllable_machine_char_class[((buffer.info[p]
+                                _ic = (_myanmar_syllable_machine_char_class[((get(&buffer.info, p)
                                     .myanmar_category()
                                     as u8)
                                     as i32
@@ -345,7 +345,7 @@ fn found_syllable(
     buffer: &mut Buffer,
 ) {
     for i in start..end {
-        buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);
+        get_mut(&mut buffer.info, i).set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

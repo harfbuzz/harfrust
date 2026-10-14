@@ -1,6 +1,7 @@
 use super::indic::category;
 use super::syllabic::*;
 use super::*;
+use crate::buffer::{get, get_mut};
 use crate::ot::map::*;
 use crate::plan::ShapePlan;
 use crate::unicode::{CharExt, Codepoint};
@@ -176,7 +177,7 @@ fn reorder_syllable_khmer(
 ) {
     use super::khmer_machine::SyllableType;
 
-    let syllable_type = match buffer.info[start].syllable() & 0x0F {
+    let syllable_type = match get(&buffer.info, start).syllable() & 0x0F {
         0 => SyllableType::ConsonantSyllable,
         1 => SyllableType::BrokenCluster,
         2 => SyllableType::NonKhmerCluster,
@@ -205,7 +206,7 @@ fn reorder_consonant_syllable(
         let mask = plan.mask_array[khmer_feature::BLWF]
             | plan.mask_array[khmer_feature::ABVF]
             | plan.mask_array[khmer_feature::PSTF];
-        for info in &mut buffer.info[start + 1..end] {
+        for info in get_mut(&mut buffer.info, start + 1..end) {
             info.mask |= mask;
         }
     }
@@ -221,24 +222,25 @@ fn reorder_consonant_syllable(
         // Subscript Type 2 - The COENG + RO characters are reordered to immediately
         // before the base glyph. Then the COENG + RO characters are assigned to have
         // the 'pref' OpenType feature applied to them.
-        if buffer.info[i].indic_category() == category::OT_H && num_coengs <= 2 && i + 1 < end {
+        if get(&buffer.info, i).indic_category() == category::OT_H && num_coengs <= 2 && i + 1 < end
+        {
             num_coengs += 1;
 
-            if buffer.info[i + 1].indic_category() == category::OT_Ra {
+            if get(&buffer.info, i + 1).indic_category() == category::OT_Ra {
                 for j in 0..2 {
-                    buffer.info[i + j].mask |= plan.mask_array[khmer_feature::PREF];
+                    get_mut(&mut buffer.info, i + j).mask |= plan.mask_array[khmer_feature::PREF];
                 }
 
                 // Move the Coeng,Ro sequence to the start.
                 buffer.merge_clusters(start, i + 2);
-                let t0 = buffer.info[i];
-                let t1 = buffer.info[i + 1];
+                let t0 = *get(&buffer.info, i);
+                let t1 = *get(&buffer.info, i + 1);
                 for k in (0..i - start).rev() {
-                    buffer.info[k + start + 2] = buffer.info[k + start];
+                    *get_mut(&mut buffer.info, k + start + 2) = *get(&buffer.info, k + start);
                 }
 
-                buffer.info[start] = t0;
-                buffer.info[start + 1] = t1;
+                *get_mut(&mut buffer.info, start) = t0;
+                *get_mut(&mut buffer.info, start + 1) = t1;
 
                 // Mark the subsequent stuff with 'cfar'.  Used in Khmer.
                 // Read the feature spec.
@@ -247,22 +249,22 @@ fn reorder_consonant_syllable(
                 // U+1784,U+17D2,U+1782,U+17D2,U+179A
                 if plan.mask_array[khmer_feature::CFAR] != 0 {
                     for j in i + 2..end {
-                        buffer.info[j].mask |= plan.mask_array[khmer_feature::CFAR];
+                        get_mut(&mut buffer.info, j).mask |= plan.mask_array[khmer_feature::CFAR];
                     }
                 }
 
                 num_coengs = 2; // Done.
             }
-        } else if buffer.info[i].indic_category() == category::OT_VPre {
+        } else if get(&buffer.info, i).indic_category() == category::OT_VPre {
             // Reorder left matra piece.
 
             // Move to the start.
             buffer.merge_clusters(start, i + 1);
-            let t = buffer.info[i];
+            let t = *get(&buffer.info, i);
             for k in (0..i - start).rev() {
-                buffer.info[k + start + 1] = buffer.info[k + start];
+                *get_mut(&mut buffer.info, k + start + 1) = *get(&buffer.info, k + start);
             }
-            buffer.info[start] = t;
+            *get_mut(&mut buffer.info, start) = t;
         }
     }
 }

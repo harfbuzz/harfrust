@@ -1,3 +1,4 @@
+use crate::buffer::{get, get_mut};
 use alloc::boxed::Box;
 
 use super::*;
@@ -181,11 +182,11 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
                 if !is_zero_width_char(font, c) {
                     buffer.merge_out_grapheme_clusters(start, end + 1);
                     let out_info = buffer.out_info_mut();
-                    let tone = out_info[end];
+                    let tone = *get(out_info, end);
                     for i in (0..end - start).rev() {
-                        out_info[i + start + 1] = out_info[i + start];
+                        *get_mut(out_info, i + start + 1) = *get(out_info, i + start);
                     }
-                    out_info[start] = tone;
+                    *get_mut(out_info, start) = tone;
                 }
             } else {
                 // No valid syllable as base for tone mark; try to insert dotted circle.
@@ -323,10 +324,10 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
                     // that are now in `buffer.out_info`.
                     end = start + s_len;
 
-                    buffer.out_info_mut()[start + 0].set_hangul_shaping_feature(LJMO);
-                    buffer.out_info_mut()[start + 1].set_hangul_shaping_feature(VJMO);
+                    get_mut(buffer.out_info_mut(), start + 0).set_hangul_shaping_feature(LJMO);
+                    get_mut(buffer.out_info_mut(), start + 1).set_hangul_shaping_feature(VJMO);
                     if start + 2 < end {
-                        buffer.out_info_mut()[start + 2].set_hangul_shaping_feature(TJMO);
+                        get_mut(buffer.out_info_mut(), start + 2).set_hangul_shaping_feature(TJMO);
                     }
 
                     buffer.merge_out_grapheme_clusters(start, end);

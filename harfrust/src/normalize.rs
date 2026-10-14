@@ -267,7 +267,10 @@ fn handle_variation_selector_cluster(ctx: &mut NormalizeContext, end: usize, _: 
 fn decompose_multi_char_cluster(ctx: &mut NormalizeContext, end: usize, short_circuit: bool) {
     let mut i = ctx.buffer.idx;
     while i < end && ctx.buffer.successful {
-        if ctx.buffer.info[i].as_codepoint().is_variation_selector() {
+        if get(&ctx.buffer.info, i)
+            .as_codepoint()
+            .is_variation_selector()
+        {
             handle_variation_selector_cluster(ctx, end, short_circuit);
             return;
         }
@@ -330,7 +333,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
         ctx.buffer.idx = 0;
         loop {
             let mut end = ctx.buffer.idx + 1;
-            while end < count && !ctx.buffer.info[end].is_unicode_mark() {
+            while end < count && !get(&ctx.buffer.info, end).is_unicode_mark() {
                 end += 1;
             }
 
@@ -344,7 +347,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
                 let idx = ctx.buffer.idx;
                 let done = ctx
                     .font
-                    .nominal_glyphs(NominalGlyphs::new(&mut ctx.buffer.info[idx..end]));
+                    .nominal_glyphs(NominalGlyphs::new(get_mut(&mut ctx.buffer.info, idx..end)));
                 ctx.buffer.next_glyphs(done);
             }
 
@@ -360,7 +363,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
 
             // Find all the marks now.
             end = ctx.buffer.idx + 1;
-            while end < count && ctx.buffer.info[end].is_unicode_mark() {
+            while end < count && get(&ctx.buffer.info, end).is_unicode_mark() {
                 end += 1;
             }
 
@@ -380,13 +383,13 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
         let count = ctx.buffer.len;
         let mut i = 0;
         while i < count {
-            if ctx.buffer.info[i].modified_combining_class() == 0 {
+            if get(&ctx.buffer.info, i).modified_combining_class() == 0 {
                 i += 1;
                 continue;
             }
 
             let mut end = i + 1;
-            while end < count && ctx.buffer.info[end].modified_combining_class() != 0 {
+            while end < count && get(&ctx.buffer.info, end).modified_combining_class() != 0 {
                 end += 1;
             }
 
@@ -407,13 +410,13 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
         // If it did NOT, then make it skippable.
         // https://github.com/harfbuzz/harfbuzz/issues/554
         for i in 1..ctx.buffer.len.saturating_sub(1) {
-            if ctx.buffer.info[i].glyph_id == 0x034F
+            if get(&ctx.buffer.info, i).glyph_id == 0x034F
             /* CGJ */
             {
-                let last = ctx.buffer.info[i - 1].modified_combining_class();
-                let next = ctx.buffer.info[i + 1].modified_combining_class();
+                let last = get(&ctx.buffer.info, i - 1).modified_combining_class();
+                let next = get(&ctx.buffer.info, i + 1).modified_combining_class();
                 if next == 0 || last <= next {
-                    ctx.buffer.info[i].unhide();
+                    get_mut(&mut ctx.buffer.info, i).unhide();
                 }
             }
         }
@@ -444,7 +447,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
                 (starter == ctx.buffer.out_len - 1
                     || ctx.buffer.prev().modified_combining_class() < cur.modified_combining_class())
             {
-                let a = ctx.buffer.out_info()[starter].as_codepoint();
+                let a = get(ctx.buffer.out_info(), starter).as_codepoint();
                 let b = cur.as_codepoint();
                 if let Some(composed) = (ctx.compose)(&ctx, a, b) {
                     if let Some(glyph_id) = ctx.nominal_glyph(composed) {
@@ -460,7 +463,7 @@ pub fn normalize<'x>(plan: &ShapePlan, buffer: &'x mut Buffer, font: &'x ShaperF
 
                         // Modify starter and carry on.
                         let mut flags = ctx.buffer.scratch_flags;
-                        let info = &mut ctx.buffer.out_info_mut()[starter];
+                        let info = get_mut(ctx.buffer.out_info_mut(), starter);
                         info.glyph_id = composed;
                         info.set_normalizer_glyph_index(u32::from(glyph_id));
                         info.init_unicode_props(&mut flags);

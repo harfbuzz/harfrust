@@ -3,7 +3,7 @@
 
 #![allow(clippy::single_match)]
 
-use crate::buffer::Buffer;
+use crate::buffer::{get_mut, Buffer};
 use crate::BufferFlags;
 use crate::Script;
 
@@ -11,7 +11,7 @@ fn output_dotted_circle(buffer: &mut Buffer) {
     buffer.output_glyph(0x25CC);
     {
         let out_idx = buffer.out_len - 1;
-        buffer.out_info_mut()[out_idx].clear_continuation();
+        get_mut(buffer.out_info_mut(), out_idx).clear_continuation();
     }
 }
 

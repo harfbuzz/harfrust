@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
 
 use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
-use crate::buffer::GlyphInfo;
+use crate::buffer::{get, get_mut, GlyphInfo};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead, Apply,
@@ -173,7 +173,8 @@ impl Apply for SequenceContextFormat2<'_> {
             &cache.coverage_cache,
         )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
-        let index = get_class_cached(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let index =
+            get_class_cached(&input_class, get_mut(&mut ctx.buffer.info, ctx.buffer.idx)) as usize;
         let digest = cache.rule_sets.get(index).copied();
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(
@@ -483,7 +484,8 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
-        let index = get_class_cached2(&input_class, &mut ctx.buffer.info[ctx.buffer.idx]) as usize;
+        let index =
+            get_class_cached2(&input_class, get_mut(&mut ctx.buffer.info, ctx.buffer.idx)) as usize;
         let digest = cache.rule_sets.get(index).copied();
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
@@ -887,7 +889,7 @@ fn apply_context_rules(
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != MaySkip::No {
+        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g1)) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -903,7 +905,8 @@ fn apply_context_rules(
         unsafe_to1 = skippy_iter.index() + 1;
         if !rule_offsets.is_empty()
             && rule_set_digest.is_some_and(|digest| {
-                !digest.is_full() && !digest.may_have(first_value(&mut skippy_iter.buffer.info[g1]))
+                !digest.is_full()
+                    && !digest.may_have(first_value(get_mut(&mut skippy_iter.buffer.info, g1)))
             })
         {
             skippy_iter
@@ -941,7 +944,7 @@ fn apply_context_rules(
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != MaySkip::No {
+        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g2)) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -965,10 +968,13 @@ fn apply_context_rules(
         // most visited rules are rejected on these probes and never pay for
         // a full parse — nor for constructing a rule table.
         let first_value = plain_rule_first_input(&data);
-        if first_value.is_none_or(|v| match_func(&mut ctx.buffer.info[first], u32::from(v))) {
+        if first_value
+            .is_none_or(|v| match_func(get_mut(&mut ctx.buffer.info, first), u32::from(v)))
+        {
             if second.is_none()
-                || plain_rule_second_input(&data)
-                    .is_none_or(|v| match_func(&mut ctx.buffer.info[second.unwrap()], u32::from(v)))
+                || plain_rule_second_input(&data).is_none_or(|v| {
+                    match_func(get_mut(&mut ctx.buffer.info, second.unwrap()), u32::from(v))
+                })
             {
                 if ParsedRule::from_rule_data(data)
                     .unwrap_or_default()
@@ -1110,7 +1116,7 @@ fn apply_chain_context_rules<
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g1]) != MaySkip::No {
+        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g1)) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1127,7 +1133,8 @@ fn apply_chain_context_rules<
         if !rule_offsets.is_empty()
             && rule_set_digest.is_some_and(|digest| {
                 !digest.is_full()
-                    && !digest.may_have(first_input_value(&mut skippy_iter.buffer.info[g1]))
+                    && !digest
+                        .may_have(first_input_value(get_mut(&mut skippy_iter.buffer.info, g1)))
             })
         {
             skippy_iter
@@ -1165,7 +1172,7 @@ fn apply_chain_context_rules<
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(&skippy_iter.buffer.info[g2]) != MaySkip::No {
+        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g2)) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1206,23 +1213,23 @@ fn apply_chain_context_rules<
         let matched_first = if len_p1 > 1 {
             probe
                 .input(0)
-                .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[first], u32::from(v)))
+                .is_some_and(|v| match_funcs.1(get_mut(&mut ctx.buffer.info, first), u32::from(v)))
         } else {
             probe.lookahead_len() == 0
-                || probe
-                    .lookahead(0)
-                    .is_some_and(|v| match_funcs.2(&mut ctx.buffer.info[first], u32::from(v)))
+                || probe.lookahead(0).is_some_and(|v| {
+                    match_funcs.2(get_mut(&mut ctx.buffer.info, first), u32::from(v))
+                })
         };
         if matched_first {
             let matched_second = if let Some(second) = second {
                 if len_p1 > 2 {
-                    probe
-                        .input(1)
-                        .is_some_and(|v| match_funcs.1(&mut ctx.buffer.info[second], u32::from(v)))
+                    probe.input(1).is_some_and(|v| {
+                        match_funcs.1(get_mut(&mut ctx.buffer.info, second), u32::from(v))
+                    })
                 } else {
                     (probe.lookahead_len() <= 2 - len_p1)
                         || probe.lookahead(2 - len_p1).is_some_and(|v| {
-                            match_funcs.2(&mut ctx.buffer.info[second], u32::from(v))
+                            match_funcs.2(get_mut(&mut ctx.buffer.info, second), u32::from(v))
                         })
                 }
             } else {

@@ -6,7 +6,7 @@ use read_fonts::types::GlyphId;
 use read_fonts::TableProvider;
 
 use crate::aat::{AatCache, AatData, EMPTY_AAT_DATA};
-use crate::buffer::{Buffer, GlyphInfo, GlyphPosition};
+use crate::buffer::{get, get_mut, Buffer, GlyphInfo, GlyphPosition};
 use crate::cache::Cache;
 use crate::font::Font;
 use crate::once::Once;
@@ -496,8 +496,8 @@ impl<'a> Advances<'a> {
     pub(crate) fn new(buffer: &'a mut Buffer) -> Self {
         let len = buffer.len;
         Self {
-            infos: &buffer.info[..len],
-            positions: &mut buffer.pos[..len],
+            infos: get(&buffer.info, ..len),
+            positions: get_mut(&mut buffer.pos, ..len),
         }
     }
 
