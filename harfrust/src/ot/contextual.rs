@@ -19,6 +19,9 @@ use read_fonts::tables::layout::{
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, Offset16};
 use read_fonts::FontData;
 
+type MatchFunc<'a> = &'a dyn Fn(&mut GlyphInfo, u32) -> bool;
+type MatchFuncs<'a> = (MatchFunc<'a>, MatchFunc<'a>, MatchFunc<'a>);
+
 fn context_rule_set_digests(table: &SequenceContextFormat2<'_>) -> Box<[RuleSetDigest]> {
     table
         .class_seq_rule_sets()
@@ -1021,6 +1024,16 @@ fn apply_chain_with_sequences<
     ctx: &mut ApplyContext,
     rule: &ParsedRule<'_>,
     match_funcs: &(F1, F2, F3),
+) -> Option<()> {
+    apply_chain_with_sequences_dyn(ctx, rule, &(&match_funcs.0, &match_funcs.1, &match_funcs.2))
+}
+
+// Share sequence application while keeping the rule-filtering loops specialized.
+#[inline(never)]
+fn apply_chain_with_sequences_dyn(
+    ctx: &mut ApplyContext,
+    rule: &ParsedRule<'_>,
+    match_funcs: &MatchFuncs<'_>,
 ) -> Option<()> {
     let input = rule.input;
     let f3 = |info: &mut GlyphInfo, index| {
