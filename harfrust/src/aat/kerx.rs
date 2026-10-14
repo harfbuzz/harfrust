@@ -358,7 +358,7 @@ fn collect_initial_glyphs<T>(
 
     // And glyphs in those classes.
 
-    let filter = |class: u16| classes.contains(class as u32);
+    let filter = crate::aat::common::class_set_filter(&classes);
 
     if filter(aat::class::DELETED_GLYPH as u16) {
         glyphs.insert(DELETED_GLYPH);
