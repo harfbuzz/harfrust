@@ -1045,7 +1045,9 @@ fn initial_reordering_consonant_syllable(
             buffer.info[i].set_syllable((i - start) as u8);
         }
 
-        buffer.info[start..end].sort_by_key(|a| a.indic_position());
+        stable_sort_by(&mut buffer.info[start..end], |a, b| {
+            a.indic_position().cmp(&b.indic_position())
+        });
 
         // Find base again; also flip left-matra sequence.
         let mut first_left_mantra = end;
