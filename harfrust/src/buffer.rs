@@ -2381,8 +2381,8 @@ mod tests {
         *get_mut(&mut values, 0) = 4;
         get_mut(&mut values, 1..=2).fill(5);
         assert_eq!(values, [4, 5, 5]);
-        assert!(get_mut(&mut values, 3..).is_empty());
-        assert!(get_mut::<u32, _>(&mut [], ..).is_empty());
+        assert_eq!(get_mut(&mut values, 3..), []);
+        assert_eq!(get_mut::<u32, _>(&mut [], ..), []);
     }
 
     #[test]
