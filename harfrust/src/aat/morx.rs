@@ -133,7 +133,7 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
         });
     }
 
-    if let Some((morx, _, _)) = aat.morx.as_ref() {
+    if let Some(morx) = aat.morx.as_ref() {
         let chains = morx.chains();
         map.chain_flags.resize(chains.iter().count(), vec![]);
         for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
@@ -148,7 +148,7 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
             }
         }
     } else {
-        let chains = aat.mort.as_ref()?.0.chains();
+        let chains = aat.mort.as_ref()?.chains();
         map.chain_flags.resize(chains.iter().count(), vec![]);
         for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
             if let Ok(chain) = chain {
@@ -172,25 +172,26 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    let safe_to_break = c.layout.aat.safe_to_break?;
-    if let Some((morx, subtable_caches, descriptors)) = c.layout.aat.morx.as_ref() {
+    if let Some(morx) = c.layout.aat.morx.as_ref() {
+        let cache = c.layout.aat.morx_cache()?;
         apply_table(
             c,
             map,
-            safe_to_break,
+            &cache.safe_to_break,
             morx.offset_data().as_bytes(),
-            subtable_caches,
-            descriptors,
+            &cache.subtables,
+            &cache.descriptors,
         )?;
     } else {
-        let (mort, subtable_caches, descriptors) = c.layout.aat.mort.as_ref()?;
+        let mort = c.layout.aat.mort.as_ref()?;
+        let cache = c.layout.aat.mort_cache()?;
         apply_table(
             c,
             map,
-            safe_to_break,
+            &cache.safe_to_break,
             mort.offset_data().as_bytes(),
-            subtable_caches,
-            descriptors,
+            &cache.subtables,
+            &cache.descriptors,
         )?;
     }
 
