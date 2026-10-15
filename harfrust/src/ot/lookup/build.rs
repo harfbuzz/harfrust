@@ -22,6 +22,10 @@ use read_fonts::{FontData, FontRead, ReadError, TableProvider};
 /// Subtables past this many in a lookup get no glyph lookup caches.
 const MAX_CACHED_SUBTABLES: usize = 8;
 
+/// Coverages of fewer than 8 glyphs or ranges get no cache: searching them
+/// costs about as much as a cache hit, and a cache takes 512 bytes.
+const MIN_CACHED_COVERAGE_COST: u32 = 4;
+
 /// The number of lookups in GSUB, or GPOS if `is_subst` is false.
 pub(super) fn lookup_count(tables: &Tables, is_subst: bool) -> u16 {
     let count = if is_subst {
@@ -334,7 +338,9 @@ impl<'a> Source<'a> {
                 kind: data.into_kind(),
                 digest: coverage.digest(),
                 coverage,
-                coverage_cache: (self.with_caches && T::CACHES_COVERAGE)
+                coverage_cache: (self.with_caches
+                    && T::CACHES_COVERAGE
+                    && coverage.cost() >= MIN_CACHED_COVERAGE_COST)
                     .then(|| Box::new(MappingCache::new())),
                 fns: T::FNS,
                 apply_sharing: T::FNS.apply_sharing,

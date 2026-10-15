@@ -104,6 +104,19 @@ impl<'a> Coverage<'a> {
         }
     }
 
+    /// The cost of looking up a glyph: the number of bits in the length of
+    /// the array searched.
+    pub fn cost(&self) -> u32 {
+        let bits = |len: usize| u32::BITS - (len as u32).leading_zeros();
+        match self {
+            Self::None => 0,
+            Self::Glyphs(glyphs) => bits(glyphs.len()),
+            Self::Ranges(ranges) => bits(ranges.len()),
+            Self::Glyphs24(glyphs) => bits(glyphs.len()),
+            Self::Ranges24(ranges) => bits(ranges.len()),
+        }
+    }
+
     pub fn covers(&self, gid: impl Into<GlyphId>) -> bool {
         self.get(gid).is_some()
     }
