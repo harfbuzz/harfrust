@@ -44,12 +44,10 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         let cached = layout_cache(font);
         let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
             let coords = font.normalized_coords();
-            let feature_variations = if coords.is_empty() {
-                [None; 2]
-            } else {
-                let variations = font.feature_variations();
-                [variations.gsub, variations.gpos]
-            };
+            // The default location can select a feature variation too, and
+            // shape plan keys ask the font the same way.
+            let variations = font.feature_variations();
+            let feature_variations = [variations.gsub, variations.gpos];
             (
                 OtData::new(&cache.ot, coords, feature_variations),
                 AatData::new(&cache.aat),
