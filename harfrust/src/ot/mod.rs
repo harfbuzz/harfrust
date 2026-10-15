@@ -4,7 +4,7 @@ use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
 use crate::Tag;
 use alloc::{sync::Arc, vec::Vec};
-use lookup::{LookupCache, LookupInfo};
+use lookup::{CachedLookup, LookupCache};
 use read_fonts::model::Tables;
 use read_fonts::tables::layout::ClassRangeRecord;
 use read_fonts::{
@@ -263,7 +263,7 @@ impl layout::LayoutTable for GsubTable<'_> {
     const KIND: LayoutTableKind = LayoutTableKind::Gsub;
     const IN_PLACE: bool = false;
 
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>> {
         self.lookups.get(index)
     }
 }
@@ -278,7 +278,7 @@ impl layout::LayoutTable for GposTable<'_> {
     const KIND: LayoutTableKind = LayoutTableKind::Gpos;
     const IN_PLACE: bool = true;
 
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>> {
         self.lookups.get(index)
     }
 }
@@ -461,7 +461,7 @@ impl<'a> OtData<'a> {
         &self,
         table_index: LayoutTableKind,
         lookup_index: u16,
-    ) -> Option<&'a LookupInfo> {
+    ) -> Option<&'a CachedLookup<'a>> {
         if table_index == LayoutTableKind::Gsub {
             self.gsub.as_ref()?.lookups.get(lookup_index)
         } else {

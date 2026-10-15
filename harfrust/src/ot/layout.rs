@@ -8,7 +8,7 @@ use super::set_digest::SetDigest;
 use super::GlyphInfo;
 use crate::aat::AatData;
 use crate::ot::apply::check_glyph_property;
-use crate::ot::lookup::LookupInfo;
+use crate::ot::lookup::CachedLookup;
 use crate::ot::OtData;
 use crate::plan::ShapePlan;
 use crate::unicode::{space_fallback, GeneralCategory};
@@ -138,7 +138,7 @@ pub trait LayoutTable {
     const IN_PLACE: bool;
 
     /// Get the lookup at the specified index.
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo>;
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>>;
 }
 
 /// Called before substitution lookups are performed, to ensure that glyph
@@ -201,7 +201,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     }
 }
 
-fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
+fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -229,7 +229,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
     }
 }
 
-fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
+fn apply_forward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let mut ret = false;
 
     let use_hot_subtable_cache = lookup.cache_enter(ctx);
@@ -277,7 +277,7 @@ fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     ret
 }
 
-pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &LookupInfo) {
+pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -292,7 +292,7 @@ pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &Lo
     ctx.buffer.sync();
 }
 
-fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
+fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let mut ret = false;
     // Loop-invariant hoisting as in apply_forward; reverse lookups don't
     // recurse, and in-place application cannot change the buffer length.
