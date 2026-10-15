@@ -526,32 +526,39 @@ pub(crate) fn be_uint(bytes: &[u8]) -> u32 {
 
 /// Unsigned integers of `W` bytes, read in place: glyph IDs, classes or
 /// offsets whose width a hot path fixes at compile time.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub(crate) struct Values<'a, const W: usize> {
-    bytes: &'a [u8],
+    values: &'a [[u8; W]],
+}
+
+impl<'a, const W: usize> Default for Values<'a, W> {
+    fn default() -> Self {
+        Self { values: &[] }
+    }
 }
 
 impl<'a, const W: usize> Values<'a, W> {
     #[inline(always)]
     pub fn at(data: FontData<'a>, start: usize, count: usize) -> Option<Self> {
+        let bytes = data.as_bytes().get(start..start + count * W)?;
         Some(Self {
-            bytes: data.as_bytes().get(start..start + count * W)?,
+            values: bytemuck::cast_slice(bytes),
         })
     }
 
     #[inline(always)]
     pub fn len(&self) -> usize {
-        self.bytes.len() / W
+        self.values.len()
     }
 
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
+        self.values.is_empty()
     }
 
     #[inline(always)]
     pub fn get(&self, index: usize) -> Option<u32> {
-        read_be::<W>(self.bytes, index * W)
+        self.values.get(index).map(be_value)
     }
 
     pub fn first(&self) -> Option<u32> {
@@ -559,7 +566,17 @@ impl<'a, const W: usize> Values<'a, W> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
-        (0..self.len()).filter_map(|index| self.get(index))
+        self.values.iter().map(be_value)
+    }
+}
+
+/// The big-endian value of `W` bytes, two or three.
+#[inline(always)]
+fn be_value<const W: usize>(value: &[u8; W]) -> u32 {
+    if W == 2 {
+        u32::from(u16::from_be_bytes([value[0], value[1]]))
+    } else {
+        u32::from_be_bytes([0, value[0], value[1], value[2]])
     }
 }
 

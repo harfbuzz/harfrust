@@ -636,10 +636,12 @@ impl<'a> PairPos2<'a> {
             first,
             second,
         );
-        let values = u16::try_from(class1)
-            .ok()
-            .zip(u16::try_from(class2).ok())
-            .and_then(|(class1, class2)| self.records.get(class1, class2));
+        // Classes past 16 bits are outside any matrix.
+        let values = if (class1 | class2) >> 16 == 0 {
+            self.records.get(class1 as u16, class2 as u16)
+        } else {
+            None
+        };
         let Some([value1, value2]) = values else {
             // A class outside the matrix matches nothing, as in HarfBuzz.
             ctx.buffer
