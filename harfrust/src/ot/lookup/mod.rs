@@ -16,6 +16,9 @@ mod coverage;
 mod gpos;
 mod gsub;
 
+#[cfg(test)]
+mod extended_tests;
+
 use super::apply::{ApplyContext, MappingCache, WouldApplyContext};
 use crate::once::Once;
 use crate::set_digest::SetDigest;
@@ -531,7 +534,7 @@ pub(crate) struct Values<'a, const W: usize> {
     values: &'a [[u8; W]],
 }
 
-impl<'a, const W: usize> Default for Values<'a, W> {
+impl<const W: usize> Default for Values<'_, W> {
     fn default() -> Self {
         Self { values: &[] }
     }
