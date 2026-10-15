@@ -88,7 +88,7 @@ pub fn set_glyph_props<const SET_DIGEST: bool>(ot: &OtData, buffer: &mut Buffer)
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
-    for info in &mut buffer.info[..len] {
+    for info in buffer.info.get_mut(..len).unwrap_or_default() {
         if SET_DIGEST {
             buffer.digest.add(info.glyph_id);
         }
@@ -189,7 +189,12 @@ pub fn apply_layout_table<T: LayoutTable>(
         }
 
         if let Some(func) = stage.pause_func {
-            if func(plan, font, ctx.buffer) {
+            let changed = func(plan, font, ctx.buffer);
+            if changed.is_none() {
+                ctx.buffer.index_failed();
+            }
+            // A pause that stopped early may still have changed the buffer.
+            if changed.unwrap_or(true) {
                 ctx.buffer.update_digest();
             }
         }
@@ -247,10 +252,9 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
 
     while ctx.buffer.successful {
         let idx = ctx.buffer.idx;
-        let infos = &ctx.buffer.info[..ctx.buffer.len];
+        let infos = ctx.buffer.glyph_infos();
         let mut j = idx;
-        while j < infos.len() {
-            let info = &infos[j];
+        while let Some(info) = infos.get(j) {
             if lookup.digest.may_have(info.glyph_id)
                 && (info.mask & lookup_mask) != 0
                 && check_glyph_property(ot, info, lookup_props)
@@ -315,11 +319,17 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     let lookup_props = ctx.lookup_props;
 
     loop {
-        let candidate = ctx.buffer.info[..=ctx.buffer.idx].iter().rposition(|info| {
-            lookup.digest.may_have(info.glyph_id)
-                && (info.mask & lookup_mask) != 0
-                && check_glyph_property(ot, info, lookup_props)
-        });
+        let candidate = ctx
+            .buffer
+            .info
+            .get(..=ctx.buffer.idx)
+            .unwrap_or_default()
+            .iter()
+            .rposition(|info| {
+                lookup.digest.may_have(info.glyph_id)
+                    && (info.mask & lookup_mask) != 0
+                    && check_glyph_property(ot, info, lookup_props)
+            });
 
         let Some(idx) = candidate else {
             ctx.buffer.idx = 0;
@@ -909,11 +919,10 @@ pub fn clear_substitution_flags(
     _: &ShapePlan,
     _: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
-) -> bool {
-    let len = buffer.len;
-    for info in &mut buffer.info[..len] {
+) -> Option<bool> {
+    for info in buffer.info_slice_mut() {
         info.clear_substituted();
     }
 
-    false
+    Some(false)
 }

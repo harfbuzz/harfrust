@@ -8,6 +8,7 @@ use super::lookup_flags;
 use super::set_digest::SetDigest;
 use super::Mask;
 use super::OtData;
+use crate::hint::Likely;
 use crate::ot::{ClassDefInfo, CoverageInfo};
 use crate::unicode::GeneralCategory;
 use crate::Scale;
@@ -32,7 +33,7 @@ pub fn match_input(
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     end_position: &mut usize,
     p_total_component_count: Option<&mut u8>,
-) -> bool {
+) -> Option<bool> {
     // This is perhaps the trickiest part of OpenType...  Remarks:
     //
     // - If all components of the ligature were marks, we call this a mark ligature.
@@ -69,21 +70,23 @@ pub fn match_input(
         ctx.match_positions_len = 1;
         ctx.match_positions[0] = ctx.buffer.idx as u32;
         if let Some(p_total_component_count) = p_total_component_count {
-            *p_total_component_count = ctx.buffer.cur(0).lig_num_comps();
+            *p_total_component_count = ctx.buffer.cur(0)?.lig_num_comps();
         }
-        return true;
+        return Some(true);
     }
 
     if count > MAX_CONTEXT_LENGTH {
-        return false;
+        return Some(false);
     }
     ctx.match_positions_len = count;
 
     let mut iter = SkippingIterator::with_match_fn(ctx, false, Some(match_func));
-    iter.reset(iter.buffer.idx);
+    if iter.reset(iter.buffer.idx).is_none() {
+        iter.buffer.index_failed();
+    }
     iter.set_glyph_data(0);
 
-    let first = *iter.buffer.cur(0);
+    let first = *iter.buffer.cur(0)?;
     let first_lig_id = first.lig_id();
     let first_lig_comp = first.lig_comp();
     let mut total_component_count = 0;
@@ -93,12 +96,14 @@ pub fn match_input(
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
             *end_position = unsafe_to;
-            return false;
+            return Some(false);
         }
 
         iter.set_match_position(i, iter.index());
 
-        let this = iter.buffer.info[iter.index()];
+        let Some(&this) = iter.buffer.info.get(iter.index()) else {
+            return Some(false);
+        };
         let this_lig_id = this.lig_id();
         let this_lig_comp = this.lig_comp();
 
@@ -113,16 +118,22 @@ pub fn match_input(
                     let out = iter.buffer.out_info();
                     let mut j = iter.buffer.out_len;
                     let mut found = false;
-                    while j > 0 && out[j - 1].lig_id() == first_lig_id {
-                        if out[j - 1].lig_comp() == 0 {
-                            j -= 1;
-                            found = true;
+                    while let Some(info) = j.checked_sub(1).and_then(|k| out.get(k)) {
+                        if info.lig_id() != first_lig_id {
                             break;
                         }
                         j -= 1;
+                        if info.lig_comp() == 0 {
+                            found = true;
+                            break;
+                        }
                     }
 
-                    ligbase = if found && iter.may_skip(&out[j]) == MaySkip::Yes {
+                    ligbase = if found
+                        && out
+                            .get(j)
+                            .is_some_and(|info| iter.may_skip(info) == MaySkip::Yes)
+                    {
                         Ligbase::MaySkip
                     } else {
                         Ligbase::MayNotSkip
@@ -130,7 +141,7 @@ pub fn match_input(
                 }
 
                 if ligbase == Ligbase::MayNotSkip {
-                    return false;
+                    return Some(false);
                 }
             }
         } else {
@@ -138,7 +149,7 @@ pub fn match_input(
             // all subsequent components should also NOT be attached to any ligature
             // component, unless they are attached to the first component itself!
             if this_lig_id != 0 && this_lig_comp != 0 && (this_lig_id != first_lig_id) {
-                return false;
+                return Some(false);
             }
         }
 
@@ -154,7 +165,7 @@ pub fn match_input(
 
     ctx.match_positions[0] = iter.buffer.idx as u32;
 
-    true
+    Some(true)
 }
 
 pub fn match_backtrack(
@@ -169,7 +180,9 @@ pub fn match_backtrack(
     }
 
     let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_func));
-    iter.reset_back(iter.buffer.backtrack_len());
+    if iter.reset_back(iter.buffer.backtrack_len()).is_none() {
+        iter.buffer.index_failed();
+    }
     iter.set_glyph_data(0);
 
     for _ in 0..backtrack_len {
@@ -200,7 +213,9 @@ pub fn match_lookahead(
     // c.f. https://github.com/harfbuzz/rustybuzz/issues/142
     debug_assert!(start_index >= 1);
     let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_func));
-    iter.reset(start_index - 1);
+    if iter.reset(start_index - 1).is_none() {
+        iter.buffer.index_failed();
+    }
     iter.set_glyph_data(0);
 
     for _ in 0..lookahead_len {
@@ -450,21 +465,25 @@ where
     #[inline]
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
         let stop: usize = 0;
-        let start = self.buf_idx;
-        let out_info = &mut self.buffer.out_info_mut()[..start];
+        let out_info = self.buffer.out_info_mut();
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
 
-            match match_info(
-                self.matcher,
-                &mut out_info[self.buf_idx],
-                self.ot,
-                self.lookup_props,
-                self.glyph_data,
-                self.match_func.as_ref(),
-                self.syllable,
-            ) {
+            // A position outside the output ends the search.
+            let result = match out_info.get_mut(self.buf_idx) {
+                Some(info) => match_info(
+                    self.matcher,
+                    info,
+                    self.ot,
+                    self.lookup_props,
+                    self.glyph_data,
+                    self.match_func.as_ref(),
+                    self.syllable,
+                ),
+                None => MatchResult::NotMatch,
+            };
+            match result {
                 MatchResult::Match => {
                     self.advance_glyph_data();
                     return true;
@@ -489,17 +508,19 @@ where
         false
     }
 
-    pub fn reset(&mut self, start_index: usize) {
+    pub fn reset(&mut self, start_index: usize) -> Option<()> {
         // For GSUB forward iterator
         self.buf_idx = start_index;
         self.buf_len = self.buffer.len;
-        self.syllable = self.buffer.cur(0).syllable();
+        self.syllable = self.buffer.cur(0)?.syllable();
+        Some(())
     }
 
-    pub fn reset_back(&mut self, start_index: usize) {
+    pub fn reset_back(&mut self, start_index: usize) -> Option<()> {
         // For GSUB backward iterator
         self.buf_idx = start_index;
-        self.syllable = self.buffer.cur(0).syllable();
+        self.syllable = self.buffer.cur(0)?.syllable();
+        Some(())
     }
 
     pub fn reset_fast(&mut self, start_index: usize) {
@@ -513,7 +534,10 @@ where
 
     #[inline]
     pub fn match_at(&mut self, idx: usize) -> MatchResult {
-        let info = &mut self.buffer.info[idx];
+        // A position outside the buffer never matches.
+        let Some(info) = self.buffer.info.get_mut(idx).likely() else {
+            return MatchResult::NotMatch;
+        };
         match_info(
             self.matcher,
             info,
@@ -1030,14 +1054,14 @@ impl<'a> ApplyContext<'a> {
         class_guess: GlyphPropsFlags,
         ligature: bool,
         component: bool,
-    ) {
+    ) -> Option<()> {
         self.buffer.digest.add(glyph_id.into());
 
         if let Some(syllable) = self.new_syllables {
-            self.buffer.cur_mut(0).set_syllable(syllable);
+            self.buffer.cur_mut(0)?.set_syllable(syllable);
         }
 
-        let cur = self.buffer.cur_mut(0);
+        let cur = self.buffer.cur_mut(0)?;
         let mut props = cur.glyph_props();
 
         props |= GlyphPropsFlags::SUBSTITUTED.bits();
@@ -1067,25 +1091,47 @@ impl<'a> ApplyContext<'a> {
         } else {
             cur.set_glyph_props(props);
         }
+        Some(())
     }
 
     pub fn replace_glyph(&mut self, glyph_id: GlyphId) {
-        self.set_glyph_class(glyph_id, GlyphPropsFlags::empty(), false, false);
+        if self
+            .set_glyph_class(glyph_id, GlyphPropsFlags::empty(), false, false)
+            .is_none()
+        {
+            self.buffer.index_failed();
+        }
         self.buffer.replace_glyph(u32::from(glyph_id));
     }
 
-    pub fn replace_glyph_inplace(&mut self, glyph_id: GlyphId) {
-        self.set_glyph_class(glyph_id, GlyphPropsFlags::empty(), false, false);
-        self.buffer.cur_mut(0).glyph_id = u32::from(glyph_id);
+    pub fn replace_glyph_inplace(&mut self, glyph_id: GlyphId) -> Option<()> {
+        if self
+            .set_glyph_class(glyph_id, GlyphPropsFlags::empty(), false, false)
+            .is_none()
+        {
+            self.buffer.index_failed();
+        }
+        self.buffer.cur_mut(0)?.glyph_id = u32::from(glyph_id);
+        Some(())
     }
 
     pub fn replace_glyph_with_ligature(&mut self, glyph_id: GlyphId, class_guess: GlyphPropsFlags) {
-        self.set_glyph_class(glyph_id, class_guess, true, false);
+        if self
+            .set_glyph_class(glyph_id, class_guess, true, false)
+            .is_none()
+        {
+            self.buffer.index_failed();
+        }
         self.buffer.replace_glyph(u32::from(glyph_id));
     }
 
     pub fn output_glyph_for_component(&mut self, glyph_id: GlyphId, class_guess: GlyphPropsFlags) {
-        self.set_glyph_class(glyph_id, class_guess, false, true);
+        if self
+            .set_glyph_class(glyph_id, class_guess, false, true)
+            .is_none()
+        {
+            self.buffer.index_failed();
+        }
         self.buffer.output_glyph(u32::from(glyph_id));
     }
 }
@@ -1098,7 +1144,7 @@ pub fn ligate_input(
     match_end: usize,
     total_component_count: u8,
     lig_glyph: GlyphId,
-) {
+) -> Option<()> {
     // - If a base and one or more marks ligate, consider that as a base, NOT
     //   ligature, such that all following marks can still attach to it.
     //   https://github.com/harfbuzz/harfbuzz/issues/1109
@@ -1131,16 +1177,24 @@ pub fn ligate_input(
     //   https://bugzilla.gnome.org/show_bug.cgi?id=437633
     //
 
-    ctx.buffer.merge_clusters(ctx.buffer.idx, match_end);
-
-    let mut is_base_ligature = ctx.buffer.info[ctx.match_positions[0] as usize].is_base_glyph();
-    let mut is_mark_ligature = ctx.buffer.info[ctx.match_positions[0] as usize].is_mark();
+    // Classify the matched glyphs before touching the buffer, so a bad match
+    // position leaves it unchanged.
+    let info = &ctx.buffer.info;
+    let first_info = info.get(ctx.match_positions[0] as usize).likely()?;
+    let mut is_base_ligature = first_info.is_base_glyph();
+    let mut is_mark_ligature = first_info.is_mark();
     for i in 1..count {
-        if !ctx.buffer.info[ctx.match_positions[i] as usize].is_mark() {
+        if !info
+            .get(ctx.match_positions[i] as usize)
+            .likely()?
+            .is_mark()
+        {
             is_base_ligature = false;
             is_mark_ligature = false;
         }
     }
+
+    ctx.buffer.merge_clusters(ctx.buffer.idx, match_end);
 
     let is_ligature = !is_base_ligature && !is_mark_ligature;
     let class = if is_ligature {
@@ -1153,7 +1207,7 @@ pub fn ligate_input(
     } else {
         0
     };
-    let first = ctx.buffer.cur_mut(0);
+    let first = ctx.buffer.cur_mut(0)?;
     let mut last_lig_id = first.lig_id();
     let mut last_num_comps = first.lig_num_comps();
     let mut comps_so_far = last_num_comps;
@@ -1170,7 +1224,7 @@ pub fn ligate_input(
     for i in 1..count {
         while ctx.buffer.idx < ctx.match_positions[i] as usize && ctx.buffer.successful {
             if is_ligature {
-                let cur = ctx.buffer.cur_mut(0);
+                let cur = ctx.buffer.cur_mut(0)?;
                 let mut this_comp = cur.lig_comp();
                 if this_comp == 0 {
                     this_comp = last_num_comps;
@@ -1184,7 +1238,7 @@ pub fn ligate_input(
             ctx.buffer.next_glyph();
         }
 
-        let cur = ctx.buffer.cur(0);
+        let cur = ctx.buffer.cur(0)?;
         last_lig_id = cur.lig_id();
         last_num_comps = cur.lig_num_comps_in_ligation();
         comps_so_far += last_num_comps;
@@ -1195,8 +1249,8 @@ pub fn ligate_input(
 
     if !is_mark_ligature && last_lig_id != 0 {
         // Re-adjust components for any marks following.
-        for i in ctx.buffer.idx..ctx.buffer.len {
-            let info = &mut ctx.buffer.info[i];
+        let idx = ctx.buffer.idx;
+        for info in ctx.buffer.info_slice_mut().iter_mut().skip(idx) {
             if last_lig_id != info.lig_id() {
                 break;
             }
@@ -1213,4 +1267,6 @@ pub fn ligate_input(
             info.set_lig_props_for_mark(lig_id, new_lig_comp);
         }
     }
+
+    Some(())
 }

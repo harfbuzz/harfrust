@@ -1,4 +1,5 @@
 use crate::buffer::GlyphPropsFlags;
+use crate::hint::LikelyOk;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::MultipleSubstFormat1;
@@ -14,9 +15,13 @@ impl WouldApply for MultipleSubstFormat1<'_> {
 
 impl Apply for MultipleSubstFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let gid = ctx.buffer.cur(0).as_glyph();
-        let index = self.coverage().ok()?.get(gid)? as usize;
-        let substs = self.sequences().get(index).ok()?.substitute_glyph_ids();
+        let gid = ctx.buffer.cur(0)?.as_glyph();
+        let index = self.coverage().likely_ok()?.get(gid)? as usize;
+        let substs = self
+            .sequences()
+            .get(index)
+            .likely_ok()?
+            .substitute_glyph_ids();
         match substs.len() {
             // Spec disallows this, but Uniscribe allows it.
             // https://github.com/harfbuzz/harfbuzz/issues/253
@@ -27,12 +32,12 @@ impl Apply for MultipleSubstFormat1<'_> {
             1 => ctx.replace_glyph(substs.first()?.get().into()),
 
             _ => {
-                let class = if ctx.buffer.cur(0).is_ligature() {
+                let class = if ctx.buffer.cur(0)?.is_ligature() {
                     GlyphPropsFlags::BASE_GLYPH
                 } else {
                     GlyphPropsFlags::empty()
                 };
-                let lig_id = ctx.buffer.cur(0).lig_id();
+                let lig_id = ctx.buffer.cur(0)?.lig_id();
 
                 for (i, subst) in substs.iter().enumerate() {
                     let subst = subst.get().into();
@@ -40,7 +45,7 @@ impl Apply for MultipleSubstFormat1<'_> {
                     // https://github.com/harfbuzz/harfbuzz/issues/3069
                     if lig_id == 0 {
                         // Index is truncated to 4 bits anway, so we can safely cast to u8.
-                        ctx.buffer.cur_mut(0).set_lig_props_for_component(i as u8);
+                        ctx.buffer.cur_mut(0)?.set_lig_props_for_component(i as u8);
                     }
                     ctx.output_glyph_for_component(subst, class);
                 }

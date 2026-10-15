@@ -270,16 +270,17 @@ static BELOW_STATE_MACHINE: &[[BSME; 3]] = &[
     ],
 ];
 
-fn do_pua_shaping(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+fn do_pua_shaping(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> Option<()> {
     let mut above_state = ABOVE_START_STATE[Consonant::NotConsonant as usize];
     let mut below_state = BELOW_START_STATE[Consonant::NotConsonant as usize];
     let mut base = 0;
 
     for i in 0..buffer.len {
-        let mt = get_mark_type(buffer.info[i].glyph_id);
+        let glyph = buffer.info.get(i)?.glyph_id;
+        let mt = get_mark_type(glyph);
 
         if mt == Mark::NotMark {
-            let ct = get_consonant_type(buffer.info[i].glyph_id);
+            let ct = get_consonant_type(glyph);
             above_state = ABOVE_START_STATE[ct as usize];
             below_state = BELOW_START_STATE[ct as usize];
             base = i;
@@ -299,16 +300,45 @@ fn do_pua_shaping(font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
         };
 
         buffer.unsafe_to_break(Some(base), Some(i));
-        if action == Action::RD {
-            buffer.info[base].glyph_id = pua_shape(buffer.info[base].glyph_id, action, font);
-        } else {
-            buffer.info[i].glyph_id = pua_shape(buffer.info[i].glyph_id, action, font);
-        }
+        let target = if action == Action::RD { base } else { i };
+        let info = buffer.info.get_mut(target)?;
+        info.glyph_id = pua_shape(info.glyph_id, action, font);
     }
+    Some(())
+}
+
+/// Moves Nikhahit, just output at `end - 2`, ahead of the above-base marks
+/// before it, and returns where it lands.
+fn move_nikhahit(buffer: &mut Buffer, end: usize) -> Option<usize> {
+    #[inline]
+    fn is_above_base_mark(u: u32) -> bool {
+        let u = u & !0x0080;
+        matches!(u, 0x0E34..=0x0E37 | 0x0E47..=0x0E4E | 0x0E31..=0x0E31 | 0x0E3B..=0x0E3B)
+    }
+
+    let nikhahit = end.checked_sub(2)?;
+    // Make Nikhahit be recognized as a ccc=0 mark when zeroing widths.
+    buffer
+        .out_info_mut()
+        .get_mut(nikhahit)?
+        .set_general_category(GeneralCategory::NON_SPACING_MARK);
+
+    let mut start = nikhahit;
+    while start > 0 && is_above_base_mark(buffer.out_info().get(start - 1)?.glyph_id) {
+        start -= 1;
+    }
+    if start < nikhahit {
+        buffer.merge_out_clusters(start, end);
+        buffer
+            .out_info_mut()
+            .get_mut(start..=nikhahit)?
+            .rotate_right(1);
+    }
+    Some(start)
 }
 
 // TODO: more tests
-fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> Option<()> {
     // This function implements the shaping logic documented here:
     //
     //   https://linux.thai.net/~thep/th-otf/shaping.html
@@ -366,16 +396,10 @@ fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buf
     fn sara_aa_from_sara_am(u: u32) -> u32 {
         u - 1
     }
-    #[inline]
-    fn is_above_base_mark(u: u32) -> bool {
-        let u = u & !0x0080;
-        matches!(u, 0x0E34..=0x0E37 | 0x0E47..=0x0E4E | 0x0E31..=0x0E31 | 0x0E3B..=0x0E3B)
-    }
-
     buffer.clear_output();
     buffer.idx = 0;
     while buffer.idx < buffer.len {
-        let u = buffer.cur(0).glyph_id;
+        let u = buffer.cur(0)?.glyph_id;
         if !is_sara_am(u) {
             buffer.next_glyph();
             continue;
@@ -383,33 +407,14 @@ fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buf
 
         // Is SARA AM. Decompose and reorder.
         buffer.output_glyph(nikhahit_from_sara_am(u));
-        {
-            let out_idx = buffer.out_len - 1;
-            let mut info = buffer.out_info_mut()[out_idx];
+        if let Some(&info) = buffer.out_info().get(buffer.out_len - 1) {
+            let mut info = info;
             info.set_continuation(&mut buffer.scratch_flags);
         }
         buffer.replace_glyph(sara_aa_from_sara_am(u));
 
-        // Make Nikhahit be recognized as a ccc=0 mark when zeroing widths.
         let end = buffer.out_len;
-
-        buffer.out_info_mut()[end - 2].set_general_category(GeneralCategory::NON_SPACING_MARK);
-
-        // Ok, let's see...
-        let mut start = end - 2;
-        while start > 0 && is_above_base_mark(buffer.out_info()[start - 1].glyph_id) {
-            start -= 1;
-        }
-
-        if start + 2 < end {
-            // Move Nikhahit (end-2) to the beginning
-            buffer.merge_out_clusters(start, end);
-            let t = buffer.out_info()[end - 2];
-            for i in 0..(end - start - 2) {
-                buffer.out_info_mut()[i + start + 1] = buffer.out_info()[i + start];
-            }
-            buffer.out_info_mut()[start] = t;
-        }
+        let start = move_nikhahit(buffer, end).unwrap_or(end - 2);
 
         // Since we decomposed, and NIKHAHIT is combining, merge clusters with the
         // previous cluster.
@@ -422,6 +427,9 @@ fn preprocess_text(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buf
 
     // If font has Thai GSUB, we are done.
     if plan.script == Some(Script::THAI) && !plan.ot_map.found_script(LayoutTableKind::Gsub) {
-        do_pua_shaping(font, buffer);
+        if do_pua_shaping(font, buffer).is_none() {
+            buffer.index_failed();
+        }
     }
+    Some(())
 }

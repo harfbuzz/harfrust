@@ -71,7 +71,7 @@ pub struct StageMap {
 
 // Pause functions return true if new glyph indices might have been added to the buffer.
 // This is used to update buffer digest.
-pub type PauseFn = fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer) -> bool;
+pub type PauseFn = fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer) -> Option<bool>;
 
 impl OtMap {
     pub const MAX_BITS: u32 = 8;

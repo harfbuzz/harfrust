@@ -1,3 +1,4 @@
+use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     Apply, PairPosFormat1Cache, PairPosFormat1SmallCache, PairPosFormat2Cache,
@@ -37,12 +38,12 @@ impl Apply for PairPosFormat1<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let first_glyph = ctx.buffer.cur(0).as_glyph();
+        let first_glyph = ctx.buffer.cur(0)?.as_glyph();
 
         let (first_glyph_coverage_index, pair_set_digests) = match external_cache {
             SubtableExternalCache::PairPosFormat1Cache(cache) => (
                 coverage_index_cached(
-                    |gid| self.coverage().ok()?.get(gid),
+                    |gid| self.coverage().likely_ok()?.get(gid),
                     first_glyph,
                     &cache.coverage,
                 )?,
@@ -56,7 +57,9 @@ impl Apply for PairPosFormat1<'_> {
         };
 
         let mut iter = SkippingIterator::new(ctx, false);
-        iter.reset(iter.buffer.idx);
+        if iter.reset(iter.buffer.idx).is_none() {
+            iter.buffer.index_failed();
+        }
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -66,7 +69,12 @@ impl Apply for PairPosFormat1<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = iter
+            .buffer
+            .info
+            .get(second_glyph_index)
+            .likely()?
+            .as_glyph();
 
         if pair_set_digests
             .and_then(|digests| digests.get(first_glyph_coverage_index as usize))
@@ -117,7 +125,7 @@ impl Apply for PairPosFormat1<'_> {
         let record_size = format1_len + format2.record_byte_len() + 2;
         let data = self.offset_data();
         let set_data = data.split_off(set_offset)?;
-        let pair_count = set_data.read_at::<u16>(0).ok()? as usize;
+        let pair_count = set_data.read_at::<u16>(0).likely_ok()? as usize;
         let mut hi = pair_count;
         let mut lo = 0;
         while lo < hi {
@@ -189,10 +197,10 @@ impl Apply for PairPosFormat2<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let first_glyph = ctx.buffer.cur(0).as_glyph();
+        let first_glyph = ctx.buffer.cur(0)?.as_glyph();
         match external_cache {
             SubtableExternalCache::PairPosFormat2Cache(cache) => coverage_index_cached(
-                |gid| self.coverage().ok()?.get(gid),
+                |gid| self.coverage().likely_ok()?.get(gid),
                 first_glyph,
                 &cache.coverage,
             )?,
@@ -202,7 +210,9 @@ impl Apply for PairPosFormat2<'_> {
             _ => coverage_index(self.coverage(), first_glyph)?,
         };
         let mut iter = SkippingIterator::new(ctx, false);
-        iter.reset(iter.buffer.idx);
+        if iter.reset(iter.buffer.idx).is_none() {
+            iter.buffer.index_failed();
+        }
 
         let mut unsafe_to = 0;
         if !iter.next(Some(&mut unsafe_to)) {
@@ -212,7 +222,12 @@ impl Apply for PairPosFormat2<'_> {
         }
 
         let second_glyph_index = iter.index();
-        let second_glyph = iter.buffer.info[second_glyph_index].as_glyph();
+        let second_glyph = iter
+            .buffer
+            .info
+            .get(second_glyph_index)
+            .likely()?
+            .as_glyph();
 
         let finish = |ctx: &mut ApplyContext, iter_index: &mut usize, has_record2| {
             if has_record2 {

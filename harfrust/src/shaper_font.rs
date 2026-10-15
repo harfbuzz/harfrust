@@ -495,9 +495,13 @@ pub struct Advances<'a> {
 impl<'a> Advances<'a> {
     pub(crate) fn new(buffer: &'a mut Buffer) -> Self {
         let len = buffer.len;
-        Self {
-            infos: &buffer.info[..len],
-            positions: &mut buffer.pos[..len],
+        match (buffer.info.get(..len), buffer.pos.get_mut(..len)) {
+            (Some(infos), Some(positions)) => Self { infos, positions },
+            // The raw view uses one length for both arrays, so a short one empties the batch.
+            _ => Self {
+                infos: &[],
+                positions: &mut [],
+            },
         }
     }
 

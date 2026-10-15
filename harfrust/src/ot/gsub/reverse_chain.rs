@@ -1,4 +1,5 @@
 use crate::buffer::GlyphInfo;
+use crate::hint::LikelyOk;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{match_backtrack, match_lookahead, Apply, WouldApply, WouldApplyContext};
 use crate::ot::layout::MAX_NESTING_LEVEL;
@@ -22,8 +23,8 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
             return None;
         }
 
-        let glyph = ctx.buffer.cur(0).as_glyph();
-        let coverage = self.coverage().ok()?;
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
+        let coverage = self.coverage().likely_ok()?;
         let index = coverage.get(glyph)? as usize;
         let substitutes = self.substitute_glyph_ids();
         if index >= substitutes.len() {
@@ -64,7 +65,9 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
             ) {
                 ctx.buffer
                     .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
-                ctx.replace_glyph_inplace(subst.into());
+                if ctx.replace_glyph_inplace(subst.into()).is_none() {
+                    ctx.buffer.index_failed();
+                }
 
                 // Note: We DON'T decrease buffer.idx.  The main loop does it
                 // for us.  This is useful for preventing surprises if someone

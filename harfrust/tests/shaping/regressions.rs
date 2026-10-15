@@ -143,3 +143,17 @@ fn ligature_digest_reports_the_same_concat_hazard_as_the_walk() {
         );
     }
 }
+
+// Nikhahit moves ahead of every above-base mark before SARA AM, keeping each
+// mark rather than repeating the first.
+#[test]
+fn thai_sara_am_after_two_above_base_marks() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/in-house/63a539a90a371ccf028dc2dcced9b63b07163be7.ttf",
+            "\u{0E01}\u{0E48}\u{0E49}\u{0E33}",
+            "",
+        ),
+        "[uni0E01=0+500|uni0E4D=0+0|uni0E48=0+0|uni0E49=0+0|uni0E32=0+500]"
+    );
+}
