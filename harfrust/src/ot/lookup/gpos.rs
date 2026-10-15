@@ -100,7 +100,7 @@ fn apply_value_fields(
     if !format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
         return worked;
     }
-    let Some(store) = &ctx.layout.ot.var_store else {
+    let Some(store) = ctx.layout.ot.var_store() else {
         return worked;
     };
     let coords = ctx.layout.ot.coords;

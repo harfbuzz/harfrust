@@ -736,8 +736,8 @@ mod tests {
         let ot_data = OtData::new(&cache.ot, &[], [None; 2]);
         let aat_data = AatData::new(&cache.aat);
 
-        assert!(ot_data.gsub.is_some());
-        assert!(ot_data.gpos.is_some());
+        assert!(ot_data.gsub().is_some());
+        assert!(ot_data.gpos().is_some());
         assert!(ot_data.has_glyph_classes());
         assert!(aat_data.morx.is_none());
         assert!(aat_data.mort.is_none());

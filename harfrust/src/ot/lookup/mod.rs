@@ -39,6 +39,12 @@ pub(crate) struct LookupCache {
 }
 
 impl LookupCache {
+    pub const EMPTY: Self = Self {
+        lookups: Vec::new(),
+        tables: None,
+        is_subst: false,
+    };
+
     pub fn new(tables: Option<Arc<Tables>>, is_subst: bool) -> Self {
         let count = tables
             .as_deref()

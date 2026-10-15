@@ -257,7 +257,6 @@ impl<'a> MarkSet<'a> {
 
 #[derive(Clone)]
 pub struct GsubTable<'a> {
-    pub table: Gsub<'a>,
     pub lookups: &'a LookupCache,
 }
 
@@ -272,7 +271,6 @@ impl layout::LayoutTable for GsubTable<'_> {
 
 #[derive(Clone)]
 pub struct GposTable<'a> {
-    pub table: Gpos<'a>,
     pub lookups: &'a LookupCache,
 }
 
@@ -285,41 +283,77 @@ impl layout::LayoutTable for GposTable<'_> {
     }
 }
 
+/// The OpenType layout data of a font, borrowed from its layout cache.
 #[derive(Clone)]
 pub struct OtData<'a> {
-    pub gsub: Option<GsubTable<'a>>,
-    pub gpos: Option<GposTable<'a>>,
-    pub(crate) gdef: &'a CachedGdef<'a>,
-    pub gdef_glyph_props_cache: &'a MappingCache,
+    cache: &'a OtCache,
+    tables: &'a CachedTables<'a>,
+    /// The variation store, if the font is variable and has an instance.
+    var_store: Option<&'a ItemVariationStore<'a>>,
     pub coords: &'a [F2Dot14],
-    pub var_store: Option<ItemVariationStore<'a>>,
     pub feature_variations: [Option<u32>; 2],
 }
 
-static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
+static EMPTY_OT_CACHE: OtCache = OtCache {
+    gsub: LookupCache::EMPTY,
+    gpos: LookupCache::EMPTY,
+    gdef_glyph_props_cache: MappingCache::empty(),
+    tables: None,
+    has_gdef: false,
+    gsub_len: 0,
+    gdef_len: 0,
+};
 static EMPTY_TABLES: CachedTables<'static> = CachedTables::EMPTY;
 
 pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
-    gsub: None,
-    gpos: None,
-    gdef: &EMPTY_TABLES.gdef,
-    gdef_glyph_props_cache: &EMPTY_MAPPING_CACHE,
-    coords: &[],
+    cache: &EMPTY_OT_CACHE,
+    tables: &EMPTY_TABLES,
     var_store: None,
+    coords: &[],
     feature_variations: [None; 2],
 };
 
 impl<'a> OtData<'a> {
+    pub fn new(
+        cache: &'a OtCache,
+        coords: &'a [F2Dot14],
+        feature_variations: [Option<u32>; 2],
+    ) -> Self {
+        let tables = cache.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get);
+        Self {
+            cache,
+            tables,
+            var_store: tables
+                .gdef
+                .var_store
+                .as_ref()
+                .filter(|_| !coords.is_empty()),
+            coords,
+            feature_variations,
+        }
+    }
+
+    pub fn gsub(&self) -> Option<GsubTable<'a>> {
+        self.tables.gsub.is_some().then_some(GsubTable {
+            lookups: &self.cache.gsub,
+        })
+    }
+
+    pub fn gpos(&self) -> Option<GposTable<'a>> {
+        self.tables.gpos.is_some().then_some(GposTable {
+            lookups: &self.cache.gpos,
+        })
+    }
+
+    /// The variation store, if the font is variable and has an instance.
+    pub fn var_store(&self) -> Option<&'a ItemVariationStore<'a>> {
+        self.var_store
+    }
+
     pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
         match table_index {
-            LayoutTableKind::Gsub => self
-                .gsub
-                .as_ref()
-                .map(|table| LayoutTable::Gsub(table.table.clone())),
-            LayoutTableKind::Gpos => self
-                .gpos
-                .as_ref()
-                .map(|table| LayoutTable::Gpos(table.table.clone())),
+            LayoutTableKind::Gsub => self.tables.gsub.clone().map(LayoutTable::Gsub),
+            LayoutTableKind::Gpos => self.tables.gpos.clone().map(LayoutTable::Gpos),
         }
     }
 
@@ -330,49 +364,22 @@ impl<'a> OtData<'a> {
             .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
     }
 
-    pub fn new(
-        cache: &'a OtCache,
-        coords: &'a [F2Dot14],
-        feature_variations: [Option<u32>; 2],
-    ) -> Self {
-        let tables = cache.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get);
-        let gsub = tables.gsub.clone().map(|table| GsubTable {
-            table,
-            lookups: &cache.gsub,
-        });
-        let gpos = tables.gpos.clone().map(|table| GposTable {
-            table,
-            lookups: &cache.gpos,
-        });
-        let gdef = &tables.gdef;
-        let var_store = gdef.var_store.clone().filter(|_| !coords.is_empty());
-        Self {
-            gsub,
-            gpos,
-            gdef,
-            gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
-            var_store,
-            coords,
-            feature_variations,
-        }
-    }
-
     pub fn has_glyph_classes(&self) -> bool {
-        !self.gdef.classes.is_none()
+        !self.tables.gdef.classes.is_none()
     }
 
     pub fn glyph_class(&self, glyph_id: u32) -> u16 {
-        self.gdef.classes.get(GlyphId::new(glyph_id))
+        self.tables.gdef.classes.get(GlyphId::new(glyph_id))
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
-        self.gdef.mark_classes.get(GlyphId::new(glyph_id))
+        self.tables.gdef.mark_classes.get(GlyphId::new(glyph_id))
     }
 
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
         let glyph = glyph.to_u32();
 
-        if let Some(props) = self.gdef_glyph_props_cache.get(glyph) {
+        if let Some(props) = self.cache.gdef_glyph_props_cache.get(glyph) {
             return props as u16;
         }
 
@@ -386,14 +393,15 @@ impl<'a> OtData<'a> {
             _ => 0,
         };
 
-        self.gdef_glyph_props_cache.set(glyph, props as u32);
+        self.cache.gdef_glyph_props_cache.set(glyph, props as u32);
 
         props
     }
 
     #[inline(always)]
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
-        self.gdef
+        self.tables
+            .gdef
             .mark_sets
             .get(set_index as usize)
             .is_some_and(|set| {
@@ -408,17 +416,18 @@ impl<'a> OtData<'a> {
         table_index: LayoutTableKind,
         lookup_index: u16,
     ) -> Option<&'a CachedLookup<'a>> {
+        // A missing table has no lookups.
         if table_index == LayoutTableKind::Gsub {
-            self.gsub.as_ref()?.lookups.get(lookup_index)
+            self.cache.gsub.get(lookup_index)
         } else {
-            self.gpos.as_ref()?.lookups.get(lookup_index)
+            self.cache.gpos.get(lookup_index)
         }
     }
 
     pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (f32, f32) {
         let mut x = anchor.x_coordinate() as f32;
         let mut y = anchor.y_coordinate() as f32;
-        if let Some(vs) = self.var_store.as_ref() {
+        if let Some(vs) = self.var_store() {
             // Keep the delta fractional; the caller rounds once when scaling,
             // matching HarfBuzz's Anchor::get_anchor.
             let delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {

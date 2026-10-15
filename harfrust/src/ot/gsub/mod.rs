@@ -6,6 +6,6 @@ use crate::plan::ShapePlan;
 use crate::ShaperFont;
 
 pub fn substitute(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
-    let table = font.layout().ot.gsub.clone();
+    let table = font.layout().ot.gsub();
     apply_layout_table(plan, font, buffer, table.as_ref());
 }
