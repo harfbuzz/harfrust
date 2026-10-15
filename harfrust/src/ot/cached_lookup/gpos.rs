@@ -11,127 +11,142 @@ use crate::set_digest::SetDigest;
 use crate::Direction;
 use alloc::boxed::Box;
 use read_fonts::tables::gpos::{
-    AnchorTable, BaseArray, CursivePosFormat1, EntryExitRecord, LigatureArray, Mark2Array,
-    MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, PairPosFormat1,
-    PairPosFormat2, PairSet, SinglePosFormat1, SinglePosFormat2, ValueFormat,
+    AnchorTable, BaseArray, ClassValueRecords, CursivePosFormat1, EntryExitRecord, LigatureArray,
+    Mark2Array, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
+    PairPosFormat1, PairPosFormat2, PairSet, SinglePosFormat1, SinglePosFormat2, ValueFormat,
+    ValueRecord,
 };
 use read_fonts::tables::variations::DeltaSetIndex;
-use read_fonts::types::{GlyphId, GlyphId16};
+use read_fonts::types::{BigEndian, GlyphId};
 use read_fonts::FontData;
 
-/// A value record at `offset` in `data`.
-#[derive(Clone, Copy)]
-struct ValueRecord<'a> {
-    data: FontData<'a>,
-    offset: usize,
-    format: ValueFormat,
+/// Adds `record` to the position of glyph `idx`, returning whether it
+/// changed anything. A truncated record changes nothing.
+#[inline]
+fn apply_value(ctx: &mut ApplyContext, idx: usize, record: &ValueRecord) -> bool {
+    let Some(bytes) = record.bytes() else {
+        return false;
+    };
+    // Most kerning adjusts only the advance.
+    if record.format() == ValueFormat::X_ADVANCE {
+        let &[hi, lo] = bytes else {
+            return false;
+        };
+        let value = i16::from_be_bytes([hi, lo]);
+        if !ctx.buffer.direction.is_horizontal() {
+            return false;
+        }
+        let x_advance = ctx.scale.scale_x(i32::from(value));
+        let Some(pos) = ctx.buffer.pos.get_mut(idx).likely() else {
+            return false;
+        };
+        pos.x_advance = pos.x_advance.saturating_add(x_advance);
+        return value != 0;
+    }
+    apply_value_fields(ctx, idx, bytes, record.format(), record.offset_data())
 }
 
-impl ValueRecord<'_> {
-    /// Adds the record to the position of glyph `idx`, returning whether it
-    /// changed anything.
-    // The offset is advanced past the last value too, for uniformity.
-    #[allow(unused_assignments)]
-    fn apply(&self, ctx: &mut ApplyContext, idx: usize) -> Option<bool> {
-        let (data, format) = (self.data, self.format);
-        let mut offset = self.offset;
-        let scale = ctx.scale;
-        let is_horizontal = ctx.buffer.direction.is_horizontal();
-        let pos = ctx.buffer.pos.get_mut(idx).likely()?;
-        let mut worked = false;
-        // Reads the next value, or skips it if it doesn't apply in this
-        // direction.
-        macro_rules! value {
-            ($applies:expr) => {{
-                let applies = $applies;
-                let value = if applies {
-                    let value = data.read_at::<i16>(offset).likely_ok()?;
-                    worked |= value != 0;
-                    i32::from(value)
-                } else {
-                    0
-                };
-                offset += 2;
-                applies.then_some(value)
-            }};
-        }
-        if format.contains(ValueFormat::X_PLACEMENT) {
-            if let Some(value) = value!(true) {
-                pos.x_offset = pos.x_offset.saturating_add(scale.scale_x(value));
-            }
-        }
-        if format.contains(ValueFormat::Y_PLACEMENT) {
-            if let Some(value) = value!(true) {
-                pos.y_offset = pos.y_offset.saturating_add(scale.scale_y(value));
-            }
-        }
-        if format.contains(ValueFormat::X_ADVANCE) {
-            if let Some(value) = value!(is_horizontal) {
-                pos.x_advance = pos.x_advance.saturating_add(scale.scale_x(value));
-            }
-        }
-        if format.contains(ValueFormat::Y_ADVANCE) {
-            if let Some(value) = value!(!is_horizontal) {
-                pos.y_advance = pos.y_advance.saturating_sub(scale.scale_y(value));
-            }
-        }
-        if !format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
-            return Some(worked);
-        }
-        let Some(store) = &ctx.layout.ot.var_store else {
-            return Some(worked);
-        };
-        let coords = ctx.layout.ot.coords;
-        // Reads the next delta, or skips it if it doesn't apply in this
-        // direction. Only variation indices contribute; device tables are
-        // for hinting, which shaping doesn't do.
-        macro_rules! delta {
-            ($applies:expr) => {{
-                let applies = $applies;
-                let mut value = 0.0f32;
-                if applies {
-                    let device = data.read_at::<u16>(offset).likely_ok()? as usize;
-                    const VARIATION_INDEX_FORMAT: u16 = 0x8000;
-                    if device != 0
-                        && data.read_at::<u16>(device + 4).likely_ok()? == VARIATION_INDEX_FORMAT
-                    {
-                        let outer = data.read_at::<u16>(device).likely_ok()?;
-                        let inner = data.read_at::<u16>(device + 2).likely_ok()?;
-                        // Keep the delta fractional so it is rounded once,
-                        // when scaled.
-                        value = store
-                            .compute_delta(DeltaSetIndex { outer, inner }, coords)
-                            .unwrap_or_default()
-                            .to_f64() as f32;
-                        worked |= value != 0.0;
-                    }
-                }
-                offset += 2;
-                applies.then_some(value)
-            }};
-        }
-        if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-            if let Some(value) = delta!(true) {
-                pos.x_offset = pos.x_offset.saturating_add(scale.scale_x_f(value));
-            }
-        }
-        if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-            if let Some(value) = delta!(true) {
-                pos.y_offset = pos.y_offset.saturating_add(scale.scale_y_f(value));
-            }
-        }
-        if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-            if let Some(value) = delta!(is_horizontal) {
-                pos.x_advance = pos.x_advance.saturating_add(scale.scale_x_f(value));
-            }
-        }
-        if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-            if let Some(value) = delta!(!is_horizontal) {
-                pos.y_advance = pos.y_advance.saturating_sub(scale.scale_y_f(value));
-            }
-        }
-        Some(worked)
+/// Applies a value record of any format. Device offsets in it are relative
+/// to `base`.
+// The cursor is advanced past the last field too, for uniformity.
+#[allow(unused_assignments)]
+#[inline(never)]
+fn apply_value_fields(
+    ctx: &mut ApplyContext,
+    idx: usize,
+    bytes: &[u8],
+    format: ValueFormat,
+    base: FontData,
+) -> bool {
+    let scale = ctx.scale;
+    let is_horizontal = ctx.buffer.direction.is_horizontal();
+    let Some(pos) = ctx.buffer.pos.get_mut(idx).likely() else {
+        return false;
+    };
+    let mut fields = bytes
+        .chunks_exact(2)
+        .map(|field| i16::from_be_bytes([field[0], field[1]]));
+    let mut worked = false;
+    // Reads the next value, which counts only if it applies in this
+    // direction.
+    macro_rules! value {
+        ($applies:expr) => {{
+            let value = fields.next().unwrap_or(0);
+            let applies = $applies;
+            worked |= applies && value != 0;
+            applies.then_some(i32::from(value))
+        }};
     }
+    if format.contains(ValueFormat::X_PLACEMENT) {
+        if let Some(value) = value!(true) {
+            pos.x_offset = pos.x_offset.saturating_add(scale.scale_x(value));
+        }
+    }
+    if format.contains(ValueFormat::Y_PLACEMENT) {
+        if let Some(value) = value!(true) {
+            pos.y_offset = pos.y_offset.saturating_add(scale.scale_y(value));
+        }
+    }
+    if format.contains(ValueFormat::X_ADVANCE) {
+        if let Some(value) = value!(is_horizontal) {
+            pos.x_advance = pos.x_advance.saturating_add(scale.scale_x(value));
+        }
+    }
+    if format.contains(ValueFormat::Y_ADVANCE) {
+        if let Some(value) = value!(!is_horizontal) {
+            pos.y_advance = pos.y_advance.saturating_sub(scale.scale_y(value));
+        }
+    }
+    if !format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+        return worked;
+    }
+    let Some(store) = &ctx.layout.ot.var_store else {
+        return worked;
+    };
+    let coords = ctx.layout.ot.coords;
+    // Reads the next device offset and resolves its delta, if it applies in
+    // this direction. Only variation indices contribute; device tables are
+    // for hinting, which shaping doesn't do.
+    let mut delta = |applies: bool, worked: &mut bool| -> Option<f32> {
+        let device = fields.next().unwrap_or(0) as u16 as usize;
+        if !applies {
+            return None;
+        }
+        const VARIATION_INDEX_FORMAT: u16 = 0x8000;
+        if device == 0 || base.read_at::<u16>(device + 4).ok() != Some(VARIATION_INDEX_FORMAT) {
+            return Some(0.0);
+        }
+        let outer = base.read_at::<u16>(device).ok()?;
+        let inner = base.read_at::<u16>(device + 2).ok()?;
+        // Keep the delta fractional so it is rounded once, when scaled.
+        let value = store
+            .compute_delta(DeltaSetIndex { outer, inner }, coords)
+            .unwrap_or_default()
+            .to_f64() as f32;
+        *worked |= value != 0.0;
+        Some(value)
+    };
+    if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
+        if let Some(value) = delta(true, &mut worked) {
+            pos.x_offset = pos.x_offset.saturating_add(scale.scale_x_f(value));
+        }
+    }
+    if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
+        if let Some(value) = delta(true, &mut worked) {
+            pos.y_offset = pos.y_offset.saturating_add(scale.scale_y_f(value));
+        }
+    }
+    if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
+        if let Some(value) = delta(is_horizontal, &mut worked) {
+            pos.x_advance = pos.x_advance.saturating_add(scale.scale_x_f(value));
+        }
+    }
+    if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
+        if let Some(value) = delta(!is_horizontal, &mut worked) {
+            pos.y_advance = pos.y_advance.saturating_sub(scale.scale_y_f(value));
+        }
+    }
+    worked
 }
 
 /// Single adjustment by one value record.
@@ -144,18 +159,18 @@ impl<'a> SinglePos1<'a> {
     pub fn new(table: &SinglePosFormat1<'a>) -> Option<Self> {
         Some(Self {
             coverage: Coverage::required(table.coverage())?,
-            value: ValueRecord {
-                data: table.offset_data(),
-                offset: table.value_record_byte_range().start,
-                format: table.value_format(),
-            },
+            value: ValueRecord::new(
+                table.offset_data(),
+                table.value_record_byte_range().start,
+                table.value_format(),
+            ),
         })
     }
 
     pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
         self.coverage.get(glyph)?;
-        self.value.apply(ctx, ctx.buffer.idx);
+        apply_value(ctx, ctx.buffer.idx, &self.value);
         ctx.buffer.idx += 1;
         Some(())
     }
@@ -178,22 +193,24 @@ impl<'a> SinglePos2<'a> {
     pub fn new(table: &SinglePosFormat2<'a>) -> Option<Self> {
         Some(Self {
             coverage: Coverage::required(table.coverage())?,
-            values: ValueRecord {
-                data: table.offset_data(),
-                offset: table.value_records_byte_range().start,
-                format: table.value_format(),
-            },
+            values: ValueRecord::new(
+                table.offset_data(),
+                table.value_records_byte_range().start,
+                table.value_format(),
+            ),
         })
     }
 
     pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
         let index = self.coverage.get(glyph)? as usize;
-        let value = ValueRecord {
-            offset: self.values.offset + self.values.format.record_byte_len() * index,
-            ..self.values
-        };
-        value.apply(ctx, ctx.buffer.idx);
+        let values = &self.values;
+        let value = ValueRecord::new(
+            values.offset_data(),
+            values.offset() + values.byte_len() * index,
+            values.format(),
+        );
+        apply_value(ctx, ctx.buffer.idx, &value);
         ctx.buffer.idx += 1;
         Some(())
     }
@@ -205,24 +222,95 @@ impl<'a> SubtableDigests<'a> for SinglePos2<'a> {
     }
 }
 
-/// Finds the glyph after the current one for a pair, marking the buffer
-/// unsafe to concatenate if there is none.
-#[inline(always)]
-fn find_second_glyph(ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
-    let mut iter = SkippingIterator::new(ctx, false);
-    if iter.reset(iter.buffer.idx).is_none() {
-        iter.buffer.index_failed();
+/// The glyph that a pair starting at the current glyph would pair with.
+///
+/// It depends only on the buffer and the lookup, so the subtables of a pair
+/// lookup share one search per position.
+#[derive(Clone, Copy)]
+pub(crate) enum SecondGlyph {
+    Unknown,
+    /// No glyph follows; a match would depend on the glyphs up to
+    /// `unsafe_to`.
+    Missing {
+        unsafe_to: usize,
+    },
+    Found {
+        index: usize,
+        buf_idx: usize,
+        glyph: GlyphId,
+    },
+    Failed,
+}
+
+/// Where a pair subtable gets the glyph that the current one pairs with.
+pub(crate) trait FindSecond {
+    /// Returns the second glyph's index in the buffer, the index to resume
+    /// from after the pair, and the glyph. Without one, marks the buffer
+    /// unsafe to concatenate as far as the search went.
+    fn get(&mut self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)>;
+}
+
+/// Searches for the second glyph each time.
+pub(crate) struct Search;
+
+impl FindSecond for Search {
+    #[inline(always)]
+    fn get(&mut self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
+        SecondGlyph::search(ctx).resolve(ctx)
     }
-    let mut unsafe_to = 0;
-    if !iter.next(Some(&mut unsafe_to)) {
-        ctx.buffer
-            .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
-        return None;
+}
+
+impl FindSecond for SecondGlyph {
+    /// Searches the first time, then answers from the result.
+    #[inline(always)]
+    fn get(&mut self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
+        if let Self::Unknown = self {
+            *self = Self::search(ctx);
+        }
+        self.resolve(ctx)
     }
-    let index = iter.index();
-    let buf_idx = iter.buf_idx;
-    let glyph = iter.buffer.info.get(index).likely()?.as_glyph();
-    Some((index, buf_idx, glyph))
+}
+
+impl SecondGlyph {
+    /// The second glyph, if the search found one.
+    #[inline(always)]
+    fn resolve(self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
+        match self {
+            Self::Found {
+                index,
+                buf_idx,
+                glyph,
+            } => Some((index, buf_idx, glyph)),
+            Self::Missing { unsafe_to } => {
+                ctx.buffer
+                    .unsafe_to_concat(Some(ctx.buffer.idx), Some(unsafe_to));
+                None
+            }
+            Self::Unknown | Self::Failed => None,
+        }
+    }
+
+    #[inline(always)]
+    fn search(ctx: &mut ApplyContext) -> Self {
+        let mut iter = SkippingIterator::new(ctx, false);
+        if iter.reset(iter.buffer.idx).is_none() {
+            iter.buffer.index_failed();
+        }
+        let mut unsafe_to = 0;
+        if !iter.next(Some(&mut unsafe_to)) {
+            return Self::Missing { unsafe_to };
+        }
+        let index = iter.index();
+        let buf_idx = iter.buf_idx;
+        match iter.buffer.info.get(index).likely() {
+            Some(info) => Self::Found {
+                index,
+                buf_idx,
+                glyph: info.as_glyph(),
+            },
+            None => Self::Failed,
+        }
+    }
 }
 
 /// Applies the two value records of a pair at `second_index`, then moves
@@ -232,12 +320,12 @@ fn apply_pair(
     ctx: &mut ApplyContext,
     second_index: usize,
     mut buf_idx: usize,
-    value1: ValueRecord,
-    value2: ValueRecord,
+    value1: &ValueRecord,
+    value2: &ValueRecord,
 ) -> Option<()> {
-    let has_value2 = !value2.format.is_empty();
-    let worked1 = !value1.format.is_empty() && value1.apply(ctx, ctx.buffer.idx) == Some(true);
-    let worked2 = has_value2 && value2.apply(ctx, second_index) == Some(true);
+    let has_value2 = !value2.is_empty();
+    let worked1 = !value1.is_empty() && apply_value(ctx, ctx.buffer.idx, value1);
+    let worked2 = has_value2 && apply_value(ctx, second_index, value2);
     if worked1 || worked2 {
         ctx.buffer
             .unsafe_to_break(Some(ctx.buffer.idx), Some(second_index + 1));
@@ -286,13 +374,16 @@ impl<'a> PairPos1<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+    /// Applies, sharing the search for the second glyph with the lookup's
+    /// other subtables.
+    #[inline]
+    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
         let index = match &self.coverage_cache {
             Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), first, cache)?,
             None => self.coverage.get(first)?,
         } as usize;
-        let (second_index, buf_idx, second) = find_second_glyph(ctx)?;
+        let (second_index, buf_idx, second) = second.get(ctx)?;
         if self
             .pair_set_digests
             .get(index)
@@ -303,8 +394,10 @@ impl<'a> PairPos1<'a> {
             return None;
         }
 
-        // Binary search the pair set's records for the second glyph.
+        // Binary search the pair set's records, which start with the second
+        // glyph, directly in the bytes.
         let data = self.pair_sets.data(index)?;
+        let bytes = data.as_bytes();
         let format1_len = self.format1.record_byte_len();
         let record_len = 2 + format1_len + self.format2.record_byte_len();
         let (mut lo, mut hi) = (0, data.read_at::<u16>(0).likely_ok()? as usize);
@@ -313,23 +406,18 @@ impl<'a> PairPos1<'a> {
             #[allow(clippy::manual_midpoint)]
             let mid = (lo + hi) / 2;
             let offset = 2 + mid * record_len;
-            let glyph = GlyphId::from(data.read_at::<GlyphId16>(offset).ok()?);
+            let &[hi_byte, lo_byte] = bytes.get(offset..offset + 2)? else {
+                return None;
+            };
+            let glyph = GlyphId::from(u16::from_be_bytes([hi_byte, lo_byte]));
             if glyph < second {
                 lo = mid + 1;
             } else if glyph > second {
                 hi = mid;
             } else {
-                let value1 = ValueRecord {
-                    data,
-                    offset: offset + 2,
-                    format: self.format1,
-                };
-                let value2 = ValueRecord {
-                    data,
-                    offset: offset + 2 + format1_len,
-                    format: self.format2,
-                };
-                return apply_pair(ctx, second_index, buf_idx, value1, value2);
+                let value1 = ValueRecord::new(data, offset + 2, self.format1);
+                let value2 = ValueRecord::new(data, offset + 2 + format1_len, self.format2);
+                return apply_pair(ctx, second_index, buf_idx, &value1, &value2);
             }
         }
         // The same hazard the digest reports, found the long way.
@@ -375,10 +463,8 @@ pub(crate) struct PairPos2<'a> {
     class_def1: ClassDef<'a>,
     class_def2: ClassDef<'a>,
     caches: Option<Box<PairPos2Caches>>,
-    /// The first value record of the class matrix.
-    records: ValueRecord<'a>,
-    format2: ValueFormat,
-    class2_count: u16,
+    /// The matrix of value records, by first and second class.
+    records: ClassValueRecords<'a>,
 }
 
 /// Caches of the coverage index and both classes of a glyph.
@@ -401,17 +487,14 @@ impl<'a> PairPos2<'a> {
                     class2: MappingCache::new(),
                 })
             }),
-            records: ValueRecord {
-                data: table.offset_data(),
-                offset: table.class1_records_byte_range().start,
-                format: table.value_format1(),
-            },
-            format2: table.value_format2(),
-            class2_count: table.class2_count(),
+            records: table.class_value_records(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+    /// Applies, sharing the search for the second glyph with the lookup's
+    /// other subtables.
+    #[inline]
+    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
         let caches = self.caches.as_deref();
         match caches {
@@ -420,7 +503,7 @@ impl<'a> PairPos2<'a> {
             }
             None => self.coverage.get(first)?,
         };
-        let (second_index, buf_idx, second) = find_second_glyph(ctx)?;
+        let (second_index, buf_idx, second) = second.get(ctx)?;
         let class1 = |gid| self.class_def1.get(gid);
         let class2 = |gid| self.class_def2.get(gid);
         let (class1, class2) = match caches {
@@ -430,25 +513,201 @@ impl<'a> PairPos2<'a> {
             ),
             None => (class1(first), class2(second)),
         };
-        let format1_len = self.records.format.record_byte_len();
-        let record_len = format1_len + self.format2.record_byte_len();
-        let offset = self.records.offset
-            + (usize::from(class1) * usize::from(self.class2_count) + usize::from(class2))
-                * record_len;
-        let value1 = ValueRecord {
-            offset,
-            ..self.records
+        let Some([value1, value2]) = self.records.get(class1, class2) else {
+            // A class outside the matrix matches nothing, as in HarfBuzz.
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
+            return None;
         };
-        let value2 = ValueRecord {
-            offset: offset + format1_len,
-            format: self.format2,
-            ..self.records
-        };
-        apply_pair(ctx, second_index, buf_idx, value1, value2)
+        apply_pair(ctx, second_index, buf_idx, &value1, &value2)
     }
 }
 
 impl<'a> SubtableDigests<'a> for PairPos2<'a> {
+    fn coverage(&self) -> &Coverage<'a> {
+        &self.coverage
+    }
+}
+
+/// Whether a pair subtable only adjusts the advance of its first glyph,
+/// which is how kerning is stored.
+fn is_kerning(format1: ValueFormat, format2: ValueFormat) -> bool {
+    format1 == ValueFormat::X_ADVANCE && format2.is_empty()
+}
+
+/// Adds a kerning `value` to the current glyph's advance, then moves on to
+/// the second glyph of the pair.
+#[inline(always)]
+fn apply_kerning(
+    ctx: &mut ApplyContext,
+    second_index: usize,
+    buf_idx: usize,
+    value: i16,
+) -> Option<()> {
+    let x_advance = ctx.scale.scale_x(i32::from(value));
+    let worked = value != 0
+        && ctx.buffer.direction.is_horizontal()
+        && ctx
+            .buffer
+            .pos
+            .get_mut(ctx.buffer.idx)
+            .likely()
+            .map(|pos| pos.x_advance = pos.x_advance.saturating_add(x_advance))
+            .is_some();
+    if worked {
+        ctx.buffer
+            .unsafe_to_break(Some(ctx.buffer.idx), Some(second_index + 1));
+    } else {
+        // Even a zero kern is a hazard: a different second glyph could
+        // select a non-zero one.
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
+    }
+    ctx.buffer.idx = buf_idx;
+    Some(())
+}
+
+/// Kerning by glyph pairs: pair adjustment format 1 whose records hold only
+/// an advance for the first glyph.
+pub(crate) struct PairKern1<'a> {
+    coverage: Coverage<'a>,
+    coverage_cache: Option<Box<MappingCache>>,
+    pair_sets: Offsets<'a>,
+    /// The second glyphs of each pair set.
+    pair_set_digests: Box<[SetDigest]>,
+}
+
+impl<'a> PairKern1<'a> {
+    /// Returns `None` unless the subtable holds only kerning.
+    pub fn new(table: &PairPosFormat1<'a>, with_caches: bool) -> Option<Self> {
+        if !is_kerning(table.value_format1(), table.value_format2()) {
+            return None;
+        }
+        let pairs = PairPos1::new(table, with_caches)?;
+        Some(Self {
+            coverage: pairs.coverage,
+            coverage_cache: pairs.coverage_cache,
+            pair_sets: pairs.pair_sets,
+            pair_set_digests: pairs.pair_set_digests,
+        })
+    }
+
+    #[inline]
+    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
+        let first = ctx.buffer.cur(0)?.as_glyph();
+        let index = match &self.coverage_cache {
+            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), first, cache)?,
+            None => self.coverage.get(first)?,
+        } as usize;
+        let (second_index, buf_idx, second) = second.get(ctx)?;
+        if self
+            .pair_set_digests
+            .get(index)
+            .is_some_and(|digest| !digest.may_have(second.to_u32()))
+        {
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
+            return None;
+        }
+        // Each record is a second glyph in the high half and its kern in
+        // the low half.
+        let data = self.pair_sets.data(index)?;
+        let count = data.read_at::<u16>(0).likely_ok()? as usize;
+        let records: &[BigEndian<u32>] = data.read_array(2..2 + count * 4).ok()?;
+        let second = second.to_u32();
+        if let Ok(found) = records.binary_search_by_key(&second, |record| record.get() >> 16) {
+            let value = records[found].get() as u16 as i16;
+            return apply_kerning(ctx, second_index, buf_idx, value);
+        }
+        // The same hazard the digest reports, found the long way.
+        ctx.buffer
+            .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
+        None
+    }
+}
+
+impl<'a> SubtableDigests<'a> for PairKern1<'a> {
+    fn coverage(&self) -> &Coverage<'a> {
+        &self.coverage
+    }
+
+    fn digest_second(&self) -> SetDigest {
+        let mut seconds = SetDigest::new();
+        for digest in &self.pair_set_digests {
+            seconds.union(digest);
+        }
+        seconds
+    }
+}
+
+/// Kerning by glyph classes: pair adjustment format 2 whose matrix holds
+/// only an advance for the first glyph.
+pub(crate) struct PairKern2<'a> {
+    coverage: Coverage<'a>,
+    class_def1: ClassDef<'a>,
+    class_def2: ClassDef<'a>,
+    caches: Option<Box<PairPos2Caches>>,
+    /// The kern of each first class and second class.
+    matrix: &'a [BigEndian<i16>],
+    class1_count: u16,
+    class2_count: u16,
+}
+
+impl<'a> PairKern2<'a> {
+    /// Returns `None` unless the subtable holds only kerning, in a matrix
+    /// that can be read.
+    pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
+        if !is_kerning(table.value_format1(), table.value_format2()) {
+            return None;
+        }
+        let (class1_count, class2_count) = (table.class1_count(), table.class2_count());
+        let start = table.class1_records_byte_range().start;
+        let len = usize::from(class1_count) * usize::from(class2_count) * 2;
+        let pairs = PairPos2::new(table, with_caches)?;
+        Some(Self {
+            matrix: table.offset_data().read_array(start..start + len).ok()?,
+            coverage: pairs.coverage,
+            class_def1: pairs.class_def1,
+            class_def2: pairs.class_def2,
+            caches: pairs.caches,
+            class1_count,
+            class2_count,
+        })
+    }
+
+    #[inline]
+    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
+        let first = ctx.buffer.cur(0)?.as_glyph();
+        let caches = self.caches.as_deref();
+        match caches {
+            Some(caches) => {
+                coverage_index_cached(|gid| self.coverage.get(gid), first, &caches.coverage)?
+            }
+            None => self.coverage.get(first)?,
+        };
+        let (second_index, buf_idx, second) = second.get(ctx)?;
+        let class1 = |gid| self.class_def1.get(gid);
+        let class2 = |gid| self.class_def2.get(gid);
+        let (class1, class2) = match caches {
+            Some(caches) => (
+                glyph_class_cached(class1, first, &caches.class1),
+                glyph_class_cached(class2, second, &caches.class2),
+            ),
+            None => (class1(first), class2(second)),
+        };
+        if class1 >= self.class1_count || class2 >= self.class2_count {
+            // A class outside the matrix matches nothing, as in HarfBuzz.
+            ctx.buffer
+                .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
+            return None;
+        }
+        let index = usize::from(class1) * usize::from(self.class2_count) + usize::from(class2);
+        let value = self.matrix.get(index)?.get();
+        apply_kerning(ctx, second_index, buf_idx, value)
+    }
+}
+
+impl<'a> SubtableDigests<'a> for PairKern2<'a> {
     fn coverage(&self) -> &Coverage<'a> {
         &self.coverage
     }

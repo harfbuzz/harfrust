@@ -21,6 +21,7 @@ use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
 use alloc::{sync::Arc, vec::Vec};
 use coverage::Coverage;
+use gpos::{Search, SecondGlyph};
 use read_fonts::model::Tables;
 use read_fonts::types::{BigEndian, GlyphId, Nullable, Offset16, Scalar};
 use read_fonts::{FontData, FontRead};
@@ -51,35 +52,26 @@ pub(crate) struct CachedLookup<'a> {
     pub digest_second: SetDigest,
     /// The subtable that uses the buffer's glyph-info cache, if any.
     hot_subtable: Option<usize>,
+    /// Whether the hot subtable keeps glyph classes in the glyph-info cache.
+    uses_class_cache: bool,
+    /// Applies the subtables in turn, chosen for their number and kinds.
+    walk: WalkFn,
     subtables: Vec<CachedSubtable<'a>>,
 }
+
+/// Applies the subtables of a lookup until one applies.
+type WalkFn = fn(&CachedLookup, &mut ApplyContext, bool) -> Option<()>;
 
 impl CachedLookup<'_> {
     #[inline]
     pub(crate) fn apply(&self, ctx: &mut ApplyContext, use_hot_subtable_cache: bool) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.glyph_id;
-        if let [subtable] = self.subtables.as_slice() {
-            // The lookup digest equals this subtable's digest, which the
-            // caller has already tested.
-            let is_cached = use_hot_subtable_cache && self.hot_subtable == Some(0);
-            return subtable.apply(ctx, is_cached);
-        }
-        for (index, subtable) in self.subtables.iter().enumerate() {
-            if !subtable.digest.may_have(glyph) {
-                continue;
-            }
-            let is_cached = use_hot_subtable_cache && self.hot_subtable == Some(index);
-            if subtable.apply(ctx, is_cached).is_some() {
-                return Some(());
-            }
-        }
-        None
+        (self.walk)(self, ctx, use_hot_subtable_cache)
     }
 
     /// Prepares the glyph-info class cache for the hot subtable, returning
     /// true if it is in use.
     pub(crate) fn cache_enter(&self, ctx: &mut ApplyContext) -> bool {
-        if !self.uses_class_cache() || !ctx.buffer.try_allocate_var(GlyphInfo::SYLLABLE_VAR) {
+        if !self.uses_class_cache || !ctx.buffer.try_allocate_var(GlyphInfo::SYLLABLE_VAR) {
             return false;
         }
         for info in &mut ctx.buffer.info {
@@ -90,21 +82,10 @@ impl CachedLookup<'_> {
     }
 
     pub(crate) fn cache_leave(&self, ctx: &mut ApplyContext) {
-        if self.uses_class_cache() {
+        if self.uses_class_cache {
             ctx.new_syllables = None;
             ctx.buffer.deallocate_var(GlyphInfo::SYLLABLE_VAR);
         }
-    }
-
-    fn uses_class_cache(&self) -> bool {
-        self.hot_subtable
-            .and_then(|index| self.subtables.get(index))
-            .is_some_and(|subtable| {
-                matches!(
-                    subtable.kind,
-                    CachedSubtableKind::Context2(_) | CachedSubtableKind::ChainContext2(_)
-                )
-            })
     }
 
     pub fn would_apply(&self, ctx: &WouldApplyContext) -> Option<bool> {
@@ -121,37 +102,157 @@ impl CachedLookup<'_> {
     }
 }
 
+/// Applies a lookup's only subtable. Its digest equals the lookup's,
+/// which the caller has already tested.
+fn walk_single(
+    lookup: &CachedLookup,
+    ctx: &mut ApplyContext,
+    use_hot_subtable_cache: bool,
+) -> Option<()> {
+    let subtable = lookup.subtables.first()?;
+    let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(0);
+    subtable.apply(ctx, is_cached)
+}
+
+/// Applies subtables in turn.
+fn walk_each(
+    lookup: &CachedLookup,
+    ctx: &mut ApplyContext,
+    use_hot_subtable_cache: bool,
+) -> Option<()> {
+    let glyph = ctx.buffer.cur(0)?.glyph_id;
+    for (index, subtable) in lookup.subtables.iter().enumerate() {
+        if !subtable.digest.may_have(glyph) {
+            continue;
+        }
+        let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(index);
+        if subtable.apply(ctx, is_cached).is_some() {
+            return Some(());
+        }
+    }
+    None
+}
+
+/// Applies subtables that adjust pairs, searching for the second glyph
+/// of the pair at most once for all of them.
+fn walk_sharing_second_glyph(lookup: &CachedLookup, ctx: &mut ApplyContext, _: bool) -> Option<()> {
+    let glyph = ctx.buffer.cur(0)?.glyph_id;
+    let mut second = SecondGlyph::Unknown;
+    for subtable in &lookup.subtables {
+        if subtable.digest.may_have(glyph)
+            && (subtable.apply_sharing)(&subtable.kind, ctx, &mut second).is_some()
+        {
+            return Some(());
+        }
+    }
+    None
+}
+
 /// A parsed subtable and the functions that apply it.
 pub(crate) struct CachedSubtable<'a> {
     kind: CachedSubtableKind<'a>,
     /// The glyphs the subtable may apply to.
     digest: SetDigest,
     /// Applies `kind` without and with the glyph-info class cache.
-    apply_fns: [ApplyFn; 2],
+    apply: [ApplyFn; 2],
+    apply_sharing: ApplySharingFn,
+}
+
+impl CachedSubtable<'_> {
+    #[inline]
+    pub(crate) fn apply(&self, ctx: &mut ApplyContext, is_cached: bool) -> Option<()> {
+        self.apply[is_cached as usize](&self.kind, ctx)
+    }
 }
 
 /// Applies a subtable of one kind, returning `None` for any other kind.
 type ApplyFn = fn(&CachedSubtableKind, &mut ApplyContext) -> Option<()>;
 
-impl CachedSubtable<'_> {
-    #[inline]
-    pub(crate) fn apply(&self, ctx: &mut ApplyContext, is_cached: bool) -> Option<()> {
-        self.apply_fns[is_cached as usize](&self.kind, ctx)
-    }
+/// Applies a subtable of one kind, sharing the search for a pair's second
+/// glyph with the other subtables of its lookup.
+type ApplySharingFn = fn(&CachedSubtableKind, &mut ApplyContext, &mut SecondGlyph) -> Option<()>;
+
+/// How a kind of subtable applies.
+struct KindFns {
+    /// Applies without and with the glyph-info class cache.
+    apply: [ApplyFn; 2],
+    apply_sharing: ApplySharingFn,
+    /// Whether the kind adjusts pairs and uses the shared second glyph.
+    shares_second_glyph: bool,
 }
 
 /// The derived data of one kind of subtable.
 trait IntoKind<'a>: Sized {
-    /// Applies the kind, without and with the glyph-info class cache.
-    const APPLY_FNS: [ApplyFn; 2];
+    const FNS: &'static KindFns;
 
     fn into_kind(self) -> CachedSubtableKind<'a>;
 }
 
-/// Declares the subtable kinds: the data each holds and the methods that
-/// apply it without and with the glyph-info class cache.
+/// The functions of a kind that applies plainly, adjusts pairs, or keeps
+/// classes in the glyph-info cache.
+macro_rules! kind_fns {
+    ($kind:ident) => {
+        &KindFns {
+            apply: [
+                |kind, ctx| match kind {
+                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                    _ => None,
+                },
+                |kind, ctx| match kind {
+                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                    _ => None,
+                },
+            ],
+            apply_sharing: |kind, ctx, _| match kind {
+                CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                _ => None,
+            },
+            shares_second_glyph: false,
+        }
+    };
+    ($kind:ident adjusts_pairs) => {
+        &KindFns {
+            apply: [
+                |kind, ctx| match kind {
+                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx, &mut Search),
+                    _ => None,
+                },
+                |kind, ctx| match kind {
+                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx, &mut Search),
+                    _ => None,
+                },
+            ],
+            apply_sharing: |kind, ctx, second| match kind {
+                CachedSubtableKind::$kind(subtable) => subtable.apply(ctx, second),
+                _ => None,
+            },
+            shares_second_glyph: true,
+        }
+    };
+    ($kind:ident uses_class_cache) => {
+        &KindFns {
+            apply: [
+                |kind, ctx| match kind {
+                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                    _ => None,
+                },
+                |kind, ctx| match kind {
+                    CachedSubtableKind::$kind(subtable) => subtable.apply_with_class_cache(ctx),
+                    _ => None,
+                },
+            ],
+            apply_sharing: |kind, ctx, _| match kind {
+                CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                _ => None,
+            },
+            shares_second_glyph: false,
+        }
+    };
+}
+
+/// Declares the subtable kinds, the data each holds, and how it applies.
 macro_rules! subtable_kinds {
-    ($($kind:ident($data:ty) => $apply:ident, $apply_cached:ident;)*) => {
+    ($($kind:ident($data:ty) $($how:ident)?;)*) => {
         /// A parsed subtable with the data derived from it.
         pub(crate) enum CachedSubtableKind<'a> {
             $($kind($data),)*
@@ -159,16 +260,7 @@ macro_rules! subtable_kinds {
 
         $(
             impl<'a> IntoKind<'a> for $data {
-                const APPLY_FNS: [ApplyFn; 2] = [
-                    |kind, ctx| match kind {
-                        CachedSubtableKind::$kind(subtable) => subtable.$apply(ctx),
-                        _ => None,
-                    },
-                    |kind, ctx| match kind {
-                        CachedSubtableKind::$kind(subtable) => subtable.$apply_cached(ctx),
-                        _ => None,
-                    },
-                ];
+                const FNS: &'static KindFns = kind_fns!($kind $($how)?);
 
                 fn into_kind(self) -> CachedSubtableKind<'a> {
                     CachedSubtableKind::$kind(self)
@@ -179,26 +271,28 @@ macro_rules! subtable_kinds {
 }
 
 subtable_kinds! {
-    SingleSubst1(gsub::SingleSubst1<'a>) => apply, apply;
-    SingleSubst2(gsub::SingleSubst2<'a>) => apply, apply;
-    MultipleSubst1(gsub::MultipleSubst1<'a>) => apply, apply;
-    AlternateSubst1(gsub::AlternateSubst1<'a>) => apply, apply;
-    LigatureSubst1(gsub::LigatureSubst1<'a>) => apply, apply;
-    ReverseChainSubst1(gsub::ReverseChainSubst1<'a>) => apply, apply;
-    SinglePos1(gpos::SinglePos1<'a>) => apply, apply;
-    SinglePos2(gpos::SinglePos2<'a>) => apply, apply;
-    PairPos1(gpos::PairPos1<'a>) => apply, apply;
-    PairPos2(gpos::PairPos2<'a>) => apply, apply;
-    CursivePos1(gpos::CursivePos1<'a>) => apply, apply;
-    MarkBasePos1(gpos::MarkBasePos1<'a>) => apply, apply;
-    MarkLigPos1(gpos::MarkLigPos1<'a>) => apply, apply;
-    MarkMarkPos1(gpos::MarkMarkPos1<'a>) => apply, apply;
-    Context1(context::Context1<'a>) => apply, apply;
-    Context2(context::Context2<'a>) => apply, apply_with_class_cache;
-    Context3(context::Context3<'a>) => apply, apply;
-    ChainContext1(context::ChainContext1<'a>) => apply, apply;
-    ChainContext2(context::ChainContext2<'a>) => apply, apply_with_class_cache;
-    ChainContext3(context::ChainContext3<'a>) => apply, apply;
+    SingleSubst1(gsub::SingleSubst1<'a>);
+    SingleSubst2(gsub::SingleSubst2<'a>);
+    MultipleSubst1(gsub::MultipleSubst1<'a>);
+    AlternateSubst1(gsub::AlternateSubst1<'a>);
+    LigatureSubst1(gsub::LigatureSubst1<'a>);
+    ReverseChainSubst1(gsub::ReverseChainSubst1<'a>);
+    SinglePos1(gpos::SinglePos1<'a>);
+    SinglePos2(gpos::SinglePos2<'a>);
+    PairPos1(gpos::PairPos1<'a>) adjusts_pairs;
+    PairPos2(gpos::PairPos2<'a>) adjusts_pairs;
+    PairKern1(gpos::PairKern1<'a>) adjusts_pairs;
+    PairKern2(gpos::PairKern2<'a>) adjusts_pairs;
+    CursivePos1(gpos::CursivePos1<'a>);
+    MarkBasePos1(gpos::MarkBasePos1<'a>);
+    MarkLigPos1(gpos::MarkLigPos1<'a>);
+    MarkMarkPos1(gpos::MarkMarkPos1<'a>);
+    Context1(context::Context1<'a>);
+    Context2(context::Context2<'a>) uses_class_cache;
+    Context3(context::Context3<'a>);
+    ChainContext1(context::ChainContext1<'a>);
+    ChainContext2(context::ChainContext2<'a>) uses_class_cache;
+    ChainContext3(context::ChainContext3<'a>);
 }
 
 impl CachedSubtableKind<'_> {

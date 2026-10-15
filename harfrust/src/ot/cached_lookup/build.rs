@@ -62,9 +62,12 @@ fn build_lookup_at(
         digest: SetDigest::new(),
         digest_second: SetDigest::new(),
         hot_subtable: None,
+        uses_class_cache: false,
+        walk: super::walk_each,
         subtables: Vec::with_capacity(lookup.sub_table_count() as usize),
     };
     let mut hot_cost = 0;
+    let mut all_share_second_glyph = true;
     for (index, subtable_offset) in lookup.subtable_offsets().iter().enumerate() {
         let source = Source {
             table_data,
@@ -75,6 +78,7 @@ fn build_lookup_at(
         let Some(built) = source.build(lookup_type) else {
             continue;
         };
+        all_share_second_glyph &= built.shares_second_glyph;
         cached.digest.union(&built.subtable.digest);
         cached.digest_second.union(&built.digest_second);
         if built.cache_cost > hot_cost {
@@ -84,6 +88,13 @@ fn build_lookup_at(
         cached.subtables.push(built.subtable);
     }
     cached.subtables.shrink_to_fit();
+    // Only the class-based contexts report a cost, and they cache classes.
+    cached.uses_class_cache = cached.hot_subtable.is_some();
+    cached.walk = match cached.subtables.len() {
+        1 => super::walk_single,
+        _ if all_share_second_glyph => super::walk_sharing_second_glyph,
+        _ => super::walk_each,
+    };
     Some(cached)
 }
 
@@ -110,6 +121,8 @@ struct BuiltSubtable<'a> {
     subtable: CachedSubtable<'a>,
     digest_second: SetDigest,
     cache_cost: u32,
+    /// Whether the subtable adjusts pairs and shares the second glyph.
+    shares_second_glyph: bool,
 }
 
 fn finish<'a, T: IntoKind<'a> + SubtableDigests<'a>>(data: T) -> BuiltSubtable<'a> {
@@ -120,8 +133,10 @@ fn finish<'a, T: IntoKind<'a> + SubtableDigests<'a>>(data: T) -> BuiltSubtable<'
         subtable: CachedSubtable {
             kind: data.into_kind(),
             digest,
-            apply_fns: T::APPLY_FNS,
+            apply: T::FNS.apply,
+            apply_sharing: T::FNS.apply_sharing,
         },
+        shares_second_glyph: T::FNS.shares_second_glyph,
         digest_second,
         cache_cost,
     }
@@ -154,8 +169,14 @@ impl<'a> Source<'a> {
                 SinglePos::Format2(t) => finish(gpos::SinglePos2::new(&t)?),
             },
             (false, 2) => match PairPos::read(data).ok()? {
-                PairPos::Format1(t) => finish(gpos::PairPos1::new(&t, caches)?),
-                PairPos::Format2(t) => finish(gpos::PairPos2::new(&t, caches)?),
+                PairPos::Format1(t) => match gpos::PairKern1::new(&t, caches) {
+                    Some(kern) => finish(kern),
+                    None => finish(gpos::PairPos1::new(&t, caches)?),
+                },
+                PairPos::Format2(t) => match gpos::PairKern2::new(&t, caches) {
+                    Some(kern) => finish(kern),
+                    None => finish(gpos::PairPos2::new(&t, caches)?),
+                },
             },
             (false, 3) => finish(gpos::CursivePos1::new(&read(data)?)?),
             (false, 4) => finish(gpos::MarkBasePos1::new(&read(data)?)?),
