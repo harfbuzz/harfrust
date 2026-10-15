@@ -89,8 +89,18 @@ impl<'a> Coverage<'a> {
                     .checked_add(gid.to_u16() - range.start_glyph_id().to_u16())
                     .map(u32::from)
             }
+            Self::Glyphs24(_) | Self::Ranges24(_) => self.get_wide(gid),
+        }
+    }
+
+    // The 24-bit formats share one call, which keeps the inlined lookups
+    // of the original formats as small as they were.
+    #[inline(never)]
+    fn get_wide(&self, gid: GlyphId) -> Option<u32> {
+        match self {
             Self::Glyphs24(glyphs) => glyphs24_index(glyphs, gid),
             Self::Ranges24(ranges) => ranges24_index(ranges, gid),
+            _ => None,
         }
     }
 
@@ -131,10 +141,6 @@ impl<'a> Coverage<'a> {
     }
 }
 
-// The 24-bit searches stay out of line, keeping them out of the inlined
-// lookups of the original formats.
-
-#[inline(never)]
 fn glyphs24_index(glyphs: &[BigEndian<GlyphId24>], gid: GlyphId) -> Option<u32> {
     let gid = GlyphId24::checked_new(gid.to_u32())?;
     glyphs
@@ -143,7 +149,6 @@ fn glyphs24_index(glyphs: &[BigEndian<GlyphId24>], gid: GlyphId) -> Option<u32> 
         .map(|index| index as u32)
 }
 
-#[inline(never)]
 fn ranges24_index(ranges: &[RangeRecord2], gid: GlyphId) -> Option<u32> {
     let gid = gid.to_u32();
     let range = find_range(ranges, gid, |r| {
@@ -214,8 +219,16 @@ impl<'a> ClassDef<'a> {
                 .ok()
                 .and_then(|gid| find_range(ranges, gid, |r| (r.start_glyph_id(), r.end_glyph_id())))
                 .map_or(0, |range| range.class().into()),
+            Self::Array24 { .. } | Self::Ranges24(_) => self.get_wide(gid),
+        }
+    }
+
+    #[inline(never)]
+    fn get_wide(&self, gid: GlyphId) -> u32 {
+        match self {
             Self::Array24 { start, classes } => array24_class(*start, classes, gid),
             Self::Ranges24(ranges) => ranges24_class(ranges, gid),
+            _ => 0,
         }
     }
 
@@ -278,7 +291,6 @@ impl<'a> ClassDef<'a> {
     }
 }
 
-#[inline(never)]
 fn array24_class(start: u32, classes: &[BigEndian<Uint24>], gid: GlyphId) -> u32 {
     gid.to_u32()
         .checked_sub(start)
@@ -286,7 +298,6 @@ fn array24_class(start: u32, classes: &[BigEndian<Uint24>], gid: GlyphId) -> u32
         .map_or(0, |class| class.get().to_u32())
 }
 
-#[inline(never)]
 fn ranges24_class(ranges: &[ClassRangeRecord2], gid: GlyphId) -> u32 {
     let gid = gid.to_u32();
     find_range(ranges, gid, |r| {
