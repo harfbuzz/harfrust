@@ -404,10 +404,8 @@ impl IndicWouldSubstituteFeature {
                 zero_context: self.zero_context,
             };
             if ot
-                .gsub
-                .as_ref()
-                .and_then(|table| table.get_lookup(lookup.index))
-                .is_some_and(|lookup| lookup.would_apply(ot, &ctx) == Some(true))
+                .lookup(LayoutTableKind::Gsub, lookup.index)
+                .is_some_and(|lookup| lookup.would_apply(&ctx) == Some(true))
             {
                 return true;
             }

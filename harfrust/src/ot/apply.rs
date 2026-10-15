@@ -5,14 +5,11 @@ use super::buffer::{Buffer, GlyphPropsFlags};
 use super::cache::Cache;
 use super::layout::*;
 use super::lookup_flags;
-use super::set_digest::SetDigest;
 use super::Mask;
 use super::OtData;
 use crate::hint::Likely;
-use crate::ot::{ClassDefInfo, CoverageInfo};
 use crate::unicode::GeneralCategory;
 use crate::Scale;
-use alloc::boxed::Box;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
@@ -685,12 +682,6 @@ pub(crate) fn apply_lookup(
     ctx.buffer.move_to(end.try_into().unwrap());
 }
 
-/// Find out whether a lookup would be applied.
-pub trait WouldApply {
-    /// Whether the lookup would be applied.
-    fn would_apply(&self, ctx: &WouldApplyContext) -> bool;
-}
-
 // HB uses a cache size of 128 here; we double it to reduce collisions
 // since our lookup is slower.
 pub(crate) type MappingCache = Cache<
@@ -699,103 +690,6 @@ pub(crate) type MappingCache = Cache<
     256, // CACHE_SIZE
     16,  // STORAGE_BITS
 >;
-
-pub(crate) type BinaryCache = Cache<
-    15,  // KEY_BITS
-    1,   // VALUE_BITS
-    256, // CACHE_SIZE
-    8,   // STORAGE_BITS
->;
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub(crate) enum SubtableExternalCacheMode {
-    #[allow(unused)]
-    None,
-    Small,
-    Full,
-}
-
-pub(crate) struct LigatureSubstFormat1Cache {
-    pub seconds: SetDigest,
-    pub coverage: MappingCache,
-}
-
-impl LigatureSubstFormat1Cache {
-    pub fn new(seconds: SetDigest) -> Self {
-        LigatureSubstFormat1Cache {
-            coverage: MappingCache::new(),
-            seconds,
-        }
-    }
-}
-
-pub(crate) struct LigatureSubstFormat1SmallCache {
-    pub coverage: CoverageInfo,
-    pub seconds: SetDigest,
-}
-
-pub(crate) struct PairPosFormat1Cache {
-    pub coverage: MappingCache,
-    pub pair_sets: Box<[SetDigest]>,
-}
-
-impl PairPosFormat1Cache {
-    pub fn new(pair_sets: Box<[SetDigest]>) -> Self {
-        PairPosFormat1Cache {
-            coverage: MappingCache::new(),
-            pair_sets,
-        }
-    }
-}
-
-pub(crate) struct PairPosFormat1SmallCache {
-    pub coverage: CoverageInfo,
-    pub pair_sets: Box<[SetDigest]>,
-}
-
-pub(crate) struct PairPosFormat2Cache {
-    pub coverage: MappingCache,
-    pub first: MappingCache,
-    pub second: MappingCache,
-}
-
-impl PairPosFormat2Cache {
-    pub fn new() -> Self {
-        PairPosFormat2Cache {
-            coverage: MappingCache::new(),
-            first: MappingCache::new(),
-            second: MappingCache::new(),
-        }
-    }
-}
-
-pub(crate) struct PairPosFormat2SmallCache {
-    pub coverage: CoverageInfo,
-    pub first: ClassDefInfo,
-    pub second: ClassDefInfo,
-}
-
-pub(crate) struct ContextFormat2Cache {
-    pub coverage: CoverageInfo,
-    pub input: ClassDefInfo,
-    pub coverage_cache: BinaryCache,
-    pub rule_sets: Box<[RuleSetDigest]>,
-}
-
-pub(crate) struct ChainContextFormat2Cache {
-    pub coverage: CoverageInfo,
-    pub backtrack: ClassDefInfo,
-    pub input: ClassDefInfo,
-    pub lookahead: ClassDefInfo,
-    pub coverage_cache: BinaryCache,
-    pub class_caches: Option<Box<ChainContextClassCaches>>,
-    pub rule_sets: Box<[RuleSetDigest]>,
-}
-
-pub(crate) struct ChainContextClassCaches {
-    pub input: MappingCache,
-    pub lookahead: MappingCache,
-}
 
 #[derive(Copy, Clone, Default)]
 // One word per rule set; collisions only admit extra work.
@@ -816,60 +710,6 @@ impl RuleSetDigest {
 
     pub fn may_have(self, value: u16) -> bool {
         self.0 & (1 << (value & 63)) != 0
-    }
-}
-
-pub(crate) enum SubtableExternalCache {
-    None,
-    LigatureSubstFormat1Cache(Box<LigatureSubstFormat1Cache>),
-    LigatureSubstFormat1SmallCache(LigatureSubstFormat1SmallCache),
-    PairPosFormat1Cache(Box<PairPosFormat1Cache>),
-    PairPosFormat1SmallCache(PairPosFormat1SmallCache),
-    PairPosFormat2Cache(Box<PairPosFormat2Cache>),
-    PairPosFormat2SmallCache(PairPosFormat2SmallCache),
-    ContextFormat2Cache(Box<ContextFormat2Cache>),
-    ChainContextFormat2Cache(Box<ChainContextFormat2Cache>),
-}
-
-/// Apply a lookup.
-pub trait Apply {
-    fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        // Default implementation just calls `apply_with_external_cache`.
-        self.apply_with_external_cache(ctx, &SubtableExternalCache::None)
-    }
-
-    // The rest are relevant to subtables only
-
-    fn apply_with_external_cache(
-        &self,
-        ctx: &mut ApplyContext,
-        _external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        // Default implementation just calls `apply`.
-        self.apply(ctx)
-    }
-
-    fn apply_cached(
-        &self,
-        ctx: &mut ApplyContext,
-        external_cache: &SubtableExternalCache,
-    ) -> Option<()> {
-        // Default implementation just calls `apply_with_external_cache`.
-        // This is used to apply the lookup with glyph-info caching.
-        self.apply_with_external_cache(ctx, external_cache)
-    }
-
-    fn cache_cost(&self) -> u32 {
-        // Default implementation returns 0, meaning no cache cost.
-        // This is used to determine the cost of caching the subtable.
-        0
-    }
-
-    fn external_cache_create(&self, mode: SubtableExternalCacheMode) -> SubtableExternalCache {
-        // Default implementation returns None, meaning no external cache.
-        // This is used to create an external cache for the subtable.
-        let _ = mode;
-        SubtableExternalCache::None
     }
 }
 
@@ -1033,11 +873,11 @@ impl<'a> ApplyContext<'a> {
         let applied = self
             .layout
             .ot
-            .table_data_and_lookup(self.table_index, sub_lookup_index)
-            .and_then(|(table_data, lookup)| {
+            .lookup(self.table_index, sub_lookup_index)
+            .and_then(|lookup| {
                 self.lookup_props = lookup.props();
                 self.update_matchers();
-                lookup.apply(self, table_data, false)
+                lookup.apply(self, false)
             });
         self.lookup_props = saved_props;
         self.lookup_index = saved_index;

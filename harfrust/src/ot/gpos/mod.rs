@@ -1,11 +1,5 @@
 //! OpenType GPOS lookups.
 
-mod cursive;
-mod mark;
-mod pair;
-mod single;
-mod value;
-
 use crate::buffer::*;
 use crate::hint::Likely;
 use crate::ot::layout::*;
@@ -14,7 +8,7 @@ use crate::Direction;
 use crate::ShaperFont;
 
 pub fn position(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
-    let table = font.layout().ot.gpos.clone();
+    let table = font.layout().ot.gpos();
     apply_layout_table(plan, font, buffer, table.as_ref());
 }
 

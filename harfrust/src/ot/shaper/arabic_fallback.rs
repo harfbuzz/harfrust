@@ -2,7 +2,7 @@ use super::arabic_table::{LIGATURE_3_TABLE, LIGATURE_MARK_TABLE, LIGATURE_TABLE,
 use crate::buffer::Buffer;
 use crate::ot::apply::ApplyContext;
 use crate::ot::layout::{apply_synthesized_subst_lookup, LayoutTableKind};
-use crate::ot::lookup::LookupInfo;
+use crate::ot::lookup::{cache_synthesized_subst, CachedLookupRef};
 use crate::ot::lookup_flags;
 use crate::plan::ShapePlan;
 use crate::ShaperFont;
@@ -123,14 +123,13 @@ pub(crate) struct FallbackPlan {
 
 struct FallbackLookup {
     mask: Mask,
-    data: Vec<u8>,
-    info: LookupInfo,
+    lookup: CachedLookupRef,
 }
 
 impl FallbackLookup {
     fn new(mask: Mask, data: Vec<u8>) -> Option<Self> {
-        let info = LookupInfo::new_subst(&data)?;
-        Some(Self { mask, data, info })
+        let lookup = cache_synthesized_subst(data)?;
+        Some(Self { mask, lookup })
     }
 }
 
@@ -214,7 +213,7 @@ impl FallbackPlan {
         let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout(), font.scale, buffer);
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
-            apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);
+            apply_synthesized_subst_lookup(&mut ctx, lookup.lookup.get());
         }
     }
 }
@@ -458,7 +457,7 @@ mod tests {
                 0, 1, 0, 2, 0, 3, 0, 7, // CoverageFormat1
             ]
         );
-        assert!(LookupInfo::new_subst(&data).is_some());
+        assert!(cache_synthesized_subst(data).is_some());
     }
 
     #[test]
@@ -468,7 +467,7 @@ mod tests {
             lookup_flags::IGNORE_MARKS,
         )
         .unwrap();
-        assert!(LookupInfo::new_subst(&data).is_some());
+        assert!(cache_synthesized_subst(data).is_some());
     }
 
     #[test]
@@ -490,11 +489,11 @@ mod tests {
     fn serializes_win1256_fallback_lookups() {
         let single =
             serialize_single_lookup(WIN1256_MEDI_MAPPINGS, lookup_flags::IGNORE_MARKS).unwrap();
-        assert!(LookupInfo::new_subst(&single).is_some());
+        assert!(cache_synthesized_subst(single).is_some());
 
         let ligature =
             serialize_ligature_lookup(WIN1256_LAM_ALEF_LIGATURES, lookup_flags::IGNORE_MARKS)
                 .unwrap();
-        assert!(LookupInfo::new_subst(&ligature).is_some());
+        assert!(cache_synthesized_subst(ligature).is_some());
     }
 }

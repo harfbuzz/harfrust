@@ -8,7 +8,7 @@ use super::set_digest::SetDigest;
 use super::GlyphInfo;
 use crate::aat::AatData;
 use crate::ot::apply::check_glyph_property;
-use crate::ot::lookup::LookupInfo;
+use crate::ot::lookup::CachedLookup;
 use crate::ot::OtData;
 use crate::plan::ShapePlan;
 use crate::unicode::{space_fallback, GeneralCategory};
@@ -138,7 +138,7 @@ pub trait LayoutTable {
     const IN_PLACE: bool;
 
     /// Get the lookup at the specified index.
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo>;
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>>;
 }
 
 /// Called before substitution lookups are performed, to ensure that glyph
@@ -201,7 +201,7 @@ pub fn apply_layout_table<T: LayoutTable>(
     }
 }
 
-fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
+fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -229,15 +229,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
     }
 }
 
-fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
-    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
-        return false;
-    };
-
-    apply_forward_with_data(ctx, lookup, table_data)
-}
-
-fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_data: &[u8]) -> bool {
+fn apply_forward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let mut ret = false;
 
     let use_hot_subtable_cache = lookup.cache_enter(ctx);
@@ -271,10 +263,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
             break;
         }
 
-        if lookup
-            .apply(ctx, table_data, use_hot_subtable_cache)
-            .is_some()
-        {
+        if lookup.apply(ctx, use_hot_subtable_cache).is_some() {
             ret = true;
         } else {
             ctx.buffer.next_glyph();
@@ -288,11 +277,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
     ret
 }
 
-pub(crate) fn apply_synthesized_subst_lookup(
-    ctx: &mut ApplyContext,
-    lookup: &LookupInfo,
-    table_data: &[u8],
-) {
+pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -303,15 +288,12 @@ pub(crate) fn apply_synthesized_subst_lookup(
     ctx.update_matchers();
     ctx.buffer.clear_output();
     ctx.buffer.idx = 0;
-    apply_forward_with_data(ctx, lookup, table_data);
+    apply_forward(ctx, lookup);
     ctx.buffer.sync();
 }
 
-fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
+fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let mut ret = false;
-    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
-        return false;
-    };
     // Loop-invariant hoisting as in apply_forward; reverse lookups don't
     // recurse, and in-place application cannot change the buffer length.
     let ot = ctx.layout.ot;
@@ -337,7 +319,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
         };
 
         ctx.buffer.idx = idx;
-        ret |= lookup.apply(ctx, table_data, false).is_some();
+        ret |= lookup.apply(ctx, false).is_some();
 
         if idx == 0 {
             break;
