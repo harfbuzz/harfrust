@@ -198,6 +198,7 @@ impl<'a> SubtableDigests<'a> for SinglePos1<'a> {}
 pub(crate) struct SinglePos2<'a> {
     /// The first value record.
     values: ValueRecord<'a>,
+    count: u32,
 }
 
 impl<'a> SinglePos2<'a> {
@@ -208,6 +209,7 @@ impl<'a> SinglePos2<'a> {
                 table.value_records_byte_range().start,
                 table.value_format(),
             ),
+            count: table.value_count().into(),
         })
     }
 
@@ -218,10 +220,15 @@ impl<'a> SinglePos2<'a> {
                 table.value_records_byte_range().start,
                 table.value_format(),
             ),
+            count: table.value_count().to_u32(),
         })
     }
 
     pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        // A glyph covered past the end of the values has none.
+        if index >= self.count {
+            return None;
+        }
         let values = &self.values;
         let value = ValueRecord::new(
             values.offset_data(),
@@ -614,7 +621,7 @@ impl<'a> PairPos2<'a> {
             class_def1: pairs.class_def1,
             class_def2: pairs.class_def2,
             caches: pair_caches(with_caches),
-            records: pairs.records.clone(),
+            records: pairs.records,
         })
     }
 
