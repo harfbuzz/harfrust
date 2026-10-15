@@ -250,10 +250,21 @@ impl CachedSubtable<'_> {
     /// The coverage index of the glyph a match would start at.
     #[inline(always)]
     fn coverage_index(&self, glyph: u32) -> Option<u32> {
-        match &self.coverage_cache {
-            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), glyph.into(), cache),
-            None => self.coverage.get(glyph),
+        let Some(cache) = &self.coverage_cache else {
+            return self.coverage.get(glyph);
+        };
+        match cache.get(glyph) {
+            Some(MappingCache::MAX_VALUE) => None,
+            Some(index) => Some(index),
+            None => self.coverage_index_uncached(glyph, cache),
         }
+    }
+
+    /// Looks up a glyph the cache doesn't hold, and remembers it. Kept out
+    /// of line so the walks inline only the cache hit.
+    #[inline(never)]
+    fn coverage_index_uncached(&self, glyph: u32, cache: &MappingCache) -> Option<u32> {
+        coverage_index_cached(|gid| self.coverage.get(gid), glyph.into(), cache)
     }
 }
 
@@ -623,16 +634,18 @@ fn coverage_index_cached(
 
 /// Returns the class of `gid`, remembering it in `cache`.
 #[inline(always)]
-fn glyph_class_cached(
-    class_def: impl Fn(GlyphId) -> u32,
-    gid: GlyphId,
-    cache: &MappingCache,
-) -> u32 {
-    if let Some(class) = cache.get(gid.into()) {
-        class
-    } else {
-        let class = class_def(gid);
-        cache.set(gid.into(), class);
-        class
+fn glyph_class_cached(class_def: &ClassDef, gid: GlyphId, cache: &MappingCache) -> u32 {
+    match cache.get(gid.into()) {
+        Some(class) => class,
+        None => glyph_class_uncached(class_def, gid, cache),
     }
+}
+
+/// Looks up a class the cache doesn't hold, and remembers it. Kept out of
+/// line so callers inline only the cache hit.
+#[inline(never)]
+fn glyph_class_uncached(class_def: &ClassDef, gid: GlyphId, cache: &MappingCache) -> u32 {
+    let class = class_def.get(gid);
+    cache.set(gid.into(), class);
+    class
 }

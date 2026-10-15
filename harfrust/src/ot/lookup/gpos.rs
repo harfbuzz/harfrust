@@ -589,14 +589,12 @@ fn pair_classes(
     first: GlyphId,
     second: GlyphId,
 ) -> (u32, u32) {
-    let class1 = |gid| class_def1.get(gid);
-    let class2 = |gid| class_def2.get(gid);
     match caches {
         Some(caches) => (
-            glyph_class_cached(class1, first, &caches.class1),
-            glyph_class_cached(class2, second, &caches.class2),
+            glyph_class_cached(class_def1, first, &caches.class1),
+            glyph_class_cached(class_def2, second, &caches.class2),
         ),
-        None => (class1(first), class2(second)),
+        None => (class_def1.get(first), class_def2.get(second)),
     }
 }
 

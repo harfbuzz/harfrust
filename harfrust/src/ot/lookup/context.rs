@@ -69,7 +69,7 @@ impl RuleLayout {
 /// The class of `gid`, remembered in `cache` if there is one.
 fn cached_class(class_def: &ClassDef, gid: GlyphId, cache: Option<&MappingCache>) -> u32 {
     match cache {
-        Some(cache) => glyph_class_cached(|gid| class_def.get(gid), gid, cache),
+        Some(cache) => glyph_class_cached(class_def, gid, cache),
         None => class_def.get(gid),
     }
 }
