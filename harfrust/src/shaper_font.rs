@@ -740,7 +740,7 @@ mod tests {
 
         assert!(ot_data.gsub.is_some());
         assert!(ot_data.gpos.is_some());
-        assert!(ot_data.gdef.table.is_some());
+        assert!(ot_data.has_glyph_classes());
         assert!(aat_data.morx.is_none());
         assert!(aat_data.mort.is_none());
         assert!(aat_data.ankr.is_none());

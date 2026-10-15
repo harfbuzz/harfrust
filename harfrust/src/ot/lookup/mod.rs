@@ -21,7 +21,7 @@ use crate::once::Once;
 use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use coverage::Coverage;
+pub(crate) use coverage::{ClassDef, Coverage};
 use gpos::{Search, SecondGlyph};
 use read_fonts::model::Tables;
 use read_fonts::types::{BigEndian, GlyphId, Nullable, Offset16, Scalar};
