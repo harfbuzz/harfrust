@@ -263,6 +263,25 @@ fn default_lookups_come_from_the_current_alternate_feature() {
 }
 
 #[test]
+fn feature_variations_apply_at_the_default_location() {
+    // A record without conditions selects its alternate feature everywhere,
+    // including the default location, where lookup 2 replaces lookup 0.
+    let font = font(
+        LayoutTableKind::Gsub,
+        &variations(&conditional(&[], true), true),
+    );
+    assert_eq!(
+        plan_variations(&font)[LayoutTableKind::Gsub as usize],
+        Some(0)
+    );
+    assert_eq!(plan_lookups(&font, LayoutTableKind::Gsub), [2]);
+    assert_eq!(shape_a(&font).glyph_infos()[0].glyph_id, 1);
+    // Plans built for the font are found again by its key.
+    let plan = ShapePlan::new(&font, Direction::LeftToRight, None, None, &[]);
+    assert!(ShapePlanKey::new(&font, None, Direction::LeftToRight).matches(&plan));
+}
+
+#[test]
 fn empty_resolved_set_replaces_defaults_even_at_default_coords() {
     for kind in [LayoutTableKind::Gsub, LayoutTableKind::Gpos] {
         let font = font(kind, &variations(&conditional(&[], false), false));
