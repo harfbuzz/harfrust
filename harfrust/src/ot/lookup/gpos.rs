@@ -436,6 +436,7 @@ struct PairPos2Caches {
 
 impl<'a> PairPos2<'a> {
     pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
+        class_matrix_range(table)?;
         Some(Self {
             class_def1: ClassDef::new(table.class_def1()),
             class_def2: ClassDef::new(table.class_def2()),
@@ -482,6 +483,22 @@ impl<'a> PairPos2<'a> {
 
 impl<'a> SubtableDigests<'a> for PairPos2<'a> {
     const CACHES_COVERAGE: bool = true;
+}
+
+/// The byte range of a class pair subtable's value matrix, or `None` if it
+/// does not fit in the subtable.
+///
+/// The extent is checked here because the generated range helpers add the
+/// matrix size to its start unchecked, which overflows on 32-bit targets.
+fn class_matrix_range(table: &PairPosFormat2) -> Option<core::ops::Range<usize>> {
+    let record_len =
+        table.value_format1().record_byte_len() + table.value_format2().record_byte_len();
+    let len = usize::from(table.class1_count())
+        .checked_mul(usize::from(table.class2_count()))?
+        .checked_mul(record_len)?;
+    let start = table.class2_count_byte_range().end;
+    let end = start.checked_add(len)?;
+    (end <= table.offset_data().len()).then_some(start..end)
 }
 
 /// Whether a pair subtable only adjusts the advance of its first glyph,
@@ -609,17 +626,18 @@ impl<'a> PairKern2<'a> {
         if !is_kerning(table.value_format1(), table.value_format2()) {
             return None;
         }
-        let (class1_count, class2_count) = (table.class1_count(), table.class2_count());
-        let start = table.class1_records_byte_range().start;
-        let len = usize::from(class1_count) * usize::from(class2_count) * 2;
+        let matrix = table
+            .offset_data()
+            .read_array(class_matrix_range(table)?)
+            .ok()?;
         let pairs = PairPos2::new(table, with_caches)?;
         Some(Self {
-            matrix: table.offset_data().read_array(start..start + len).ok()?,
+            matrix,
             class_def1: pairs.class_def1,
             class_def2: pairs.class_def2,
             caches: pairs.caches,
-            class1_count,
-            class2_count,
+            class1_count: table.class1_count(),
+            class2_count: table.class2_count(),
         })
     }
 
@@ -1172,6 +1190,24 @@ impl<'a> SubtableDigests<'a> for MarkMarkPos1<'a> {
 mod tests {
     use super::*;
     use alloc::vec;
+    use read_fonts::FontRead;
+
+    /// A kerning class pair subtable claiming a 65535 by 65535 matrix while
+    /// holding one value, which overflows the matrix size on 32-bit targets.
+    #[test]
+    fn oversized_class_matrix_is_rejected() {
+        let words: [u16; 14] = [
+            2, 18, 4, 0, 24, 24, 65535, 65535,  // header
+            0xffce, // the only value
+            1, 1, 36, // coverage of glyph 36
+            2, 0, // an empty class definition
+        ];
+        let bytes: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let table = PairPosFormat2::read(FontData::new(&bytes)).unwrap();
+        assert!(class_matrix_range(&table).is_none());
+        assert!(PairKern2::new(&table, false).is_none());
+        assert!(PairPos2::new(&table, false).is_none());
+    }
 
     #[test]
     fn reverse_cursive_minor_offset_ignores_out_of_range_chain() {
