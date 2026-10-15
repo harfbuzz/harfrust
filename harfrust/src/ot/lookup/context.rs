@@ -605,7 +605,6 @@ struct Rules<'a> {
 
 impl<'a> Rules<'a> {
     /// Reads a rule set: a 16-bit count and the offsets to its rules.
-    #[inline(always)]
     fn read(data: FontData<'a>, layout: RuleLayout) -> Option<Self> {
         let count = usize::from(data.read_at::<u16>(0).ok()?);
         let offsets = Uints::at(data, 2, count, layout.offset_width.into())?;
@@ -622,7 +621,6 @@ impl<'a> Rules<'a> {
 
     /// The data of rule `index`, if it holds at least the fixed fields of
     /// a rule, as reading the rule table would require.
-    #[inline(always)]
     fn rule(&self, index: usize) -> Option<FontData<'a>> {
         // The extended rules have the same fixed fields.
         let min_size = if self.layout.chained {
@@ -755,7 +753,6 @@ impl<'a, const W: usize> ParsedRule<'a, W> {
 }
 
 /// Whether the glyph matches value `index` of `sequence`.
-#[inline(always)]
 fn sequence_matches<const W: usize>(
     sequence: &Values<W>,
     index: u32,
@@ -781,7 +778,6 @@ impl<F: Fn(&mut GlyphInfo, u32) -> bool> Matcher for F {}
 
 /// The first input value of a rule, after any backtrack: the second glyph
 /// of a match.
-#[inline(always)]
 fn rule_first_input<const W: usize>(data: &FontData, layout: RuleLayout) -> Option<u32> {
     RuleProbe::<W>::new(*data, layout)
         .filter(|probe| probe.input_count > 1)?
@@ -799,7 +795,6 @@ struct RuleProbe<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> RuleProbe<'a, W> {
-    #[inline(always)]
     fn new(data: FontData<'a>, layout: RuleLayout) -> Option<Self> {
         // A sequence rule's lookup count sits between its glyph count and
         // its input.
@@ -826,7 +821,6 @@ impl<'a, const W: usize> RuleProbe<'a, W> {
         usize::from(self.input_count).max(1)
     }
 
-    #[inline(always)]
     fn input(&self, index: usize) -> Option<u32> {
         super::read_be::<W>(self.data.as_bytes(), self.input_start + index * W)
     }
@@ -838,7 +832,6 @@ impl<'a, const W: usize> RuleProbe<'a, W> {
         usize::from(self.data.read_at::<u16>(self.input_end).unwrap_or(0))
     }
 
-    #[inline(always)]
     fn lookahead(&self, index: usize) -> Option<u32> {
         super::read_be::<W>(self.data.as_bytes(), self.input_end + 2 + index * W)
     }
@@ -941,7 +934,6 @@ fn prematch(
 /// Returns the index of the first rule after `index` whose first input
 /// isn't `first`. Rules are sorted by it, so the ones skipped would fail the
 /// same way; unreadable rules are skipped too.
-#[inline(always)]
 fn skip_rules<const W: usize>(rules: Rules, mut index: usize, first: u32) -> usize {
     loop {
         index += 1;
