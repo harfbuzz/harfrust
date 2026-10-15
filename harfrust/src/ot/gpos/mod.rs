@@ -1,11 +1,5 @@
 //! OpenType GPOS lookups.
 
-mod cursive;
-mod mark;
-mod pair;
-mod single;
-mod value;
-
 use crate::buffer::*;
 use crate::hint::Likely;
 use crate::ot::layout::*;

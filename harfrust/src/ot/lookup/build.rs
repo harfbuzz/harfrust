@@ -22,6 +22,24 @@ use read_fonts::{FontData, FontRead, Offset, ReadError, TableProvider};
 /// Subtables past this many in a lookup get no glyph lookup caches.
 const MAX_CACHED_SUBTABLES: usize = 8;
 
+/// The number of lookups in GSUB, or GPOS if `is_subst` is false.
+pub(super) fn lookup_count(tables: &Tables, is_subst: bool) -> u16 {
+    let count = if is_subst {
+        tables
+            .gsub()
+            .ok()
+            .and_then(|gsub| gsub.lookup_list().ok())
+            .map(|list| list.lookup_count())
+    } else {
+        tables
+            .gpos()
+            .ok()
+            .and_then(|gpos| gpos.lookup_list().ok())
+            .map(|list| list.lookup_count())
+    };
+    count.unwrap_or_default()
+}
+
 /// Reads lookup `index` of GSUB, or GPOS if `is_subst` is false.
 pub(super) fn build_lookup(
     tables: &Tables,
@@ -263,4 +281,35 @@ impl<'a> Source<'a> {
 
 fn read<'a, T: FontRead<'a, Args = ()>>(data: FontData<'a>) -> Option<T> {
     T::read(data).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lookup_with_recursive_extension(lookup_type: u16) -> [u8; 16] {
+        let mut data = [0; 16];
+        // Lookup table.
+        data[0..2].copy_from_slice(&lookup_type.to_be_bytes());
+        data[4..6].copy_from_slice(&1u16.to_be_bytes());
+        data[6..8].copy_from_slice(&8u16.to_be_bytes());
+        // ExtensionSubstFormat1/ExtensionPosFormat1 subtable.
+        data[8..10].copy_from_slice(&1u16.to_be_bytes());
+        data[10..12].copy_from_slice(&lookup_type.to_be_bytes());
+        data
+    }
+
+    #[test]
+    fn gsub_extension_lookup_cannot_target_extension_lookup() {
+        let data = lookup_with_recursive_extension(7);
+        let lookup = build_lookup_at(FontData::new(&data), 0, true).unwrap();
+        assert!(lookup.subtables.is_empty());
+    }
+
+    #[test]
+    fn gpos_extension_lookup_cannot_target_extension_lookup() {
+        let data = lookup_with_recursive_extension(9);
+        let lookup = build_lookup_at(FontData::new(&data), 0, false).unwrap();
+        assert!(lookup.subtables.is_empty());
+    }
 }

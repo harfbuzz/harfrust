@@ -1,4 +1,4 @@
-//! Lookups whose subtables are parsed once and kept with the font tables.
+//! The lookups of GSUB and GPOS, parsed once and kept with the font tables.
 //!
 //! When a lookup is first used, each of its subtables is read into a
 //! [`CachedSubtableKind`] that holds the parsed table together with
@@ -17,6 +17,7 @@ mod gpos;
 mod gsub;
 
 use super::apply::{ApplyContext, MappingCache, WouldApplyContext};
+use crate::once::Once;
 use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
@@ -27,6 +28,111 @@ use read_fonts::types::{BigEndian, GlyphId, Nullable, Offset16, Scalar};
 use read_fonts::{FontData, FontRead};
 use yoke::erased::ErasedArcCart;
 use yoke::{Yoke, Yokeable};
+
+/// The lookups of GSUB or GPOS, each parsed on first use.
+#[derive(Default)]
+pub(crate) struct LookupCache {
+    lookups: Vec<Once<Option<Box<LookupInfo>>>>,
+    /// The font's shared tables, which lookups are cached against.
+    tables: Option<Arc<Tables>>,
+    is_subst: bool,
+}
+
+impl LookupCache {
+    pub fn new(tables: Option<Arc<Tables>>, is_subst: bool) -> Self {
+        let count = tables
+            .as_deref()
+            .map_or(0, |tables| build::lookup_count(tables, is_subst));
+        let mut lookups = Vec::new();
+        lookups.resize_with(usize::from(count), Once::new);
+        Self {
+            lookups,
+            tables,
+            is_subst,
+        }
+    }
+
+    pub fn get(&self, index: u16) -> Option<&LookupInfo> {
+        let cell = self.lookups.get(usize::from(index))?;
+        // Checked before `get_or_init`, whose initializer would otherwise
+        // weigh down the path taken every time.
+        if let Some(info) = cell.get() {
+            return info.as_deref();
+        }
+        cell.get_or_init(|| {
+            let tables = self.tables.clone()?;
+            cache_lookup(tables, self.is_subst, index)
+                .map(LookupInfo::new)
+                .map(Box::new)
+        })
+        .as_deref()
+    }
+}
+
+/// A lookup with its subtables parsed.
+///
+/// The properties the layout loop reads for every glyph are copied out of
+/// the cached lookup.
+pub struct LookupInfo {
+    pub props: u32,
+    pub is_subst: bool,
+    pub is_reversed: bool,
+    pub digest: SetDigest,
+    pub digest_second: SetDigest,
+    cached: CachedLookupRef,
+}
+
+impl LookupInfo {
+    fn new(cached: CachedLookupRef) -> Self {
+        let lookup = cached.get();
+        Self {
+            props: lookup.props,
+            is_subst: lookup.is_subst,
+            is_reversed: lookup.is_reversed,
+            digest: lookup.digest.clone(),
+            digest_second: lookup.digest_second.clone(),
+            cached,
+        }
+    }
+
+    /// Parses a substitution lookup serialized on its own.
+    pub(crate) fn new_synthesized(data: Vec<u8>) -> Option<Self> {
+        cache_synthesized_subst(data).map(Self::new)
+    }
+
+    pub fn props(&self) -> u32 {
+        self.props
+    }
+
+    pub fn is_reverse(&self) -> bool {
+        self.is_reversed
+    }
+
+    pub fn digest(&self) -> &SetDigest {
+        &self.digest
+    }
+
+    pub fn digest_second(&self) -> &SetDigest {
+        &self.digest_second
+    }
+
+    #[inline]
+    pub(crate) fn apply(&self, ctx: &mut ApplyContext, use_hot_subtable_cache: bool) -> Option<()> {
+        self.cached.get().apply(ctx, use_hot_subtable_cache)
+    }
+
+    pub(crate) fn cache_enter(&self, ctx: &mut ApplyContext) -> bool {
+        self.cached.get().cache_enter(ctx)
+    }
+
+    pub(crate) fn cache_leave(&self, ctx: &mut ApplyContext) {
+        self.cached.get().cache_leave(ctx);
+    }
+
+    pub fn would_apply(&self, ctx: &WouldApplyContext) -> Option<bool> {
+        self.cached.get().would_apply(ctx)
+    }
+}
 
 /// A cached lookup kept with the data it borrows: the font's tables, or
 /// the bytes of a lookup made up for a font that lacks one.

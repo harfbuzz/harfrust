@@ -12,6 +12,10 @@ impl<T> Once<T> {
         Self(spin::Once::new())
     }
 
+    pub(crate) fn get(&self) -> Option<&T> {
+        self.0.get()
+    }
+
     pub(crate) fn get_or_init(&self, f: impl FnOnce() -> T) -> &T {
         self.0.call_once(f)
     }

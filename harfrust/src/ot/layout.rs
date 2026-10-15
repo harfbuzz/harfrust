@@ -230,14 +230,6 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
 }
 
 fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
-    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
-        return false;
-    };
-
-    apply_forward_with_data(ctx, lookup, table_data)
-}
-
-fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_data: &[u8]) -> bool {
     let mut ret = false;
 
     let use_hot_subtable_cache = lookup.cache_enter(ctx);
@@ -271,10 +263,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
             break;
         }
 
-        if lookup
-            .apply(ctx, table_data, use_hot_subtable_cache)
-            .is_some()
-        {
+        if lookup.apply(ctx, use_hot_subtable_cache).is_some() {
             ret = true;
         } else {
             ctx.buffer.next_glyph();
@@ -299,16 +288,12 @@ pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &Lo
     ctx.update_matchers();
     ctx.buffer.clear_output();
     ctx.buffer.idx = 0;
-    // The lookup borrows its own data.
-    apply_forward_with_data(ctx, lookup, &[]);
+    apply_forward(ctx, lookup);
     ctx.buffer.sync();
 }
 
 fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     let mut ret = false;
-    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
-        return false;
-    };
     // Loop-invariant hoisting as in apply_forward; reverse lookups don't
     // recurse, and in-place application cannot change the buffer length.
     let ot = ctx.layout.ot;
@@ -334,7 +319,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
         };
 
         ctx.buffer.idx = idx;
-        ret |= lookup.apply(ctx, table_data, false).is_some();
+        ret |= lookup.apply(ctx, false).is_some();
 
         if idx == 0 {
             break;

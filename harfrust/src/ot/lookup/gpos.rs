@@ -1185,3 +1185,36 @@ impl<'a> SubtableDigests<'a> for MarkMarkPos1<'a> {
         self.mark2_coverage.digest()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn reverse_cursive_minor_offset_ignores_out_of_range_chain() {
+        // A truncated attach_chain can make `i + chain` point past the end of
+        // the buffer; reverse_cursive_minor_offset must not index out of
+        // bounds. See https://github.com/harfbuzz/harfrust/issues/410.
+        let mut pos = vec![GlyphPosition::default(); 4];
+        pos[0].set_attach_type(attach_type::CURSIVE);
+        pos[0].set_attach_chain(30000); // 0 + 30000 is far past the buffer end
+
+        reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, 3);
+
+        // The out-of-range link is cleared and no other glyph is touched.
+        assert_eq!(pos[0].attach_chain(), 0);
+    }
+
+    #[test]
+    fn reverse_cursive_minor_offset_saturates_negation() {
+        let mut pos = vec![GlyphPosition::default(); 2];
+        pos[0].set_attach_type(attach_type::CURSIVE);
+        pos[0].set_attach_chain(1);
+        pos[0].y_offset = i32::MIN;
+
+        reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, usize::MAX);
+
+        assert_eq!(pos[1].y_offset, i32::MAX);
+    }
+}

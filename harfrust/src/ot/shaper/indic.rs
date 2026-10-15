@@ -407,7 +407,7 @@ impl IndicWouldSubstituteFeature {
                 .gsub
                 .as_ref()
                 .and_then(|table| table.get_lookup(lookup.index))
-                .is_some_and(|lookup| lookup.would_apply(ot, &ctx) == Some(true))
+                .is_some_and(|lookup| lookup.would_apply(&ctx) == Some(true))
             {
                 return true;
             }

@@ -406,3 +406,40 @@ pub(super) fn covered_at(coverages: &[Coverage], index: u32, info: &GlyphInfo) -
         .get(index as usize)
         .is_some_and(|coverage| coverage.covers(info.glyph_id))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use read_fonts::{FontData, FontRead};
+
+    fn assert_full_digest(digest: SetDigest) {
+        assert!(digest.may_have(0));
+        assert!(digest.may_have(12345));
+        assert!(digest.may_have(u16::MAX as u32));
+    }
+
+    #[test]
+    fn collect_seconds_bails_on_too_many_ligature_sets() {
+        let ligature_set_count = MAX_LIGATURE_DIGEST_WORK + 1;
+        let mut data = vec![0; 6 + ligature_set_count * 2];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes());
+        data[4..6].copy_from_slice(&(ligature_set_count as u16).to_be_bytes());
+
+        let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
+        assert_full_digest(collect_seconds(&lig_subst));
+    }
+
+    #[test]
+    fn collect_seconds_bails_on_too_many_ligatures() {
+        let ligature_count = MAX_LIGATURE_DIGEST_WORK;
+        let mut data = vec![0; 10 + ligature_count * 2];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes());
+        data[4..6].copy_from_slice(&1u16.to_be_bytes());
+        data[6..8].copy_from_slice(&8u16.to_be_bytes());
+        data[8..10].copy_from_slice(&(ligature_count as u16).to_be_bytes());
+
+        let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
+        assert_full_digest(collect_seconds(&lig_subst));
+    }
+}
