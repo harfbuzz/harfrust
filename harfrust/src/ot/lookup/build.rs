@@ -217,13 +217,13 @@ impl<'a> Source<'a> {
             }
             (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
                 SequenceContext::Format1(t) => {
-                    self.finish(t.coverage(), context::Context1::new(&t))
+                    self.finish(t.coverage(), context::ChainContext1::from_plain(&t))
                 }
                 SequenceContext::Format2(t) => {
-                    self.finish(t.coverage(), context::Context2::new(&t))
+                    self.finish(t.coverage(), context::ChainContext2::from_plain(&t, caches))
                 }
                 SequenceContext::Format3(t) => {
-                    self.finish(t.coverages().get(0), context::Context3::new(&t))
+                    self.finish(t.coverages().get(0), context::ChainContext3::from_plain(&t))
                 }
             },
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {

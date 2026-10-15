@@ -227,26 +227,10 @@ pub(crate) enum SecondGlyph {
     Failed,
 }
 
-/// Where a pair subtable gets the glyph that the current one pairs with.
-pub(crate) trait FindSecond {
+impl SecondGlyph {
     /// Returns the second glyph's index in the buffer, the index to resume
-    /// from after the pair, and the glyph. Without one, marks the buffer
-    /// unsafe to concatenate as far as the search went.
-    fn get(&mut self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)>;
-}
-
-/// Searches for the second glyph each time.
-pub(crate) struct Search;
-
-impl FindSecond for Search {
-    #[inline(always)]
-    fn get(&mut self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
-        SecondGlyph::search(ctx).resolve(ctx)
-    }
-}
-
-impl FindSecond for SecondGlyph {
-    /// Searches the first time, then answers from the result.
+    /// from after the pair, and the glyph, searching the first time. Without
+    /// one, marks the buffer unsafe to concatenate as far as the search went.
     #[inline(always)]
     fn get(&mut self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
         if let Self::Unknown = self {
@@ -254,9 +238,7 @@ impl FindSecond for SecondGlyph {
         }
         self.resolve(ctx)
     }
-}
 
-impl SecondGlyph {
     /// The second glyph, if the search found one.
     #[inline(always)]
     fn resolve(self, ctx: &mut ApplyContext) -> Option<(usize, usize, GlyphId)> {
@@ -362,7 +344,7 @@ impl<'a> PairPos1<'a> {
         &self,
         ctx: &mut ApplyContext,
         index: u16,
-        second: &mut impl FindSecond,
+        second: &mut SecondGlyph,
     ) -> Option<()> {
         let index = usize::from(index);
         let (second_index, buf_idx, second) = second.get(ctx)?;
@@ -474,7 +456,7 @@ impl<'a> PairPos2<'a> {
         &self,
         ctx: &mut ApplyContext,
         _index: u16,
-        second: &mut impl FindSecond,
+        second: &mut SecondGlyph,
     ) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
         let caches = self.caches.as_deref();
@@ -566,7 +548,7 @@ impl<'a> PairKern1<'a> {
         &self,
         ctx: &mut ApplyContext,
         index: u16,
-        second: &mut impl FindSecond,
+        second: &mut SecondGlyph,
     ) -> Option<()> {
         let index = usize::from(index);
         let (second_index, buf_idx, second) = second.get(ctx)?;
@@ -646,7 +628,7 @@ impl<'a> PairKern2<'a> {
         &self,
         ctx: &mut ApplyContext,
         _index: u16,
-        second: &mut impl FindSecond,
+        second: &mut SecondGlyph,
     ) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
         let caches = self.caches.as_deref();

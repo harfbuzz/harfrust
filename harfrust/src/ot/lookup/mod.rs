@@ -22,7 +22,7 @@ use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 pub(crate) use coverage::{ClassDef, Coverage};
-use gpos::{Search, SecondGlyph};
+use gpos::SecondGlyph;
 use read_fonts::model::Tables;
 use read_fonts::types::{BigEndian, GlyphId, Nullable, Offset16, Scalar};
 use read_fonts::{FontData, FontRead};
@@ -277,63 +277,56 @@ trait IntoKind<'a>: Sized {
 /// The functions of a kind that applies plainly, adjusts pairs, or keeps
 /// classes in the glyph-info cache.
 macro_rules! kind_fns {
-    ($kind:ident) => {
+    ($kind:ident) => {{
+        const APPLY: ApplyFn = |subtable, ctx, index| match &subtable.kind {
+            CachedSubtableKind::$kind(data) => data.apply(ctx, index),
+            _ => None,
+        };
         &KindFns {
-            apply: [
-                |subtable, ctx, index| match &subtable.kind {
-                    CachedSubtableKind::$kind(data) => data.apply(ctx, index),
-                    _ => None,
-                },
-                |subtable, ctx, index| match &subtable.kind {
-                    CachedSubtableKind::$kind(data) => data.apply(ctx, index),
-                    _ => None,
-                },
-            ],
-            apply_sharing: |subtable, ctx, index, _| match &subtable.kind {
-                CachedSubtableKind::$kind(data) => data.apply(ctx, index),
-                _ => None,
-            },
+            apply: [APPLY, APPLY],
+            apply_sharing: never_shares,
             shares_second_glyph: false,
         }
-    };
-    ($kind:ident adjusts_pairs) => {
+    }};
+    ($kind:ident adjusts_pairs) => {{
+        const APPLY_SHARING: ApplySharingFn = |subtable, ctx, index, second| match &subtable.kind {
+            CachedSubtableKind::$kind(data) => data.apply(ctx, index, second),
+            _ => None,
+        };
+        const APPLY: ApplyFn =
+            |subtable, ctx, index| APPLY_SHARING(subtable, ctx, index, &mut SecondGlyph::Unknown);
         &KindFns {
-            apply: [
-                |subtable, ctx, index| match &subtable.kind {
-                    CachedSubtableKind::$kind(data) => data.apply(ctx, index, &mut Search),
-                    _ => None,
-                },
-                |subtable, ctx, index| match &subtable.kind {
-                    CachedSubtableKind::$kind(data) => data.apply(ctx, index, &mut Search),
-                    _ => None,
-                },
-            ],
-            apply_sharing: |subtable, ctx, index, second| match &subtable.kind {
-                CachedSubtableKind::$kind(data) => data.apply(ctx, index, second),
-                _ => None,
-            },
+            apply: [APPLY, APPLY],
+            apply_sharing: APPLY_SHARING,
             shares_second_glyph: true,
         }
-    };
+    }};
     ($kind:ident uses_class_cache) => {
         &KindFns {
             apply: [
                 |subtable, ctx, index| match &subtable.kind {
-                    CachedSubtableKind::$kind(data) => data.apply(ctx, index),
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index, false),
                     _ => None,
                 },
                 |subtable, ctx, index| match &subtable.kind {
-                    CachedSubtableKind::$kind(data) => data.apply_with_class_cache(ctx, index),
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index, true),
                     _ => None,
                 },
             ],
-            apply_sharing: |subtable, ctx, index, _| match &subtable.kind {
-                CachedSubtableKind::$kind(data) => data.apply(ctx, index),
-                _ => None,
-            },
+            apply_sharing: never_shares,
             shares_second_glyph: false,
         }
     };
+}
+
+/// The `apply_sharing` of kinds that don't adjust pairs, which no walk calls.
+fn never_shares(
+    _: &CachedSubtable,
+    _: &mut ApplyContext,
+    _: u16,
+    _: &mut SecondGlyph,
+) -> Option<()> {
+    None
 }
 
 /// Declares the subtable kinds, the data each holds, and how it applies.
@@ -373,9 +366,6 @@ subtable_kinds! {
     MarkBasePos1(gpos::MarkBasePos1<'a>);
     MarkLigPos1(gpos::MarkLigPos1<'a>);
     MarkMarkPos1(gpos::MarkMarkPos1<'a>);
-    Context1(context::Context1<'a>);
-    Context2(context::Context2<'a>) uses_class_cache;
-    Context3(context::Context3<'a>);
     ChainContext1(context::ChainContext1<'a>);
     ChainContext2(context::ChainContext2<'a>) uses_class_cache;
     ChainContext3(context::ChainContext3<'a>);
@@ -395,9 +385,6 @@ impl CachedSubtableKind<'_> {
                 ctx.glyphs.len() == 1 && coverage.covers(ctx.glyphs[0])
             }
             Self::LigatureSubst1(t) => t.would_apply(ctx, coverage),
-            Self::Context1(t) => t.would_apply(ctx, coverage),
-            Self::Context2(t) => t.would_apply(ctx, coverage),
-            Self::Context3(t) => t.would_apply(ctx, coverage),
             Self::ChainContext1(t) => t.would_apply(ctx, coverage),
             Self::ChainContext2(t) => t.would_apply(ctx, coverage),
             Self::ChainContext3(t) => t.would_apply(ctx, coverage),
