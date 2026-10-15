@@ -192,7 +192,7 @@ fn walk_single(
     let subtable = lookup.subtables.first()?;
     let index = subtable.coverage_index(glyph)?;
     let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(0);
-    subtable.apply[is_cached as usize](subtable, ctx, index)
+    subtable.fns.apply[is_cached as usize](subtable, ctx, index)
 }
 
 /// Applies subtables in turn.
@@ -210,7 +210,7 @@ fn walk_each(
             continue;
         };
         let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(position);
-        if subtable.apply[is_cached as usize](subtable, ctx, index).is_some() {
+        if subtable.fns.apply[is_cached as usize](subtable, ctx, index).is_some() {
             return Some(());
         }
     }
@@ -244,8 +244,9 @@ pub(crate) struct CachedSubtable<'a> {
     /// The coverage of the glyph that a match starts at.
     coverage: Coverage<'a>,
     coverage_cache: Option<Box<MappingCache>>,
-    /// Applies `kind` without and with the glyph-info class cache.
-    apply: [ApplyFn; 2],
+    /// How `kind` applies.
+    fns: &'static KindFns,
+    /// `fns.apply_sharing`, kept here for the pair walk.
     apply_sharing: ApplySharingFn,
 }
 
@@ -350,12 +351,30 @@ fn never_shares(
     None
 }
 
+/// The payload of a kind, boxed if the kind is marked so.
+macro_rules! kind_payload {
+    ($data:ty) => { $data };
+    ($data:ty, boxed) => { Box<$data> };
+}
+
+macro_rules! wrap_payload {
+    ($value:expr) => {
+        $value
+    };
+    ($value:expr, boxed) => {
+        Box::new($value)
+    };
+}
+
 /// Declares the subtable kinds, the data each holds, and how it applies.
+///
+/// Kinds whose data is much larger than the rest are boxed, so that they
+/// don't set the size of every subtable.
 macro_rules! subtable_kinds {
-    ($($kind:ident($data:ty) $($how:ident)?;)*) => {
+    ($($kind:ident($data:ty) $($how:ident)? $(, $boxed:ident)?;)*) => {
         /// A parsed subtable with the data derived from it.
         pub(crate) enum CachedSubtableKind<'a> {
-            $($kind($data),)*
+            $($kind(kind_payload!($data $(, $boxed)?)),)*
         }
 
         $(
@@ -363,7 +382,7 @@ macro_rules! subtable_kinds {
                 const FNS: &'static KindFns = kind_fns!($kind $($how)?);
 
                 fn into_kind(self) -> CachedSubtableKind<'a> {
-                    CachedSubtableKind::$kind(self)
+                    CachedSubtableKind::$kind(wrap_payload!(self $(, $boxed)?))
                 }
             }
         )*
@@ -380,15 +399,15 @@ subtable_kinds! {
     SinglePos1(gpos::SinglePos1<'a>);
     SinglePos2(gpos::SinglePos2<'a>);
     PairPos1(gpos::PairPos1<'a>) adjusts_pairs;
-    PairPos2(gpos::PairPos2<'a>) adjusts_pairs;
+    PairPos2(gpos::PairPos2<'a>) adjusts_pairs, boxed;
     PairKern1(gpos::PairKern1<'a>) adjusts_pairs;
-    PairKern2(gpos::PairKern2<'a>) adjusts_pairs;
+    PairKern2(gpos::PairKern2<'a>) adjusts_pairs, boxed;
     CursivePos1(gpos::CursivePos1<'a>);
-    MarkBasePos1(gpos::MarkBasePos1<'a>);
-    MarkLigPos1(gpos::MarkLigPos1<'a>);
-    MarkMarkPos1(gpos::MarkMarkPos1<'a>);
+    MarkBasePos1(gpos::MarkBasePos1<'a>), boxed;
+    MarkLigPos1(gpos::MarkLigPos1<'a>), boxed;
+    MarkMarkPos1(gpos::MarkMarkPos1<'a>), boxed;
     ChainContext1(context::ChainContext1<'a>);
-    ChainContext2(context::ChainContext2<'a>) uses_class_cache;
+    ChainContext2(context::ChainContext2<'a>) uses_class_cache, boxed;
     ChainContext3(context::ChainContext3<'a>);
 }
 

@@ -336,7 +336,7 @@ impl<'a> Source<'a> {
                 coverage,
                 coverage_cache: (self.with_caches && T::CACHES_COVERAGE)
                     .then(|| Box::new(MappingCache::new())),
-                apply: T::FNS.apply,
+                fns: T::FNS,
                 apply_sharing: T::FNS.apply_sharing,
             },
             shares_second_glyph: T::FNS.shares_second_glyph,
