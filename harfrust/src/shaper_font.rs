@@ -43,7 +43,6 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     pub fn new(font: &'a Font) -> Self {
         let cached = layout_cache(font);
         let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
-            let tables = font.tables();
             let coords = font.normalized_coords();
             let feature_variations = if coords.is_empty() {
                 [None; 2]
@@ -53,7 +52,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
             };
             (
                 OtData::new(&cache.ot, coords, feature_variations),
-                AatData::from_tables(&tables, &cache.aat),
+                AatData::new(&cache.aat),
                 cache.apply_trak,
                 Some(&cache.cmap),
             )
@@ -602,8 +601,8 @@ impl LayoutCache {
     pub(crate) fn new(font: &Font) -> Self {
         let tables = font.tables();
         let host = crate::font::_font_interop::_table_cache_host(font);
-        let ot = OtCache::new(host);
-        let aat = AatCache::new(&tables, &ot);
+        let ot = OtCache::new(host.clone());
+        let aat = AatCache::new(host, &ot);
         let apply_trak = tables.trak_data().is_some() && tables.stat_data().is_some();
         Self {
             ot,
@@ -734,9 +733,8 @@ mod tests {
         let cache = LayoutCache::new(&font);
 
         loads.store(0, Ordering::Relaxed);
-        let tables = font.tables();
         let ot_data = OtData::new(&cache.ot, &[], [None; 2]);
-        let aat_data = AatData::from_tables(&tables, &cache.aat);
+        let aat_data = AatData::new(&cache.aat);
 
         assert!(ot_data.gsub.is_some());
         assert!(ot_data.gpos.is_some());
