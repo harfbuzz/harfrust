@@ -3,8 +3,9 @@ use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
 use crate::Tag;
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use lookup::{LookupCache, LookupInfo};
+use read_fonts::model::Tables;
 use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
 use read_fonts::types::GlyphId16;
 use read_fonts::{
@@ -21,6 +22,7 @@ use read_fonts::{
 };
 
 pub(crate) mod apply;
+pub(crate) mod cached_lookup;
 pub mod contextual;
 pub mod gpos;
 pub mod gsub;
@@ -141,7 +143,7 @@ impl MarkGlyphSetBitmap {
 }
 
 impl OtCache {
-    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
+    pub fn new<'a>(font: &impl TableProvider<'a>, tables: Option<Arc<Tables>>) -> Self {
         let gsub_table = font.gsub().ok();
         let gpos_table = font.gpos().ok();
         let gdef_table = font.gdef().ok();
@@ -157,11 +159,11 @@ impl OtCache {
         let has_gdef = gdef_table.is_some() && !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len);
         let gsub = gsub_table
             .as_ref()
-            .map(LookupCache::new)
+            .map(|gsub| LookupCache::new(gsub, tables.clone(), true))
             .unwrap_or_default();
         let gpos = gpos_table
             .as_ref()
-            .map(LookupCache::new)
+            .map(|gpos| LookupCache::new(gpos, tables, false))
             .unwrap_or_default();
         let gdef = gdef_table
             .as_ref()

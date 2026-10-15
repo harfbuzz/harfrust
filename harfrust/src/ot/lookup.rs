@@ -1,3 +1,4 @@
+use super::cached_lookup::{cache_lookup, CachedLookupRef};
 use crate::hint::LikelyOk;
 use crate::{
     ot::apply::{
@@ -8,8 +9,9 @@ use crate::{
     set_digest::SetDigest,
     GlyphInfo,
 };
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use read_fonts::{
+    model::Tables,
     tables::{
         gpos::{
             CursivePosFormat1, Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
@@ -94,39 +96,55 @@ impl<'a> LookupHost<'a> for Gpos<'a> {
 
 #[cfg(feature = "std")]
 mod cache {
-    use super::{LookupHost, LookupInfo};
+    use super::{Arc, LookupHost, LookupInfo, Tables};
     use std::sync::OnceLock;
 
     #[derive(Default)]
     pub(crate) struct LookupCache {
         lookups: Vec<OnceLock<Option<Box<LookupInfo>>>>,
+        /// The font's shared tables, which lookups are cached against.
+        tables: Option<Arc<Tables>>,
+        is_subst: bool,
     }
 
     impl LookupCache {
-        pub fn new<'a>(host: &impl LookupHost<'a>) -> Self {
+        pub fn new<'a>(
+            host: &impl LookupHost<'a>,
+            tables: Option<Arc<Tables>>,
+            is_subst: bool,
+        ) -> Self {
             let mut lookups = Vec::new();
             lookups.resize_with(host.lookup_count() as usize, Default::default);
-            Self { lookups }
+            Self {
+                lookups,
+                tables,
+                is_subst,
+            }
         }
 
         pub fn get<'a>(&self, host: &impl LookupHost<'a>, index: u16) -> Option<&LookupInfo> {
-            self.lookups
-                .get(index as usize)?
-                .get_or_init(|| {
-                    host.lookup_data(index)
-                        .ok()
-                        .and_then(|data| LookupInfo::new(&data))
-                        .map(Box::new)
-                })
-                .as_ref()
-                .map(|v| &**v)
+            let cell = self.lookups.get(index as usize)?;
+            if let Some(info) = cell.get() {
+                return info.as_deref();
+            }
+            cell.get_or_init(|| {
+                if let Some(tables) = &self.tables {
+                    return LookupInfo::cached(tables, self.is_subst, index).map(Box::new);
+                }
+                host.lookup_data(index)
+                    .ok()
+                    .and_then(|data| LookupInfo::new(&data))
+                    .map(Box::new)
+            })
+            .as_ref()
+            .map(|v| &**v)
         }
     }
 }
 
 #[cfg(not(feature = "std"))]
 mod cache {
-    use super::{LookupHost, LookupInfo, Vec};
+    use super::{Arc, LookupHost, LookupInfo, Tables, Vec};
 
     #[derive(Default)]
     pub(crate) struct LookupCache {
@@ -134,15 +152,21 @@ mod cache {
     }
 
     impl LookupCache {
-        pub fn new<'a>(host: &impl LookupHost<'a>) -> Self {
+        pub fn new<'a>(
+            host: &impl LookupHost<'a>,
+            tables: Option<Arc<Tables>>,
+            is_subst: bool,
+        ) -> Self {
             let count = host.lookup_count();
             let mut lookups = Vec::with_capacity(count as usize);
             for i in 0..count {
-                lookups.push(
-                    host.lookup_data(i)
+                lookups.push(match &tables {
+                    Some(tables) => LookupInfo::cached(tables, is_subst, i),
+                    None => host
+                        .lookup_data(i)
                         .ok()
                         .and_then(|data| LookupInfo::new(&data)),
-                );
+                });
             }
             Self { lookups }
         }
@@ -187,6 +211,9 @@ pub struct LookupInfo {
     pub digest_second: SetDigest,
     pub subtable_cache_user_idx: Option<usize>,
     pub subtables: Vec<SubtableInfo>,
+    /// The lookup with its subtables parsed, which applies it in place of
+    /// `subtables` when present.
+    pub(crate) cached: Option<CachedLookupRef>,
 }
 
 impl LookupInfo {
@@ -236,6 +263,21 @@ impl LookupInfo {
         Some(info)
     }
 
+    /// Parses lookup `index` of GSUB or GPOS through the cached lookup path.
+    fn cached(tables: &Arc<Tables>, is_subst: bool, index: u16) -> Option<Self> {
+        let cached = cache_lookup(tables.clone(), is_subst, index)?;
+        let lookup = cached.get();
+        Some(Self {
+            props: lookup.props,
+            is_subst: lookup.is_subst,
+            is_reversed: lookup.is_reversed,
+            digest: lookup.digest.clone(),
+            digest_second: lookup.digest_second.clone(),
+            cached: Some(cached),
+            ..Default::default()
+        })
+    }
+
     pub(crate) fn new_subst(table_data: &[u8]) -> Option<Self> {
         Self::new(&LookupData {
             offset: 0,
@@ -269,6 +311,19 @@ impl LookupInfo {
         table_data: &[u8],
         use_hot_subtable_cache: bool,
     ) -> Option<()> {
+        match &self.cached {
+            Some(cached) => cached.get().apply(ctx, use_hot_subtable_cache),
+            None => self.apply_subtables(ctx, table_data, use_hot_subtable_cache),
+        }
+    }
+
+    #[inline(never)]
+    fn apply_subtables(
+        &self,
+        ctx: &mut ApplyContext,
+        table_data: &[u8],
+        use_hot_subtable_cache: bool,
+    ) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.glyph_id;
         if let [subtable_info] = self.subtables.as_slice() {
             // The lookup digest is the union of the subtable digests, so for
@@ -291,6 +346,9 @@ impl LookupInfo {
     }
 
     pub(crate) fn cache_enter(&self, ctx: &mut ApplyContext) -> bool {
+        if let Some(cached) = &self.cached {
+            return cached.get().cache_enter(ctx);
+        }
         let Some(idx) = self.subtable_cache_user_idx else {
             return false;
         };
@@ -307,6 +365,9 @@ impl LookupInfo {
         }
     }
     pub(crate) fn cache_leave(&self, ctx: &mut ApplyContext) {
+        if let Some(cached) = &self.cached {
+            return cached.get().cache_leave(ctx);
+        }
         let Some(idx) = self.subtable_cache_user_idx else {
             return;
         };
@@ -324,6 +385,9 @@ impl LookupInfo {
 
 impl LookupInfo {
     pub fn would_apply(&self, ot: &crate::ot::OtData<'_>, ctx: &WouldApplyContext) -> Option<bool> {
+        if let Some(cached) = &self.cached {
+            return cached.get().would_apply(ctx);
+        }
         let glyph = ctx.glyphs[0];
         if !self.digest.may_have(glyph.into()) {
             return Some(false);
