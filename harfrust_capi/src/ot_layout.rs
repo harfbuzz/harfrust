@@ -4,8 +4,13 @@ use core::ffi::c_uint;
 
 use harfrust::Tag;
 use read_fonts::tables::base::{BaseAxis, BaseInstance};
-use read_fonts::tables::gpos::{PairPos, PositionSubtables};
-use read_fonts::tables::gsub::{SingleSubst, SubstitutionLookupList, SubstitutionSubtables};
+use read_fonts::tables::gpos::{
+    CursivePos, MarkBasePos, MarkLigPos, MarkMarkPos, PairPos, PositionSubtables,
+};
+use read_fonts::tables::gsub::{
+    AlternateSubst, LigatureSubst, MultipleSubst, ReverseChainSingleSubst, SingleSubst,
+    SubstitutionLookupList, SubstitutionSubtables,
+};
 use read_fonts::tables::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, FeatureList, ScriptList, SequenceContext,
     SequenceLookupRecord,
@@ -299,12 +304,19 @@ fn add_class_coverage(set: SetTarget, class_def: ClassDef<'_>) {
                 }
             }
         }
+        ClassDef::Format3(_) | ClassDef::Format4(_) => {
+            for (glyph, class) in class_def.iter() {
+                if class != 0 {
+                    set.add(glyph.to_u32());
+                }
+            }
+        }
     }
 }
 
 fn add_class(set: SetTarget, class_def: &ClassDef<'_>, selected: u16) {
     for (glyph, class) in class_def.iter() {
-        if class == selected {
+        if class == u32::from(selected) {
             set.add(glyph.to_u32());
         }
     }
@@ -365,12 +377,17 @@ fn collect_substitution(
                             output.add(glyph.get().to_u32());
                         }
                     }
+                    // The extended formats fall back to every glyph.
+                    _ => return Ok(false),
                 }
             }
         }
         SubstitutionSubtables::Multiple(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
+                // The extended formats fall back to every glyph.
+                let MultipleSubst::Format1(table) = table? else {
+                    return Ok(false);
+                };
                 add_coverage(input, table.coverage()?);
                 for sequence in table.sequences().iter() {
                     for glyph in sequence?.substitute_glyph_ids() {
@@ -381,7 +398,9 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Alternate(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
+                let AlternateSubst::Format1(table) = table? else {
+                    return Ok(false);
+                };
                 add_coverage(input, table.coverage()?);
                 for alternate in table.alternate_sets().iter() {
                     for glyph in alternate?.alternate_glyph_ids() {
@@ -392,7 +411,9 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Ligature(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
+                let LigatureSubst::Format1(table) = table? else {
+                    return Ok(false);
+                };
                 add_coverage(input, table.coverage()?);
                 for set in table.ligature_sets().iter() {
                     for ligature in set?.ligatures().iter() {
@@ -407,7 +428,9 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Reverse(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
+                let ReverseChainSingleSubst::Format1(table) = table? else {
+                    return Ok(false);
+                };
                 add_coverage(input, table.coverage()?);
                 for coverage in table.backtrack_coverages().iter() {
                     add_coverage(before, coverage?);
@@ -475,6 +498,7 @@ fn collect_substitution(
                             return Ok(false);
                         }
                     }
+                    _ => return Ok(false),
                 }
             }
         }
@@ -555,6 +579,7 @@ fn collect_substitution(
                             return Ok(false);
                         }
                     }
+                    _ => return Ok(false),
                 }
             }
         }
@@ -577,6 +602,12 @@ fn collect_positioning(
                     read_fonts::tables::gpos::SinglePos::Format2(table) => {
                         add_coverage(input, table.coverage()?);
                     }
+                    read_fonts::tables::gpos::SinglePos::Format3(table) => {
+                        add_coverage(input, table.coverage()?);
+                    }
+                    read_fonts::tables::gpos::SinglePos::Format4(table) => {
+                        add_coverage(input, table.coverage()?);
+                    }
                 }
             }
         }
@@ -595,33 +626,57 @@ fn collect_positioning(
                         add_coverage(input, table.coverage()?);
                         add_class_coverage(input, table.class_def2()?);
                     }
+                    _ => return Ok(false),
                 }
             }
         }
         PositionSubtables::Cursive(subtables) => {
             for table in subtables.iter() {
-                add_coverage(input, table?.coverage()?);
+                add_coverage(
+                    input,
+                    match table? {
+                        CursivePos::Format1(table) => table.coverage()?,
+                        CursivePos::Format2(table) => table.coverage()?,
+                    },
+                );
             }
         }
         PositionSubtables::MarkToBase(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
-                add_coverage(input, table.mark_coverage()?);
-                add_coverage(input, table.base_coverage()?);
+                let (marks, bases) = match table? {
+                    MarkBasePos::Format1(table) => (table.mark_coverage()?, table.base_coverage()?),
+                    MarkBasePos::Format2(table) => (table.mark_coverage()?, table.base_coverage()?),
+                };
+                add_coverage(input, marks);
+                add_coverage(input, bases);
             }
         }
         PositionSubtables::MarkToLig(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
-                add_coverage(input, table.mark_coverage()?);
-                add_coverage(input, table.ligature_coverage()?);
+                let (marks, ligatures) = match table? {
+                    MarkLigPos::Format1(table) => {
+                        (table.mark_coverage()?, table.ligature_coverage()?)
+                    }
+                    MarkLigPos::Format2(table) => {
+                        (table.mark_coverage()?, table.ligature_coverage()?)
+                    }
+                };
+                add_coverage(input, marks);
+                add_coverage(input, ligatures);
             }
         }
         PositionSubtables::MarkToMark(subtables) => {
             for table in subtables.iter() {
-                let table = table?;
-                add_coverage(input, table.mark1_coverage()?);
-                add_coverage(input, table.mark2_coverage()?);
+                let (marks1, marks2) = match table? {
+                    MarkMarkPos::Format1(table) => {
+                        (table.mark1_coverage()?, table.mark2_coverage()?)
+                    }
+                    MarkMarkPos::Format2(table) => {
+                        (table.mark1_coverage()?, table.mark2_coverage()?)
+                    }
+                };
+                add_coverage(input, marks1);
+                add_coverage(input, marks2);
             }
         }
         PositionSubtables::EmptyExtension => {}
