@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, vec::Vec};
 
 use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
-use crate::buffer::{get, get_mut, GlyphInfo};
+use crate::buffer::GlyphInfo;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead, Apply,
@@ -85,7 +85,7 @@ impl WouldApply for SequenceContextFormat1<'_> {
 
 impl Apply for SequenceContextFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(
@@ -133,7 +133,7 @@ impl Apply for SequenceContextFormat2<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
             return None;
         };
@@ -162,7 +162,7 @@ impl Apply for SequenceContextFormat2<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let SubtableExternalCache::ContextFormat2Cache(cache) = external_cache else {
             return None;
         };
@@ -174,7 +174,7 @@ impl Apply for SequenceContextFormat2<'_> {
         )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let index =
-            get_class_cached(&input_class, get_mut(&mut ctx.buffer.info, ctx.buffer.idx)) as usize;
+            get_class_cached(&input_class, ctx.buffer.info.get_mut(ctx.buffer.idx)?) as usize;
         let digest = cache.rule_sets.get(index).copied();
         let set = self.class_seq_rule_sets().get(index)?.ok()?;
         apply_context_rules(
@@ -224,7 +224,7 @@ impl WouldApply for SequenceContextFormat3<'_> {
 
 impl Apply for SequenceContextFormat3<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let input_coverages = self.coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
         let input = |info: &mut GlyphInfo, index: u32| {
@@ -239,7 +239,7 @@ impl Apply for SequenceContextFormat3<'_> {
             input,
             &mut match_end,
             None,
-        ) {
+        )? {
             ctx.buffer
                 .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
             apply_lookup(
@@ -290,7 +290,7 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
 
 impl Apply for ChainedSequenceContextFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let index = self.coverage().ok()?.get(glyph)? as usize;
         let set = self.chained_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
@@ -404,7 +404,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
             return None;
         };
@@ -472,7 +472,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let SubtableExternalCache::ChainContextFormat2Cache(cache) = external_cache else {
             return None;
         };
@@ -485,7 +485,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
         let index =
-            get_class_cached2(&input_class, get_mut(&mut ctx.buffer.info, ctx.buffer.idx)) as usize;
+            get_class_cached2(&input_class, ctx.buffer.info.get_mut(ctx.buffer.idx)?) as usize;
         let digest = cache.rule_sets.get(index).copied();
         let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
         apply_chain_context_rules(
@@ -554,7 +554,7 @@ impl WouldApply for ChainedSequenceContextFormat3<'_> {
 
 impl Apply for ChainedSequenceContextFormat3<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
 
         let input_coverages = self.input_coverages();
         input_coverages.get(0).ok()?.get(glyph)?;
@@ -589,7 +589,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
             input,
             &mut match_end,
             None,
-        );
+        )?;
 
         if input_matches {
             end_index = match_end;
@@ -699,7 +699,7 @@ impl<'a> ParsedRule<'a> {
 
         let mut match_end = 0;
 
-        if match_input(ctx, inputs.len() as _, match_func, &mut match_end, None) {
+        if match_input(ctx, inputs.len() as _, match_func, &mut match_end, None)? {
             ctx.buffer
                 .unsafe_to_break(Some(ctx.buffer.idx), Some(match_end));
             apply_lookup(ctx, inputs.len(), match_end, self.records);
@@ -859,6 +859,18 @@ fn parse_chain_rule_at<'a>(
         .map(|d| ParsedRule::from_chain_rule_data(d).unwrap_or_default())
 }
 
+/// Matches the glyph at `idx` against a rule value; a glyph outside the
+/// buffer never matches.
+fn match_value_at(
+    info: &mut [GlyphInfo],
+    idx: usize,
+    value: u16,
+    match_func: &impl Fn(&mut GlyphInfo, u32) -> bool,
+) -> bool {
+    info.get_mut(idx)
+        .is_some_and(|info| match_func(info, u32::from(value)))
+}
+
 fn apply_context_rules(
     ctx: &mut ApplyContext,
     set_data: FontData<'_>,
@@ -881,7 +893,9 @@ fn apply_context_rules(
     //
     // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
     let mut skippy_iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
-    skippy_iter.reset(skippy_iter.buffer.idx);
+    if skippy_iter.reset(skippy_iter.buffer.idx).is_none() {
+        skippy_iter.buffer.index_failed();
+    }
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to = None;
     let mut unsafe_to1 = 0;
@@ -889,7 +903,7 @@ fn apply_context_rules(
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g1)) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g1)?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -906,7 +920,11 @@ fn apply_context_rules(
         if !rule_offsets.is_empty()
             && rule_set_digest.is_some_and(|digest| {
                 !digest.is_full()
-                    && !digest.may_have(first_value(get_mut(&mut skippy_iter.buffer.info, g1)))
+                    && skippy_iter
+                        .buffer
+                        .info
+                        .get_mut(g1)
+                        .is_some_and(|info| !digest.may_have(first_value(info)))
             })
         {
             skippy_iter
@@ -944,7 +962,7 @@ fn apply_context_rules(
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g2)) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g2)?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -968,14 +986,11 @@ fn apply_context_rules(
         // most visited rules are rejected on these probes and never pay for
         // a full parse — nor for constructing a rule table.
         let first_value = plain_rule_first_input(&data);
-        if first_value
-            .is_none_or(|v| match_func(get_mut(&mut ctx.buffer.info, first), u32::from(v)))
-        {
-            if second.is_none()
-                || plain_rule_second_input(&data).is_none_or(|v| {
-                    match_func(get_mut(&mut ctx.buffer.info, second.unwrap()), u32::from(v))
-                })
-            {
+        if first_value.is_none_or(|v| match_value_at(&mut ctx.buffer.info, first, v, &match_func)) {
+            if second.is_none_or(|second| {
+                plain_rule_second_input(&data)
+                    .is_none_or(|v| match_value_at(&mut ctx.buffer.info, second, v, &match_func))
+            }) {
                 if ParsedRule::from_rule_data(data)
                     .unwrap_or_default()
                     .apply(ctx, &match_func)
@@ -1038,7 +1053,7 @@ fn apply_chain_with_sequences<
     let mut end_index = ctx.buffer.idx;
     let mut match_end = 0;
 
-    let input_matches = match_input(ctx, input.len() as u16, f3, &mut match_end, None);
+    let input_matches = match_input(ctx, input.len() as u16, f3, &mut match_end, None)?;
 
     if input_matches {
         end_index = match_end;
@@ -1108,7 +1123,9 @@ fn apply_chain_context_rules<
     //
     // Related: https://github.com/harfbuzz/harfbuzz/issues/4813
     let mut skippy_iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
-    skippy_iter.reset(skippy_iter.buffer.idx);
+    if skippy_iter.reset(skippy_iter.buffer.idx).is_none() {
+        skippy_iter.buffer.index_failed();
+    }
     skippy_iter.set_glyph_data(0);
     let mut unsafe_to = None;
     let mut unsafe_to1 = 0;
@@ -1116,7 +1133,7 @@ fn apply_chain_context_rules<
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g1)) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g1)?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1133,8 +1150,11 @@ fn apply_chain_context_rules<
         if !rule_offsets.is_empty()
             && rule_set_digest.is_some_and(|digest| {
                 !digest.is_full()
-                    && !digest
-                        .may_have(first_input_value(get_mut(&mut skippy_iter.buffer.info, g1)))
+                    && skippy_iter
+                        .buffer
+                        .info
+                        .get_mut(g1)
+                        .is_some_and(|info| !digest.may_have(first_input_value(info)))
             })
         {
             skippy_iter
@@ -1172,7 +1192,7 @@ fn apply_chain_context_rules<
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(get(&skippy_iter.buffer.info, g2)) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g2)?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1213,23 +1233,23 @@ fn apply_chain_context_rules<
         let matched_first = if len_p1 > 1 {
             probe
                 .input(0)
-                .is_some_and(|v| match_funcs.1(get_mut(&mut ctx.buffer.info, first), u32::from(v)))
+                .is_some_and(|v| match_value_at(&mut ctx.buffer.info, first, v, &match_funcs.1))
         } else {
             probe.lookahead_len() == 0
-                || probe.lookahead(0).is_some_and(|v| {
-                    match_funcs.2(get_mut(&mut ctx.buffer.info, first), u32::from(v))
-                })
+                || probe
+                    .lookahead(0)
+                    .is_some_and(|v| match_value_at(&mut ctx.buffer.info, first, v, &match_funcs.2))
         };
         if matched_first {
             let matched_second = if let Some(second) = second {
                 if len_p1 > 2 {
                     probe.input(1).is_some_and(|v| {
-                        match_funcs.1(get_mut(&mut ctx.buffer.info, second), u32::from(v))
+                        match_value_at(&mut ctx.buffer.info, second, v, &match_funcs.1)
                     })
                 } else {
                     (probe.lookahead_len() <= 2 - len_p1)
                         || probe.lookahead(2 - len_p1).is_some_and(|v| {
-                            match_funcs.2(get_mut(&mut ctx.buffer.info, second), u32::from(v))
+                            match_value_at(&mut ctx.buffer.info, second, v, &match_funcs.2)
                         })
                 }
             } else {

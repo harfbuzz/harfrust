@@ -11,21 +11,21 @@ pub fn insert_dotted_circles(
     dottedcircle_category: u8,
     repha_category: Option<u8>,
     dottedcircle_position: Option<u8>,
-) -> bool {
+) -> Option<bool> {
     if buffer
         .flags
         .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)
     {
-        return false;
+        return Some(false);
     }
 
     if (buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE) == 0 {
-        return false;
+        return Some(false);
     }
 
     let dottedcircle_glyph = match font.nominal_glyph(0x25CC) {
         Some(g) => g.to_u32(),
-        None => return false,
+        None => return Some(false),
     };
 
     let mut dottedcircle = GlyphInfo {
@@ -43,20 +43,20 @@ pub fn insert_dotted_circles(
     buffer.idx = 0;
     let mut last_syllable = 0;
     while buffer.idx < buffer.len {
-        let syllable = buffer.cur(0).syllable();
+        let syllable = buffer.cur(0)?.syllable();
         if last_syllable != syllable && (syllable & 0x0F) == broken_syllable_type {
             last_syllable = syllable;
 
             let mut ginfo = dottedcircle;
-            ginfo.cluster = buffer.cur(0).cluster;
-            ginfo.mask = buffer.cur(0).mask;
-            ginfo.set_syllable(buffer.cur(0).syllable());
+            ginfo.cluster = buffer.cur(0)?.cluster;
+            ginfo.mask = buffer.cur(0)?.mask;
+            ginfo.set_syllable(buffer.cur(0)?.syllable());
 
             // Insert dottedcircle after possible Repha.
             if let Some(repha_category) = repha_category {
                 while buffer.idx < buffer.len
-                    && last_syllable == buffer.cur(0).syllable()
-                    && buffer.cur(0).ot_shaper_var_u8_category() == repha_category
+                    && last_syllable == buffer.cur(0)?.syllable()
+                    && buffer.cur(0)?.ot_shaper_var_u8_category() == repha_category
                 {
                     buffer.next_glyph();
                 }
@@ -70,18 +70,18 @@ pub fn insert_dotted_circles(
 
     buffer.sync();
 
-    true
+    Some(true)
 }
 
 pub(crate) fn syllabic_clear_var(
     _: &ShapePlan,
     _: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
-) -> bool {
+) -> Option<bool> {
     for info in &mut buffer.info {
         info.set_syllable(0);
     }
     buffer.deallocate_var(GlyphInfo::SYLLABLE_VAR);
 
-    false
+    Some(false)
 }

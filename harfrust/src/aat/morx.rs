@@ -5,11 +5,10 @@ use crate::aat::common::{
     AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs,
     START_OF_TEXT,
 };
-use crate::buffer::{get, get_mut};
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::tag::lang_matches;
+use crate::Language;
 use crate::U32Set;
-use crate::{GlyphInfo, Language};
 use alloc::{vec, vec::Vec};
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
@@ -464,7 +463,7 @@ pub(crate) trait DriverContext<T> {
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
-fn drive<T, M, Ctx>(machine: &M, c: &mut Ctx, ac: &mut AatApplyContext)
+fn drive<T, M, Ctx>(machine: &M, c: &mut Ctx, ac: &mut AatApplyContext) -> Option<()>
 where
     T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug,
     M: MorphStateTable<T>,
@@ -493,7 +492,7 @@ where
             if let Some(last_range) = last_range.as_mut() {
                 let mut range = *last_range;
                 if ac.buffer.idx < ac.buffer.len {
-                    let cluster = ac.buffer.cur(0).cluster;
+                    let cluster = ac.buffer.cur(0)?.cluster;
                     while cluster < range_flags[range].cluster_first {
                         range -= 1;
                     }
@@ -521,7 +520,7 @@ where
         let class = if ac.buffer.idx < ac.buffer.len {
             get_morph_class::<T, _>(
                 machine,
-                ac.buffer.cur(0).as_glyph(),
+                ac.buffer.cur(0)?.as_glyph(),
                 ac.machine_class_cache.unwrap(),
             )
         } else {
@@ -555,7 +554,7 @@ where
                 let new_class = if ac.buffer.idx < ac.buffer.len {
                     get_morph_class::<T, _>(
                         machine,
-                        ac.buffer.cur(0).as_glyph(),
+                        ac.buffer.cur(0)?.as_glyph(),
                         ac.machine_class_cache.unwrap(),
                     )
                 } else {
@@ -649,13 +648,16 @@ where
     if !Ctx::in_place() {
         ac.buffer.sync();
     }
+    Some(())
 }
 
 fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     match kind {
         morx::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            drive(&table, &mut c, ac);
+            if drive(&table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
         morx::SubtableKind::Contextual(table) => {
             let mut c = ContextualCtx {
@@ -663,7 +665,9 @@ fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContex
                 mark: 0,
                 table: table.clone(),
             };
-            drive(&table.state_table, &mut c, ac);
+            if drive(&table.state_table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
         morx::SubtableKind::Ligature(table) => {
             let mut c = LigatureCtx {
@@ -671,15 +675,23 @@ fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContex
                 match_length: 0,
                 match_positions: [0; LIGATURE_MAX_MATCHES],
             };
-            drive(&table.state_table, &mut c, ac);
+            if drive(&table.state_table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
-        morx::SubtableKind::NonContextual(ref lookup) => apply_noncontextual(lookup, ac),
+        morx::SubtableKind::NonContextual(ref lookup) => {
+            if apply_noncontextual(lookup, ac).is_none() {
+                ac.buffer.index_failed();
+            }
+        }
         morx::SubtableKind::Insertion(table) => {
             let mut c = InsertionCtx {
                 mark: 0,
                 glyphs: table.glyphs,
             };
-            drive(&table.state_table, &mut c, ac);
+            if drive(&table.state_table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
     }
 }
@@ -688,7 +700,9 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
     match kind {
         mort::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            drive(&table, &mut c, ac);
+            if drive(&table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
         mort::SubtableKind::Contextual(table) => {
             let mut c = ContextualCtx {
@@ -696,7 +710,9 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
                 mark: 0,
                 table: table.clone(),
             };
-            drive(&table.state_table, &mut c, ac);
+            if drive(&table.state_table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
         mort::SubtableKind::Ligature(table) => {
             let mut c = LigatureCtx {
@@ -704,20 +720,28 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
                 match_length: 0,
                 match_positions: [0; LIGATURE_MAX_MATCHES],
             };
-            drive(&table.state_table, &mut c, ac);
+            if drive(&table.state_table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
-        mort::SubtableKind::NonContextual(ref lookup) => apply_noncontextual(lookup, ac),
+        mort::SubtableKind::NonContextual(ref lookup) => {
+            if apply_noncontextual(lookup, ac).is_none() {
+                ac.buffer.index_failed();
+            }
+        }
         mort::SubtableKind::Insertion(table) => {
             let mut c = InsertionCtx {
                 mark: 0,
                 glyphs: table.glyphs,
             };
-            drive(&table.state_table, &mut c, ac);
+            if drive(&table.state_table, &mut c, ac).is_none() {
+                ac.buffer.index_failed();
+            }
         }
     }
 }
 
-fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) {
+fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) -> Option<()> {
     let mut last_range = ac.range_flags.as_ref().and_then(|rf| {
         if rf.len() > 1 {
             rf.first().map(|_| 0usize)
@@ -733,7 +757,7 @@ fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) {
             if let Some(last_range) = last_range.as_mut() {
                 let mut range = *last_range;
                 if ac.buffer.idx < ac.buffer.len {
-                    let cluster = ac.buffer.cur(0).cluster;
+                    let cluster = ac.buffer.cur(0)?.cluster;
                     while cluster < range_flags[range].cluster_first {
                         range -= 1;
                     }
@@ -751,12 +775,15 @@ fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) {
             }
         }
 
-        if let Some(glyph) = get(&ac.buffer.info, i).as_gid16() {
+        if let Some(glyph) = ac.buffer.info.get(i).and_then(|info| info.as_gid16()) {
             if let Ok(replacement) = lookup.value(glyph.to_u16()) {
-                ac.replace_glyph_inplace(i, replacement.into());
+                if ac.replace_glyph_inplace(i, replacement.into()).is_none() {
+                    ac.buffer.index_failed();
+                }
             }
         }
     }
+    Some(())
 }
 
 struct RearrangementCtx {
@@ -835,42 +862,20 @@ impl DriverContext<NoPayload> for RearrangementCtx {
                 buffer.merge_clusters(self.start, (buffer.idx + 1).min(buffer.len));
                 buffer.merge_clusters(self.start, self.end);
 
-                let mut buf = [GlyphInfo::default(); 4];
-
-                for (i, glyph_info) in buf[..l].iter_mut().enumerate() {
-                    *glyph_info = *get(&buffer.info, self.start + i);
-                }
-
-                for i in 0..r {
-                    buf[i + 2] = *get(&buffer.info, self.end - r + i);
-                }
-
-                if l > r {
-                    for i in 0..(self.end - self.start - l - r) {
-                        *get_mut(&mut buffer.info, self.start + r + i) =
-                            *get(&buffer.info, self.start + l + i);
-                    }
-                } else if l < r {
-                    for i in (0..(self.end - self.start - l - r)).rev() {
-                        *get_mut(&mut buffer.info, self.start + r + i) =
-                            *get(&buffer.info, self.start + l + i);
-                    }
-                }
-
-                for i in 0..r {
-                    *get_mut(&mut buffer.info, self.start + i) = buf[2 + i];
-                }
-
-                for i in 0..l {
-                    *get_mut(&mut buffer.info, self.end - l + i) = buf[i];
-                }
+                // Swap the first l glyphs with the last r: rotating the run
+                // left by l puts the l glyphs at the end, then rotating the
+                // rest right by r brings the r glyphs to the front.
+                let run = buffer.info.get_mut(self.start..self.end)?;
+                let len = run.len();
+                run.rotate_left(l);
+                run.get_mut(..len - l)?.rotate_right(r);
 
                 if reverse_l {
-                    buffer.info.swap(self.end - 1, self.end - 2);
+                    run.get_mut(len - 2..)?.reverse();
                 }
 
                 if reverse_r {
-                    buffer.info.swap(self.start, self.start + 1);
+                    run.get_mut(..2)?.reverse();
                 }
             }
         }
@@ -994,7 +999,12 @@ where
         let mut replacement = None;
 
         if T::mark_action(&entry.payload) {
-            if let Some(gid) = get(&ac.buffer.info, self.mark).as_gid16() {
+            if let Some(gid) = ac
+                .buffer
+                .info
+                .get(self.mark)
+                .and_then(|info| info.as_gid16())
+            {
                 replacement = self.table.mark_replacement(&entry.payload, gid);
             }
         }
@@ -1004,19 +1014,26 @@ where
                 Some(self.mark),
                 Some((ac.buffer.idx + 1).min(ac.buffer.len)),
             );
-            ac.replace_glyph_inplace(self.mark, replacement.into());
+            if ac
+                .replace_glyph_inplace(self.mark, replacement.into())
+                .is_none()
+            {
+                ac.buffer.index_failed();
+            }
         }
 
         replacement = None;
         let idx = ac.buffer.idx.min(ac.buffer.len - 1);
         if T::current_action(&entry.payload) {
-            if let Some(gid) = get(&ac.buffer.info, idx).as_gid16() {
+            if let Some(gid) = ac.buffer.info.get(idx).and_then(|info| info.as_gid16()) {
                 replacement = self.table.current_replacement(&entry.payload, gid);
             }
         }
 
         if let Some(replacement) = replacement {
-            ac.replace_glyph_inplace(idx, replacement.into());
+            if ac.replace_glyph_inplace(idx, replacement.into()).is_none() {
+                ac.buffer.index_failed();
+            }
         }
 
         if entry.flags & Self::SET_MARK != 0 {
@@ -1113,7 +1130,12 @@ impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
             // TODO We ignore KashidaLike setting.
             for i in 0..count {
                 let i = usize::from(start + i);
-                ac.output_glyph(u32::from(self.glyphs.get(i)?.get().to_u16()));
+                if ac
+                    .output_glyph(u32::from(self.glyphs.get(i)?.get().to_u16()))
+                    .is_none()
+                {
+                    ac.buffer.index_failed();
+                }
             }
 
             if ac.buffer.idx < ac.buffer.len && !before {
@@ -1152,7 +1174,12 @@ impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
             // TODO We ignore KashidaLike setting.
             for i in 0..count {
                 let i = usize::from(start + i);
-                ac.output_glyph(u32::from(self.glyphs.get(i)?.get().to_u16()));
+                if ac
+                    .output_glyph(u32::from(self.glyphs.get(i)?.get().to_u16()))
+                    .is_none()
+                {
+                    ac.buffer.index_failed();
+                }
             }
 
             if ac.buffer.idx < ac.buffer.len && !before {
@@ -1334,7 +1361,7 @@ where
                 }
 
                 let offset = uoffset as i32;
-                let component = match self.table.component(ac.buffer.cur(0).glyph_id, offset) {
+                let component = match self.table.component(ac.buffer.cur(0)?.glyph_id, offset) {
                     Some(component) => u32::from(component),
                     None => break,
                 };
@@ -1348,7 +1375,9 @@ where
                         break;
                     };
 
-                    ac.replace_glyph(u32::from(lig.to_u16()));
+                    if ac.replace_glyph(u32::from(lig.to_u16())).is_none() {
+                        ac.buffer.index_failed();
+                    }
 
                     let lig_end =
                         self.match_positions[(self.match_length - 1) % LIGATURE_MAX_MATCHES] + 1;
@@ -1361,7 +1390,9 @@ where
                         {
                             return Some(());
                         }
-                        ac.delete_glyph();
+                        if ac.delete_glyph().is_none() {
+                            ac.buffer.index_failed();
+                        }
                     }
 
                     if !ac.buffer.move_to(lig_end) {

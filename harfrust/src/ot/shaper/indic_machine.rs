@@ -12,7 +12,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{get, get_mut, Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 
 static _indic_syllable_machine_trans_keys: [u8; 278] = [
     7, 19, 3, 19, 4, 19, 4, 19, 12, 12, 3, 19, 3, 19, 3, 19, 7, 19, 4, 19, 4, 19, 12, 12, 3, 19, 3,
@@ -254,13 +254,22 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
                     {
                         _keys = (cs << 1) as i32;
                         _inds = (_indic_syllable_machine_index_offsets[(cs) as usize]) as i32;
-                        if ((get(&buffer.info, p).indic_category() as u8) <= 57
-                            && (get(&buffer.info, p).indic_category() as u8) >= 1)
+                        if ((buffer
+                            .info
+                            .get(p)
+                            .map_or(0, |info| info.indic_category() as u8))
+                            <= 57
+                            && (buffer
+                                .info
+                                .get(p)
+                                .map_or(0, |info| info.indic_category() as u8))
+                                >= 1)
                         {
                             {
-                                _ic = (_indic_syllable_machine_char_class[((get(&buffer.info, p)
-                                    .indic_category()
-                                    as u8)
+                                _ic = (_indic_syllable_machine_char_class[((buffer
+                                    .info
+                                    .get(p)
+                                    .map_or(0, |info| info.indic_category() as u8))
                                     as i32
                                     - 1)
                                     as usize]) as i32;
@@ -489,7 +498,6 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
     }
 }
 
-#[inline]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -497,8 +505,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        get_mut(&mut buffer.info, i).set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

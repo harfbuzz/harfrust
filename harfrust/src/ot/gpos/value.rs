@@ -1,4 +1,3 @@
-use crate::buffer::get_mut;
 use crate::ot::apply::ApplyContext;
 use read_fonts::{
     tables::{gpos::ValueFormat, variations::DeltaSetIndex},
@@ -14,7 +13,7 @@ pub(super) fn apply(
     format: ValueFormat,
 ) -> Option<bool> {
     let scale = ctx.scale;
-    let pos = get_mut(&mut ctx.buffer.pos, idx);
+    let pos = ctx.buffer.pos.get_mut(idx)?;
     let is_horizontal = ctx.buffer.direction.is_horizontal();
     let mut worked = false;
     macro_rules! read_value {

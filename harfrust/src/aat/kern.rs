@@ -112,7 +112,9 @@ pub fn apply(
                 apply_simple_kerning(&mut c, &format0, is_cross_stream);
             }
             SubtableKind::Format1(format1) => {
-                apply_state_machine_kerning(&mut c, &format1, is_cross_stream);
+                if apply_state_machine_kerning(&mut c, &format1, is_cross_stream).is_none() {
+                    c.buffer.index_failed();
+                }
             }
             SubtableKind::Format2(format2) if plan.requested_kerning => {
                 apply_simple_kerning(&mut c, &format2, is_cross_stream);
@@ -150,7 +152,12 @@ fn machine_kern<F>(
     let mut i = 0;
     let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
-        if (get(&iter.buffer.info, i).mask & kern_mask) == 0 {
+        if iter
+            .buffer
+            .info
+            .get(i)
+            .is_none_or(|info| info.mask & kern_mask == 0)
+        {
             i += 1;
             continue;
         }
@@ -166,7 +173,11 @@ fn machine_kern<F>(
         let j = iter.index();
 
         let info = &iter.buffer.info;
-        let kern = get_kerning(get(info, i).glyph_id, get(info, j).glyph_id);
+        let (Some(first), Some(second)) = (info.get(i), info.get(j)) else {
+            i = j;
+            continue;
+        };
+        let kern = get_kerning(first.glyph_id, second.glyph_id);
         let kern = if use_x_scale {
             scale.scale_x(kern)
         } else {
@@ -174,28 +185,9 @@ fn machine_kern<F>(
         };
         let pos = &mut iter.buffer.pos;
         if kern != 0 {
-            if horizontal {
-                if cross_stream {
-                    get_mut(pos, j).y_offset = kern;
-                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                } else {
-                    let kern1 = kern >> 1;
-                    let kern2 = kern - kern1;
-                    get_mut(pos, i).x_advance = get(pos, i).x_advance.saturating_add(kern1);
-                    get_mut(pos, j).x_advance = get(pos, j).x_advance.saturating_add(kern2);
-                    get_mut(pos, j).x_offset = get(pos, j).x_offset.saturating_add(kern2);
-                }
-            } else {
-                if cross_stream {
-                    get_mut(pos, j).x_offset = kern;
-                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                } else {
-                    let kern1 = kern >> 1;
-                    let kern2 = kern - kern1;
-                    get_mut(pos, i).y_advance = get(pos, i).y_advance.saturating_add(kern1);
-                    get_mut(pos, j).y_advance = get(pos, j).y_advance.saturating_add(kern2);
-                    get_mut(pos, j).y_offset = get(pos, j).y_offset.saturating_add(kern2);
-                }
+            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream);
+            if cross_stream {
+                iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
             }
 
             iter.buffer.unsafe_to_break(Some(i), Some(j + 1));
@@ -203,6 +195,44 @@ fn machine_kern<F>(
 
         i = j;
     }
+}
+
+/// Applies a pair kerning value, splitting it across the two glyphs unless
+/// it is cross-stream, in which case only the second glyph moves.
+pub(super) fn apply_pair_kerning(
+    pos: &mut [GlyphPosition],
+    i: usize,
+    j: usize,
+    kern: i32,
+    horizontal: bool,
+    cross_stream: bool,
+) -> Option<()> {
+    if cross_stream {
+        let second = pos.get_mut(j)?;
+        if horizontal {
+            second.y_offset = kern;
+        } else {
+            second.x_offset = kern;
+        }
+        return Some(());
+    }
+    let kern1 = kern >> 1;
+    let kern2 = kern - kern1;
+    let first = pos.get_mut(i)?;
+    if horizontal {
+        first.x_advance = first.x_advance.saturating_add(kern1);
+    } else {
+        first.y_advance = first.y_advance.saturating_add(kern1);
+    }
+    let second = pos.get_mut(j)?;
+    if horizontal {
+        second.x_advance = second.x_advance.saturating_add(kern2);
+        second.x_offset = second.x_offset.saturating_add(kern2);
+    } else {
+        second.y_advance = second.y_advance.saturating_add(kern2);
+        second.y_offset = second.y_offset.saturating_add(kern2);
+    }
+    Some(())
 }
 
 fn apply_simple_kerning<T: SimpleKerning>(
@@ -311,7 +341,7 @@ fn apply_state_machine_kerning(
     c: &mut AatApplyContext,
     subtable: &aat::StateTable,
     is_cross_stream: bool,
-) {
+) -> Option<()> {
     let mut driver = StateMachineDriver {
         stack: [0; 8],
         depth: 0,
@@ -326,7 +356,7 @@ fn apply_state_machine_kerning(
         let class = if c.buffer.idx < c.buffer.len {
             get_class(
                 subtable,
-                c.buffer.cur(0).as_glyph(),
+                c.buffer.cur(0)?.as_glyph(),
                 c.machine_class_cache.unwrap(),
             )
         } else {
@@ -360,7 +390,7 @@ fn apply_state_machine_kerning(
                 let new_class = if c.buffer.idx < c.buffer.len {
                     get_class(
                         subtable,
-                        c.buffer.cur(0).as_glyph(),
+                        c.buffer.cur(0)?.as_glyph(),
                         c.machine_class_cache.unwrap(),
                     )
                 } else {
@@ -446,6 +476,7 @@ fn apply_state_machine_kerning(
             c.buffer.next_glyph();
         }
     }
+    Some(())
 }
 
 #[inline(always)]
@@ -507,8 +538,10 @@ fn state_machine_transition(
             // NOT seem to accumulate as otherwise implied by specs.
 
             let mut has_gpos_attachment = false;
-            let glyph_mask = get(&buffer.info, idx).mask;
-            let pos = get_mut(&mut buffer.pos, idx);
+            let (Some(info), Some(pos)) = (buffer.info.get(idx), buffer.pos.get_mut(idx)) else {
+                continue;
+            };
+            let glyph_mask = info.mask;
 
             if buffer.direction.is_horizontal() {
                 if is_cross_stream {

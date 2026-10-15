@@ -3,7 +3,7 @@ use crate::aat::common::{
     get_class, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
     TypedCollectGlyphs, START_OF_TEXT,
 };
-use crate::buffer::{get, get_mut};
+use crate::aat::kern::apply_pair_kerning;
 use crate::U32Set;
 use crate::{
     buffer::*,
@@ -104,13 +104,17 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     stack: [0; 8],
                     depth: 0,
                 };
-                apply_state_machine_kerning(
+                if apply_state_machine_kerning(
                     c,
                     &subtable,
                     format1,
                     &format1.state_table,
                     &mut driver,
-                );
+                )
+                .is_none()
+                {
+                    c.buffer.index_failed();
+                }
             }
             SubtableKind::Format2(format2) => {
                 if !c.plan.requested_kerning {
@@ -124,13 +128,17 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                     mark: 0,
                     ankr_table: c.layout.aat.ankr.clone(),
                 };
-                apply_state_machine_kerning(
+                if apply_state_machine_kerning(
                     c,
                     &subtable,
                     format4,
                     &format4.state_table,
                     &mut driver,
-                );
+                )
+                .is_none()
+                {
+                    c.buffer.index_failed();
+                }
             }
             SubtableKind::Format6(format6) => {
                 if !c.plan.requested_kerning {
@@ -232,7 +240,12 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
     let mut i = 0;
     let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
-        if (get(&iter.buffer.info, i).mask & c.plan.kern_mask) == 0 {
+        if iter
+            .buffer
+            .info
+            .get(i)
+            .is_none_or(|info| info.mask & c.plan.kern_mask == 0)
+        {
             i += 1;
             continue;
         }
@@ -249,8 +262,12 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
         let j = iter.index();
 
         let info = &iter.buffer.info;
-        let a = get(info, i).as_glyph();
-        let b = get(info, j).as_glyph();
+        let (Some(first), Some(second)) = (info.get(i), info.get(j)) else {
+            i = j;
+            continue;
+        };
+        let a = first.as_glyph();
+        let b = second.as_glyph();
         let kern = if !first_set.contains(a.to_u32()) || !second_set.contains(b.to_u32()) {
             0
         } else {
@@ -266,28 +283,9 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
 
         let pos = &mut iter.buffer.pos;
         if kern != 0 {
-            if horizontal {
-                if cross_stream {
-                    get_mut(pos, j).y_offset = kern;
-                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                } else {
-                    let kern1 = kern >> 1;
-                    let kern2 = kern - kern1;
-                    get_mut(pos, i).x_advance = get(pos, i).x_advance.saturating_add(kern1);
-                    get_mut(pos, j).x_advance = get(pos, j).x_advance.saturating_add(kern2);
-                    get_mut(pos, j).x_offset = get(pos, j).x_offset.saturating_add(kern2);
-                }
-            } else {
-                if cross_stream {
-                    get_mut(pos, j).x_offset = kern;
-                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                } else {
-                    let kern1 = kern >> 1;
-                    let kern2 = kern - kern1;
-                    get_mut(pos, i).y_advance = get(pos, i).y_advance.saturating_add(kern1);
-                    get_mut(pos, j).y_advance = get(pos, j).y_advance.saturating_add(kern2);
-                    get_mut(pos, j).y_offset = get(pos, j).y_offset.saturating_add(kern2);
-                }
+            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream);
+            if cross_stream {
+                iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
             }
 
             iter.buffer.unsafe_to_break(Some(i), Some(j + 1));
@@ -395,7 +393,8 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
     kind: &T,
     state_table: &aat::ExtendedStateTable<E>,
     driver: &mut Driver,
-) where
+) -> Option<()>
+where
     E: FixedSize + bytemuck::AnyBitPattern,
     aat::StateEntry<E>: KerxStateEntryExt,
 {
@@ -408,7 +407,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
         let class = if c.buffer.idx < c.buffer.len {
             get_class(
                 state_table,
-                c.buffer.cur(0).as_glyph(),
+                c.buffer.cur(0)?.as_glyph(),
                 c.machine_class_cache.unwrap(),
             )
         } else {
@@ -448,7 +447,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
                 let new_class = if c.buffer.idx < c.buffer.len {
                     get_class(
                         state_table,
-                        c.buffer.cur(0).as_glyph(),
+                        c.buffer.cur(0)?.as_glyph(),
                         c.machine_class_cache.unwrap(),
                     )
                 } else {
@@ -540,6 +539,7 @@ fn apply_state_machine_kerning<T, E, Driver: StateTableDriver<T, E>>(
         }
         c.buffer.max_ops -= 1;
     }
+    Some(())
 }
 
 trait StateTableDriver<T, E> {
@@ -613,8 +613,11 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
                 // NOT seem to accumulate as otherwise implied by specs.
 
                 let mut has_gpos_attachment = false;
-                let glyph_mask = get(&c.buffer.info, idx).mask;
-                let pos = get_mut(&mut c.buffer.pos, idx);
+                let (Some(info), Some(pos)) = (c.buffer.info.get(idx), c.buffer.pos.get_mut(idx))
+                else {
+                    continue;
+                };
+                let glyph_mask = info.mask;
 
                 if c.buffer.direction.is_horizontal() {
                     if has_cross_stream {
@@ -682,15 +685,16 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                     let action_idx = entry.action_index() as usize * 2;
                     let mark_action_idx = ankr_data.get(action_idx)?.get() as usize;
                     let curr_action_idx = ankr_data.get(action_idx + 1)?.get() as usize;
-                    let mark_idx = get(&c.buffer.info, self.mark).as_glyph();
-                    let mark_anchor = ankr_table
-                        .anchor_points(mark_idx)
-                        .ok()
+                    let mark_anchor = c
+                        .buffer
+                        .info
+                        .get(self.mark)
+                        .and_then(|info| ankr_table.anchor_points(info.as_glyph()).ok())
                         .and_then(|list| list.get(mark_action_idx))
                         .map(|point| (point.x(), point.y()))
                         .unwrap_or_default();
 
-                    let curr_idx = c.buffer.cur(0).as_glyph();
+                    let curr_idx = c.buffer.cur(0)?.as_glyph();
                     let curr_anchor = ankr_table
                         .anchor_points(curr_idx)
                         .ok()
@@ -704,7 +708,7 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                     let y_offset = c
                         .scale_y(i32::from(mark_anchor.1))
                         .saturating_sub(c.scale_y(i32::from(curr_anchor.1)));
-                    let pos = c.buffer.cur_pos_mut();
+                    let pos = c.buffer.cur_pos_mut()?;
                     pos.x_offset = x_offset;
                     pos.y_offset = y_offset;
                 }
@@ -716,20 +720,20 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
                     let curr_y = coords.get(action_idx + 3)?.get() as i32;
                     let x_offset = c.scale_x(mark_x).saturating_sub(c.scale_x(curr_x));
                     let y_offset = c.scale_y(mark_y).saturating_sub(c.scale_y(curr_y));
-                    let pos = c.buffer.cur_pos_mut();
+                    let pos = c.buffer.cur_pos_mut()?;
                     pos.x_offset = x_offset;
                     pos.y_offset = y_offset;
                 }
                 _ => {}
             }
 
-            c.buffer.cur_pos_mut().set_attach_type(attach_type::MARK);
+            c.buffer.cur_pos_mut()?.set_attach_type(attach_type::MARK);
             let idx = c.buffer.idx;
             let mut attach_chain = self.mark as i16 - idx as i16;
             if c.buffer_is_reversed {
                 attach_chain = -attach_chain;
             }
-            c.buffer.cur_pos_mut().set_attach_chain(attach_chain);
+            c.buffer.cur_pos_mut()?.set_attach_chain(attach_chain);
             c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         }
 

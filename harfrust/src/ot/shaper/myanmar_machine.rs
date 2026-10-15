@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{get, get_mut, Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 
 static _myanmar_syllable_machine_trans_keys: [u8; 108] = [
     0, 22, 1, 22, 3, 22, 3, 22, 1, 22, 3, 22, 1, 22, 1, 22, 1, 22, 1, 22, 1, 22, 3, 22, 0, 8, 1,
@@ -121,7 +121,7 @@ pub enum SyllableType {
     NonMyanmarCluster,
 }
 
-pub fn find_syllables_myanmar(buffer: &mut Buffer) {
+pub fn find_syllables_myanmar(buffer: &mut Buffer) -> Option<()> {
     let mut cs = 0;
     let mut ts = 0;
     let mut te;
@@ -171,11 +171,13 @@ pub fn find_syllables_myanmar(buffer: &mut Buffer) {
                     {
                         _keys = (cs << 1) as i32;
                         _inds = (_myanmar_syllable_machine_index_offsets[(cs) as usize]) as i32;
-                        if ((get(&buffer.info, p).myanmar_category() as u8) <= 57
-                            && (get(&buffer.info, p).myanmar_category() as u8) >= 1)
+                        if ((buffer.info.get(p)?.myanmar_category() as u8) <= 57
+                            && (buffer.info.get(p)?.myanmar_category() as u8) >= 1)
                         {
                             {
-                                _ic = (_myanmar_syllable_machine_char_class[((get(&buffer.info, p)
+                                _ic = (_myanmar_syllable_machine_char_class[((buffer
+                                    .info
+                                    .get(p)?
                                     .myanmar_category()
                                     as u8)
                                     as i32
@@ -334,9 +336,9 @@ pub fn find_syllables_myanmar(buffer: &mut Buffer) {
             break '_resume;
         }
     }
+    Some(())
 }
 
-#[inline]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -344,8 +346,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        get_mut(&mut buffer.info, i).set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

@@ -6,33 +6,7 @@ use crate::U32Set;
 use crate::{BufferFlags, ClusterLevel, Direction, Language, Script, SerializeFlags};
 use alloc::{string::String, vec::Vec};
 use core::cmp::min;
-use core::slice::SliceIndex;
 use read_fonts::types::{GlyphId, GlyphId16};
-
-// Keep bounds checks, but share the failure path instead of carrying each
-// indexing site's location, index, and length into a bounds-check panic.
-// Deliberately omit #[track_caller] so the panic location is shared as well.
-#[inline]
-pub(crate) fn get<T, I: SliceIndex<[T]>>(slice: &[T], index: I) -> &I::Output {
-    match slice.get(index) {
-        Some(value) => value,
-        None => buffer_index_failed(),
-    }
-}
-
-#[inline]
-pub(crate) fn get_mut<T, I: SliceIndex<[T]>>(slice: &mut [T], index: I) -> &mut I::Output {
-    match slice.get_mut(index) {
-        Some(value) => value,
-        None => buffer_index_failed(),
-    }
-}
-
-#[cold]
-#[inline(never)]
-fn buffer_index_failed() -> ! {
-    panic!("buffer index out of bounds");
-}
 
 const CONTEXT_LENGTH: usize = 5;
 
@@ -669,9 +643,13 @@ impl Buffer {
             return false;
         }
         if len > self.len {
-            get_mut(&mut self.info, self.len..len).fill(GlyphInfo::default());
+            if let Some(infos) = self.info.get_mut(self.len..len) {
+                infos.fill(GlyphInfo::default());
+            }
             if self.have_positions {
-                get_mut(&mut self.pos, self.len..len).fill(GlyphPosition::default());
+                if let Some(positions) = self.pos.get_mut(self.len..len) {
+                    positions.fill(GlyphPosition::default());
+                }
             }
         }
         self.len = len;
@@ -702,7 +680,10 @@ impl Buffer {
         if !self.ensure(self.len + 1) {
             return;
         }
-        *get_mut(&mut self.info, self.len) = GlyphInfo {
+        let Some(slot) = self.info.get_mut(self.len) else {
+            return;
+        };
+        *slot = GlyphInfo {
             glyph_id: codepoint,
             cluster,
             ..GlyphInfo::default()
@@ -719,8 +700,11 @@ impl Buffer {
         }
         self.content_type = Some(ContentType::Unicode);
 
-        for (i, c) in text.char_indices() {
-            *get_mut(&mut self.info, self.len) = GlyphInfo {
+        let Some(slots) = self.info.get_mut(self.len..) else {
+            return;
+        };
+        for (slot, (i, c)) in slots.iter_mut().zip(text.char_indices()) {
+            *slot = GlyphInfo {
                 glyph_id: c as u32,
                 cluster: i as u32,
                 ..GlyphInfo::default()
@@ -737,8 +721,11 @@ impl Buffer {
             return;
         }
         self.content_type = Some(ContentType::Unicode);
-        for (i, &c) in codepoints.iter().enumerate() {
-            *get_mut(&mut self.info, self.len) = GlyphInfo {
+        let Some(slots) = self.info.get_mut(self.len..) else {
+            return;
+        };
+        for (slot, (i, &c)) in slots.iter_mut().zip(codepoints.iter().enumerate()) {
+            *slot = GlyphInfo {
                 glyph_id: c,
                 cluster: i as u32,
                 ..GlyphInfo::default()
@@ -753,7 +740,10 @@ impl Buffer {
         if !self.ensure(self.len + len) {
             return false;
         }
-        get_mut(&mut self.info, self.len..self.len + len).copy_from_slice(infos);
+        let Some(slots) = self.info.get_mut(self.len..self.len + len) else {
+            return false;
+        };
+        slots.copy_from_slice(infos);
         self.len += len;
         true
     }
@@ -948,14 +938,15 @@ impl Buffer {
     /// codepoint rather than a glyph id.
     #[inline]
     pub fn glyph_infos(&self) -> &[GlyphInfo] {
-        get(&self.info, ..self.len)
+        debug_assert!(self.len <= self.info.len());
+        self.info.get(..self.len).unwrap_or_default()
     }
 
     /// Returns the buffer contents mutably.
     #[inline]
     pub fn glyph_infos_mut(&mut self) -> &mut [GlyphInfo] {
-        let len = self.len;
-        get_mut(&mut self.info, ..len)
+        debug_assert!(self.len <= self.info.len());
+        self.info.get_mut(..self.len).unwrap_or_default()
     }
 
     /// Returns the glyph positions.
@@ -969,7 +960,7 @@ impl Buffer {
         if !self.have_positions {
             return &[];
         }
-        get(&self.pos, ..self.len)
+        self.pos.get(..self.len).unwrap_or_default()
     }
 
     /// Returns the glyph positions mutably, allocating and zeroing them if
@@ -979,8 +970,7 @@ impl Buffer {
         if !self.have_positions {
             self.clear_positions();
         }
-        let len = self.len;
-        get_mut(&mut self.pos, ..len)
+        self.pos.get_mut(..self.len).unwrap_or_default()
     }
 
     /// Reverses the buffer contents.
@@ -999,9 +989,13 @@ impl Buffer {
             return;
         }
 
-        get_mut(&mut self.info, start..end).reverse();
+        if let Some(infos) = self.info.get_mut(start..end) {
+            infos.reverse();
+        }
         if self.have_positions {
-            get_mut(&mut self.pos, start..end).reverse();
+            if let Some(positions) = self.pos.get_mut(start..end) {
+                positions.reverse();
+            }
         }
     }
 
@@ -1085,7 +1079,20 @@ impl Buffer {
 
     #[inline]
     pub(crate) fn info_slice_mut(&mut self) -> &mut [GlyphInfo] {
-        get_mut(&mut self.info, ..self.len)
+        debug_assert!(self.len <= self.info.len());
+        self.info.get_mut(..self.len).unwrap_or_default()
+    }
+
+    /// Returns the glyph infos and positions together, for walking both at
+    /// once.
+    #[inline]
+    pub(crate) fn infos_and_positions_mut(&mut self) -> (&mut [GlyphInfo], &mut [GlyphPosition]) {
+        let len = self.len;
+        debug_assert!(len <= self.info.len() && len <= self.pos.len());
+        (
+            self.info.get_mut(..len).unwrap_or_default(),
+            self.pos.get_mut(..len).unwrap_or_default(),
+        )
     }
 
     #[inline]
@@ -1106,9 +1113,24 @@ impl Buffer {
         }
     }
 
-    #[inline]
+    /// Marks the buffer unsuccessful after an index fell outside it.
+    ///
+    /// Buffer operations skip the out-of-range access but keep their
+    /// bookkeeping, so shaping loops still advance and then stop on the
+    /// failure as they do when an allocation fails.
+    #[cold]
+    #[inline(never)]
+    pub(crate) fn index_failed(&mut self) {
+        debug_assert!(false, "buffer index out of bounds");
+        self.successful = false;
+    }
+
+    #[inline(always)]
     fn set_out_info(&mut self, i: usize, info: GlyphInfo) {
-        *get_mut(self.out_info_mut(), i) = info;
+        match self.out_info_mut().get_mut(i) {
+            Some(slot) => *slot = info,
+            None => self.index_failed(),
+        }
     }
 
     /// Below this many elements, copy inline instead of calling memmove:
@@ -1120,30 +1142,42 @@ impl Buffer {
     /// The caller must have made room in the out buffer already. In the
     /// shared-array case the destination never starts past the source
     /// (`dst <= src`), which makes the ascending inline copy overlap-safe.
-    #[inline]
     fn copy_infos_to_out(&mut self, src: usize, dst: usize, count: usize) {
+        if self.try_copy_infos_to_out(src, dst, count).is_none() {
+            self.index_failed();
+        }
+    }
+
+    #[inline]
+    fn try_copy_infos_to_out(&mut self, src: usize, dst: usize, count: usize) -> Option<()> {
         if self.have_separate_output {
             let out: &mut [GlyphInfo] = bytemuck::cast_slice_mut(self.pos.as_mut_slice());
+            let to = out.get_mut(dst..dst + count)?;
+            let from = self.info.get(src..src + count)?;
             if count < Self::SMALL_COPY {
                 // Deliberately not copy_from_slice: avoiding the memmove
                 // call for small counts is this fast path's entire point.
-                #[allow(clippy::manual_memcpy)]
-                for i in 0..count {
-                    *get_mut(out, dst + i) = *get(&self.info, src + i);
+                for (to, from) in to.iter_mut().zip(from) {
+                    *to = *from;
                 }
             } else {
-                get_mut(out, dst..dst + count).copy_from_slice(get(&self.info, src..src + count));
+                to.copy_from_slice(from);
             }
         } else {
             debug_assert!(dst <= src);
+            // Destination and source share the array; `dst <= src` makes the
+            // ascending copy overlap-safe.
+            let window = self.info.get_mut(dst..src.checked_add(count)?)?;
+            let offset = src - dst;
             if count < Self::SMALL_COPY {
                 for i in 0..count {
-                    *get_mut(&mut self.info, dst + i) = *get(&self.info, src + i);
+                    *window.get_mut(i)? = *window.get(offset + i)?;
                 }
             } else {
-                self.info.copy_within(src..src + count, dst);
+                window.copy_within(offset.., 0);
             }
         }
+        Some(())
     }
 
     /// Block-copies `out_info[src..src + count]` to `info[dst..dst + count]`.
@@ -1152,57 +1186,68 @@ impl Buffer {
     /// memmove semantics on overlap.
     #[inline]
     fn copy_out_to_infos(&mut self, src: usize, dst: usize, count: usize) {
-        if self.have_separate_output {
-            let out: &[GlyphInfo] = bytemuck::cast_slice(self.pos.as_slice());
-            if count < Self::SMALL_COPY {
-                // Deliberately not copy_from_slice; see copy_infos_to_out.
-                #[allow(clippy::manual_memcpy)]
-                for i in 0..count {
-                    *get_mut(&mut self.info, dst + i) = *get(out, src + i);
-                }
-            } else {
-                get_mut(&mut self.info, dst..dst + count)
-                    .copy_from_slice(get(out, src..src + count));
-            }
-        } else {
-            debug_assert!(dst >= src);
-            if count < Self::SMALL_COPY {
-                for i in (0..count).rev() {
-                    *get_mut(&mut self.info, dst + i) = *get(&self.info, src + i);
-                }
-            } else {
-                self.info.copy_within(src..src + count, dst);
-            }
+        if self.try_copy_out_to_infos(src, dst, count).is_none() {
+            self.index_failed();
         }
     }
 
     #[inline]
-    pub(crate) fn cur(&self, i: usize) -> &GlyphInfo {
-        get(&self.info, self.idx + i)
+    fn try_copy_out_to_infos(&mut self, src: usize, dst: usize, count: usize) -> Option<()> {
+        if self.have_separate_output {
+            let out: &[GlyphInfo] = bytemuck::cast_slice(self.pos.as_slice());
+            let from = out.get(src..src + count)?;
+            let to = self.info.get_mut(dst..dst + count)?;
+            if count < Self::SMALL_COPY {
+                // Deliberately not copy_from_slice; see copy_infos_to_out.
+                for (to, from) in to.iter_mut().zip(from) {
+                    *to = *from;
+                }
+            } else {
+                to.copy_from_slice(from);
+            }
+        } else {
+            debug_assert!(dst >= src);
+            // Destination and source share the array; `dst >= src` needs the
+            // descending copy to stay overlap-safe.
+            let window = self.info.get_mut(src..dst.checked_add(count)?)?;
+            let offset = dst - src;
+            if count < Self::SMALL_COPY {
+                for i in (0..count).rev() {
+                    *window.get_mut(offset + i)? = *window.get(i)?;
+                }
+            } else {
+                window.copy_within(..count, offset);
+            }
+        }
+        Some(())
     }
 
     #[inline]
-    pub(crate) fn cur_mut(&mut self, i: usize) -> &mut GlyphInfo {
+    pub(crate) fn cur(&self, i: usize) -> Option<&GlyphInfo> {
+        self.info.get(self.idx + i)
+    }
+
+    #[inline]
+    pub(crate) fn cur_mut(&mut self, i: usize) -> Option<&mut GlyphInfo> {
         let idx = self.idx + i;
-        get_mut(&mut self.info, idx)
+        self.info.get_mut(idx)
     }
 
     #[inline]
-    pub(crate) fn cur_pos_mut(&mut self) -> &mut GlyphPosition {
-        let i = self.idx;
-        get_mut(&mut self.pos, i)
+    pub(crate) fn cur_pos_mut(&mut self) -> Option<&mut GlyphPosition> {
+        let idx = self.idx;
+        self.pos.get_mut(idx)
     }
 
     #[inline]
-    pub(crate) fn prev(&self) -> &GlyphInfo {
-        let idx = self.out_len.saturating_sub(1);
-        get(self.out_info(), idx)
+    pub(crate) fn prev(&self) -> Option<&GlyphInfo> {
+        self.out_info().get(self.out_len.checked_sub(1)?)
     }
 
     #[inline]
-    pub(crate) fn prev_mut(&mut self) -> &mut GlyphInfo {
-        let idx = self.out_len.saturating_sub(1);
-        get_mut(self.out_info_mut(), idx)
+    pub(crate) fn prev_mut(&mut self) -> Option<&mut GlyphInfo> {
+        let idx = self.out_len.checked_sub(1)?;
+        self.out_info_mut().get_mut(idx)
     }
 
     pub(crate) fn update_digest(&mut self) {
@@ -1253,7 +1298,11 @@ impl Buffer {
         let mut i = 1;
 
         while i < self.len {
-            if !group(get(&self.info, i - 1), get(&self.info, i)) {
+            let (Some(a), Some(b)) = (self.info.get(i - 1), self.info.get(i)) else {
+                self.index_failed();
+                break;
+            };
+            if !group(a, b) {
                 if merge_clusters {
                     self.merge_clusters(start, i);
                 }
@@ -1280,7 +1329,13 @@ impl Buffer {
     {
         start += 1;
 
-        while start < self.len && group(get(&self.info, start - 1), get(&self.info, start)) {
+        while start < self.len {
+            let (Some(a), Some(b)) = (self.info.get(start - 1), self.info.get(start)) else {
+                break;
+            };
+            if !group(a, b) {
+                break;
+            }
             start += 1;
         }
 
@@ -1347,12 +1402,17 @@ impl Buffer {
 
         self.merge_clusters(self.idx, self.idx + num_in);
 
-        let orig_info = *get(&self.info, self.idx);
+        let orig_info = self.info.get(self.idx).copied();
         let out_len = self.out_len;
-        let out = get_mut(self.out_info_mut(), out_len..out_len + num_out);
-        for (out_info, &glyph_id) in out.iter_mut().zip(&glyph_data[..num_out]) {
-            *out_info = orig_info;
-            out_info.glyph_id = glyph_id;
+        let out = self.out_info_mut().get_mut(out_len..out_len + num_out);
+        match (orig_info, out, glyph_data.get(..num_out)) {
+            (Some(orig_info), Some(out), Some(glyph_data)) => {
+                for (out_info, &glyph_id) in out.iter_mut().zip(glyph_data) {
+                    *out_info = orig_info;
+                    out_info.glyph_id = glyph_id;
+                }
+            }
+            _ => self.index_failed(),
         }
 
         self.idx += num_in;
@@ -1365,11 +1425,10 @@ impl Buffer {
                 return;
             }
 
-            self.set_out_info(self.out_len, *get(&self.info, self.idx));
+            self.copy_cur_to_out(self.out_len);
         }
 
-        let out_len = self.out_len;
-        get_mut(self.out_info_mut(), out_len).glyph_id = glyph_index;
+        self.set_out_glyph(self.out_len, glyph_index);
 
         self.idx += 1;
         self.out_len += 1;
@@ -1386,13 +1445,15 @@ impl Buffer {
 
         let out_len = self.out_len;
         if self.idx < self.len {
-            self.set_out_info(out_len, *get(&self.info, self.idx));
+            self.copy_cur_to_out(out_len);
         } else {
-            let info = *get(self.out_info(), out_len - 1);
-            self.set_out_info(out_len, info);
+            match self.out_info().get(out_len - 1).copied() {
+                Some(info) => self.set_out_info(out_len, info),
+                None => self.index_failed(),
+            }
         }
 
-        get_mut(self.out_info_mut(), out_len).glyph_id = glyph_index;
+        self.set_out_glyph(out_len, glyph_index);
 
         self.out_len += 1;
     }
@@ -1412,8 +1473,25 @@ impl Buffer {
             return;
         }
 
-        self.set_out_info(self.out_len, *get(&self.info, self.idx));
+        self.copy_cur_to_out(self.out_len);
         self.out_len += 1;
+    }
+
+    /// Copies the current glyph to `out_info[out]`.
+    #[inline(always)]
+    fn copy_cur_to_out(&mut self, out: usize) {
+        match self.info.get(self.idx).copied() {
+            Some(info) => self.set_out_info(out, info),
+            None => self.index_failed(),
+        }
+    }
+
+    #[inline(always)]
+    fn set_out_glyph(&mut self, out: usize, glyph_index: u32) {
+        match self.out_info_mut().get_mut(out) {
+            Some(info) => info.glyph_id = glyph_index,
+            None => self.index_failed(),
+        }
     }
 
     /// Copies glyph at idx to output and advance idx.
@@ -1427,8 +1505,7 @@ impl Buffer {
                     return;
                 }
 
-                let i = self.out_len;
-                *get_mut(self.out_info_mut(), i) = *get(&self.info, self.idx);
+                self.copy_cur_to_out(self.out_len);
             }
 
             self.out_len += 1;
@@ -1440,6 +1517,7 @@ impl Buffer {
     /// Copies n glyphs at idx to output and advance idx.
     ///
     /// If there's no output, just advance idx.
+    #[inline]
     pub(crate) fn next_glyphs(&mut self, n: usize) {
         if self.have_output {
             if self.have_separate_output || self.out_len != self.idx {
@@ -1481,14 +1559,14 @@ impl Buffer {
         }
 
         if cluster_start == 0 && cluster_end == u32::MAX {
-            for info in get_mut(&mut self.info, ..self.len) {
+            for info in self.info_slice_mut() {
                 info.mask = (info.mask & not_mask) | value;
             }
 
             return;
         }
 
-        for info in get_mut(&mut self.info, ..self.len) {
+        for info in self.info_slice_mut() {
             if cluster_start <= info.cluster && info.cluster < cluster_end {
                 info.mask = (info.mask & not_mask) | value;
             }
@@ -1509,47 +1587,61 @@ impl Buffer {
         self.merge_clusters_impl(start, end);
     }
 
-    fn merge_clusters_impl(&mut self, mut start: usize, mut end: usize) {
+    fn merge_clusters_impl(&mut self, start: usize, end: usize) {
         self.max_ops -= (end - start) as i32;
         if self.max_ops < 0 {
             self.successful = false;
         }
 
-        let cluster = get(&self.info, start..end)
+        if self.try_merge_clusters(start, end).is_none() {
+            self.index_failed();
+        }
+    }
+
+    fn try_merge_clusters(&mut self, mut start: usize, mut end: usize) -> Option<()> {
+        let cluster_at = |infos: &[GlyphInfo], i: usize| infos.get(i).map(|info| info.cluster);
+        let cluster = self
+            .info
+            .get(start..end)?
             .iter()
             .map(|info| info.cluster)
-            .min()
-            .unwrap();
+            .min()?;
 
         // Extend end
-        if cluster != get(&self.info, end - 1).cluster {
-            while end < self.len && get(&self.info, end - 1).cluster == get(&self.info, end).cluster
+        if cluster != cluster_at(&self.info, end - 1)? {
+            while end < self.len && cluster_at(&self.info, end - 1)? == cluster_at(&self.info, end)?
             {
                 end += 1;
             }
         }
 
         // Extend start
-        if cluster != get(&self.info, start).cluster {
+        if cluster != cluster_at(&self.info, start)? {
             while self.idx < start
-                && get(&self.info, start - 1).cluster == get(&self.info, start).cluster
+                && cluster_at(&self.info, start - 1)? == cluster_at(&self.info, start)?
             {
                 start -= 1;
             }
         }
 
         // If we hit the start of buffer, continue in out-buffer.
-        if self.idx == start && get(&self.info, start).cluster != cluster {
+        let start_cluster = cluster_at(&self.info, start)?;
+        if self.idx == start && start_cluster != cluster {
             let mut i = self.out_len;
-            while i != 0 && get(self.out_info(), i - 1).cluster == get(&self.info, start).cluster {
-                Self::set_cluster(get_mut(self.out_info_mut(), i - 1), cluster, 0);
+            while i != 0 {
+                let info = self.out_info_mut().get_mut(i - 1)?;
+                if info.cluster != start_cluster {
+                    break;
+                }
+                Self::set_cluster(info, cluster, 0);
                 i -= 1;
             }
         }
 
-        for info in get_mut(&mut self.info, start..end) {
+        for info in self.info.get_mut(start..end)? {
             Self::set_cluster(info, cluster, 0);
         }
+        Some(())
     }
 
     pub(crate) fn merge_grapheme_clusters(&mut self, start: usize, end: usize) {
@@ -1589,83 +1681,104 @@ impl Buffer {
         self.merge_out_clusters_impl(start, end);
     }
 
-    fn merge_out_clusters_impl(&mut self, mut start: usize, mut end: usize) {
+    fn merge_out_clusters_impl(&mut self, start: usize, end: usize) {
         self.max_ops -= (end - start) as i32;
         if self.max_ops < 0 {
             self.successful = false;
         }
 
-        let cluster = get(self.out_info(), start..end)
+        if self.try_merge_out_clusters(start, end).is_none() {
+            self.index_failed();
+        }
+    }
+
+    fn try_merge_out_clusters(&mut self, mut start: usize, mut end: usize) -> Option<()> {
+        let cluster_at = |infos: &[GlyphInfo], i: usize| infos.get(i).map(|info| info.cluster);
+        let cluster = self
+            .out_info()
+            .get(start..end)?
             .iter()
             .map(|info| info.cluster)
-            .min()
-            .unwrap();
+            .min()?;
 
         // Extend start
         while start != 0
-            && get(self.out_info(), start - 1).cluster == get(self.out_info(), start).cluster
+            && cluster_at(self.out_info(), start - 1)? == cluster_at(self.out_info(), start)?
         {
             start -= 1;
         }
 
         // Extend end
         while end < self.out_len
-            && get(self.out_info(), end - 1).cluster == get(self.out_info(), end).cluster
+            && cluster_at(self.out_info(), end - 1)? == cluster_at(self.out_info(), end)?
         {
             end += 1;
         }
 
         // If we hit the start of buffer, continue in out-buffer.
         if end == self.out_len {
+            let end_cluster = cluster_at(self.out_info(), end - 1)?;
             let mut i = self.idx;
-            while i < self.len
-                && get(&self.info, i).cluster == get(self.out_info(), end - 1).cluster
-            {
-                Self::set_cluster(get_mut(&mut self.info, i), cluster, 0);
+            while i < self.len {
+                let info = self.info.get_mut(i)?;
+                if info.cluster != end_cluster {
+                    break;
+                }
+                Self::set_cluster(info, cluster, 0);
                 i += 1;
             }
         }
 
-        for info in get_mut(self.out_info_mut(), start..end) {
+        for info in self.out_info_mut().get_mut(start..end)? {
             Self::set_cluster(info, cluster, 0);
         }
+        Some(())
     }
 
     /// Merge clusters for deleting current glyph, and skip it.
     pub(crate) fn delete_glyph(&mut self) {
-        let cluster = get(&self.info, self.idx).cluster;
+        if self.merge_deleted_cluster().is_none() {
+            self.index_failed();
+        }
+        self.skip_glyph();
+    }
 
-        if (self.idx + 1 < self.len && cluster == get(&self.info, self.idx + 1).cluster)
-            || (self.out_len != 0 && cluster == get(self.out_info(), self.out_len - 1).cluster)
+    fn merge_deleted_cluster(&mut self) -> Option<()> {
+        let GlyphInfo { cluster, mask, .. } = *self.info.get(self.idx)?;
+        let next_cluster = self.info.get(self.idx + 1).map(|info| info.cluster);
+        let prev_cluster = match self.out_len {
+            0 => None,
+            out_len => Some(self.out_info().get(out_len - 1)?.cluster),
+        };
+
+        if (self.idx + 1 < self.len && next_cluster == Some(cluster))
+            || prev_cluster == Some(cluster)
         {
             // Cluster survives; do nothing.
-            self.skip_glyph();
-            return;
+            return Some(());
         }
 
-        if self.out_len != 0 {
+        if let Some(old_cluster) = prev_cluster {
             // Merge cluster backward.
-            if cluster < get(self.out_info(), self.out_len - 1).cluster {
-                let mask = get(&self.info, self.idx).mask;
-                let old_cluster = get(self.out_info(), self.out_len - 1).cluster;
-
+            if cluster < old_cluster {
                 let mut i = self.out_len;
-                while i != 0 && get(self.out_info(), i - 1).cluster == old_cluster {
-                    Self::set_cluster(get_mut(self.out_info_mut(), i - 1), cluster, mask);
+                while i != 0 {
+                    let info = self.out_info_mut().get_mut(i - 1)?;
+                    if info.cluster != old_cluster {
+                        break;
+                    }
+                    Self::set_cluster(info, cluster, mask);
                     i -= 1;
                 }
             }
-
-            self.skip_glyph();
-            return;
+            return Some(());
         }
 
         if self.idx + 1 < self.len {
             // Merge cluster forward.
             self.merge_clusters(self.idx, self.idx + 2);
         }
-
-        self.skip_glyph();
+        Some(())
     }
 
     pub(crate) fn delete_glyphs_inplace(&mut self, filter: impl Fn(&GlyphInfo) -> bool) {
@@ -1674,26 +1787,33 @@ impl Buffer {
         let mut j = 0;
 
         for i in 0..self.len {
-            if filter(get(&self.info, i)) {
+            let Some(&info) = self.info.get(i) else {
+                self.index_failed();
+                break;
+            };
+            if filter(&info) {
                 // Merge clusters.
                 // Same logic as delete_glyph(), but for in-place removal
 
-                let cluster = get(&self.info, i).cluster;
-                if i + 1 < self.len && cluster == get(&self.info, i + 1).cluster {
+                let GlyphInfo { cluster, mask, .. } = info;
+                if self
+                    .info
+                    .get(i + 1)
+                    .is_some_and(|next| i + 1 < self.len && next.cluster == cluster)
+                {
                     // Cluster survives; do nothing.
                     continue;
                 }
 
                 if j != 0 {
                     // Merge cluster backward.
-                    if cluster < get(&self.info, j - 1).cluster {
-                        let mask = get(&self.info, i).mask;
-                        let old_cluster = get(&self.info, j - 1).cluster;
-
-                        let mut k = j;
-                        while k > 0 && get(&self.info, k - 1).cluster == old_cluster {
-                            Self::set_cluster(get_mut(&mut self.info, k - 1), cluster, mask);
-                            k -= 1;
+                    let old_cluster = self.info.get(j - 1).map_or(cluster, |info| info.cluster);
+                    if cluster < old_cluster {
+                        for info in self.info.get_mut(..j).unwrap_or_default().iter_mut().rev() {
+                            if info.cluster != old_cluster {
+                                break;
+                            }
+                            Self::set_cluster(info, cluster, mask);
                         }
                     }
                     continue;
@@ -1708,8 +1828,14 @@ impl Buffer {
             }
 
             if j != i {
-                *get_mut(&mut self.info, j) = *get(&self.info, i);
-                *get_mut(&mut self.pos, j) = *get(&self.pos, i);
+                if let Some(slot) = self.info.get_mut(j) {
+                    *slot = info;
+                }
+                if let Some(&pos) = self.pos.get(i) {
+                    if let Some(slot) = self.pos.get_mut(j) {
+                        *slot = pos;
+                    }
+                }
             }
 
             j += 1;
@@ -1756,7 +1882,7 @@ impl Buffer {
     ) {
         if !from_out_buffer || !self.have_output {
             if !interior {
-                for info in get_mut(&mut self.info, start..end) {
+                for info in self.info.get_mut(start..end).unwrap_or_default() {
                     info.mask |= mask;
                 }
             } else {
@@ -1769,11 +1895,15 @@ impl Buffer {
 
             if !interior {
                 let range_end = self.out_len;
-                for info in get_mut(self.out_info_mut(), start..range_end) {
+                for info in self
+                    .out_info_mut()
+                    .get_mut(start..range_end)
+                    .unwrap_or_default()
+                {
                     info.mask |= mask;
                 }
 
-                for info in get_mut(&mut self.info, self.idx..end) {
+                for info in self.info.get_mut(self.idx..end).unwrap_or_default() {
                     info.mask |= mask;
                 }
             } else {
@@ -1977,18 +2107,24 @@ impl Buffer {
         // Destination starts past the source; the inline copy runs
         // descending to keep memmove semantics on overlap.
         let moved = self.len - self.idx;
+        let Some(window) = self.info.get_mut(self.idx..self.len + count) else {
+            self.index_failed();
+            return false;
+        };
         if moved < Self::SMALL_COPY {
             for i in (0..moved).rev() {
-                *get_mut(&mut self.info, self.idx + count + i) = *get(&self.info, self.idx + i);
+                if let Some(&info) = window.get(i) {
+                    if let Some(slot) = window.get_mut(count + i) {
+                        *slot = info;
+                    }
+                }
             }
         } else {
-            self.info.copy_within(self.idx..self.len, self.idx + count);
+            window.copy_within(..moved, count);
         }
 
-        if self.idx + count > self.len {
-            for info in get_mut(&mut self.info, self.len..self.idx + count) {
-                *info = GlyphInfo::default();
-            }
+        if let Some(gap) = window.get_mut(moved..count) {
+            gap.fill(GlyphInfo::default());
         }
 
         self.len += count;
@@ -2010,8 +2146,12 @@ impl Buffer {
         debug_assert!(!self.have_positions);
 
         for i in start + 1..end {
+            let Some(&item) = self.info.get(i) else {
+                self.index_failed();
+                return;
+            };
             let mut j = i;
-            while j > start && cmp(get(&self.info, j - 1), get(&self.info, i)) {
+            while j > start && self.info.get(j - 1).is_some_and(|prev| cmp(prev, &item)) {
                 j -= 1;
             }
 
@@ -2021,14 +2161,8 @@ impl Buffer {
 
             // Move item i to occupy place for item j, shift what's in between.
             self.merge_clusters(j, i + 1);
-
-            {
-                let t = *get(&self.info, i);
-                for idx in (0..i - j).rev() {
-                    *get_mut(&mut self.info, idx + j + 1) = *get(&self.info, idx + j);
-                }
-
-                *get_mut(&mut self.info, j) = t;
+            if let Some(moved) = self.info.get_mut(j..=i) {
+                moved.rotate_right(1);
             }
         }
     }
@@ -2077,13 +2211,18 @@ impl Buffer {
             return cluster;
         }
 
+        let Some(infos) = info.get(start..end) else {
+            return cluster;
+        };
         if self.cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS {
-            for glyph_info in get(info, start..end) {
+            for glyph_info in infos {
                 cluster = min(cluster, glyph_info.cluster);
             }
         }
 
-        cluster.min(get(info, start).cluster.min(get(info, end - 1).cluster))
+        let first = infos.first().map_or(cluster, |info| info.cluster);
+        let last = infos.last().map_or(cluster, |info| info.cluster);
+        cluster.min(first.min(last))
     }
 
     #[inline(always)]
@@ -2106,57 +2245,26 @@ impl Buffer {
         } else {
             self.info.as_mut_slice()
         };
-
-        let cluster_first = get(infos, start).cluster;
-        let cluster_last = get(infos, end - 1).cluster;
-
-        if cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS
-            || (cluster != cluster_first && cluster != cluster_last)
-        {
-            for info in get_mut(infos, start..end) {
-                if info.cluster != cluster {
-                    info.mask |= mask;
-                }
-            }
-
-            return;
-        }
-
-        // Monotone clusters
-        if cluster == cluster_first {
-            let mut i = end;
-            while start < i && get(infos, i - 1).cluster != cluster_first {
-                if cluster != get(infos, i - 1).cluster {
-                    get_mut(infos, i - 1).mask |= mask;
-                }
-
-                i -= 1;
-            }
-        } else {
-            let mut i = start;
-            while i < end && get(infos, i).cluster != cluster_last {
-                if cluster != get(infos, i).cluster {
-                    get_mut(infos, i).mask |= mask;
-                }
-
-                i += 1;
-            }
+        if set_cluster_flags(infos, cluster_level, start, end, cluster, mask).is_none() {
+            self.index_failed();
         }
     }
 
-    pub(crate) fn next_syllable(&self, mut start: usize) -> usize {
+    pub(crate) fn next_syllable(&self, start: usize) -> usize {
         if start >= self.len {
             return start;
         }
 
         let end = start + min(self.len - start, MAX_SYLLABLE_LENGTH);
-        let syllable = get(&self.info, start).syllable();
-        start += 1;
-        while start < end && syllable == get(&self.info, start).syllable() {
-            start += 1;
-        }
-
+        let Some(infos) = self.info.get(start..end) else {
+            return end;
+        };
+        let syllable = infos.first().map(GlyphInfo::syllable);
         start
+            + infos
+                .iter()
+                .take_while(|info| Some(info.syllable()) == syllable)
+                .count()
     }
 
     #[inline]
@@ -2270,6 +2378,60 @@ pub(crate) fn _cluster_group_func(a: &GlyphInfo, b: &GlyphInfo) -> bool {
 
 // TODO: to iter if possible
 
+/// Sets `mask` on the glyphs in `start..end` outside `cluster`, as far as the
+/// cluster level allows.
+#[inline(always)]
+fn set_cluster_flags(
+    infos: &mut [GlyphInfo],
+    cluster_level: ClusterLevelCode,
+    start: usize,
+    end: usize,
+    cluster: u32,
+    mask: Mask,
+) -> Option<()> {
+    let cluster_first = infos.get(start)?.cluster;
+    let cluster_last = infos.get(end - 1)?.cluster;
+
+    if cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS
+        || (cluster != cluster_first && cluster != cluster_last)
+    {
+        for info in infos.get_mut(start..end)? {
+            if info.cluster != cluster {
+                info.mask |= mask;
+            }
+        }
+        return Some(());
+    }
+
+    // Monotone clusters
+    if cluster == cluster_first {
+        let mut i = end;
+        while start < i {
+            let info = infos.get_mut(i - 1)?;
+            if info.cluster == cluster_first {
+                break;
+            }
+            if cluster != info.cluster {
+                info.mask |= mask;
+            }
+            i -= 1;
+        }
+    } else {
+        let mut i = start;
+        while i < end {
+            let info = infos.get_mut(i)?;
+            if info.cluster == cluster_last {
+                break;
+            }
+            if cluster != info.cluster {
+                info.mask |= mask;
+            }
+            i += 1;
+        }
+    }
+    Some(())
+}
+
 macro_rules! foreach_cluster {
     ($buffer:expr, $start:ident, $end:ident, $($body:tt)*) => {
         foreach_group!($buffer, $start, $end, $crate::buffer::_cluster_group_func, $($body)*)
@@ -2363,53 +2525,6 @@ pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn checked_get_elements_and_ranges() {
-        let values = [1, 2, 3];
-        assert_eq!(*get(&values, 0), 1);
-        assert_eq!(*get(&values, 2), 3);
-        assert_eq!(get(&values, 1..3), &[2, 3]);
-        assert_eq!(get(&values, ..=2), &values);
-        assert_eq!(get(&values, 3..), &[]);
-        assert_eq!(get::<u32, _>(&[], ..), &[]);
-    }
-
-    #[test]
-    fn checked_get_mut_elements_and_ranges() {
-        let mut values = [1, 2, 3];
-        *get_mut(&mut values, 0) = 4;
-        get_mut(&mut values, 1..=2).fill(5);
-        assert_eq!(values, [4, 5, 5]);
-        assert!(get_mut(&mut values, 3..).is_empty());
-        assert!(get_mut::<u32, _>(&mut [], ..).is_empty());
-    }
-
-    #[test]
-    #[should_panic(expected = "buffer index out of bounds")]
-    fn checked_get_rejects_out_of_bounds_element() {
-        get(&[1, 2, 3], 3);
-    }
-
-    #[test]
-    #[should_panic(expected = "buffer index out of bounds")]
-    fn checked_get_mut_rejects_out_of_bounds_element() {
-        get_mut(&mut [1, 2, 3], usize::MAX);
-    }
-
-    #[test]
-    #[should_panic(expected = "buffer index out of bounds")]
-    fn checked_get_rejects_reversed_range() {
-        let start = 2;
-        let end = 1;
-        get(&[1, 2, 3], start..end);
-    }
-
-    #[test]
-    #[should_panic(expected = "buffer index out of bounds")]
-    fn checked_get_mut_rejects_out_of_bounds_range() {
-        get_mut(&mut [1, 2, 3], ..=3);
-    }
 
     #[test]
     fn next_syllable_is_bounded() {

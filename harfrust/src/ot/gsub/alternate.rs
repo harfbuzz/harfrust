@@ -10,7 +10,7 @@ impl Apply for AlternateSet<'_> {
             return None;
         }
 
-        let glyph_mask = ctx.buffer.cur(0).mask;
+        let glyph_mask = ctx.buffer.cur(0)?.mask;
 
         // Note: This breaks badly if two features enabled this lookup together.
         let shift = ctx.lookup_mask().trailing_zeros();
@@ -42,7 +42,7 @@ impl WouldApply for AlternateSubstFormat1<'_> {
 
 impl Apply for AlternateSubstFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
         let index = self.coverage().ok()?.get(glyph)?;
         let set = self.alternate_sets().get(index as usize).ok()?;
         set.apply(ctx)

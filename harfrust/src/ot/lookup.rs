@@ -268,7 +268,7 @@ impl LookupInfo {
         table_data: &[u8],
         use_hot_subtable_cache: bool,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).glyph_id;
+        let glyph = ctx.buffer.cur(0)?.glyph_id;
         if let [subtable_info] = self.subtables.as_slice() {
             // The lookup digest is the union of the subtable digests, so for
             // a single subtable it equals this subtable's digest, which the

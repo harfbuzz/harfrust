@@ -1,4 +1,4 @@
-use crate::buffer::{get, GlyphInfo};
+use crate::buffer::GlyphInfo;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     ligate_input, match_always, match_glyph, match_input, Apply, LigatureSubstFormat1Cache,
@@ -51,7 +51,7 @@ impl Apply for Ligature<'_> {
                 f,
                 &mut match_end,
                 Some(&mut total_component_count),
-            ) {
+            )? {
                 ctx.buffer
                     .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
                 return None;
@@ -63,8 +63,7 @@ impl Apply for Ligature<'_> {
                 match_end,
                 total_component_count,
                 self.ligature_glyph().into(),
-            );
-            Some(())
+            )
         }
     }
 }
@@ -91,17 +90,20 @@ impl ApplyLigatureSet for LigatureSet<'_> {
             true
         } else {
             let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
-            iter.reset(iter.buffer.idx);
+            if iter.reset(iter.buffer.idx).is_none() {
+                iter.buffer.index_failed();
+            }
             let matched = iter.next(Some(&mut unsafe_to));
             if !matched {
                 true
             } else {
-                second = get(&iter.buffer.info, iter.index()).glyph_id.into();
+                let info = iter.buffer.info.get(iter.index())?;
+                second = info.glyph_id.into();
                 unsafe_to = iter.index() + 1;
 
                 // Can't use the fast path if eg. the next char is a default-ignorable
                 // or other skippable.
-                iter.may_skip(get(&iter.buffer.info, iter.index())) != MaySkip::No
+                iter.may_skip(info) != MaySkip::No
             }
         };
 
@@ -163,7 +165,7 @@ impl Apply for LigatureSubstFormat1<'_> {
         ctx: &mut ApplyContext,
         external_cache: &SubtableExternalCache,
     ) -> Option<()> {
-        let glyph = ctx.buffer.cur(0).as_glyph();
+        let glyph = ctx.buffer.cur(0)?.as_glyph();
 
         let (index, seconds) = match external_cache {
             SubtableExternalCache::LigatureSubstFormat1Cache(cache) => (

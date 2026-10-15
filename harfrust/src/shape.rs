@@ -113,15 +113,24 @@ impl OtShapeContext<'_, '_, '_> {
     fn shape_internal(&mut self) {
         self.buffer.allocate_unicode_vars();
 
-        self.set_unicode_props(self.plan.ot_map.get_global_mask());
-        self.insert_dotted_circle();
+        if self
+            .set_unicode_props(self.plan.ot_map.get_global_mask())
+            .is_none()
+        {
+            self.buffer.index_failed();
+        }
+        if self.insert_dotted_circle().is_none() {
+            self.buffer.index_failed();
+        }
 
         form_clusters(self.buffer);
 
         ensure_native_direction(self.buffer);
 
         if let Some(func) = self.plan.shaper.preprocess_text {
-            func(self.plan, self.font, self.buffer);
+            if func(self.plan, self.font, self.buffer).is_none() {
+                self.buffer.index_failed();
+            }
         }
 
         self.substitute_pre();
@@ -169,7 +178,9 @@ impl OtShapeContext<'_, '_, '_> {
         self.buffer
             .allocate_var(GlyphInfo::NORMALIZER_GLYPH_INDEX_VAR);
 
-        normalize::normalize(self.plan, self.buffer, self.font);
+        if normalize::normalize(self.plan, self.buffer, self.font).is_none() {
+            self.buffer.index_failed();
+        }
 
         self.setup_masks();
 
@@ -226,15 +237,11 @@ impl OtShapeContext<'_, '_, '_> {
 
     // hb_ot_position_default: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L1002>
     fn position_default(&mut self) {
-        let len = self.buffer.len;
-
         if self.buffer.direction.is_horizontal() {
             self.glyph_h_advances();
         } else {
-            for (info, pos) in get(&self.buffer.info, ..len)
-                .iter()
-                .zip(get_mut(&mut self.buffer.pos, ..len))
-            {
+            let (infos, positions) = self.buffer.infos_and_positions_mut();
+            for (info, pos) in infos.iter().zip(positions) {
                 let glyph = info.as_glyph();
                 pos.y_advance = self.font.glyph_v_advance(glyph);
                 let (x, y) = self.font.glyph_v_origin(glyph);
@@ -314,7 +321,9 @@ impl OtShapeContext<'_, '_, '_> {
 
     // hb_ot_shape_setup_masks: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L757>
     fn setup_masks(&mut self) {
-        self.setup_masks_fraction();
+        if self.setup_masks_fraction().is_none() {
+            self.buffer.index_failed();
+        }
 
         if let Some(func) = self.plan.shaper.setup_masks {
             func(self.plan, self.font, self.buffer);
@@ -330,12 +339,12 @@ impl OtShapeContext<'_, '_, '_> {
     }
 
     // hb_ot_shape_setup_masks_fraction: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L685>
-    fn setup_masks_fraction(&mut self) {
+    fn setup_masks_fraction(&mut self) -> Option<()> {
         let buffer = &mut *self.buffer;
         if buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_FRACTION_SLASH == 0
             || !self.plan.has_frac
         {
-            return;
+            return Some(());
         }
 
         let (pre_mask, post_mask) = if buffer.direction.is_forward() {
@@ -354,10 +363,10 @@ impl OtShapeContext<'_, '_, '_> {
         let mut i = 0;
         while i < len {
             // FRACTION SLASH
-            if get(&buffer.info, i).glyph_id == 0x2044 {
+            if buffer.info.get(i)?.glyph_id == 0x2044 {
                 let mut start = i;
                 while start > 0
-                    && get(&buffer.info, start - 1).general_category()
+                    && buffer.info.get(start - 1)?.general_category()
                         == GeneralCategory::DECIMAL_NUMBER
                 {
                     start -= 1;
@@ -365,7 +374,7 @@ impl OtShapeContext<'_, '_, '_> {
 
                 let mut end = i + 1;
                 while end < len
-                    && get(&buffer.info, end).general_category() == GeneralCategory::DECIMAL_NUMBER
+                    && buffer.info.get(end)?.general_category() == GeneralCategory::DECIMAL_NUMBER
                 {
                     end += 1;
                 }
@@ -385,13 +394,13 @@ impl OtShapeContext<'_, '_, '_> {
 
                 buffer.unsafe_to_break(Some(start), Some(end));
 
-                for info in get_mut(&mut buffer.info, start..i) {
+                for info in buffer.info.get_mut(start..i)? {
                     info.mask |= pre_mask;
                 }
 
-                get_mut(&mut buffer.info, i).mask |= self.plan.frac_mask;
+                buffer.info.get_mut(i)?.mask |= self.plan.frac_mask;
 
-                for info in get_mut(&mut buffer.info, i + 1..end) {
+                for info in buffer.info.get_mut(i + 1..end)? {
                     info.mask |= post_mask;
                 }
 
@@ -400,10 +409,11 @@ impl OtShapeContext<'_, '_, '_> {
                 i += 1;
             }
         }
+        Some(())
     }
 
     // hb_set_unicode_props: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L471>
-    fn set_unicode_props(&mut self, global_mask: Mask) {
+    fn set_unicode_props(&mut self, global_mask: Mask) -> Option<()> {
         let buffer = &mut *self.buffer;
         // Implement enough of Unicode Graphemes here that shaping
         // in reverse-direction wouldn't break graphemes.  Namely,
@@ -417,7 +427,7 @@ impl OtShapeContext<'_, '_, '_> {
 
         let mut i = 0;
         while i < len {
-            let info = get_mut(&mut buffer.info, i);
+            let info = buffer.info.get_mut(i)?;
             info.mask = global_mask;
             info.init_unicode_props(&mut buffer.scratch_flags);
 
@@ -443,8 +453,8 @@ impl OtShapeContext<'_, '_, '_> {
             // Mutably borrow buffer.info[i] and immutably borrow
             // buffer.info[i - 1] (if present) in a way that the borrow
             // checker can understand.
-            let (prior, later) = buffer.info.split_at_mut(i);
-            let info = get_mut(later, 0);
+            let (prior, later) = buffer.info.split_at_mut_checked(i)?;
+            let info = later.first_mut()?;
 
             // Marks are already set as continuation by the above line.
             // Handle Emoji_Modifier and ZWJ-continuation.
@@ -453,15 +463,13 @@ impl OtShapeContext<'_, '_, '_> {
             {
                 info.set_continuation(&mut buffer.scratch_flags);
             } else if i != 0 && matches!(info.glyph_id, 0x1F1E6..=0x1F1FF) {
-                // Should never fail because we checked for i > 0.
-                // TODO: use let chains when they become stable
-                let prev = prior.last().unwrap();
+                let prev = prior.last()?;
                 if matches!(prev.glyph_id, 0x1F1E6..=0x1F1FF) && !prev.is_continuation() {
                     info.set_continuation(&mut buffer.scratch_flags);
                 }
             } else if info.is_zwj() {
                 info.set_continuation(&mut buffer.scratch_flags);
-                if let Some(next) = get_mut(&mut buffer.info, ..len).get_mut(i + 1) {
+                if let Some(next) = buffer.info.get_mut(..len)?.get_mut(i + 1) {
                     if next.as_codepoint().is_emoji_extended_pictographic() {
                         next.mask = global_mask;
                         next.init_unicode_props(&mut buffer.scratch_flags);
@@ -492,10 +500,11 @@ impl OtShapeContext<'_, '_, '_> {
 
             i += 1;
         }
+        Some(())
     }
 
     // hb_insert_dotted_circle: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L549>
-    fn insert_dotted_circle(&mut self) {
+    fn insert_dotted_circle(&mut self) -> Option<()> {
         let should_insert = {
             let buffer = &*self.buffer;
             !buffer
@@ -503,12 +512,12 @@ impl OtShapeContext<'_, '_, '_> {
                 .contains(BufferFlags::DO_NOT_INSERT_DOTTED_CIRCLE)
                 && buffer.flags.contains(BufferFlags::BEGINNING_OF_TEXT)
                 && buffer.context_len[0] == 0
-                && get(&buffer.info, 0).is_unicode_mark()
+                && buffer.info.first().is_some_and(GlyphInfo::is_unicode_mark)
         };
 
         if should_insert && self.font.nominal_glyph(0x25CC).is_some() {
-            let mask = self.buffer.cur(0).mask;
-            let cluster = self.buffer.cur(0).cluster;
+            let mask = self.buffer.cur(0)?.mask;
+            let cluster = self.buffer.cur(0)?.cluster;
             let buffer = &mut *self.buffer;
             let mut info = GlyphInfo {
                 glyph_id: 0x25CC,
@@ -522,16 +531,15 @@ impl OtShapeContext<'_, '_, '_> {
             buffer.output_info(info);
             buffer.sync();
         }
+        Some(())
     }
 
     // hb_ot_rotate_chars: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L652>
     fn rotate_chars(&mut self) {
-        let len = self.buffer.len;
-
         if self.target_direction.is_backward() {
             let rtlm_mask = self.plan.rtlm_mask;
 
-            for info in get_mut(&mut self.buffer.info, ..len) {
+            for info in self.buffer.info_slice_mut() {
                 if let Some(c) = info.as_codepoint().mirroring() {
                     if self.font.nominal_glyph(c).is_some() {
                         info.glyph_id = c;
@@ -543,7 +551,7 @@ impl OtShapeContext<'_, '_, '_> {
         }
 
         if self.target_direction.is_vertical() && !self.plan.has_vert {
-            for info in get_mut(&mut self.buffer.info, ..len) {
+            for info in self.buffer.info_slice_mut() {
                 if let Some(c) = info.as_codepoint().vertical() {
                     if self.font.nominal_glyph(c).is_some() {
                         info.glyph_id = c;
@@ -623,18 +631,17 @@ fn ensure_native_direction(buffer: &mut Buffer) {
 fn map_glyphs_fast(buffer: &mut Buffer) {
     // Normalization process sets up normalizer_glyph_index(), we just copy it.
     let len = buffer.len;
-    for info in get_mut(&mut buffer.info, ..len) {
+    for info in buffer.info_slice_mut() {
         info.glyph_id = info.normalizer_glyph_index();
     }
 
-    for info in get_mut(buffer.out_info_mut(), ..len) {
+    for info in buffer.out_info_mut().get_mut(..len).unwrap_or_default() {
         info.glyph_id = info.normalizer_glyph_index();
     }
 }
 
 fn synthesize_glyph_classes(buffer: &mut Buffer) {
-    let len = buffer.len;
-    for info in get_mut(&mut buffer.info, ..len) {
+    for info in buffer.info_slice_mut() {
         // Never mark default-ignorables as marks.
         // They won't get in the way of lookups anyway,
         // but having them as mark will cause them to be skipped
@@ -664,15 +671,13 @@ fn zero_width_default_ignorables(buffer: &mut Buffer) {
             .flags
             .contains(BufferFlags::REMOVE_DEFAULT_IGNORABLES)
     {
-        let len = buffer.len;
-        for (info, pos) in get(&buffer.info, ..len)
-            .iter()
-            .zip(get_mut(&mut buffer.pos, ..len))
-        {
+        let horizontal = buffer.direction.is_horizontal();
+        let (infos, positions) = buffer.infos_and_positions_mut();
+        for (info, pos) in infos.iter().zip(positions) {
             if info.is_default_ignorable() {
                 pos.x_advance = 0;
                 pos.y_advance = 0;
-                if buffer.direction.is_horizontal() {
+                if horizontal {
                     pos.x_offset = 0;
                 } else {
                     pos.y_offset = 0;
@@ -694,11 +699,8 @@ fn deal_with_variation_selectors(buffer: &mut Buffer) {
         return;
     };
 
-    let len = buffer.len;
-    for (info, pos) in get_mut(&mut buffer.info, ..len)
-        .iter_mut()
-        .zip(get_mut(&mut buffer.pos, ..len))
-    {
+    let (infos, positions) = buffer.infos_and_positions_mut();
+    for (info, pos) in infos.iter_mut().zip(positions) {
         if info.is_variation_selector() {
             info.glyph_id = nf;
             pos.x_advance = 0;
@@ -711,11 +713,8 @@ fn deal_with_variation_selectors(buffer: &mut Buffer) {
 }
 
 fn zero_mark_widths_by_gdef(buffer: &mut Buffer, adjust_offsets: bool) {
-    let len = buffer.len;
-    for (info, pos) in get(&buffer.info, ..len)
-        .iter()
-        .zip(get_mut(&mut buffer.pos, ..len))
-    {
+    let (infos, positions) = buffer.infos_and_positions_mut();
+    for (info, pos) in infos.iter().zip(positions) {
         if info.is_mark() {
             if adjust_offsets {
                 pos.x_offset = pos.x_offset.saturating_sub(pos.x_advance);
@@ -742,8 +741,7 @@ fn hide_default_ignorables(buffer: &mut Buffer, font: &ShaperFont) {
                 .invisible
                 .or_else(|| font.nominal_glyph(u32::from(' ')))
             {
-                let len = buffer.len;
-                for info in get_mut(&mut buffer.info, ..len) {
+                for info in buffer.info_slice_mut() {
                     if info.is_default_ignorable() {
                         info.glyph_id = invisible.to_u32();
                     }
@@ -771,16 +769,12 @@ fn propagate_flags(buffer: &mut Buffer) {
     {
         foreach_cluster!(buffer, start, end, {
             if end - start == 1 {
-                get_mut(&mut buffer.info, start).mask &= and_mask;
-            } else {
-                let mut mask = 0;
-                for info in get(&buffer.info, start..end) {
-                    mask |= info.mask;
+                if let Some(info) = buffer.info.get_mut(start) {
+                    info.mask &= and_mask;
                 }
-
-                mask &= and_mask;
-
-                for info in get_mut(&mut buffer.info, start..end) {
+            } else if let Some(infos) = buffer.info.get_mut(start..end) {
+                let mask = infos.iter().fold(0, |mask, info| mask | info.mask) & and_mask;
+                for info in infos {
                     info.mask = mask;
                 }
             }
@@ -798,11 +792,12 @@ fn propagate_flags(buffer: &mut Buffer) {
      */
     foreach_cluster!(buffer, start, end, {
         // We cannot use `continue` in our `for_each_cluster!` macro.
-        if end - start != 1 {
-            let mut mask = 0;
-            for info in get(&buffer.info, start..end) {
-                mask |= info.mask;
-            }
+        if let Some(infos) = buffer
+            .info
+            .get_mut(start..end)
+            .filter(|infos| infos.len() != 1)
+        {
+            let mut mask = infos.iter().fold(0, |mask, info| mask | info.mask);
 
             mask &= GlyphFlags::DEFINED_BITS;
 
@@ -816,7 +811,7 @@ fn propagate_flags(buffer: &mut Buffer) {
 
             mask &= and_mask;
 
-            for info in get_mut(&mut buffer.info, start..end) {
+            for info in infos {
                 info.mask = mask;
             }
         }

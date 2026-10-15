@@ -1,6 +1,6 @@
 use super::Tag;
 use super::*;
-use crate::buffer::{get, Buffer};
+use crate::buffer::Buffer;
 use crate::plan::ShapePlan;
 use crate::unicode::{self, combining_class, modified_combining_class, Codepoint};
 
@@ -21,23 +21,28 @@ pub const HEBREW_SHAPER: OtShaper = OtShaper {
 };
 
 fn reorder_marks_hebrew(_: &ShapePlan, buffer: &mut Buffer, start: usize, end: usize) {
-    for i in start + 2..end {
-        let c0 = *get(&buffer.info, i - 2);
-        let c1 = *get(&buffer.info, i - 1);
-        let c2 = *get(&buffer.info, i - 0);
+    let marks = buffer.info.get(start..end).unwrap_or_default();
+    let found = marks.windows(3).position(|window| {
+        let [c0, c1, c2] = window else {
+            return false;
+        };
 
-        if (c0.modified_combining_class() == modified_combining_class::CCC17
-                || c0.modified_combining_class() == modified_combining_class::CCC18) /* patach or qamats */
-                &&
-            (c1.modified_combining_class() == modified_combining_class::CCC10
-                || c1.modified_combining_class() == modified_combining_class::CCC14) /* sheva or hiriq */ &&
-            (c2.modified_combining_class() == modified_combining_class::CCC22
+        // patach or qamats
+        (c0.modified_combining_class() == modified_combining_class::CCC17
+            || c0.modified_combining_class() == modified_combining_class::CCC18)
+            // sheva or hiriq
+            && (c1.modified_combining_class() == modified_combining_class::CCC10
+                || c1.modified_combining_class() == modified_combining_class::CCC14)
+            // meteg or below
+            && (c2.modified_combining_class() == modified_combining_class::CCC22
                 || c2.modified_combining_class() == combining_class::Below)
-        /* meteg or below */
-        {
-            buffer.merge_clusters(i - 1, i + 1);
-            buffer.info.swap(i - 1, i);
-            break;
+    });
+
+    if let Some(offset) = found {
+        let i = start + offset + 2;
+        buffer.merge_clusters(i - 1, i + 1);
+        if let Some(pair) = buffer.info.get_mut(i - 1..=i) {
+            pair.swap(0, 1);
         }
     }
 }

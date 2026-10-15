@@ -1,7 +1,6 @@
 use super::indic::category;
 use super::syllabic::*;
 use super::*;
-use crate::buffer::{get, get_mut};
 use crate::ot::map::*;
 use crate::plan::ShapePlan;
 use crate::unicode::{CharExt, Codepoint};
@@ -122,7 +121,7 @@ fn collect_features(planner: &mut ShapePlanner) {
     }
 }
 
-fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> Option<bool> {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     khmer_machine::find_syllables_khmer(buffer);
@@ -135,10 +134,10 @@ fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -
         end = buffer.next_syllable(start);
     }
 
-    false
+    Some(false)
 }
 
-fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
+fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> Option<bool> {
     use super::khmer_machine::SyllableType;
 
     let mut ret = false;
@@ -150,7 +149,7 @@ fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffe
         category::OT_DOTTEDCIRCLE,
         Some(category::OT_Repha),
         None,
-    ) {
+    )? {
         ret = true;
     }
 
@@ -159,14 +158,16 @@ fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffe
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
-        reorder_syllable_khmer(khmer_plan, start, end, buffer);
+        if reorder_syllable_khmer(khmer_plan, start, end, buffer).is_none() {
+            buffer.index_failed();
+        }
         start = end;
         end = buffer.next_syllable(start);
     }
 
     buffer.deallocate_var(GlyphInfo::KHMER_CATEGORY_VAR);
 
-    ret
+    Some(ret)
 }
 
 fn reorder_syllable_khmer(
@@ -174,10 +175,10 @@ fn reorder_syllable_khmer(
     start: usize,
     end: usize,
     buffer: &mut Buffer,
-) {
+) -> Option<()> {
     use super::khmer_machine::SyllableType;
 
-    let syllable_type = match get(&buffer.info, start).syllable() & 0x0F {
+    let syllable_type = match buffer.info.get(start)?.syllable() & 0x0F {
         0 => SyllableType::ConsonantSyllable,
         1 => SyllableType::BrokenCluster,
         2 => SyllableType::NonKhmerCluster,
@@ -186,10 +187,11 @@ fn reorder_syllable_khmer(
 
     match syllable_type {
         SyllableType::ConsonantSyllable | SyllableType::BrokenCluster => {
-            reorder_consonant_syllable(khmer_plan, start, end, buffer);
+            reorder_consonant_syllable(khmer_plan, start, end, buffer)?;
         }
         SyllableType::NonKhmerCluster => {}
     }
+    Some(())
 }
 
 // Rules from:
@@ -199,14 +201,14 @@ fn reorder_consonant_syllable(
     start: usize,
     end: usize,
     buffer: &mut Buffer,
-) {
+) -> Option<()> {
     // Setup masks.
     {
         // Post-base
         let mask = plan.mask_array[khmer_feature::BLWF]
             | plan.mask_array[khmer_feature::ABVF]
             | plan.mask_array[khmer_feature::PSTF];
-        for info in get_mut(&mut buffer.info, start + 1..end) {
+        for info in buffer.info.get_mut(start + 1..end)? {
             info.mask |= mask;
         }
     }
@@ -222,25 +224,18 @@ fn reorder_consonant_syllable(
         // Subscript Type 2 - The COENG + RO characters are reordered to immediately
         // before the base glyph. Then the COENG + RO characters are assigned to have
         // the 'pref' OpenType feature applied to them.
-        if get(&buffer.info, i).indic_category() == category::OT_H && num_coengs <= 2 && i + 1 < end
-        {
+        let cat = buffer.info.get(i)?.indic_category();
+        if cat == category::OT_H && num_coengs <= 2 && i + 1 < end {
             num_coengs += 1;
 
-            if get(&buffer.info, i + 1).indic_category() == category::OT_Ra {
-                for j in 0..2 {
-                    get_mut(&mut buffer.info, i + j).mask |= plan.mask_array[khmer_feature::PREF];
+            if buffer.info.get(i + 1)?.indic_category() == category::OT_Ra {
+                for info in buffer.info.get_mut(i..i + 2)? {
+                    info.mask |= plan.mask_array[khmer_feature::PREF];
                 }
 
                 // Move the Coeng,Ro sequence to the start.
                 buffer.merge_clusters(start, i + 2);
-                let t0 = *get(&buffer.info, i);
-                let t1 = *get(&buffer.info, i + 1);
-                for k in (0..i - start).rev() {
-                    *get_mut(&mut buffer.info, k + start + 2) = *get(&buffer.info, k + start);
-                }
-
-                *get_mut(&mut buffer.info, start) = t0;
-                *get_mut(&mut buffer.info, start + 1) = t1;
+                buffer.info.get_mut(start..i + 2)?.rotate_right(2);
 
                 // Mark the subsequent stuff with 'cfar'.  Used in Khmer.
                 // Read the feature spec.
@@ -248,25 +243,22 @@ fn reorder_consonant_syllable(
                 // U+1784,U+17D2,U+179A,U+17D2,U+1782
                 // U+1784,U+17D2,U+1782,U+17D2,U+179A
                 if plan.mask_array[khmer_feature::CFAR] != 0 {
-                    for j in i + 2..end {
-                        get_mut(&mut buffer.info, j).mask |= plan.mask_array[khmer_feature::CFAR];
+                    for info in buffer.info.get_mut(i + 2..end)? {
+                        info.mask |= plan.mask_array[khmer_feature::CFAR];
                     }
                 }
 
                 num_coengs = 2; // Done.
             }
-        } else if get(&buffer.info, i).indic_category() == category::OT_VPre {
+        } else if cat == category::OT_VPre {
             // Reorder left matra piece.
 
             // Move to the start.
             buffer.merge_clusters(start, i + 1);
-            let t = *get(&buffer.info, i);
-            for k in (0..i - start).rev() {
-                *get_mut(&mut buffer.info, k + start + 1) = *get(&buffer.info, k + start);
-            }
-            *get_mut(&mut buffer.info, start) = t;
+            buffer.info.get_mut(start..=i)?.rotate_right(1);
         }
     }
+    Some(())
 }
 
 fn override_features(planner: &mut ShapePlanner) {

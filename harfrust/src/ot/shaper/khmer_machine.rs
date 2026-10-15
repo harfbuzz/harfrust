@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{get, get_mut, Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 
 static _khmer_syllable_machine_actions: [i8; 29] = [
     0, 1, 0, 1, 1, 1, 2, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9, 1, 10, 1, 11, 2, 2, 3, 2, 2, 4, 0, 0,
@@ -100,7 +100,7 @@ pub enum SyllableType {
     NonKhmerCluster,
 }
 
-pub fn find_syllables_khmer(buffer: &mut Buffer) {
+pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
     let mut cs = 0;
     let mut ts = 0;
     let mut te = 0;
@@ -175,11 +175,11 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) {
                                         }
                                     }
                                     _mid = _lower + ((_upper - _lower) >> 1);
-                                    if ((get(&buffer.info, p).khmer_category() as u8)
+                                    if ((buffer.info.get(p)?.khmer_category() as u8)
                                         < _khmer_syllable_machine_trans_keys[(_mid) as usize])
                                     {
                                         _upper = _mid - 1;
-                                    } else if ((get(&buffer.info, p).khmer_category() as u8)
+                                    } else if ((buffer.info.get(p)?.khmer_category() as u8)
                                         > _khmer_syllable_machine_trans_keys[(_mid) as usize])
                                     {
                                         _lower = _mid + 1;
@@ -207,11 +207,11 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) {
                                         }
                                     }
                                     _mid = _lower + (((_upper - _lower) >> 1) & !1);
-                                    if ((get(&buffer.info, p).khmer_category() as u8)
+                                    if ((buffer.info.get(p)?.khmer_category() as u8)
                                         < _khmer_syllable_machine_trans_keys[(_mid) as usize])
                                     {
                                         _upper = _mid - 2;
-                                    } else if ((get(&buffer.info, p).khmer_category() as u8)
+                                    } else if ((buffer.info.get(p)?.khmer_category() as u8)
                                         > _khmer_syllable_machine_trans_keys[(_mid + 1) as usize])
                                     {
                                         _lower = _mid + 2;
@@ -343,9 +343,9 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) {
             break '_resume;
         }
     }
+    Some(())
 }
 
-#[inline]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -353,8 +353,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        get_mut(&mut buffer.info, i).set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

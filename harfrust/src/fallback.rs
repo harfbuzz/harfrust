@@ -1,7 +1,7 @@
 use read_fonts::types::GlyphId;
 
 use super::plan::ShapePlan;
-use crate::buffer::{get, get_mut, Buffer, GlyphPosition};
+use crate::buffer::{Buffer, GlyphPosition};
 use crate::unicode::*;
 use crate::Direction;
 use crate::{GlyphExtents, Scale, ShaperFont};
@@ -96,8 +96,7 @@ fn recategorize_combining_class(u: u32, mut class: u8) -> u8 {
 }
 
 pub fn recategorize_marks(buffer: &mut Buffer) {
-    let len = buffer.len;
-    for info in get_mut(&mut buffer.info, ..len) {
+    for info in buffer.info_slice_mut() {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
             let mut class = info.modified_combining_class();
             class = recategorize_combining_class(info.glyph_id, class);
@@ -111,11 +110,10 @@ fn zero_mark_advances(
     start: usize,
     end: usize,
     adjust_offsets_when_zeroing: bool,
-) {
-    for (info, pos) in get(&buffer.info, start..end)
-        .iter()
-        .zip(get_mut(&mut buffer.pos, start..end))
-    {
+) -> Option<()> {
+    let infos = buffer.info.get(start..end)?;
+    let positions = buffer.pos.get_mut(start..end)?;
+    for (info, pos) in infos.iter().zip(positions) {
         if info.general_category() == GeneralCategory::NON_SPACING_MARK {
             if adjust_offsets_when_zeroing {
                 pos.x_offset = pos.x_offset.saturating_sub(pos.x_advance);
@@ -125,6 +123,7 @@ fn zero_mark_advances(
             pos.y_advance = 0;
         }
     }
+    Some(())
 }
 
 fn position_mark(
@@ -267,18 +266,17 @@ fn position_mark(
     }
 }
 
-fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize) {
+fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize) -> Option<()> {
     let mut horizontal_dir = Direction::Invalid;
     let units_per_em = ctx.units_per_em;
     ctx.buffer.unsafe_to_break(Some(base), Some(end));
 
-    let base_info = *get(&ctx.buffer.info, base);
-    let base_pos = *get(&ctx.buffer.pos, base);
+    let base_info = *ctx.buffer.info.get(base)?;
+    let base_pos = *ctx.buffer.pos.get(base)?;
     let base_glyph = base_info.as_glyph();
 
     let Some(mut base_extents) = ctx.font.glyph_extents(base_glyph) else {
-        zero_mark_advances(ctx.buffer, base + 1, end, ctx.adjust_offsets_when_zeroing);
-        return;
+        return zero_mark_advances(ctx.buffer, base + 1, end, ctx.adjust_offsets_when_zeroing);
     };
 
     base_extents.y_bearing = base_extents.y_bearing.saturating_add(base_pos.y_offset);
@@ -306,10 +304,9 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     let direction = ctx.buffer.direction;
     let font = ctx.font;
 
-    for (info, pos) in get(&ctx.buffer.info, base + 1..end)
-        .iter()
-        .zip(get_mut(&mut ctx.buffer.pos, base + 1..end))
-    {
+    let infos = ctx.buffer.info.get(base + 1..end)?;
+    let positions = ctx.buffer.pos.get_mut(base + 1..end)?;
+    for (info, pos) in infos.iter().zip(positions) {
         if info.modified_combining_class() != 0 {
             if num_lig_components > 1 {
                 let this_lig_id = info.lig_id() as u32;
@@ -383,37 +380,41 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
             }
         }
     }
+    Some(())
 }
 
-fn position_cluster_impl(ctx: &mut FallbackShapeContext, start: usize, end: usize) {
+fn position_cluster_impl(ctx: &mut FallbackShapeContext, start: usize, end: usize) -> Option<()> {
     // Find the base glyph
     let mut i = start;
     while i < end {
-        if !get(&ctx.buffer.info, i).is_unicode_mark() {
+        if !ctx.buffer.info.get(i)?.is_unicode_mark() {
             // Find mark glyphs
-            let mut j = i + 1;
-            while j < end
-                && (get(&ctx.buffer.info, j).is_hidden()
-                    || get(&ctx.buffer.info, j).is_default_ignorable()
-                    || get(&ctx.buffer.info, j).is_unicode_mark())
-            {
-                j += 1;
-            }
+            let marks = ctx
+                .buffer
+                .info
+                .get(i + 1..end)?
+                .iter()
+                .take_while(|info| {
+                    info.is_hidden() || info.is_default_ignorable() || info.is_unicode_mark()
+                })
+                .count();
+            let j = i + 1 + marks;
 
-            position_around_base(ctx, i, j);
+            position_around_base(ctx, i, j)?;
             i = j - 1;
         }
         i += 1;
     }
+    Some(())
 }
 
 #[inline(always)]
-fn position_cluster(ctx: &mut FallbackShapeContext, start: usize, end: usize) {
+fn position_cluster(ctx: &mut FallbackShapeContext, start: usize, end: usize) -> Option<()> {
     if end - start < 2 {
-        return;
+        return Some(());
     }
 
-    position_cluster_impl(ctx, start, end);
+    position_cluster_impl(ctx, start, end)
 }
 
 pub fn position_marks<'x>(
@@ -421,7 +422,7 @@ pub fn position_marks<'x>(
     font: &'x ShaperFont<'_, '_>,
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
-) {
+) -> Option<()> {
     let mut ctx = FallbackShapeContext {
         plan,
         units_per_em: font.layout().units_per_em,
@@ -436,16 +437,14 @@ pub fn position_marks<'x>(
     let mut start = 0;
     let len = ctx.buffer.len;
     for i in 1..len {
-        if !get(&ctx.buffer.info, i).is_unicode_mark()
-            && !get(&ctx.buffer.info, i).is_hidden()
-            && !get(&ctx.buffer.info, i).is_default_ignorable()
-        {
-            position_cluster(&mut ctx, start, i);
+        let info = ctx.buffer.info.get(i)?;
+        if !info.is_unicode_mark() && !info.is_hidden() && !info.is_default_ignorable() {
+            position_cluster(&mut ctx, start, i)?;
             start = i;
         }
     }
 
-    position_cluster(&mut ctx, start, len);
+    position_cluster(&mut ctx, start, len)
 }
 
 pub fn fallback_kern(_: &ShapePlan, _: &mut Buffer) {
@@ -458,12 +457,9 @@ pub fn fallback_spaces(shaping_font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     let layout = shaping_font.layout();
     let scale = shaping_font.scale;
     let font = shaping_font;
-    let len = buffer.len;
     let horizontal = buffer.direction.is_horizontal();
-    for (info, pos) in get(&buffer.info, ..len)
-        .iter()
-        .zip(get_mut(&mut buffer.pos, ..len))
-    {
+    let (infos, positions) = buffer.infos_and_positions_mut();
+    for (info, pos) in infos.iter().zip(positions) {
         if info.is_unicode_space() && !info.ligated() {
             let space_type = info.unicode_space_fallback_type();
             match space_type {

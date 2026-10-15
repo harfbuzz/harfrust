@@ -1,6 +1,6 @@
 use super::layout::DELETED_GLYPH;
 use super::map::RangeFlags;
-use crate::buffer::{get_mut, Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
+use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::ot::apply::MappingCache;
 use crate::plan::ShapePlan;
 use crate::LayoutData;
@@ -119,7 +119,7 @@ impl<'a> AatApplyContext<'a> {
         }
     }
 
-    pub fn output_glyph(&mut self, glyph: u32) {
+    pub fn output_glyph(&mut self, glyph: u32) -> Option<()> {
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
@@ -134,25 +134,25 @@ impl<'a> AatApplyContext<'a> {
             let out_len = self.buffer.out_len;
             self.buffer.output_glyph(glyph);
             if self.buffer.out_len == out_len {
-                return;
+                return Some(());
             }
         }
 
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
             let info = if at_end {
-                self.buffer.prev_mut()
+                self.buffer.prev_mut()?
             } else {
-                self.buffer.cur_mut(0)
+                self.buffer.cur_mut(0)?
             };
             info.set_aat_deleted();
         } else {
             if self.has_glyph_classes {
                 let glyph_props = self.layout.ot.glyph_props(glyph.into());
                 let info = if at_end {
-                    self.buffer.prev_mut()
+                    self.buffer.prev_mut()?
                 } else {
-                    self.buffer.cur_mut(0)
+                    self.buffer.cur_mut(0)?
                 };
                 info.set_glyph_props(glyph_props);
             }
@@ -160,12 +160,13 @@ impl<'a> AatApplyContext<'a> {
         if !at_end {
             self.buffer.output_glyph(glyph);
         }
+        Some(())
     }
 
-    pub fn replace_glyph(&mut self, glyph: u32) {
+    pub fn replace_glyph(&mut self, glyph: u32) -> Option<()> {
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            self.buffer.cur_mut(0).set_aat_deleted();
+            self.buffer.cur_mut(0)?.set_aat_deleted();
         }
 
         if self.using_buffer_glyph_set {
@@ -173,32 +174,35 @@ impl<'a> AatApplyContext<'a> {
         }
         if self.has_glyph_classes {
             self.buffer
-                .cur_mut(0)
+                .cur_mut(0)?
                 .set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
         self.buffer.replace_glyph(glyph);
+        Some(())
     }
 
-    pub fn delete_glyph(&mut self) {
+    pub fn delete_glyph(&mut self) -> Option<()> {
         self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-        self.buffer.cur_mut(0).set_aat_deleted();
+        self.buffer.cur_mut(0)?.set_aat_deleted();
         self.buffer.replace_glyph(DELETED_GLYPH);
+        Some(())
     }
 
     #[inline(always)]
-    pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
-        get_mut(&mut self.buffer.info, i).glyph_id = glyph;
+    pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) -> Option<()> {
+        let info = self.buffer.info.get_mut(i)?;
+        info.glyph_id = glyph;
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            get_mut(&mut self.buffer.info, i).set_aat_deleted();
+            info.set_aat_deleted();
         }
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
         if self.has_glyph_classes {
-            get_mut(&mut self.buffer.info, i)
-                .set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
+            info.set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
+        Some(())
     }
 }
 
@@ -758,7 +762,7 @@ mod tests {
         context.output_glyph(DELETED_GLYPH);
 
         assert_eq!(context.buffer.out_len, 2);
-        assert_eq!(context.buffer.prev().glyph_id, DELETED_GLYPH);
-        assert!(context.buffer.prev().is_aat_deleted());
+        assert_eq!(context.buffer.prev().unwrap().glyph_id, DELETED_GLYPH);
+        assert!(context.buffer.prev().unwrap().is_aat_deleted());
     }
 }

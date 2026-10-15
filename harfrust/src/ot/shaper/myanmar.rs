@@ -1,7 +1,6 @@
 use super::indic::{category, position};
 use super::syllabic::*;
 use super::*;
-use crate::buffer::{get, get_mut};
 use crate::ot::map::*;
 use crate::ot::shaper::indic::category::OT_VPre;
 use crate::plan::ShapePlan;
@@ -114,7 +113,7 @@ fn collect_features(planner: &mut ShapePlanner) {
     }
 }
 
-fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
+fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> Option<bool> {
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     myanmar_machine::find_syllables_myanmar(buffer);
@@ -127,10 +126,10 @@ fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -
         end = buffer.next_syllable(start);
     }
 
-    false
+    Some(false)
 }
 
-fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> bool {
+fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) -> Option<bool> {
     use super::myanmar_machine::SyllableType;
 
     let mut ret = false;
@@ -142,14 +141,16 @@ fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer
         category::OT_DOTTEDCIRCLE,
         None,
         None,
-    ) {
+    )? {
         ret = true;
     }
 
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
-        reorder_syllable_myanmar(start, end, buffer);
+        if reorder_syllable_myanmar(start, end, buffer).is_none() {
+            buffer.index_failed();
+        }
         start = end;
         end = buffer.next_syllable(start);
     }
@@ -157,13 +158,13 @@ fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer
     buffer.deallocate_var(GlyphInfo::MYANMAR_CATEGORY_VAR);
     buffer.deallocate_var(GlyphInfo::MYANMAR_POSITION_VAR);
 
-    ret
+    Some(ret)
 }
 
-fn reorder_syllable_myanmar(start: usize, end: usize, buffer: &mut Buffer) {
+fn reorder_syllable_myanmar(start: usize, end: usize, buffer: &mut Buffer) -> Option<()> {
     use super::myanmar_machine::SyllableType;
 
-    let syllable_type = match get(&buffer.info, start).syllable() & 0x0F {
+    let syllable_type = match buffer.info.get(start)?.syllable() & 0x0F {
         0 => SyllableType::ConsonantSyllable,
         1 => SyllableType::PunctuationCluster,
         2 => SyllableType::BrokenCluster,
@@ -174,24 +175,29 @@ fn reorder_syllable_myanmar(start: usize, end: usize, buffer: &mut Buffer) {
     match syllable_type {
         // We already inserted dotted-circles, so just call the consonant_syllable.
         SyllableType::ConsonantSyllable | SyllableType::BrokenCluster => {
-            initial_reordering_consonant_syllable(start, end, buffer);
+            initial_reordering_consonant_syllable(start, end, buffer)?;
         }
         SyllableType::PunctuationCluster | SyllableType::NonMyanmarCluster => {}
     }
+    Some(())
 }
 
 // Rules from:
 // https://docs.microsoft.com/en-us/typography/script-development/myanmar
-fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut Buffer) {
+fn initial_reordering_consonant_syllable(
+    start: usize,
+    end: usize,
+    buffer: &mut Buffer,
+) -> Option<()> {
     let mut base = end;
     let mut has_reph = false;
 
     {
         let mut limit = start;
         if start + 3 <= end
-            && get(&buffer.info, start + 0).myanmar_category() == category::OT_Ra
-            && get(&buffer.info, start + 1).myanmar_category() == category::OT_As
-            && get(&buffer.info, start + 2).myanmar_category() == category::OT_H
+            && buffer.info.get(start)?.myanmar_category() == category::OT_Ra
+            && buffer.info.get(start + 1)?.myanmar_category() == category::OT_As
+            && buffer.info.get(start + 2)?.myanmar_category() == category::OT_H
         {
             limit += 3;
             base = start;
@@ -204,7 +210,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
             }
 
             for i in limit..end {
-                if get(&buffer.info, i).is_consonant() {
+                if buffer.info.get(i)?.is_consonant() {
                     base = i;
                     break;
                 }
@@ -216,17 +222,26 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     {
         let mut i = start;
         while i < start + if has_reph { 3 } else { 0 } {
-            get_mut(&mut buffer.info, i).set_myanmar_position(position::POS_AFTER_MAIN);
+            buffer
+                .info
+                .get_mut(i)?
+                .set_myanmar_position(position::POS_AFTER_MAIN);
             i += 1;
         }
 
         while i < base {
-            get_mut(&mut buffer.info, i).set_myanmar_position(position::POS_PRE_C);
+            buffer
+                .info
+                .get_mut(i)?
+                .set_myanmar_position(position::POS_PRE_C);
             i += 1;
         }
 
         if i < end {
-            get_mut(&mut buffer.info, i).set_myanmar_position(position::POS_BASE_C);
+            buffer
+                .info
+                .get_mut(i)?
+                .set_myanmar_position(position::POS_BASE_C);
             i += 1;
         }
 
@@ -234,55 +249,52 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
         // The following loop may be ugly, but it implements all of
         // Myanmar reordering!
         for i in i..end {
+            // Split off the preceding glyph, which a variation selector copies.
+            let (before, rest) = buffer.info.split_at_mut_checked(i)?;
+            let info = rest.first_mut()?;
+            let cat = info.myanmar_category();
+
             // Pre-base reordering
-            if get(&buffer.info, i).myanmar_category() == category::OT_MR {
-                get_mut(&mut buffer.info, i).set_myanmar_position(position::POS_PRE_C);
+            if cat == category::OT_MR {
+                info.set_myanmar_position(position::POS_PRE_C);
                 continue;
             }
 
             // Left matra
-            if get(&buffer.info, i).myanmar_category() == OT_VPre {
-                get_mut(&mut buffer.info, i).set_myanmar_position(position::POS_PRE_M);
+            if cat == OT_VPre {
+                info.set_myanmar_position(position::POS_PRE_M);
                 continue;
             }
 
-            if get(&buffer.info, i).myanmar_category() == category::OT_VS {
-                let t = get(&buffer.info, i - 1).myanmar_position();
-                get_mut(&mut buffer.info, i).set_myanmar_position(t);
+            if cat == category::OT_VS {
+                let t = before.last()?.myanmar_position();
+                info.set_myanmar_position(t);
                 continue;
             }
 
-            if pos == position::POS_AFTER_MAIN
-                && get(&buffer.info, i).myanmar_category() == category::OT_VBlw
-            {
+            if pos == position::POS_AFTER_MAIN && cat == category::OT_VBlw {
                 pos = position::POS_BELOW_C;
-                get_mut(&mut buffer.info, i).set_myanmar_position(pos);
+                info.set_myanmar_position(pos);
                 continue;
             }
 
-            if pos == position::POS_BELOW_C
-                && get(&buffer.info, i).myanmar_category() == category::OT_A
-            {
-                get_mut(&mut buffer.info, i).set_myanmar_position(position::POS_BEFORE_SUB);
+            if pos == position::POS_BELOW_C && cat == category::OT_A {
+                info.set_myanmar_position(position::POS_BEFORE_SUB);
                 continue;
             }
 
-            if pos == position::POS_BELOW_C
-                && get(&buffer.info, i).myanmar_category() == category::OT_VBlw
-            {
-                get_mut(&mut buffer.info, i).set_myanmar_position(pos);
+            if pos == position::POS_BELOW_C && cat == category::OT_VBlw {
+                info.set_myanmar_position(pos);
                 continue;
             }
 
-            if pos == position::POS_BELOW_C
-                && get(&buffer.info, i).myanmar_category() != category::OT_A
-            {
+            if pos == position::POS_BELOW_C && cat != category::OT_A {
                 pos = position::POS_AFTER_SUB;
-                get_mut(&mut buffer.info, i).set_myanmar_position(pos);
+                info.set_myanmar_position(pos);
                 continue;
             }
 
-            get_mut(&mut buffer.info, i).set_myanmar_position(pos);
+            info.set_myanmar_position(pos);
         }
     }
 
@@ -295,7 +307,7 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
     let mut last_left_matra = end;
 
     for i in start..end {
-        if get(&buffer.info, i).myanmar_position() == position::POS_PRE_M {
+        if buffer.info.get(i)?.myanmar_position() == position::POS_PRE_M {
             if first_left_matra == end {
                 first_left_matra = i;
             }
@@ -312,12 +324,13 @@ fn initial_reordering_consonant_syllable(start: usize, end: usize, buffer: &mut 
         let mut i = first_left_matra;
 
         for j in i..=last_left_matra {
-            if get(&buffer.info, j).myanmar_category() == OT_VPre {
+            if buffer.info.get(j)?.myanmar_category() == OT_VPre {
                 buffer.reverse_range(i, j + 1);
                 i = j + 1;
             }
         }
     }
+    Some(())
 }
 
 fn setup_masks(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {

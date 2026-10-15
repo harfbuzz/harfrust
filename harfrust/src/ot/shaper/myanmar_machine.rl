@@ -13,7 +13,7 @@
     clippy::never_loop
 )]
 
-use crate::buffer::{get, get_mut, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
+use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
 
 %%{
   machine myanmar_syllable_machine;
@@ -92,7 +92,7 @@ pub enum SyllableType {
     NonMyanmarCluster,
 }
 
-pub fn find_syllables_myanmar(buffer: &mut Buffer) {
+pub fn find_syllables_myanmar(buffer: &mut Buffer) -> Option<()> {
     let mut cs = 0;
     let mut ts = 0;
     let mut te;
@@ -110,12 +110,12 @@ pub fn find_syllables_myanmar(buffer: &mut Buffer) {
 
     %%{
         write init;
-        getkey (get(&buffer.info, p).myanmar_category() as u8);
+        getkey (buffer.info.get(p)?.myanmar_category() as u8);
         write exec;
     }%%
+    Some(())
 }
 
-#[inline]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -123,8 +123,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        get_mut(&mut buffer.info, i).set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;
