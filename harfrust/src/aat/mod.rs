@@ -99,8 +99,8 @@ impl<'a> CachedAatTables<'a> {
             feat: tables.feat().ok(),
             ltag: tables.ltag().ok(),
             num_glyphs: tables
-                .maxp()
-                .map(|maxp| maxp.num_glyphs() as u32)
+                .selected_maxp()
+                .map(|maxp| maxp.num_glyphs())
                 .unwrap_or_default(),
         }
     }

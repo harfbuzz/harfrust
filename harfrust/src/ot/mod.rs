@@ -85,6 +85,18 @@ impl MarkGlyphSetBitmap {
                     }
                 }
             }
+            CoverageTable::Format3(table) => {
+                for glyph in table.glyph_array() {
+                    add_glyph(glyph.get().to_u32())?;
+                }
+            }
+            CoverageTable::Format4(table) => {
+                for range in table.range_records() {
+                    for glyph in range.start_glyph_id().to_u32()..=range.end_glyph_id().to_u32() {
+                        add_glyph(glyph)?;
+                    }
+                }
+            }
         }
         Some(bits)
     }
@@ -106,6 +118,16 @@ impl MarkGlyphSetBitmap {
                         u32::from(max.end_glyph_id()),
                     )
                 }),
+            CoverageTable::Format3(table) => table
+                .glyph_array()
+                .first()
+                .zip(table.glyph_array().last())
+                .map(|(min, max)| (min.get().to_u32(), max.get().to_u32())),
+            CoverageTable::Format4(table) => table
+                .range_records()
+                .first()
+                .zip(table.range_records().last())
+                .map(|(min, max)| (min.start_glyph_id().to_u32(), max.end_glyph_id().to_u32())),
         };
 
         if let Some((min_gid, max_gid)) = bounds {
@@ -369,11 +391,12 @@ impl<'a> OtData<'a> {
     }
 
     pub fn glyph_class(&self, glyph_id: u32) -> u16 {
-        self.tables.gdef.classes.get(GlyphId::new(glyph_id))
+        self.tables.gdef.classes.get(GlyphId::new(glyph_id)) as u16
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
-        self.tables.gdef.mark_classes.get(GlyphId::new(glyph_id))
+        // Glyph props keep only the low bits, as in HarfBuzz.
+        self.tables.gdef.mark_classes.get(GlyphId::new(glyph_id)) as u16
     }
 
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {

@@ -700,7 +700,7 @@ impl RuleSetDigest {
         Self(u64::MAX)
     }
 
-    pub fn add(&mut self, value: u16) {
+    pub fn add(&mut self, value: u32) {
         self.0 |= 1 << (value & 63);
     }
 
@@ -708,7 +708,7 @@ impl RuleSetDigest {
         self.0 == u64::MAX
     }
 
-    pub fn may_have(self, value: u16) -> bool {
+    pub fn may_have(self, value: u32) -> bool {
         self.0 & (1 << (value & 63)) != 0
     }
 }
