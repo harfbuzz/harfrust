@@ -346,6 +346,8 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
     Some(())
 }
 
+// Called from every syllable action, so one shared copy keeps the machine small.
+#[inline(never)]
 fn found_syllable(
     start: usize,
     end: usize,
