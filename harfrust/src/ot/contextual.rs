@@ -2,6 +2,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use super::{coverage_binary_cached, coverage_index, covered, glyph_class, glyph_class_cached};
 use crate::buffer::GlyphInfo;
+use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead, Apply,
@@ -86,8 +87,8 @@ impl WouldApply for SequenceContextFormat1<'_> {
 impl Apply for SequenceContextFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let set = self.seq_rule_sets().get(index)?.ok()?;
+        let index = self.coverage().likely_ok()?.get(glyph)? as usize;
+        let set = self.seq_rule_sets().get(index)?.likely_ok()?;
         apply_context_rules(
             ctx,
             set.offset_data(),
@@ -146,7 +147,7 @@ impl Apply for SequenceContextFormat2<'_> {
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let index = input_class(glyph) as usize;
         let digest = cache.rule_sets.get(index).copied();
-        let set = self.class_seq_rule_sets().get(index)?.ok()?;
+        let set = self.class_seq_rule_sets().get(index)?.likely_ok()?;
         apply_context_rules(
             ctx,
             set.offset_data(),
@@ -173,10 +174,12 @@ impl Apply for SequenceContextFormat2<'_> {
             &cache.coverage_cache,
         )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
-        let index =
-            get_class_cached(&input_class, ctx.buffer.info.get_mut(ctx.buffer.idx)?) as usize;
+        let index = get_class_cached(
+            &input_class,
+            ctx.buffer.info.get_mut(ctx.buffer.idx).likely()?,
+        ) as usize;
         let digest = cache.rule_sets.get(index).copied();
-        let set = self.class_seq_rule_sets().get(index)?.ok()?;
+        let set = self.class_seq_rule_sets().get(index)?.likely_ok()?;
         apply_context_rules(
             ctx,
             set.offset_data(),
@@ -226,7 +229,7 @@ impl Apply for SequenceContextFormat3<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
         let input_coverages = self.coverages();
-        input_coverages.get(0).ok()?.get(glyph)?;
+        input_coverages.get(0).likely_ok()?.get(glyph)?;
         let input = |info: &mut GlyphInfo, index: u32| {
             input_coverages
                 .get(index as usize + 1)
@@ -291,8 +294,8 @@ impl WouldApply for ChainedSequenceContextFormat1<'_> {
 impl Apply for ChainedSequenceContextFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
-        let set = self.chained_seq_rule_sets().get(index)?.ok()?;
+        let index = self.coverage().likely_ok()?.get(glyph)? as usize;
+        let set = self.chained_seq_rule_sets().get(index)?.likely_ok()?;
         apply_chain_context_rules(
             ctx,
             set.offset_data(),
@@ -422,7 +425,7 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
             |caches| glyph_class_cached(input_class, glyph, &caches.input),
         ) as usize;
         let digest = cache.rule_sets.get(index).copied();
-        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+        let set = self.chained_class_seq_rule_sets().get(index)?.likely_ok()?;
         if let Some(class_caches) = class_caches {
             apply_chain_context_rules(
                 ctx,
@@ -484,10 +487,12 @@ impl Apply for ChainedSequenceContextFormat2<'_> {
         )?;
         let input_class = |gid| cache.input.class(&offset_data, gid);
         let lookahead_class = |gid| cache.lookahead.class(&offset_data, gid);
-        let index =
-            get_class_cached2(&input_class, ctx.buffer.info.get_mut(ctx.buffer.idx)?) as usize;
+        let index = get_class_cached2(
+            &input_class,
+            ctx.buffer.info.get_mut(ctx.buffer.idx).likely()?,
+        ) as usize;
         let digest = cache.rule_sets.get(index).copied();
-        let set = self.chained_class_seq_rule_sets().get(index)?.ok()?;
+        let set = self.chained_class_seq_rule_sets().get(index)?.likely_ok()?;
         apply_chain_context_rules(
             ctx,
             set.offset_data(),
@@ -557,7 +562,7 @@ impl Apply for ChainedSequenceContextFormat3<'_> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
 
         let input_coverages = self.input_coverages();
-        input_coverages.get(0).ok()?.get(glyph)?;
+        input_coverages.get(0).likely_ok()?.get(glyph)?;
 
         let backtrack_coverages = self.backtrack_coverages();
         let lookahead_coverages = self.lookahead_coverages();
@@ -868,6 +873,7 @@ fn match_value_at(
     match_func: &impl Fn(&mut GlyphInfo, u32) -> bool,
 ) -> bool {
     info.get_mut(idx)
+        .likely()
         .is_some_and(|info| match_func(info, u32::from(value)))
 }
 
@@ -903,7 +909,7 @@ fn apply_context_rules(
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g1)?) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g1).likely()?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -962,7 +968,7 @@ fn apply_context_rules(
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g2)?) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g2).likely()?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1133,7 +1139,7 @@ fn apply_chain_context_rules<
     let mut second = None;
     let first = if skippy_iter.next(Some(&mut unsafe_to1)) {
         let g1 = skippy_iter.index();
-        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g1)?) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g1).likely()?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {
@@ -1192,7 +1198,7 @@ fn apply_chain_context_rules<
     if matched {
         second = Some(g2);
         unsafe_to2 = skippy_iter.index() + 1;
-        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g2)?) != MaySkip::No {
+        if skippy_iter.may_skip(skippy_iter.buffer.info.get(g2).likely()?) != MaySkip::No {
             // Can't use the fast path if eg. the next char is a default-ignorable
             // or other skippable.
             for off in rule_offsets {

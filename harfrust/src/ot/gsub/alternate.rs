@@ -1,3 +1,4 @@
+use crate::hint::LikelyOk;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::{AlternateSet, AlternateSubstFormat1};
@@ -43,8 +44,8 @@ impl WouldApply for AlternateSubstFormat1<'_> {
 impl Apply for AlternateSubstFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage().ok()?.get(glyph)?;
-        let set = self.alternate_sets().get(index as usize).ok()?;
+        let index = self.coverage().likely_ok()?.get(glyph)?;
+        let set = self.alternate_sets().get(index as usize).likely_ok()?;
         set.apply(ctx)
     }
 }

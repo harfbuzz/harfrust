@@ -7,6 +7,7 @@ mod single;
 mod value;
 
 use crate::buffer::*;
+use crate::hint::Likely;
 use crate::ot::layout::*;
 use crate::plan::ShapePlan;
 use crate::Direction;
@@ -32,7 +33,7 @@ fn propagate_attachment_offsets(
 ) -> Option<()> {
     // Adjusts offsets of attached glyphs (both cursive and mark) to accumulate
     // offset of glyph they are attached to.
-    let this = pos.get_mut(i)?;
+    let this = pos.get_mut(i).likely()?;
     let chain = this.attach_chain();
     let kind = this.attach_type();
 
@@ -47,14 +48,14 @@ fn propagate_attachment_offsets(
         return Some(());
     }
 
-    if pos.get(j)?.attach_chain() != 0 {
+    if pos.get(j).likely()?.attach_chain() != 0 {
         // A failure further up the chain still accumulates this glyph below.
         propagate_attachment_offsets(pos, len, j, direction, nesting_level - 1);
     }
 
     // Read only after the recursion, which updates the parent's offsets.
-    let parent = *pos.get(j)?;
-    let mut this = *pos.get(i)?;
+    let parent = *pos.get(j).likely()?;
+    let mut this = *pos.get(i).likely()?;
     match kind {
         attach_type::MARK => {
             if direction.is_horizontal() {
@@ -68,12 +69,12 @@ fn propagate_attachment_offsets(
                 // This is the common case: mark follows base.
                 // And currently the only way in OpenType.
                 if direction.is_forward() {
-                    for k in pos.get(j..i)? {
+                    for k in pos.get(j..i).likely()? {
                         this.x_offset = this.x_offset.saturating_sub(k.x_advance);
                         this.y_offset = this.y_offset.saturating_sub(k.y_advance);
                     }
                 } else {
-                    for k in pos.get(j + 1..i + 1)? {
+                    for k in pos.get(j + 1..i + 1).likely()? {
                         this.x_offset = this.x_offset.saturating_add(k.x_advance);
                         this.y_offset = this.y_offset.saturating_add(k.y_advance);
                     }
@@ -82,12 +83,12 @@ fn propagate_attachment_offsets(
                 // This can happen with `kerx`: a mark attaching
                 // to a base after it in the logical order.
                 if direction.is_forward() {
-                    for k in pos.get(i..j)? {
+                    for k in pos.get(i..j).likely()? {
                         this.x_offset = this.x_offset.saturating_add(k.x_advance);
                         this.y_offset = this.y_offset.saturating_add(k.y_advance);
                     }
                 } else {
-                    for k in pos.get(i + 1..j + 1)? {
+                    for k in pos.get(i + 1..j + 1).likely()? {
                         this.x_offset = this.x_offset.saturating_sub(k.x_advance);
                         this.y_offset = this.y_offset.saturating_sub(k.y_advance);
                     }
@@ -103,7 +104,7 @@ fn propagate_attachment_offsets(
         }
         _ => {}
     }
-    *pos.get_mut(i)? = this;
+    *pos.get_mut(i).likely()? = this;
     Some(())
 }
 

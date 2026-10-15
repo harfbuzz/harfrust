@@ -1,4 +1,5 @@
 use crate::buffer::HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, SkippingIterator};
 use crate::ot::gpos::attach_type;
@@ -10,7 +11,7 @@ impl Apply for CursivePosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let this = ctx.buffer.cur(0)?.as_glyph();
 
-        let coverage = self.coverage().ok()?;
+        let coverage = self.coverage().likely_ok()?;
         let index_this = coverage.get(this)? as usize;
         let records = self.entry_exit_record();
         let offset_data = self.offset_data();
@@ -27,7 +28,7 @@ impl Apply for CursivePosFormat1<'_> {
         }
 
         let i = iter.index();
-        let prev = iter.buffer.info.get(i)?.as_glyph();
+        let prev = iter.buffer.info.get(i).likely()?.as_glyph();
         let index_prev = coverage.get(prev)? as usize;
         let Some(exit_prev) = records
             .get(index_prev)
@@ -52,8 +53,8 @@ impl Apply for CursivePosFormat1<'_> {
         let pos = &mut ctx.buffer.pos;
         // Both glyphs are adjusted together, so work on copies and store them
         // back rather than holding two mutable borrows of the buffer.
-        let mut prev_pos = *pos.get(i)?;
-        let mut this_pos = *pos.get(j)?;
+        let mut prev_pos = *pos.get(i).likely()?;
+        let mut this_pos = *pos.get(j).likely()?;
         match direction {
             Direction::LeftToRight => {
                 prev_pos.x_advance = exit_x.saturating_add(prev_pos.x_offset);
@@ -81,8 +82,8 @@ impl Apply for CursivePosFormat1<'_> {
             }
             Direction::Invalid => {}
         }
-        *pos.get_mut(i)? = prev_pos;
-        *pos.get_mut(j)? = this_pos;
+        *pos.get_mut(i).likely()? = prev_pos;
+        *pos.get_mut(j).likely()? = this_pos;
 
         // Cross-direction adjustment
 
@@ -110,7 +111,7 @@ impl Apply for CursivePosFormat1<'_> {
         // where new parent is on the path from old chain...
         reverse_cursive_minor_offset(pos, child, direction, parent)?;
 
-        let child_pos = pos.get_mut(child)?;
+        let child_pos = pos.get_mut(child).likely()?;
         child_pos.set_attach_type(attach_type::CURSIVE);
         let chain = parent as isize - child as isize;
         child_pos.set_attach_chain(chain as i16);
@@ -131,7 +132,7 @@ impl Apply for CursivePosFormat1<'_> {
 
         // If parent was attached to child, separate them.
         // https://github.com/harfbuzz/harfbuzz/issues/2469
-        let parent_pos = ctx.buffer.pos.get_mut(parent)?;
+        let parent_pos = ctx.buffer.pos.get_mut(parent).likely()?;
         if parent_pos.attach_chain() == -child_chain {
             parent_pos.set_attach_chain(0);
 
@@ -155,7 +156,7 @@ fn reverse_cursive_minor_offset(
     direction: Direction,
     new_parent: usize,
 ) -> Option<()> {
-    let this = pos.get_mut(i)?;
+    let this = pos.get_mut(i).likely()?;
     let chain = this.attach_chain();
     let attach_type = this.attach_type();
     if chain == 0 || attach_type & attach_type::CURSIVE == 0 {
@@ -182,13 +183,13 @@ fn reverse_cursive_minor_offset(
 
     // Read only after the recursion, since a chain that loops back can
     // rewrite this glyph.
-    let this = pos.get(i)?;
+    let this = pos.get(i).likely()?;
     let offset = if direction.is_horizontal() {
         this.y_offset
     } else {
         this.x_offset
     };
-    let next = pos.get_mut(j)?;
+    let next = pos.get_mut(j).likely()?;
     if direction.is_horizontal() {
         next.y_offset = offset.saturating_neg();
     } else {

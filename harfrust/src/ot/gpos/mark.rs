@@ -1,4 +1,5 @@
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
+use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, MatchResult, SkippingIterator};
 use crate::ot::gpos::attach_type;
@@ -14,7 +15,7 @@ fn resolve_cross_offset(
 ) -> Option<i32> {
     let horizontal = direction.is_horizontal();
     let cross_offset = |p: &GlyphPosition| if horizontal { p.y_offset } else { p.x_offset };
-    let mut this = pos.get(glyph_pos)?;
+    let mut this = pos.get(glyph_pos).likely()?;
     let mut offset = cross_offset(this);
 
     while this.attach_type() & attach_type::CURSIVE != 0 {
@@ -100,9 +101,9 @@ impl MarkArrayExt for MarkArray<'_> {
 impl Apply for MarkBasePosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0)?.as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)?;
+        let mark_index = self.mark_coverage().likely_ok()?.get(mark_glyph)?;
 
-        let base_coverage = self.base_coverage().ok()?;
+        let base_coverage = self.base_coverage().likely_ok()?;
         let last_base_until = ctx.last_base_until;
         let mut last_base = ctx.last_base;
 
@@ -153,19 +154,22 @@ impl Apply for MarkBasePosFormat1<'_> {
         let idx = ctx.last_base as u32;
 
         // Checking that matched glyph is actually a base glyph by GDEF is too strong; disabled
-        let base_glyph = ctx.buffer.info.get(idx as usize)?.as_glyph();
+        let base_glyph = ctx.buffer.info.get(idx as usize).likely()?.as_glyph();
         let Some(base_index) = base_coverage.get(base_glyph) else {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(idx as usize), Some(ctx.buffer.idx + 1));
             return None;
         };
 
-        let mark_array = self.mark_array().ok()?;
+        let mark_array = self.mark_array().likely_ok()?;
         let mark_record = mark_array.mark_records().get(mark_index as usize)?;
         let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
 
-        let base_array = self.base_array().ok()?;
-        let base_record = base_array.base_records().get(base_index as usize).ok()?;
+        let base_array = self.base_array().likely_ok()?;
+        let base_record = base_array
+            .base_records()
+            .get(base_index as usize)
+            .likely_ok()?;
         let base_anchor = base_record
             .base_anchors(base_array.offset_data())
             .get(mark_record.mark_class() as usize)?
@@ -181,11 +185,11 @@ fn accept(buffer: &Buffer, idx: usize) -> Option<bool> {
      * Reject others...
      * ...but stop if we find a mark in the MultipleSubst sequence:
      * https://github.com/harfbuzz/harfbuzz/issues/1020 */
-    let info = buffer.info.get(idx)?;
+    let info = buffer.info.get(idx).likely()?;
     if !info.multiplied() || 0 == info.lig_comp() || idx == 0 {
         return Some(true);
     }
-    let prev = buffer.info.get(idx - 1)?;
+    let prev = buffer.info.get(idx - 1).likely()?;
     Some(
         prev.is_mark()
             || !prev.multiplied()
@@ -197,7 +201,7 @@ fn accept(buffer: &Buffer, idx: usize) -> Option<bool> {
 impl Apply for MarkMarkPosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let mark1_glyph = ctx.buffer.cur(0)?.as_glyph();
-        let mark1_index = self.mark1_coverage().ok()?.get(mark1_glyph)?;
+        let mark1_index = self.mark1_coverage().likely_ok()?.get(mark1_glyph)?;
         let lookup_props = ctx.lookup_props;
         // Now we search backwards for a suitable mark glyph until a non-mark glyph
         let mut iter = SkippingIterator::new(ctx, false);
@@ -212,7 +216,7 @@ impl Apply for MarkMarkPosFormat1<'_> {
         }
 
         let iter_idx = iter.index();
-        let mark2 = *ctx.buffer.info.get(iter_idx)?;
+        let mark2 = *ctx.buffer.info.get(iter_idx).likely()?;
         if !mark2.is_mark() {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(iter_idx), Some(ctx.buffer.idx + 1));
@@ -241,14 +245,17 @@ impl Apply for MarkMarkPosFormat1<'_> {
         }
 
         let mark2_glyph = mark2.as_glyph();
-        let mark2_index = self.mark2_coverage().ok()?.get(mark2_glyph)?;
+        let mark2_index = self.mark2_coverage().likely_ok()?.get(mark2_glyph)?;
 
-        let mark1_array = self.mark1_array().ok()?;
+        let mark1_array = self.mark1_array().likely_ok()?;
         let mark1_record = mark1_array.mark_records().get(mark1_index as usize)?;
         let mark1_anchor = mark1_record.mark_anchor(mark1_array.offset_data()).ok()?;
 
-        let base_array = self.mark2_array().ok()?;
-        let base_record = base_array.mark2_records().get(mark2_index as usize).ok()?;
+        let base_array = self.mark2_array().likely_ok()?;
+        let base_record = base_array
+            .mark2_records()
+            .get(mark2_index as usize)
+            .likely_ok()?;
         let base_anchor = base_record
             .mark2_anchors(base_array.offset_data())
             .get(mark1_record.mark_class() as usize)?
@@ -261,8 +268,8 @@ impl Apply for MarkMarkPosFormat1<'_> {
 impl Apply for MarkLigPosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let mark_glyph = ctx.buffer.cur(0)?.as_glyph();
-        let mark_index = self.mark_coverage().ok()?.get(mark_glyph)? as usize;
-        let ligature_coverage = self.ligature_coverage().ok()?;
+        let mark_index = self.mark_coverage().likely_ok()?.get(mark_glyph)? as usize;
+        let ligature_coverage = self.ligature_coverage().likely_ok()?;
 
         // Due to borrowing rules, we have this piece of code before creating the
         // iterator, unlike in harfbuzz.
@@ -311,7 +318,7 @@ impl Apply for MarkLigPosFormat1<'_> {
 
         // Checking that matched glyph is actually a ligature by GDEF is too strong; disabled
 
-        let lig_info = ctx.buffer.info.get(idx)?;
+        let lig_info = ctx.buffer.info.get(idx).likely()?;
         let lig_glyph = lig_info.as_glyph();
         let lig_id = lig_info.lig_id();
         let Some(lig_index) = ligature_coverage.get(lig_glyph) else {
@@ -347,7 +354,7 @@ impl Apply for MarkLigPosFormat1<'_> {
             comp_count
         } - 1;
 
-        let mark_array = self.mark_array().ok()?;
+        let mark_array = self.mark_array().likely_ok()?;
         let mark_record = mark_array.mark_records().get(mark_index)?;
         let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).ok()?;
 
@@ -369,6 +376,6 @@ fn accept_mark_ligature(buffer: &Buffer, idx: usize) -> Option<bool> {
     // which might have been ligated into a preceding ligature, and in that
     // case the mark should attach to that ligature.
     // https://github.com/harfbuzz/harfbuzz/issues/4969
-    let info = buffer.info.get(idx)?;
+    let info = buffer.info.get(idx).likely()?;
     Some(!info.multiplied() || info.lig_comp() == 0)
 }

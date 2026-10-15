@@ -1,3 +1,4 @@
+use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::ApplyContext;
 use read_fonts::{
     tables::{gpos::ValueFormat, variations::DeltaSetIndex},
@@ -13,12 +14,12 @@ pub(super) fn apply(
     format: ValueFormat,
 ) -> Option<bool> {
     let scale = ctx.scale;
-    let pos = ctx.buffer.pos.get_mut(idx)?;
+    let pos = ctx.buffer.pos.get_mut(idx).likely()?;
     let is_horizontal = ctx.buffer.direction.is_horizontal();
     let mut worked = false;
     macro_rules! read_value {
         () => {{
-            let value = data.read_at::<i16>(offset).ok()? as i32;
+            let value = data.read_at::<i16>(offset).likely_ok()? as i32;
             worked |= value != 0;
             offset += 2;
             value
@@ -51,7 +52,7 @@ pub(super) fn apply(
         let coords = ctx.layout.ot.coords;
         macro_rules! read_delta {
             () => {{
-                let rec_offset = data.read_at::<u16>(offset).ok()? as usize;
+                let rec_offset = data.read_at::<u16>(offset).likely_ok()? as usize;
                 offset += 2;
                 // Keep the delta fractional; scale_x_f rounds once, matching
                 // HarfBuzz's em_scalef (rounding whole font units first would
@@ -59,13 +60,13 @@ pub(super) fn apply(
                 let mut value = 0.0f32;
                 // Offset is nullable
                 if rec_offset != 0 {
-                    let format = data.read_at::<u16>(rec_offset + 4).ok()?;
+                    let format = data.read_at::<u16>(rec_offset + 4).likely_ok()?;
                     // DeltaFormat specifier for a VariationIndex table
                     // See <https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables>
                     const VARIATION_INDEX_FORMAT: u16 = 0x8000;
                     if format == VARIATION_INDEX_FORMAT {
-                        let outer = data.read_at::<u16>(rec_offset).ok()?;
-                        let inner = data.read_at::<u16>(rec_offset + 2).ok()?;
+                        let outer = data.read_at::<u16>(rec_offset).likely_ok()?;
+                        let inner = data.read_at::<u16>(rec_offset + 2).likely_ok()?;
                         value = vs
                             .compute_delta(DeltaSetIndex { outer, inner }, coords)
                             .unwrap_or_default()

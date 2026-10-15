@@ -1,3 +1,4 @@
+use crate::hint::LikelyOk;
 use crate::ot::apply::Apply;
 use crate::ot::apply::ApplyContext;
 use read_fonts::tables::gpos::{SinglePosFormat1, SinglePosFormat2};
@@ -5,7 +6,7 @@ use read_fonts::tables::gpos::{SinglePosFormat1, SinglePosFormat2};
 impl Apply for SinglePosFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        self.coverage().ok()?.get(glyph)?;
+        self.coverage().likely_ok()?.get(glyph)?;
         let format = self.value_format();
         let offset = self.value_record_byte_range().start;
         super::value::apply(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);
@@ -17,7 +18,7 @@ impl Apply for SinglePosFormat1<'_> {
 impl Apply for SinglePosFormat2<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage().ok()?.get(glyph)? as usize;
+        let index = self.coverage().likely_ok()?.get(glyph)? as usize;
         let format = self.value_format();
         let offset = self.value_records_byte_range().start + (format.record_byte_len() * index);
         super::value::apply(ctx, ctx.buffer.idx, &self.offset_data(), offset, format);

@@ -1,4 +1,5 @@
 use crate::buffer::GlyphPropsFlags;
+use crate::hint::LikelyOk;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{Apply, WouldApply, WouldApplyContext};
 use read_fonts::tables::gsub::MultipleSubstFormat1;
@@ -15,8 +16,12 @@ impl WouldApply for MultipleSubstFormat1<'_> {
 impl Apply for MultipleSubstFormat1<'_> {
     fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
         let gid = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage().ok()?.get(gid)? as usize;
-        let substs = self.sequences().get(index).ok()?.substitute_glyph_ids();
+        let index = self.coverage().likely_ok()?.get(gid)? as usize;
+        let substs = self
+            .sequences()
+            .get(index)
+            .likely_ok()?
+            .substitute_glyph_ids();
         match substs.len() {
             // Spec disallows this, but Uniscribe allows it.
             // https://github.com/harfbuzz/harfbuzz/issues/253

@@ -8,6 +8,8 @@ use alloc::{string::String, vec::Vec};
 use core::cmp::min;
 use read_fonts::types::{GlyphId, GlyphId16};
 
+use crate::hint::Likely;
+
 const CONTEXT_LENGTH: usize = 5;
 
 /// The advances and offsets of a shaped glyph.
@@ -1142,6 +1144,9 @@ impl Buffer {
     /// The caller must have made room in the out buffer already. In the
     /// shared-array case the destination never starts past the source
     /// (`dst <= src`), which makes the ascending inline copy overlap-safe.
+    // Kept out of line so the callers' common no-copy path stays small enough
+    // to inline.
+    #[inline(never)]
     fn copy_infos_to_out(&mut self, src: usize, dst: usize, count: usize) {
         if self.try_copy_infos_to_out(src, dst, count).is_none() {
             self.index_failed();
@@ -1224,30 +1229,30 @@ impl Buffer {
 
     #[inline]
     pub(crate) fn cur(&self, i: usize) -> Option<&GlyphInfo> {
-        self.info.get(self.idx + i)
+        self.info.get(self.idx + i).likely()
     }
 
     #[inline]
     pub(crate) fn cur_mut(&mut self, i: usize) -> Option<&mut GlyphInfo> {
         let idx = self.idx + i;
-        self.info.get_mut(idx)
+        self.info.get_mut(idx).likely()
     }
 
     #[inline]
     pub(crate) fn cur_pos_mut(&mut self) -> Option<&mut GlyphPosition> {
         let idx = self.idx;
-        self.pos.get_mut(idx)
+        self.pos.get_mut(idx).likely()
     }
 
     #[inline]
     pub(crate) fn prev(&self) -> Option<&GlyphInfo> {
-        self.out_info().get(self.out_len.checked_sub(1)?)
+        self.out_info().get(self.out_len.checked_sub(1)?).likely()
     }
 
     #[inline]
     pub(crate) fn prev_mut(&mut self) -> Option<&mut GlyphInfo> {
         let idx = self.out_len.checked_sub(1)?;
-        self.out_info_mut().get_mut(idx)
+        self.out_info_mut().get_mut(idx).likely()
     }
 
     pub(crate) fn update_digest(&mut self) {

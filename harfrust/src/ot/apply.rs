@@ -8,6 +8,7 @@ use super::lookup_flags;
 use super::set_digest::SetDigest;
 use super::Mask;
 use super::OtData;
+use crate::hint::Likely;
 use crate::ot::{ClassDefInfo, CoverageInfo};
 use crate::unicode::GeneralCategory;
 use crate::Scale;
@@ -534,7 +535,7 @@ where
     #[inline]
     pub fn match_at(&mut self, idx: usize) -> MatchResult {
         // A position outside the buffer never matches.
-        let Some(info) = self.buffer.info.get_mut(idx) else {
+        let Some(info) = self.buffer.info.get_mut(idx).likely() else {
             return MatchResult::NotMatch;
         };
         match_info(
@@ -1179,11 +1180,15 @@ pub fn ligate_input(
     // Classify the matched glyphs before touching the buffer, so a bad match
     // position leaves it unchanged.
     let info = &ctx.buffer.info;
-    let first_info = info.get(ctx.match_positions[0] as usize)?;
+    let first_info = info.get(ctx.match_positions[0] as usize).likely()?;
     let mut is_base_ligature = first_info.is_base_glyph();
     let mut is_mark_ligature = first_info.is_mark();
     for i in 1..count {
-        if !info.get(ctx.match_positions[i] as usize)?.is_mark() {
+        if !info
+            .get(ctx.match_positions[i] as usize)
+            .likely()?
+            .is_mark()
+        {
             is_base_ligature = false;
             is_mark_ligature = false;
         }

@@ -1,3 +1,4 @@
+use crate::hint::LikelyOk;
 use crate::{
     ot::apply::{
         Apply, ApplyContext, SubtableExternalCache, SubtableExternalCacheMode, WouldApply,
@@ -680,13 +681,21 @@ impl SubtableInfo {
             (true, 1) => match SingleSubst::read(data).ok()? {
                 SingleSubst::Format1(s) => (
                     SubtableKind::SingleSubst1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [single_subst1, single_subst1_cached as _],
                     SetDigest::full(),
                 ),
                 SingleSubst::Format2(s) => (
                     SubtableKind::SingleSubst2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [single_subst2, single_subst2_cached as _],
                     SetDigest::full(),
                 ),
@@ -694,13 +703,21 @@ impl SubtableInfo {
             (false, 1) => match SinglePos::read(data).ok()? {
                 SinglePos::Format1(s) => (
                     SubtableKind::SinglePos1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [single_pos1, single_pos1_cached as _],
                     SetDigest::full(),
                 ),
                 SinglePos::Format2(s) => (
                     SubtableKind::SinglePos2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [single_pos2, single_pos2_cached as _],
                     SetDigest::full(),
                 ),
@@ -709,7 +726,11 @@ impl SubtableInfo {
                 let s = MultipleSubstFormat1::read(data).ok()?;
                 (
                     SubtableKind::MultipleSubst1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [multiple_subst1, multiple_subst1_cached as _],
                     SetDigest::full(),
                 )
@@ -717,13 +738,21 @@ impl SubtableInfo {
             (false, 2) => match PairPos::read(data).ok()? {
                 PairPos::Format1(s) => (
                     SubtableKind::PairPos1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [pair_pos1, pair_pos1_cached as _],
                     pair_pos_format1_digest(&s),
                 ),
                 PairPos::Format2(s) => (
                     SubtableKind::PairPos2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [pair_pos2, pair_pos2_cached as _],
                     SetDigest::full(),
                 ),
@@ -732,7 +761,11 @@ impl SubtableInfo {
                 let s = AlternateSubstFormat1::read(data).ok()?;
                 (
                     SubtableKind::AlternateSubst1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [alternate_subst1, alternate_subst1_cached as _],
                     SetDigest::full(),
                 )
@@ -741,7 +774,11 @@ impl SubtableInfo {
                 let s = CursivePosFormat1::read(data).ok()?;
                 (
                     SubtableKind::CursivePos1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [cursive_pos1, cursive_pos1_cached as _],
                     coverage_digest(s.coverage()),
                 )
@@ -750,7 +787,11 @@ impl SubtableInfo {
                 let s = LigatureSubstFormat1::read(data).ok()?;
                 (
                     SubtableKind::LigatureSubst1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [ligature_subst1, ligature_subst1_cached as _],
                     super::gsub::collect_seconds(&s),
                 )
@@ -762,7 +803,7 @@ impl SubtableInfo {
                     (
                         maybe_external_cache(&s),
                         s.cache_cost(),
-                        s.mark_coverage().ok()?,
+                        s.mark_coverage().likely_ok()?,
                     ),
                     [mark_base_pos1, mark_base_pos1_cached as _],
                     coverage_digest(s.base_coverage()),
@@ -771,13 +812,21 @@ impl SubtableInfo {
             (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
                 SequenceContext::Format1(s) => (
                     SubtableKind::ContextFormat1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [context1, context1_cached as _],
                     context_format1_digest(&s),
                 ),
                 SequenceContext::Format2(s) => (
                     SubtableKind::ContextFormat2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [context2, context2_cached as _],
                     context_format2_digest(&s),
                 ),
@@ -799,7 +848,7 @@ impl SubtableInfo {
                     (
                         maybe_external_cache(&s),
                         s.cache_cost(),
-                        s.mark_coverage().ok()?,
+                        s.mark_coverage().likely_ok()?,
                     ),
                     [mark_lig_pos1, mark_lig_pos1_cached as _],
                     coverage_digest(s.ligature_coverage()),
@@ -808,13 +857,21 @@ impl SubtableInfo {
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
                 ChainedSequenceContext::Format1(s) => (
                     SubtableKind::ChainedContextFormat1,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [chained_context1, chained_context1_cached as _],
                     chained_context_format1_digest(&s),
                 ),
                 ChainedSequenceContext::Format2(s) => (
                     SubtableKind::ChainedContextFormat2,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [chained_context2, chained_context2_cached as _],
                     chained_context_format2_digest(&s),
                 ),
@@ -851,7 +908,7 @@ impl SubtableInfo {
                     (
                         maybe_external_cache(&s),
                         s.cache_cost(),
-                        s.mark1_coverage().ok()?,
+                        s.mark1_coverage().likely_ok()?,
                     ),
                     [mark_mark_pos1, mark_mark_pos1_cached as _],
                     coverage_digest(s.mark2_coverage()),
@@ -861,7 +918,11 @@ impl SubtableInfo {
                 let s = ReverseChainSingleSubstFormat1::read(data).ok()?;
                 (
                     SubtableKind::ReverseChainContext,
-                    (maybe_external_cache(&s), s.cache_cost(), s.coverage().ok()?),
+                    (
+                        maybe_external_cache(&s),
+                        s.cache_cost(),
+                        s.coverage().likely_ok()?,
+                    ),
                     [rev_chain_single_subst1, rev_chain_single_subst1_cached as _],
                     SetDigest::full(),
                 )

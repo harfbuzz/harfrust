@@ -1,4 +1,5 @@
 use crate::buffer::GlyphInfo;
+use crate::hint::LikelyOk;
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{match_backtrack, match_lookahead, Apply, WouldApply, WouldApplyContext};
 use crate::ot::layout::MAX_NESTING_LEVEL;
@@ -23,7 +24,7 @@ impl Apply for ReverseChainSingleSubstFormat1<'_> {
         }
 
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let coverage = self.coverage().ok()?;
+        let coverage = self.coverage().likely_ok()?;
         let index = coverage.get(glyph)? as usize;
         let substitutes = self.substitute_glyph_ids();
         if index >= substitutes.len() {

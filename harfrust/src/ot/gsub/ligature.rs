@@ -1,4 +1,5 @@
 use crate::buffer::GlyphInfo;
+use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::ApplyContext;
 use crate::ot::apply::{
     ligate_input, match_always, match_glyph, match_input, Apply, LigatureSubstFormat1Cache,
@@ -97,7 +98,7 @@ impl ApplyLigatureSet for LigatureSet<'_> {
             if !matched {
                 true
             } else {
-                let info = iter.buffer.info.get(iter.index())?;
+                let info = iter.buffer.info.get(iter.index()).likely()?;
                 second = info.glyph_id.into();
                 unsafe_to = iter.index() + 1;
 
@@ -170,7 +171,7 @@ impl Apply for LigatureSubstFormat1<'_> {
         let (index, seconds) = match external_cache {
             SubtableExternalCache::LigatureSubstFormat1Cache(cache) => (
                 coverage_index_cached(
-                    |gid| self.coverage().ok()?.get(gid),
+                    |gid| self.coverage().likely_ok()?.get(gid),
                     glyph,
                     &cache.coverage,
                 )?,
