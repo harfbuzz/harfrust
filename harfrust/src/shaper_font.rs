@@ -47,9 +47,8 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
             // The default location can select a feature variation too, and
             // shape plan keys ask the font the same way.
             let variations = font.feature_variations();
-            let feature_variations = [variations.gsub, variations.gpos];
             (
-                OtData::new(&cache.ot, coords, feature_variations),
+                OtData::new(&cache.ot, coords, variations),
                 AatData::new(&cache.aat),
                 cache.apply_trak,
                 Some(&cache.cmap),
@@ -731,7 +730,11 @@ mod tests {
         let cache = LayoutCache::new(&font);
 
         loads.store(0, Ordering::Relaxed);
-        let ot_data = OtData::new(&cache.ot, &[], [None; 2]);
+        let ot_data = OtData::new(
+            &cache.ot,
+            &[],
+            read_fonts::tables::layout::SelectedFeatureVariations::default(),
+        );
         let aat_data = AatData::new(&cache.aat);
 
         assert!(ot_data.gsub().is_some());
