@@ -4,7 +4,7 @@
 //! differ only in the widths of glyph IDs and offsets.
 
 use super::coverage::Coverage;
-use super::{read_uint, Offsets, SubtableDigests, Uints};
+use super::{read_be, Offsets, SubtableDigests, Uints, Values};
 use crate::buffer::{GlyphInfo, GlyphPropsFlags};
 use crate::hint::Likely;
 use crate::ot::apply::{
@@ -206,55 +206,56 @@ fn apply_alternate_set(ctx: &mut ApplyContext, alternates: Uints) -> Option<()> 
     Some(())
 }
 
-/// A ligature: its glyph and its components after the first.
-struct Ligature<'a> {
+/// A ligature: its glyph and its components after the first, whose glyph
+/// IDs are `W` bytes.
+struct Ligature<'a, const W: usize> {
     glyph: u32,
-    components: Uints<'a>,
+    components: Values<'a, W>,
 }
 
-impl<'a> Ligature<'a> {
-    /// Reads a ligature whose glyph IDs are `width` bytes; `None` if it is
-    /// truncated.
-    fn read(data: FontData<'a>, width: usize) -> Option<Self> {
-        let bytes = data.as_bytes();
-        if bytes.len() < width + 2 {
-            return None;
-        }
-        let count = usize::from(data.read_at::<u16>(width).ok()?);
+impl<'a, const W: usize> Ligature<'a, W> {
+    /// Reads a ligature; `None` if it is truncated.
+    #[inline(always)]
+    fn read(data: FontData<'a>) -> Option<Self> {
+        let glyph = read_be::<W>(data.as_bytes(), 0)?;
+        let count = usize::from(data.read_at::<u16>(W).ok()?);
         Some(Self {
-            glyph: read_uint(bytes, 0, width),
-            components: Uints::at(data, width + 2, count.saturating_sub(1), width)?,
+            glyph,
+            components: Values::at(data, W + 2, count.saturating_sub(1))?,
         })
     }
 }
 
-/// The ligatures of a ligature set, read on demand.
-struct LigatureSet<'a> {
-    ligatures: Offsets<'a>,
-    width: usize,
+/// The ligatures of a ligature set, read on demand. Its offsets and glyph
+/// IDs are `W` bytes.
+struct LigatureSet<'a, const W: usize> {
+    data: FontData<'a>,
+    offsets: Values<'a, W>,
 }
 
-impl<'a> LigatureSet<'a> {
-    /// Reads a set whose glyph IDs and offsets are `width` bytes.
-    fn read(data: FontData<'a>, width: usize) -> Option<Self> {
+impl<'a, const W: usize> LigatureSet<'a, W> {
+    #[inline(always)]
+    fn read(data: FontData<'a>) -> Option<Self> {
         let count = usize::from(data.read_at::<u16>(0).ok()?);
-        let ligatures = Uints::at(data, 2, count, width)?;
         Some(Self {
-            ligatures: Offsets {
-                data,
-                offsets: ligatures,
-            },
-            width,
+            data,
+            offsets: Values::at(data, 2, count)?,
         })
     }
 
     fn len(&self) -> usize {
-        self.ligatures.len()
+        self.offsets.len()
     }
 
-    /// The readable ligatures, in order.
-    fn iter(&self) -> impl Iterator<Item = Ligature<'a>> + '_ {
-        (0..self.len()).filter_map(|index| Ligature::read(self.ligatures.data(index)?, self.width))
+    /// The readable ligatures, in order; a null offset is skipped.
+    #[inline(always)]
+    fn iter(&self) -> impl Iterator<Item = Ligature<'a, W>> + '_ {
+        self.offsets.iter().filter_map(|offset| {
+            if offset == 0 {
+                return None;
+            }
+            Ligature::read(self.data.split_off(offset as usize)?)
+        })
     }
 }
 
@@ -284,30 +285,49 @@ impl<'a> LigatureSubst1<'a> {
     }
 
     fn from_sets(ligature_sets: Offsets<'a>, width: usize) -> Self {
+        let seconds = if width == WIDE {
+            collect_seconds::<WIDE>(&ligature_sets)
+        } else {
+            collect_seconds::<NARROW>(&ligature_sets)
+        };
         Self {
-            seconds: collect_seconds(&ligature_sets, width),
+            seconds,
             ligature_sets,
             width: width as u8,
         }
     }
 
-    fn set(&self, index: usize) -> Option<LigatureSet<'a>> {
-        LigatureSet::read(self.ligature_sets.data(index)?, self.width.into())
-    }
-
+    // Each width gets its own copy of the ligature walk, which reads many
+    // glyph IDs per application.
     pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
-        apply_ligature_set(ctx, &self.set(index as usize)?, &self.seconds)
+        let data = self.ligature_sets.data(index as usize)?;
+        if usize::from(self.width) == WIDE {
+            apply_ligature_set(ctx, &LigatureSet::<WIDE>::read(data)?, &self.seconds)
+        } else {
+            apply_ligature_set(ctx, &LigatureSet::<NARROW>::read(data)?, &self.seconds)
+        }
     }
 
     pub fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> bool {
-        coverage
+        let Some(data) = coverage
             .get(ctx.glyphs[0])
-            .and_then(|index| self.set(index as usize))
-            .is_some_and(|set| {
-                set.iter()
-                    .any(|ligature| ligature_would_apply(&ligature, ctx))
-            })
+            .and_then(|index| self.ligature_sets.data(index as usize))
+        else {
+            return false;
+        };
+        if usize::from(self.width) == WIDE {
+            set_would_apply(LigatureSet::<WIDE>::read(data), ctx)
+        } else {
+            set_would_apply(LigatureSet::<NARROW>::read(data), ctx)
+        }
     }
+}
+
+fn set_would_apply<const W: usize>(set: Option<LigatureSet<W>>, ctx: &WouldApplyContext) -> bool {
+    set.is_some_and(|set| {
+        set.iter()
+            .any(|ligature| ligature_would_apply(&ligature, ctx))
+    })
 }
 
 impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
@@ -324,7 +344,7 @@ const MAX_LIGATURE_DIGEST_WORK: usize = 16_384;
 
 /// The digest of every ligature's second glyph, or a full digest if a
 /// ligature has none or the walk is too long.
-fn collect_seconds(sets: &Offsets, width: usize) -> SetDigest {
+fn collect_seconds<const W: usize>(sets: &Offsets) -> SetDigest {
     let mut seconds = SetDigest::new();
     let mut remaining_work = MAX_LIGATURE_DIGEST_WORK;
     let Some(work) = remaining_work.checked_sub(sets.len()) else {
@@ -332,10 +352,7 @@ fn collect_seconds(sets: &Offsets, width: usize) -> SetDigest {
     };
     remaining_work = work;
     for index in 0..sets.len() {
-        let Some(set) = sets
-            .data(index)
-            .and_then(|data| LigatureSet::read(data, width))
-        else {
+        let Some(set) = sets.data(index).and_then(LigatureSet::<W>::read) else {
             continue;
         };
         let Some(work) = remaining_work.checked_sub(set.len()) else {
@@ -352,7 +369,7 @@ fn collect_seconds(sets: &Offsets, width: usize) -> SetDigest {
     seconds
 }
 
-fn ligature_would_apply(ligature: &Ligature, ctx: &WouldApplyContext) -> bool {
+fn ligature_would_apply<const W: usize>(ligature: &Ligature<W>, ctx: &WouldApplyContext) -> bool {
     let components = &ligature.components;
     ctx.glyphs.len() == components.len() + 1
         && components
@@ -362,9 +379,9 @@ fn ligature_would_apply(ligature: &Ligature, ctx: &WouldApplyContext) -> bool {
 }
 
 /// Applies the first ligature of `set` that matches.
-fn apply_ligature_set(
+fn apply_ligature_set<const W: usize>(
     ctx: &mut ApplyContext,
-    set: &LigatureSet,
+    set: &LigatureSet<W>,
     seconds: &SetDigest,
 ) -> Option<()> {
     // Find the glyph after the current one, to reject ligatures by their
@@ -422,7 +439,7 @@ fn apply_ligature_set(
     None
 }
 
-fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
+fn apply_ligature<const W: usize>(ctx: &mut ApplyContext, ligature: &Ligature<W>) -> Option<()> {
     let components = &ligature.components;
     let ligature_glyph = ligature.glyph.into();
     // A ligature of one glyph is an in-place replacement, not a ligation.

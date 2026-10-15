@@ -513,6 +513,45 @@ pub(crate) fn be_uint(bytes: &[u8]) -> u32 {
     }
 }
 
+/// Unsigned integers of `W` bytes, read in place: glyph IDs, classes or
+/// offsets whose width a hot path fixes at compile time.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Values<'a, const W: usize> {
+    bytes: &'a [u8],
+}
+
+impl<'a, const W: usize> Values<'a, W> {
+    #[inline(always)]
+    pub fn at(data: FontData<'a>, start: usize, count: usize) -> Option<Self> {
+        Some(Self {
+            bytes: data.as_bytes().get(start..start + count * W)?,
+        })
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.bytes.len() / W
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
+    #[inline(always)]
+    pub fn get(&self, index: usize) -> Option<u32> {
+        read_be::<W>(self.bytes, index * W)
+    }
+
+    pub fn first(&self) -> Option<u32> {
+        self.get(0)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        (0..self.len()).filter_map(|index| self.get(index))
+    }
+}
+
 /// An array of offsets to child tables, with the data they are relative to.
 #[derive(Clone, Copy, Default)]
 struct Offsets<'a> {

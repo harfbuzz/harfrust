@@ -11,7 +11,7 @@
 
 use super::coverage::{ClassDef, Coverage};
 use super::gsub::covered_at;
-use super::{glyph_class_cached, Offsets, SubtableDigests, Uints};
+use super::{glyph_class_cached, Offsets, SubtableDigests, Uints, Values};
 use crate::buffer::GlyphInfo;
 use crate::hint::Likely;
 use crate::ot::apply::{
@@ -63,44 +63,6 @@ impl RuleLayout {
             chained,
             offset_width,
         }
-    }
-}
-
-/// Rule values of `W` bytes, read in place.
-#[derive(Clone, Copy, Default)]
-struct Values<'a, const W: usize> {
-    bytes: &'a [u8],
-}
-
-impl<'a, const W: usize> Values<'a, W> {
-    #[inline(always)]
-    fn at(data: FontData<'a>, start: usize, count: usize) -> Option<Self> {
-        Some(Self {
-            bytes: data.as_bytes().get(start..start + count * W)?,
-        })
-    }
-
-    #[inline(always)]
-    fn len(&self) -> usize {
-        self.bytes.len() / W
-    }
-
-    #[inline(always)]
-    fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
-    }
-
-    #[inline(always)]
-    fn get(&self, index: usize) -> Option<u32> {
-        super::read_be::<W>(self.bytes, index * W)
-    }
-
-    fn first(&self) -> Option<u32> {
-        self.get(0)
-    }
-
-    fn iter(&self) -> impl Iterator<Item = u32> + '_ {
-        (0..self.len()).filter_map(|index| self.get(index))
     }
 }
 
