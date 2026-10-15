@@ -51,7 +51,7 @@ pub(super) fn build_lookup(
 }
 
 /// Reads the lookup at `offset` in a GSUB (`is_subst`) or GPOS table.
-fn build_lookup_at(
+pub(super) fn build_lookup_at(
     table_data: FontData<'_>,
     offset: usize,
     is_subst: bool,

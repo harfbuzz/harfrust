@@ -25,10 +25,12 @@ use gpos::{Search, SecondGlyph};
 use read_fonts::model::Tables;
 use read_fonts::types::{BigEndian, GlyphId, Nullable, Offset16, Scalar};
 use read_fonts::{FontData, FontRead};
+use yoke::erased::ErasedArcCart;
 use yoke::{Yoke, Yokeable};
 
-/// A cached lookup kept with the tables it borrows.
-pub(crate) type CachedLookupRef = Yoke<CachedLookup<'static>, Arc<Tables>>;
+/// A cached lookup kept with the data it borrows: the font's tables, or
+/// the bytes of a lookup made up for a font that lacks one.
+pub(crate) type CachedLookupRef = Yoke<CachedLookup<'static>, ErasedArcCart>;
 
 /// Parses lookup `index` of GSUB, or GPOS if `is_subst` is false.
 pub(crate) fn cache_lookup(
@@ -40,6 +42,17 @@ pub(crate) fn cache_lookup(
         build::build_lookup(tables, is_subst, index).ok_or(())
     })
     .ok()
+    .map(Yoke::erase_arc_cart)
+}
+
+/// Parses a substitution lookup serialized on its own, as the Arabic
+/// fallback makes them.
+pub(crate) fn cache_synthesized_subst(data: Vec<u8>) -> Option<CachedLookupRef> {
+    Yoke::try_attach_to_cart(Arc::new(data), |data: &Vec<u8>| {
+        build::build_lookup_at(FontData::new(data), 0, true).ok_or(())
+    })
+    .ok()
+    .map(Yoke::erase_arc_cart)
 }
 
 /// A lookup with its subtables parsed.

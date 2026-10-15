@@ -123,14 +123,13 @@ pub(crate) struct FallbackPlan {
 
 struct FallbackLookup {
     mask: Mask,
-    data: Vec<u8>,
     info: LookupInfo,
 }
 
 impl FallbackLookup {
     fn new(mask: Mask, data: Vec<u8>) -> Option<Self> {
-        let info = LookupInfo::new_subst(&data)?;
-        Some(Self { mask, data, info })
+        let info = LookupInfo::new_synthesized(data)?;
+        Some(Self { mask, info })
     }
 }
 
@@ -214,7 +213,7 @@ impl FallbackPlan {
         let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout(), font.scale, buffer);
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
-            apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);
+            apply_synthesized_subst_lookup(&mut ctx, &lookup.info);
         }
     }
 }
@@ -458,7 +457,7 @@ mod tests {
                 0, 1, 0, 2, 0, 3, 0, 7, // CoverageFormat1
             ]
         );
-        assert!(LookupInfo::new_subst(&data).is_some());
+        assert!(LookupInfo::new_synthesized(data).is_some());
     }
 
     #[test]
@@ -468,7 +467,7 @@ mod tests {
             lookup_flags::IGNORE_MARKS,
         )
         .unwrap();
-        assert!(LookupInfo::new_subst(&data).is_some());
+        assert!(LookupInfo::new_synthesized(data).is_some());
     }
 
     #[test]
@@ -490,11 +489,11 @@ mod tests {
     fn serializes_win1256_fallback_lookups() {
         let single =
             serialize_single_lookup(WIN1256_MEDI_MAPPINGS, lookup_flags::IGNORE_MARKS).unwrap();
-        assert!(LookupInfo::new_subst(&single).is_some());
+        assert!(LookupInfo::new_synthesized(single).is_some());
 
         let ligature =
             serialize_ligature_lookup(WIN1256_LAM_ALEF_LIGATURES, lookup_flags::IGNORE_MARKS)
                 .unwrap();
-        assert!(LookupInfo::new_subst(&ligature).is_some());
+        assert!(LookupInfo::new_synthesized(ligature).is_some());
     }
 }

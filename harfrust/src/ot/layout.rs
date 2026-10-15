@@ -288,11 +288,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
     ret
 }
 
-pub(crate) fn apply_synthesized_subst_lookup(
-    ctx: &mut ApplyContext,
-    lookup: &LookupInfo,
-    table_data: &[u8],
-) {
+pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &LookupInfo) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -303,7 +299,8 @@ pub(crate) fn apply_synthesized_subst_lookup(
     ctx.update_matchers();
     ctx.buffer.clear_output();
     ctx.buffer.idx = 0;
-    apply_forward_with_data(ctx, lookup, table_data);
+    // The lookup borrows its own data.
+    apply_forward_with_data(ctx, lookup, &[]);
     ctx.buffer.sync();
 }
 

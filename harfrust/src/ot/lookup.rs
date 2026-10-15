@@ -1,4 +1,4 @@
-use super::cached_lookup::{cache_lookup, CachedLookupRef};
+use super::cached_lookup::{cache_lookup, cache_synthesized_subst, CachedLookupRef};
 use crate::hint::LikelyOk;
 use crate::{
     ot::apply::{
@@ -265,9 +265,18 @@ impl LookupInfo {
 
     /// Parses lookup `index` of GSUB or GPOS through the cached lookup path.
     fn cached(tables: &Arc<Tables>, is_subst: bool, index: u16) -> Option<Self> {
-        let cached = cache_lookup(tables.clone(), is_subst, index)?;
+        cache_lookup(tables.clone(), is_subst, index).map(Self::from_cached)
+    }
+
+    /// Parses a substitution lookup serialized on its own, which applies
+    /// through the cached lookup path.
+    pub(crate) fn new_synthesized(data: Vec<u8>) -> Option<Self> {
+        cache_synthesized_subst(data).map(Self::from_cached)
+    }
+
+    fn from_cached(cached: CachedLookupRef) -> Self {
         let lookup = cached.get();
-        Some(Self {
+        Self {
             props: lookup.props,
             is_subst: lookup.is_subst,
             is_reversed: lookup.is_reversed,
@@ -275,15 +284,7 @@ impl LookupInfo {
             digest_second: lookup.digest_second.clone(),
             cached: Some(cached),
             ..Default::default()
-        })
-    }
-
-    pub(crate) fn new_subst(table_data: &[u8]) -> Option<Self> {
-        Self::new(&LookupData {
-            offset: 0,
-            is_subst: true,
-            table_data: FontData::new(table_data),
-        })
+        }
     }
 
     pub fn props(&self) -> u32 {
