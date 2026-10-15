@@ -16,10 +16,10 @@ mod coverage;
 mod gpos;
 mod gsub;
 
-use super::apply::{ApplyContext, BinaryCache, MappingCache, WouldApplyContext};
+use super::apply::{ApplyContext, MappingCache, WouldApplyContext};
 use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use coverage::Coverage;
 use gpos::{Search, SecondGlyph};
 use read_fonts::model::Tables;
@@ -94,7 +94,9 @@ impl CachedLookup<'_> {
             return Some(false);
         }
         for subtable in &self.subtables {
-            if subtable.digest.may_have(glyph) && subtable.kind.would_apply(ctx) == Some(true) {
+            if subtable.digest.may_have(glyph)
+                && subtable.kind.would_apply(ctx, &subtable.coverage) == Some(true)
+            {
                 return Some(true);
             }
         }
@@ -109,9 +111,11 @@ fn walk_single(
     ctx: &mut ApplyContext,
     use_hot_subtable_cache: bool,
 ) -> Option<()> {
+    let glyph = ctx.buffer.cur(0)?.glyph_id;
     let subtable = lookup.subtables.first()?;
+    let index = subtable.coverage_index(glyph)?;
     let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(0);
-    subtable.apply(ctx, is_cached)
+    subtable.apply[is_cached as usize](subtable, ctx, index)
 }
 
 /// Applies subtables in turn.
@@ -121,12 +125,15 @@ fn walk_each(
     use_hot_subtable_cache: bool,
 ) -> Option<()> {
     let glyph = ctx.buffer.cur(0)?.glyph_id;
-    for (index, subtable) in lookup.subtables.iter().enumerate() {
+    for (position, subtable) in lookup.subtables.iter().enumerate() {
         if !subtable.digest.may_have(glyph) {
             continue;
         }
-        let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(index);
-        if subtable.apply(ctx, is_cached).is_some() {
+        let Some(index) = subtable.coverage_index(glyph) else {
+            continue;
+        };
+        let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(position);
+        if subtable.apply[is_cached as usize](subtable, ctx, index).is_some() {
             return Some(());
         }
     }
@@ -139,9 +146,13 @@ fn walk_sharing_second_glyph(lookup: &CachedLookup, ctx: &mut ApplyContext, _: b
     let glyph = ctx.buffer.cur(0)?.glyph_id;
     let mut second = SecondGlyph::Unknown;
     for subtable in &lookup.subtables {
-        if subtable.digest.may_have(glyph)
-            && (subtable.apply_sharing)(&subtable.kind, ctx, &mut second).is_some()
-        {
+        if !subtable.digest.may_have(glyph) {
+            continue;
+        }
+        let Some(index) = subtable.coverage_index(glyph) else {
+            continue;
+        };
+        if (subtable.apply_sharing)(subtable, ctx, index, &mut second).is_some() {
             return Some(());
         }
     }
@@ -153,24 +164,32 @@ pub(crate) struct CachedSubtable<'a> {
     kind: CachedSubtableKind<'a>,
     /// The glyphs the subtable may apply to.
     digest: SetDigest,
+    /// The coverage of the glyph that a match starts at.
+    coverage: Coverage<'a>,
+    coverage_cache: Option<Box<MappingCache>>,
     /// Applies `kind` without and with the glyph-info class cache.
     apply: [ApplyFn; 2],
     apply_sharing: ApplySharingFn,
 }
 
 impl CachedSubtable<'_> {
-    #[inline]
-    pub(crate) fn apply(&self, ctx: &mut ApplyContext, is_cached: bool) -> Option<()> {
-        self.apply[is_cached as usize](&self.kind, ctx)
+    /// The coverage index of the glyph a match would start at.
+    #[inline(always)]
+    fn coverage_index(&self, glyph: u32) -> Option<u16> {
+        match &self.coverage_cache {
+            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), glyph.into(), cache),
+            None => self.coverage.get(glyph),
+        }
     }
 }
 
-/// Applies a subtable of one kind, returning `None` for any other kind.
-type ApplyFn = fn(&CachedSubtableKind, &mut ApplyContext) -> Option<()>;
+/// Applies a subtable of one kind at the given coverage index, returning
+/// `None` for any other kind.
+type ApplyFn = fn(&CachedSubtable, &mut ApplyContext, u16) -> Option<()>;
 
 /// Applies a subtable of one kind, sharing the search for a pair's second
 /// glyph with the other subtables of its lookup.
-type ApplySharingFn = fn(&CachedSubtableKind, &mut ApplyContext, &mut SecondGlyph) -> Option<()>;
+type ApplySharingFn = fn(&CachedSubtable, &mut ApplyContext, u16, &mut SecondGlyph) -> Option<()>;
 
 /// How a kind of subtable applies.
 struct KindFns {
@@ -194,17 +213,17 @@ macro_rules! kind_fns {
     ($kind:ident) => {
         &KindFns {
             apply: [
-                |kind, ctx| match kind {
-                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                |subtable, ctx, index| match &subtable.kind {
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index),
                     _ => None,
                 },
-                |kind, ctx| match kind {
-                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                |subtable, ctx, index| match &subtable.kind {
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index),
                     _ => None,
                 },
             ],
-            apply_sharing: |kind, ctx, _| match kind {
-                CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+            apply_sharing: |subtable, ctx, index, _| match &subtable.kind {
+                CachedSubtableKind::$kind(data) => data.apply(ctx, index),
                 _ => None,
             },
             shares_second_glyph: false,
@@ -213,17 +232,17 @@ macro_rules! kind_fns {
     ($kind:ident adjusts_pairs) => {
         &KindFns {
             apply: [
-                |kind, ctx| match kind {
-                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx, &mut Search),
+                |subtable, ctx, index| match &subtable.kind {
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index, &mut Search),
                     _ => None,
                 },
-                |kind, ctx| match kind {
-                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx, &mut Search),
+                |subtable, ctx, index| match &subtable.kind {
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index, &mut Search),
                     _ => None,
                 },
             ],
-            apply_sharing: |kind, ctx, second| match kind {
-                CachedSubtableKind::$kind(subtable) => subtable.apply(ctx, second),
+            apply_sharing: |subtable, ctx, index, second| match &subtable.kind {
+                CachedSubtableKind::$kind(data) => data.apply(ctx, index, second),
                 _ => None,
             },
             shares_second_glyph: true,
@@ -232,17 +251,17 @@ macro_rules! kind_fns {
     ($kind:ident uses_class_cache) => {
         &KindFns {
             apply: [
-                |kind, ctx| match kind {
-                    CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+                |subtable, ctx, index| match &subtable.kind {
+                    CachedSubtableKind::$kind(data) => data.apply(ctx, index),
                     _ => None,
                 },
-                |kind, ctx| match kind {
-                    CachedSubtableKind::$kind(subtable) => subtable.apply_with_class_cache(ctx),
+                |subtable, ctx, index| match &subtable.kind {
+                    CachedSubtableKind::$kind(data) => data.apply_with_class_cache(ctx, index),
                     _ => None,
                 },
             ],
-            apply_sharing: |kind, ctx, _| match kind {
-                CachedSubtableKind::$kind(subtable) => subtable.apply(ctx),
+            apply_sharing: |subtable, ctx, index, _| match &subtable.kind {
+                CachedSubtableKind::$kind(data) => data.apply(ctx, index),
                 _ => None,
             },
             shares_second_glyph: false,
@@ -271,7 +290,7 @@ macro_rules! subtable_kinds {
 }
 
 subtable_kinds! {
-    SingleSubst1(gsub::SingleSubst1<'a>);
+    SingleSubst1(gsub::SingleSubst1);
     SingleSubst2(gsub::SingleSubst2<'a>);
     MultipleSubst1(gsub::MultipleSubst1<'a>);
     AlternateSubst1(gsub::AlternateSubst1<'a>);
@@ -298,20 +317,23 @@ subtable_kinds! {
 impl CachedSubtableKind<'_> {
     /// Returns whether a substitution subtable would apply, or `None` for a
     /// positioning subtable.
-    fn would_apply(&self, ctx: &WouldApplyContext) -> Option<bool> {
+    fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> Option<bool> {
         Some(match self {
-            Self::SingleSubst1(t) => t.would_apply(ctx),
-            Self::SingleSubst2(t) => t.would_apply(ctx),
-            Self::MultipleSubst1(t) => t.would_apply(ctx),
-            Self::AlternateSubst1(t) => t.would_apply(ctx),
-            Self::LigatureSubst1(t) => t.would_apply(ctx),
-            Self::ReverseChainSubst1(t) => t.would_apply(ctx),
-            Self::Context1(t) => t.would_apply(ctx),
-            Self::Context2(t) => t.would_apply(ctx),
-            Self::Context3(t) => t.would_apply(ctx),
-            Self::ChainContext1(t) => t.would_apply(ctx),
-            Self::ChainContext2(t) => t.would_apply(ctx),
-            Self::ChainContext3(t) => t.would_apply(ctx),
+            // These substitute a single glyph.
+            Self::SingleSubst1(_)
+            | Self::SingleSubst2(_)
+            | Self::MultipleSubst1(_)
+            | Self::AlternateSubst1(_)
+            | Self::ReverseChainSubst1(_) => {
+                ctx.glyphs.len() == 1 && coverage.covers(ctx.glyphs[0])
+            }
+            Self::LigatureSubst1(t) => t.would_apply(ctx, coverage),
+            Self::Context1(t) => t.would_apply(ctx, coverage),
+            Self::Context2(t) => t.would_apply(ctx, coverage),
+            Self::Context3(t) => t.would_apply(ctx, coverage),
+            Self::ChainContext1(t) => t.would_apply(ctx, coverage),
+            Self::ChainContext2(t) => t.would_apply(ctx, coverage),
+            Self::ChainContext3(t) => t.would_apply(ctx, coverage),
             _ => return None,
         })
     }
@@ -319,8 +341,8 @@ impl CachedSubtableKind<'_> {
 
 /// What a lookup needs to know about one of its subtables.
 trait SubtableDigests<'a> {
-    /// The coverage of the first glyph of a match.
-    fn coverage(&self) -> &Coverage<'a>;
+    /// Whether looking up the first glyph's coverage gains from a cache.
+    const CACHES_COVERAGE: bool = false;
 
     /// The glyphs that may follow the first one in a match.
     fn digest_second(&self) -> SetDigest {
@@ -390,6 +412,7 @@ impl<'a, O: ChildOffset> Offsets<'a, O> {
 }
 
 /// Returns the coverage index of `gid`, remembering it in `cache`.
+#[inline(always)]
 fn coverage_index_cached(
     coverage: impl Fn(GlyphId) -> Option<u16>,
     gid: GlyphId,
@@ -412,23 +435,6 @@ fn coverage_index_cached(
             cache.set(gid.into(), MappingCache::MAX_VALUE);
             None
         }
-    }
-}
-
-/// Returns `Some` if `gid` is covered, remembering the answer in `cache`.
-fn covered_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
-    gid: GlyphId,
-    cache: &BinaryCache,
-) -> Option<()> {
-    if let Some(value) = cache.get(gid.into()) {
-        (value != BinaryCache::MAX_VALUE).then_some(())
-    } else if coverage(gid).is_some() {
-        cache.set(gid.into(), 0);
-        Some(())
-    } else {
-        cache.set(gid.into(), BinaryCache::MAX_VALUE);
-        None
     }
 }
 

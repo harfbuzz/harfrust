@@ -1,15 +1,23 @@
 //! Reading a lookup and deriving the data its subtables apply with.
 
+use super::coverage::Coverage;
 use super::{context, gpos, gsub, CachedLookup, CachedSubtable, IntoKind, SubtableDigests};
+use crate::ot::apply::MappingCache;
 use crate::set_digest::SetDigest;
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 use read_fonts::model::Tables;
 use read_fonts::tables::{
-    gpos::{PairPos, SinglePos},
-    gsub::{ExtensionSubstFormat1, SingleSubst},
-    layout::{ChainedSequenceContext, Lookup, LookupFlag, SequenceContext},
+    gpos::{
+        CursivePosFormat1, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, PairPos,
+        SinglePos,
+    },
+    gsub::{
+        AlternateSubstFormat1, ExtensionSubstFormat1, LigatureSubstFormat1, MultipleSubstFormat1,
+        ReverseChainSingleSubstFormat1, SingleSubst,
+    },
+    layout::{ChainedSequenceContext, CoverageTable, Lookup, LookupFlag, SequenceContext},
 };
-use read_fonts::{FontData, FontRead, Offset, TableProvider};
+use read_fonts::{FontData, FontRead, Offset, ReadError, TableProvider};
 
 /// Subtables past this many in a lookup get no glyph lookup caches.
 const MAX_CACHED_SUBTABLES: usize = 8;
@@ -125,23 +133,6 @@ struct BuiltSubtable<'a> {
     shares_second_glyph: bool,
 }
 
-fn finish<'a, T: IntoKind<'a> + SubtableDigests<'a>>(data: T) -> BuiltSubtable<'a> {
-    let digest = data.coverage().digest();
-    let digest_second = data.digest_second();
-    let cache_cost = data.cache_cost();
-    BuiltSubtable {
-        subtable: CachedSubtable {
-            kind: data.into_kind(),
-            digest,
-            apply: T::FNS.apply,
-            apply_sharing: T::FNS.apply_sharing,
-        },
-        shares_second_glyph: T::FNS.shares_second_glyph,
-        digest_second,
-        cache_cost,
-    }
-}
-
 /// Where a subtable is and how to cache it.
 #[derive(Clone, Copy)]
 struct Source<'a> {
@@ -155,44 +146,78 @@ impl<'a> Source<'a> {
     fn build(self, lookup_type: u16) -> Option<BuiltSubtable<'a>> {
         let data = self.table_data.split_off(self.offset)?;
         let caches = self.with_caches;
-        Some(match (self.is_subst, lookup_type) {
+        match (self.is_subst, lookup_type) {
             (true, 1) => match SingleSubst::read(data).ok()? {
-                SingleSubst::Format1(t) => finish(gsub::SingleSubst1::new(&t)?),
-                SingleSubst::Format2(t) => finish(gsub::SingleSubst2::new(&t)?),
+                SingleSubst::Format1(t) => self.finish(t.coverage(), gsub::SingleSubst1::new(&t)),
+                SingleSubst::Format2(t) => self.finish(t.coverage(), gsub::SingleSubst2::new(&t)),
             },
-            (true, 2) => finish(gsub::MultipleSubst1::new(&read(data)?)?),
-            (true, 3) => finish(gsub::AlternateSubst1::new(&read(data)?)?),
-            (true, 4) => finish(gsub::LigatureSubst1::new(&read(data)?, caches)?),
-            (true, 8) => finish(gsub::ReverseChainSubst1::new(&read(data)?)?),
+            (true, 2) => {
+                let t: MultipleSubstFormat1 = read(data)?;
+                self.finish(t.coverage(), gsub::MultipleSubst1::new(&t))
+            }
+            (true, 3) => {
+                let t: AlternateSubstFormat1 = read(data)?;
+                self.finish(t.coverage(), gsub::AlternateSubst1::new(&t))
+            }
+            (true, 4) => {
+                let t: LigatureSubstFormat1 = read(data)?;
+                self.finish(t.coverage(), gsub::LigatureSubst1::new(&t))
+            }
+            (true, 8) => {
+                let t: ReverseChainSingleSubstFormat1 = read(data)?;
+                self.finish(t.coverage(), gsub::ReverseChainSubst1::new(&t))
+            }
             (false, 1) => match SinglePos::read(data).ok()? {
-                SinglePos::Format1(t) => finish(gpos::SinglePos1::new(&t)?),
-                SinglePos::Format2(t) => finish(gpos::SinglePos2::new(&t)?),
+                SinglePos::Format1(t) => self.finish(t.coverage(), gpos::SinglePos1::new(&t)),
+                SinglePos::Format2(t) => self.finish(t.coverage(), gpos::SinglePos2::new(&t)),
             },
             (false, 2) => match PairPos::read(data).ok()? {
-                PairPos::Format1(t) => match gpos::PairKern1::new(&t, caches) {
-                    Some(kern) => finish(kern),
-                    None => finish(gpos::PairPos1::new(&t, caches)?),
+                PairPos::Format1(t) => match gpos::PairKern1::new(&t) {
+                    Some(kern) => self.finish(t.coverage(), Some(kern)),
+                    None => self.finish(t.coverage(), gpos::PairPos1::new(&t)),
                 },
                 PairPos::Format2(t) => match gpos::PairKern2::new(&t, caches) {
-                    Some(kern) => finish(kern),
-                    None => finish(gpos::PairPos2::new(&t, caches)?),
+                    Some(kern) => self.finish(t.coverage(), Some(kern)),
+                    None => self.finish(t.coverage(), gpos::PairPos2::new(&t, caches)),
                 },
             },
-            (false, 3) => finish(gpos::CursivePos1::new(&read(data)?)?),
-            (false, 4) => finish(gpos::MarkBasePos1::new(&read(data)?)?),
-            (false, 5) => finish(gpos::MarkLigPos1::new(&read(data)?)?),
-            (false, 6) => finish(gpos::MarkMarkPos1::new(&read(data)?)?),
+            (false, 3) => {
+                let t: CursivePosFormat1 = read(data)?;
+                self.finish(t.coverage(), gpos::CursivePos1::new(&t))
+            }
+            (false, 4) => {
+                let t: MarkBasePosFormat1 = read(data)?;
+                self.finish(t.mark_coverage(), gpos::MarkBasePos1::new(&t))
+            }
+            (false, 5) => {
+                let t: MarkLigPosFormat1 = read(data)?;
+                self.finish(t.mark_coverage(), gpos::MarkLigPos1::new(&t))
+            }
+            (false, 6) => {
+                let t: MarkMarkPosFormat1 = read(data)?;
+                self.finish(t.mark1_coverage(), gpos::MarkMarkPos1::new(&t))
+            }
             (true, 5) | (false, 7) => match SequenceContext::read(data).ok()? {
-                SequenceContext::Format1(t) => finish(context::Context1::new(&t)?),
-                SequenceContext::Format2(t) => finish(context::Context2::new(&t)?),
-                SequenceContext::Format3(t) => finish(context::Context3::new(&t)?),
+                SequenceContext::Format1(t) => {
+                    self.finish(t.coverage(), context::Context1::new(&t))
+                }
+                SequenceContext::Format2(t) => {
+                    self.finish(t.coverage(), context::Context2::new(&t))
+                }
+                SequenceContext::Format3(t) => {
+                    self.finish(t.coverages().get(0), context::Context3::new(&t))
+                }
             },
             (true, 6) | (false, 8) => match ChainedSequenceContext::read(data).ok()? {
-                ChainedSequenceContext::Format1(t) => finish(context::ChainContext1::new(&t)?),
-                ChainedSequenceContext::Format2(t) => {
-                    finish(context::ChainContext2::new(&t, caches)?)
+                ChainedSequenceContext::Format1(t) => {
+                    self.finish(t.coverage(), context::ChainContext1::new(&t))
                 }
-                ChainedSequenceContext::Format3(t) => finish(context::ChainContext3::new(&t)?),
+                ChainedSequenceContext::Format2(t) => {
+                    self.finish(t.coverage(), context::ChainContext2::new(&t, caches))
+                }
+                ChainedSequenceContext::Format3(t) => {
+                    self.finish(t.input_coverages().get(0), context::ChainContext3::new(&t))
+                }
             },
             (true, 7) | (false, 9) => {
                 let ext = ExtensionSubstFormat1::<()>::read(data).ok()?;
@@ -203,9 +228,35 @@ impl<'a> Source<'a> {
                 let offset = self
                     .offset
                     .checked_add(ext.extension_offset().to_u32() as usize)?;
-                return Source { offset, ..self }.build(ext_type);
+                Source { offset, ..self }.build(ext_type)
             }
-            _ => return None,
+            _ => None,
+        }
+    }
+
+    /// Completes a subtable from its first glyph's coverage and its data.
+    fn finish<T: IntoKind<'a> + SubtableDigests<'a>>(
+        self,
+        coverage: Result<CoverageTable<'a>, ReadError>,
+        data: Option<T>,
+    ) -> Option<BuiltSubtable<'a>> {
+        let coverage = Coverage::required(coverage)?;
+        let data = data?;
+        let digest_second = data.digest_second();
+        let cache_cost = data.cache_cost();
+        Some(BuiltSubtable {
+            subtable: CachedSubtable {
+                kind: data.into_kind(),
+                digest: coverage.digest(),
+                coverage,
+                coverage_cache: (self.with_caches && T::CACHES_COVERAGE)
+                    .then(|| Box::new(MappingCache::new())),
+                apply: T::FNS.apply,
+                apply_sharing: T::FNS.apply_sharing,
+            },
+            shares_second_glyph: T::FNS.shares_second_glyph,
+            digest_second,
+            cache_cost,
         })
     }
 }

@@ -1,7 +1,7 @@
 //! Positioning subtables.
 
 use super::coverage::{ClassDef, Coverage};
-use super::{coverage_index_cached, glyph_class_cached, Offsets, SubtableDigests};
+use super::{glyph_class_cached, Offsets, SubtableDigests};
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::{ApplyContext, MappingCache, MatchResult, SkippingIterator};
@@ -151,14 +151,12 @@ fn apply_value_fields(
 
 /// Single adjustment by one value record.
 pub(crate) struct SinglePos1<'a> {
-    coverage: Coverage<'a>,
     value: ValueRecord<'a>,
 }
 
 impl<'a> SinglePos1<'a> {
     pub fn new(table: &SinglePosFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             value: ValueRecord::new(
                 table.offset_data(),
                 table.value_record_byte_range().start,
@@ -167,24 +165,17 @@ impl<'a> SinglePos1<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        self.coverage.get(glyph)?;
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         apply_value(ctx, ctx.buffer.idx, &self.value);
         ctx.buffer.idx += 1;
         Some(())
     }
 }
 
-impl<'a> SubtableDigests<'a> for SinglePos1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl<'a> SubtableDigests<'a> for SinglePos1<'a> {}
 
 /// Single adjustment by a value record per covered glyph.
 pub(crate) struct SinglePos2<'a> {
-    coverage: Coverage<'a>,
     /// The first value record.
     values: ValueRecord<'a>,
 }
@@ -192,7 +183,6 @@ pub(crate) struct SinglePos2<'a> {
 impl<'a> SinglePos2<'a> {
     pub fn new(table: &SinglePosFormat2<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             values: ValueRecord::new(
                 table.offset_data(),
                 table.value_records_byte_range().start,
@@ -201,9 +191,8 @@ impl<'a> SinglePos2<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage.get(glyph)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let index = usize::from(index);
         let values = &self.values;
         let value = ValueRecord::new(
             values.offset_data(),
@@ -216,11 +205,7 @@ impl<'a> SinglePos2<'a> {
     }
 }
 
-impl<'a> SubtableDigests<'a> for SinglePos2<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl<'a> SubtableDigests<'a> for SinglePos2<'a> {}
 
 /// The glyph that a pair starting at the current glyph would pair with.
 ///
@@ -348,8 +333,6 @@ fn apply_pair(
 
 /// Pair adjustment by glyph pairs.
 pub(crate) struct PairPos1<'a> {
-    coverage: Coverage<'a>,
-    coverage_cache: Option<Box<MappingCache>>,
     pair_sets: Offsets<'a>,
     /// The second glyphs of each pair set.
     pair_set_digests: Box<[SetDigest]>,
@@ -358,15 +341,13 @@ pub(crate) struct PairPos1<'a> {
 }
 
 impl<'a> PairPos1<'a> {
-    pub fn new(table: &PairPosFormat1<'a>, with_caches: bool) -> Option<Self> {
+    pub fn new(table: &PairPosFormat1<'a>) -> Option<Self> {
         let pair_set_digests = table
             .pair_sets()
             .iter()
             .map(|set| set.map_or_else(|_| SetDigest::full(), |set| pair_set_digest(&set)))
             .collect();
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
-            coverage_cache: with_caches.then(|| Box::new(MappingCache::new())),
             pair_sets: Offsets::new(table.offset_data(), table.pair_set_offsets()),
             pair_set_digests,
             format1: table.value_format1(),
@@ -377,12 +358,13 @@ impl<'a> PairPos1<'a> {
     /// Applies, sharing the search for the second glyph with the lookup's
     /// other subtables.
     #[inline]
-    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
-        let first = ctx.buffer.cur(0)?.as_glyph();
-        let index = match &self.coverage_cache {
-            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), first, cache)?,
-            None => self.coverage.get(first)?,
-        } as usize;
+    pub fn apply(
+        &self,
+        ctx: &mut ApplyContext,
+        index: u16,
+        second: &mut impl FindSecond,
+    ) -> Option<()> {
+        let index = usize::from(index);
         let (second_index, buf_idx, second) = second.get(ctx)?;
         if self
             .pair_set_digests
@@ -437,9 +419,7 @@ impl<'a> PairPos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for PairPos1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self) -> SetDigest {
         self.seconds()
@@ -459,7 +439,6 @@ fn pair_set_digest(set: &PairSet) -> SetDigest {
 
 /// Pair adjustment by glyph classes.
 pub(crate) struct PairPos2<'a> {
-    coverage: Coverage<'a>,
     class_def1: ClassDef<'a>,
     class_def2: ClassDef<'a>,
     caches: Option<Box<PairPos2Caches>>,
@@ -467,9 +446,8 @@ pub(crate) struct PairPos2<'a> {
     records: ClassValueRecords<'a>,
 }
 
-/// Caches of the coverage index and both classes of a glyph.
+/// Caches of both classes of a glyph.
 struct PairPos2Caches {
-    coverage: MappingCache,
     class1: MappingCache,
     class2: MappingCache,
 }
@@ -477,12 +455,10 @@ struct PairPos2Caches {
 impl<'a> PairPos2<'a> {
     pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             class_def1: ClassDef::new(table.class_def1()),
             class_def2: ClassDef::new(table.class_def2()),
             caches: with_caches.then(|| {
                 Box::new(PairPos2Caches {
-                    coverage: MappingCache::new(),
                     class1: MappingCache::new(),
                     class2: MappingCache::new(),
                 })
@@ -494,15 +470,14 @@ impl<'a> PairPos2<'a> {
     /// Applies, sharing the search for the second glyph with the lookup's
     /// other subtables.
     #[inline]
-    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
+    pub fn apply(
+        &self,
+        ctx: &mut ApplyContext,
+        _index: u16,
+        second: &mut impl FindSecond,
+    ) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
         let caches = self.caches.as_deref();
-        match caches {
-            Some(caches) => {
-                coverage_index_cached(|gid| self.coverage.get(gid), first, &caches.coverage)?
-            }
-            None => self.coverage.get(first)?,
-        };
         let (second_index, buf_idx, second) = second.get(ctx)?;
         let class1 = |gid| self.class_def1.get(gid);
         let class2 = |gid| self.class_def2.get(gid);
@@ -524,9 +499,7 @@ impl<'a> PairPos2<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for PairPos2<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 }
 
 /// Whether a pair subtable only adjusts the advance of its first glyph,
@@ -570,8 +543,6 @@ fn apply_kerning(
 /// Kerning by glyph pairs: pair adjustment format 1 whose records hold only
 /// an advance for the first glyph.
 pub(crate) struct PairKern1<'a> {
-    coverage: Coverage<'a>,
-    coverage_cache: Option<Box<MappingCache>>,
     pair_sets: Offsets<'a>,
     /// The second glyphs of each pair set.
     pair_set_digests: Box<[SetDigest]>,
@@ -579,26 +550,25 @@ pub(crate) struct PairKern1<'a> {
 
 impl<'a> PairKern1<'a> {
     /// Returns `None` unless the subtable holds only kerning.
-    pub fn new(table: &PairPosFormat1<'a>, with_caches: bool) -> Option<Self> {
+    pub fn new(table: &PairPosFormat1<'a>) -> Option<Self> {
         if !is_kerning(table.value_format1(), table.value_format2()) {
             return None;
         }
-        let pairs = PairPos1::new(table, with_caches)?;
+        let pairs = PairPos1::new(table)?;
         Some(Self {
-            coverage: pairs.coverage,
-            coverage_cache: pairs.coverage_cache,
             pair_sets: pairs.pair_sets,
             pair_set_digests: pairs.pair_set_digests,
         })
     }
 
     #[inline]
-    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
-        let first = ctx.buffer.cur(0)?.as_glyph();
-        let index = match &self.coverage_cache {
-            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), first, cache)?,
-            None => self.coverage.get(first)?,
-        } as usize;
+    pub fn apply(
+        &self,
+        ctx: &mut ApplyContext,
+        index: u16,
+        second: &mut impl FindSecond,
+    ) -> Option<()> {
+        let index = usize::from(index);
         let (second_index, buf_idx, second) = second.get(ctx)?;
         if self
             .pair_set_digests
@@ -627,9 +597,7 @@ impl<'a> PairKern1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for PairKern1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self) -> SetDigest {
         let mut seconds = SetDigest::new();
@@ -643,7 +611,6 @@ impl<'a> SubtableDigests<'a> for PairKern1<'a> {
 /// Kerning by glyph classes: pair adjustment format 2 whose matrix holds
 /// only an advance for the first glyph.
 pub(crate) struct PairKern2<'a> {
-    coverage: Coverage<'a>,
     class_def1: ClassDef<'a>,
     class_def2: ClassDef<'a>,
     caches: Option<Box<PairPos2Caches>>,
@@ -666,7 +633,6 @@ impl<'a> PairKern2<'a> {
         let pairs = PairPos2::new(table, with_caches)?;
         Some(Self {
             matrix: table.offset_data().read_array(start..start + len).ok()?,
-            coverage: pairs.coverage,
             class_def1: pairs.class_def1,
             class_def2: pairs.class_def2,
             caches: pairs.caches,
@@ -676,15 +642,14 @@ impl<'a> PairKern2<'a> {
     }
 
     #[inline]
-    pub fn apply(&self, ctx: &mut ApplyContext, second: &mut impl FindSecond) -> Option<()> {
+    pub fn apply(
+        &self,
+        ctx: &mut ApplyContext,
+        _index: u16,
+        second: &mut impl FindSecond,
+    ) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
         let caches = self.caches.as_deref();
-        match caches {
-            Some(caches) => {
-                coverage_index_cached(|gid| self.coverage.get(gid), first, &caches.coverage)?
-            }
-            None => self.coverage.get(first)?,
-        };
         let (second_index, buf_idx, second) = second.get(ctx)?;
         let class1 = |gid| self.class_def1.get(gid);
         let class2 = |gid| self.class_def2.get(gid);
@@ -708,9 +673,7 @@ impl<'a> PairKern2<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for PairKern2<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 }
 
 /// Cursive attachment.
@@ -729,9 +692,8 @@ impl<'a> CursivePos1<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let this = ctx.buffer.cur(0)?.as_glyph();
-        let index_this = self.coverage.get(this)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let index_this = usize::from(index);
         let entry_this = self
             .records
             .get(index_this)?
@@ -853,10 +815,6 @@ impl<'a> CursivePos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for CursivePos1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         self.coverage.digest()
     }
@@ -1049,7 +1007,6 @@ fn mark_anchor<'a>(marks: &MarkArray<'a>, index: usize) -> Option<(AnchorTable<'
 
 /// Mark-to-base attachment.
 pub(crate) struct MarkBasePos1<'a> {
-    mark_coverage: Coverage<'a>,
     base_coverage: Coverage<'a>,
     marks: Option<MarkArray<'a>>,
     bases: Option<BaseArray<'a>>,
@@ -1058,16 +1015,14 @@ pub(crate) struct MarkBasePos1<'a> {
 impl<'a> MarkBasePos1<'a> {
     pub fn new(table: &MarkBasePosFormat1<'a>) -> Option<Self> {
         Some(Self {
-            mark_coverage: Coverage::required(table.mark_coverage())?,
             base_coverage: Coverage::new(table.base_coverage()),
             marks: table.mark_array().ok(),
             bases: table.base_array().ok(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let mark = ctx.buffer.cur(0)?.as_glyph();
-        let mark_index = self.mark_coverage.get(mark)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let mark_index = usize::from(index);
         let base_coverage = self.base_coverage.present()?;
         let base_pos = find_mark_base(ctx, accept_base, base_coverage)?;
         // Checking the base's GDEF class is too strict, so it isn't done.
@@ -1089,10 +1044,6 @@ impl<'a> MarkBasePos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for MarkBasePos1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.mark_coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         self.base_coverage.digest()
     }
@@ -1100,7 +1051,6 @@ impl<'a> SubtableDigests<'a> for MarkBasePos1<'a> {
 
 /// Mark-to-ligature attachment.
 pub(crate) struct MarkLigPos1<'a> {
-    mark_coverage: Coverage<'a>,
     ligature_coverage: Coverage<'a>,
     marks: Option<MarkArray<'a>>,
     ligatures: Option<LigatureArray<'a>>,
@@ -1109,16 +1059,14 @@ pub(crate) struct MarkLigPos1<'a> {
 impl<'a> MarkLigPos1<'a> {
     pub fn new(table: &MarkLigPosFormat1<'a>) -> Option<Self> {
         Some(Self {
-            mark_coverage: Coverage::required(table.mark_coverage())?,
             ligature_coverage: Coverage::new(table.ligature_coverage()),
             marks: table.mark_array().ok(),
             ligatures: table.ligature_array().ok(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let mark = ctx.buffer.cur(0)?.as_glyph();
-        let mark_index = self.mark_coverage.get(mark)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let mark_index = usize::from(index);
         let ligature_coverage = self.ligature_coverage.present()?;
         let lig_pos = find_mark_base(ctx, accept_ligature, ligature_coverage)?;
         // Checking the ligature's GDEF class is too strict, so it isn't done.
@@ -1164,10 +1112,6 @@ impl<'a> MarkLigPos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for MarkLigPos1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.mark_coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         self.ligature_coverage.digest()
     }
@@ -1175,7 +1119,6 @@ impl<'a> SubtableDigests<'a> for MarkLigPos1<'a> {
 
 /// Mark-to-mark attachment.
 pub(crate) struct MarkMarkPos1<'a> {
-    mark1_coverage: Coverage<'a>,
     mark2_coverage: Coverage<'a>,
     marks1: Option<MarkArray<'a>>,
     marks2: Option<Mark2Array<'a>>,
@@ -1184,16 +1127,14 @@ pub(crate) struct MarkMarkPos1<'a> {
 impl<'a> MarkMarkPos1<'a> {
     pub fn new(table: &MarkMarkPosFormat1<'a>) -> Option<Self> {
         Some(Self {
-            mark1_coverage: Coverage::required(table.mark1_coverage())?,
             mark2_coverage: Coverage::new(table.mark2_coverage()),
             marks1: table.mark1_array().ok(),
             marks2: table.mark2_array().ok(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let mark1 = ctx.buffer.cur(0)?.as_glyph();
-        let mark1_index = self.mark1_coverage.get(mark1)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let mark1_index = usize::from(index);
         // Search back for a mark, stopping at the first glyph that isn't one.
         let lookup_props = ctx.lookup_props;
         let mut iter = SkippingIterator::new(ctx, false);
@@ -1240,10 +1181,6 @@ impl<'a> MarkMarkPos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for MarkMarkPos1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.mark1_coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         self.mark2_coverage.digest()
     }

@@ -2,13 +2,12 @@
 
 use super::coverage::{ClassDef, Coverage};
 use super::gsub::covered_at;
-use super::{covered_cached, glyph_class_cached, Offsets, SubtableDigests};
+use super::{glyph_class_cached, Offsets, SubtableDigests};
 use crate::buffer::GlyphInfo;
 use crate::hint::Likely;
 use crate::ot::apply::{
     apply_lookup, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    ApplyContext, BinaryCache, MappingCache, MaySkip, RuleSetDigest, SkippingIterator,
-    WouldApplyContext,
+    ApplyContext, MappingCache, MaySkip, RuleSetDigest, SkippingIterator, WouldApplyContext,
 };
 use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
@@ -84,14 +83,12 @@ fn rule_set_digests<'a, T: FontRead<'a, Args = ()>>(
 
 /// Context by glyph sequences.
 pub(crate) struct Context1<'a> {
-    coverage: Coverage<'a>,
     rule_sets: RuleSets<'a>,
 }
 
 impl<'a> Context1<'a> {
     pub fn new(table: &SequenceContextFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             rule_sets: RuleSets::new(table.offset_data(), table.seq_rule_set_offsets()),
         })
     }
@@ -101,14 +98,13 @@ impl<'a> Context1<'a> {
         Some(Rules::new(set.offset_data(), set.seq_rule_offsets()))
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let rules = self.rule_set(self.coverage.get(glyph)? as usize)?;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let rules = self.rule_set(usize::from(index))?;
         apply_context_rules(ctx, rules, &match_glyph, None, &|_| 0)
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        self.coverage
+    pub fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> bool {
+        coverage
             .get(ctx.glyphs[0])
             .and_then(|index| self.rule_set(index as usize))
             .is_some_and(|rules| would_apply_rules(ctx, rules, &match_glyph))
@@ -116,10 +112,6 @@ impl<'a> Context1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for Context1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         let mut digest = SetDigest::new();
         for_each_rule_set(&self.rule_sets, |set: SequenceRuleSet| {
@@ -134,8 +126,6 @@ impl<'a> SubtableDigests<'a> for Context1<'a> {
 
 /// Context by glyph class sequences.
 pub(crate) struct Context2<'a> {
-    coverage: Coverage<'a>,
-    coverage_cache: BinaryCache,
     class_def: ClassDef<'a>,
     rule_sets: RuleSets<'a>,
     /// The first input class of each rule set's rules.
@@ -146,8 +136,6 @@ impl<'a> Context2<'a> {
     pub fn new(table: &SequenceContextFormat2<'a>) -> Option<Self> {
         let rule_sets = RuleSets::new(table.offset_data(), table.class_seq_rule_set_offsets());
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
-            coverage_cache: BinaryCache::new(),
             class_def: ClassDef::new(table.class_def()),
             rule_set_digests: rule_set_digests(
                 &rule_sets,
@@ -171,9 +159,8 @@ impl<'a> Context2<'a> {
         self.class_def.get(gid)
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        covered_cached(|gid| self.coverage.get(gid), glyph, &self.coverage_cache)?;
         let index = self.class(glyph) as usize;
         apply_context_rules(
             ctx,
@@ -185,9 +172,7 @@ impl<'a> Context2<'a> {
     }
 
     /// Applies, keeping each glyph's class in its syllable byte.
-    pub fn apply_with_class_cache(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        covered_cached(|gid| self.coverage.get(gid), glyph, &self.coverage_cache)?;
+    pub fn apply_with_class_cache(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let class = |gid| self.class(gid);
         let info = ctx.buffer.info.get_mut(ctx.buffer.idx).likely()?;
         let index = syllable_class(&class, info) as usize;
@@ -200,7 +185,7 @@ impl<'a> Context2<'a> {
         )
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+    pub fn would_apply(&self, ctx: &WouldApplyContext, _coverage: &Coverage) -> bool {
         let matches = |info: &mut GlyphInfo, value| u32::from(self.class(info.as_glyph())) == value;
         self.rule_set(self.class(ctx.glyphs[0]) as usize)
             .is_some_and(|rules| would_apply_rules(ctx, rules, &matches))
@@ -208,9 +193,7 @@ impl<'a> Context2<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for Context2<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self) -> SetDigest {
         let class_def = &self.class_def;
@@ -235,7 +218,6 @@ impl<'a> SubtableDigests<'a> for Context2<'a> {
 
 /// Context by a coverage per glyph.
 pub(crate) struct Context3<'a> {
-    coverage: Coverage<'a>,
     /// The coverages of the glyphs after the first.
     inputs: Box<[Coverage<'a>]>,
     records: &'a [SequenceLookupRecord],
@@ -245,15 +227,12 @@ impl<'a> Context3<'a> {
     pub fn new(table: &SequenceContextFormat3<'a>) -> Option<Self> {
         let coverages = table.coverages();
         Some(Self {
-            coverage: Coverage::required(coverages.get(0))?,
             inputs: coverages.iter().skip(1).map(Coverage::new).collect(),
             records: table.seq_lookup_records(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        self.coverage.get(glyph)?;
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let mut match_end = 0;
         if match_input(
             ctx,
@@ -273,7 +252,7 @@ impl<'a> Context3<'a> {
         }
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+    pub fn would_apply(&self, ctx: &WouldApplyContext, _coverage: &Coverage) -> bool {
         // The first coverage is the first glyph, which the caller has
         // already matched.
         ctx.glyphs.len() == self.inputs.len() + 1
@@ -286,10 +265,6 @@ impl<'a> Context3<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for Context3<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         coverage_digest(self.inputs.first())
     }
@@ -301,14 +276,12 @@ fn coverage_digest(coverage: Option<&Coverage>) -> SetDigest {
 
 /// Chained context by glyph sequences.
 pub(crate) struct ChainContext1<'a> {
-    coverage: Coverage<'a>,
     rule_sets: RuleSets<'a>,
 }
 
 impl<'a> ChainContext1<'a> {
     pub fn new(table: &ChainedSequenceContextFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             rule_sets: RuleSets::new(table.offset_data(), table.chained_seq_rule_set_offsets()),
         })
     }
@@ -321,9 +294,8 @@ impl<'a> ChainContext1<'a> {
         ))
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let rules = self.rule_set(self.coverage.get(glyph)? as usize)?;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let rules = self.rule_set(usize::from(index))?;
         let matchers = ChainMatchers {
             backtrack: &match_glyph,
             input: &match_glyph,
@@ -332,8 +304,8 @@ impl<'a> ChainContext1<'a> {
         apply_chain_rules(ctx, rules, &matchers, None, &|_| 0)
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        self.coverage
+    pub fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> bool {
+        coverage
             .get(ctx.glyphs[0])
             .and_then(|index| self.rule_set(index as usize))
             .is_some_and(|rules| would_apply_chain_rules(ctx, rules, &match_glyph))
@@ -341,10 +313,6 @@ impl<'a> ChainContext1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         let mut digest = SetDigest::new();
         for_each_rule_set(&self.rule_sets, |set: ChainedSequenceRuleSet| {
@@ -364,8 +332,6 @@ impl<'a> SubtableDigests<'a> for ChainContext1<'a> {
 
 /// Chained context by glyph class sequences.
 pub(crate) struct ChainContext2<'a> {
-    coverage: Coverage<'a>,
-    coverage_cache: BinaryCache,
     backtrack: ClassDef<'a>,
     input: ClassDef<'a>,
     lookahead: ClassDef<'a>,
@@ -388,8 +354,6 @@ impl<'a> ChainContext2<'a> {
             table.chained_class_seq_rule_set_offsets(),
         );
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
-            coverage_cache: BinaryCache::new(),
             backtrack: ClassDef::new(table.backtrack_class_def()),
             input: ClassDef::new(table.input_class_def()),
             lookahead: ClassDef::new(table.lookahead_class_def()),
@@ -419,9 +383,8 @@ impl<'a> ChainContext2<'a> {
         ))
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        covered_cached(|gid| self.coverage.get(gid), glyph, &self.coverage_cache)?;
         let caches = self.class_caches.as_deref();
         let input_class = |gid| cached_class(&self.input, gid, caches.map(|c| &c.input));
         let lookahead_class =
@@ -447,9 +410,7 @@ impl<'a> ChainContext2<'a> {
 
     /// Applies, keeping each glyph's input class in the high nibble of its
     /// syllable byte and its lookahead class in the low one.
-    pub fn apply_with_class_cache(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        covered_cached(|gid| self.coverage.get(gid), glyph, &self.coverage_cache)?;
+    pub fn apply_with_class_cache(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let input_class = |gid| self.input.get(gid);
         let lookahead_class = |gid| self.lookahead.get(gid);
         let info = ctx.buffer.info.get_mut(ctx.buffer.idx).likely()?;
@@ -474,7 +435,7 @@ impl<'a> ChainContext2<'a> {
         )
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+    pub fn would_apply(&self, ctx: &WouldApplyContext, _coverage: &Coverage) -> bool {
         let matches =
             |info: &mut GlyphInfo, value| u32::from(self.input.get(info.as_glyph())) == value;
         self.rule_set(self.input.get(ctx.glyphs[0]) as usize)
@@ -483,9 +444,7 @@ impl<'a> ChainContext2<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self) -> SetDigest {
         let (input, lookahead) = (&self.input, &self.lookahead);
@@ -515,7 +474,6 @@ impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
 
 /// Chained context by a coverage per glyph.
 pub(crate) struct ChainContext3<'a> {
-    coverage: Coverage<'a>,
     /// The coverages of the input glyphs after the first.
     inputs: Box<[Coverage<'a>]>,
     backtrack: Box<[Coverage<'a>]>,
@@ -527,7 +485,6 @@ impl<'a> ChainContext3<'a> {
     pub fn new(table: &ChainedSequenceContextFormat3<'a>) -> Option<Self> {
         let inputs = table.input_coverages();
         Some(Self {
-            coverage: Coverage::required(inputs.get(0))?,
             inputs: inputs.iter().skip(1).map(Coverage::new).collect(),
             backtrack: table
                 .backtrack_coverages()
@@ -543,9 +500,7 @@ impl<'a> ChainContext3<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        self.coverage.get(glyph)?;
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
         let input_matches = match_input(
@@ -588,7 +543,7 @@ impl<'a> ChainContext3<'a> {
         Some(())
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
+    pub fn would_apply(&self, ctx: &WouldApplyContext, _coverage: &Coverage) -> bool {
         (!ctx.zero_context || (self.backtrack.is_empty() && self.lookahead.is_empty()))
             && ctx.glyphs.len() == self.inputs.len() + 1
             && self
@@ -600,10 +555,6 @@ impl<'a> ChainContext3<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext3<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-
     fn digest_second(&self) -> SetDigest {
         if self.inputs.is_empty() {
             coverage_digest(self.lookahead.first())

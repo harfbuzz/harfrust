@@ -1,12 +1,12 @@
 //! Substitution subtables.
 
 use super::coverage::Coverage;
-use super::{coverage_index_cached, Offsets, SubtableDigests};
+use super::{Offsets, SubtableDigests};
 use crate::buffer::{GlyphInfo, GlyphPropsFlags};
 use crate::hint::Likely;
 use crate::ot::apply::{
     ligate_input, match_always, match_backtrack, match_glyph, match_input, match_lookahead,
-    ApplyContext, MappingCache, MaySkip, SkippingIterator, WouldApplyContext,
+    ApplyContext, MaySkip, SkippingIterator, WouldApplyContext,
 };
 use crate::ot::layout::MAX_NESTING_LEVEL;
 use crate::ot::map::OtMap;
@@ -19,96 +19,65 @@ use read_fonts::tables::gsub::{
 };
 use read_fonts::types::{BigEndian, GlyphId, GlyphId16};
 
-/// Whether a single glyph `ctx` would be substituted by a subtable with
-/// this coverage.
-fn covers_single(coverage: &Coverage, ctx: &WouldApplyContext) -> bool {
-    ctx.glyphs.len() == 1 && coverage.covers(ctx.glyphs[0])
-}
-
 /// Single substitution by a fixed delta.
-pub(crate) struct SingleSubst1<'a> {
-    coverage: Coverage<'a>,
+pub(crate) struct SingleSubst1 {
     delta: i16,
 }
 
-impl<'a> SingleSubst1<'a> {
-    pub fn new(table: &SingleSubstFormat1<'a>) -> Option<Self> {
+impl SingleSubst1 {
+    pub fn new(table: &SingleSubstFormat1) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             delta: table.delta_glyph_id(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
-        self.coverage.get(glyph)?;
         // The delta wraps around within 16 bits.
         let substitute = (glyph.to_u32() as i32 + i32::from(self.delta)) as u16;
         ctx.replace_glyph(substitute.into());
         Some(())
     }
-
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        covers_single(&self.coverage, ctx)
-    }
 }
 
-impl<'a> SubtableDigests<'a> for SingleSubst1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl SubtableDigests<'_> for SingleSubst1 {}
 
 /// Single substitution from an array of substitutes.
 pub(crate) struct SingleSubst2<'a> {
-    coverage: Coverage<'a>,
     substitutes: &'a [BigEndian<GlyphId16>],
 }
 
 impl<'a> SingleSubst2<'a> {
     pub fn new(table: &SingleSubstFormat2<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             substitutes: table.substitute_glyph_ids(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage.get(glyph)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let index = usize::from(index);
         let substitute = self.substitutes.get(index)?.get();
         ctx.replace_glyph(substitute.into());
         Some(())
     }
-
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        covers_single(&self.coverage, ctx)
-    }
 }
 
-impl<'a> SubtableDigests<'a> for SingleSubst2<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl<'a> SubtableDigests<'a> for SingleSubst2<'a> {}
 
 /// Multiple substitution: one glyph into a sequence.
 pub(crate) struct MultipleSubst1<'a> {
-    coverage: Coverage<'a>,
     sequences: Offsets<'a>,
 }
 
 impl<'a> MultipleSubst1<'a> {
     pub fn new(table: &MultipleSubstFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             sequences: Offsets::new(table.offset_data(), table.sequence_offsets()),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage.get(glyph)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let index = usize::from(index);
         let sequence: Sequence = self.sequences.get(index)?;
         let substitutes = sequence.substitute_glyph_ids();
         match substitutes {
@@ -141,48 +110,29 @@ impl<'a> MultipleSubst1<'a> {
         }
         Some(())
     }
-
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        covers_single(&self.coverage, ctx)
-    }
 }
 
-impl<'a> SubtableDigests<'a> for MultipleSubst1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl<'a> SubtableDigests<'a> for MultipleSubst1<'a> {}
 
 /// Alternate substitution, chosen by the feature value.
 pub(crate) struct AlternateSubst1<'a> {
-    coverage: Coverage<'a>,
     alternate_sets: Offsets<'a>,
 }
 
 impl<'a> AlternateSubst1<'a> {
     pub fn new(table: &AlternateSubstFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             alternate_sets: Offsets::new(table.offset_data(), table.alternate_set_offsets()),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage.get(glyph)? as usize;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        let index = usize::from(index);
         apply_alternate_set(ctx, &self.alternate_sets.get(index)?)
     }
-
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        covers_single(&self.coverage, ctx)
-    }
 }
 
-impl<'a> SubtableDigests<'a> for AlternateSubst1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl<'a> SubtableDigests<'a> for AlternateSubst1<'a> {}
 
 fn apply_alternate_set(ctx: &mut ApplyContext, set: &AlternateSet) -> Option<()> {
     let alternates = set.alternate_glyph_ids();
@@ -206,34 +156,29 @@ fn apply_alternate_set(ctx: &mut ApplyContext, set: &AlternateSet) -> Option<()>
 
 /// Ligature substitution.
 pub(crate) struct LigatureSubst1<'a> {
-    coverage: Coverage<'a>,
-    coverage_cache: Option<Box<MappingCache>>,
     /// The second components of all ligatures.
     seconds: SetDigest,
     ligature_sets: Offsets<'a>,
 }
 
 impl<'a> LigatureSubst1<'a> {
-    pub fn new(table: &LigatureSubstFormat1<'a>, with_caches: bool) -> Option<Self> {
+    pub fn new(table: &LigatureSubstFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
-            coverage_cache: with_caches.then(|| Box::new(MappingCache::new())),
             seconds: collect_seconds(table),
             ligature_sets: Offsets::new(table.offset_data(), table.ligature_set_offsets()),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = match &self.coverage_cache {
-            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), glyph, cache)?,
-            None => self.coverage.get(glyph)?,
-        };
-        apply_ligature_set(ctx, &self.ligature_sets.get(index as usize)?, &self.seconds)
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+        apply_ligature_set(
+            ctx,
+            &self.ligature_sets.get(usize::from(index))?,
+            &self.seconds,
+        )
     }
 
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        self.coverage
+    pub fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> bool {
+        coverage
             .get(ctx.glyphs[0])
             .and_then(|index| self.ligature_sets.get::<LigatureSet>(index as usize))
             .is_some_and(|set| {
@@ -246,9 +191,7 @@ impl<'a> LigatureSubst1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
+    const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self) -> SetDigest {
         self.seconds.clone()
@@ -394,7 +337,6 @@ fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
 
 /// Reverse chaining single substitution.
 pub(crate) struct ReverseChainSubst1<'a> {
-    coverage: Coverage<'a>,
     substitutes: &'a [BigEndian<GlyphId16>],
     /// The backtrack coverages, `None` where one can't be read.
     backtrack: Box<[Coverage<'a>]>,
@@ -404,7 +346,6 @@ pub(crate) struct ReverseChainSubst1<'a> {
 impl<'a> ReverseChainSubst1<'a> {
     pub fn new(table: &ReverseChainSingleSubstFormat1<'a>) -> Option<Self> {
         Some(Self {
-            coverage: Coverage::required(table.coverage())?,
             substitutes: table.substitute_glyph_ids(),
             backtrack: table
                 .backtrack_coverages()
@@ -419,13 +360,12 @@ impl<'a> ReverseChainSubst1<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext) -> Option<()> {
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
         // Reverse chaining lookups can't be nested.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
             return None;
         }
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        let index = self.coverage.get(glyph)? as usize;
+        let index = usize::from(index);
         let substitute = self.substitutes.get(index)?.get();
 
         let mut start_index = 0;
@@ -455,17 +395,9 @@ impl<'a> ReverseChainSubst1<'a> {
             .unsafe_to_concat_from_outbuffer(Some(start_index), Some(end_index));
         None
     }
-
-    pub fn would_apply(&self, ctx: &WouldApplyContext) -> bool {
-        covers_single(&self.coverage, ctx)
-    }
 }
 
-impl<'a> SubtableDigests<'a> for ReverseChainSubst1<'a> {
-    fn coverage(&self) -> &Coverage<'a> {
-        &self.coverage
-    }
-}
+impl<'a> SubtableDigests<'a> for ReverseChainSubst1<'a> {}
 
 /// Whether coverage `index` of `coverages` exists and covers the glyph.
 #[inline]
