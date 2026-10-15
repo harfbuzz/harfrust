@@ -8,6 +8,7 @@ use lookup::{CachedLookup, ClassDef, Coverage, LookupCache};
 use read_fonts::model::Tables;
 use read_fonts::{
     tables::{
+        gdef::Gdef,
         gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
         gsub::{FeatureList, FeatureVariations, Gsub, ScriptList},
         layout::{Feature as LayoutFeature, LangSys, Script as LayoutScript},
@@ -15,7 +16,7 @@ use read_fonts::{
         variations::{DeltaSetIndex, ItemVariationStore},
     },
     types::{F2Dot14, GlyphId},
-    ReadError, TableProvider,
+    FontData, ReadError, TableProvider,
 };
 use yoke::{Yoke, Yokeable};
 
@@ -47,9 +48,7 @@ pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
     pub gdef_glyph_props_cache: MappingCache,
-    gdef: Option<Yoke<CachedGdef<'static>, Arc<Tables>>>,
-    has_gsub: bool,
-    has_gpos: bool,
+    tables: Option<Yoke<CachedTables<'static>, Arc<Tables>>>,
     pub(crate) has_gdef: bool,
     pub(crate) gsub_len: u32,
     pub(crate) gdef_len: u32,
@@ -139,39 +138,60 @@ impl MarkGlyphSetBitmap {
 }
 
 impl OtCache {
-    pub fn new<'a>(font: &impl TableProvider<'a>, tables: Option<Arc<Tables>>) -> Self {
-        let gsub_table = font.gsub().ok();
-        let gpos_table = font.gpos().ok();
-        let gdef_table = font.gdef().ok();
-        let gsub_len = gsub_table
-            .as_ref()
-            .map_or(0, |table| table.offset_data().len() as u32);
-        let gpos_len = gpos_table
-            .as_ref()
-            .map_or(0, |table| table.offset_data().len() as u32);
-        let gdef_len = gdef_table
-            .as_ref()
-            .map_or(0, |table| table.offset_data().len() as u32);
-        let has_gdef = gdef_table.is_some() && !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len);
-        let gdef = tables.clone().filter(|_| has_gdef).and_then(|tables| {
-            Yoke::try_attach_to_cart(tables, |tables| CachedGdef::new(tables).ok_or(())).ok()
-        });
-        let gsub = gsub_table
-            .as_ref()
-            .map(|_| LookupCache::new(tables.clone(), true))
-            .unwrap_or_default();
-        let gpos = gpos_table
-            .as_ref()
-            .map(|_| LookupCache::new(tables, false))
-            .unwrap_or_default();
+    pub fn new(tables: Option<Arc<Tables>>) -> Self {
+        let cached = tables
+            .clone()
+            .map(|tables| Yoke::attach_to_cart(tables, |tables| CachedTables::new(tables)));
+        let parsed: Option<&CachedTables> = cached.as_ref().map(Yoke::get);
+        Self {
+            // A missing table has no lookups.
+            gsub: LookupCache::new(tables.clone(), true),
+            gpos: LookupCache::new(tables, false),
+            gdef_glyph_props_cache: MappingCache::new(),
+            has_gdef: parsed.is_some_and(|cached| cached.has_gdef),
+            gsub_len: parsed.map_or(0, |cached| cached.gsub_len),
+            gdef_len: parsed.map_or(0, |cached| cached.gdef_len),
+            tables: cached,
+        }
+    }
+}
+
+/// The layout tables, parsed once and kept with the font tables.
+#[derive(Yokeable)]
+pub(crate) struct CachedTables<'a> {
+    gsub: Option<Gsub<'a>>,
+    gpos: Option<Gpos<'a>>,
+    gdef: CachedGdef<'a>,
+    /// Whether GDEF is used: present, and not one of the known broken ones.
+    has_gdef: bool,
+    gsub_len: u32,
+    gdef_len: u32,
+}
+
+impl<'a> CachedTables<'a> {
+    const EMPTY: Self = Self {
+        gsub: None,
+        gpos: None,
+        gdef: CachedGdef::EMPTY,
+        has_gdef: false,
+        gsub_len: 0,
+        gdef_len: 0,
+    };
+
+    fn new(tables: &'a Tables) -> Self {
+        let gsub = tables.gsub().ok();
+        let gpos = tables.gpos().ok();
+        let gdef = tables.gdef().ok();
+        let len = |data: Option<FontData>| data.map_or(0, |data| data.len() as u32);
+        let gsub_len = len(gsub.as_ref().map(|table| table.offset_data()));
+        let gpos_len = len(gpos.as_ref().map(|table| table.offset_data()));
+        let gdef_len = len(gdef.as_ref().map(|table| table.offset_data()));
+        let gdef = gdef.filter(|_| !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len));
         Self {
             gsub,
             gpos,
-            gdef_glyph_props_cache: MappingCache::new(),
-            gdef,
-            has_gsub: gsub_table.is_some(),
-            has_gpos: gpos_table.is_some(),
-            has_gdef,
+            has_gdef: gdef.is_some(),
+            gdef: gdef.map_or(CachedGdef::EMPTY, |gdef| CachedGdef::new(&gdef)),
             gsub_len,
             gdef_len,
         }
@@ -195,20 +215,19 @@ impl<'a> CachedGdef<'a> {
         var_store: None,
     };
 
-    fn new(tables: &'a Tables) -> Option<Self> {
-        let gdef = tables.gdef().ok()?;
+    fn new(gdef: &Gdef<'a>) -> Self {
         let class_def = |table: Option<Result<_, _>>| table.map_or(ClassDef::None, ClassDef::new);
         let mark_sets = gdef
             .mark_glyph_sets_def()
             .and_then(Result::ok)
             .map(|sets| sets.coverages().iter().map(MarkSet::new).collect())
             .unwrap_or_default();
-        Some(Self {
+        Self {
             classes: class_def(gdef.glyph_class_def()),
             mark_classes: class_def(gdef.mark_attach_class_def()),
             mark_sets,
             var_store: gdef.item_var_store().and_then(Result::ok),
-        })
+        }
     }
 }
 
@@ -278,12 +297,12 @@ pub struct OtData<'a> {
 }
 
 static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
-static EMPTY_GDEF: CachedGdef<'static> = CachedGdef::EMPTY;
+static EMPTY_TABLES: CachedTables<'static> = CachedTables::EMPTY;
 
 pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
     gsub: None,
     gpos: None,
-    gdef: &EMPTY_GDEF,
+    gdef: &EMPTY_TABLES.gdef,
     gdef_glyph_props_cache: &EMPTY_MAPPING_CACHE,
     coords: &[],
     var_store: None,
@@ -311,29 +330,21 @@ impl<'a> OtData<'a> {
             .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
     }
 
-    pub fn from_tables(
-        font: &impl TableProvider<'a>,
+    pub fn new(
         cache: &'a OtCache,
         coords: &'a [F2Dot14],
         feature_variations: [Option<u32>; 2],
     ) -> Self {
-        let gsub = cache
-            .has_gsub
-            .then(|| font.gsub().ok())
-            .flatten()
-            .map(|table| GsubTable {
-                table,
-                lookups: &cache.gsub,
-            });
-        let gpos = cache
-            .has_gpos
-            .then(|| font.gpos().ok())
-            .flatten()
-            .map(|table| GposTable {
-                table,
-                lookups: &cache.gpos,
-            });
-        let gdef = cache.gdef.as_ref().map_or(&EMPTY_GDEF, Yoke::get);
+        let tables = cache.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get);
+        let gsub = tables.gsub.clone().map(|table| GsubTable {
+            table,
+            lookups: &cache.gsub,
+        });
+        let gpos = tables.gpos.clone().map(|table| GposTable {
+            table,
+            lookups: &cache.gpos,
+        });
+        let gdef = &tables.gdef;
         let var_store = gdef.var_store.clone().filter(|_| !coords.is_empty());
         Self {
             gsub,
