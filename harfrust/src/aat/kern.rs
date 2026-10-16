@@ -39,8 +39,20 @@ pub fn apply(
     layout: LayoutData<'_>,
     scale: Scale,
     buffer: &mut Buffer,
+    #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
 ) -> Option<()> {
-    let mut c = AatApplyContext::new(plan, layout, scale, buffer);
+    let mut c = AatApplyContext::new(
+        plan,
+        layout,
+        scale,
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
+
+    if !buffer_message!(c.buffer, font, "start table kern") {
+        return None;
+    }
 
     c.setup_buffer_glyph_set();
 
@@ -60,6 +72,8 @@ pub fn apply(
             break;
         };
         subtable_idx += 1;
+        #[cfg(feature = "tracing")]
+        let message_index = subtable_idx - 1;
 
         if subtable.is_variable() {
             continue;
@@ -76,11 +90,17 @@ pub fn apply(
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
         if !c.buffer_intersects_machine() {
+            message!(
+                c,
+                "skipped subtable {} because no glyph matches",
+                message_index
+            );
             continue;
         }
 
         let reverse = c.buffer.direction.is_backward();
         let is_cross_stream = subtable.is_cross_stream();
+        message_continue!(c, "start subtable {}", message_index);
 
         if !seen_cross_stream && is_cross_stream {
             seen_cross_stream = true;
@@ -124,10 +144,12 @@ pub fn apply(
             }
             _ => {}
         }
+        message!(c, "end subtable {}", message_index);
     }
     if c.buffer_is_reversed {
         c.reverse_buffer();
     }
+    buffer_message!(c.buffer, font, "end table kern");
     Some(())
 }
 
@@ -135,14 +157,25 @@ fn machine_kern<F>(
     layout: LayoutData<'_>,
     scale: Scale,
     buffer: &mut Buffer,
+    #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
     kern_mask: Mask,
     cross_stream: bool,
     get_kerning: F,
 ) where
     F: Fn(u32, u32) -> i32,
 {
+    if !buffer_message!(buffer, font, "start kern") {
+        return;
+    }
     buffer.unsafe_to_concat(None, None);
-    let mut ctx = ApplyContext::new(LayoutTableKind::Gpos, layout, scale, buffer);
+    let mut ctx = ApplyContext::new(
+        LayoutTableKind::Gpos,
+        layout,
+        scale,
+        buffer,
+        #[cfg(feature = "tracing")]
+        font,
+    );
     ctx.set_lookup_mask(kern_mask);
     ctx.lookup_props = u32::from(lookup_flags::IGNORE_MARKS);
     ctx.update_matchers();
@@ -195,6 +228,7 @@ fn machine_kern<F>(
 
         i = j;
     }
+    buffer_message!(iter.buffer, font, "end kern");
 }
 
 /// Applies a pair kerning value, splitting it across the two glyphs unless
@@ -247,6 +281,8 @@ fn apply_simple_kerning<T: SimpleKerning>(
         c.layout,
         c.scale,
         c.buffer,
+        #[cfg(feature = "tracing")]
+        c.font,
         c.plan.kern_mask,
         is_cross_stream,
         |left, right| {

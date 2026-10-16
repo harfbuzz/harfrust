@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add opt-in `tracing` support with `Buffer::set_message_function` callbacks
+  and `hr-shape --trace` output, including intermediate Unicode and glyph
+  contents. Tracing also works without `std` and compiles out when disabled.
+
 ### Fixed
 
 - Reject GSUB/GPOS lookups with an out-of-range `lookupType` instead of
