@@ -179,7 +179,17 @@ HB_DEFINE_VTABLE (set, &hb_set_get_empty);
 HB_DEFINE_VTABLE (shape_plan, &hb_shape_plan_get_empty);
 
 
-#undef HB_DEFINE_VTABLE
+#ifdef HARFRUST_HB_SUBSET_H
+
+HB_DEFINE_VTABLE (subset_input, nullptr);
+HB_DEFINE_VTABLE (subset_plan, nullptr);
+
+#endif
+
+
+/* Left available for the subset header's paired block when it is included
+ * after this header. */
+
 
 } // namespace hb
 
