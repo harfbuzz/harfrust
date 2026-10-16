@@ -12,6 +12,8 @@ use crate::ot::layout::MAX_NESTING_LEVEL;
 use crate::ot::map::OtMap;
 use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
+#[cfg(feature = "tracing")]
+use alloc::string::String;
 use read_fonts::tables::gsub::{
     AlternateSet, AlternateSubstFormat1, Ligature, LigatureSet, LigatureSubstFormat1,
     MultipleSubstFormat1, ReverseChainSingleSubstFormat1, Sequence, SingleSubstFormat1,
@@ -35,7 +37,17 @@ impl SingleSubst1 {
         let glyph = ctx.buffer.cur(0)?.as_glyph();
         // The delta wraps around within 16 bits.
         let substitute = (glyph.to_u32() as i32 + i32::from(self.delta)) as u16;
+        message!(
+            ctx,
+            "replacing glyph at {} (single substitution)",
+            ctx.buffer.message_idx()
+        );
         ctx.replace_glyph(substitute.into());
+        message!(
+            ctx,
+            "replaced glyph at {} (single substitution)",
+            ctx.buffer.message_idx() - 1
+        );
         Some(())
     }
 }
@@ -57,7 +69,17 @@ impl<'a> SingleSubst2<'a> {
     pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
         let index = usize::from(index);
         let substitute = self.substitutes.get(index)?.get();
+        message!(
+            ctx,
+            "replacing glyph at {} (single substitution)",
+            ctx.buffer.message_idx()
+        );
         ctx.replace_glyph(substitute.into());
+        message!(
+            ctx,
+            "replaced glyph at {} (single substitution)",
+            ctx.buffer.message_idx() - 1
+        );
         Some(())
     }
 }
@@ -83,11 +105,36 @@ impl<'a> MultipleSubst1<'a> {
         match substitutes {
             // The spec disallows empty sequences, but Uniscribe deletes the
             // glyph. https://github.com/harfbuzz/harfbuzz/issues/253
-            [] => ctx.buffer.delete_glyph(),
+            [] => {
+                message!(
+                    ctx,
+                    "deleting glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx()
+                );
+                ctx.buffer.delete_glyph();
+                message!(
+                    ctx,
+                    "deleted glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx()
+                );
+            }
             // A single substitute is an in-place replacement, not a
             // multiplication.
-            [substitute] => ctx.replace_glyph(substitute.get().into()),
+            [substitute] => {
+                message!(
+                    ctx,
+                    "replacing glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx()
+                );
+                ctx.replace_glyph(substitute.get().into());
+                message!(
+                    ctx,
+                    "replaced glyph at {} (multiple substitution)",
+                    ctx.buffer.message_idx() - 1
+                );
+            }
             _ => {
+                message!(ctx, "multiplying glyph at {}", ctx.buffer.message_idx());
                 let class = if ctx.buffer.cur(0)?.is_ligature() {
                     GlyphPropsFlags::BASE_GLYPH
                 } else {
@@ -106,6 +153,20 @@ impl<'a> MultipleSubst1<'a> {
                     ctx.output_glyph_for_component(substitute.get().into(), class);
                 }
                 ctx.buffer.skip_glyph();
+                #[cfg(feature = "tracing")]
+                if ctx.buffer.messaging() && ctx.buffer.successful {
+                    let count = substitutes.len();
+                    let end = ctx.buffer.message_idx();
+                    let mut msg = String::from("multiplied glyphs at ");
+                    for i in (end - count)..end {
+                        if i > (end - count) {
+                            msg.push(',');
+                        }
+                        use core::fmt::Write;
+                        let _ = write!(msg, "{i}");
+                    }
+                    ctx.buffer.message(ctx.font, &msg);
+                }
             }
         }
         Some(())
@@ -150,7 +211,17 @@ fn apply_alternate_set(ctx: &mut ApplyContext, set: &AlternateSet) -> Option<()>
         alt_index = ctx.random_number() % alternates.len() as u32 + 1;
     }
     let index = u16::try_from(alt_index).ok()?.checked_sub(1)?;
+    message!(
+        ctx,
+        "replacing glyph at {} (alternate substitution)",
+        ctx.buffer.message_idx()
+    );
     ctx.replace_glyph(alternates.get(index as usize)?.get().into());
+    message!(
+        ctx,
+        "replaced glyph at {} (alternate substitution)",
+        ctx.buffer.message_idx() - 1
+    );
     Some(())
 }
 
@@ -305,7 +376,17 @@ fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
     let ligature_glyph = ligature.ligature_glyph().into();
     // A ligature of one glyph is an in-place replacement, not a ligation.
     if components.is_empty() {
+        message!(
+            ctx,
+            "replacing glyph at {} (ligature substitution)",
+            ctx.buffer.message_idx()
+        );
         ctx.replace_glyph(ligature_glyph);
+        message!(
+            ctx,
+            "replaced glyph at {} (ligature substitution)",
+            ctx.buffer.message_idx() - 1
+        );
         return Some(());
     }
     let matches = |info: &mut GlyphInfo, index: u32| {
@@ -326,13 +407,31 @@ fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
             .unsafe_to_concat(Some(ctx.buffer.idx), Some(match_end));
         return None;
     }
+    #[cfg(feature = "tracing")]
+    let mut pos = 0;
+    #[cfg(feature = "tracing")]
+    if ctx.buffer.messaging() {
+        pos = ctx.buffer.message_idx();
+        let mut msg = String::from("ligating glyphs at ");
+        for i in 0..components.len() + 1 {
+            let index = ctx.match_positions[i] as usize - ctx.buffer.idx + pos;
+            if i > 0 {
+                msg.push(',');
+            }
+            use core::fmt::Write;
+            let _ = write!(msg, "{index}");
+        }
+        ctx.buffer.message(ctx.font, &msg);
+    }
     ligate_input(
         ctx,
         components.len() + 1,
         match_end,
         total_component_count,
         ligature_glyph,
-    )
+    )?;
+    message!(ctx, "ligated glyph at {}", pos);
+    Some(())
 }
 
 /// Reverse chaining single substitution.
@@ -382,11 +481,21 @@ impl<'a> ReverseChainSubst1<'a> {
             ctx.buffer.idx + 1,
             &mut end_index,
         ) {
+            message!(
+                ctx,
+                "replacing glyph at {} (reverse chaining substitution)",
+                ctx.buffer.message_idx()
+            );
             ctx.buffer
                 .unsafe_to_break_from_outbuffer(Some(start_index), Some(end_index));
             if ctx.replace_glyph_inplace(substitute.into()).is_none() {
                 ctx.buffer.index_failed();
             }
+            message!(
+                ctx,
+                "replaced glyph at {} (reverse chaining substitution)",
+                ctx.buffer.message_idx()
+            );
             // The caller moves back to the previous glyph, which keeps a
             // call through a context lookup from skipping one.
             return Some(());
