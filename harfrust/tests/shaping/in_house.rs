@@ -58886,9 +58886,9 @@ fn variation_selectors_003() {
         shape(
             "tests/fonts/in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf",
             "\u{0066}\u{FE00}\u{0069}",
-            "--not-found-variation-selector-glyph=64000",
+            "--not-found-variation-selector-glyph=1000000",
         ),
-        "[gid2=0+711|gid64000=0+0|gid3=2+497]"
+        "[gid2=0+711|gid1000000=0+0|gid3=2+497]"
     );
 }
 

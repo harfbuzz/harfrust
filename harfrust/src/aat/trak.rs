@@ -34,12 +34,12 @@ pub fn apply(
     };
 
     foreach_grapheme!(buffer, start, end, {
-        if buffer.direction.is_horizontal() {
-            buffer.pos[start].x_advance =
-                buffer.pos[start].x_advance.saturating_add(advance_to_add);
-        } else {
-            buffer.pos[start].y_advance =
-                buffer.pos[start].y_advance.saturating_add(advance_to_add);
+        if let Some(pos) = buffer.pos.get_mut(start) {
+            if buffer.direction.is_horizontal() {
+                pos.x_advance = pos.x_advance.saturating_add(advance_to_add);
+            } else {
+                pos.y_advance = pos.y_advance.saturating_add(advance_to_add);
+            }
         }
     });
 

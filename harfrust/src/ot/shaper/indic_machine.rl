@@ -110,12 +110,13 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
 
     %%{
         write init;
-        getkey (buffer.info[p].indic_category() as u8);
+        getkey (buffer.info.get(p).map_or(0, |info| info.indic_category() as u8));
         write exec;
     }%%
 }
 
-#[inline]
+// Called from every syllable action, so one shared copy keeps the machine small.
+#[inline(never)]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -123,8 +124,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;
