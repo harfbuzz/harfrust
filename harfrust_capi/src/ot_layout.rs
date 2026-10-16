@@ -268,9 +268,9 @@ impl SetTarget {
         }
     }
 
-    fn include_all_glyphs(self) {
+    fn include_all_glyphs(self, count: u32) {
         if let Some(set) = unsafe { object::as_mutable(self.0) } {
-            set.include_all_glyphs(65536);
+            set.include_all_glyphs(count);
         }
     }
 }
@@ -726,8 +726,13 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
     };
     let Some(complete) = complete else { return };
     if !matches!(complete, Ok(true)) {
+        // Without a glyph count, cover every glyph ID a lookup can name.
+        let count = match face.glyph_count() {
+            0 => 1 << 24,
+            count => count,
+        };
         for set in [before, input, after, output] {
-            set.include_all_glyphs();
+            set.include_all_glyphs(count);
         }
     }
 }
