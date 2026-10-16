@@ -71,7 +71,7 @@ pub struct StageMap {
 
 // Pause functions return true if new glyph indices might have been added to the buffer.
 // This is used to update buffer digest.
-pub type PauseFn = fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer) -> bool;
+pub type PauseFn = fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer) -> Option<bool>;
 
 impl OtMap {
     pub const MAX_BITS: u32 = 8;
@@ -442,7 +442,7 @@ impl<'a> OtMapBuilder<'a> {
         }
 
         if self.is_simple {
-            map_features.sort();
+            crate::algs::sort_unstable_by(&mut map_features, Ord::cmp);
         }
 
         (map_features, required_stage, global_mask)
@@ -455,7 +455,7 @@ impl<'a> OtMapBuilder<'a> {
         }
 
         if !self.is_simple {
-            feature_infos.sort();
+            crate::algs::sort_unstable_by(feature_infos, Ord::cmp);
         }
 
         let mut j = 0;
@@ -544,7 +544,7 @@ impl<'a> OtMapBuilder<'a> {
                 let len = lookups.len();
 
                 if last_lookup + 1 < len {
-                    lookups[last_lookup..].sort();
+                    crate::algs::sort_unstable_by(&mut lookups[last_lookup..], Ord::cmp);
 
                     let mut j = last_lookup;
                     for i in j + 1..len {

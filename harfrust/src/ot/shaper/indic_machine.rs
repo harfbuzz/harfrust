@@ -191,6 +191,9 @@ static indic_syllable_machine_start: i32 = 31;
 static indic_syllable_machine_first_final: i32 = 31;
 static indic_syllable_machine_error: i32 = -1;
 static indic_syllable_machine_en_main: i32 = 31;
+
+// IMPORTANT: Before updating any values here, make sure to read the comment in `category`.
+
 #[derive(Clone, Copy)]
 pub enum SyllableType {
     ConsonantSyllable = 0,
@@ -251,13 +254,25 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
                     {
                         _keys = (cs << 1) as i32;
                         _inds = (_indic_syllable_machine_index_offsets[(cs) as usize]) as i32;
-                        if ((buffer.info[p].indic_category() as u8) <= 57
-                            && (buffer.info[p].indic_category() as u8) >= 1)
+                        if ((buffer
+                            .info
+                            .get(p)
+                            .map_or(0, |info| info.indic_category() as u8))
+                            <= 57
+                            && (buffer
+                                .info
+                                .get(p)
+                                .map_or(0, |info| info.indic_category() as u8))
+                                >= 1)
                         {
                             {
-                                _ic = (_indic_syllable_machine_char_class
-                                    [((buffer.info[p].indic_category() as u8) as i32 - 1) as usize])
-                                    as i32;
+                                _ic = (_indic_syllable_machine_char_class[((buffer
+                                    .info
+                                    .get(p)
+                                    .map_or(0, |info| info.indic_category() as u8))
+                                    as i32
+                                    - 1)
+                                    as usize]) as i32;
                                 if (_ic
                                     <= (_indic_syllable_machine_trans_keys[(_keys + 1) as usize])
                                         as i32
@@ -483,7 +498,8 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
     }
 }
 
-#[inline]
+// Called from every syllable action, so one shared copy keeps the machine small.
+#[inline(never)]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -491,8 +507,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

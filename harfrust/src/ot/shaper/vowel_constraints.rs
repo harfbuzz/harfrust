@@ -7,11 +7,18 @@ use crate::buffer::Buffer;
 use crate::BufferFlags;
 use crate::Script;
 
+/// The glyph `i` places past the current one, or 0, which matches nothing.
+fn cur_glyph(buffer: &Buffer, i: usize) -> u32 {
+    buffer.cur(i).map_or(0, |info| info.glyph_id)
+}
+
 fn output_dotted_circle(buffer: &mut Buffer) {
     buffer.output_glyph(0x25CC);
     {
         let out_idx = buffer.out_len - 1;
-        buffer.out_info_mut()[out_idx].clear_continuation();
+        if let Some(info) = buffer.out_info_mut().get_mut(out_idx) {
+            info.clear_continuation();
+        }
     }
 }
 
@@ -40,33 +47,33 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x0905 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x0905 => match cur_glyph(buffer, 1) {
                         0x093A | 0x093B | 0x093E | 0x0945 | 0x0946 | 0x0949 | 0x094A | 0x094B
                         | 0x094C | 0x094F | 0x0956 | 0x0957 => {
                             matched = true;
                         }
                         _ => {}
                     },
-                    0x0906 => match buffer.cur(1).glyph_id {
+                    0x0906 => match cur_glyph(buffer, 1) {
                         0x093A | 0x0945 | 0x0946 | 0x0947 | 0x0948 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x0909 => {
-                        matched = 0x0941 == buffer.cur(1).glyph_id;
+                        matched = 0x0941 == cur_glyph(buffer, 1);
                     }
-                    0x090F => match buffer.cur(1).glyph_id {
+                    0x090F => match cur_glyph(buffer, 1) {
                         0x0945 | 0x0946 | 0x0947 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x0930 => {
-                        if 0x094D == buffer.cur(1).glyph_id
+                        if 0x094D == cur_glyph(buffer, 1)
                             && buffer.idx + 2 < buffer.len
-                            && 0x0907 == buffer.cur(2).glyph_id
+                            && 0x0907 == cur_glyph(buffer, 2)
                         {
                             buffer.next_glyph();
                             buffer.next_glyph();
@@ -87,15 +94,15 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
+                match cur_glyph(buffer, 0) {
                     0x0985 => {
-                        matched = 0x09BE == buffer.cur(1).glyph_id;
+                        matched = 0x09BE == cur_glyph(buffer, 1);
                     }
                     0x098B => {
-                        matched = 0x09C3 == buffer.cur(1).glyph_id;
+                        matched = 0x09C3 == cur_glyph(buffer, 1);
                     }
                     0x098C => {
-                        matched = 0x09E2 == buffer.cur(1).glyph_id;
+                        matched = 0x09E2 == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -111,20 +118,20 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x0A05 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x0A05 => match cur_glyph(buffer, 1) {
                         0x0A3E | 0x0A48 | 0x0A4C => {
                             matched = true;
                         }
                         _ => {}
                     },
-                    0x0A72 => match buffer.cur(1).glyph_id {
+                    0x0A72 => match cur_glyph(buffer, 1) {
                         0x0A3F | 0x0A40 | 0x0A47 => {
                             matched = true;
                         }
                         _ => {}
                     },
-                    0x0A73 => match buffer.cur(1).glyph_id {
+                    0x0A73 => match cur_glyph(buffer, 1) {
                         0x0A41 | 0x0A42 | 0x0A4B => {
                             matched = true;
                         }
@@ -144,15 +151,15 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x0A85 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x0A85 => match cur_glyph(buffer, 1) {
                         0x0ABE | 0x0AC5 | 0x0AC7 | 0x0AC8 | 0x0AC9 | 0x0ACB | 0x0ACC => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x0AC5 => {
-                        matched = 0x0ABE == buffer.cur(1).glyph_id;
+                        matched = 0x0ABE == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -168,12 +175,12 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
+                match cur_glyph(buffer, 0) {
                     0x0B05 => {
-                        matched = 0x0B3E == buffer.cur(1).glyph_id;
+                        matched = 0x0B3E == cur_glyph(buffer, 1);
                     }
                     0x0B0F | 0x0B13 => {
-                        matched = 0x0B57 == buffer.cur(1).glyph_id;
+                        matched = 0x0B57 == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -189,7 +196,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                if 0x0B85 == buffer.cur(0).glyph_id && 0x0BC2 == buffer.cur(1).glyph_id {
+                if 0x0B85 == cur_glyph(buffer, 0) && 0x0BC2 == cur_glyph(buffer, 1) {
                     buffer.next_glyph();
                     output_dotted_circle(buffer);
                 }
@@ -205,15 +212,15 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x0C12 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x0C12 => match cur_glyph(buffer, 1) {
                         0x0C4C | 0x0C55 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x0C3F | 0x0C46 | 0x0C4A => {
-                        matched = 0x0C55 == buffer.cur(1).glyph_id;
+                        matched = 0x0C55 == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -229,12 +236,12 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
+                match cur_glyph(buffer, 0) {
                     0x0C89 | 0x0C8B => {
-                        matched = 0x0CBE == buffer.cur(1).glyph_id;
+                        matched = 0x0CBE == cur_glyph(buffer, 1);
                     }
                     0x0C92 => {
-                        matched = 0x0CCC == buffer.cur(1).glyph_id;
+                        matched = 0x0CCC == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -250,14 +257,14 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
+                match cur_glyph(buffer, 0) {
                     0x0D07 | 0x0D09 => {
-                        matched = 0x0D57 == buffer.cur(1).glyph_id;
+                        matched = 0x0D57 == cur_glyph(buffer, 1);
                     }
                     0x0D0E => {
-                        matched = 0x0D46 == buffer.cur(1).glyph_id;
+                        matched = 0x0D46 == cur_glyph(buffer, 1);
                     }
-                    0x0D12 => match buffer.cur(1).glyph_id {
+                    0x0D12 => match cur_glyph(buffer, 1) {
                         0x0D3E | 0x0D57 => {
                             matched = true;
                         }
@@ -277,20 +284,20 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x0D85 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x0D85 => match cur_glyph(buffer, 1) {
                         0x0DCF | 0x0DD0 | 0x0DD1 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x0D8B | 0x0D8F | 0x0D94 => {
-                        matched = 0x0DDF == buffer.cur(1).glyph_id;
+                        matched = 0x0DDF == cur_glyph(buffer, 1);
                     }
                     0x0D8D => {
-                        matched = 0x0DD8 == buffer.cur(1).glyph_id;
+                        matched = 0x0DD8 == cur_glyph(buffer, 1);
                     }
-                    0x0D91 => match buffer.cur(1).glyph_id {
+                    0x0D91 => match cur_glyph(buffer, 1) {
                         0x0DCA | 0x0DD9 | 0x0DDA | 0x0DDC | 0x0DDD | 0x0DDE => {
                             matched = true;
                         }
@@ -310,15 +317,15 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
+                match cur_glyph(buffer, 0) {
                     0x11005 => {
-                        matched = 0x11038 == buffer.cur(1).glyph_id;
+                        matched = 0x11038 == cur_glyph(buffer, 1);
                     }
                     0x1100B => {
-                        matched = 0x1103E == buffer.cur(1).glyph_id;
+                        matched = 0x1103E == cur_glyph(buffer, 1);
                     }
                     0x1100F => {
-                        matched = 0x11042 == buffer.cur(1).glyph_id;
+                        matched = 0x11042 == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -334,24 +341,24 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x11200 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x11200 => match cur_glyph(buffer, 1) {
                         0x1122C | 0x11231 | 0x11233 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x11206 => {
-                        matched = 0x1122C == buffer.cur(1).glyph_id;
+                        matched = 0x1122C == cur_glyph(buffer, 1);
                     }
-                    0x1122C => match buffer.cur(1).glyph_id {
+                    0x1122C => match cur_glyph(buffer, 1) {
                         0x11230 | 0x11231 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x11240 => {
-                        matched = 0x1122E == buffer.cur(1).glyph_id;
+                        matched = 0x1122E == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }
@@ -367,8 +374,8 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x112B0 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x112B0 => match cur_glyph(buffer, 1) {
                         0x112E0 | 0x112E5 | 0x112E6 | 0x112E7 | 0x112E8 => {
                             matched = true;
                         }
@@ -388,14 +395,14 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
+                match cur_glyph(buffer, 0) {
                     0x11481 => {
-                        matched = 0x114B0 == buffer.cur(1).glyph_id;
+                        matched = 0x114B0 == cur_glyph(buffer, 1);
                     }
                     0x1148B | 0x1148D => {
-                        matched = 0x114BA == buffer.cur(1).glyph_id;
+                        matched = 0x114BA == cur_glyph(buffer, 1);
                     }
-                    0x114AA => match buffer.cur(1).glyph_id {
+                    0x114AA => match cur_glyph(buffer, 1) {
                         0x114B5 | 0x114B6 => {
                             matched = true;
                         }
@@ -415,8 +422,8 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x11600 | 0x11601 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x11600 | 0x11601 => match cur_glyph(buffer, 1) {
                         0x11639 | 0x1163A => {
                             matched = true;
                         }
@@ -436,15 +443,15 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
             while buffer.idx + 1 < buffer.len {
                 #[allow(unused_mut)]
                 let mut matched = false;
-                match buffer.cur(0).glyph_id {
-                    0x11680 => match buffer.cur(1).glyph_id {
+                match cur_glyph(buffer, 0) {
+                    0x11680 => match cur_glyph(buffer, 1) {
                         0x116AD | 0x116B4 | 0x116B5 => {
                             matched = true;
                         }
                         _ => {}
                     },
                     0x11686 => {
-                        matched = 0x116B2 == buffer.cur(1).glyph_id;
+                        matched = 0x116B2 == cur_glyph(buffer, 1);
                     }
                     _ => {}
                 }

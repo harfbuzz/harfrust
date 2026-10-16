@@ -137,22 +137,25 @@ impl AatMapBuilder {
             feature_events.push(FeatureEvent {
                 index: feature.start as usize,
                 start: true,
+                seq: feature_events.len(),
                 feature: feature.info,
             });
 
             feature_events.push(FeatureEvent {
                 index: feature.end as usize,
                 start: false,
+                seq: feature_events.len(),
                 feature: feature.info,
             });
         }
 
-        feature_events.sort();
+        crate::algs::sort_unstable_by(&mut feature_events, Ord::cmp);
 
         // Add a strategic final event.
         feature_events.push(FeatureEvent {
             index: u32::MAX as usize,
             start: false,
+            seq: feature_events.len(),
             feature: FeatureInfo::default(),
         });
 
@@ -255,6 +258,8 @@ pub struct FeatureRange {
 struct FeatureEvent {
     pub index: usize,
     pub start: bool,
+    /// Order of addition, which breaks ties between otherwise equal events.
+    pub seq: usize,
     pub feature: FeatureInfo,
 }
 
@@ -271,7 +276,7 @@ impl PartialOrd for FeatureEvent {
         } else if self.start != other.start {
             Some(self.start.cmp(&other.start))
         } else {
-            Some(Ordering::Equal)
+            Some(self.seq.cmp(&other.seq))
         }
     }
 }
