@@ -265,5 +265,6 @@ their traits, and hash specializations. They adopt an existing reference;
 copying a shared pointer acquires another reference. Supported core types
 are blobs, buffers, faces, fonts, font functions, maps, sets, and shape plans.
 
-Subset input and plan ownership helpers are provided separately with the
-extended subset APIs.
+Including `hr-hb-subset.h` before or after the C++ header also enables
+subset inputs and plans. Build `harfrust_capi` with `--features subset`
+when using those objects. Objects without a complete HarfRust lifetime API have no vtable.

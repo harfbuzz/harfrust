@@ -172,7 +172,12 @@ def main():
         subset_lower, subset_upper = names(open(SUBSET_SOURCE, encoding="utf-8").read())
         with open(SUBSET_TARGET, "w", encoding="utf-8", newline="\n") as f:
             f.write(render(subset_lower, subset_upper, subset_header))
-            f.write("\n#endif /* HARFRUST_HB_SUBSET_H */\n")
+            f.write("\n#if defined(__cplusplus) && defined(HARFRUST_HB_CPLUSPLUS_HH)\n"
+                    "namespace hb {\n"
+                    "HB_DEFINE_VTABLE (subset_input, nullptr);\n"
+                    "HB_DEFINE_VTABLE (subset_plan, nullptr);\n"
+                    "} // namespace hb\n"
+                    "#endif\n\n#endif /* HARFRUST_HB_SUBSET_H */\n")
     print("wrote %s (%d names)" % (TARGET, len(lower) + len(upper)))
 
 
