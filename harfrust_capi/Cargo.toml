@@ -14,10 +14,13 @@ categories.workspace = true
 [features]
 default = []
 subset = ["dep:skera", "dep:write-fonts"]
+draw = ["dep:skrifa"]
+paint = ["draw"]
 
 [dependencies]
 harfrust = { workspace = true, features = ["std"] }
 read-fonts.workspace = true
+skrifa = { version = "0.48.0", default-features = false, features = ["std"], optional = true }
 skera = { git = "https://github.com/googlefonts/fontations", rev = "978c97cfae5cd30bb428f6731fc5768489b0bab6", optional = true }
 write-fonts = { git = "https://github.com/googlefonts/fontations", rev = "978c97cfae5cd30bb428f6731fc5768489b0bab6", default-features = false, features = ["read"], optional = true }
 

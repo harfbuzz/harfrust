@@ -52,6 +52,15 @@ pub mod shape_plan;
 pub mod unicode;
 
 /// cbindgen:ignore
+#[cfg(feature = "draw")]
+pub mod draw;
+/// cbindgen:ignore
+#[cfg(feature = "paint")]
+pub mod paint;
+#[cfg(feature = "draw")]
+mod rendering;
+
+/// cbindgen:ignore
 #[cfg(feature = "subset")]
 pub mod subset;
 
@@ -60,6 +69,8 @@ pub use blob::*;
 pub use buffer::*;
 pub use color::*;
 pub use common::*;
+#[cfg(feature = "draw")]
+pub use draw::*;
 pub use face::*;
 pub use font::*;
 pub use font_funcs::*;
@@ -71,6 +82,8 @@ pub use ot_math::*;
 pub use ot_name::*;
 pub use ot_tag::*;
 pub use ot_var::*;
+#[cfg(feature = "paint")]
+pub use paint::*;
 pub use set::*;
 pub use shape::*;
 pub use shape_plan::*;
@@ -101,6 +114,10 @@ mod skia_batch_tests;
 #[cfg(test)]
 #[path = "../tests/skia_version.rs"]
 mod skia_version_tests;
+
+#[cfg(all(test, feature = "draw"))]
+#[path = "../tests/rendering.rs"]
+mod rendering_tests;
 
 #[cfg(test)]
 #[path = "../tests/tables.rs"]

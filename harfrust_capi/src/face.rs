@@ -137,6 +137,8 @@ pub struct hr_face_t {
     /// Shape plans built over this face, reused across `hr_shape` calls the way
     /// HarfBuzz's cached shape plans are.
     pub(crate) plans: PlanCache,
+    #[cfg(feature = "draw")]
+    pub(crate) render_data: OnceLock<Option<Vec<u8>>>,
 }
 
 impl hr_face_t {
@@ -176,6 +178,8 @@ impl Object for hr_face_t {
                     source: FaceSource::Empty,
                     table_tags: None,
                     plans: PlanCache::default(),
+                    #[cfg(feature = "draw")]
+                    render_data: OnceLock::new(),
                 })
             })
             .get()
@@ -240,6 +244,8 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         source: FaceSource::Blob { blob: owned, index },
         table_tags: None,
         plans: PlanCache::default(),
+        #[cfg(feature = "draw")]
+        render_data: OnceLock::new(),
     })
 }
 
@@ -291,6 +297,8 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
         source: FaceSource::Function(Arc::clone(&state)),
         table_tags: None,
         plans: PlanCache::default(),
+        #[cfg(feature = "draw")]
+        render_data: OnceLock::new(),
     });
     // Now that the face exists, let the callback see it. This is a plain
     // pointer, not a reference, so it does not keep the face alive.
