@@ -82,6 +82,8 @@ pub use scale::Scale;
 pub use shape::shape;
 pub(crate) use shaper_font::LayoutData;
 
+#[cfg(feature = "tracing")]
+pub use buffer::MessageFunction;
 pub use buffer::{Buffer, ContentType, GlyphFlags, GlyphInfo, GlyphPosition};
 pub use direction::Direction;
 pub use feature::Feature;
