@@ -26,6 +26,9 @@ jobs:
     - name: Build with std
       run: cargo build
 
+    - name: Build library without tracing
+      run: cargo build -p harfrust
+
     - name: MSRV Build (Rust 1.85)
       run: cargo +1.85 build
 
@@ -77,8 +80,11 @@ jobs:
       run: cargo clippy --all-features --all-targets -- -D warnings
 
   check-no-std:
-    name: cargo check no std
+    name: cargo check no std (${{ matrix.features }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        features: [libm, "libm,tracing"]
     steps:
       - uses: actions/checkout@v6
 
@@ -90,4 +96,4 @@ jobs:
           target: thumbv7em-none-eabihf
 
       - name: cargo build harfrust
-        run: cargo build -p harfrust --target thumbv7em-none-eabihf --no-default-features --features=libm
+        run: cargo build -p harfrust --target thumbv7em-none-eabihf --no-default-features --features=${{ matrix.features }}
