@@ -166,7 +166,9 @@ impl<'a> SinglePos1<'a> {
     }
 
     pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
+        message!(ctx, "positioning glyph at {}", ctx.buffer.idx);
         apply_value(ctx, ctx.buffer.idx, &self.value);
+        message!(ctx, "positioned glyph at {}", ctx.buffer.idx);
         ctx.buffer.idx += 1;
         Some(())
     }
@@ -199,7 +201,9 @@ impl<'a> SinglePos2<'a> {
             values.offset() + values.byte_len() * index,
             values.format(),
         );
+        message!(ctx, "positioning glyph at {}", ctx.buffer.idx);
         apply_value(ctx, ctx.buffer.idx, &value);
+        message!(ctx, "positioned glyph at {}", ctx.buffer.idx);
         ctx.buffer.idx += 1;
         Some(())
     }
@@ -290,10 +294,16 @@ fn apply_pair(
     value1: &ValueRecord,
     value2: &ValueRecord,
 ) -> Option<()> {
+    message!(
+        ctx,
+        "try kerning glyphs at {},{second_index}",
+        ctx.buffer.idx
+    );
     let has_value2 = !value2.is_empty();
     let worked1 = !value1.is_empty() && apply_value(ctx, ctx.buffer.idx, value1);
     let worked2 = has_value2 && apply_value(ctx, second_index, value2);
     if worked1 || worked2 {
+        message!(ctx, "kerned glyphs at {},{second_index}", ctx.buffer.idx);
         ctx.buffer
             .unsafe_to_break(Some(ctx.buffer.idx), Some(second_index + 1));
     } else {
@@ -302,6 +312,11 @@ fn apply_pair(
         ctx.buffer
             .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
     }
+    message!(
+        ctx,
+        "tried kerning glyphs at {},{second_index}",
+        ctx.buffer.idx
+    );
     if has_value2 {
         buf_idx += 1;
         // https://github.com/harfbuzz/harfbuzz/issues/3824
@@ -516,6 +531,11 @@ fn apply_kerning(
     buf_idx: usize,
     value: i16,
 ) -> Option<()> {
+    message!(
+        ctx,
+        "try kerning glyphs at {},{second_index}",
+        ctx.buffer.idx
+    );
     let x_advance = ctx.scale.scale_x(i32::from(value));
     let worked = value != 0
         && ctx.buffer.direction.is_horizontal()
@@ -527,6 +547,7 @@ fn apply_kerning(
             .map(|pos| pos.x_advance = pos.x_advance.saturating_add(x_advance))
             .is_some();
     if worked {
+        message!(ctx, "kerned glyphs at {},{second_index}", ctx.buffer.idx);
         ctx.buffer
             .unsafe_to_break(Some(ctx.buffer.idx), Some(second_index + 1));
     } else {
@@ -535,6 +556,11 @@ fn apply_kerning(
         ctx.buffer
             .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
     }
+    message!(
+        ctx,
+        "tried kerning glyphs at {},{second_index}",
+        ctx.buffer.idx
+    );
     ctx.buffer.idx = buf_idx;
     Some(())
 }
@@ -730,6 +756,7 @@ impl<'a> CursivePos1<'a> {
         let j = ctx.buffer.idx;
         ctx.buffer.unsafe_to_break(Some(i), Some(j + 1));
 
+        message!(ctx, "cursive attaching glyph at {} to glyph at {}", i, j);
         let pos = &mut ctx.buffer.pos;
         // Both glyphs change together, so adjust copies and store them back.
         let mut prev_pos = *pos.get(i).likely()?;
@@ -809,6 +836,7 @@ impl<'a> CursivePos1<'a> {
                 parent_pos.x_offset = 0;
             }
         }
+        message!(ctx, "cursive attached glyph at {} to glyph at {}", i, j);
         ctx.buffer.idx += 1;
         Some(())
     }
@@ -878,6 +906,12 @@ fn attach_mark(
         .unsafe_to_break(Some(base_pos), Some(ctx.buffer.idx + 1));
     let horizontal = ctx.buffer.direction.is_horizontal();
     let idx = ctx.buffer.idx;
+    message!(
+        ctx,
+        "attaching mark glyph at {} to glyph at {}",
+        idx,
+        base_pos
+    );
     // A distance that doesn't fit the chain field leaves the mark
     // unattached, as in HarfBuzz.
     let Ok(chain) = i16::try_from(base_pos as isize - idx as isize) else {
@@ -895,6 +929,12 @@ fn attach_mark(
     }
     pos.set_attach_type(attach_type::MARK);
     pos.set_attach_chain(chain);
+    message!(
+        ctx,
+        "attached mark glyph at {} to glyph at {}",
+        idx,
+        base_pos
+    );
     ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
     ctx.buffer.idx += 1;
     Some(())

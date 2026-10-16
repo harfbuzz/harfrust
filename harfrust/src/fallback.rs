@@ -423,6 +423,9 @@ pub fn position_marks<'x>(
     buffer: &'x mut Buffer,
     adjust_offsets_when_zeroing: bool,
 ) -> Option<()> {
+    if !buffer_message!(buffer, font, "start fallback mark") {
+        return Some(());
+    }
     let mut ctx = FallbackShapeContext {
         plan,
         units_per_em: font.layout().units_per_em,
@@ -444,7 +447,9 @@ pub fn position_marks<'x>(
         }
     }
 
-    position_cluster(&mut ctx, start, len)
+    position_cluster(&mut ctx, start, len)?;
+    message!(ctx, "end fallback mark");
+    Some(())
 }
 
 pub fn fallback_kern(_: &ShapePlan, _: &mut Buffer) {
