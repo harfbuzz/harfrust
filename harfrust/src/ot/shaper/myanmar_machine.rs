@@ -110,6 +110,9 @@ static myanmar_syllable_machine_start: i32 = 0;
 static myanmar_syllable_machine_first_final: i32 = 0;
 static myanmar_syllable_machine_error: i32 = -1;
 static myanmar_syllable_machine_en_main: i32 = 0;
+
+// IMPORTANT: Before updating any values here, make sure to read the comment in `category`.
+
 #[derive(Clone, Copy)]
 pub enum SyllableType {
     ConsonantSyllable = 0,
@@ -118,7 +121,7 @@ pub enum SyllableType {
     NonMyanmarCluster,
 }
 
-pub fn find_syllables_myanmar(buffer: &mut Buffer) {
+pub fn find_syllables_myanmar(buffer: &mut Buffer) -> Option<()> {
     let mut cs = 0;
     let mut ts = 0;
     let mut te;
@@ -168,11 +171,13 @@ pub fn find_syllables_myanmar(buffer: &mut Buffer) {
                     {
                         _keys = (cs << 1) as i32;
                         _inds = (_myanmar_syllable_machine_index_offsets[(cs) as usize]) as i32;
-                        if ((buffer.info[p].myanmar_category() as u8) <= 57
-                            && (buffer.info[p].myanmar_category() as u8) >= 1)
+                        if ((buffer.info.get(p)?.myanmar_category() as u8) <= 57
+                            && (buffer.info.get(p)?.myanmar_category() as u8) >= 1)
                         {
                             {
-                                _ic = (_myanmar_syllable_machine_char_class[((buffer.info[p]
+                                _ic = (_myanmar_syllable_machine_char_class[((buffer
+                                    .info
+                                    .get(p)?
                                     .myanmar_category()
                                     as u8)
                                     as i32
@@ -331,9 +336,11 @@ pub fn find_syllables_myanmar(buffer: &mut Buffer) {
             break '_resume;
         }
     }
+    Some(())
 }
 
-#[inline]
+// Called from every syllable action, so one shared copy keeps the machine small.
+#[inline(never)]
 fn found_syllable(
     start: usize,
     end: usize,
@@ -341,8 +348,8 @@ fn found_syllable(
     kind: SyllableType,
     buffer: &mut Buffer,
 ) {
-    for i in start..end {
-        buffer.info[i].set_syllable((*syllable_serial << 4) | kind as u8);
+    for info in buffer.info.get_mut(start..end).unwrap_or_default() {
+        info.set_syllable((*syllable_serial << 4) | kind as u8);
     }
 
     *syllable_serial += 1;

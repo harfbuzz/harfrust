@@ -43,6 +43,7 @@ mod direction;
 mod error;
 pub(crate) mod fallback;
 mod feature;
+mod hint;
 mod language;
 pub(crate) mod normalize;
 mod once;
