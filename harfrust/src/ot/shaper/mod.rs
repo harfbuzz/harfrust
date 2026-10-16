@@ -97,7 +97,7 @@ pub struct OtShaper {
 
     /// Called during `shape()`.
     /// Shapers can use to modify text before shaping starts.
-    pub preprocess_text: Option<fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer)>,
+    pub preprocess_text: Option<fn(&ShapePlan, &ShaperFont<'_, '_>, &mut Buffer) -> Option<()>>,
 
     /// Called during `shape()`.
     /// Shapers can use to modify text before shaping starts.
