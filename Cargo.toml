@@ -63,3 +63,8 @@ needless_continue = "allow" # 4
 ref_option = "allow" # 2
 fn_params_excessive_bools = "allow" # 2
 large-stack-arrays = "allow"
+
+# The covariant morx contextual subtable, on read-fonts 0.45.1, until it is released.
+[patch.crates-io]
+read-fonts = { git = "https://github.com/googlefonts/fontations", rev = "b72f83d006312784f2765cc9d5836cf7611877ae" }
+font-types = { git = "https://github.com/googlefonts/fontations", rev = "b72f83d006312784f2765cc9d5836cf7611877ae" }

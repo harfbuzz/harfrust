@@ -3,6 +3,7 @@ use super::map::RangeFlags;
 use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_SHAPER0};
 use crate::ot::apply::MappingCache;
 use crate::plan::ShapePlan;
+use crate::set_digest::SetDigest;
 use crate::LayoutData;
 use crate::Mask;
 use crate::Scale;
@@ -48,7 +49,11 @@ pub struct AatApplyContext<'a> {
     pub(crate) buffer_is_reversed: bool,
     // Caches
     using_buffer_glyph_set: bool,
+    /// Whether the buffer's digest is current, to rule out subtables cheaply.
+    using_buffer_digest: bool,
     pub(crate) first_set: Option<&'a U32Set>,
+    /// A digest of `first_set`.
+    pub(crate) first_digest: SetDigest,
     pub(crate) second_set: Option<&'a U32Set>,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
     pub(crate) start_end_safe_to_break: u64,
@@ -72,7 +77,9 @@ impl<'a> AatApplyContext<'a> {
             subtable_flags: 0,
             buffer_is_reversed: false,
             using_buffer_glyph_set: false,
+            using_buffer_digest: false,
             first_set: None,
+            first_digest: SetDigest::full(),
             second_set: None,
             machine_class_cache: None,
             start_end_safe_to_break: 0,
@@ -103,8 +110,20 @@ impl<'a> AatApplyContext<'a> {
         }
     }
 
+    /// Prepares the digest that rules out subtables cheaply, if a table has
+    /// enough subtables to repay building it.
+    pub(crate) fn setup_buffer_digest(&mut self, subtable_count: usize) {
+        self.using_buffer_digest = subtable_count >= MIN_DIGESTED_SUBTABLES;
+        if self.using_buffer_digest {
+            self.buffer.update_digest();
+        }
+    }
+
     pub(crate) fn buffer_intersects_machine(&self) -> bool {
         if let Some(first_set) = &self.first_set {
+            if self.using_buffer_digest && !self.buffer.digest.may_intersect(&self.first_digest) {
+                return false;
+            }
             if self.using_buffer_glyph_set {
                 return self.buffer.glyph_set.intersects_set(first_set);
             }
@@ -120,6 +139,7 @@ impl<'a> AatApplyContext<'a> {
     }
 
     pub fn output_glyph(&mut self, glyph: u32) -> Option<()> {
+        self.buffer.digest.add(glyph);
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
@@ -169,6 +189,7 @@ impl<'a> AatApplyContext<'a> {
             self.buffer.cur_mut(0)?.set_aat_deleted();
         }
 
+        self.buffer.digest.add(glyph);
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
@@ -196,6 +217,7 @@ impl<'a> AatApplyContext<'a> {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
             info.set_aat_deleted();
         }
+        self.buffer.digest.add(glyph);
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
@@ -204,6 +226,18 @@ impl<'a> AatApplyContext<'a> {
         }
         Some(())
     }
+}
+
+/// Tables with fewer subtables than this skip the buffer digest.
+const MIN_DIGESTED_SUBTABLES: usize = 4;
+
+/// A digest of the glyphs in `set`.
+pub(crate) fn set_digest(set: &U32Set) -> SetDigest {
+    let mut digest = SetDigest::new();
+    for range in set.iter_ranges() {
+        digest.add_range(*range.start(), *range.end());
+    }
+    digest
 }
 
 /// Per-table acceleration for the drive loops' safe-to-break computation.

@@ -2,10 +2,11 @@ use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use super::AatData;
 use crate::aat::common::{
-    AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs,
-    START_OF_TEXT,
+    set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
+    TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
+use crate::set_digest::SetDigest;
 use crate::tag::lang_matches;
 use crate::Language;
 use crate::U32Set;
@@ -13,7 +14,7 @@ use alloc::{vec, vec::Vec};
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
-use read_fonts::{FontData, ReadError};
+use read_fonts::ReadError;
 
 trait MorphChain {
     fn default_flags(&self) -> u32;
@@ -172,38 +173,26 @@ pub fn apply<'a>(c: &mut AatApplyContext<'a>, map: &'a AatMap) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    if let Some(morx) = c.layout.aat.morx.as_ref() {
-        let cache = c.layout.aat.morx_cache()?;
-        apply_table(
-            c,
-            map,
-            &cache.safe_to_break,
-            morx.offset_data().as_bytes(),
-            &cache.subtables,
-            &cache.descriptors,
-        )?;
+    let cache = if c.layout.aat.morx.is_some() {
+        c.layout.aat.morx_cache()?
     } else {
-        let mort = c.layout.aat.mort.as_ref()?;
-        let cache = c.layout.aat.mort_cache()?;
-        apply_table(
-            c,
-            map,
-            &cache.safe_to_break,
-            mort.offset_data().as_bytes(),
-            &cache.subtables,
-            &cache.descriptors,
-        )?;
-    }
-
-    Some(())
+        c.layout.aat.mort_cache()?
+    };
+    c.setup_buffer_digest(cache.descriptors.len());
+    apply_table(
+        c,
+        map,
+        &cache.safe_to_break,
+        &cache.subtables,
+        &cache.descriptors,
+    )
 }
 
 fn apply_table<'a>(
     c: &mut AatApplyContext<'a>,
     map: &'a AatMap,
     safe_to_break: &'a SafeToBreakAccel,
-    table_bytes: &'a [u8],
-    subtable_caches: &'a [MorphSubtableCache],
+    subtable_caches: &'a [MorphSubtableCache<'a>],
     descriptors: &'a [MorphSubtableDescriptor],
 ) -> Option<()> {
     let mut last_chain_index = u32::MAX;
@@ -237,6 +226,7 @@ fn apply_table<'a>(
         let subtable_cache = &subtable_caches[subtable_idx];
         c.subtable_flags = desc.sub_feature_flags;
         c.first_set = Some(&subtable_cache.glyph_set);
+        c.first_digest = subtable_cache.glyph_digest.clone();
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
@@ -263,20 +253,10 @@ fn apply_table<'a>(
             c.reverse_buffer();
         }
 
-        let Some(data) = table_bytes.get(desc.data_start as usize..desc.data_end as usize) else {
-            continue;
-        };
-        match &subtable_cache.parts {
-            MorphSubtableParts::Morx(parts) => {
-                if let Ok(kind) = morx::SubtableKind::from_parts(FontData::new(data), parts) {
-                    apply_morx_subtable(kind, c);
-                }
-            }
-            MorphSubtableParts::Mort(parts) => {
-                if let Ok(kind) = mort::SubtableKind::from_parts(FontData::new(data), parts) {
-                    apply_mort_subtable(kind, c);
-                }
-            }
+        match &subtable_cache.kind {
+            Some(MorphSubtableKind::Morx(kind)) => apply_morx_subtable(kind, c),
+            Some(MorphSubtableKind::Mort(kind)) => apply_mort_subtable(kind, c),
+            None => {}
         }
     }
     if c.buffer_is_reversed {
@@ -651,11 +631,11 @@ where
     Some(())
 }
 
-fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
+fn apply_morx_subtable<'a>(kind: &'a morx::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     match kind {
         morx::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            if drive(&table, &mut c, ac).is_none() {
+            if drive(table, &mut c, ac).is_none() {
                 ac.buffer.index_failed();
             }
         }
@@ -679,7 +659,7 @@ fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContex
                 ac.buffer.index_failed();
             }
         }
-        morx::SubtableKind::NonContextual(ref lookup) => {
+        morx::SubtableKind::NonContextual(lookup) => {
             if apply_noncontextual(lookup, ac).is_none() {
                 ac.buffer.index_failed();
             }
@@ -696,11 +676,11 @@ fn apply_morx_subtable<'a>(kind: morx::SubtableKind<'a>, ac: &mut AatApplyContex
     }
 }
 
-fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
+fn apply_mort_subtable<'a>(kind: &'a mort::SubtableKind<'a>, ac: &mut AatApplyContext<'a>) {
     match kind {
         mort::SubtableKind::Rearrangement(table) => {
             let mut c = RearrangementCtx { start: 0, end: 0 };
-            if drive(&table, &mut c, ac).is_none() {
+            if drive(table, &mut c, ac).is_none() {
                 ac.buffer.index_failed();
             }
         }
@@ -724,7 +704,7 @@ fn apply_mort_subtable<'a>(kind: mort::SubtableKind<'a>, ac: &mut AatApplyContex
                 ac.buffer.index_failed();
             }
         }
-        mort::SubtableKind::NonContextual(ref lookup) => {
+        mort::SubtableKind::NonContextual(lookup) => {
             if apply_noncontextual(lookup, ac).is_none() {
                 ac.buffer.index_failed();
             }
@@ -905,9 +885,7 @@ impl ContextualActions<morx::ContextualEntryData> for morx::ContextualSubtable<'
         payload: &morx::ContextualEntryData,
         glyph: GlyphId16,
     ) -> Option<GlyphId16> {
-        self.lookups
-            .get(usize::from(payload.mark_index.get()))
-            .ok()?
+        self.lookup(usize::from(payload.mark_index.get()))?
             .value(glyph.to_u16())
             .ok()
             .map(GlyphId16::new)
@@ -918,9 +896,7 @@ impl ContextualActions<morx::ContextualEntryData> for morx::ContextualSubtable<'
         payload: &morx::ContextualEntryData,
         glyph: GlyphId16,
     ) -> Option<GlyphId16> {
-        self.lookups
-            .get(usize::from(payload.current_index.get()))
-            .ok()?
+        self.lookup(usize::from(payload.current_index.get()))?
             .value(glyph.to_u16())
             .ok()
             .map(GlyphId16::new)
@@ -1429,25 +1405,21 @@ pub(crate) struct MorphSubtableDescriptor {
     pub(crate) chain_index: u32,
     pub(crate) coverage: u32,
     pub(crate) sub_feature_flags: u32,
-    pub(crate) data_start: u32,
-    pub(crate) data_end: u32,
 }
 
-enum MorphSubtableParts {
-    Morx(morx::SubtableParts),
-    Mort(mort::SubtableParts),
+enum MorphSubtableKind<'a> {
+    Morx(morx::SubtableKind<'a>),
+    Mort(mort::SubtableKind<'a>),
 }
 
-pub(crate) struct MorphSubtableCache {
+pub(crate) struct MorphSubtableCache<'a> {
     start_end_safe_to_break: u64,
     safe_to_break: SafeToBreakSubtable,
     glyph_set: U32Set,
+    glyph_digest: SetDigest,
     class_cache: ClassCache,
-    /// Pre-resolved subtable layout, so per-application dispatch rebuilds
-    /// the kind without re-reading headers. An unreadable subtable stores
-    /// an invalid format, which makes from_parts fail like the full read
-    /// did.
-    parts: MorphSubtableParts,
+    /// The parsed subtable, or `None` if it is unreadable.
+    kind: Option<MorphSubtableKind<'a>>,
 }
 
 fn accelerate_state_machine<T, M, Ctx>(
@@ -1469,51 +1441,42 @@ fn accelerate_state_machine<T, M, Ctx>(
     collect_initial_glyphs::<T, M, Ctx>(machine, glyph_set, num_glyphs);
 }
 
-impl MorphSubtableCache {
+impl<'a> MorphSubtableCache<'a> {
     pub(crate) fn descriptor_morx(
         chain_index: usize,
         subtable: &morx::Subtable,
-        morx_base: usize,
     ) -> MorphSubtableDescriptor {
-        let data = subtable.data();
-        let start = data.as_ptr() as usize - morx_base;
         MorphSubtableDescriptor {
             chain_index: chain_index as u32,
             coverage: subtable.coverage(),
             sub_feature_flags: subtable.sub_feature_flags(),
-            data_start: start as u32,
-            data_end: (start + data.len()) as u32,
         }
     }
 
     pub(crate) fn descriptor_mort(
         chain_index: usize,
         subtable: &mort::Subtable,
-        mort_base: usize,
     ) -> MorphSubtableDescriptor {
-        let data = subtable.data();
-        let start = data.as_ptr() as usize - mort_base;
         MorphSubtableDescriptor {
             chain_index: chain_index as u32,
             // Normalize legacy coverage flags to the `morx` bit positions
             // consumed by the shared application loop.
             coverage: u32::from(subtable.coverage()) << 16,
             sub_feature_flags: subtable.sub_feature_flags(),
-            data_start: start as u32,
-            data_end: (start + data.len()) as u32,
         }
     }
 
     pub(crate) fn new_morx(
-        subtable: &morx::Subtable,
+        subtable: &morx::Subtable<'a>,
         num_glyphs: u32,
         safe_to_break: &mut SafeToBreakAccel,
     ) -> Self {
         let mut start_end_safe_to_break = 0u64;
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut glyph_set = U32Set::default();
-        if let Ok(kind) = subtable.kind() {
-            match &kind {
+        let kind = subtable.kind().ok();
+        if let Some(kind) = &kind {
+            match kind {
                 morx::SubtableKind::Rearrangement(table) => {
                     accelerate_state_machine::<_, _, RearrangementCtx>(
                         table,
@@ -1563,30 +1526,27 @@ impl MorphSubtableCache {
                 }
             }
         }
-        let parts = morx::SubtableKind::parts(FontData::new(subtable.data()), subtable.coverage())
-            .unwrap_or(morx::SubtableParts {
-                format: 0xFF,
-                ..Default::default()
-            });
         MorphSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
+            glyph_digest: set_digest(&glyph_set),
             glyph_set,
             class_cache: ClassCache::new(),
-            parts: MorphSubtableParts::Morx(parts),
+            kind: kind.map(MorphSubtableKind::Morx),
         }
     }
 
     pub(crate) fn new_mort(
-        subtable: &mort::Subtable,
+        subtable: &mort::Subtable<'a>,
         num_glyphs: u32,
         safe_to_break: &mut SafeToBreakAccel,
     ) -> Self {
         let mut start_end_safe_to_break = 0u64;
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut glyph_set = U32Set::default();
-        if let Ok(kind) = subtable.kind() {
-            match &kind {
+        let kind = subtable.kind().ok();
+        if let Some(kind) = &kind {
+            match kind {
                 mort::SubtableKind::Rearrangement(table) => {
                     accelerate_state_machine::<_, _, RearrangementCtx>(
                         table,
@@ -1636,17 +1596,13 @@ impl MorphSubtableCache {
                 }
             }
         }
-        let parts = mort::SubtableKind::parts(FontData::new(subtable.data()), subtable.coverage())
-            .unwrap_or(mort::SubtableParts {
-                format: 0xFF,
-                ..Default::default()
-            });
         MorphSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
+            glyph_digest: set_digest(&glyph_set),
             glyph_set,
             class_cache: ClassCache::new(),
-            parts: MorphSubtableParts::Mort(parts),
+            kind: kind.map(MorphSubtableKind::Mort),
         }
     }
 }

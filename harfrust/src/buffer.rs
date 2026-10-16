@@ -1257,7 +1257,14 @@ impl Buffer {
 
     pub(crate) fn update_digest(&mut self) {
         self.digest = SetDigest::new();
-        self.digest.add_array(self.info.iter().map(|i| i.glyph_id));
+        let len = self.len;
+        self.digest.add_array(
+            self.info
+                .get(..len)
+                .unwrap_or_default()
+                .iter()
+                .map(|i| i.glyph_id),
+        );
     }
     pub(crate) fn update_glyph_set(&mut self) {
         self.glyph_set.clear();
