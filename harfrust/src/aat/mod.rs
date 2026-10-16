@@ -28,10 +28,10 @@ use yoke::{Yoke, Yokeable};
 /// Font-wide AAT tables and accelerators initialized on first use.
 pub struct AatCache {
     // Keep uninitialized caches small, including in fonts without AAT tables.
-    morx: Once<Box<MorphTableCache>>,
-    mort: Once<Box<MorphTableCache>>,
-    kern: Once<Box<KerningTableCache<KernSubtableCache>>>,
-    kerx: Once<Box<KerningTableCache<KerxSubtableCache>>>,
+    morx: Once<Box<Yoke<MorphTableCache<'static>, Arc<Tables>>>>,
+    mort: Once<Box<Yoke<MorphTableCache<'static>, Arc<Tables>>>>,
+    kern: Once<Box<Yoke<KernTableCache<'static>, Arc<Tables>>>>,
+    kerx: Once<Box<Yoke<KerxTableCache<'static>, Arc<Tables>>>>,
     tables: Option<Yoke<CachedAatTables<'static>, Arc<Tables>>>,
 }
 
@@ -106,17 +106,18 @@ impl<'a> CachedAatTables<'a> {
     }
 }
 
-#[derive(Default)]
-pub(crate) struct MorphTableCache {
+/// The subtables of a `morx` or `mort` table, parsed, with their
+/// accelerators.
+#[derive(Default, Yokeable)]
+pub(crate) struct MorphTableCache<'a> {
     safe_to_break: SafeToBreakAccel,
-    subtables: Vec<MorphSubtableCache>,
+    subtables: Vec<MorphSubtableCache<'a>>,
     descriptors: Vec<MorphSubtableDescriptor>,
 }
 
-impl MorphTableCache {
-    fn new_morx(morx: &Morx<'_>, num_glyphs: u32) -> Self {
+impl<'a> MorphTableCache<'a> {
+    fn new_morx(morx: &Morx<'a>, num_glyphs: u32) -> Self {
         let mut cache = Self::default();
-        let morx_base = morx.offset_data().as_bytes().as_ptr() as usize;
         for (chain_index, chain) in morx.chains().iter().enumerate() {
             let Ok(chain) = chain else {
                 continue;
@@ -127,20 +128,17 @@ impl MorphTableCache {
                 };
                 let entry =
                     MorphSubtableCache::new_morx(&subtable, num_glyphs, &mut cache.safe_to_break);
-                cache.descriptors.push(MorphSubtableCache::descriptor_morx(
-                    chain_index,
-                    &subtable,
-                    morx_base,
-                ));
+                cache
+                    .descriptors
+                    .push(MorphSubtableCache::descriptor_morx(chain_index, &subtable));
                 cache.subtables.push(entry);
             }
         }
         cache
     }
 
-    fn new_mort(mort: &Mort<'_>, num_glyphs: u32) -> Self {
+    fn new_mort(mort: &Mort<'a>, num_glyphs: u32) -> Self {
         let mut cache = Self::default();
-        let mort_base = mort.offset_data().as_bytes().as_ptr() as usize;
         for (chain_index, chain) in mort.chains().iter().enumerate() {
             let Ok(chain) = chain else {
                 continue;
@@ -151,11 +149,9 @@ impl MorphTableCache {
                 };
                 let entry =
                     MorphSubtableCache::new_mort(&subtable, num_glyphs, &mut cache.safe_to_break);
-                cache.descriptors.push(MorphSubtableCache::descriptor_mort(
-                    chain_index,
-                    &subtable,
-                    mort_base,
-                ));
+                cache
+                    .descriptors
+                    .push(MorphSubtableCache::descriptor_mort(chain_index, &subtable));
                 cache.subtables.push(entry);
             }
         }
@@ -163,17 +159,16 @@ impl MorphTableCache {
     }
 }
 
-pub(crate) struct KerningTableCache<T> {
+/// The subtables of a `kern` table, parsed, with their accelerators.
+#[derive(Default, Yokeable)]
+pub(crate) struct KernTableCache<'a> {
     safe_to_break: SafeToBreakAccel,
-    subtables: Vec<T>,
+    subtables: Vec<KernSubtableCache<'a>>,
 }
 
-impl KerningTableCache<KernSubtableCache> {
-    fn new(kern: &Kern<'_>, num_glyphs: u32) -> Self {
-        let mut cache = Self {
-            safe_to_break: SafeToBreakAccel::default(),
-            subtables: Vec::new(),
-        };
+impl<'a> KernTableCache<'a> {
+    fn new(kern: &Kern<'a>, num_glyphs: u32) -> Self {
+        let mut cache = Self::default();
         for subtable in kern.subtables() {
             let Ok(subtable) = subtable else {
                 continue;
@@ -185,12 +180,16 @@ impl KerningTableCache<KernSubtableCache> {
     }
 }
 
-impl KerningTableCache<KerxSubtableCache> {
-    fn new(kerx: &Kerx<'_>, num_glyphs: u32) -> Self {
-        let mut cache = Self {
-            safe_to_break: SafeToBreakAccel::default(),
-            subtables: Vec::new(),
-        };
+/// The subtables of a `kerx` table, parsed, with their accelerators.
+#[derive(Default, Yokeable)]
+pub(crate) struct KerxTableCache<'a> {
+    safe_to_break: SafeToBreakAccel,
+    subtables: Vec<KerxSubtableCache<'a>>,
+}
+
+impl<'a> KerxTableCache<'a> {
+    fn new(kerx: &Kerx<'a>, num_glyphs: u32) -> Self {
+        let mut cache = Self::default();
         for subtable in kerx.subtables().iter() {
             let Ok(subtable) = subtable else {
                 continue;
@@ -245,53 +244,72 @@ impl<'a> AatData<'a> {
         }
     }
 
-    /// The number of glyphs in the font, which sizes the accelerators.
-    fn num_glyphs(&self) -> u32 {
-        self.tables.num_glyphs
-    }
-
     // Access accelerators only when applying the corresponding table, so
     // planning can select GPOS or a preferred AAT table without building them.
-    pub(crate) fn morx_cache(&self) -> Option<&'a MorphTableCache> {
-        let table = self.morx.as_ref()?;
+    // The accelerators borrow the parsed tables, so each is projected from
+    // the yoke that holds them.
+    pub(crate) fn morx_cache(&self) -> Option<&'a MorphTableCache<'a>> {
+        self.morx.as_ref()?;
         let cache = self.cache?;
-        Some(
-            cache
-                .morx
-                .get_or_init(|| Box::new(MorphTableCache::new_morx(table, self.num_glyphs()))),
-        )
+        let tables = cache.tables.as_ref()?;
+        let yoke = cache.morx.get_or_init(|| {
+            Box::new(tables.map_project_cloned(|tables, _| {
+                tables
+                    .morx
+                    .as_ref()
+                    .map(|morx| MorphTableCache::new_morx(morx, tables.num_glyphs))
+                    .unwrap_or_default()
+            }))
+        });
+        Some(yoke.get())
     }
 
-    pub(crate) fn mort_cache(&self) -> Option<&'a MorphTableCache> {
-        let table = self.mort.as_ref()?;
+    pub(crate) fn mort_cache(&self) -> Option<&'a MorphTableCache<'a>> {
+        self.mort.as_ref()?;
         let cache = self.cache?;
-        Some(
-            cache
-                .mort
-                .get_or_init(|| Box::new(MorphTableCache::new_mort(table, self.num_glyphs()))),
-        )
+        let tables = cache.tables.as_ref()?;
+        let yoke = cache.mort.get_or_init(|| {
+            Box::new(tables.map_project_cloned(|tables, _| {
+                tables
+                    .mort
+                    .as_ref()
+                    .map(|mort| MorphTableCache::new_mort(mort, tables.num_glyphs))
+                    .unwrap_or_default()
+            }))
+        });
+        Some(yoke.get())
     }
 
-    pub(crate) fn kern_cache(&self) -> Option<&'a KerningTableCache<KernSubtableCache>> {
-        let table = self.kern.as_ref()?;
+    pub(crate) fn kern_cache(&self) -> Option<&'a KernTableCache<'a>> {
+        self.kern.as_ref()?;
         let cache = self.cache?;
-        Some(cache.kern.get_or_init(|| {
-            Box::new(KerningTableCache::<KernSubtableCache>::new(
-                table,
-                self.num_glyphs(),
-            ))
-        }))
+        let tables = cache.tables.as_ref()?;
+        let yoke = cache.kern.get_or_init(|| {
+            Box::new(tables.map_project_cloned(|tables, _| {
+                tables
+                    .kern
+                    .as_ref()
+                    .map(|kern| KernTableCache::new(kern, tables.num_glyphs))
+                    .unwrap_or_default()
+            }))
+        });
+        Some(yoke.get())
     }
 
-    pub(crate) fn kerx_cache(&self) -> Option<&'a KerningTableCache<KerxSubtableCache>> {
-        let table = self.kerx.as_ref()?;
+    pub(crate) fn kerx_cache(&self) -> Option<&'a KerxTableCache<'a>> {
+        self.kerx.as_ref()?;
         let cache = self.cache?;
-        Some(cache.kerx.get_or_init(|| {
-            Box::new(KerningTableCache::<KerxSubtableCache>::new(
-                table,
-                self.num_glyphs(),
-            ))
-        }))
+        let tables = cache.tables.as_ref()?;
+        let yoke = cache.kerx.get_or_init(|| {
+            Box::new(tables.map_project_cloned(|tables, _| {
+                tables
+                    .kerx
+                    .as_ref()
+                    .map(|kerx| KerxTableCache::new(kerx, tables.num_glyphs))
+                    .unwrap_or_default()
+            }))
+        });
+        Some(yoke.get())
     }
 }
 

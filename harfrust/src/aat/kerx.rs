@@ -1,9 +1,10 @@
 use super::layout::DELETED_GLYPH;
 use crate::aat::common::{
-    get_class, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
+    get_class, set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
     TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::aat::kern::apply_pair_kerning;
+use crate::set_digest::SetDigest;
 use crate::U32Set;
 use crate::{
     buffer::*,
@@ -32,32 +33,23 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
 
     c.setup_buffer_glyph_set();
 
-    let kerx = c.layout.aat.kerx.as_ref()?;
     let cache = c.layout.aat.kerx_cache()?;
     let subtable_caches = &cache.subtables;
+    c.setup_buffer_digest(subtable_caches.len());
     let safe_to_break = &cache.safe_to_break;
 
-    let mut subtable_idx = 0;
-
     let mut seen_cross_stream = false;
-    for subtable in kerx.subtables().iter() {
-        let Ok(subtable) = subtable else {
-            continue;
-        };
-
-        let subtable_cache = subtable_caches.get(subtable_idx);
-        let Some(subtable_cache) = subtable_cache.as_ref() else {
-            break;
-        };
-        subtable_idx += 1;
+    for (_index, subtable_cache) in subtable_caches.iter().enumerate() {
+        let subtable = &subtable_cache.subtable;
         #[cfg(feature = "tracing")]
-        let message_index = subtable_idx - 1;
+        let message_index = _index;
 
         if c.buffer.direction.is_horizontal() != subtable.is_horizontal() {
             continue;
         }
 
         c.first_set = Some(&subtable_cache.first_set);
+        c.first_digest = subtable_cache.first_digest.clone();
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
@@ -93,7 +85,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             }
         }
 
-        let Ok(kind) = subtable.kind() else {
+        let Some(kind) = &subtable_cache.kind else {
             continue;
         };
 
@@ -101,10 +93,10 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             c.reverse_buffer();
         }
 
-        match &kind {
+        match kind {
             SubtableKind::Format0(format0) => {
                 if c.plan.requested_kerning {
-                    apply_simple_kerning(c, &subtable, format0);
+                    apply_simple_kerning(c, subtable, format0);
                 }
             }
             SubtableKind::Format1(format1) => {
@@ -114,7 +106,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 };
                 if apply_state_machine_kerning(
                     c,
-                    &subtable,
+                    subtable,
                     format1,
                     &format1.state_table,
                     &mut driver,
@@ -126,7 +118,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             }
             SubtableKind::Format2(format2) => {
                 if c.plan.requested_kerning {
-                    apply_simple_kerning(c, &subtable, format2);
+                    apply_simple_kerning(c, subtable, format2);
                 }
             }
             SubtableKind::Format4(format4) => {
@@ -137,7 +129,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 };
                 if apply_state_machine_kerning(
                     c,
-                    &subtable,
+                    subtable,
                     format4,
                     &format4.state_table,
                     &mut driver,
@@ -149,7 +141,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             }
             SubtableKind::Format6(format6) => {
                 if c.plan.requested_kerning {
-                    apply_simple_kerning(c, &subtable, format6);
+                    apply_simple_kerning(c, subtable, format6);
                 }
             }
         }
@@ -763,17 +755,21 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
     }
 }
 
-pub(crate) struct KerxSubtableCache {
+pub(crate) struct KerxSubtableCache<'a> {
     start_end_safe_to_break: u64,
     safe_to_break: SafeToBreakSubtable,
     first_set: U32Set,
+    first_digest: SetDigest,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
+    subtable: Subtable<'a>,
+    /// The parsed subtable, or `None` if it is unreadable.
+    kind: Option<SubtableKind<'a>>,
 }
 
-impl KerxSubtableCache {
+impl<'a> KerxSubtableCache<'a> {
     pub(crate) fn new(
-        subtable: &Subtable,
+        subtable: &Subtable<'a>,
         num_glyphs: u32,
         safe_to_break: &mut SafeToBreakAccel,
     ) -> Self {
@@ -781,8 +777,9 @@ impl KerxSubtableCache {
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
-        if let Ok(kind) = subtable.kind() {
-            match &kind {
+        let kind = subtable.kind().ok();
+        if let Some(kind) = &kind {
+            match kind {
                 SubtableKind::Format0(format0) => {
                     format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
@@ -817,9 +814,12 @@ impl KerxSubtableCache {
         KerxSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
+            first_digest: set_digest(&first_set),
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
+            subtable: subtable.clone(),
+            kind,
         }
     }
 }
