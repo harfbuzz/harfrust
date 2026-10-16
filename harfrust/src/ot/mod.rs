@@ -1,27 +1,26 @@
-use self::apply::{BinaryCache, MappingCache};
+use self::apply::MappingCache;
 use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
 use crate::Tag;
-use alloc::vec::Vec;
-use lookup::{LookupCache, LookupInfo};
-use read_fonts::tables::layout::{ClassRangeRecord, RangeRecord};
-use read_fonts::types::GlyphId16;
+use alloc::{sync::Arc, vec::Vec};
+use lookup::{CachedLookup, ClassDef, Coverage, LookupCache};
+use read_fonts::model::Tables;
 use read_fonts::{
     tables::{
         gdef::Gdef,
         gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
-        gsub::{ClassDef, FeatureList, FeatureVariations, Gsub, ScriptList},
+        gsub::{FeatureList, FeatureVariations, Gsub, ScriptList},
         layout::{Feature as LayoutFeature, LangSys, Script as LayoutScript},
         varc::CoverageTable,
         variations::{DeltaSetIndex, ItemVariationStore},
     },
-    types::{BigEndian, F2Dot14, GlyphId},
-    FontData, FontRead, ReadError, TableProvider,
+    types::{F2Dot14, GlyphId},
+    FontData, ReadError, TableProvider,
 };
+use yoke::{Yoke, Yokeable};
 
 pub(crate) mod apply;
-pub mod contextual;
 pub mod gpos;
 pub mod gsub;
 pub(crate) mod layout;
@@ -49,9 +48,7 @@ pub struct OtCache {
     pub gsub: LookupCache,
     pub gpos: LookupCache,
     pub gdef_glyph_props_cache: MappingCache,
-    gdef: GdefCache,
-    has_gsub: bool,
-    has_gpos: bool,
+    tables: Option<Yoke<CachedTables<'static>, Arc<Tables>>>,
     pub(crate) has_gdef: bool,
     pub(crate) gsub_len: u32,
     pub(crate) gdef_len: u32,
@@ -141,122 +138,125 @@ impl MarkGlyphSetBitmap {
 }
 
 impl OtCache {
-    pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
-        let gsub_table = font.gsub().ok();
-        let gpos_table = font.gpos().ok();
-        let gdef_table = font.gdef().ok();
-        let gsub_len = gsub_table
-            .as_ref()
-            .map_or(0, |table| table.offset_data().len() as u32);
-        let gpos_len = gpos_table
-            .as_ref()
-            .map_or(0, |table| table.offset_data().len() as u32);
-        let gdef_len = gdef_table
-            .as_ref()
-            .map_or(0, |table| table.offset_data().len() as u32);
-        let has_gdef = gdef_table.is_some() && !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len);
-        let gsub = gsub_table
-            .as_ref()
-            .map(LookupCache::new)
-            .unwrap_or_default();
-        let gpos = gpos_table
-            .as_ref()
-            .map(LookupCache::new)
-            .unwrap_or_default();
-        let gdef = gdef_table
-            .as_ref()
-            .filter(|_| has_gdef)
-            .map(GdefCache::new)
-            .unwrap_or_default();
+    pub fn new(tables: Option<Arc<Tables>>) -> Self {
+        let cached = tables
+            .clone()
+            .map(|tables| Yoke::attach_to_cart(tables, |tables| CachedTables::new(tables)));
+        let parsed: Option<&CachedTables> = cached.as_ref().map(Yoke::get);
+        Self {
+            // A missing table has no lookups.
+            gsub: LookupCache::new(tables.clone(), true),
+            gpos: LookupCache::new(tables, false),
+            gdef_glyph_props_cache: MappingCache::new(),
+            has_gdef: parsed.is_some_and(|cached| cached.has_gdef),
+            gsub_len: parsed.map_or(0, |cached| cached.gsub_len),
+            gdef_len: parsed.map_or(0, |cached| cached.gdef_len),
+            tables: cached,
+        }
+    }
+}
+
+/// The layout tables, parsed once and kept with the font tables.
+#[derive(Yokeable)]
+pub(crate) struct CachedTables<'a> {
+    gsub: Option<Gsub<'a>>,
+    gpos: Option<Gpos<'a>>,
+    gdef: CachedGdef<'a>,
+    /// Whether GDEF is used: present, and not one of the known broken ones.
+    has_gdef: bool,
+    gsub_len: u32,
+    gdef_len: u32,
+}
+
+impl<'a> CachedTables<'a> {
+    const EMPTY: Self = Self {
+        gsub: None,
+        gpos: None,
+        gdef: CachedGdef::EMPTY,
+        has_gdef: false,
+        gsub_len: 0,
+        gdef_len: 0,
+    };
+
+    fn new(tables: &'a Tables) -> Self {
+        let gsub = tables.gsub().ok();
+        let gpos = tables.gpos().ok();
+        let gdef = tables.gdef().ok();
+        let len = |data: Option<FontData>| data.map_or(0, |data| data.len() as u32);
+        let gsub_len = len(gsub.as_ref().map(|table| table.offset_data()));
+        let gpos_len = len(gpos.as_ref().map(|table| table.offset_data()));
+        let gdef_len = len(gdef.as_ref().map(|table| table.offset_data()));
+        let gdef = gdef.filter(|_| !is_gdef_blocklisted(gdef_len, gsub_len, gpos_len));
         Self {
             gsub,
             gpos,
-            gdef_glyph_props_cache: MappingCache::new(),
-            gdef,
-            has_gsub: gsub_table.is_some(),
-            has_gpos: gpos_table.is_some(),
-            has_gdef,
+            has_gdef: gdef.is_some(),
+            gdef: gdef.map_or(CachedGdef::EMPTY, |gdef| CachedGdef::new(&gdef)),
             gsub_len,
             gdef_len,
         }
     }
 }
 
-#[derive(Default)]
-struct GdefCache {
-    classes: Option<ClassDefInfo>,
-    mark_classes: Option<ClassDefInfo>,
-    mark_set_offsets: Vec<u32>,
-    mark_set_bitmaps: Vec<MarkGlyphSetBitmap>,
-    item_var_store_offset: u32,
+/// The parts of GDEF read while shaping.
+#[derive(Yokeable)]
+pub(crate) struct CachedGdef<'a> {
+    classes: ClassDef<'a>,
+    mark_classes: ClassDef<'a>,
+    mark_sets: Vec<MarkSet<'a>>,
+    var_store: Option<ItemVariationStore<'a>>,
 }
 
-impl GdefCache {
+impl<'a> CachedGdef<'a> {
     const EMPTY: Self = Self {
-        classes: None,
-        mark_classes: None,
-        mark_set_offsets: Vec::new(),
-        mark_set_bitmaps: Vec::new(),
-        item_var_store_offset: 0,
+        classes: ClassDef::None,
+        mark_classes: ClassDef::None,
+        mark_sets: Vec::new(),
+        var_store: None,
     };
 
-    fn new(gdef: &Gdef) -> Self {
-        let data = gdef.offset_data();
-        let classes = ClassDefInfo::new(
-            &data,
-            gdef.glyph_class_def_offset().offset().to_u32() as u16,
-        );
-        let mark_classes = ClassDefInfo::new(
-            &data,
-            gdef.mark_attach_class_def_offset().offset().to_u32() as u16,
-        );
-        let mut mark_set_offsets = Vec::new();
-        let mut mark_set_bitmaps = Vec::new();
-        if let Some((base, Ok(mark_sets))) = gdef
-            .mark_glyph_sets_def_offset()
-            .map(|offset| offset.offset().to_u32())
-            .zip(gdef.mark_glyph_sets_def())
-        {
-            mark_set_offsets.extend(
-                mark_sets
-                    .coverage_offsets()
-                    .iter()
-                    .map(|offset| base.saturating_add(offset.get().to_u32())),
-            );
-            mark_set_bitmaps.extend(mark_sets.coverages().iter().map(|set| {
-                set.ok().map_or_else(
-                    || MarkGlyphSetBitmap::Digest(SetDigest::default()),
-                    |coverage| MarkGlyphSetBitmap::from_coverage(&coverage),
-                )
-            }));
-        }
-        let item_var_store_offset = gdef
-            .item_var_store_offset()
-            .map(|offset| offset.offset().to_u32())
+    fn new(gdef: &Gdef<'a>) -> Self {
+        let class_def = |table: Option<Result<_, _>>| table.map_or(ClassDef::None, ClassDef::new);
+        let mark_sets = gdef
+            .mark_glyph_sets_def()
+            .and_then(Result::ok)
+            .map(|sets| sets.coverages().iter().map(MarkSet::new).collect())
             .unwrap_or_default();
         Self {
-            classes,
-            mark_classes,
-            mark_set_offsets,
-            mark_set_bitmaps,
-            item_var_store_offset,
+            classes: class_def(gdef.glyph_class_def()),
+            mark_classes: class_def(gdef.mark_attach_class_def()),
+            mark_sets,
+            var_store: gdef.item_var_store().and_then(Result::ok),
+        }
+    }
+}
+
+/// A mark glyph set, with a bitmap or digest that settles most queries.
+struct MarkSet<'a> {
+    bitmap: MarkGlyphSetBitmap,
+    coverage: Coverage<'a>,
+}
+
+impl<'a> MarkSet<'a> {
+    fn new(coverage: Result<CoverageTable<'a>, ReadError>) -> Self {
+        let bitmap = coverage.as_ref().map_or_else(
+            |_| MarkGlyphSetBitmap::Digest(SetDigest::default()),
+            MarkGlyphSetBitmap::from_coverage,
+        );
+        Self {
+            bitmap,
+            coverage: Coverage::new(coverage),
         }
     }
 
-    fn item_var_store<'a>(&self, gdef: &Gdef<'a>) -> Option<ItemVariationStore<'a>> {
-        if self.item_var_store_offset == 0 {
-            return None;
-        }
-        let data = gdef
-            .offset_data()
-            .split_off(self.item_var_store_offset as usize)?;
-        ItemVariationStore::read(data).ok()
+    #[inline(never)]
+    fn covers(&self, glyph_id: u32) -> bool {
+        self.coverage.covers(GlyphId::new(glyph_id))
     }
 }
 
 #[derive(Clone)]
 pub struct GsubTable<'a> {
-    pub table: Gsub<'a>,
     pub lookups: &'a LookupCache,
 }
 
@@ -264,14 +264,13 @@ impl layout::LayoutTable for GsubTable<'_> {
     const KIND: LayoutTableKind = LayoutTableKind::Gsub;
     const IN_PLACE: bool = false;
 
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
-        self.lookups.get(&self.table, index)
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>> {
+        self.lookups.get(index)
     }
 }
 
 #[derive(Clone)]
 pub struct GposTable<'a> {
-    pub table: Gpos<'a>,
     pub lookups: &'a LookupCache,
 }
 
@@ -279,61 +278,82 @@ impl layout::LayoutTable for GposTable<'_> {
     const KIND: LayoutTableKind = LayoutTableKind::Gpos;
     const IN_PLACE: bool = true;
 
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo> {
-        self.lookups.get(&self.table, index)
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>> {
+        self.lookups.get(index)
     }
 }
 
-#[derive(Clone, Default)]
-pub struct GdefTable<'a> {
-    pub(crate) table: Option<Gdef<'a>>,
-}
-
-impl<'a> GdefTable<'a> {
-    fn new(gdef: Gdef<'a>) -> Self {
-        Self { table: Some(gdef) }
-    }
-}
-
+/// The OpenType layout data of a font, borrowed from its layout cache.
 #[derive(Clone)]
 pub struct OtData<'a> {
-    pub gsub: Option<GsubTable<'a>>,
-    pub gpos: Option<GposTable<'a>>,
-    pub gdef: GdefTable<'a>,
-    pub gdef_glyph_props_cache: &'a MappingCache,
-    pub gdef_mark_set_bitmaps: &'a [MarkGlyphSetBitmap],
-    gdef_cache: &'a GdefCache,
+    cache: &'a OtCache,
+    tables: &'a CachedTables<'a>,
+    /// The variation store, if the font is variable and has an instance.
+    var_store: Option<&'a ItemVariationStore<'a>>,
     pub coords: &'a [F2Dot14],
-    pub var_store: Option<ItemVariationStore<'a>>,
     pub feature_variations: [Option<u32>; 2],
 }
 
-static EMPTY_MAPPING_CACHE: MappingCache = MappingCache::empty();
-static EMPTY_GDEF_CACHE: GdefCache = GdefCache::EMPTY;
+static EMPTY_OT_CACHE: OtCache = OtCache {
+    gsub: LookupCache::EMPTY,
+    gpos: LookupCache::EMPTY,
+    gdef_glyph_props_cache: MappingCache::empty(),
+    tables: None,
+    has_gdef: false,
+    gsub_len: 0,
+    gdef_len: 0,
+};
+static EMPTY_TABLES: CachedTables<'static> = CachedTables::EMPTY;
 
 pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
-    gsub: None,
-    gpos: None,
-    gdef: GdefTable { table: None },
-    gdef_glyph_props_cache: &EMPTY_MAPPING_CACHE,
-    gdef_mark_set_bitmaps: &[],
-    gdef_cache: &EMPTY_GDEF_CACHE,
-    coords: &[],
+    cache: &EMPTY_OT_CACHE,
+    tables: &EMPTY_TABLES,
     var_store: None,
+    coords: &[],
     feature_variations: [None; 2],
 };
 
 impl<'a> OtData<'a> {
+    pub fn new(
+        cache: &'a OtCache,
+        coords: &'a [F2Dot14],
+        feature_variations: [Option<u32>; 2],
+    ) -> Self {
+        let tables = cache.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get);
+        Self {
+            cache,
+            tables,
+            var_store: tables
+                .gdef
+                .var_store
+                .as_ref()
+                .filter(|_| !coords.is_empty()),
+            coords,
+            feature_variations,
+        }
+    }
+
+    pub fn gsub(&self) -> Option<GsubTable<'a>> {
+        self.tables.gsub.is_some().then_some(GsubTable {
+            lookups: &self.cache.gsub,
+        })
+    }
+
+    pub fn gpos(&self) -> Option<GposTable<'a>> {
+        self.tables.gpos.is_some().then_some(GposTable {
+            lookups: &self.cache.gpos,
+        })
+    }
+
+    /// The variation store, if the font is variable and has an instance.
+    pub fn var_store(&self) -> Option<&'a ItemVariationStore<'a>> {
+        self.var_store
+    }
+
     pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
         match table_index {
-            LayoutTableKind::Gsub => self
-                .gsub
-                .as_ref()
-                .map(|table| LayoutTable::Gsub(table.table.clone())),
-            LayoutTableKind::Gpos => self
-                .gpos
-                .as_ref()
-                .map(|table| LayoutTable::Gpos(table.table.clone())),
+            LayoutTableKind::Gsub => self.tables.gsub.clone().map(LayoutTable::Gsub),
+            LayoutTableKind::Gpos => self.tables.gpos.clone().map(LayoutTable::Gpos),
         }
     }
 
@@ -344,82 +364,22 @@ impl<'a> OtData<'a> {
             .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
     }
 
-    pub fn from_tables(
-        font: &impl TableProvider<'a>,
-        cache: &'a OtCache,
-        coords: &'a [F2Dot14],
-        feature_variations: [Option<u32>; 2],
-    ) -> Self {
-        let gsub = cache
-            .has_gsub
-            .then(|| font.gsub().ok())
-            .flatten()
-            .map(|table| GsubTable {
-                table,
-                lookups: &cache.gsub,
-            });
-        let gpos = cache
-            .has_gpos
-            .then(|| font.gpos().ok())
-            .flatten()
-            .map(|table| GposTable {
-                table,
-                lookups: &cache.gpos,
-            });
-        let gdef = cache
-            .has_gdef
-            .then(|| font.gdef().ok())
-            .flatten()
-            .map(GdefTable::new)
-            .unwrap_or_default();
-        let var_store = if !coords.is_empty() {
-            gdef.table
-                .as_ref()
-                .and_then(|gdef| cache.gdef.item_var_store(gdef))
-        } else {
-            None
-        };
-        Self {
-            gsub,
-            gpos,
-            gdef,
-            gdef_glyph_props_cache: &cache.gdef_glyph_props_cache,
-            gdef_mark_set_bitmaps: &cache.gdef.mark_set_bitmaps,
-            gdef_cache: &cache.gdef,
-            var_store,
-            coords,
-            feature_variations,
-        }
-    }
-
     pub fn has_glyph_classes(&self) -> bool {
-        self.gdef_cache.classes.is_some()
+        !self.tables.gdef.classes.is_none()
     }
 
     pub fn glyph_class(&self, glyph_id: u32) -> u16 {
-        self.gdef_cache
-            .classes
-            .as_ref()
-            .zip(self.gdef.table.as_ref())
-            .map_or(0, |(class_def, gdef)| {
-                class_def.class(&gdef.offset_data(), GlyphId::new(glyph_id))
-            })
+        self.tables.gdef.classes.get(GlyphId::new(glyph_id))
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
-        self.gdef_cache
-            .mark_classes
-            .as_ref()
-            .zip(self.gdef.table.as_ref())
-            .map_or(0, |(class_def, gdef)| {
-                class_def.class(&gdef.offset_data(), GlyphId::new(glyph_id))
-            })
+        self.tables.gdef.mark_classes.get(GlyphId::new(glyph_id))
     }
 
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {
         let glyph = glyph.to_u32();
 
-        if let Some(props) = self.gdef_glyph_props_cache.get(glyph) {
+        if let Some(props) = self.cache.gdef_glyph_props_cache.get(glyph) {
             return props as u16;
         }
 
@@ -433,63 +393,41 @@ impl<'a> OtData<'a> {
             _ => 0,
         };
 
-        self.gdef_glyph_props_cache.set(glyph, props as u32);
+        self.cache.gdef_glyph_props_cache.set(glyph, props as u32);
 
         props
     }
 
-    #[inline(never)]
-    pub fn is_mark_glyph_gdef(&self, glyph_id: u32, set_index: u16) -> bool {
-        self.gdef
-            .table
-            .as_ref()
-            .and_then(|gdef| {
-                let offset = *self.gdef_cache.mark_set_offsets.get(set_index as usize)? as usize;
-                CoverageTable::read(gdef.offset_data().split_off(offset)?).ok()
-            })
-            .is_some_and(|coverage| coverage.get(glyph_id).is_some())
-    }
-
     #[inline(always)]
     pub fn is_mark_glyph(&self, glyph_id: u32, set_index: u16) -> bool {
-        self.gdef_mark_set_bitmaps
+        self.tables
+            .gdef
+            .mark_sets
             .get(set_index as usize)
-            .and_then(|bitmap| bitmap.covers(glyph_id))
-            .unwrap_or_else(|| self.is_mark_glyph_gdef(glyph_id, set_index))
+            .is_some_and(|set| {
+                set.bitmap
+                    .covers(glyph_id)
+                    .unwrap_or_else(|| set.covers(glyph_id))
+            })
     }
 
-    pub fn table_data(&self, table_index: LayoutTableKind) -> Option<&'a [u8]> {
-        if table_index == LayoutTableKind::Gsub {
-            self.gsub.as_ref().map(|t| t.table.offset_data().as_bytes())
-        } else {
-            self.gpos.as_ref().map(|t| t.table.offset_data().as_bytes())
-        }
-    }
-
-    pub fn table_data_and_lookup(
+    pub fn lookup(
         &self,
         table_index: LayoutTableKind,
         lookup_index: u16,
-    ) -> Option<(&'a [u8], &'a LookupInfo)> {
+    ) -> Option<&'a CachedLookup<'a>> {
+        // A missing table has no lookups.
         if table_index == LayoutTableKind::Gsub {
-            let table = self.gsub.as_ref()?;
-            Some((
-                table.table.offset_data().as_bytes(),
-                table.lookups.get(&table.table, lookup_index)?,
-            ))
+            self.cache.gsub.get(lookup_index)
         } else {
-            let table = self.gpos.as_ref()?;
-            Some((
-                table.table.offset_data().as_bytes(),
-                table.lookups.get(&table.table, lookup_index)?,
-            ))
+            self.cache.gpos.get(lookup_index)
         }
     }
 
     pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (f32, f32) {
         let mut x = anchor.x_coordinate() as f32;
         let mut y = anchor.y_coordinate() as f32;
-        if let Some(vs) = self.var_store.as_ref() {
+        if let Some(vs) = self.var_store() {
             // Keep the delta fractional; the caller rounds once when scaling,
             // matching HarfBuzz's Anchor::get_anchor.
             let delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {
@@ -684,222 +622,6 @@ impl<'a> LayoutTable<'a> {
     ) -> Option<u16> {
         self.langsys(script_index, lang_index)?
             .feature_index_for_tag(&self.feature_list()?, feature_tag)
-    }
-}
-
-fn coverage_index(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> Option<u16> {
-    coverage.ok().and_then(|coverage| coverage.get(gid))
-}
-
-fn coverage_index_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
-    gid: GlyphId,
-    cache: &MappingCache,
-) -> Option<u16> {
-    if let Some(index) = cache.get(gid.into()) {
-        if index == MappingCache::MAX_VALUE {
-            None
-        } else {
-            Some(index as u16)
-        }
-    } else {
-        let index = coverage(gid);
-        if let Some(index) = index {
-            if (index as u32) < MappingCache::MAX_VALUE {
-                cache.set(gid.into(), index as u32);
-            }
-            Some(index)
-        } else {
-            cache.set(gid.into(), MappingCache::MAX_VALUE);
-            None
-        }
-    }
-}
-
-fn coverage_binary_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
-    gid: GlyphId,
-    cache: &BinaryCache,
-) -> Option<bool> {
-    if let Some(index) = cache.get(gid.into()) {
-        if index == BinaryCache::MAX_VALUE {
-            None
-        } else {
-            Some(true)
-        }
-    } else {
-        let index = coverage(gid);
-        if index.is_some() {
-            cache.set(gid.into(), 0);
-            Some(true)
-        } else {
-            cache.set(gid.into(), BinaryCache::MAX_VALUE);
-            None
-        }
-    }
-}
-
-fn covered(coverage: Result<CoverageTable, ReadError>, gid: GlyphId) -> bool {
-    coverage_index(coverage, gid).is_some()
-}
-
-fn glyph_class(class_def: Result<ClassDef, ReadError>, gid: GlyphId) -> u16 {
-    class_def
-        .map(|class_def| class_def.get(gid))
-        .unwrap_or_default()
-}
-
-fn glyph_class_cached(
-    class_def: impl Fn(GlyphId) -> u16,
-    gid: GlyphId,
-    cache: &MappingCache,
-) -> u16 {
-    if let Some(index) = cache.get(gid.into()) {
-        index as u16
-    } else {
-        let index = class_def(gid);
-        cache.set(gid.into(), index as u32);
-        index
-    }
-}
-
-#[derive(Copy, Clone, Default, Debug)]
-pub(crate) struct CoverageInfo {
-    pub offset: u16,
-    pub format: u16,
-    pub count: u16,
-}
-
-impl CoverageInfo {
-    pub fn new(parent_data: &FontData, offset: u16) -> Option<Self> {
-        if offset == 0 {
-            return None;
-        }
-        let format = parent_data.read_at::<u16>(offset as usize).ok()?;
-        if format != 1 && format != 2 {
-            return None;
-        }
-        let count = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
-        Some(Self {
-            offset,
-            format,
-            count,
-        })
-    }
-
-    pub fn index(&self, parent_data: &FontData, gid: GlyphId) -> Option<u16> {
-        if self.offset == 0 {
-            return None;
-        }
-        let gid = gid.to_u32();
-        let data_offset = self.offset as usize + 4;
-        let len = self.count as usize;
-        if self.format == 1 {
-            let glyphs = parent_data
-                .read_array::<BigEndian<GlyphId16>>(data_offset..data_offset + len * 2)
-                .ok()?;
-            glyphs
-                .binary_search_by_key(&gid, |g| g.get().to_u32())
-                .ok()
-                .map(|idx| idx as _)
-        } else {
-            use core::cmp::Ordering;
-            let records = parent_data
-                .read_array::<RangeRecord>(
-                    data_offset..data_offset + len * size_of::<RangeRecord>(),
-                )
-                .ok()?;
-            records
-                .binary_search_by(|rec| {
-                    if rec.end_glyph_id().to_u32() < gid {
-                        Ordering::Less
-                    } else if rec.start_glyph_id().to_u32() > gid {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
-                    }
-                })
-                .ok()
-                .map(|idx| {
-                    let rec = &records[idx];
-                    (rec.start_coverage_index() as u32 + gid - rec.start_glyph_id().to_u32()) as u16
-                })
-        }
-    }
-}
-
-#[derive(Copy, Clone, Default, Debug)]
-pub(crate) struct ClassDefInfo {
-    pub offset: u16,
-    pub format: u16,
-    // For format 1 only
-    pub start_glyph_id: u16,
-    pub count: u16,
-}
-
-impl ClassDefInfo {
-    pub fn new(parent_data: &FontData, offset: u16) -> Option<Self> {
-        if offset == 0 {
-            return None;
-        }
-        let format = parent_data.read_at::<u16>(offset as usize).ok()?;
-        if format != 1 && format != 2 {
-            return None;
-        }
-        let (start_glyph_id, count) = if format == 1 {
-            let start_glyph_id = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
-            let count = parent_data.read_at::<u16>(offset as usize + 4).ok()?;
-            (start_glyph_id, count)
-        } else if format == 2 {
-            let count = parent_data.read_at::<u16>(offset as usize + 2).ok()?;
-            (0, count)
-        } else {
-            return None;
-        };
-        Some(Self {
-            offset,
-            format,
-            start_glyph_id,
-            count,
-        })
-    }
-
-    pub fn class(&self, parent_data: &FontData, gid: GlyphId) -> u16 {
-        let offset = self.offset as usize;
-        if offset == 0 {
-            return 0;
-        }
-        let gid = gid.to_u32();
-        if self.format == 1 {
-            let Some(idx) = gid.checked_sub(self.start_glyph_id as u32) else {
-                return 0;
-            };
-            if idx >= self.count as u32 {
-                return 0;
-            }
-            parent_data
-                .read_at::<u16>(offset + 6 + idx as usize * 2)
-                .unwrap_or(0)
-        } else {
-            use core::cmp::Ordering;
-            let start = offset + 4;
-            let end = start + self.count as usize * size_of::<ClassRangeRecord>();
-            let Ok(records) = parent_data.read_array::<ClassRangeRecord>(start..end) else {
-                return 0;
-            };
-            records
-                .binary_search_by(|rec| {
-                    if rec.end_glyph_id().to_u32() < gid {
-                        Ordering::Less
-                    } else if rec.start_glyph_id().to_u32() > gid {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
-                    }
-                })
-                .ok()
-                .map_or(0, |idx| records[idx].class())
-        }
     }
 }
 

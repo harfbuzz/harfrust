@@ -46,7 +46,7 @@ impl<'a> ShapePlanner<'a> {
 
         // https://github.com/harfbuzz/harfbuzz/issues/2124
         let apply_morx = (layout.aat.morx.is_some() || layout.aat.mort.is_some())
-            && (direction.is_horizontal() || layout.ot.gsub.is_none());
+            && (direction.is_horizontal() || layout.ot.gsub().is_none());
 
         // https://github.com/harfbuzz/harfbuzz/issues/1528
         if apply_morx && !ptr::eq(ptr::from_ref(shaper), ptr::from_ref(&DEFAULT_SHAPER)) {
@@ -209,8 +209,8 @@ impl<'a> ShapePlanner<'a> {
 
         // Decide who does positioning. GPOS, kerx, kern, or fallback.
         let has_kerx = self.layout.aat.kerx.is_some();
-        let has_gsub = !apply_morx && self.layout.ot.gsub.is_some();
-        let has_gpos = !disable_gpos && self.layout.ot.gpos.is_some();
+        let has_gsub = !apply_morx && self.layout.ot.gsub().is_some();
+        let has_gpos = !disable_gpos && self.layout.ot.gpos().is_some();
 
         // Prefer GPOS over kerx if GSUB is present;
         // https://github.com/harfbuzz/harfbuzz/issues/3008

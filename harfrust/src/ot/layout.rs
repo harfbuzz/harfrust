@@ -8,7 +8,7 @@ use super::set_digest::SetDigest;
 use super::GlyphInfo;
 use crate::aat::AatData;
 use crate::ot::apply::check_glyph_property;
-use crate::ot::lookup::LookupInfo;
+use crate::ot::lookup::CachedLookup;
 use crate::ot::OtData;
 use crate::plan::ShapePlan;
 use crate::unicode::{space_fallback, GeneralCategory};
@@ -65,7 +65,6 @@ pub fn has_kerning(aat: &AatData) -> bool {
 pub fn has_machine_kerning(aat: &AatData) -> bool {
     match aat.kern {
         Some(ref kern) => kern
-            .0
             .subtables()
             .filter_map(Result::ok)
             .any(|s| s.is_state_machine()),
@@ -76,7 +75,6 @@ pub fn has_machine_kerning(aat: &AatData) -> bool {
 pub fn has_cross_kerning(aat: &AatData) -> bool {
     match aat.kern {
         Some(ref kern) => kern
-            .0
             .subtables()
             .filter_map(Result::ok)
             .any(|s| s.is_cross_stream()),
@@ -90,7 +88,7 @@ pub fn set_glyph_props<const SET_DIGEST: bool>(ot: &OtData, buffer: &mut Buffer)
     buffer.assert_gsubgpos_vars();
 
     let len = buffer.len;
-    for info in &mut buffer.info[..len] {
+    for info in buffer.info.get_mut(..len).unwrap_or_default() {
         if SET_DIGEST {
             buffer.digest.add(info.glyph_id);
         }
@@ -140,7 +138,7 @@ pub trait LayoutTable {
     const IN_PLACE: bool;
 
     /// Get the lookup at the specified index.
-    fn get_lookup(&self, index: u16) -> Option<&LookupInfo>;
+    fn get_lookup(&self, index: u16) -> Option<&CachedLookup<'_>>;
 }
 
 /// Called before substitution lookups are performed, to ensure that glyph
@@ -191,14 +189,19 @@ pub fn apply_layout_table<T: LayoutTable>(
         }
 
         if let Some(func) = stage.pause_func {
-            if func(plan, font, ctx.buffer) {
+            let changed = func(plan, font, ctx.buffer);
+            if changed.is_none() {
+                ctx.buffer.index_failed();
+            }
+            // A pause that stopped early may still have changed the buffer.
+            if changed.unwrap_or(true) {
                 ctx.buffer.update_digest();
             }
         }
     }
 }
 
-fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
+fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -226,15 +229,7 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &LookupInfo) {
     }
 }
 
-fn apply_forward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
-    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
-        return false;
-    };
-
-    apply_forward_with_data(ctx, lookup, table_data)
-}
-
-fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_data: &[u8]) -> bool {
+fn apply_forward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let mut ret = false;
 
     let use_hot_subtable_cache = lookup.cache_enter(ctx);
@@ -249,10 +244,9 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
 
     while ctx.buffer.successful {
         let idx = ctx.buffer.idx;
-        let infos = &ctx.buffer.info[..ctx.buffer.len];
+        let infos = ctx.buffer.glyph_infos();
         let mut j = idx;
-        while j < infos.len() {
-            let info = &infos[j];
+        while let Some(info) = infos.get(j) {
             if lookup.digest.may_have(info.glyph_id)
                 && (info.mask & lookup_mask) != 0
                 && check_glyph_property(ot, info, lookup_props)
@@ -269,10 +263,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
             break;
         }
 
-        if lookup
-            .apply(ctx, table_data, use_hot_subtable_cache)
-            .is_some()
-        {
+        if lookup.apply(ctx, use_hot_subtable_cache).is_some() {
             ret = true;
         } else {
             ctx.buffer.next_glyph();
@@ -286,11 +277,7 @@ fn apply_forward_with_data(ctx: &mut ApplyContext, lookup: &LookupInfo, table_da
     ret
 }
 
-pub(crate) fn apply_synthesized_subst_lookup(
-    ctx: &mut ApplyContext,
-    lookup: &LookupInfo,
-    table_data: &[u8],
-) {
+pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &CachedLookup) {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return;
     }
@@ -301,15 +288,12 @@ pub(crate) fn apply_synthesized_subst_lookup(
     ctx.update_matchers();
     ctx.buffer.clear_output();
     ctx.buffer.idx = 0;
-    apply_forward_with_data(ctx, lookup, table_data);
+    apply_forward(ctx, lookup);
     ctx.buffer.sync();
 }
 
-fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
+fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let mut ret = false;
-    let Some(table_data) = ctx.layout.ot.table_data(ctx.table_index) else {
-        return false;
-    };
     // Loop-invariant hoisting as in apply_forward; reverse lookups don't
     // recurse, and in-place application cannot change the buffer length.
     let ot = ctx.layout.ot;
@@ -317,11 +301,17 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
     let lookup_props = ctx.lookup_props;
 
     loop {
-        let candidate = ctx.buffer.info[..=ctx.buffer.idx].iter().rposition(|info| {
-            lookup.digest.may_have(info.glyph_id)
-                && (info.mask & lookup_mask) != 0
-                && check_glyph_property(ot, info, lookup_props)
-        });
+        let candidate = ctx
+            .buffer
+            .info
+            .get(..=ctx.buffer.idx)
+            .unwrap_or_default()
+            .iter()
+            .rposition(|info| {
+                lookup.digest.may_have(info.glyph_id)
+                    && (info.mask & lookup_mask) != 0
+                    && check_glyph_property(ot, info, lookup_props)
+            });
 
         let Some(idx) = candidate else {
             ctx.buffer.idx = 0;
@@ -329,7 +319,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &LookupInfo) -> bool {
         };
 
         ctx.buffer.idx = idx;
-        ret |= lookup.apply(ctx, table_data, false).is_some();
+        ret |= lookup.apply(ctx, false).is_some();
 
         if idx == 0 {
             break;
@@ -911,11 +901,10 @@ pub fn clear_substitution_flags(
     _: &ShapePlan,
     _: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
-) -> bool {
-    let len = buffer.len;
-    for info in &mut buffer.info[..len] {
+) -> Option<bool> {
+    for info in buffer.info_slice_mut() {
         info.clear_substituted();
     }
 
-    false
+    Some(false)
 }
