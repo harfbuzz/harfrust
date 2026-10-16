@@ -1,23 +1,18 @@
 # State machines generation using ragel
 
-HarfBuzz uses [ragel](https://github.com/adrian-thurston/ragel) to generate
+HarfBuzz uses [ragel](https://github.com/adrian-thurston/colm-suite) to generate
 state machines for some shapers.
 The produced C code is rather low-level and relies on `goto` a lot,
 therefore converting it to Rust by hand is rather problematic.
 And this is the code that updates relatively often.
 
-Can we use `ragel` to generate Rust code directly? Not using the stable `ragel`.
-But the latest development branch does have a native Rust support.
-Therefore to use `ragel` directly, we have to use the latest devel version and modify
-ragel scripts a bit.
+Ragel's `main` branch has native Rust support. Use the latest development version
+from the unified `colm-suite` repository to regenerate the Rust state machines.
 
 ## Build ragel
 
-`ragel` is a C++ project that uses the dreadful `autotools`.
-Good luck building it on Windows. But on Unix-like OSes it should be relatively easy.
-
-It also requires a 3rdparty dependency of
-[colm](https://github.com/adrian-thurston/colm), which we have to build first.
+`ragel` is a C++ project that uses `autotools`. The suite builds its Colm
+dependency first, so a separate Colm checkout and installation are unnecessary.
 
 In case of macOS, we would need:
 
@@ -28,34 +23,33 @@ brew install automake autoconf libtool
 And now we can build `ragel`:
 
 ```sh
-# build `colm` first
-git clone https://github.com/adrian-thurston/colm
-cd colm
+git clone --branch main https://github.com/adrian-thurston/colm-suite
+cd colm-suite
 ./autogen.sh
-./configure --prefix=/path/to/colm/install # prefer a custom path to /usr/local
-make
-make install
-
-cd ..
-git clone https://github.com/adrian-thurston/ragel
-./autogen.sh
-# --with-colm takes the same path we used above
-./configure --prefix=/path/to/ragel/install --with-colm=/path/to/colm/install
+./configure --prefix=/path/to/ragel/install --disable-manual
 make
 make install
 ```
 
 ## Running ragel
 
-Now we can convert our ragel scripts using:
+From the HarfRust repository root, regenerate all four machines using:
 
 ```sh
-/path/to/ragel/install/bin/ragel-rust -e -F1 src/ot/shaper/indic_machine.rl # or any other .rl file
+RAGEL_RUST=/path/to/ragel/install/bin/ragel-rust
+for machine in indic myanmar use; do
+    "$RAGEL_RUST" -e -F1 "harfrust/src/ot/shaper/${machine}_machine.rl"
+done
+"$RAGEL_RUST" -e -T0 harfrust/src/ot/shaper/khmer_machine.rl
 ```
 
-That's it!
+Khmer uses the table-driven `-T0` backend; the other machines use the flat
+table-driven `-F1` backend.
 
-PS: `ragel` will create temporary `*.ri` files. They can be safely removed.
+The machines were last regenerated with Ragel 7.1.0 from
+[`colm-suite` commit `42bc3a875564`](https://github.com/adrian-thurston/colm-suite/commit/42bc3a87556413cafd60cb6bc5e9fa034d2a364a).
+
+Ragel removes temporary `*.ri` files after successful generation.
 
 ## Code format
 
@@ -64,10 +58,10 @@ is required.
 
 ## The Universal state machine
 
-The `universal_machine.rl` is special since we have to modify its output manually
+The `use_machine.rl` is special since we have to modify its output manually
 because we cannot express our needs via `ragel` directly.
 
-The change is simple. After the `universal_machine.rs` is generated, Rust will complain about
-about some variables set to 0. Like `ts = 0;`.
-In all those cases `0` should simply be replaced with `p0`.
-There are no better solution for now...
+After `use_machine.rs` is generated, replace assignments of `0` to `p`, `ts`,
+or `te` with `p0`, as indicated by the comment in the source. These variables
+are `MachineCursor`s rather than integer offsets. Then run `cargo fmt --all`
+and `cargo test -p harfrust`.

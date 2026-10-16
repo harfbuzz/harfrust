@@ -2,7 +2,7 @@ use super::arabic_table::{LIGATURE_3_TABLE, LIGATURE_MARK_TABLE, LIGATURE_TABLE,
 use crate::buffer::Buffer;
 use crate::ot::apply::ApplyContext;
 use crate::ot::layout::{apply_synthesized_subst_lookup, LayoutTableKind};
-use crate::ot::lookup::LookupInfo;
+use crate::ot::lookup::{cache_synthesized_subst, CachedLookupRef};
 use crate::ot::lookup_flags;
 use crate::plan::ShapePlan;
 use crate::ShaperFont;
@@ -123,14 +123,13 @@ pub(crate) struct FallbackPlan {
 
 struct FallbackLookup {
     mask: Mask,
-    data: Vec<u8>,
-    info: LookupInfo,
+    lookup: CachedLookupRef,
 }
 
 impl FallbackLookup {
     fn new(mask: Mask, data: Vec<u8>) -> Option<Self> {
-        let info = LookupInfo::new_subst(&data)?;
-        Some(Self { mask, data, info })
+        let lookup = cache_synthesized_subst(data)?;
+        Some(Self { mask, lookup })
     }
 }
 
@@ -214,7 +213,7 @@ impl FallbackPlan {
         let mut ctx = ApplyContext::new(LayoutTableKind::Gsub, font.layout(), font.scale, buffer);
         for lookup in &self.lookups {
             ctx.set_lookup_mask(lookup.mask);
-            apply_synthesized_subst_lookup(&mut ctx, &lookup.info, &lookup.data);
+            apply_synthesized_subst_lookup(&mut ctx, lookup.lookup.get());
         }
     }
 }
@@ -235,9 +234,7 @@ fn add_direct_single_lookup(
         return;
     }
 
-    let mut mappings = mappings.to_vec();
-    mappings.sort_by_key(|(glyph, _)| *glyph);
-    let Some(data) = serialize_single_lookup(&mappings, lookup_flags::IGNORE_MARKS) else {
+    let Some(data) = serialize_single_lookup(mappings, lookup_flags::IGNORE_MARKS) else {
         return;
     };
     if let Some(lookup) = FallbackLookup::new(mask, data) {
@@ -255,9 +252,7 @@ fn add_direct_ligature_lookup<const N: usize>(
         return;
     }
 
-    let mut ligatures = ligatures.to_vec();
-    ligatures.sort_by_key(|(components, _)| components[0]);
-    if let Some(data) = serialize_ligature_lookup(&ligatures, flags) {
+    if let Some(data) = serialize_ligature_lookup(ligatures, flags) {
         if let Some(lookup) = FallbackLookup::new(mask, data) {
             lookups.push(lookup);
         }
@@ -295,7 +290,7 @@ fn synthesize_single_lookup(
         return None;
     }
 
-    mappings.sort_by_key(|(glyph, _)| *glyph);
+    crate::algs::stable_sort_by(&mut mappings, |a, b| a.0.cmp(&b.0));
     FallbackLookup::new(
         mask,
         serialize_single_lookup(&mappings, lookup_flags::IGNORE_MARKS)?,
@@ -331,7 +326,7 @@ fn synthesize_ligature_lookup<const N: usize>(
         return None;
     }
 
-    ligatures.sort_by_key(|(components, _)| components[0]);
+    crate::algs::stable_sort_by(&mut ligatures, |a, b| a.0[0].cmp(&b.0[0]));
     FallbackLookup::new(mask, serialize_ligature_lookup(&ligatures, flags)?)
 }
 
@@ -462,7 +457,7 @@ mod tests {
                 0, 1, 0, 2, 0, 3, 0, 7, // CoverageFormat1
             ]
         );
-        assert!(LookupInfo::new_subst(&data).is_some());
+        assert!(cache_synthesized_subst(data).is_some());
     }
 
     #[test]
@@ -472,19 +467,33 @@ mod tests {
             lookup_flags::IGNORE_MARKS,
         )
         .unwrap();
-        assert!(LookupInfo::new_subst(&data).is_some());
+        assert!(cache_synthesized_subst(data).is_some());
+    }
+
+    #[test]
+    fn win1256_tables_are_sorted() {
+        // The lookups are serialized from these tables as they are.
+        for mappings in [
+            WIN1256_INIT_MAPPINGS,
+            WIN1256_MEDI_MAPPINGS,
+            WIN1256_FINA_MAPPINGS,
+        ] {
+            assert!(mappings.is_sorted_by_key(|(glyph, _)| *glyph));
+        }
+        for ligatures in [WIN1256_LAM_ALEF_LIGATURES, WIN1256_SHADDA_LIGATURES] {
+            assert!(ligatures.is_sorted_by_key(|(components, _)| components[0]));
+        }
     }
 
     #[test]
     fn serializes_win1256_fallback_lookups() {
-        let mut mappings = WIN1256_MEDI_MAPPINGS.to_vec();
-        mappings.sort_by_key(|(glyph, _)| *glyph);
-        let single = serialize_single_lookup(&mappings, lookup_flags::IGNORE_MARKS).unwrap();
-        assert!(LookupInfo::new_subst(&single).is_some());
+        let single =
+            serialize_single_lookup(WIN1256_MEDI_MAPPINGS, lookup_flags::IGNORE_MARKS).unwrap();
+        assert!(cache_synthesized_subst(single).is_some());
 
         let ligature =
             serialize_ligature_lookup(WIN1256_LAM_ALEF_LIGATURES, lookup_flags::IGNORE_MARKS)
                 .unwrap();
-        assert!(LookupInfo::new_subst(&ligature).is_some());
+        assert!(cache_synthesized_subst(ligature).is_some());
     }
 }
