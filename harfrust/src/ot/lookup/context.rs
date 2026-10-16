@@ -2,11 +2,16 @@
 //!
 //! A contextual subtable is a chained one without backtrack or lookahead,
 //! so both run through the same walks. Only the layout of their rules
-//! differs, which [`Rules`] and [`ParsedRule`] record.
+//! differs, which [`RuleLayout`] records: whether they are chained, and the
+//! width of the offsets to them, which the extended formats widen.
+//!
+//! Rule values are glyph IDs or classes. The rule walks take their width as
+//! a constant, since they read many values per rule: classes are always 16
+//! bits, and only the glyph rules of the extended formats are 24.
 
 use super::coverage::{ClassDef, Coverage};
 use super::gsub::covered_at;
-use super::{glyph_class_cached, Offsets, SubtableDigests};
+use super::{glyph_class_cached, Offsets, SubtableDigests, Uints, Values};
 use crate::buffer::GlyphInfo;
 use crate::hint::Likely;
 use crate::ot::apply::{
@@ -17,11 +22,12 @@ use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
 use read_fonts::tables::layout::{
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
-    ChainedSequenceRule, SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
-    SequenceLookupRecord, SequenceRule,
+    ChainedSequenceContextFormat4, ChainedSequenceContextFormat5, ChainedSequenceRule,
+    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceContextFormat4,
+    SequenceContextFormat5, SequenceContextFormat6, SequenceLookupRecord, SequenceRule,
 };
-use read_fonts::types::{BigEndian, FixedSize, GlyphId, Nullable, Offset16};
-use read_fonts::{FontData, Offset};
+use read_fonts::types::{FixedSize, GlyphId};
+use read_fonts::FontData;
 
 /// Matches a glyph against a rule value: a glyph ID or a class. The rule
 /// walks are generic over it so that matching inlines; `would_apply`, which
@@ -29,55 +35,84 @@ use read_fonts::{FontData, Offset};
 type MatchFn<'a> = &'a dyn Fn(&mut GlyphInfo, u32) -> bool;
 
 /// Offsets to rule sets, which are null for glyphs or classes without rules.
-type RuleSets<'a> = Offsets<'a, Nullable<Offset16>>;
+type RuleSets<'a> = Offsets<'a>;
+
+/// The width of glyph IDs, classes and offsets in the original formats.
+const NARROW: u8 = 2;
+/// The width of glyph IDs and offsets in the extended formats.
+const WIDE: u8 = 3;
+
+/// The width of the class values of a rule, and of the glyph IDs of the
+/// original formats.
+const CLASS: usize = 2;
+/// The width of the glyph IDs of the extended formats.
+const GLYPH24: usize = 3;
+
+/// How the rules of a subtable are laid out.
+#[derive(Clone, Copy)]
+struct RuleLayout {
+    /// Whether the rules are chained rules rather than sequence rules.
+    chained: bool,
+    /// The width of the offsets from a rule set to its rules.
+    offset_width: u8,
+}
+
+impl RuleLayout {
+    const fn new(chained: bool, offset_width: u8) -> Self {
+        Self {
+            chained,
+            offset_width,
+        }
+    }
+}
 
 /// The class of `gid`, remembered in `cache` if there is one.
-fn cached_class(class_def: &ClassDef, gid: GlyphId, cache: Option<&MappingCache>) -> u16 {
+fn cached_class(class_def: &ClassDef, gid: GlyphId, cache: Option<&MappingCache>) -> u32 {
     match cache {
-        Some(cache) => glyph_class_cached(|gid| class_def.get(gid), gid, cache),
+        Some(cache) => glyph_class_cached(class_def, gid, cache),
         None => class_def.get(gid),
     }
 }
 
 /// Rule set `index` of `sets`, or `None` if it is null or can't be read.
-fn rule_set<'a>(sets: &RuleSets<'a>, index: usize, chained: bool) -> Option<Rules<'a>> {
-    Rules::read(sets.data(index)?, chained)
+fn rule_set<'a>(sets: &RuleSets<'a>, index: usize, layout: RuleLayout) -> Option<Rules<'a>> {
+    Rules::read(sets.data(index)?, layout)
 }
 
 /// Calls `f` with each rule of each rule set present in `sets`, stopping
 /// with `None` at one that can't be read.
-fn for_each_rule<'a>(
+fn for_each_rule<'a, const W: usize>(
     sets: &RuleSets<'a>,
-    chained: bool,
-    mut f: impl FnMut(ParsedRule<'a>) -> Option<()>,
+    layout: RuleLayout,
+    mut f: impl FnMut(ParsedRule<'a, W>) -> Option<()>,
 ) -> Option<()> {
     for index in 0..sets.len() {
         if sets.is_null(index) {
             continue;
         }
-        let rules = rule_set(sets, index, chained)?;
+        let rules = rule_set(sets, index, layout)?;
         for index in 0..rules.len() {
-            f(ParsedRule::try_parse(rules.rule(index)?, chained)?)?;
+            f(ParsedRule::try_parse(rules.rule(index)?, layout)?)?;
         }
     }
     Some(())
 }
 
-/// The digest of the first input value of each rule set's rules.
-fn rule_set_digests(sets: &RuleSets, chained: bool) -> Box<[RuleSetDigest]> {
+/// The digest of the first input class of each rule set's rules.
+fn rule_set_digests(sets: &RuleSets, layout: RuleLayout) -> Box<[RuleSetDigest]> {
     (0..sets.len())
         .map(|index| {
             if sets.is_null(index) {
                 return RuleSetDigest::default();
             }
-            let Some(rules) = rule_set(sets, index, chained) else {
+            let Some(rules) = rule_set(sets, index, layout) else {
                 return RuleSetDigest::full();
             };
             let mut digest = RuleSetDigest::default();
             for index in 0..rules.len() {
                 let Some(value) = rules
                     .rule(index)
-                    .and_then(|data| rule_first_input(&data, chained))
+                    .and_then(|data| rule_first_input::<CLASS>(&data, layout))
                 else {
                     return RuleSetDigest::full();
                 };
@@ -95,56 +130,100 @@ fn coverage_digest(coverage: Option<&Coverage>) -> SetDigest {
 /// Chained context by glyph sequences, or context by glyph sequences.
 pub(crate) struct ChainContext1<'a> {
     rule_sets: RuleSets<'a>,
-    chained: bool,
+    layout: RuleLayout,
+    /// Whether rule glyph IDs are 24 bits rather than 16.
+    wide_glyphs: bool,
 }
 
 impl<'a> ChainContext1<'a> {
     pub fn new(table: &ChainedSequenceContextFormat1<'a>) -> Option<Self> {
+        let range = table.chained_seq_rule_set_offsets_byte_range();
         Some(Self {
-            rule_sets: RuleSets::new(table.offset_data(), table.chained_seq_rule_set_offsets()),
-            chained: true,
+            rule_sets: RuleSets::new(table.offset_data(), range, NARROW.into()),
+            layout: RuleLayout::new(true, NARROW),
+            wide_glyphs: false,
+        })
+    }
+
+    pub fn new_wide(table: &ChainedSequenceContextFormat4<'a>) -> Option<Self> {
+        let range = table.chained_seq_rule_set_offsets_byte_range();
+        Some(Self {
+            rule_sets: RuleSets::new(table.offset_data(), range, WIDE.into()),
+            layout: RuleLayout::new(true, WIDE),
+            wide_glyphs: true,
         })
     }
 
     pub fn from_plain(table: &SequenceContextFormat1<'a>) -> Option<Self> {
+        let range = table.seq_rule_set_offsets_byte_range();
         Some(Self {
-            rule_sets: RuleSets::new(table.offset_data(), table.seq_rule_set_offsets()),
-            chained: false,
+            rule_sets: RuleSets::new(table.offset_data(), range, NARROW.into()),
+            layout: RuleLayout::new(false, NARROW),
+            wide_glyphs: false,
+        })
+    }
+
+    pub fn from_plain_wide(table: &SequenceContextFormat4<'a>) -> Option<Self> {
+        let range = table.seq_rule_set_offsets_byte_range();
+        // Its rule sets keep 16-bit offsets to their rules.
+        Some(Self {
+            rule_sets: RuleSets::new(table.offset_data(), range, WIDE.into()),
+            layout: RuleLayout::new(false, NARROW),
+            wide_glyphs: true,
         })
     }
 
     fn rule_set(&self, index: usize) -> Option<Rules<'a>> {
-        rule_set(&self.rule_sets, index, self.chained)
+        rule_set(&self.rule_sets, index, self.layout)
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let rules = self.rule_set(usize::from(index))?;
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let rules = self.rule_set(index as usize)?;
         let matchers = ChainMatchers {
             backtrack: &match_glyph,
             input: &match_glyph,
             lookahead: &match_glyph,
         };
-        apply_chain_rules(ctx, rules, &matchers, None, &|_| 0)
+        if self.wide_glyphs {
+            apply_chain_rules::<GLYPH24>(ctx, rules, &matchers, None, &|_| 0)
+        } else {
+            apply_chain_rules::<CLASS>(ctx, rules, &matchers, None, &|_| 0)
+        }
     }
 
     pub fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> bool {
         coverage
             .get(ctx.glyphs[0])
             .and_then(|index| self.rule_set(index as usize))
-            .is_some_and(|rules| would_apply_chain_rules(ctx, rules, &match_glyph))
+            .is_some_and(|rules| {
+                if self.wide_glyphs {
+                    would_apply_chain_rules::<GLYPH24>(ctx, rules, &match_glyph)
+                } else {
+                    would_apply_chain_rules::<CLASS>(ctx, rules, &match_glyph)
+                }
+            })
     }
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext1<'a> {
     fn digest_second(&self) -> SetDigest {
-        let mut digest = SetDigest::new();
-        for_each_rule(&self.rule_sets, self.chained, |rule| {
-            let second = rule.input.first().or_else(|| rule.lookahead.first())?;
-            digest.add(u32::from(second.get()));
-            Some(())
-        })
-        .map_or_else(SetDigest::full, |()| digest)
+        if self.wide_glyphs {
+            glyph_seconds::<GLYPH24>(&self.rule_sets, self.layout)
+        } else {
+            glyph_seconds::<CLASS>(&self.rule_sets, self.layout)
+        }
     }
+}
+
+/// The glyphs that may follow the first one in a match of a glyph rule.
+fn glyph_seconds<const W: usize>(sets: &RuleSets, layout: RuleLayout) -> SetDigest {
+    let mut digest = SetDigest::new();
+    for_each_rule::<W>(sets, layout, |rule| {
+        let second = rule.input.first().or_else(|| rule.lookahead.first())?;
+        digest.add(second);
+        Some(())
+    })
+    .map_or_else(SetDigest::full, |()| digest)
 }
 
 /// Chained context by glyph class sequences, or context by glyph class
@@ -155,7 +234,7 @@ pub(crate) struct ChainContext2<'a> {
     lookahead: ClassDef<'a>,
     class_caches: Option<Box<ChainClassCaches>>,
     rule_sets: RuleSets<'a>,
-    chained: bool,
+    layout: RuleLayout,
     /// The first input class of each rule set's rules.
     rule_set_digests: Box<[RuleSetDigest]>,
 }
@@ -168,26 +247,49 @@ struct ChainClassCaches {
 
 impl<'a> ChainContext2<'a> {
     pub fn new(table: &ChainedSequenceContextFormat2<'a>, with_caches: bool) -> Option<Self> {
+        let range = table.chained_class_seq_rule_set_offsets_byte_range();
         Some(Self::from_parts(
             ClassDef::new(table.backtrack_class_def()),
             ClassDef::new(table.input_class_def()),
             ClassDef::new(table.lookahead_class_def()),
-            RuleSets::new(
-                table.offset_data(),
-                table.chained_class_seq_rule_set_offsets(),
-            ),
-            true,
+            RuleSets::new(table.offset_data(), range, NARROW.into()),
+            RuleLayout::new(true, NARROW),
+            with_caches,
+        ))
+    }
+
+    pub fn new_wide(table: &ChainedSequenceContextFormat5<'a>, with_caches: bool) -> Option<Self> {
+        let range = table.chained_class_seq_rule_set_offsets_byte_range();
+        Some(Self::from_parts(
+            ClassDef::new(table.backtrack_class_def()),
+            ClassDef::new(table.input_class_def()),
+            ClassDef::new(table.lookahead_class_def()),
+            RuleSets::new(table.offset_data(), range, WIDE.into()),
+            RuleLayout::new(true, WIDE),
             with_caches,
         ))
     }
 
     pub fn from_plain(table: &SequenceContextFormat2<'a>, with_caches: bool) -> Option<Self> {
+        let range = table.class_seq_rule_set_offsets_byte_range();
         Some(Self::from_parts(
             ClassDef::None,
             ClassDef::new(table.class_def()),
             ClassDef::None,
-            RuleSets::new(table.offset_data(), table.class_seq_rule_set_offsets()),
-            false,
+            RuleSets::new(table.offset_data(), range, NARROW.into()),
+            RuleLayout::new(false, NARROW),
+            with_caches,
+        ))
+    }
+
+    pub fn from_plain_wide(table: &SequenceContextFormat5<'a>, with_caches: bool) -> Option<Self> {
+        let range = table.class_seq_rule_set_offsets_byte_range();
+        Some(Self::from_parts(
+            ClassDef::None,
+            ClassDef::new(table.class_def()),
+            ClassDef::None,
+            RuleSets::new(table.offset_data(), range, WIDE.into()),
+            RuleLayout::new(false, WIDE),
             with_caches,
         ))
     }
@@ -197,7 +299,7 @@ impl<'a> ChainContext2<'a> {
         input: ClassDef<'a>,
         lookahead: ClassDef<'a>,
         rule_sets: RuleSets<'a>,
-        chained: bool,
+        layout: RuleLayout,
         with_caches: bool,
     ) -> Self {
         Self {
@@ -210,24 +312,24 @@ impl<'a> ChainContext2<'a> {
                     lookahead: MappingCache::new(),
                 })
             }),
-            rule_set_digests: rule_set_digests(&rule_sets, chained),
+            rule_set_digests: rule_set_digests(&rule_sets, layout),
             rule_sets,
-            chained,
+            layout,
         }
     }
 
     fn rule_set(&self, index: usize) -> Option<Rules<'a>> {
-        rule_set(&self.rule_sets, index, self.chained)
+        rule_set(&self.rule_sets, index, self.layout)
     }
 
     /// The input class of a glyph, kept in its syllable byte if
     /// `class_cache` is set.
     #[inline(always)]
-    fn input_class(&self, info: &mut GlyphInfo, class_cache: bool) -> u16 {
+    fn input_class(&self, info: &mut GlyphInfo, class_cache: bool) -> u32 {
         let class_of = |gid| self.input.get(gid);
         if !class_cache {
             self.mapped_input_class(info.as_glyph())
-        } else if self.chained {
+        } else if self.layout.chained {
             // The lookahead class takes the low nibble.
             SyllableSlot::HIGH.class(&class_of, info)
         } else {
@@ -236,7 +338,7 @@ impl<'a> ChainContext2<'a> {
     }
 
     #[inline(always)]
-    fn lookahead_class(&self, info: &mut GlyphInfo, class_cache: bool) -> u16 {
+    fn lookahead_class(&self, info: &mut GlyphInfo, class_cache: bool) -> u32 {
         if class_cache {
             SyllableSlot::LOW.class(&|gid| self.lookahead.get(gid), info)
         } else {
@@ -247,13 +349,13 @@ impl<'a> ChainContext2<'a> {
     // The mapping-cache paths stay out of line so that the syllable-byte
     // reads inline into the matchers.
     #[inline(never)]
-    fn mapped_input_class(&self, gid: GlyphId) -> u16 {
+    fn mapped_input_class(&self, gid: GlyphId) -> u32 {
         let cache = self.class_caches.as_deref().map(|c| &c.input);
         cached_class(&self.input, gid, cache)
     }
 
     #[inline(never)]
-    fn mapped_lookahead_class(&self, gid: GlyphId) -> u16 {
+    fn mapped_lookahead_class(&self, gid: GlyphId) -> u32 {
         let cache = self.class_caches.as_deref().map(|c| &c.lookahead);
         cached_class(&self.lookahead, gid, cache)
     }
@@ -261,21 +363,17 @@ impl<'a> ChainContext2<'a> {
     /// Applies, keeping glyph classes in the syllable byte if `class_cache`
     /// is set, and in the subtable's mapping caches otherwise.
     #[inline(never)]
-    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16, class_cache: bool) -> Option<()> {
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u32, class_cache: bool) -> Option<()> {
         let info = ctx.buffer.info.get_mut(ctx.buffer.idx).likely()?;
         let index = self.input_class(info, class_cache) as usize;
         let matchers = ChainMatchers {
-            backtrack: &|info: &mut GlyphInfo, value| {
-                u32::from(self.backtrack.get(info.as_glyph())) == value
-            },
-            input: &|info: &mut GlyphInfo, value| {
-                u32::from(self.input_class(info, class_cache)) == value
-            },
+            backtrack: &|info: &mut GlyphInfo, value| self.backtrack.get(info.as_glyph()) == value,
+            input: &|info: &mut GlyphInfo, value| self.input_class(info, class_cache) == value,
             lookahead: &|info: &mut GlyphInfo, value| {
-                u32::from(self.lookahead_class(info, class_cache)) == value
+                self.lookahead_class(info, class_cache) == value
             },
         };
-        apply_chain_rules(
+        apply_chain_rules::<CLASS>(
             ctx,
             self.rule_set(index)?,
             &matchers,
@@ -285,10 +383,9 @@ impl<'a> ChainContext2<'a> {
     }
 
     pub fn would_apply(&self, ctx: &WouldApplyContext, _coverage: &Coverage) -> bool {
-        let matches =
-            |info: &mut GlyphInfo, value| u32::from(self.input.get(info.as_glyph())) == value;
+        let matches = |info: &mut GlyphInfo, value| self.input.get(info.as_glyph()) == value;
         self.rule_set(self.input.get(ctx.glyphs[0]) as usize)
-            .is_some_and(|rules| would_apply_chain_rules(ctx, rules, &matches))
+            .is_some_and(|rules| would_apply_chain_rules::<CLASS>(ctx, rules, &matches))
     }
 }
 
@@ -301,14 +398,14 @@ impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
             return SetDigest::full();
         }
         let mut digest = SetDigest::new();
-        for_each_rule(&self.rule_sets, self.chained, |rule| {
+        for_each_rule::<CLASS>(&self.rule_sets, self.layout, |rule| {
             if let Some(second) = rule.input.first() {
-                input.add_class_to(&mut digest, second.get());
+                input.add_class_to(&mut digest, second);
             } else {
                 let second = rule.lookahead.first()?;
                 // A missing class definition puts every glyph in class 0.
                 (!lookahead.is_none()).then_some(())?;
-                lookahead.add_class_to(&mut digest, second.get());
+                lookahead.add_class_to(&mut digest, second);
             }
             Some(())
         })
@@ -366,7 +463,22 @@ impl<'a> ChainContext3<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
+    pub fn from_plain_wide(table: &SequenceContextFormat6<'a>) -> Option<Self> {
+        Some(Self {
+            inputs: table
+                .coverages()
+                .iter()
+                .skip(1)
+                .map(Coverage::new)
+                .collect(),
+            backtrack: Box::default(),
+            lookahead: Box::default(),
+            records: table.seq_lookup_records(),
+            chained: false,
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u32) -> Option<()> {
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
         let input_matches = match_input(
@@ -469,13 +581,13 @@ impl SyllableSlot {
 
     /// The class of the glyph, looked up with `class_def` the first time.
     #[inline(always)]
-    fn class(self, class_def: &impl Fn(GlyphId) -> u16, info: &mut GlyphInfo) -> u16 {
+    fn class(self, class_def: &impl Fn(GlyphId) -> u32, info: &mut GlyphInfo) -> u32 {
         let cached = (info.syllable() >> self.shift) & self.unknown;
         if cached < self.unknown {
-            return u16::from(cached);
+            return u32::from(cached);
         }
         let class = class_def(info.as_glyph());
-        if class < u16::from(self.unknown) {
+        if class < u32::from(self.unknown) {
             let mask = self.unknown << self.shift;
             info.set_syllable((info.syllable() & !mask) | ((class as u8) << self.shift));
         }
@@ -487,22 +599,19 @@ impl SyllableSlot {
 #[derive(Clone, Copy)]
 struct Rules<'a> {
     data: FontData<'a>,
-    offsets: &'a [BigEndian<Offset16>],
-    /// Whether the rules are chained rules rather than sequence rules.
-    chained: bool,
+    offsets: Uints<'a>,
+    layout: RuleLayout,
 }
 
 impl<'a> Rules<'a> {
-    /// Reads a rule set, whose layout is the same for every kind of rule.
-    fn read(data: FontData<'a>, chained: bool) -> Option<Self> {
+    /// Reads a rule set: a 16-bit count and the offsets to its rules.
+    fn read(data: FontData<'a>, layout: RuleLayout) -> Option<Self> {
         let count = usize::from(data.read_at::<u16>(0).ok()?);
-        let offsets = data
-            .read_array(2..2 + count * Offset16::RAW_BYTE_LEN)
-            .ok()?;
+        let offsets = Uints::at(data, 2, count, layout.offset_width.into())?;
         Some(Self {
             data,
             offsets,
-            chained,
+            layout,
         })
     }
 
@@ -513,41 +622,40 @@ impl<'a> Rules<'a> {
     /// The data of rule `index`, if it holds at least the fixed fields of
     /// a rule, as reading the rule table would require.
     fn rule(&self, index: usize) -> Option<FontData<'a>> {
-        let min_size = if self.chained {
+        // The extended rules have the same fixed fields.
+        let min_size = if self.layout.chained {
             ChainedSequenceRule::MIN_SIZE
         } else {
             SequenceRule::MIN_SIZE
         };
-        let data = self
-            .data
-            .split_off(self.offsets.get(index)?.get().to_usize())?;
+        let data = self.data.split_off(self.offsets.get(index)? as usize)?;
         (data.len() >= min_size).then_some(data)
     }
 }
 
 /// A rule's fields, parsed in one pass. Glyph IDs and classes are both
-/// read as plain 16-bit values; a sequence rule has no backtrack or
+/// read as plain values of `W` bytes; a sequence rule has no backtrack or
 /// lookahead.
 #[derive(Clone, Copy, Default)]
-struct ParsedRule<'a> {
-    backtrack: &'a [BigEndian<u16>],
-    input: &'a [BigEndian<u16>],
-    lookahead: &'a [BigEndian<u16>],
+struct ParsedRule<'a, const W: usize> {
+    backtrack: Values<'a, W>,
+    input: Values<'a, W>,
+    lookahead: Values<'a, W>,
     records: &'a [SequenceLookupRecord],
     chained: bool,
 }
 
-impl<'a> ParsedRule<'a> {
+impl<'a, const W: usize> ParsedRule<'a, W> {
     /// Parses a rule; an unreadable one is empty.
-    fn parse(data: FontData<'a>, chained: bool) -> Self {
-        Self::try_parse(data, chained).unwrap_or_else(|| Self {
-            chained,
+    fn parse(data: FontData<'a>, layout: RuleLayout) -> Self {
+        Self::try_parse(data, layout).unwrap_or_else(|| Self {
+            chained: layout.chained,
             ..Self::default()
         })
     }
 
-    fn try_parse(data: FontData<'a>, chained: bool) -> Option<Self> {
-        if chained {
+    fn try_parse(data: FontData<'a>, layout: RuleLayout) -> Option<Self> {
+        if layout.chained {
             Self::try_chain(data)
         } else {
             Self::try_plain(data)
@@ -558,10 +666,10 @@ impl<'a> ParsedRule<'a> {
     fn try_plain(data: FontData<'a>) -> Option<Self> {
         let glyph_count = usize::from(data.read_at::<u16>(0).ok()?);
         let record_count = usize::from(data.read_at::<u16>(2).ok()?);
-        let input_end = 4 + glyph_count.saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let input_end = 4 + glyph_count.saturating_sub(1) * W;
         let records_end = input_end + record_count * SequenceLookupRecord::RAW_BYTE_LEN;
         Some(Self {
-            input: data.read_array(4..input_end).ok()?,
+            input: Values::at(data, 4, glyph_count.saturating_sub(1))?,
             records: data.read_array(input_end..records_end).ok()?,
             ..Self::default()
         })
@@ -570,17 +678,17 @@ impl<'a> ParsedRule<'a> {
     /// Parses a chained sequence rule or chained class sequence rule.
     fn try_chain(data: FontData<'a>) -> Option<Self> {
         let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
-        let backtrack_end = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+        let backtrack_end = 2 + backtrack_count * W;
         let input_count = usize::from(data.read_at::<u16>(backtrack_end).ok()?);
-        let input_end = backtrack_end + 2 + input_count.saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let input_end = backtrack_end + 2 + input_count.saturating_sub(1) * W;
         let lookahead_count = usize::from(data.read_at::<u16>(input_end).ok()?);
-        let lookahead_end = input_end + 2 + lookahead_count * u16::RAW_BYTE_LEN;
+        let lookahead_end = input_end + 2 + lookahead_count * W;
         let record_count = usize::from(data.read_at::<u16>(lookahead_end).ok()?);
         let records_end = lookahead_end + 2 + record_count * SequenceLookupRecord::RAW_BYTE_LEN;
         Some(Self {
-            backtrack: data.read_array(2..backtrack_end).ok()?,
-            input: data.read_array(backtrack_end + 2..input_end).ok()?,
-            lookahead: data.read_array(input_end + 2..lookahead_end).ok()?,
+            backtrack: Values::at(data, 2, backtrack_count)?,
+            input: Values::at(data, backtrack_end + 2, input_count.saturating_sub(1))?,
+            lookahead: Values::at(data, input_end + 2, lookahead_count)?,
             records: data.read_array(lookahead_end + 2..records_end).ok()?,
             chained: true,
         })
@@ -598,7 +706,7 @@ impl<'a> ParsedRule<'a> {
         if !match_input(
             ctx,
             self.input.len() as u16,
-            |info, index| sequence_matches(self.input, index, info, &matchers.input),
+            |info, index| sequence_matches(&self.input, index, info, &matchers.input),
             &mut match_end,
             None,
         )? {
@@ -618,7 +726,7 @@ impl<'a> ParsedRule<'a> {
         if !match_lookahead(
             ctx,
             self.lookahead.len() as u16,
-            |info, index| sequence_matches(self.lookahead, index, info, &matchers.lookahead),
+            |info, index| sequence_matches(&self.lookahead, index, info, &matchers.lookahead),
             match_end,
             &mut end_index,
         ) {
@@ -630,7 +738,7 @@ impl<'a> ParsedRule<'a> {
         if !match_backtrack(
             ctx,
             self.backtrack.len() as u16,
-            |info, index| sequence_matches(self.backtrack, index, info, &matchers.backtrack),
+            |info, index| sequence_matches(&self.backtrack, index, info, &matchers.backtrack),
             &mut start_index,
         ) {
             ctx.buffer
@@ -645,15 +753,15 @@ impl<'a> ParsedRule<'a> {
 }
 
 /// Whether the glyph matches value `index` of `sequence`.
-fn sequence_matches(
-    sequence: &[BigEndian<u16>],
+fn sequence_matches<const W: usize>(
+    sequence: &Values<W>,
     index: u32,
     info: &mut GlyphInfo,
     matches: &impl Fn(&mut GlyphInfo, u32) -> bool,
 ) -> bool {
     sequence
         .get(index as usize)
-        .is_some_and(|value| matches(info, u32::from(value.get())))
+        .is_some_and(|value| matches(info, value))
 }
 
 /// How a chain rule matches each of its three sequences.
@@ -670,15 +778,15 @@ impl<F: Fn(&mut GlyphInfo, u32) -> bool> Matcher for F {}
 
 /// The first input value of a rule, after any backtrack: the second glyph
 /// of a match.
-fn rule_first_input(data: &FontData, chained: bool) -> Option<u16> {
-    RuleProbe::new(*data, chained)
+fn rule_first_input<const W: usize>(data: &FontData, layout: RuleLayout) -> Option<u32> {
+    RuleProbe::<W>::new(*data, layout)
         .filter(|probe| probe.input_count > 1)?
         .input(0)
 }
 
 /// Reads the values of a rule that the pre-match needs, without parsing
 /// the rule.
-struct RuleProbe<'a> {
+struct RuleProbe<'a, const W: usize> {
     data: FontData<'a>,
     input_start: usize,
     input_end: usize,
@@ -686,26 +794,25 @@ struct RuleProbe<'a> {
     chained: bool,
 }
 
-impl<'a> RuleProbe<'a> {
-    fn new(data: FontData<'a>, chained: bool) -> Option<Self> {
+impl<'a, const W: usize> RuleProbe<'a, W> {
+    fn new(data: FontData<'a>, layout: RuleLayout) -> Option<Self> {
         // A sequence rule's lookup count sits between its glyph count and
         // its input.
-        let (count_pos, input_start) = if chained {
+        let (count_pos, input_start) = if layout.chained {
             let backtrack_count = usize::from(data.read_at::<u16>(0).ok()?);
-            let count_pos = 2 + backtrack_count * u16::RAW_BYTE_LEN;
+            let count_pos = 2 + backtrack_count * W;
             (count_pos, count_pos + 2)
         } else {
             (0, 4)
         };
         let input_count: u16 = data.read_at(count_pos).ok()?;
-        let input_end =
-            input_start + usize::from(input_count).saturating_sub(1) * u16::RAW_BYTE_LEN;
+        let input_end = input_start + usize::from(input_count).saturating_sub(1) * W;
         Some(Self {
             data,
             input_start,
             input_end,
             input_count,
-            chained,
+            chained: layout.chained,
         })
     }
 
@@ -714,10 +821,8 @@ impl<'a> RuleProbe<'a> {
         usize::from(self.input_count).max(1)
     }
 
-    fn input(&self, index: usize) -> Option<u16> {
-        self.data
-            .read_at(self.input_start + index * u16::RAW_BYTE_LEN)
-            .ok()
+    fn input(&self, index: usize) -> Option<u32> {
+        super::read_be::<W>(self.data.as_bytes(), self.input_start + index * W)
     }
 
     fn lookahead_len(&self) -> usize {
@@ -727,10 +832,8 @@ impl<'a> RuleProbe<'a> {
         usize::from(self.data.read_at::<u16>(self.input_end).unwrap_or(0))
     }
 
-    fn lookahead(&self, index: usize) -> Option<u16> {
-        self.data
-            .read_at(self.input_end + 2 + index * u16::RAW_BYTE_LEN)
-            .ok()
+    fn lookahead(&self, index: usize) -> Option<u32> {
+        super::read_be::<W>(self.data.as_bytes(), self.input_end + 2 + index * W)
     }
 }
 
@@ -739,12 +842,12 @@ impl<'a> RuleProbe<'a> {
 fn matches_at(
     info: &mut [GlyphInfo],
     idx: usize,
-    value: u16,
+    value: u32,
     matches: &impl Fn(&mut GlyphInfo, u32) -> bool,
 ) -> bool {
     info.get_mut(idx)
         .likely()
-        .is_some_and(|info| matches(info, u32::from(value)))
+        .is_some_and(|info| matches(info, value))
 }
 
 /// The glyphs after the current one that rules are pre-matched against.
@@ -778,7 +881,7 @@ fn prematch(
     ctx: &mut ApplyContext,
     has_rules: bool,
     digest: Option<RuleSetDigest>,
-    first_value: &impl Fn(&mut GlyphInfo) -> u16,
+    first_value: &impl Fn(&mut GlyphInfo) -> u32,
 ) -> Option<Prematch> {
     let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
     if iter.reset(iter.buffer.idx).is_none() {
@@ -831,13 +934,13 @@ fn prematch(
 /// Returns the index of the first rule after `index` whose first input
 /// isn't `first`. Rules are sorted by it, so the ones skipped would fail the
 /// same way; unreadable rules are skipped too.
-fn skip_rules(rules: Rules, mut index: usize, first: u16) -> usize {
+fn skip_rules<const W: usize>(rules: Rules, mut index: usize, first: u32) -> usize {
     loop {
         index += 1;
         if index >= rules.len()
             || rules
                 .rule(index)
-                .is_some_and(|data| rule_first_input(&data, rules.chained) != Some(first))
+                .is_some_and(|data| rule_first_input::<W>(&data, rules.layout) != Some(first))
         {
             return index;
         }
@@ -864,12 +967,12 @@ fn finish_rules(
 /// without parsing. HarfBuzz skips the pre-match for small rule sets; here
 /// it is faster at every size.
 #[inline(never)]
-fn apply_chain_rules(
+fn apply_chain_rules<const W: usize>(
     ctx: &mut ApplyContext,
     rules: Rules,
     matchers: &ChainMatchers<impl Matcher, impl Matcher, impl Matcher>,
     digest: Option<RuleSetDigest>,
-    first_value: &impl Fn(&mut GlyphInfo) -> u16,
+    first_value: &impl Fn(&mut GlyphInfo) -> u32,
 ) -> Option<()> {
     let lookahead = match prematch(ctx, rules.len() != 0, digest, first_value)? {
         Prematch::Glyphs(lookahead) => lookahead,
@@ -877,13 +980,13 @@ fn apply_chain_rules(
         Prematch::TryAll => {
             return (0..rules.len())
                 .filter_map(|index| rules.rule(index))
-                .find_map(|data| ParsedRule::parse(data, rules.chained).apply(ctx, matchers));
+                .find_map(|data| ParsedRule::<W>::parse(data, rules.layout).apply(ctx, matchers));
         }
         Prematch::End { unsafe_to } => {
             // Only rules without further input or lookahead can match.
             let mut unsafe_to_concat = false;
             for data in (0..rules.len()).filter_map(|index| rules.rule(index)) {
-                let rule = ParsedRule::parse(data, rules.chained);
+                let rule = ParsedRule::<W>::parse(data, rules.layout);
                 if !rule.input.is_empty() || !rule.lookahead.is_empty() {
                     unsafe_to_concat = true;
                 } else if rule.apply(ctx, matchers).is_some() {
@@ -900,9 +1003,9 @@ fn apply_chain_rules(
             index += 1;
             continue;
         };
-        let Some(probe) = RuleProbe::new(data, rules.chained) else {
+        let Some(probe) = RuleProbe::<W>::new(data, rules.layout) else {
             // An unreadable header parses as an empty rule.
-            if ParsedRule::parse(data, rules.chained)
+            if ParsedRule::<W>::parse(data, rules.layout)
                 .apply(ctx, matchers)
                 .is_some()
             {
@@ -939,7 +1042,7 @@ fn apply_chain_rules(
             });
             if !second_matches {
                 unsafe_to = Some(lookahead.unsafe_to2);
-            } else if ParsedRule::parse(data, rules.chained)
+            } else if ParsedRule::<W>::parse(data, rules.layout)
                 .apply(ctx, matchers)
                 .is_some()
             {
@@ -949,7 +1052,7 @@ fn apply_chain_rules(
         } else {
             unsafe_to.get_or_insert(lookahead.unsafe_to1);
             index = match (input_len > 1).then(|| probe.input(0)).flatten() {
-                Some(first) => skip_rules(rules, index, first),
+                Some(first) => skip_rules::<W>(rules, index, first),
                 None => index + 1,
             };
         }
@@ -958,19 +1061,23 @@ fn apply_chain_rules(
 }
 
 /// Whether a rule of `rules` matches the glyphs of `ctx`.
-fn would_apply_chain_rules(ctx: &WouldApplyContext, rules: Rules, matches: MatchFn) -> bool {
+fn would_apply_chain_rules<const W: usize>(
+    ctx: &WouldApplyContext,
+    rules: Rules,
+    matches: MatchFn,
+) -> bool {
     (0..rules.len())
-        .filter_map(|index| ParsedRule::try_parse(rules.rule(index)?, rules.chained))
+        .filter_map(|index| ParsedRule::<W>::try_parse(rules.rule(index)?, rules.layout))
         .any(|rule| {
             (!ctx.zero_context || (rule.backtrack.is_empty() && rule.lookahead.is_empty()))
-                && sequence_would_apply(ctx, rule.input, matches)
+                && sequence_would_apply(ctx, &rule.input, matches)
         })
 }
 
 /// Whether `input` matches the glyphs of `ctx` after the first.
-fn sequence_would_apply(
+fn sequence_would_apply<const W: usize>(
     ctx: &WouldApplyContext,
-    input: &[BigEndian<u16>],
+    input: &Values<W>,
     matches: MatchFn,
 ) -> bool {
     ctx.glyphs.len() == input.len() + 1
@@ -979,6 +1086,6 @@ fn sequence_would_apply(
                 glyph_id: (*glyph).into(),
                 ..GlyphInfo::default()
             };
-            matches(&mut info, u32::from(value.get()))
+            matches(&mut info, value)
         })
 }

@@ -1,7 +1,10 @@
 //! Substitution subtables.
+//!
+//! Each kind serves the original format and its extended counterpart, which
+//! differ only in the widths of glyph IDs and offsets.
 
 use super::coverage::Coverage;
-use super::{Offsets, SubtableDigests};
+use super::{read_be, Offsets, SubtableDigests, Uints, Values};
 use crate::buffer::{GlyphInfo, GlyphPropsFlags};
 use crate::hint::Likely;
 use crate::ot::apply::{
@@ -13,28 +16,50 @@ use crate::ot::map::OtMap;
 use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
 use read_fonts::tables::gsub::{
-    AlternateSet, AlternateSubstFormat1, Ligature, LigatureSet, LigatureSubstFormat1,
-    MultipleSubstFormat1, ReverseChainSingleSubstFormat1, Sequence, SingleSubstFormat1,
-    SingleSubstFormat2,
+    AlternateSubstFormat1, AlternateSubstFormat2, LigatureSubstFormat1, LigatureSubstFormat2,
+    MultipleSubstFormat1, MultipleSubstFormat2, ReverseChainSingleSubstFormat1,
+    ReverseChainSingleSubstFormat2, SingleSubstFormat1, SingleSubstFormat2, SingleSubstFormat3,
+    SingleSubstFormat4,
 };
-use read_fonts::types::{BigEndian, GlyphId, GlyphId16};
+use read_fonts::types::GlyphId;
+use read_fonts::FontData;
 
-/// Single substitution by a fixed delta.
+/// The width of a glyph ID in the original formats.
+const NARROW: usize = 2;
+/// The width of a glyph ID, and of a child offset, in the extended formats.
+const WIDE: usize = 3;
+
+/// A count of 16 bits followed by that many glyph IDs of `width` bytes, as
+/// in a sequence or alternate set.
+fn counted_glyphs(data: FontData, width: usize) -> Option<Uints> {
+    let count = usize::from(data.read_at::<u16>(0).ok()?);
+    Uints::at(data, 2, count, width)
+}
+
+/// Single substitution by a fixed delta, wrapping within the glyph ID width.
 pub(crate) struct SingleSubst1 {
-    delta: i16,
+    delta: i32,
+    mask: u32,
 }
 
 impl SingleSubst1 {
     pub fn new(table: &SingleSubstFormat1) -> Option<Self> {
         Some(Self {
-            delta: table.delta_glyph_id(),
+            delta: table.delta_glyph_id().into(),
+            mask: 0xFFFF,
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
-        let glyph = ctx.buffer.cur(0)?.as_glyph();
-        // The delta wraps around within 16 bits.
-        let substitute = (glyph.to_u32() as i32 + i32::from(self.delta)) as u16;
+    pub fn new_wide(table: &SingleSubstFormat3) -> Option<Self> {
+        Some(Self {
+            delta: table.delta_glyph_id().to_i32(),
+            mask: 0xFF_FFFF,
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u32) -> Option<()> {
+        let glyph = ctx.buffer.cur(0)?.glyph_id;
+        let substitute = (glyph as i32).wrapping_add(self.delta) as u32 & self.mask;
         ctx.replace_glyph(substitute.into());
         Some(())
     }
@@ -44,19 +69,26 @@ impl SubtableDigests<'_> for SingleSubst1 {}
 
 /// Single substitution from an array of substitutes.
 pub(crate) struct SingleSubst2<'a> {
-    substitutes: &'a [BigEndian<GlyphId16>],
+    substitutes: Uints<'a>,
 }
 
 impl<'a> SingleSubst2<'a> {
     pub fn new(table: &SingleSubstFormat2<'a>) -> Option<Self> {
+        let range = table.substitute_glyph_ids_byte_range();
         Some(Self {
-            substitutes: table.substitute_glyph_ids(),
+            substitutes: Uints::new(table.offset_data(), range, NARROW)?,
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let index = usize::from(index);
-        let substitute = self.substitutes.get(index)?.get();
+    pub fn new_wide(table: &SingleSubstFormat4<'a>) -> Option<Self> {
+        let range = table.substitute_glyph_ids_byte_range();
+        Some(Self {
+            substitutes: Uints::new(table.offset_data(), range, WIDE)?,
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let substitute = self.substitutes.get(index as usize)?;
         ctx.replace_glyph(substitute.into());
         Some(())
     }
@@ -67,26 +99,36 @@ impl<'a> SubtableDigests<'a> for SingleSubst2<'a> {}
 /// Multiple substitution: one glyph into a sequence.
 pub(crate) struct MultipleSubst1<'a> {
     sequences: Offsets<'a>,
+    glyph_width: u8,
 }
 
 impl<'a> MultipleSubst1<'a> {
     pub fn new(table: &MultipleSubstFormat1<'a>) -> Option<Self> {
+        let range = table.sequence_offsets_byte_range();
         Some(Self {
-            sequences: Offsets::new(table.offset_data(), table.sequence_offsets()),
+            sequences: Offsets::new(table.offset_data(), range, NARROW),
+            glyph_width: NARROW as u8,
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let index = usize::from(index);
-        let sequence: Sequence = self.sequences.get(index)?;
-        let substitutes = sequence.substitute_glyph_ids();
-        match substitutes {
+    pub fn new_wide(table: &MultipleSubstFormat2<'a>) -> Option<Self> {
+        let range = table.sequence_offsets_byte_range();
+        Some(Self {
+            sequences: Offsets::new(table.offset_data(), range, WIDE),
+            glyph_width: WIDE as u8,
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let data = self.sequences.data(index as usize)?;
+        let substitutes = counted_glyphs(data, self.glyph_width.into())?;
+        match substitutes.len() {
             // The spec disallows empty sequences, but Uniscribe deletes the
             // glyph. https://github.com/harfbuzz/harfbuzz/issues/253
-            [] => ctx.buffer.delete_glyph(),
+            0 => ctx.buffer.delete_glyph(),
             // A single substitute is an in-place replacement, not a
             // multiplication.
-            [substitute] => ctx.replace_glyph(substitute.get().into()),
+            1 => ctx.replace_glyph(substitutes.first()?.into()),
             _ => {
                 let class = if ctx.buffer.cur(0)?.is_ligature() {
                     GlyphPropsFlags::BASE_GLYPH
@@ -103,7 +145,7 @@ impl<'a> MultipleSubst1<'a> {
                             .cur_mut(0)?
                             .set_lig_props_for_component(component as u8);
                     }
-                    ctx.output_glyph_for_component(substitute.get().into(), class);
+                    ctx.output_glyph_for_component(substitute.into(), class);
                 }
                 ctx.buffer.skip_glyph();
             }
@@ -117,25 +159,35 @@ impl<'a> SubtableDigests<'a> for MultipleSubst1<'a> {}
 /// Alternate substitution, chosen by the feature value.
 pub(crate) struct AlternateSubst1<'a> {
     alternate_sets: Offsets<'a>,
+    glyph_width: u8,
 }
 
 impl<'a> AlternateSubst1<'a> {
     pub fn new(table: &AlternateSubstFormat1<'a>) -> Option<Self> {
+        let range = table.alternate_set_offsets_byte_range();
         Some(Self {
-            alternate_sets: Offsets::new(table.offset_data(), table.alternate_set_offsets()),
+            alternate_sets: Offsets::new(table.offset_data(), range, NARROW),
+            glyph_width: NARROW as u8,
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let index = usize::from(index);
-        apply_alternate_set(ctx, &self.alternate_sets.get(index)?)
+    pub fn new_wide(table: &AlternateSubstFormat2<'a>) -> Option<Self> {
+        let range = table.alternate_set_offsets_byte_range();
+        Some(Self {
+            alternate_sets: Offsets::new(table.offset_data(), range, WIDE),
+            glyph_width: WIDE as u8,
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let data = self.alternate_sets.data(index as usize)?;
+        apply_alternate_set(ctx, counted_glyphs(data, self.glyph_width.into())?)
     }
 }
 
 impl<'a> SubtableDigests<'a> for AlternateSubst1<'a> {}
 
-fn apply_alternate_set(ctx: &mut ApplyContext, set: &AlternateSet) -> Option<()> {
-    let alternates = set.alternate_glyph_ids();
+fn apply_alternate_set(ctx: &mut ApplyContext, alternates: Uints) -> Option<()> {
     if alternates.is_empty() {
         return None;
     }
@@ -150,8 +202,61 @@ fn apply_alternate_set(ctx: &mut ApplyContext, set: &AlternateSet) -> Option<()>
         alt_index = ctx.random_number() % alternates.len() as u32 + 1;
     }
     let index = u16::try_from(alt_index).ok()?.checked_sub(1)?;
-    ctx.replace_glyph(alternates.get(index as usize)?.get().into());
+    ctx.replace_glyph(alternates.get(index as usize)?.into());
     Some(())
+}
+
+/// A ligature: its glyph and its components after the first, whose glyph
+/// IDs are `W` bytes.
+struct Ligature<'a, const W: usize> {
+    glyph: u32,
+    components: Values<'a, W>,
+}
+
+impl<'a, const W: usize> Ligature<'a, W> {
+    /// Reads a ligature; `None` if it is truncated.
+    #[inline(always)]
+    fn read(data: FontData<'a>) -> Option<Self> {
+        let glyph = read_be::<W>(data.as_bytes(), 0)?;
+        let count = usize::from(data.read_at::<u16>(W).ok()?);
+        Some(Self {
+            glyph,
+            components: Values::at(data, W + 2, count.saturating_sub(1))?,
+        })
+    }
+}
+
+/// The ligatures of a ligature set, read on demand. Its offsets and glyph
+/// IDs are `W` bytes.
+struct LigatureSet<'a, const W: usize> {
+    data: FontData<'a>,
+    offsets: Values<'a, W>,
+}
+
+impl<'a, const W: usize> LigatureSet<'a, W> {
+    #[inline(always)]
+    fn read(data: FontData<'a>) -> Option<Self> {
+        let count = usize::from(data.read_at::<u16>(0).ok()?);
+        Some(Self {
+            data,
+            offsets: Values::at(data, 2, count)?,
+        })
+    }
+
+    fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
+    /// The readable ligatures, in order; a null offset is skipped.
+    #[inline(always)]
+    fn iter(&self) -> impl Iterator<Item = Ligature<'a, W>> + '_ {
+        self.offsets.iter().filter_map(|offset| {
+            if offset == 0 {
+                return None;
+            }
+            Ligature::read(self.data.split_off(offset as usize)?)
+        })
+    }
 }
 
 /// Ligature substitution.
@@ -159,35 +264,70 @@ pub(crate) struct LigatureSubst1<'a> {
     /// The second components of all ligatures.
     seconds: SetDigest,
     ligature_sets: Offsets<'a>,
+    width: u8,
 }
 
 impl<'a> LigatureSubst1<'a> {
     pub fn new(table: &LigatureSubstFormat1<'a>) -> Option<Self> {
-        Some(Self {
-            seconds: collect_seconds(table),
-            ligature_sets: Offsets::new(table.offset_data(), table.ligature_set_offsets()),
-        })
+        let range = table.ligature_set_offsets_byte_range();
+        Some(Self::from_sets(
+            Offsets::new(table.offset_data(), range, NARROW),
+            NARROW,
+        ))
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        apply_ligature_set(
-            ctx,
-            &self.ligature_sets.get(usize::from(index))?,
-            &self.seconds,
-        )
+    pub fn new_wide(table: &LigatureSubstFormat2<'a>) -> Option<Self> {
+        let range = table.ligature_set_offsets_byte_range();
+        Some(Self::from_sets(
+            Offsets::new(table.offset_data(), range, WIDE),
+            WIDE,
+        ))
+    }
+
+    fn from_sets(ligature_sets: Offsets<'a>, width: usize) -> Self {
+        let seconds = if width == WIDE {
+            collect_seconds::<WIDE>(&ligature_sets)
+        } else {
+            collect_seconds::<NARROW>(&ligature_sets)
+        };
+        Self {
+            seconds,
+            ligature_sets,
+            width: width as u8,
+        }
+    }
+
+    // Each width gets its own copy of the ligature walk, which reads many
+    // glyph IDs per application.
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let data = self.ligature_sets.data(index as usize)?;
+        if usize::from(self.width) == WIDE {
+            apply_ligature_set(ctx, &LigatureSet::<WIDE>::read(data)?, &self.seconds)
+        } else {
+            apply_ligature_set(ctx, &LigatureSet::<NARROW>::read(data)?, &self.seconds)
+        }
     }
 
     pub fn would_apply(&self, ctx: &WouldApplyContext, coverage: &Coverage) -> bool {
-        coverage
+        let Some(data) = coverage
             .get(ctx.glyphs[0])
-            .and_then(|index| self.ligature_sets.get::<LigatureSet>(index as usize))
-            .is_some_and(|set| {
-                set.ligatures()
-                    .iter()
-                    .filter_map(Result::ok)
-                    .any(|ligature| ligature_would_apply(&ligature, ctx))
-            })
+            .and_then(|index| self.ligature_sets.data(index as usize))
+        else {
+            return false;
+        };
+        if usize::from(self.width) == WIDE {
+            set_would_apply(LigatureSet::<WIDE>::read(data), ctx)
+        } else {
+            set_would_apply(LigatureSet::<NARROW>::read(data), ctx)
+        }
     }
+}
+
+fn set_would_apply<const W: usize>(set: Option<LigatureSet<W>>, ctx: &WouldApplyContext) -> bool {
+    set.is_some_and(|set| {
+        set.iter()
+            .any(|ligature| ligature_would_apply(&ligature, ctx))
+    })
 }
 
 impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
@@ -204,51 +344,51 @@ const MAX_LIGATURE_DIGEST_WORK: usize = 16_384;
 
 /// The digest of every ligature's second glyph, or a full digest if a
 /// ligature has none or the walk is too long.
-fn collect_seconds(table: &LigatureSubstFormat1) -> SetDigest {
+fn collect_seconds<const W: usize>(sets: &Offsets) -> SetDigest {
     let mut seconds = SetDigest::new();
     let mut remaining_work = MAX_LIGATURE_DIGEST_WORK;
-    let sets = table.ligature_sets();
     let Some(work) = remaining_work.checked_sub(sets.len()) else {
         return SetDigest::full();
     };
     remaining_work = work;
-    for set in sets.iter().filter_map(Result::ok) {
-        let ligatures = set.ligatures();
-        let Some(work) = remaining_work.checked_sub(ligatures.len()) else {
+    for index in 0..sets.len() {
+        let Some(set) = sets.data(index).and_then(LigatureSet::<W>::read) else {
+            continue;
+        };
+        let Some(work) = remaining_work.checked_sub(set.len()) else {
             return SetDigest::full();
         };
         remaining_work = work;
-        for ligature in ligatures.iter().filter_map(Result::ok) {
-            let Some(second) = ligature.component_glyph_ids().first() else {
+        for ligature in set.iter() {
+            let Some(second) = ligature.components.first() else {
                 return SetDigest::full();
             };
-            seconds.add(second.get().into());
+            seconds.add(second);
         }
     }
     seconds
 }
 
-fn ligature_would_apply(ligature: &Ligature, ctx: &WouldApplyContext) -> bool {
-    let components = ligature.component_glyph_ids();
+fn ligature_would_apply<const W: usize>(ligature: &Ligature<W>, ctx: &WouldApplyContext) -> bool {
+    let components = &ligature.components;
     ctx.glyphs.len() == components.len() + 1
         && components
             .iter()
             .zip(&ctx.glyphs[1..])
-            .all(|(component, glyph)| GlyphId::from(component.get()) == *glyph)
+            .all(|(component, glyph)| GlyphId::new(component) == *glyph)
 }
 
 /// Applies the first ligature of `set` that matches.
-fn apply_ligature_set(
+fn apply_ligature_set<const W: usize>(
     ctx: &mut ApplyContext,
-    set: &LigatureSet,
+    set: &LigatureSet<W>,
     seconds: &SetDigest,
 ) -> Option<()> {
-    let ligatures = set.ligatures();
     // Find the glyph after the current one, to reject ligatures by their
     // first component without matching them.
     let mut second = None;
     let mut unsafe_to = 0;
-    if ligatures.len() > 1 {
+    if set.len() > 1 {
         let mut iter = SkippingIterator::with_match_fn(ctx, true, Some(match_always));
         if iter.reset(iter.buffer.idx).is_none() {
             iter.buffer.index_failed();
@@ -259,18 +399,17 @@ fn apply_ligature_set(
             // A skippable next glyph, such as a default ignorable, may not
             // be the second component.
             if iter.may_skip(info) == MaySkip::No {
-                second = Some(info.as_glyph());
+                second = Some(info.glyph_id);
             }
         }
     }
 
     let Some(second) = second else {
-        return ligatures
+        return set
             .iter()
-            .filter_map(Result::ok)
             .find_map(|ligature| apply_ligature(ctx, &ligature));
     };
-    if !seconds.may_have(second.to_u32()) {
+    if !seconds.may_have(second) {
         // Every ligature here has a second component and none of them is
         // this glyph; `collect_seconds` gives up on any ligature without
         // one.
@@ -279,9 +418,9 @@ fn apply_ligature_set(
         return None;
     }
     let mut unsafe_to_concat = false;
-    for ligature in ligatures.iter().filter_map(Result::ok) {
-        match ligature.component_glyph_ids().first() {
-            Some(first) if GlyphId::from(first.get()) != second => unsafe_to_concat = true,
+    for ligature in set.iter() {
+        match ligature.components.first() {
+            Some(first) if first != second => unsafe_to_concat = true,
             _ => {
                 if apply_ligature(ctx, &ligature).is_some() {
                     if unsafe_to_concat {
@@ -300,9 +439,9 @@ fn apply_ligature_set(
     None
 }
 
-fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
-    let components = ligature.component_glyph_ids();
-    let ligature_glyph = ligature.ligature_glyph().into();
+fn apply_ligature<const W: usize>(ctx: &mut ApplyContext, ligature: &Ligature<W>) -> Option<()> {
+    let components = &ligature.components;
+    let ligature_glyph = ligature.glyph.into();
     // A ligature of one glyph is an in-place replacement, not a ligation.
     if components.is_empty() {
         ctx.replace_glyph(ligature_glyph);
@@ -311,7 +450,7 @@ fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
     let matches = |info: &mut GlyphInfo, index: u32| {
         components
             .get(index as usize)
-            .is_some_and(|component| match_glyph(info, component.get().to_u32()))
+            .is_some_and(|component| match_glyph(info, component))
     };
     let mut match_end = 0;
     let mut total_component_count = 0;
@@ -337,7 +476,7 @@ fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
 
 /// Reverse chaining single substitution.
 pub(crate) struct ReverseChainSubst1<'a> {
-    substitutes: &'a [BigEndian<GlyphId16>],
+    substitutes: Uints<'a>,
     /// The backtrack coverages, `None` where one can't be read.
     backtrack: Box<[Coverage<'a>]>,
     lookahead: Box<[Coverage<'a>]>,
@@ -346,7 +485,11 @@ pub(crate) struct ReverseChainSubst1<'a> {
 impl<'a> ReverseChainSubst1<'a> {
     pub fn new(table: &ReverseChainSingleSubstFormat1<'a>) -> Option<Self> {
         Some(Self {
-            substitutes: table.substitute_glyph_ids(),
+            substitutes: Uints::new(
+                table.offset_data(),
+                table.substitute_glyph_ids_byte_range(),
+                NARROW,
+            )?,
             backtrack: table
                 .backtrack_coverages()
                 .iter()
@@ -360,13 +503,32 @@ impl<'a> ReverseChainSubst1<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
+    pub fn new_wide(table: &ReverseChainSingleSubstFormat2<'a>) -> Option<Self> {
+        Some(Self {
+            substitutes: Uints::new(
+                table.offset_data(),
+                table.substitute_glyph_ids_byte_range(),
+                WIDE,
+            )?,
+            backtrack: table
+                .backtrack_coverages()
+                .iter()
+                .map(Coverage::new)
+                .collect(),
+            lookahead: table
+                .lookahead_coverages()
+                .iter()
+                .map(Coverage::new)
+                .collect(),
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
         // Reverse chaining lookups can't be nested.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
             return None;
         }
-        let index = usize::from(index);
-        let substitute = self.substitutes.get(index)?.get();
+        let substitute = self.substitutes.get(index as usize)?;
 
         let mut start_index = 0;
         let mut end_index = 0;
@@ -411,12 +573,17 @@ pub(super) fn covered_at(coverages: &[Coverage], index: u32, info: &GlyphInfo) -
 mod tests {
     use super::*;
     use alloc::vec;
-    use read_fonts::{FontData, FontRead};
+    use read_fonts::FontRead;
 
     fn assert_full_digest(digest: SetDigest) {
         assert!(digest.may_have(0));
         assert!(digest.may_have(12345));
         assert!(digest.may_have(u16::MAX as u32));
+    }
+
+    fn seconds_of(data: &[u8]) -> SetDigest {
+        let table = LigatureSubstFormat1::read(FontData::new(data)).unwrap();
+        LigatureSubst1::new(&table).unwrap().seconds
     }
 
     #[test]
@@ -425,9 +592,7 @@ mod tests {
         let mut data = vec![0; 6 + ligature_set_count * 2];
         data[0..2].copy_from_slice(&1u16.to_be_bytes());
         data[4..6].copy_from_slice(&(ligature_set_count as u16).to_be_bytes());
-
-        let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
-        assert_full_digest(collect_seconds(&lig_subst));
+        assert_full_digest(seconds_of(&data));
     }
 
     #[test]
@@ -438,8 +603,6 @@ mod tests {
         data[4..6].copy_from_slice(&1u16.to_be_bytes());
         data[6..8].copy_from_slice(&8u16.to_be_bytes());
         data[8..10].copy_from_slice(&(ligature_count as u16).to_be_bytes());
-
-        let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
-        assert_full_digest(collect_seconds(&lig_subst));
+        assert_full_digest(seconds_of(&data));
     }
 }

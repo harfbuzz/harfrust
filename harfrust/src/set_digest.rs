@@ -95,6 +95,19 @@ impl SetDigest {
                     self.add_range(range.start_glyph_id().into(), range.end_glyph_id().into());
                 }
             }
+            CoverageTable::Format3(table) => {
+                for glyph in table.glyph_array() {
+                    self.add(glyph.get().to_u32());
+                }
+            }
+            CoverageTable::Format4(table) => {
+                for range in table.range_records() {
+                    self.add_range(
+                        range.start_glyph_id().to_u32(),
+                        range.end_glyph_id().to_u32(),
+                    );
+                }
+            }
         }
     }
 

@@ -1,7 +1,10 @@
 //! Positioning subtables.
+//!
+//! Each kind serves the original format and its extended counterpart, which
+//! differ only in the widths of glyph IDs, counts and offsets.
 
 use super::coverage::{ClassDef, Coverage};
-use super::{glyph_class_cached, Offsets, SubtableDigests};
+use super::{glyph_class_cached, read_uint, Offsets, SubtableDigests, Uints};
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::{ApplyContext, MappingCache, MatchResult, SkippingIterator};
@@ -10,15 +13,22 @@ use crate::ot::lookup_flags;
 use crate::set_digest::SetDigest;
 use crate::Direction;
 use alloc::boxed::Box;
+use core::ops::Range;
 use read_fonts::tables::gpos::{
-    AnchorTable, BaseArray, ClassValueRecords, CursivePosFormat1, EntryExitRecord, LigatureArray,
-    Mark2Array, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
-    PairPosFormat1, PairPosFormat2, PairSet, SinglePosFormat1, SinglePosFormat2, ValueFormat,
+    AnchorTable, ClassValueRecords, CursivePosFormat1, CursivePosFormat2, MarkBasePosFormat1,
+    MarkBasePosFormat2, MarkLigPosFormat1, MarkLigPosFormat2, MarkMarkPosFormat1,
+    MarkMarkPosFormat2, PairPosFormat1, PairPosFormat2, PairPosFormat3, PairPosFormat4,
+    SinglePosFormat1, SinglePosFormat2, SinglePosFormat3, SinglePosFormat4, ValueFormat,
     ValueRecord,
 };
 use read_fonts::tables::variations::DeltaSetIndex;
 use read_fonts::types::{BigEndian, GlyphId};
-use read_fonts::FontData;
+use read_fonts::{FontData, FontRead};
+
+/// The width of glyph IDs, counts and child offsets in the original formats.
+const NARROW: usize = 2;
+/// Their width in the extended formats.
+const WIDE: usize = 3;
 
 /// Adds `record` to the position of glyph `idx`, returning whether it
 /// changed anything. A truncated record changes nothing.
@@ -165,7 +175,17 @@ impl<'a> SinglePos1<'a> {
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, _index: u16) -> Option<()> {
+    pub fn new_wide(table: &SinglePosFormat3<'a>) -> Option<Self> {
+        Some(Self {
+            value: ValueRecord::new(
+                table.offset_data(),
+                table.value_record_byte_range().start,
+                table.value_format(),
+            ),
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, _index: u32) -> Option<()> {
         apply_value(ctx, ctx.buffer.idx, &self.value);
         ctx.buffer.idx += 1;
         Some(())
@@ -178,6 +198,7 @@ impl<'a> SubtableDigests<'a> for SinglePos1<'a> {}
 pub(crate) struct SinglePos2<'a> {
     /// The first value record.
     values: ValueRecord<'a>,
+    count: u32,
 }
 
 impl<'a> SinglePos2<'a> {
@@ -188,15 +209,30 @@ impl<'a> SinglePos2<'a> {
                 table.value_records_byte_range().start,
                 table.value_format(),
             ),
+            count: table.value_count().into(),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let index = usize::from(index);
+    pub fn new_wide(table: &SinglePosFormat4<'a>) -> Option<Self> {
+        Some(Self {
+            values: ValueRecord::new(
+                table.offset_data(),
+                table.value_records_byte_range().start,
+                table.value_format(),
+            ),
+            count: table.value_count().to_u32(),
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        // A glyph covered past the end of the values has none.
+        if index >= self.count {
+            return None;
+        }
         let values = &self.values;
         let value = ValueRecord::new(
             values.offset_data(),
-            values.offset() + values.byte_len() * index,
+            values.offset() + values.byte_len() * index as usize,
             values.format(),
         );
         apply_value(ctx, ctx.buffer.idx, &value);
@@ -320,21 +356,52 @@ pub(crate) struct PairPos1<'a> {
     pair_set_digests: Box<[SetDigest]>,
     format1: ValueFormat,
     format2: ValueFormat,
+    /// The width of a pair set's count and second glyphs.
+    width: u8,
 }
 
 impl<'a> PairPos1<'a> {
     pub fn new(table: &PairPosFormat1<'a>) -> Option<Self> {
-        let pair_set_digests = table
-            .pair_sets()
-            .iter()
-            .map(|set| set.map_or_else(|_| SetDigest::full(), |set| pair_set_digest(&set)))
+        let range = table.pair_set_offsets_byte_range();
+        Some(Self::from_parts(
+            Offsets::new(table.offset_data(), range, NARROW),
+            table.value_format1(),
+            table.value_format2(),
+            NARROW,
+        ))
+    }
+
+    pub fn new_wide(table: &PairPosFormat3<'a>) -> Option<Self> {
+        let range = table.pair_set_offsets_byte_range();
+        Some(Self::from_parts(
+            Offsets::new(table.offset_data(), range, WIDE),
+            table.value_format1(),
+            table.value_format2(),
+            WIDE,
+        ))
+    }
+
+    fn from_parts(
+        pair_sets: Offsets<'a>,
+        format1: ValueFormat,
+        format2: ValueFormat,
+        width: usize,
+    ) -> Self {
+        let record_len = width + format1.record_byte_len() + format2.record_byte_len();
+        let pair_set_digests = (0..pair_sets.len())
+            .map(|index| {
+                pair_sets.data(index).map_or_else(SetDigest::full, |data| {
+                    pair_set_digest(data, width, record_len)
+                })
+            })
             .collect();
-        Some(Self {
-            pair_sets: Offsets::new(table.offset_data(), table.pair_set_offsets()),
+        Self {
+            pair_sets,
             pair_set_digests,
-            format1: table.value_format1(),
-            format2: table.value_format2(),
-        })
+            format1,
+            format2,
+            width: width as u8,
+        }
     }
 
     /// Applies, sharing the search for the second glyph with the lookup's
@@ -343,10 +410,10 @@ impl<'a> PairPos1<'a> {
     pub fn apply(
         &self,
         ctx: &mut ApplyContext,
-        index: u16,
+        index: u32,
         second: &mut SecondGlyph,
     ) -> Option<()> {
-        let index = usize::from(index);
+        let index = index as usize;
         let (second_index, buf_idx, second) = second.get(ctx)?;
         if self
             .pair_set_digests
@@ -362,25 +429,31 @@ impl<'a> PairPos1<'a> {
         // glyph, directly in the bytes.
         let data = self.pair_sets.data(index)?;
         let bytes = data.as_bytes();
+        let width = usize::from(self.width);
         let format1_len = self.format1.record_byte_len();
-        let record_len = 2 + format1_len + self.format2.record_byte_len();
-        let (mut lo, mut hi) = (0, data.read_at::<u16>(0).likely_ok()? as usize);
+        let record_len = width + format1_len + self.format2.record_byte_len();
+        if bytes.len() < width {
+            return None;
+        }
+        let second = second.to_u32();
+        let (mut lo, mut hi) = (0, read_uint(bytes, 0, width) as usize);
         while lo < hi {
-            // The bounds are 16-bit, so the plain midpoint can't overflow.
+            // The bounds are at most 24-bit, so the plain midpoint can't
+            // overflow.
             #[allow(clippy::manual_midpoint)]
             let mid = (lo + hi) / 2;
-            let offset = 2 + mid * record_len;
-            let &[hi_byte, lo_byte] = bytes.get(offset..offset + 2)? else {
+            let offset = width + mid * record_len;
+            if offset + width > bytes.len() {
                 return None;
-            };
-            let glyph = GlyphId::from(u16::from_be_bytes([hi_byte, lo_byte]));
+            }
+            let glyph = read_uint(bytes, offset, width);
             if glyph < second {
                 lo = mid + 1;
             } else if glyph > second {
                 hi = mid;
             } else {
-                let value1 = ValueRecord::new(data, offset + 2, self.format1);
-                let value2 = ValueRecord::new(data, offset + 2 + format1_len, self.format2);
+                let value1 = ValueRecord::new(data, offset + width, self.format1);
+                let value2 = ValueRecord::new(data, offset + width + format1_len, self.format2);
                 return apply_pair(ctx, second_index, buf_idx, &value1, &value2);
             }
         }
@@ -408,15 +481,128 @@ impl<'a> SubtableDigests<'a> for PairPos1<'a> {
     }
 }
 
-fn pair_set_digest(set: &PairSet) -> SetDigest {
+/// The second glyphs of a pair set whose count and glyphs are `width` bytes,
+/// or a full digest if it is truncated.
+fn pair_set_digest(data: FontData, width: usize, record_len: usize) -> SetDigest {
+    let bytes = data.as_bytes();
+    if bytes.len() < width {
+        return SetDigest::full();
+    }
+    let count = read_uint(bytes, 0, width) as usize;
+    let fits = count
+        .checked_mul(record_len)
+        .and_then(|len| len.checked_add(width))
+        .is_some_and(|end| end <= bytes.len());
+    if !fits {
+        return SetDigest::full();
+    }
     let mut digest = SetDigest::new();
-    for record in set.pair_value_records().iter() {
-        let Ok(record) = record else {
-            return SetDigest::full();
-        };
-        digest.add(record.second_glyph().to_u32());
+    for index in 0..count {
+        digest.add(read_uint(bytes, width + index * record_len, width));
     }
     digest
+}
+
+/// What the class pair subtables of both widths share: their class
+/// definitions and value matrix.
+pub(crate) struct ClassPairs<'a> {
+    class_def1: ClassDef<'a>,
+    class_def2: ClassDef<'a>,
+    records: ClassValueRecords<'a>,
+    /// The matrix, or `None` if it does not fit in the subtable.
+    matrix: Option<Range<usize>>,
+    data: FontData<'a>,
+    format1: ValueFormat,
+    format2: ValueFormat,
+    class1_count: u16,
+    class2_count: u16,
+}
+
+impl<'a> ClassPairs<'a> {
+    pub fn new(table: &PairPosFormat2<'a>) -> Self {
+        Self::from_parts(
+            ClassDef::new(table.class_def1()),
+            ClassDef::new(table.class_def2()),
+            table.class_value_records(),
+            table.offset_data(),
+            table.class2_count_byte_range().end,
+            [table.value_format1(), table.value_format2()],
+            [table.class1_count(), table.class2_count()],
+        )
+    }
+
+    pub fn new_wide(table: &PairPosFormat4<'a>) -> Self {
+        Self::from_parts(
+            ClassDef::new(table.class_def1()),
+            ClassDef::new(table.class_def2()),
+            table.class_value_records(),
+            table.offset_data(),
+            table.class2_count_byte_range().end,
+            [table.value_format1(), table.value_format2()],
+            [table.class1_count(), table.class2_count()],
+        )
+    }
+
+    fn from_parts(
+        class_def1: ClassDef<'a>,
+        class_def2: ClassDef<'a>,
+        records: ClassValueRecords<'a>,
+        data: FontData<'a>,
+        matrix_start: usize,
+        [format1, format2]: [ValueFormat; 2],
+        [class1_count, class2_count]: [u16; 2],
+    ) -> Self {
+        Self {
+            class_def1,
+            class_def2,
+            records,
+            matrix: class_matrix_range(
+                data.len(),
+                matrix_start,
+                format1.record_byte_len() + format2.record_byte_len(),
+                class1_count,
+                class2_count,
+            ),
+            data,
+            format1,
+            format2,
+            class1_count,
+            class2_count,
+        }
+    }
+}
+
+/// Caches of both classes of a glyph.
+struct PairPos2Caches {
+    class1: MappingCache,
+    class2: MappingCache,
+}
+
+fn pair_caches(with_caches: bool) -> Option<Box<PairPos2Caches>> {
+    with_caches.then(|| {
+        Box::new(PairPos2Caches {
+            class1: MappingCache::new(),
+            class2: MappingCache::new(),
+        })
+    })
+}
+
+/// The classes of the first and second glyph of a pair.
+#[inline(always)]
+fn pair_classes(
+    class_def1: &ClassDef,
+    class_def2: &ClassDef,
+    caches: Option<&PairPos2Caches>,
+    first: GlyphId,
+    second: GlyphId,
+) -> (u32, u32) {
+    match caches {
+        Some(caches) => (
+            glyph_class_cached(class_def1, first, &caches.class1),
+            glyph_class_cached(class_def2, second, &caches.class2),
+        ),
+        None => (class_def1.get(first), class_def2.get(second)),
+    }
 }
 
 /// Pair adjustment by glyph classes.
@@ -428,25 +614,14 @@ pub(crate) struct PairPos2<'a> {
     records: ClassValueRecords<'a>,
 }
 
-/// Caches of both classes of a glyph.
-struct PairPos2Caches {
-    class1: MappingCache,
-    class2: MappingCache,
-}
-
 impl<'a> PairPos2<'a> {
-    pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
-        class_matrix_range(table)?;
+    pub fn new(pairs: &ClassPairs<'a>, with_caches: bool) -> Option<Self> {
+        pairs.matrix.as_ref()?;
         Some(Self {
-            class_def1: ClassDef::new(table.class_def1()),
-            class_def2: ClassDef::new(table.class_def2()),
-            caches: with_caches.then(|| {
-                Box::new(PairPos2Caches {
-                    class1: MappingCache::new(),
-                    class2: MappingCache::new(),
-                })
-            }),
-            records: table.class_value_records(),
+            class_def1: pairs.class_def1,
+            class_def2: pairs.class_def2,
+            caches: pair_caches(with_caches),
+            records: pairs.records,
         })
     }
 
@@ -456,22 +631,25 @@ impl<'a> PairPos2<'a> {
     pub fn apply(
         &self,
         ctx: &mut ApplyContext,
-        _index: u16,
+        _index: u32,
         second: &mut SecondGlyph,
     ) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
-        let caches = self.caches.as_deref();
         let (second_index, buf_idx, second) = second.get(ctx)?;
-        let class1 = |gid| self.class_def1.get(gid);
-        let class2 = |gid| self.class_def2.get(gid);
-        let (class1, class2) = match caches {
-            Some(caches) => (
-                glyph_class_cached(class1, first, &caches.class1),
-                glyph_class_cached(class2, second, &caches.class2),
-            ),
-            None => (class1(first), class2(second)),
+        let (class1, class2) = pair_classes(
+            &self.class_def1,
+            &self.class_def2,
+            self.caches.as_deref(),
+            first,
+            second,
+        );
+        // Classes past 16 bits are outside any matrix.
+        let values = if (class1 | class2) >> 16 == 0 {
+            self.records.get(class1 as u16, class2 as u16)
+        } else {
+            None
         };
-        let Some([value1, value2]) = self.records.get(class1, class2) else {
+        let Some([value1, value2]) = values else {
             // A class outside the matrix matches nothing, as in HarfBuzz.
             ctx.buffer
                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
@@ -486,19 +664,22 @@ impl<'a> SubtableDigests<'a> for PairPos2<'a> {
 }
 
 /// The byte range of a class pair subtable's value matrix, or `None` if it
-/// does not fit in the subtable.
+/// does not fit in the subtable's `len` bytes.
 ///
 /// The extent is checked here because the generated range helpers add the
 /// matrix size to its start unchecked, which overflows on 32-bit targets.
-fn class_matrix_range(table: &PairPosFormat2) -> Option<core::ops::Range<usize>> {
-    let record_len =
-        table.value_format1().record_byte_len() + table.value_format2().record_byte_len();
-    let len = usize::from(table.class1_count())
-        .checked_mul(usize::from(table.class2_count()))?
+fn class_matrix_range(
+    len: usize,
+    start: usize,
+    record_len: usize,
+    class1_count: u16,
+    class2_count: u16,
+) -> Option<Range<usize>> {
+    let size = usize::from(class1_count)
+        .checked_mul(usize::from(class2_count))?
         .checked_mul(record_len)?;
-    let start = table.class2_count_byte_range().end;
-    let end = start.checked_add(len)?;
-    (end <= table.offset_data().len()).then_some(start..end)
+    let end = start.checked_add(size)?;
+    (end <= len).then_some(start..end)
 }
 
 /// Whether a pair subtable only adjusts the advance of its first glyph,
@@ -564,10 +745,10 @@ impl<'a> PairKern1<'a> {
     pub fn apply(
         &self,
         ctx: &mut ApplyContext,
-        index: u16,
+        index: u32,
         second: &mut SecondGlyph,
     ) -> Option<()> {
-        let index = usize::from(index);
+        let index = index as usize;
         let (second_index, buf_idx, second) = second.get(ctx)?;
         if self
             .pair_set_digests
@@ -607,8 +788,8 @@ impl<'a> SubtableDigests<'a> for PairKern1<'a> {
     }
 }
 
-/// Kerning by glyph classes: pair adjustment format 2 whose matrix holds
-/// only an advance for the first glyph.
+/// Kerning by glyph classes: class pair adjustment whose matrix holds only
+/// an advance for the first glyph.
 pub(crate) struct PairKern2<'a> {
     class_def1: ClassDef<'a>,
     class_def2: ClassDef<'a>,
@@ -622,22 +803,18 @@ pub(crate) struct PairKern2<'a> {
 impl<'a> PairKern2<'a> {
     /// Returns `None` unless the subtable holds only kerning, in a matrix
     /// that can be read.
-    pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
-        if !is_kerning(table.value_format1(), table.value_format2()) {
+    pub fn new(pairs: &ClassPairs<'a>, with_caches: bool) -> Option<Self> {
+        if !is_kerning(pairs.format1, pairs.format2) {
             return None;
         }
-        let matrix = table
-            .offset_data()
-            .read_array(class_matrix_range(table)?)
-            .ok()?;
-        let pairs = PairPos2::new(table, with_caches)?;
+        let matrix = pairs.data.read_array(pairs.matrix.clone()?).ok()?;
         Some(Self {
             matrix,
             class_def1: pairs.class_def1,
             class_def2: pairs.class_def2,
-            caches: pairs.caches,
-            class1_count: table.class1_count(),
-            class2_count: table.class2_count(),
+            caches: pair_caches(with_caches),
+            class1_count: pairs.class1_count,
+            class2_count: pairs.class2_count,
         })
     }
 
@@ -645,28 +822,25 @@ impl<'a> PairKern2<'a> {
     pub fn apply(
         &self,
         ctx: &mut ApplyContext,
-        _index: u16,
+        _index: u32,
         second: &mut SecondGlyph,
     ) -> Option<()> {
         let first = ctx.buffer.cur(0)?.as_glyph();
-        let caches = self.caches.as_deref();
         let (second_index, buf_idx, second) = second.get(ctx)?;
-        let class1 = |gid| self.class_def1.get(gid);
-        let class2 = |gid| self.class_def2.get(gid);
-        let (class1, class2) = match caches {
-            Some(caches) => (
-                glyph_class_cached(class1, first, &caches.class1),
-                glyph_class_cached(class2, second, &caches.class2),
-            ),
-            None => (class1(first), class2(second)),
-        };
-        if class1 >= self.class1_count || class2 >= self.class2_count {
+        let (class1, class2) = pair_classes(
+            &self.class_def1,
+            &self.class_def2,
+            self.caches.as_deref(),
+            first,
+            second,
+        );
+        if class1 >= u32::from(self.class1_count) || class2 >= u32::from(self.class2_count) {
             // A class outside the matrix matches nothing, as in HarfBuzz.
             ctx.buffer
                 .unsafe_to_concat(Some(ctx.buffer.idx), Some(second_index + 1));
             return None;
         }
-        let index = usize::from(class1) * usize::from(self.class2_count) + usize::from(class2);
+        let index = class1 as usize * usize::from(self.class2_count) + class2 as usize;
         let value = self.matrix.get(index)?.get();
         apply_kerning(ctx, second_index, buf_idx, value)
     }
@@ -679,26 +853,30 @@ impl<'a> SubtableDigests<'a> for PairKern2<'a> {
 /// Cursive attachment.
 pub(crate) struct CursivePos1<'a> {
     coverage: Coverage<'a>,
-    data: FontData<'a>,
-    records: &'a [EntryExitRecord],
+    /// The entry and exit anchor offsets of each covered glyph, in turn.
+    anchors: Offsets<'a>,
 }
 
 impl<'a> CursivePos1<'a> {
     pub fn new(table: &CursivePosFormat1<'a>) -> Option<Self> {
+        let range = table.entry_exit_record_byte_range();
         Some(Self {
             coverage: Coverage::required(table.coverage())?,
-            data: table.offset_data(),
-            records: table.entry_exit_record(),
+            anchors: Offsets::new(table.offset_data(), range, NARROW),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let index_this = usize::from(index);
-        let entry_this = self
-            .records
-            .get(index_this)?
-            .entry_anchor(self.data)?
-            .ok()?;
+    pub fn new_wide(table: &CursivePosFormat2<'a>) -> Option<Self> {
+        let range = table.entry_exit_record_byte_range();
+        Some(Self {
+            coverage: Coverage::required(table.coverage())?,
+            anchors: Offsets::new(table.offset_data(), range, WIDE),
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let index_this = index as usize;
+        let entry_this: AnchorTable = self.anchors.get(index_this * 2)?;
 
         let mut iter = SkippingIterator::new(ctx, false);
         iter.reset_fast(iter.buffer.idx);
@@ -711,11 +889,7 @@ impl<'a> CursivePos1<'a> {
         let i = iter.index();
         let prev = iter.buffer.info.get(i).likely()?.as_glyph();
         let index_prev = self.coverage.get(prev)? as usize;
-        let Some(exit_prev) = self
-            .records
-            .get(index_prev)
-            .and_then(|record| record.exit_anchor(self.data).transpose().ok().flatten())
-        else {
+        let Some(exit_prev) = self.anchors.get::<AnchorTable>(index_prev * 2 + 1) else {
             iter.buffer
                 .unsafe_to_concat_from_outbuffer(Some(i), Some(iter.buffer.idx + 1));
             return None;
@@ -998,31 +1172,126 @@ fn accept_ligature(buffer: &Buffer, idx: usize) -> Option<bool> {
     Some(!info.multiplied() || info.lig_comp() == 0)
 }
 
-/// The anchor of the mark at `index` and its class.
-fn mark_anchor<'a>(marks: &MarkArray<'a>, index: usize) -> Option<(AnchorTable<'a>, usize)> {
-    let record = marks.mark_records().get(index)?;
-    let anchor = record.mark_anchor(marks.offset_data()).ok()?;
-    Some((anchor, record.mark_class() as usize))
+/// The records of a mark array: a class and an anchor offset each.
+#[derive(Clone, Copy)]
+struct Marks<'a> {
+    data: FontData<'a>,
+    count: u32,
+    /// The width of the count, and of each anchor offset.
+    width: u8,
+}
+
+impl<'a> Marks<'a> {
+    fn new(data: FontData<'a>, count: u32, width: usize) -> Self {
+        Self {
+            data,
+            count,
+            width: width as u8,
+        }
+    }
+
+    /// The anchor of the mark at `index` and its class.
+    fn get(&self, index: usize) -> Option<(AnchorTable<'a>, usize)> {
+        if index >= self.count as usize {
+            return None;
+        }
+        let width = usize::from(self.width);
+        let pos = width + index * (2 + width);
+        let class = self.data.read_at::<u16>(pos).ok()?;
+        let bytes = self.data.as_bytes();
+        if pos + 2 + width > bytes.len() {
+            return None;
+        }
+        // The offset isn't nullable, so a zero offset is read as given.
+        let offset = read_uint(bytes, pos + 2, width) as usize;
+        let anchor = AnchorTable::read(self.data.split_off(offset)?).ok()?;
+        Some((anchor, usize::from(class)))
+    }
+}
+
+/// Rows of anchor offsets with one column per mark class, as in a base
+/// array or a ligature component array.
+#[derive(Clone, Copy)]
+struct AnchorRows<'a> {
+    offsets: Offsets<'a>,
+    rows: u32,
+    columns: u16,
+}
+
+impl<'a> AnchorRows<'a> {
+    /// The rows after a count of `count_width` bytes at the start of `data`,
+    /// with offsets of `width` bytes; `None` if they are truncated.
+    fn read(data: FontData<'a>, count_width: usize, columns: u16, width: usize) -> Option<Self> {
+        let bytes = data.as_bytes();
+        if bytes.len() < count_width {
+            return None;
+        }
+        let rows = read_uint(bytes, 0, count_width);
+        let count = (rows as usize).checked_mul(usize::from(columns))?;
+        Some(Self {
+            offsets: Offsets {
+                data,
+                offsets: Uints::at(data, count_width, count, width)?,
+            },
+            rows,
+            columns,
+        })
+    }
+
+    fn rows(&self) -> u32 {
+        self.rows
+    }
+
+    /// The anchor in `row` for mark class `column`, or `None` if its offset
+    /// is null.
+    fn get(&self, row: usize, column: usize) -> Option<AnchorTable<'a>> {
+        if row >= self.rows as usize || column >= usize::from(self.columns) {
+            return None;
+        }
+        self.offsets.get(row * usize::from(self.columns) + column)
+    }
 }
 
 /// Mark-to-base attachment.
 pub(crate) struct MarkBasePos1<'a> {
     base_coverage: Coverage<'a>,
-    marks: Option<MarkArray<'a>>,
-    bases: Option<BaseArray<'a>>,
+    marks: Option<Marks<'a>>,
+    bases: Option<AnchorRows<'a>>,
 }
 
 impl<'a> MarkBasePos1<'a> {
     pub fn new(table: &MarkBasePosFormat1<'a>) -> Option<Self> {
+        let classes = table.mark_class_count();
         Some(Self {
             base_coverage: Coverage::new(table.base_coverage()),
-            marks: table.mark_array().ok(),
-            bases: table.base_array().ok(),
+            marks: table
+                .mark_array()
+                .ok()
+                .map(|marks| Marks::new(marks.offset_data(), marks.mark_count().into(), NARROW)),
+            bases: table
+                .base_array()
+                .ok()
+                .and_then(|bases| AnchorRows::read(bases.offset_data(), NARROW, classes, NARROW)),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let mark_index = usize::from(index);
+    pub fn new_wide(table: &MarkBasePosFormat2<'a>) -> Option<Self> {
+        let classes = table.mark_class_count();
+        Some(Self {
+            base_coverage: Coverage::new(table.base_coverage()),
+            marks: table
+                .mark_array()
+                .ok()
+                .map(|marks| Marks::new(marks.offset_data(), marks.mark_count().to_u32(), WIDE)),
+            bases: table
+                .base_array()
+                .ok()
+                .and_then(|bases| AnchorRows::read(bases.offset_data(), WIDE, classes, WIDE)),
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let mark_index = index as usize;
         let base_coverage = self.base_coverage.present()?;
         let base_pos = find_mark_base(ctx, accept_base, base_coverage)?;
         // Checking the base's GDEF class is too strict, so it isn't done.
@@ -1032,13 +1301,8 @@ impl<'a> MarkBasePos1<'a> {
                 .unsafe_to_concat_from_outbuffer(Some(base_pos), Some(ctx.buffer.idx + 1));
             return None;
         };
-        let (mark_anchor, class) = mark_anchor(self.marks.as_ref()?, mark_index)?;
-        let bases = self.bases.as_ref()?;
-        let base_record = bases.base_records().get(base_index as usize).likely_ok()?;
-        let base_anchor = base_record
-            .base_anchors(bases.offset_data())
-            .get(class)?
-            .ok()?;
+        let (mark_anchor, class) = self.marks.as_ref()?.get(mark_index)?;
+        let base_anchor = self.bases.as_ref()?.get(base_index as usize, class)?;
         attach_mark(ctx, &base_anchor, &mark_anchor, base_pos)
     }
 }
@@ -1052,21 +1316,54 @@ impl<'a> SubtableDigests<'a> for MarkBasePos1<'a> {
 /// Mark-to-ligature attachment.
 pub(crate) struct MarkLigPos1<'a> {
     ligature_coverage: Coverage<'a>,
-    marks: Option<MarkArray<'a>>,
-    ligatures: Option<LigatureArray<'a>>,
+    marks: Option<Marks<'a>>,
+    /// The offsets to the component arrays of the ligatures.
+    ligatures: Option<Offsets<'a>>,
+    mark_class_count: u16,
+    width: u8,
 }
 
 impl<'a> MarkLigPos1<'a> {
     pub fn new(table: &MarkLigPosFormat1<'a>) -> Option<Self> {
         Some(Self {
             ligature_coverage: Coverage::new(table.ligature_coverage()),
-            marks: table.mark_array().ok(),
-            ligatures: table.ligature_array().ok(),
+            marks: table
+                .mark_array()
+                .ok()
+                .map(|marks| Marks::new(marks.offset_data(), marks.mark_count().into(), NARROW)),
+            ligatures: table.ligature_array().ok().map(|ligatures| {
+                Offsets::new(
+                    ligatures.offset_data(),
+                    ligatures.ligature_attach_offsets_byte_range(),
+                    NARROW,
+                )
+            }),
+            mark_class_count: table.mark_class_count(),
+            width: NARROW as u8,
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let mark_index = usize::from(index);
+    pub fn new_wide(table: &MarkLigPosFormat2<'a>) -> Option<Self> {
+        Some(Self {
+            ligature_coverage: Coverage::new(table.ligature_coverage()),
+            marks: table
+                .mark_array()
+                .ok()
+                .map(|marks| Marks::new(marks.offset_data(), marks.mark_count().to_u32(), WIDE)),
+            ligatures: table.ligature_array().ok().map(|ligatures| {
+                Offsets::new(
+                    ligatures.offset_data(),
+                    ligatures.ligature_attach_offsets_byte_range(),
+                    WIDE,
+                )
+            }),
+            mark_class_count: table.mark_class_count(),
+            width: WIDE as u8,
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let mark_index = index as usize;
         let ligature_coverage = self.ligature_coverage.present()?;
         let lig_pos = find_mark_base(ctx, accept_ligature, ligature_coverage)?;
         // Checking the ligature's GDEF class is too strict, so it isn't done.
@@ -1077,13 +1374,14 @@ impl<'a> MarkLigPos1<'a> {
                 .unsafe_to_concat_from_outbuffer(Some(lig_pos), Some(ctx.buffer.idx + 1));
             return None;
         };
-        let lig_attach = self
-            .ligatures
-            .as_ref()?
-            .ligature_attaches()
-            .get(lig_index as usize)
-            .ok()?;
-        let comp_count = lig_attach.component_count();
+        // Each component of a ligature has a row of anchors.
+        let components = AnchorRows::read(
+            self.ligatures.as_ref()?.data(lig_index as usize)?,
+            NARROW,
+            self.mark_class_count,
+            usize::from(self.width),
+        )?;
+        let comp_count = components.rows();
         if comp_count == 0 {
             ctx.buffer
                 .unsafe_to_concat_from_outbuffer(Some(lig_pos), Some(ctx.buffer.idx + 1));
@@ -1092,21 +1390,14 @@ impl<'a> MarkLigPos1<'a> {
         // A mark from the same ligature attaches to its own component;
         // otherwise it attaches to the last one.
         let mark_id = ctx.buffer.cur(0)?.lig_id();
-        let mark_comp = u16::from(ctx.buffer.cur(0)?.lig_comp());
+        let mark_comp = u32::from(ctx.buffer.cur(0)?.lig_comp());
         let comp_index = if lig_id != 0 && lig_id == mark_id && mark_comp > 0 {
             mark_comp.min(comp_count)
         } else {
             comp_count
         } - 1;
-        let (mark_anchor, class) = mark_anchor(self.marks.as_ref()?, mark_index)?;
-        let component = lig_attach
-            .component_records()
-            .get(comp_index as usize)
-            .ok()?;
-        let base_anchor = component
-            .ligature_anchors(lig_attach.offset_data())
-            .get(class)?
-            .ok()?;
+        let (mark_anchor, class) = self.marks.as_ref()?.get(mark_index)?;
+        let base_anchor = components.get(comp_index as usize, class)?;
         attach_mark(ctx, &base_anchor, &mark_anchor, lig_pos)
     }
 }
@@ -1120,21 +1411,44 @@ impl<'a> SubtableDigests<'a> for MarkLigPos1<'a> {
 /// Mark-to-mark attachment.
 pub(crate) struct MarkMarkPos1<'a> {
     mark2_coverage: Coverage<'a>,
-    marks1: Option<MarkArray<'a>>,
-    marks2: Option<Mark2Array<'a>>,
+    marks1: Option<Marks<'a>>,
+    marks2: Option<AnchorRows<'a>>,
 }
 
 impl<'a> MarkMarkPos1<'a> {
     pub fn new(table: &MarkMarkPosFormat1<'a>) -> Option<Self> {
+        let classes = table.mark_class_count();
         Some(Self {
             mark2_coverage: Coverage::new(table.mark2_coverage()),
-            marks1: table.mark1_array().ok(),
-            marks2: table.mark2_array().ok(),
+            marks1: table
+                .mark1_array()
+                .ok()
+                .map(|marks| Marks::new(marks.offset_data(), marks.mark_count().into(), NARROW)),
+            marks2: table
+                .mark2_array()
+                .ok()
+                .and_then(|marks| AnchorRows::read(marks.offset_data(), NARROW, classes, NARROW)),
         })
     }
 
-    pub fn apply(&self, ctx: &mut ApplyContext, index: u16) -> Option<()> {
-        let mark1_index = usize::from(index);
+    pub fn new_wide(table: &MarkMarkPosFormat2<'a>) -> Option<Self> {
+        let classes = table.mark_class_count();
+        Some(Self {
+            mark2_coverage: Coverage::new(table.mark2_coverage()),
+            marks1: table
+                .mark1_array()
+                .ok()
+                .map(|marks| Marks::new(marks.offset_data(), marks.mark_count().to_u32(), WIDE)),
+            // The mark2 count is 16 bits in both formats.
+            marks2: table
+                .mark2_array()
+                .ok()
+                .and_then(|marks| AnchorRows::read(marks.offset_data(), NARROW, classes, WIDE)),
+        })
+    }
+
+    pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        let mark1_index = index as usize;
         // Search back for a mark, stopping at the first glyph that isn't one.
         let lookup_props = ctx.lookup_props;
         let mut iter = SkippingIterator::new(ctx, false);
@@ -1169,13 +1483,8 @@ impl<'a> MarkMarkPos1<'a> {
             return None;
         }
         let mark2_index = self.mark2_coverage.get(mark2.as_glyph())? as usize;
-        let (mark1_anchor, class) = mark_anchor(self.marks1.as_ref()?, mark1_index)?;
-        let marks2 = self.marks2.as_ref()?;
-        let mark2_record = marks2.mark2_records().get(mark2_index).likely_ok()?;
-        let mark2_anchor = mark2_record
-            .mark2_anchors(marks2.offset_data())
-            .get(class)?
-            .ok()?;
+        let (mark1_anchor, class) = self.marks1.as_ref()?.get(mark1_index)?;
+        let mark2_anchor = self.marks2.as_ref()?.get(mark2_index, class)?;
         attach_mark(ctx, &mark2_anchor, &mark1_anchor, mark2_pos)
     }
 }
@@ -1190,7 +1499,7 @@ impl<'a> SubtableDigests<'a> for MarkMarkPos1<'a> {
 mod tests {
     use super::*;
     use alloc::vec;
-    use read_fonts::FontRead;
+    use alloc::vec::Vec;
 
     /// A kerning class pair subtable claiming a 65535 by 65535 matrix while
     /// holding one value, which overflows the matrix size on 32-bit targets.
@@ -1204,9 +1513,10 @@ mod tests {
         ];
         let bytes: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
         let table = PairPosFormat2::read(FontData::new(&bytes)).unwrap();
-        assert!(class_matrix_range(&table).is_none());
-        assert!(PairKern2::new(&table, false).is_none());
-        assert!(PairPos2::new(&table, false).is_none());
+        let pairs = ClassPairs::new(&table);
+        assert!(pairs.matrix.is_none());
+        assert!(PairKern2::new(&pairs, false).is_none());
+        assert!(PairPos2::new(&pairs, false).is_none());
     }
 
     #[test]

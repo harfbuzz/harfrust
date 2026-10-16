@@ -151,11 +151,12 @@ impl hr_face_t {
             .map_or(1000, |head| c_uint::from(head.units_per_em()))
     }
 
+    /// The glyph count from `MAXP` if the face has one, else from `maxp`.
     pub(crate) fn glyph_count(&self) -> c_uint {
         self.font
             .as_ref()
-            .and_then(|font| font.tables().maxp().ok())
-            .map_or(0, |maxp| c_uint::from(maxp.num_glyphs()))
+            .and_then(|font| font.tables().selected_maxp().ok())
+            .map_or(0, |maxp| maxp.num_glyphs())
     }
 }
 
