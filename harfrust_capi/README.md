@@ -143,10 +143,9 @@ same cache.
 
 ## What is not
 
-HarfRust is a shaping library, so anything outside shaping is absent:
+The following HarfBuzz APIs are not exposed:
 
 - Drawing and painting callbacks (`hb_draw_funcs_t`, `hb_paint_funcs_t`).
-- Subsetting.
 - Layout queries beyond the available GSUB/GPOS presence, lookup count, and
   glyph collection functions.
 - Custom Unicode callbacks (`hb_unicode_funcs_t`); HarfRust's own Unicode data
@@ -252,3 +251,8 @@ by HarfRust, currently 14.5.1. `HR_VERSION_*` and `hr_version*` continue to
 report the HarfRust package version. This lets source compatibility users
 select HarfBuzz API paths with version checks. It does not imply that every
 API from that HarfBuzz release is available; see the exclusions above.
+
+Enable the optional `subset` feature for Skera-backed subsetting in the same
+C library, using the existing face, blob, and set handles. Include `hr-subset.h`
+for the native API or `hr-hb-subset.h` for HarfBuzz spellings. See
+[SUBSETTING.md](SUBSETTING.md) for building, supported flags, and validation.

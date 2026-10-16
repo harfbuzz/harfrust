@@ -12,7 +12,8 @@ as HarfBuzz itself without collisions.
 This covers shaping: blobs, faces, fonts, buffers and `hr_shape`, plus OpenType
 `BASE` baseline and `MATH` queries. It also provides layout script/feature and lookup queries,
 OpenType script and language tag conversion, and the complete set and map
-container APIs. Drawing and painting callbacks and subsetting are outside this API.
+container APIs. The optional `subset` feature adds Skera-backed font subsetting.
+Drawing and painting callbacks are outside this API.
 
 # Object lifetime
 
@@ -50,6 +51,10 @@ pub mod shape;
 pub mod shape_plan;
 pub mod unicode;
 
+/// cbindgen:ignore
+#[cfg(feature = "subset")]
+pub mod subset;
+
 pub use aat_layout::*;
 pub use blob::*;
 pub use buffer::*;
@@ -69,6 +74,8 @@ pub use ot_var::*;
 pub use set::*;
 pub use shape::*;
 pub use shape_plan::*;
+#[cfg(feature = "subset")]
+pub use subset::*;
 pub use unicode::*;
 
 #[cfg(test)]
