@@ -16,4 +16,8 @@ cargo install hr-shape
 hr-shape [OPTIONS] <font-file> <text>
 ```
 
+Pass `--trace` to print HarfBuzz shaping messages and intermediate buffer
+contents to stderr. Glyph results go to stdout or the requested output file.
+The library's `render` API includes traces in its returned string.
+
 For more information, see the main [HarfRust repository](https://github.com/harfbuzz/harfrust).
