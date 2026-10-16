@@ -9,7 +9,9 @@ HarfBuzz's opaque handles cannot be passed to these functions.
 The initial API covers Skia's PDF workflow: create an input, select glyphs,
 set `RETAIN_GIDS | NOTDEF_OUTLINE`, subset a face, and reference its output
 blob. Unicode selection, reference-counted inputs, and `NO_HINTING` are also
-supported. Input sets start empty and are borrowed from their input;
+supported. Configurable input sets cover names, language IDs, layout features
+and scripts, and dropped tables. `hr_subset_input_keep_everything` configures
+all selections, with subsequent customization allowed. Glyph and Unicode sets start empty and are borrowed from their input;
 `hr_set_reference` keeps a set alive independently.
 
 Blob, TTC, and table-callback faces are accepted. Callback faces must install
@@ -47,6 +49,9 @@ cbindgen --config harfrust_capi/cbindgen-subset.toml \
 python3 scripts/gen-hb-compat-header.py
 ```
 
+`hr_subset_preprocess` returns an immutable, self-contained copy of the face,
+so its callbacks and original data can be released. It currently adds no
+subsetting acceleration cache.
 The subset header is generated separately from its module so `hr.h` stays
 independent of optional APIs.
 
@@ -57,8 +62,9 @@ fonts return `NULL`: this release does not rewrite those outline tables.
 Unsupported flag bits, missing enumeration, malformed inputs, and Skera
 errors also return `NULL`, allowing Skia to embed the full font instead.
 This is an initial API, not the complete HarfBuzz subset API: configurable
-table/layout/name sets, subset plans, axis pinning, and the remaining flags
-are not exposed yet. As with the shaping C API, allocation failure aborts.
+subset plans and axis pinning are not exposed yet. The configurable no-subset
+table set initially contains Skera's defaults; changing it returns failure
+until Skera exposes configuration of that set. As with the shaping C API, allocation failure aborts.
 
 ## Validation
 
@@ -75,3 +81,50 @@ python3 harfrust_capi/tests/subset/compare_skia_hb.py \
 It compares blob, callback, and Unicode selections across five flag combinations
 and three fonts, including a variable font, and checks mappings, advances,
 outlines, retained holes, hinting, `.notdef`, input/output lifetimes, and failures.
+
+Additional implemented flags are `NAME_LEGACY`, `SET_OVERLAPS_FLAG`,
+`PASSTHROUGH_UNRECOGNIZED`, `GLYPH_NAMES`, `NO_PRUNE_UNICODE_RANGES`,
+`NO_LAYOUT_CLOSURE`, and `NO_BIDI_CLOSURE`. Desubroutinization and IUP delta
+optimization are not implemented by the dependency and remain unsupported.
+
+`tests/subset/compare_controls_hb.py` takes the same library arguments and checks
+15 additional cases, input-set defaults, keep-everything, inverted sets,
+custom table passthrough, overlap flags, and preprocessing ownership.
+
+### Actual Skia runtime checks
+
+`tests/subset/compare_skia_runtime.py` compiles Skia's actual HarfBuzz shaper and PDF
+subsetter twice, using either HarfBuzz or the HarfRust compatibility headers.
+It requires a matching Linux GN static Skia build with PDF, FreeType, ICU,
+and HarfBuzz enabled, plus fontTools and Poppler's `pdffonts`, `pdftotext`, and
+`pdftoppm`. Apply [Skia change 1387436](https://skia-review.googlesource.com/c/skia/+/1387436)
+to remove the UPEM setter first. Build the GN targets `skia`,
+`modules/skshaper:skshaper`, and `modules/skunicode:skunicode_icu`.
+
+```sh
+python3 harfrust_capi/tests/subset/compare_skia_runtime.py \
+  --skia /path/to/patched/skia --skia-build /path/to/skia/out/Runtime \
+  --hb-source /path/to/harfbuzz --hb-build /path/to/harfbuzz/build \
+  --hr "$PWD/target/debug/libharfrust_c.so" \
+  --output /path/to/runtime-results
+```
+
+Eight cases cover three fonts, stream and table-callback access, and a
+nondefault variable instance. Each checks four font size/horizontal scale
+combinations, glyph IDs, clusters, positions, both glyph-0 subset policies,
+hint programs, retained GIDs, and actual PDF embedding, text extraction,
+and raster output. Skia's variable-font PDFs use its Type3 fallback.
+
+The callback proxy disables both stream methods for shaping and direct
+subsetting. During PDF creation it supplies the stream required by Skia's
+font-descriptor code; the PDF subsetter still uses table callbacks because
+`openExistingStream` remains unavailable.
+
+The nondefault Linefont instance exposes fractional GPOS positioning drift
+of about 0.00024 pixels and PDF raster differences. Glyph/cluster checks stay
+exact; variable positions allow an accumulated 16.16 position unit per glyph.
+Pixel comparisons fail by default. `--allow-variable-pixel-differences`
+acknowledges and reports those two known raster exceptions while checking
+the other cases. Optional `--hb-upem-shaper /path/to/original/SkShaper_harfbuzz.cpp`
+also checks HarfBuzz's original setter against the removal, with strict
+position and pixel comparisons for all eight cases.
