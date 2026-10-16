@@ -30,7 +30,7 @@ fn callback_observes_unicode_glyphs_and_positions() {
     let messages = Arc::new(Mutex::new(Vec::new()));
     let captured = messages.clone();
     let mut calls = 0;
-    buffer.set_message_function(move |buffer, font, message| {
+    buffer.set_message_function(Some(Box::new(move |buffer, font, message| {
         calls += 1;
         assert_eq!(buffer.glyph_infos().len(), buffer.len());
         assert!(
@@ -46,7 +46,7 @@ fn callback_observes_unicode_glyphs_and_positions() {
             snapshot,
         ));
         true
-    });
+    })));
     shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
     let messages = messages.lock().unwrap();
     assert_eq!(messages[0].1, "start decompose");
@@ -95,7 +95,9 @@ fn rejecting_gsub_matches_disabling_ligatures() {
     let instance = instance();
     let font = ShaperFont::new(&instance);
     let mut skipped = buffer("ffi");
-    skipped.set_message_function(|_, _, message| !message.starts_with("start table GSUB"));
+    skipped.set_message_function(Some(Box::new(|_, _, message| {
+        !message.starts_with("start table GSUB")
+    })));
     shape(&font, &mut skipped, ShapeOptions::new()).unwrap();
 
     let mut disabled = buffer("ffi");
@@ -124,10 +126,10 @@ fn rejecting_lookup_skips_its_operations_and_end_message() {
     let mut buffer = buffer("ffi");
     let messages = Arc::new(Mutex::new(Vec::new()));
     let captured = messages.clone();
-    buffer.set_message_function(move |_, _, message| {
+    buffer.set_message_function(Some(Box::new(move |_, _, message| {
         captured.lock().unwrap().push(message.to_string());
         !message.starts_with("start lookup")
-    });
+    })));
     shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
     assert_eq!(buffer.len(), 3);
     let messages = messages.lock().unwrap();
@@ -149,7 +151,7 @@ fn return_value_from_end_messages_does_not_skip_shaping() {
     let mut normal = buffer("ffi AV");
     shape(&font, &mut normal, ShapeOptions::new()).unwrap();
     let mut traced = buffer("ffi AV");
-    traced.set_message_function(|_, _, message| !message.starts_with("end"));
+    traced.set_message_function(Some(Box::new(|_, _, message| !message.starts_with("end"))));
     shape(&font, &mut traced, ShapeOptions::new()).unwrap();
     assert_eq!(
         traced.serialize(Some(&font), SerializeFlags::default()),
@@ -164,10 +166,10 @@ fn callback_survives_reuse_and_can_be_replaced_or_removed() {
     let mut buffer = buffer("ffi");
     let calls = Arc::new(Mutex::new(0));
     let captured = calls.clone();
-    buffer.set_message_function(move |_, _, _| {
+    buffer.set_message_function(Some(Box::new(move |_, _, _| {
         *captured.lock().unwrap() += 1;
         true
-    });
+    })));
     shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
     let first = *calls.lock().unwrap();
     assert!(first > 0);
@@ -182,17 +184,24 @@ fn callback_survives_reuse_and_can_be_replaced_or_removed() {
         shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
     }
     assert_eq!(*calls.lock().unwrap(), first * 3);
-    buffer.set_message_function(|_, _, _| true);
+    let replacement_calls = Arc::new(Mutex::new(0));
+    let captured = replacement_calls.clone();
+    buffer.set_message_function(Some(Box::new(move |_, _, _| {
+        *captured.lock().unwrap() += 1;
+        true
+    })));
     buffer.clear();
     buffer.push_str("ffi");
     buffer.guess_segment_properties();
     shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
-    buffer.clear_message_function();
+    assert_eq!(*replacement_calls.lock().unwrap(), first);
+    buffer.set_message_function(None);
     buffer.clear();
     buffer.push_str("ffi");
     buffer.guess_segment_properties();
     shape(&font, &mut buffer, ShapeOptions::new()).unwrap();
     assert_eq!(*calls.lock().unwrap(), first * 3);
+    assert_eq!(*replacement_calls.lock().unwrap(), first);
 }
 
 #[test]
@@ -214,10 +223,10 @@ fn tracing_preserves_results_at_the_shaping_limit() {
     let mut normal = buffer("lol");
     shape(&font, &mut normal, ShapeOptions::new()).unwrap();
     let mut traced = buffer("lol");
-    traced.set_message_function(|buffer, _, _| {
+    traced.set_message_function(Some(Box::new(|buffer, _, _| {
         assert_eq!(buffer.glyph_infos().len(), buffer.len());
         true
-    });
+    })));
     shape(&font, &mut traced, ShapeOptions::new()).unwrap();
     assert_eq!(
         traced.allocation_successful(),
@@ -243,15 +252,17 @@ fn rejecting_composition_keeps_decomposed_glyphs() {
     let font = ShaperFont::new(&instance);
     let mut normal = buffer("o\u{0301}");
     // GSUB can compose the pair through ccmp independently of normalization.
-    normal.set_message_function(|_, _, message| !message.starts_with("start table GSUB"));
+    normal.set_message_function(Some(Box::new(|_, _, message| {
+        !message.starts_with("start table GSUB")
+    })));
     shape(&font, &mut normal, ShapeOptions::new()).unwrap();
     let mut skipped = buffer("o\u{0301}");
     let messages = Arc::new(Mutex::new(Vec::new()));
     let captured = messages.clone();
-    skipped.set_message_function(move |_, _, message| {
+    skipped.set_message_function(Some(Box::new(move |_, _, message| {
         captured.lock().unwrap().push(message.to_string());
         message != "start compose" && !message.starts_with("start table GSUB")
-    });
+    })));
     shape(&font, &mut skipped, ShapeOptions::new()).unwrap();
     assert_eq!(normal.len(), 1);
     assert_eq!(skipped.len(), 2);
@@ -274,12 +285,12 @@ fn recursion_notifications_are_balanced_and_informational() {
     let mut buffer = buffer("\0\u{0014}\u{0015}\u{0016}\0");
     let messages = Arc::new(Mutex::new(Vec::new()));
     let captured = messages.clone();
-    buffer.set_message_function(move |_, _, message| {
+    buffer.set_message_function(Some(Box::new(move |_, _, message| {
         if message.contains("recursing") {
             captured.lock().unwrap().push(message.to_string());
         }
         !message.starts_with("start recursing")
-    });
+    })));
     shape(&font, &mut buffer, ShapeOptions::new().features(&features)).unwrap();
     let ids: Vec<_> = buffer
         .glyph_infos()
@@ -334,13 +345,13 @@ fn pair_positioning_messages_cover_cached_kerning_and_general_adjustments() {
         let messages = Arc::new(Mutex::new(Vec::new()));
         let captured = messages.clone();
         let mut traced = buffer(text);
-        traced.set_message_function(move |_, _, message| {
+        traced.set_message_function(Some(Box::new(move |_, _, message| {
             if message.contains("kerning glyphs") || message.starts_with("kerned glyphs") {
                 captured.lock().unwrap().push(message.to_string());
                 return false;
             }
             true
-        });
+        })));
         shape(&font, &mut traced, ShapeOptions::new().features(&features)).unwrap();
         assert_eq!(
             traced.serialize(Some(&font), SerializeFlags::default()),
@@ -396,7 +407,7 @@ fn kern_subtable_and_machine_messages_nest_and_can_skip() {
     .build();
     let font = ShaperFont::new(&instance);
     let mut skipped = buffer("uT");
-    skipped.set_message_function(|_, _, message| message != "start kern");
+    skipped.set_message_function(Some(Box::new(|_, _, message| message != "start kern")));
     shape(&font, &mut skipped, ShapeOptions::new()).unwrap();
     let mut disabled = buffer("uT");
     let features = ["kern=0".parse::<Feature>().unwrap()];

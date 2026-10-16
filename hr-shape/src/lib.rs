@@ -429,7 +429,7 @@ fn render_with_trace(
     if let Some(trace_output) = &trace_output {
         let trace_output = trace_output.clone();
         let serialize_trace = !args.output_format.is_empty();
-        reusable_buffer.set_message_function(move |buffer, font, message| {
+        reusable_buffer.set_message_function(Some(Box::new(move |buffer, font, message| {
             let snapshot = if serialize_trace {
                 buffer.serialize(Some(font), SerializeFlags::from_bits_truncate(format_flags))
             } else {
@@ -440,7 +440,7 @@ fn render_with_trace(
                 .unwrap()
                 .push(format!("trace: {message}\tbuffer: {snapshot}\n"));
             true
-        });
+        })));
     }
 
     let text = if let Some(ref path) = args.text_file {

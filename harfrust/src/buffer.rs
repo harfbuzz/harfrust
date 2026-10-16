@@ -475,8 +475,12 @@ pub enum ContentType {
     Glyphs,
 }
 
+/// A callback used to trace shaping operations.
+///
+/// See [`Buffer::set_message_function`] for the callback's arguments and return value.
 #[cfg(feature = "tracing")]
-type MessageFunction = dyn FnMut(&Buffer, &crate::ShaperFont<'_, '_>, &str) -> bool + Send + Sync;
+pub type MessageFunction =
+    dyn FnMut(&Buffer, &crate::ShaperFont<'_, '_>, &str) -> bool + Send + Sync;
 
 /// A buffer of text to be shaped, and of the glyphs that shaping produces.
 ///
@@ -2292,7 +2296,7 @@ impl Buffer {
         lig_id
     }
 
-    /// Sets the callback used to trace shaping operations.
+    /// Sets the callback used to trace shaping operations, or removes it with `None`.
     ///
     /// The callback receives the current buffer, shaping font, and a HarfBuzz
     /// tracing message. Return `false` from a skippable `start` message to skip
@@ -2308,17 +2312,8 @@ impl Buffer {
     ///
     /// Requires the `tracing` feature, which also works without `std`.
     #[cfg(feature = "tracing")]
-    pub fn set_message_function<F>(&mut self, function: F)
-    where
-        F: FnMut(&Self, &crate::ShaperFont<'_, '_>, &str) -> bool + Send + Sync + 'static,
-    {
-        self.message_function = Some(Box::new(function));
-    }
-
-    /// Removes the shaping message callback.
-    #[cfg(feature = "tracing")]
-    pub fn clear_message_function(&mut self) {
-        self.message_function = None;
+    pub fn set_message_function(&mut self, function: Option<Box<MessageFunction>>) {
+        self.message_function = function;
     }
 
     #[cfg(feature = "tracing")]
