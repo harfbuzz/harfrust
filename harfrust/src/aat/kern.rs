@@ -44,8 +44,10 @@ pub fn apply(
 
     c.setup_buffer_glyph_set();
 
-    let (kern, subtable_caches) = layout.aat.kern.as_ref()?;
-    let safe_to_break = layout.aat.safe_to_break?;
+    let kern = layout.aat.kern.as_ref()?;
+    let cache = layout.aat.kern_cache()?;
+    let subtable_caches = &cache.subtables;
+    let safe_to_break = &cache.safe_to_break;
 
     let mut subtable_idx = 0;
 
@@ -110,7 +112,9 @@ pub fn apply(
                 apply_simple_kerning(&mut c, &format0, is_cross_stream);
             }
             SubtableKind::Format1(format1) => {
-                apply_state_machine_kerning(&mut c, &format1, is_cross_stream);
+                if apply_state_machine_kerning(&mut c, &format1, is_cross_stream).is_none() {
+                    c.buffer.index_failed();
+                }
             }
             SubtableKind::Format2(format2) if plan.requested_kerning => {
                 apply_simple_kerning(&mut c, &format2, is_cross_stream);
@@ -148,7 +152,12 @@ fn machine_kern<F>(
     let mut i = 0;
     let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
-        if (iter.buffer.info[i].mask & kern_mask) == 0 {
+        if iter
+            .buffer
+            .info
+            .get(i)
+            .is_none_or(|info| info.mask & kern_mask == 0)
+        {
             i += 1;
             continue;
         }
@@ -164,7 +173,11 @@ fn machine_kern<F>(
         let j = iter.index();
 
         let info = &iter.buffer.info;
-        let kern = get_kerning(info[i].glyph_id, info[j].glyph_id);
+        let (Some(first), Some(second)) = (info.get(i), info.get(j)) else {
+            i = j;
+            continue;
+        };
+        let kern = get_kerning(first.glyph_id, second.glyph_id);
         let kern = if use_x_scale {
             scale.scale_x(kern)
         } else {
@@ -172,28 +185,9 @@ fn machine_kern<F>(
         };
         let pos = &mut iter.buffer.pos;
         if kern != 0 {
-            if horizontal {
-                if cross_stream {
-                    pos[j].y_offset = kern;
-                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                } else {
-                    let kern1 = kern >> 1;
-                    let kern2 = kern - kern1;
-                    pos[i].x_advance = pos[i].x_advance.saturating_add(kern1);
-                    pos[j].x_advance = pos[j].x_advance.saturating_add(kern2);
-                    pos[j].x_offset = pos[j].x_offset.saturating_add(kern2);
-                }
-            } else {
-                if cross_stream {
-                    pos[j].x_offset = kern;
-                    iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                } else {
-                    let kern1 = kern >> 1;
-                    let kern2 = kern - kern1;
-                    pos[i].y_advance = pos[i].y_advance.saturating_add(kern1);
-                    pos[j].y_advance = pos[j].y_advance.saturating_add(kern2);
-                    pos[j].y_offset = pos[j].y_offset.saturating_add(kern2);
-                }
+            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream);
+            if cross_stream {
+                iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
             }
 
             iter.buffer.unsafe_to_break(Some(i), Some(j + 1));
@@ -201,6 +195,44 @@ fn machine_kern<F>(
 
         i = j;
     }
+}
+
+/// Applies a pair kerning value, splitting it across the two glyphs unless
+/// it is cross-stream, in which case only the second glyph moves.
+pub(super) fn apply_pair_kerning(
+    pos: &mut [GlyphPosition],
+    i: usize,
+    j: usize,
+    kern: i32,
+    horizontal: bool,
+    cross_stream: bool,
+) -> Option<()> {
+    if cross_stream {
+        let second = pos.get_mut(j)?;
+        if horizontal {
+            second.y_offset = kern;
+        } else {
+            second.x_offset = kern;
+        }
+        return Some(());
+    }
+    let kern1 = kern >> 1;
+    let kern2 = kern - kern1;
+    let first = pos.get_mut(i)?;
+    if horizontal {
+        first.x_advance = first.x_advance.saturating_add(kern1);
+    } else {
+        first.y_advance = first.y_advance.saturating_add(kern1);
+    }
+    let second = pos.get_mut(j)?;
+    if horizontal {
+        second.x_advance = second.x_advance.saturating_add(kern2);
+        second.x_offset = second.x_offset.saturating_add(kern2);
+    } else {
+        second.y_advance = second.y_advance.saturating_add(kern2);
+        second.y_offset = second.y_offset.saturating_add(kern2);
+    }
+    Some(())
 }
 
 fn apply_simple_kerning<T: SimpleKerning>(
@@ -309,7 +341,7 @@ fn apply_state_machine_kerning(
     c: &mut AatApplyContext,
     subtable: &aat::StateTable,
     is_cross_stream: bool,
-) {
+) -> Option<()> {
     let mut driver = StateMachineDriver {
         stack: [0; 8],
         depth: 0,
@@ -324,7 +356,7 @@ fn apply_state_machine_kerning(
         let class = if c.buffer.idx < c.buffer.len {
             get_class(
                 subtable,
-                c.buffer.cur(0).as_glyph(),
+                c.buffer.cur(0)?.as_glyph(),
                 c.machine_class_cache.unwrap(),
             )
         } else {
@@ -358,7 +390,7 @@ fn apply_state_machine_kerning(
                 let new_class = if c.buffer.idx < c.buffer.len {
                     get_class(
                         subtable,
-                        c.buffer.cur(0).as_glyph(),
+                        c.buffer.cur(0)?.as_glyph(),
                         c.machine_class_cache.unwrap(),
                     )
                 } else {
@@ -444,6 +476,7 @@ fn apply_state_machine_kerning(
             c.buffer.next_glyph();
         }
     }
+    Some(())
 }
 
 #[inline(always)]
@@ -505,8 +538,10 @@ fn state_machine_transition(
             // NOT seem to accumulate as otherwise implied by specs.
 
             let mut has_gpos_attachment = false;
-            let glyph_mask = buffer.info[idx].mask;
-            let pos = &mut buffer.pos[idx];
+            let (Some(info), Some(pos)) = (buffer.info.get(idx), buffer.pos.get_mut(idx)) else {
+                continue;
+            };
+            let glyph_mask = info.mask;
 
             if buffer.direction.is_horizontal() {
                 if is_cross_stream {

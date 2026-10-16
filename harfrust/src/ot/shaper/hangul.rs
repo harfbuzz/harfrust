@@ -111,7 +111,11 @@ fn is_zero_width_char(font: &ShaperFont<'_, '_>, c: Codepoint) -> bool {
     }
 }
 
-fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
+fn preprocess_text_hangul(
+    _: &ShapePlan,
+    font: &ShaperFont<'_, '_>,
+    buffer: &mut Buffer,
+) -> Option<()> {
     buffer.allocate_var(GlyphInfo::HANGUL_SHAPING_FEATURE_VAR);
 
     // Hangul syllables come in two shapes: LV, and LVT.  Of those:
@@ -167,8 +171,8 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
     let mut end = 0;
     buffer.idx = 0;
     while buffer.idx < buffer.len {
-        let u = buffer.cur(0).glyph_id;
-        let c = buffer.cur(0).as_codepoint();
+        let u = buffer.cur(0)?.glyph_id;
+        let c = buffer.cur(0)?.as_codepoint();
 
         if is_hangul_tone(u) {
             // We could cache the width of the tone marks and the existence of dotted-circle,
@@ -180,12 +184,9 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
                 buffer.next_glyph();
                 if !is_zero_width_char(font, c) {
                     buffer.merge_out_grapheme_clusters(start, end + 1);
-                    let out_info = buffer.out_info_mut();
-                    let tone = out_info[end];
-                    for i in (0..end - start).rev() {
-                        out_info[i + start + 1] = out_info[i + start];
+                    if let Some(syllable) = buffer.out_info_mut().get_mut(start..=end) {
+                        syllable.rotate_right(1);
                     }
-                    out_info[start] = tone;
                 }
             } else {
                 // No valid syllable as base for tone mark; try to insert dotted circle.
@@ -221,13 +222,13 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
 
         if is_l(u) && buffer.idx + 1 < buffer.len {
             let l = u;
-            let v = buffer.cur(1).glyph_id;
+            let v = buffer.cur(1)?.glyph_id;
             if is_v(v) {
                 // Have <L,V> or <L,V,T>.
                 let mut t = 0;
                 let mut tindex = 0;
                 if buffer.idx + 2 < buffer.len {
-                    t = buffer.cur(2).glyph_id;
+                    t = buffer.cur(2)?.glyph_id;
                     if is_t(t) {
                         // Only used if isCombiningT (t); otherwise invalid.
                         tindex = t - T_BASE;
@@ -256,12 +257,12 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
                 // precomposed character in Unicode, or because the font didn't support the
                 // necessary precomposed glyph.
                 // Set jamo features on the individual glyphs, and advance past them.
-                buffer.cur_mut(0).set_hangul_shaping_feature(LJMO);
+                buffer.cur_mut(0)?.set_hangul_shaping_feature(LJMO);
                 buffer.next_glyph();
-                buffer.cur_mut(0).set_hangul_shaping_feature(VJMO);
+                buffer.cur_mut(0)?.set_hangul_shaping_feature(VJMO);
                 buffer.next_glyph();
                 if t != 0 {
-                    buffer.cur_mut(0).set_hangul_shaping_feature(TJMO);
+                    buffer.cur_mut(0)?.set_hangul_shaping_feature(TJMO);
                     buffer.next_glyph();
                     end = start + 3;
                 } else {
@@ -282,10 +283,10 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
             let vindex = nindex / T_COUNT;
             let tindex = nindex % T_COUNT;
 
-            if tindex == 0 && buffer.idx + 1 < buffer.len && is_combining_t(buffer.cur(1).glyph_id)
+            if tindex == 0 && buffer.idx + 1 < buffer.len && is_combining_t(buffer.cur(1)?.glyph_id)
             {
                 // <LV,T>, try to combine.
-                let new_tindex = buffer.cur(1).glyph_id - T_BASE;
+                let new_tindex = buffer.cur(1)?.glyph_id - T_BASE;
                 let new_s = s + new_tindex;
 
                 if font.has_glyph(new_s) {
@@ -302,7 +303,7 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
             // or if having non-combining <LV,T>.  Note that we already handled
             // combining <LV,T> above.
             if !has_glyph
-                || (tindex == 0 && buffer.idx + 1 < buffer.len && is_t(buffer.cur(1).glyph_id))
+                || (tindex == 0 && buffer.idx + 1 < buffer.len && is_t(buffer.cur(1)?.glyph_id))
             {
                 let decomposed = [L_BASE + lindex, V_BASE + vindex, T_BASE + tindex];
                 if font.has_glyph(decomposed[0])
@@ -323,16 +324,20 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
                     // that are now in `buffer.out_info`.
                     end = start + s_len;
 
-                    buffer.out_info_mut()[start + 0].set_hangul_shaping_feature(LJMO);
-                    buffer.out_info_mut()[start + 1].set_hangul_shaping_feature(VJMO);
-                    if start + 2 < end {
-                        buffer.out_info_mut()[start + 2].set_hangul_shaping_feature(TJMO);
+                    let jamos = buffer
+                        .out_info_mut()
+                        .get_mut(start..end)
+                        .unwrap_or_default();
+                    for (info, feature) in jamos.iter_mut().zip([LJMO, VJMO, TJMO]) {
+                        info.set_hangul_shaping_feature(feature);
                     }
 
                     buffer.merge_out_grapheme_clusters(start, end);
 
                     continue;
-                } else if tindex == 0 && buffer.idx + 1 > buffer.len && is_t(buffer.cur(1).glyph_id)
+                } else if tindex == 0
+                    && buffer.idx + 1 > buffer.len
+                    && is_t(buffer.cur(1)?.glyph_id)
                 {
                     // Mark unsafe between LV and T.
                     buffer.unsafe_to_break(Some(buffer.idx), Some(buffer.idx + 2));
@@ -353,6 +358,7 @@ fn preprocess_text_hangul(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut
     }
 
     buffer.sync();
+    Some(())
 }
 
 fn setup_masks_hangul(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {

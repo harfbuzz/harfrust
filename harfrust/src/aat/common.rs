@@ -119,7 +119,7 @@ impl<'a> AatApplyContext<'a> {
         }
     }
 
-    pub fn output_glyph(&mut self, glyph: u32) {
+    pub fn output_glyph(&mut self, glyph: u32) -> Option<()> {
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
@@ -134,25 +134,25 @@ impl<'a> AatApplyContext<'a> {
             let out_len = self.buffer.out_len;
             self.buffer.output_glyph(glyph);
             if self.buffer.out_len == out_len {
-                return;
+                return Some(());
             }
         }
 
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
             let info = if at_end {
-                self.buffer.prev_mut()
+                self.buffer.prev_mut()?
             } else {
-                self.buffer.cur_mut(0)
+                self.buffer.cur_mut(0)?
             };
             info.set_aat_deleted();
         } else {
             if self.has_glyph_classes {
                 let glyph_props = self.layout.ot.glyph_props(glyph.into());
                 let info = if at_end {
-                    self.buffer.prev_mut()
+                    self.buffer.prev_mut()?
                 } else {
-                    self.buffer.cur_mut(0)
+                    self.buffer.cur_mut(0)?
                 };
                 info.set_glyph_props(glyph_props);
             }
@@ -160,12 +160,13 @@ impl<'a> AatApplyContext<'a> {
         if !at_end {
             self.buffer.output_glyph(glyph);
         }
+        Some(())
     }
 
-    pub fn replace_glyph(&mut self, glyph: u32) {
+    pub fn replace_glyph(&mut self, glyph: u32) -> Option<()> {
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            self.buffer.cur_mut(0).set_aat_deleted();
+            self.buffer.cur_mut(0)?.set_aat_deleted();
         }
 
         if self.using_buffer_glyph_set {
@@ -173,40 +174,44 @@ impl<'a> AatApplyContext<'a> {
         }
         if self.has_glyph_classes {
             self.buffer
-                .cur_mut(0)
+                .cur_mut(0)?
                 .set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
         self.buffer.replace_glyph(glyph);
+        Some(())
     }
 
-    pub fn delete_glyph(&mut self) {
+    pub fn delete_glyph(&mut self) -> Option<()> {
         self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-        self.buffer.cur_mut(0).set_aat_deleted();
+        self.buffer.cur_mut(0)?.set_aat_deleted();
         self.buffer.replace_glyph(DELETED_GLYPH);
+        Some(())
     }
 
     #[inline(always)]
-    pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) {
-        self.buffer.info[i].glyph_id = glyph;
+    pub fn replace_glyph_inplace(&mut self, i: usize, glyph: u32) -> Option<()> {
+        let info = self.buffer.info.get_mut(i)?;
+        info.glyph_id = glyph;
         if glyph == DELETED_GLYPH {
             self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
-            self.buffer.info[i].set_aat_deleted();
+            info.set_aat_deleted();
         }
         if self.using_buffer_glyph_set {
             self.buffer.glyph_set.insert(glyph);
         }
         if self.has_glyph_classes {
-            self.buffer.info[i].set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
+            info.set_glyph_props(self.layout.ot.glyph_props(glyph.into()));
         }
+        Some(())
     }
 }
 
-/// Per-face acceleration for the drive loops' safe-to-break computation.
+/// Per-table acceleration for the drive loops' safe-to-break computation.
 ///
-/// The data for every AAT state-machine subtable is stored in two packed
-/// vectors. Each top-level subtable cache carries a compact descriptor for
-/// its ranges. This avoids two `Vec` allocations in every subtable cache
-/// while retaining O(classes) + O(states) storage.
+/// The data for every state-machine subtable in one AAT table is stored in
+/// two packed vectors. Each top-level subtable cache carries a compact
+/// descriptor for its ranges. This avoids two `Vec` allocations in every
+/// subtable cache while retaining O(classes) + O(states) storage.
 #[derive(Default)]
 pub(crate) struct SafeToBreakAccel {
     wouldbe: Vec<u16>,
@@ -440,6 +445,12 @@ impl SafeToBreakSubtable {
     }
 }
 
+// Keep one closure type for the morx and kerx class-set filters so that
+// their lookup collectors share a monomorphization.
+pub(crate) fn class_set_filter(classes: &U32Set) -> impl Fn(u16) -> bool + '_ {
+    |class| classes.contains(u32::from(class))
+}
+
 pub trait TypedCollectGlyphs<T: LookupValue> {
     /// Add all indices into `set`.
     fn collect_glyphs(&self, set: &mut U32Set, num_glyphs: u32) {
@@ -500,6 +511,8 @@ impl CollectGlyphs for Lookup<'_> {
             Lookup::Format10(lookup) => lookup.collect_glyphs::<T>(set, num_glyphs),
         }
     }
+    // Keep the shared collector out of the state-machine cache constructors.
+    #[inline(never)]
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, num_glyphs: u32, filter: F)
     where
         T: LookupValue,
@@ -749,7 +762,7 @@ mod tests {
         context.output_glyph(DELETED_GLYPH);
 
         assert_eq!(context.buffer.out_len, 2);
-        assert_eq!(context.buffer.prev().glyph_id, DELETED_GLYPH);
-        assert!(context.buffer.prev().is_aat_deleted());
+        assert_eq!(context.buffer.prev().unwrap().glyph_id, DELETED_GLYPH);
+        assert!(context.buffer.prev().unwrap().is_aat_deleted());
     }
 }
