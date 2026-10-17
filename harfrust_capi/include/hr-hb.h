@@ -19,13 +19,14 @@
  * Shaping, BASE baseline, MATH, CPAL palettes, axis/name and AAT metadata,
  * layout script/feature/lookup, set, map, and OpenType tag conversion APIs
  * are covered.
- * Anything else HarfBuzz offers -- drawing and painting callbacks,
- * other layout table introspection, custom Unicode
- * callbacks -- has no mapping here and will fail to compile, which is the
+ * Other layout table introspection and custom Unicode
+ * callbacks have no mapping here and will fail to compile, which is the
  * point: you find out at build time rather than at run time. OpenType
  * mappings live in hr-hb-ot.h, included here for backward compatibility.
  * Optional subsetting mappings are in hr-hb-subset.h and require a library
  * built with the subset feature.
+ * Drawing and painting mappings are in hr-hb-draw.h / hr-hb-paint.h and
+ * require their corresponding optional library features.
  * HarfBuzz version names report the release matched by shaping; hr_version()
  * and HR_VERSION_* continue to report the HarfRust package version.
  *
