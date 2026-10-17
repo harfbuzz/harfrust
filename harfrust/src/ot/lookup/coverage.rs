@@ -1,10 +1,69 @@
 //! Coverage and class definition tables, reduced to the arrays they search.
 
+use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::set_digest::SetDigest;
+use alloc::boxed::Box;
 use core::cmp::Ordering;
 use read_fonts::tables::layout::{self, ClassRangeRecord, CoverageTable, RangeRecord};
-use read_fonts::types::{BigEndian, GlyphId, GlyphId16};
-use read_fonts::ReadError;
+use read_fonts::types::{BigEndian, GlyphId, GlyphId16, Offset16};
+use read_fonts::{FontData, ReadError, ResolveOffset};
+
+/// A coverage per context glyph, parsed eagerly only for short contexts.
+///
+/// Arrays longer than [`MAX_CONTEXT_LENGTH`] are read on demand. Overlapping
+/// subtables can otherwise multiply a small font into large allocations and
+/// parsing work.
+pub(crate) enum CoverageArray<'a> {
+    Cached(Box<[Coverage<'a>]>),
+    Uncached {
+        data: FontData<'a>,
+        offsets: &'a [BigEndian<Offset16>],
+    },
+}
+
+impl Default for CoverageArray<'_> {
+    fn default() -> Self {
+        Self::Cached(Box::default())
+    }
+}
+
+impl<'a> CoverageArray<'a> {
+    pub fn new(data: FontData<'a>, offsets: &'a [BigEndian<Offset16>]) -> Self {
+        if offsets.len() > MAX_CONTEXT_LENGTH {
+            return Self::Uncached { data, offsets };
+        }
+        Self::Cached(
+            offsets
+                .iter()
+                .map(|offset| Coverage::new(offset.get().resolve(data)))
+                .collect(),
+        )
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Cached(coverages) => coverages.len(),
+            Self::Uncached { offsets, .. } => offsets.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Missing or unreadable coverages cover no glyphs, in either form.
+    #[inline]
+    pub fn get(&self, index: usize) -> Coverage<'a> {
+        match self {
+            Self::Cached(coverages) => coverages.get(index).copied().unwrap_or_default(),
+            Self::Uncached { data, offsets } => {
+                offsets.get(index).map_or(Coverage::None, |offset| {
+                    Coverage::new(offset.get().resolve(*data))
+                })
+            }
+        }
+    }
+}
 
 /// The position of `gid` among sorted ranges of glyphs.
 #[inline]
@@ -192,6 +251,66 @@ impl<'a> ClassDef<'a> {
                     }
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn coverage_arrays_keep_long_contexts_without_parsing_every_offset() {
+        // Two format 1 coverages, following two padding bytes.
+        let data = FontData::new(&[0, 0, 0, 1, 0, 1, 0, 42, 0, 1, 0, 1, 0, 43]);
+        for count in [MAX_CONTEXT_LENGTH, MAX_CONTEXT_LENGTH + 1, 65_535] {
+            // Many entries can alias the same coverage in a tiny font.
+            let mut offsets = vec![Offset16::new(2).into(); count];
+            offsets[count - 1] = Offset16::new(8).into();
+            let coverages = CoverageArray::new(data, &offsets);
+            assert_eq!(coverages.len(), count);
+            assert!(!coverages.is_empty());
+            assert_eq!(coverages.get(0).get(42u32), Some(0));
+            assert_eq!(coverages.get(count - 1).get(43u32), Some(0));
+            assert!(!coverages.get(count - 1).covers(42u32));
+            assert!(coverages.get(count).is_none());
+            assert_eq!(
+                matches!(coverages, CoverageArray::Cached(_)),
+                count <= MAX_CONTEXT_LENGTH,
+            );
+        }
+    }
+
+    #[test]
+    fn cached_and_uncached_arrays_handle_unreadable_coverages_the_same_way() {
+        let data = FontData::new(&[0, 0, 0, 1, 0, 1, 0, 42]);
+        for count in [MAX_CONTEXT_LENGTH, MAX_CONTEXT_LENGTH + 1] {
+            let mut offsets = vec![Offset16::new(2).into(); count];
+            // Null, out of bounds, and an unsupported coverage format.
+            for (index, offset) in [0, u16::MAX, 3].into_iter().enumerate() {
+                offsets[index] = Offset16::new(offset).into();
+            }
+            let coverages = CoverageArray::new(data, &offsets);
+            for index in [0, 1, 2, count] {
+                let coverage = coverages.get(index);
+                assert!(coverage.is_none());
+                assert!(!coverage.covers(42u32));
+                assert!(coverage.digest().may_have(42));
+            }
+            assert_eq!(coverages.get(3).get(42u32), Some(0));
+        }
+    }
+
+    #[test]
+    fn empty_coverage_arrays_cover_nothing() {
+        for coverages in [
+            CoverageArray::default(),
+            CoverageArray::new(FontData::new(&[]), &[]),
+        ] {
+            assert!(coverages.is_empty());
+            assert_eq!(coverages.len(), 0);
+            assert!(coverages.get(0).is_none());
         }
     }
 }

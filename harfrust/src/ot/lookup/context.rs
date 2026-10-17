@@ -4,7 +4,7 @@
 //! so both run through the same walks. Only the layout of their rules
 //! differs, which [`Rules`] and [`ParsedRule`] record.
 
-use super::coverage::{ClassDef, Coverage};
+use super::coverage::{ClassDef, Coverage, CoverageArray};
 use super::gsub::covered_at;
 use super::{glyph_class_cached, Offsets, SubtableDigests};
 use crate::buffer::GlyphInfo;
@@ -86,10 +86,6 @@ fn rule_set_digests(sets: &RuleSets, chained: bool) -> Box<[RuleSetDigest]> {
             digest
         })
         .collect()
-}
-
-fn coverage_digest(coverage: Option<&Coverage>) -> SetDigest {
-    coverage.map_or_else(SetDigest::full, Coverage::digest)
 }
 
 /// Chained context by glyph sequences, or context by glyph sequences.
@@ -324,28 +320,22 @@ impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
 /// glyph.
 pub(crate) struct ChainContext3<'a> {
     /// The coverages of the input glyphs after the first.
-    inputs: Box<[Coverage<'a>]>,
-    backtrack: Box<[Coverage<'a>]>,
-    lookahead: Box<[Coverage<'a>]>,
+    inputs: CoverageArray<'a>,
+    backtrack: CoverageArray<'a>,
+    lookahead: CoverageArray<'a>,
     records: &'a [SequenceLookupRecord],
     chained: bool,
 }
 
 impl<'a> ChainContext3<'a> {
     pub fn new(table: &ChainedSequenceContextFormat3<'a>) -> Option<Self> {
-        let inputs = table.input_coverages();
         Some(Self {
-            inputs: inputs.iter().skip(1).map(Coverage::new).collect(),
-            backtrack: table
-                .backtrack_coverages()
-                .iter()
-                .map(Coverage::new)
-                .collect(),
-            lookahead: table
-                .lookahead_coverages()
-                .iter()
-                .map(Coverage::new)
-                .collect(),
+            inputs: CoverageArray::new(
+                table.offset_data(),
+                table.input_coverage_offsets().get(1..).unwrap_or_default(),
+            ),
+            backtrack: CoverageArray::new(table.offset_data(), table.backtrack_coverage_offsets()),
+            lookahead: CoverageArray::new(table.offset_data(), table.lookahead_coverage_offsets()),
             records: table.seq_lookup_records(),
             chained: true,
         })
@@ -353,14 +343,12 @@ impl<'a> ChainContext3<'a> {
 
     pub fn from_plain(table: &SequenceContextFormat3<'a>) -> Option<Self> {
         Some(Self {
-            inputs: table
-                .coverages()
-                .iter()
-                .skip(1)
-                .map(Coverage::new)
-                .collect(),
-            backtrack: Box::default(),
-            lookahead: Box::default(),
+            inputs: CoverageArray::new(
+                table.offset_data(),
+                table.coverage_offsets().get(1..).unwrap_or_default(),
+            ),
+            backtrack: CoverageArray::default(),
+            lookahead: CoverageArray::default(),
             records: table.seq_lookup_records(),
             chained: false,
         })
@@ -423,20 +411,19 @@ impl<'a> ChainContext3<'a> {
     pub fn would_apply(&self, ctx: &WouldApplyContext, _coverage: &Coverage) -> bool {
         (!ctx.zero_context || (self.backtrack.is_empty() && self.lookahead.is_empty()))
             && ctx.glyphs.len() == self.inputs.len() + 1
-            && self
-                .inputs
+            && ctx.glyphs[1..]
                 .iter()
-                .zip(&ctx.glyphs[1..])
-                .all(|(coverage, glyph)| coverage.covers(*glyph))
+                .enumerate()
+                .all(|(index, glyph)| self.inputs.get(index).covers(*glyph))
     }
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext3<'a> {
     fn digest_second(&self) -> SetDigest {
         if self.inputs.is_empty() {
-            coverage_digest(self.lookahead.first())
+            self.lookahead.get(0).digest()
         } else {
-            coverage_digest(self.inputs.first())
+            self.inputs.get(0).digest()
         }
     }
 }
