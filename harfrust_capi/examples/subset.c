@@ -15,7 +15,11 @@ int main(int argc, char **argv) {
   hb_codepoint_t source_glyph = 0;
   int found = hb_font_get_nominal_glyph(source_font, 'A', &source_glyph);
   hb_font_destroy(source_font);
-  hb_face_t *subset = hb_subset_or_fail(face, input);
+  hb_subset_plan_t *plan = hb_subset_plan_create_or_fail(face, input);
+  hb_map_t *mapping = plan ? hb_subset_plan_old_to_new_glyph_mapping(plan) : NULL;
+  unsigned planned_glyph = mapping ? hb_map_get(mapping, source_glyph) : 0;
+  hb_face_t *subset = hb_subset_plan_execute_or_fail(plan);
+  hb_subset_plan_destroy(plan);
   hb_face_destroy(face);
   hb_subset_input_destroy(input);
   if (!subset || !preprocessed) return 1;
@@ -24,7 +28,7 @@ int main(int argc, char **argv) {
   int mapped = hb_font_get_nominal_glyph(font, 'A', &output_glyph);
   hb_blob_t *output = hb_face_reference_blob(subset);
   unsigned length = hb_blob_get_length(output);
-  int success = found && mapped && source_glyph == output_glyph && length > 0;
+  int success = found && mapped && source_glyph == output_glyph && planned_glyph == output_glyph && length > 0;
   printf("subset: %u bytes, retained glyph %u\n", length, output_glyph);
   hb_blob_destroy(output);
   hb_font_destroy(font);
