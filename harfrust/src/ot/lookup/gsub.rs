@@ -1,6 +1,6 @@
 //! Substitution subtables.
 
-use super::coverage::Coverage;
+use super::coverage::{Coverage, CoverageArray};
 use super::{Offsets, SubtableDigests};
 use crate::buffer::{GlyphInfo, GlyphPropsFlags};
 use crate::hint::Likely;
@@ -11,7 +11,6 @@ use crate::ot::apply::{
 use crate::ot::layout::MAX_NESTING_LEVEL;
 use crate::ot::map::OtMap;
 use crate::set_digest::SetDigest;
-use alloc::boxed::Box;
 #[cfg(feature = "tracing")]
 use alloc::string::String;
 use read_fonts::tables::gsub::{
@@ -438,24 +437,16 @@ fn apply_ligature(ctx: &mut ApplyContext, ligature: &Ligature) -> Option<()> {
 pub(crate) struct ReverseChainSubst1<'a> {
     substitutes: &'a [BigEndian<GlyphId16>],
     /// The backtrack coverages, `None` where one can't be read.
-    backtrack: Box<[Coverage<'a>]>,
-    lookahead: Box<[Coverage<'a>]>,
+    backtrack: CoverageArray<'a>,
+    lookahead: CoverageArray<'a>,
 }
 
 impl<'a> ReverseChainSubst1<'a> {
     pub fn new(table: &ReverseChainSingleSubstFormat1<'a>) -> Option<Self> {
         Some(Self {
             substitutes: table.substitute_glyph_ids(),
-            backtrack: table
-                .backtrack_coverages()
-                .iter()
-                .map(Coverage::new)
-                .collect(),
-            lookahead: table
-                .lookahead_coverages()
-                .iter()
-                .map(Coverage::new)
-                .collect(),
+            backtrack: CoverageArray::new(table.offset_data(), table.backtrack_coverage_offsets()),
+            lookahead: CoverageArray::new(table.offset_data(), table.lookahead_coverage_offsets()),
         })
     }
 
@@ -510,10 +501,8 @@ impl<'a> SubtableDigests<'a> for ReverseChainSubst1<'a> {}
 
 /// Whether coverage `index` of `coverages` exists and covers the glyph.
 #[inline]
-pub(super) fn covered_at(coverages: &[Coverage], index: u32, info: &GlyphInfo) -> bool {
-    coverages
-        .get(index as usize)
-        .is_some_and(|coverage| coverage.covers(info.glyph_id))
+pub(super) fn covered_at(coverages: &CoverageArray, index: u32, info: &GlyphInfo) -> bool {
+    coverages.get(index as usize).covers(info.glyph_id)
 }
 
 #[cfg(test)]
