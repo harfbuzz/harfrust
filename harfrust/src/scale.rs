@@ -123,7 +123,7 @@ impl read_fonts::model::metrics::Scale for Scale {
     }
 
     fn half(value: i32) -> i32 {
-        value / 2
+        value >> 1
     }
 
     fn scale_x(&self, value: F48Dot16) -> i32 {
