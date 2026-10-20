@@ -97,6 +97,20 @@ fn mark_too_far_from_its_base_is_left_unattached() {
     assert_eq!(glyphs[32_769], "975+0");
 }
 
+// Sorting these marks temporarily puts the minimum cluster inside the run.
+// It must remain exempt from flags applied to the other clusters.
+#[test]
+fn reordered_character_clusters_keep_the_minimum_boundary_safe() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/BungeeTint-Regular.ttf",
+            "\u{030B}\u{0323}\u{031B}",
+            "--cluster-level=2 --show-flags --no-glyph-names",
+        ),
+        "[986=2+0#1|987=1+0#1|984=0+0]"
+    );
+}
+
 /// A zero-valued PairPosFormat1 record is still a concat hazard. In the test
 /// font, changing `X` to `V` selects another record and changes `A`'s advance.
 #[test]

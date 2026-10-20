@@ -2232,7 +2232,7 @@ impl Buffer {
         let Some(infos) = info.get(start..end) else {
             return cluster;
         };
-        if self.cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_CHARACTERS {
+        if self.cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS {
             for glyph_info in infos {
                 cluster = min(cluster, glyph_info.cluster);
             }
