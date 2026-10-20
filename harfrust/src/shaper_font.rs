@@ -44,12 +44,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
         let cached = layout_cache(font);
         let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
             let coords = font.normalized_coords();
-            let feature_variations = if coords.is_empty() {
-                [None; 2]
-            } else {
-                let variations = font.feature_variations();
-                [variations.gsub, variations.gpos]
-            };
+            let feature_variations = cache.feature_variations(font);
             (
                 OtData::new(&cache.ot, coords, feature_variations),
                 AatData::new(&cache.aat),
@@ -595,6 +590,7 @@ pub(crate) struct LayoutCache {
     pub cmap: CharmapCache,
     /// True if the font has both `trak` and `STAT` tables.
     pub apply_trak: bool,
+    default_feature_variations: Once<[Option<u32>; 2]>,
 }
 
 impl LayoutCache {
@@ -609,8 +605,27 @@ impl LayoutCache {
             aat,
             cmap: CharmapCache::new(),
             apply_trak,
+            default_feature_variations: Once::new(),
         }
     }
+
+    fn feature_variations(&self, font: &Font) -> [Option<u32>; 2] {
+        if font.normalized_coords().is_empty() {
+            // read-fonts 0.45 does not select feature variations for default
+            // instances. Zero coordinates can still satisfy their conditions.
+            return *self.default_feature_variations.get_or_init(|| {
+                let variations =
+                    read_fonts::tables::layout::SelectedFeatureVariations::new(&font.tables(), &[]);
+                [variations.gsub, variations.gpos]
+            });
+        }
+        let variations = font.feature_variations();
+        [variations.gsub, variations.gpos]
+    }
+}
+
+pub(crate) fn feature_variations(font: &Font) -> [Option<u32>; 2] {
+    layout_cache(font).map_or([None; 2], |cache| cache.feature_variations(font))
 }
 
 /// Returns cached layout data, or `None` if the read-fonts interop slot

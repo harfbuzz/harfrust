@@ -1,5 +1,6 @@
 mod aots;
 mod custom;
+mod feature_variations;
 mod in_house;
 mod macos;
 #[cfg(target_os = "macos")]
