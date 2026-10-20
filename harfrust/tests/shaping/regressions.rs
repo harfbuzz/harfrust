@@ -58,6 +58,20 @@ fn issue_384_overly_long_grapheme_cluster_fallback_does_not_overflow() {
     shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
 }
 
+// The glyph is 2143 units tall in a 2048-unit line. Its synthesized origin
+// halves -95 toward negative infinity, matching HarfBuzz.
+#[test]
+fn synthesized_vertical_origin_floors_negative_half_height() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/text-rendering-tests/Calculator-Regular.ttf",
+            "\u{03AE}",
+            "--direction=ttb --no-glyph-names",
+        ),
+        "[825=0@-628,-1603+0,-2048]"
+    );
+}
+
 #[test]
 fn shaping_long_line_kern_does_not_overflow_glyph_data() {
     let font_data = fs::read(font_path("TestKERNOne.otf")).expect("failed to read test font");
