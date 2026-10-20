@@ -190,7 +190,8 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Returns the scaled horizontal advance from the font's own tables.
     pub fn default_glyph_h_advance(&self, glyph: GlyphId) -> i32 {
-        self.glyph_metrics().h_advance(glyph)
+        self.scale
+            .clamp_x_advance(self.glyph_metrics().h_advance(glyph))
     }
 
     /// Writes effective horizontal advances for a batch of glyphs.
@@ -204,8 +205,10 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Writes scaled horizontal advances from the font's own tables.
     pub fn default_glyph_h_advances(&self, advances: Advances<'_>) {
-        self.glyph_metrics()
-            .h_advance_batched(|advance| advance, advances.into_iter());
+        self.glyph_metrics().h_advance_batched(
+            |advance| self.scale.clamp_x_advance(advance),
+            advances.into_iter(),
+        );
     }
 
     /// Returns the effective vertical advance.
@@ -218,7 +221,9 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Returns the scaled vertical advance from the font's own tables.
     pub fn default_glyph_v_advance(&self, glyph: GlyphId) -> i32 {
-        self.glyph_metrics().v_advance(glyph).saturating_neg()
+        self.scale
+            .clamp_y_advance(self.glyph_metrics().v_advance(glyph))
+            .saturating_neg()
     }
 
     /// Returns the effective vertical origin.
