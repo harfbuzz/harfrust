@@ -157,3 +157,27 @@ fn thai_sara_am_after_two_above_base_marks() {
         "[uni0E01=0+500|uni0E4D=0+0|uni0E48=0+0|uni0E49=0+0|uni0E32=0+500]"
     );
 }
+
+#[test]
+fn tatweel_flag_production_cleans_singleton_cluster_flags() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/BungeeTint-Regular.ttf",
+            "\u{0302}\u{0300}",
+            "--cluster-level=2 --safe-to-insert-tatweel --show-flags --no-glyph-names",
+        ),
+        "[976=0+0|974=1@0,249+0#1]"
+    );
+}
+
+#[test]
+fn singleton_tatweel_opportunity_is_unsafe_to_break() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/in-house/73c3222a2992bac9067663888d2a1503774976bb.ttf",
+            "\u{0628}\u{0628}",
+            "--safe-to-insert-tatweel --show-flags --no-glyph-names",
+        ),
+        "[5=1+200#5|1=0+200]"
+    );
+}
