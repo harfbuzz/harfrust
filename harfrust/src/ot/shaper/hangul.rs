@@ -183,7 +183,7 @@ fn preprocess_text_hangul(
                 buffer.unsafe_to_break_from_outbuffer(Some(start), Some(buffer.idx));
                 buffer.next_glyph();
                 if !is_zero_width_char(font, c) {
-                    buffer.merge_out_grapheme_clusters(start, end + 1);
+                    buffer.merge_out_clusters(start, end + 1);
                     if let Some(syllable) = buffer.out_info_mut().get_mut(start..=end) {
                         syllable.rotate_right(1);
                     }

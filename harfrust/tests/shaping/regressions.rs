@@ -10,6 +10,18 @@ fn font_path(name: &str) -> PathBuf {
         .join(name)
 }
 
+#[test]
+fn hangul_tone_reordering_preserves_monotone_character_clusters() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/text-rendering-tests/FDArrayTest257.otf",
+            "\u{AC00}\u{302E}",
+            "--cluster-level=1 --show-flags --no-glyph-names",
+        ),
+        "[47=0+1000|1=0+1000]"
+    );
+}
+
 // This test uses `TestGPOSThree.ttf`, which has a GPOS table.
 // It verifies that GPOS attachment offset propagation scales safely without integer overflow
 // for extremely long grapheme clusters (as fixed in commit 6bccd74).
