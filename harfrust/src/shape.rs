@@ -820,11 +820,7 @@ fn propagate_flags(buffer: &mut Buffer) {
      */
     foreach_cluster!(buffer, start, end, {
         // We cannot use `continue` in our `for_each_cluster!` macro.
-        if let Some(infos) = buffer
-            .info
-            .get_mut(start..end)
-            .filter(|infos| infos.len() != 1)
-        {
+        if let Some(infos) = buffer.info.get_mut(start..end) {
             let mut mask = infos.iter().fold(0, |mask, info| mask | info.mask);
 
             mask &= GlyphFlags::DEFINED_BITS;
