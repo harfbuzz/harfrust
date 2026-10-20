@@ -76,6 +76,24 @@ impl Scale {
         (y * self.y_multf).round() as i32
     }
 
+    /// Clamps a scaled advance to the sign of its scale. This applies the
+    /// unsigned font-unit bound while preserving deliberately negative scales.
+    pub(crate) fn clamp_x_advance(&self, advance: i32) -> i32 {
+        Self::clamp_advance(advance, self.x_multf)
+    }
+
+    pub(crate) fn clamp_y_advance(&self, advance: i32) -> i32 {
+        Self::clamp_advance(advance, self.y_multf)
+    }
+
+    fn clamp_advance(advance: i32, scale: f32) -> i32 {
+        if scale < 0.0 {
+            advance.min(0)
+        } else {
+            advance.max(0)
+        }
+    }
+
     /// Scales glyph extents using HarfBuzz's corner rounding.
     ///
     /// Floors the near corners and ceils the far corners before calculating
