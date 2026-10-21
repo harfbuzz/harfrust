@@ -4,12 +4,16 @@
 //! symbols separate from the C++ HarfBuzz subsetter. `hr-hb-subset.h` provides
 //! HarfBuzz source aliases, not compatibility with HarfBuzz's opaque objects.
 
-use crate::{hr_blob_t, hr_face_t, hr_set_t};
+mod user_data;
+use crate::{hr_blob_t, hr_face_t, hr_map_t, hr_set_t};
 
 /// Font subsetting flags, matching HarfBuzz.
 pub type hr_subset_flags_t = c_uint;
 
-use core::{ffi::c_uint, ptr};
+use core::{
+    ffi::{c_int, c_uint, c_void},
+    ptr,
+};
 use std::{
     panic::{catch_unwind, AssertUnwindSafe},
     sync::atomic::{AtomicUsize, Ordering},
@@ -61,7 +65,7 @@ pub type hr_subset_sets_t = c_uint;
 pub const HR_SUBSET_SETS_GLYPH_INDEX: hr_subset_sets_t = 0;
 /// Unicode codepoints to retain.
 pub const HR_SUBSET_SETS_UNICODE: hr_subset_sets_t = 1;
-/// Tables to copy unchanged (currently the Skera default set only).
+/// Tables to copy unchanged.
 pub const HR_SUBSET_SETS_NO_SUBSET_TABLE_TAG: hr_subset_sets_t = 2;
 /// Tables to omit from the output.
 pub const HR_SUBSET_SETS_DROP_TABLE_TAG: hr_subset_sets_t = 3;
@@ -90,6 +94,7 @@ pub struct hr_subset_input_t {
     references: AtomicUsize,
     sets: [*mut hr_set_t; 8],
     flags: c_uint,
+    user_data: user_data::UserData,
 }
 
 impl Drop for hr_subset_input_t {
@@ -126,6 +131,7 @@ pub extern "C" fn hr_subset_input_create_or_fail() -> *mut hr_subset_input_t {
         references: AtomicUsize::new(1),
         sets,
         flags: HR_SUBSET_FLAGS_DEFAULT,
+        user_data: user_data::UserData::default(),
     }))
 }
 
@@ -179,9 +185,6 @@ pub unsafe extern "C" fn hr_subset_input_unicode_set(
 }
 
 /// Returns a borrowed configurable input set, or `NULL` for an invalid selector.
-///
-/// Changes to the no-subset table set currently cause subsetting to fail:
-/// published Skera does not expose customization of that set yet.
 ///
 /// # Safety
 /// `input` must be `NULL` or live; the returned set is borrowed from it.
@@ -331,7 +334,10 @@ unsafe fn tags(set: *mut hr_set_t) -> IntSet<Tag> {
     result
 }
 
-unsafe fn subset(face: *mut hr_face_t, input: &hr_subset_input_t) -> Option<Vec<u8>> {
+unsafe fn make_plan(
+    face: *mut hr_face_t,
+    input: &hr_subset_input_t,
+) -> Option<(Vec<u8>, skera::Plan)> {
     if input.flags & !SUPPORTED_FLAGS != 0 {
         return None;
     }
@@ -357,9 +363,6 @@ unsafe fn subset(face: *mut hr_face_t, input: &hr_subset_input_t) -> Option<Vec<
             set
         });
     let unicodes = unsafe { ranges(input.sets[1], 0x10_FFFF) };
-    if unsafe { tags(input.sets[2]) } != DEFAULT_NO_SUBSET_TABLES.into_iter().collect() {
-        return None;
-    }
     let drop_tables = unsafe { tags(input.sets[3]) };
     let scripts = unsafe { tags(input.sets[7]) };
     let features = unsafe { tags(input.sets[6]) };
@@ -372,7 +375,7 @@ unsafe fn subset(face: *mut hr_face_t, input: &hr_subset_input_t) -> Option<Vec<
     for range in unsafe { ranges(input.sets[5], u16::MAX.into()) }.iter_ranges() {
         name_languages.insert_range(*range.start() as u16..=*range.end() as u16);
     }
-    let plan = skera::Plan::new(
+    let mut plan = skera::Plan::new(
         &glyphs,
         &unicodes,
         &font,
@@ -383,7 +386,8 @@ unsafe fn subset(face: *mut hr_face_t, input: &hr_subset_input_t) -> Option<Vec<
         &name_ids,
         &name_languages,
     );
-    skera::subset_font(&font, &plan).ok()
+    plan.set_no_subset_tables(&unsafe { tags(input.sets[2]) });
+    Some((bytes, plan))
 }
 
 /// Subsets a face with skera, returning a new face with serialized SFNT data.
@@ -404,7 +408,10 @@ pub unsafe extern "C" fn hr_subset_or_fail(
     let Some(input) = (unsafe { input.as_ref() }) else {
         return ptr::null_mut();
     };
-    let Ok(Some(bytes)) = catch_unwind(AssertUnwindSafe(|| unsafe { subset(face, input) })) else {
+    let Ok(Some(bytes)) = catch_unwind(AssertUnwindSafe(|| {
+        let (bytes, plan) = unsafe { make_plan(face, input) }?;
+        skera::subset_font(&FontRef::new(&bytes).ok()?, &plan).ok()
+    })) else {
         return ptr::null_mut();
     };
     unsafe { face_from_bytes(&bytes) }
@@ -442,4 +449,208 @@ pub unsafe extern "C" fn hr_subset_preprocess(face: *mut hr_face_t) -> *mut hr_f
     let result = unsafe { face_from_bytes(&bytes) };
     unsafe { crate::hr_face_make_immutable(result) };
     result
+}
+
+struct Map(*mut hr_map_t);
+impl Map {
+    fn new() -> Self {
+        Self(crate::hr_map_create())
+    }
+}
+impl Drop for Map {
+    fn drop(&mut self) {
+        unsafe { crate::hr_map_destroy(self.0) };
+    }
+}
+
+/// An immutable subset plan owning its font bytes and borrowed output maps.
+/// Creating a plan snapshots its input. The input and original face can be
+/// released afterwards; execution may be repeated or run concurrently.
+pub struct hr_subset_plan_t {
+    references: AtomicUsize,
+    bytes: Vec<u8>,
+    plan: skera::Plan,
+    maps: [Map; 3],
+    user_data: user_data::UserData,
+}
+
+/// Creates a self-contained plan and its glyph mappings, or `NULL` on failure.
+///
+/// # Safety
+/// `face` and `input` must be `NULL` or live. Input sets must not be mutated
+/// during this call; face callbacks must satisfy the core API contract.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_create_or_fail(
+    face: *mut hr_face_t,
+    input: *const hr_subset_input_t,
+) -> *mut hr_subset_plan_t {
+    let Some(input) = (unsafe { input.as_ref() }) else {
+        return ptr::null_mut();
+    };
+    let Ok(Some((bytes, plan))) =
+        catch_unwind(AssertUnwindSafe(|| unsafe { make_plan(face, input) }))
+    else {
+        return ptr::null_mut();
+    };
+    let maps = std::array::from_fn(|_| Map::new());
+    for (old, new) in plan.old_to_new_glyph_mapping() {
+        unsafe {
+            crate::hr_map_set(maps[0].0, old.to_u32(), new.to_u32());
+            crate::hr_map_set(maps[1].0, new.to_u32(), old.to_u32());
+        }
+    }
+    for (unicode, old) in plan.unicode_to_old_glyph_mapping() {
+        unsafe { crate::hr_map_set(maps[2].0, unicode, old.to_u32()) };
+    }
+    Box::into_raw(Box::new(hr_subset_plan_t {
+        references: AtomicUsize::new(1),
+        bytes,
+        plan,
+        maps,
+        user_data: user_data::UserData::default(),
+    }))
+}
+
+/// Takes a reference to a subset plan. `NULL` stays `NULL`.
+///
+/// # Safety
+/// `plan` must be `NULL` or live.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_reference(
+    plan: *mut hr_subset_plan_t,
+) -> *mut hr_subset_plan_t {
+    if let Some(plan) = unsafe { plan.as_ref() } {
+        plan.references.fetch_add(1, Ordering::Relaxed);
+    }
+    plan
+}
+
+/// Releases an owned plan reference. Accepts `NULL`.
+///
+/// # Safety
+/// `plan` must be `NULL` or an owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_destroy(plan: *mut hr_subset_plan_t) {
+    let Some(state) = (unsafe { plan.as_ref() }) else {
+        return;
+    };
+    if state.references.fetch_sub(1, Ordering::Release) == 1 {
+        std::sync::atomic::fence(Ordering::Acquire);
+        drop(unsafe { Box::from_raw(plan) });
+    }
+}
+
+/// Executes a subset plan, returning an independent face or `NULL` on failure.
+///
+/// # Safety
+/// `plan` must be `NULL` or live; its borrowed maps must not be modified.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_execute_or_fail(
+    plan: *mut hr_subset_plan_t,
+) -> *mut hr_face_t {
+    let Some(plan) = (unsafe { plan.as_ref() }) else {
+        return ptr::null_mut();
+    };
+    let Ok(Some(bytes)) = catch_unwind(AssertUnwindSafe(|| {
+        skera::subset_font(&FontRef::new(&plan.bytes).ok()?, &plan.plan).ok()
+    })) else {
+        return ptr::null_mut();
+    };
+    unsafe { face_from_bytes(&bytes) }
+}
+
+/// Returns the borrowed original-to-subset map, including closure glyphs.
+/// Take a core map reference if it must outlive the plan.
+///
+/// # Safety
+/// `plan` must be `NULL` or live. The returned map is read-only.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_old_to_new_glyph_mapping(
+    plan: *const hr_subset_plan_t,
+) -> *mut hr_map_t {
+    unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.maps[0].0)
+}
+
+/// Returns the borrowed subset-to-original map, including closure glyphs.
+///
+/// # Safety
+/// `plan` must be `NULL` or live. The returned map is read-only.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_new_to_old_glyph_mapping(
+    plan: *const hr_subset_plan_t,
+) -> *mut hr_map_t {
+    unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.maps[1].0)
+}
+
+/// Returns the borrowed Unicode-to-original-glyph map.
+///
+/// # Safety
+/// `plan` must be `NULL` or live. The returned map is read-only.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_unicode_to_old_glyph_mapping(
+    plan: *const hr_subset_plan_t,
+) -> *mut hr_map_t {
+    unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.maps[2].0)
+}
+
+/// Attaches owned metadata to a subset input; rejected data stays caller-owned.
+/// Replacing/removing metadata invokes its destructor outside the object lock.
+///
+/// # Safety
+/// `input` must be `NULL` or live. The key must outlive the object, and the
+/// supplied data/destructor must be safe to release from any thread.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_input_set_user_data(
+    input: *mut hr_subset_input_t,
+    key: *const crate::hr_user_data_key_t,
+    data: *mut c_void,
+    destroy: crate::hr_destroy_func_t,
+    replace: c_int,
+) -> c_int {
+    unsafe { input.as_ref() }
+        .is_some_and(|input| input.user_data.set(key, data, destroy, replace != 0))
+        .into()
+}
+
+/// Retrieves attached metadata, or `NULL` when absent.
+///
+/// # Safety
+/// `input` must be `NULL` or live. Concurrent replacement may invalidate the returned pointer.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_input_get_user_data(
+    input: *const hr_subset_input_t,
+    key: *const crate::hr_user_data_key_t,
+) -> *mut c_void {
+    unsafe { input.as_ref() }.map_or(ptr::null_mut(), |input| input.user_data.get(key))
+}
+
+/// Attaches owned metadata to a subset plan; rejected data stays caller-owned.
+/// Replacing/removing metadata invokes its destructor outside the object lock.
+///
+/// # Safety
+/// `plan` must be `NULL` or live. The key must outlive the object, and the
+/// supplied data/destructor must be safe to release from any thread.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_set_user_data(
+    plan: *mut hr_subset_plan_t,
+    key: *const crate::hr_user_data_key_t,
+    data: *mut c_void,
+    destroy: crate::hr_destroy_func_t,
+    replace: c_int,
+) -> c_int {
+    unsafe { plan.as_ref() }
+        .is_some_and(|plan| plan.user_data.set(key, data, destroy, replace != 0))
+        .into()
+}
+
+/// Retrieves attached metadata, or `NULL` when absent.
+///
+/// # Safety
+/// `plan` must be `NULL` or live. Concurrent replacement may invalidate the returned pointer.
+#[no_mangle]
+pub unsafe extern "C" fn hr_subset_plan_get_user_data(
+    plan: *const hr_subset_plan_t,
+    key: *const crate::hr_user_data_key_t,
+) -> *mut c_void {
+    unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.user_data.get(key))
 }

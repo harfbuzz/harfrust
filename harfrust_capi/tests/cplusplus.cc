@@ -6,7 +6,7 @@
 #ifdef HR_TEST_SUBSET_LAST
 #include "hr-hb-subset.h"
 #endif
-// Repeated includes and both subset include orders must remain valid.
+// Repeated includes must not redefine the subset vtables.
 #include "hr-hb-cplusplus.hh"
 #if defined(HR_TEST_SUBSET_FIRST) || defined(HR_TEST_SUBSET_LAST)
 #include "hr-hb-subset.h"
@@ -115,11 +115,13 @@ int main(int argc, char **argv)
   check_ownership(hb_shape_plan_create(face, &props, nullptr, 0, nullptr));
 
 #if defined(HR_TEST_SUBSET_FIRST) || defined(HR_TEST_SUBSET_LAST)
-  hb_subset_input_t *input = hb_subset_input_create_or_fail();
-  assert(input);
+  check_ownership(hb_subset_input_create_or_fail());
+  hb::shared_ptr<hb_subset_input_t> input(hb_subset_input_create_or_fail());
   hb_set_add(hb_subset_input_unicode_set(input), 'A');
-  hb::shared_ptr<hb_face_t> result(hb_subset_or_fail(face, input));
-  hb_subset_input_destroy(input);
+  check_ownership(hb_subset_plan_create_or_fail(face, input));
+  hb::unique_ptr<hb_subset_plan_t> plan(hb_subset_plan_create_or_fail(face, input));
+  assert(plan);
+  hb::shared_ptr<hb_face_t> result(hb_subset_plan_execute_or_fail(plan));
   assert(result && hb_face_get_glyph_count(result));
   hb::unique_ptr<hb_blob_t> subset_blob(hb_face_reference_blob(result));
   assert(subset_blob && hb_blob_get_length(subset_blob));
