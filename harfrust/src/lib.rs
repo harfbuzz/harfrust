@@ -34,6 +34,7 @@ and call [`shape`] to replace the text with positioned glyphs.
 extern crate alloc;
 
 mod algs;
+mod budget;
 pub mod unicode;
 #[macro_use]
 mod buffer;

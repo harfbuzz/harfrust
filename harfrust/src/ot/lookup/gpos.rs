@@ -2,6 +2,7 @@
 
 use super::coverage::{ClassDef, Coverage};
 use super::{glyph_class_cached, Offsets, SubtableDigests};
+use crate::budget::{Budget, Exhausted};
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::{ApplyContext, MappingCache, MatchResult, SkippingIterator};
@@ -9,7 +10,7 @@ use crate::ot::gpos::attach_type;
 use crate::ot::lookup_flags;
 use crate::set_digest::SetDigest;
 use crate::Direction;
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use read_fonts::tables::gpos::{
     AnchorTable, BaseArray, ClassValueRecords, CursivePosFormat1, EntryExitRecord, LigatureArray,
     Mark2Array, MarkArray, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1,
@@ -338,13 +339,19 @@ pub(crate) struct PairPos1<'a> {
 }
 
 impl<'a> PairPos1<'a> {
-    pub fn new(table: &PairPosFormat1<'a>) -> Option<Self> {
-        let pair_set_digests = table
-            .pair_sets()
-            .iter()
-            .map(|set| set.map_or_else(|_| SetDigest::full(), |set| pair_set_digest(&set)))
-            .collect();
-        Some(Self {
+    pub fn new(table: &PairPosFormat1<'a>, budget: &Budget) -> Result<Self, Exhausted> {
+        let sets = table.pair_sets();
+        budget.work(sets.len())?;
+        budget.alloc::<SetDigest>(sets.len())?;
+        let mut digests = Vec::with_capacity(sets.len());
+        for set in sets.iter() {
+            digests.push(match set {
+                Ok(set) => pair_set_digest(&set, budget)?,
+                Err(_) => SetDigest::full(),
+            });
+        }
+        let pair_set_digests = digests.into_boxed_slice();
+        Ok(Self {
             pair_sets: Offsets::new(table.offset_data(), table.pair_set_offsets()),
             pair_set_digests,
             format1: table.value_format1(),
@@ -406,32 +413,35 @@ impl<'a> PairPos1<'a> {
     }
 
     /// The second glyphs of all pairs.
-    pub fn seconds(&self) -> SetDigest {
+    pub fn seconds(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        budget.work(self.pair_set_digests.len())?;
         let mut seconds = SetDigest::new();
         for digest in &self.pair_set_digests {
             seconds.union(digest);
         }
-        seconds
+        Ok(seconds)
     }
 }
 
 impl<'a> SubtableDigests<'a> for PairPos1<'a> {
     const CACHES_COVERAGE: bool = true;
 
-    fn digest_second(&self) -> SetDigest {
-        self.seconds()
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        self.seconds(budget)
     }
 }
 
-fn pair_set_digest(set: &PairSet) -> SetDigest {
+fn pair_set_digest(set: &PairSet, budget: &Budget) -> Result<SetDigest, Exhausted> {
+    let records = set.pair_value_records();
+    budget.work(records.len())?;
     let mut digest = SetDigest::new();
-    for record in set.pair_value_records().iter() {
+    for record in records.iter() {
         let Ok(record) = record else {
-            return SetDigest::full();
+            return Ok(SetDigest::full());
         };
         digest.add(record.second_glyph().to_u32());
     }
-    digest
+    Ok(digest)
 }
 
 /// Pair adjustment by glyph classes.
@@ -450,9 +460,18 @@ struct PairPos2Caches {
 }
 
 impl<'a> PairPos2<'a> {
-    pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
-        class_matrix_range(table)?;
-        Some(Self {
+    pub fn new(
+        table: &PairPosFormat2<'a>,
+        with_caches: bool,
+        budget: &Budget,
+    ) -> Result<Option<Self>, Exhausted> {
+        if class_matrix_range(table).is_none() {
+            return Ok(None);
+        }
+        if with_caches {
+            budget.alloc::<PairPos2Caches>(1)?;
+        }
+        Ok(Some(Self {
             class_def1: ClassDef::new(table.class_def1()),
             class_def2: ClassDef::new(table.class_def2()),
             caches: with_caches.then(|| {
@@ -462,7 +481,7 @@ impl<'a> PairPos2<'a> {
                 })
             }),
             records: table.class_value_records(),
-        })
+        }))
     }
 
     /// Applies, sharing the search for the second glyph with the lookup's
@@ -575,15 +594,15 @@ pub(crate) struct PairKern1<'a> {
 
 impl<'a> PairKern1<'a> {
     /// Returns `None` unless the subtable holds only kerning.
-    pub fn new(table: &PairPosFormat1<'a>) -> Option<Self> {
+    pub fn new(table: &PairPosFormat1<'a>, budget: &Budget) -> Result<Option<Self>, Exhausted> {
         if !is_kerning(table.value_format1(), table.value_format2()) {
-            return None;
+            return Ok(None);
         }
-        let pairs = PairPos1::new(table)?;
-        Some(Self {
+        let pairs = PairPos1::new(table, budget)?;
+        Ok(Some(Self {
             pair_sets: pairs.pair_sets,
             pair_set_digests: pairs.pair_set_digests,
-        })
+        }))
     }
 
     #[inline]
@@ -624,12 +643,13 @@ impl<'a> PairKern1<'a> {
 impl<'a> SubtableDigests<'a> for PairKern1<'a> {
     const CACHES_COVERAGE: bool = true;
 
-    fn digest_second(&self) -> SetDigest {
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        budget.work(self.pair_set_digests.len())?;
         let mut seconds = SetDigest::new();
         for digest in &self.pair_set_digests {
             seconds.union(digest);
         }
-        seconds
+        Ok(seconds)
     }
 }
 
@@ -648,23 +668,31 @@ pub(crate) struct PairKern2<'a> {
 impl<'a> PairKern2<'a> {
     /// Returns `None` unless the subtable holds only kerning, in a matrix
     /// that can be read.
-    pub fn new(table: &PairPosFormat2<'a>, with_caches: bool) -> Option<Self> {
+    pub fn new(
+        table: &PairPosFormat2<'a>,
+        with_caches: bool,
+        budget: &Budget,
+    ) -> Result<Option<Self>, Exhausted> {
         if !is_kerning(table.value_format1(), table.value_format2()) {
-            return None;
+            return Ok(None);
         }
-        let matrix = table
-            .offset_data()
-            .read_array(class_matrix_range(table)?)
-            .ok()?;
-        let pairs = PairPos2::new(table, with_caches)?;
-        Some(Self {
+        let Some(range) = class_matrix_range(table) else {
+            return Ok(None);
+        };
+        let Ok(matrix) = table.offset_data().read_array(range) else {
+            return Ok(None);
+        };
+        let Some(pairs) = PairPos2::new(table, with_caches, budget)? else {
+            return Ok(None);
+        };
+        Ok(Some(Self {
             matrix,
             class_def1: pairs.class_def1,
             class_def2: pairs.class_def2,
             caches: pairs.caches,
             class1_count: table.class1_count(),
             class2_count: table.class2_count(),
-        })
+        }))
     }
 
     #[inline]
@@ -843,8 +871,8 @@ impl<'a> CursivePos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for CursivePos1<'a> {
-    fn digest_second(&self) -> SetDigest {
-        self.coverage.digest()
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        self.coverage.digest(budget)
     }
 }
 
@@ -1084,8 +1112,8 @@ impl<'a> MarkBasePos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for MarkBasePos1<'a> {
-    fn digest_second(&self) -> SetDigest {
-        self.base_coverage.digest()
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        self.base_coverage.digest(budget)
     }
 }
 
@@ -1152,8 +1180,8 @@ impl<'a> MarkLigPos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for MarkLigPos1<'a> {
-    fn digest_second(&self) -> SetDigest {
-        self.ligature_coverage.digest()
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        self.ligature_coverage.digest(budget)
     }
 }
 
@@ -1221,14 +1249,28 @@ impl<'a> MarkMarkPos1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for MarkMarkPos1<'a> {
-    fn digest_second(&self) -> SetDigest {
-        self.mark2_coverage.digest()
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        self.mark2_coverage.digest(budget)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn repeated_pair_sets_charge_every_record_visit() {
+        // Three offsets alias one pair set of four records. Value records
+        // are empty, so each pair record consists only of its second glyph.
+        let words: [u16; 13] = [1, 0, 0, 0, 3, 16, 16, 16, 4, 10, 20, 30, 40];
+        let data: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+        let table = PairPosFormat1::read(FontData::new(&data)).unwrap();
+        assert!(matches!(
+            PairPos1::new(&table, &Budget::new(14, 1024)),
+            Err(Exhausted)
+        ));
+        assert!(PairPos1::new(&table, &Budget::new(15, 1024)).is_ok());
+    }
     use alloc::vec;
     use read_fonts::FontRead;
 
@@ -1245,8 +1287,12 @@ mod tests {
         let bytes: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
         let table = PairPosFormat2::read(FontData::new(&bytes)).unwrap();
         assert!(class_matrix_range(&table).is_none());
-        assert!(PairKern2::new(&table, false).is_none());
-        assert!(PairPos2::new(&table, false).is_none());
+        assert!(PairKern2::new(&table, false, &Budget::new(0, 0))
+            .unwrap()
+            .is_none());
+        assert!(PairPos2::new(&table, false, &Budget::new(0, 0))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
