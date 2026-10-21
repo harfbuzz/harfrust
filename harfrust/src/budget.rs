@@ -54,12 +54,20 @@ impl Budget {
         if amount == 0 {
             return Ok(());
         }
-        counter
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |remaining| {
-                remaining.checked_sub(amount)
-            })
-            .map(|_| ())
-            .map_err(|_| Exhausted)
+        // `try_update` is newer than the MSRV; `fetch_update` is deprecated.
+        let mut remaining = counter.load(Ordering::Relaxed);
+        loop {
+            let next = remaining.checked_sub(amount).ok_or(Exhausted)?;
+            match counter.compare_exchange_weak(
+                remaining,
+                next,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(()),
+                Err(actual) => remaining = actual,
+            }
+        }
     }
 
     #[cfg(test)]

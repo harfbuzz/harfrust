@@ -599,7 +599,10 @@ mod tests {
             collect(&path, &mut files);
         }
         files.sort();
-        assert!(!files.is_empty());
+        assert!(
+            !files.is_empty(),
+            "no font files found in HARFRUST_BUDGET_FONTS"
+        );
         for path in files {
             let tables = Arc::new(Tables::new(std::fs::read(&path).unwrap(), 0).unwrap());
             let bytes = [tables.gsub_data(), tables.gpos_data(), tables.gdef_data()]
