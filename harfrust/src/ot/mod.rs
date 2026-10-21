@@ -2,6 +2,7 @@ use self::apply::MappingCache;
 use self::layout::LayoutTableKind;
 use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
+use crate::budget::{Budget, Exhausted};
 use crate::Tag;
 use alloc::{sync::Arc, vec::Vec};
 use lookup::{CachedLookup, ClassDef, Coverage, LookupCache};
@@ -63,7 +64,11 @@ pub enum MarkGlyphSetBitmap {
 }
 
 impl MarkGlyphSetBitmap {
-    fn page_from_coverage(coverage: &CoverageTable, min_gid: u32) -> Option<[u64; 8]> {
+    fn page_from_coverage(
+        coverage: &CoverageTable,
+        min_gid: u32,
+        budget: &Budget,
+    ) -> Result<Option<[u64; 8]>, Exhausted> {
         let mut bits = [0; 8];
         let mut add_glyph = |glyph: u32| {
             let biased = glyph.wrapping_sub(min_gid);
@@ -73,23 +78,31 @@ impl MarkGlyphSetBitmap {
 
         match coverage {
             CoverageTable::Format1(table) => {
+                budget.work(table.glyph_array().len())?;
                 for glyph in table.glyph_array() {
-                    add_glyph(u32::from(glyph.get()))?;
+                    if add_glyph(u32::from(glyph.get())).is_none() {
+                        return Ok(None);
+                    }
                 }
             }
             CoverageTable::Format2(table) => {
+                budget.work(table.range_records().len())?;
                 for range in table.range_records() {
-                    for glyph in u32::from(range.start_glyph_id())..=u32::from(range.end_glyph_id())
-                    {
-                        add_glyph(glyph)?;
+                    let start = u32::from(range.start_glyph_id());
+                    let end = u32::from(range.end_glyph_id());
+                    budget.work(end.saturating_sub(start) as usize + 1)?;
+                    for glyph in start..=end {
+                        if add_glyph(glyph).is_none() {
+                            return Ok(None);
+                        }
                     }
                 }
             }
         }
-        Some(bits)
+        Ok(Some(bits))
     }
 
-    fn from_coverage(coverage: &CoverageTable) -> Self {
+    fn from_coverage(coverage: &CoverageTable, budget: &Budget) -> Result<Self, Exhausted> {
         let bounds = match coverage {
             CoverageTable::Format1(table) => table
                 .glyph_array()
@@ -110,16 +123,20 @@ impl MarkGlyphSetBitmap {
 
         if let Some((min_gid, max_gid)) = bounds {
             if max_gid.wrapping_sub(min_gid) < MARK_GLYPH_SET_PAGE_BITS {
-                if let Some(bits) = Self::page_from_coverage(coverage, min_gid) {
-                    return Self::Page {
+                if let Some(bits) = Self::page_from_coverage(coverage, min_gid, budget)? {
+                    return Ok(Self::Page {
                         bias: min_gid,
                         bits,
-                    };
+                    });
                 }
             }
         }
 
-        Self::Digest(SetDigest::from_coverage(coverage))
+        budget.work(match coverage {
+            CoverageTable::Format1(table) => table.glyph_array().len(),
+            CoverageTable::Format2(table) => table.range_records().len(),
+        })?;
+        Ok(Self::Digest(SetDigest::from_coverage(coverage)))
     }
 
     #[inline(always)]
@@ -139,14 +156,21 @@ impl MarkGlyphSetBitmap {
 
 impl OtCache {
     pub fn new(tables: Option<Arc<Tables>>) -> Self {
-        let cached = tables
-            .clone()
-            .map(|tables| Yoke::attach_to_cart(tables, |tables| CachedTables::new(tables)));
+        let bytes = tables.as_deref().map_or(0, |tables| {
+            [tables.gsub_data(), tables.gpos_data(), tables.gdef_data()]
+                .into_iter()
+                .flatten()
+                .fold(0usize, |bytes, data| bytes.saturating_add(data.len()))
+        });
+        let budget = Arc::new(Budget::for_table_bytes(bytes));
+        let cached = tables.clone().map(|tables| {
+            Yoke::attach_to_cart(tables, |tables| CachedTables::new(tables, &budget))
+        });
         let parsed: Option<&CachedTables> = cached.as_ref().map(Yoke::get);
         Self {
             // A missing table has no lookups.
-            gsub: LookupCache::new(tables.clone(), true),
-            gpos: LookupCache::new(tables, false),
+            gsub: LookupCache::new(tables.clone(), true, budget.clone()),
+            gpos: LookupCache::new(tables, false, budget.clone()),
             gdef_glyph_props_cache: MappingCache::new(),
             has_gdef: parsed.is_some_and(|cached| cached.has_gdef),
             gsub_len: parsed.map_or(0, |cached| cached.gsub_len),
@@ -178,7 +202,7 @@ impl<'a> CachedTables<'a> {
         gdef_len: 0,
     };
 
-    fn new(tables: &'a Tables) -> Self {
+    fn new(tables: &'a Tables, budget: &Budget) -> Self {
         let gsub = tables.gsub().ok();
         let gpos = tables.gpos().ok();
         let gdef = tables.gdef().ok();
@@ -191,7 +215,7 @@ impl<'a> CachedTables<'a> {
             gsub,
             gpos,
             has_gdef: gdef.is_some(),
-            gdef: gdef.map_or(CachedGdef::EMPTY, |gdef| CachedGdef::new(&gdef)),
+            gdef: gdef.map_or(CachedGdef::EMPTY, |gdef| CachedGdef::new(&gdef, budget)),
             gsub_len,
             gdef_len,
         }
@@ -215,13 +239,23 @@ impl<'a> CachedGdef<'a> {
         var_store: None,
     };
 
-    fn new(gdef: &Gdef<'a>) -> Self {
+    fn new(gdef: &Gdef<'a>, budget: &Budget) -> Self {
         let class_def = |table: Option<Result<_, _>>| table.map_or(ClassDef::None, ClassDef::new);
-        let mark_sets = gdef
-            .mark_glyph_sets_def()
-            .and_then(Result::ok)
-            .map(|sets| sets.coverages().iter().map(MarkSet::new).collect())
-            .unwrap_or_default();
+        let build_mark_sets = || -> Result<Vec<MarkSet<'a>>, Exhausted> {
+            let Some(sets) = gdef.mark_glyph_sets_def().and_then(Result::ok) else {
+                return Ok(Vec::new());
+            };
+            let coverages = sets.coverages();
+            budget.work(coverages.len())?;
+            budget.alloc::<MarkSet>(coverages.len())?;
+            let mut mark_sets = Vec::with_capacity(coverages.len());
+            for coverage in coverages.iter() {
+                mark_sets.push(MarkSet::new(coverage, budget)?);
+            }
+            Ok(mark_sets)
+        };
+        // An incomplete mark-set cache must not approve a filtering lookup.
+        let mark_sets = build_mark_sets().unwrap_or_default();
         Self {
             classes: class_def(gdef.glyph_class_def()),
             mark_classes: class_def(gdef.mark_attach_class_def()),
@@ -238,15 +272,18 @@ struct MarkSet<'a> {
 }
 
 impl<'a> MarkSet<'a> {
-    fn new(coverage: Result<CoverageTable<'a>, ReadError>) -> Self {
-        let bitmap = coverage.as_ref().map_or_else(
-            |_| MarkGlyphSetBitmap::Digest(SetDigest::default()),
-            MarkGlyphSetBitmap::from_coverage,
-        );
-        Self {
+    fn new(
+        coverage: Result<CoverageTable<'a>, ReadError>,
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        let bitmap = match &coverage {
+            Ok(coverage) => MarkGlyphSetBitmap::from_coverage(coverage, budget)?,
+            Err(_) => MarkGlyphSetBitmap::Digest(SetDigest::default()),
+        };
+        Ok(Self {
             bitmap,
             coverage: Coverage::new(coverage),
-        }
+        })
     }
 
     #[inline(never)]
@@ -729,4 +766,27 @@ fn is_gdef_blocklisted(gdef_len: u32, gsub_len: u32, gpos_len: u32) -> bool {
     ];
     let key = encode3(gdef_len, gsub_len, gpos_len);
     BLOCKLIST.contains(&key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::FontRead;
+
+    #[test]
+    fn exhausted_mark_sets_are_discarded_together() {
+        // GDEF 1.2, with two mark-set offsets aliasing one coverage.
+        let words: [u16; 16] = [1, 2, 0, 0, 0, 0, 14, 1, 2, 0, 12, 0, 12, 1, 1, 42];
+        let data: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+        let gdef = Gdef::read(FontData::new(&data)).unwrap();
+        let cache = CachedGdef::new(&gdef, &Budget::new(4, 1024));
+        assert_eq!(cache.mark_sets.len(), 2);
+        assert!(cache.mark_sets.iter().all(|set| set.covers(42)));
+
+        // Exhaustion while building the second set must discard the first.
+        let cache = CachedGdef::new(&gdef, &Budget::new(3, 1024));
+        assert!(cache.mark_sets.is_empty());
+        let cache = CachedGdef::new(&gdef, &Budget::new(4, 0));
+        assert!(cache.mark_sets.is_empty());
+    }
 }

@@ -1,5 +1,6 @@
 //! Coverage and class definition tables, reduced to the arrays they search.
 
+use crate::budget::{Budget, Exhausted};
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::set_digest::SetDigest;
 use alloc::boxed::Box;
@@ -28,16 +29,22 @@ impl Default for CoverageArray<'_> {
 }
 
 impl<'a> CoverageArray<'a> {
-    pub fn new(data: FontData<'a>, offsets: &'a [BigEndian<Offset16>]) -> Self {
+    pub fn new(
+        data: FontData<'a>,
+        offsets: &'a [BigEndian<Offset16>],
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
         if offsets.len() > MAX_CONTEXT_LENGTH {
-            return Self::Uncached { data, offsets };
+            return Ok(Self::Uncached { data, offsets });
         }
-        Self::Cached(
+        budget.work(offsets.len())?;
+        budget.alloc::<Coverage>(offsets.len())?;
+        Ok(Self::Cached(
             offsets
                 .iter()
                 .map(|offset| Coverage::new(offset.get().resolve(data)))
                 .collect(),
-        )
+        ))
     }
 
     pub fn len(&self) -> usize {
@@ -147,22 +154,24 @@ impl<'a> Coverage<'a> {
     }
 
     /// The glyphs covered, or every glyph if the table is missing.
-    pub fn digest(&self) -> SetDigest {
+    pub fn digest(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
         let mut digest = SetDigest::new();
         match self {
-            Self::None => return SetDigest::full(),
+            Self::None => return Ok(SetDigest::full()),
             Self::Glyphs(glyphs) => {
+                budget.work(glyphs.len())?;
                 for glyph in *glyphs {
                     digest.add(glyph.get().into());
                 }
             }
             Self::Ranges(ranges) => {
+                budget.work(ranges.len())?;
                 for range in *ranges {
                     digest.add_range(range.start_glyph_id().into(), range.end_glyph_id().into());
                 }
             }
         }
-        digest
+        Ok(digest)
     }
 }
 
@@ -227,14 +236,20 @@ impl<'a> ClassDef<'a> {
 
     /// Adds the glyphs of `class` to `digest`. Class 0 holds every glyph not
     /// listed, so it adds all of them.
-    pub fn add_class_to(&self, digest: &mut SetDigest, class: u16) {
+    pub fn add_class_to(
+        &self,
+        digest: &mut SetDigest,
+        class: u16,
+        budget: &Budget,
+    ) -> Result<(), Exhausted> {
         if class == 0 {
             *digest = SetDigest::full();
-            return;
+            return Ok(());
         }
         match self {
             Self::None => {}
             Self::Array { start, classes } => {
+                budget.work(classes.len())?;
                 for (index, value) in classes.iter().enumerate() {
                     if value.get() == class {
                         digest.add(u32::from(start.saturating_add(index as u16)));
@@ -242,8 +257,14 @@ impl<'a> ClassDef<'a> {
                 }
             }
             Self::Ranges(ranges) => {
+                budget.work(ranges.len())?;
                 for range in *ranges {
                     if range.class() == class {
+                        budget.work(
+                            usize::from(range.end_glyph_id().to_u16())
+                                .saturating_sub(usize::from(range.start_glyph_id().to_u16()))
+                                + 1,
+                        )?;
                         for glyph in range.start_glyph_id().to_u16()..=range.end_glyph_id().to_u16()
                         {
                             digest.add(u32::from(glyph));
@@ -252,13 +273,32 @@ impl<'a> ClassDef<'a> {
                 }
             }
         }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
+    use alloc::{vec, vec::Vec};
+
+    #[test]
+    fn class_range_expansion_is_charged() {
+        use read_fonts::FontRead;
+        let words: [u16; 5] = [2, 1, 0, u16::MAX, 1];
+        let bytes: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+        let class = ClassDef::new(layout::ClassDef::read(FontData::new(&bytes)));
+        let mut digest = SetDigest::new();
+        assert_eq!(
+            class.add_class_to(&mut digest, 1, &Budget::new(10, 0)),
+            Err(Exhausted)
+        );
+        assert!(!digest.may_have(0));
+        class
+            .add_class_to(&mut digest, 1, &Budget::new(65_537, 0))
+            .unwrap();
+        assert!(digest.may_have(u32::from(u16::MAX)));
+    }
 
     #[test]
     fn coverage_arrays_keep_long_contexts_without_parsing_every_offset() {
@@ -268,7 +308,8 @@ mod tests {
             // Many entries can alias the same coverage in a tiny font.
             let mut offsets = vec![Offset16::new(2).into(); count];
             offsets[count - 1] = Offset16::new(8).into();
-            let coverages = CoverageArray::new(data, &offsets);
+            let coverages =
+                CoverageArray::new(data, &offsets, &Budget::for_table_bytes(data.len())).unwrap();
             assert_eq!(coverages.len(), count);
             assert!(!coverages.is_empty());
             assert_eq!(coverages.get(0).get(42u32), Some(0));
@@ -291,12 +332,13 @@ mod tests {
             for (index, offset) in [0, u16::MAX, 3].into_iter().enumerate() {
                 offsets[index] = Offset16::new(offset).into();
             }
-            let coverages = CoverageArray::new(data, &offsets);
+            let coverages =
+                CoverageArray::new(data, &offsets, &Budget::for_table_bytes(data.len())).unwrap();
             for index in [0, 1, 2, count] {
                 let coverage = coverages.get(index);
                 assert!(coverage.is_none());
                 assert!(!coverage.covers(42u32));
-                assert!(coverage.digest().may_have(42));
+                assert!(coverage.digest(&Budget::new(0, 0)).unwrap().may_have(42));
             }
             assert_eq!(coverages.get(3).get(42u32), Some(0));
         }
@@ -306,7 +348,7 @@ mod tests {
     fn empty_coverage_arrays_cover_nothing() {
         for coverages in [
             CoverageArray::default(),
-            CoverageArray::new(FontData::new(&[]), &[]),
+            CoverageArray::new(FontData::new(&[]), &[], &Budget::new(0, 0)).unwrap(),
         ] {
             assert!(coverages.is_empty());
             assert_eq!(coverages.len(), 0);

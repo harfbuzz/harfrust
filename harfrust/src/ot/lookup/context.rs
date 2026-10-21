@@ -7,6 +7,7 @@
 use super::coverage::{ClassDef, Coverage, CoverageArray};
 use super::gsub::covered_at;
 use super::{glyph_class_cached, Offsets, SubtableDigests};
+use crate::budget::{Budget, Exhausted};
 use crate::buffer::GlyphInfo;
 use crate::hint::Likely;
 use crate::ot::apply::{
@@ -14,7 +15,7 @@ use crate::ot::apply::{
     ApplyContext, MappingCache, MaySkip, RuleSetDigest, SkippingIterator, WouldApplyContext,
 };
 use crate::set_digest::SetDigest;
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use read_fonts::tables::layout::{
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
     ChainedSequenceRule, SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3,
@@ -49,43 +50,64 @@ fn rule_set<'a>(sets: &RuleSets<'a>, index: usize, chained: bool) -> Option<Rule
 fn for_each_rule<'a>(
     sets: &RuleSets<'a>,
     chained: bool,
-    mut f: impl FnMut(ParsedRule<'a>) -> Option<()>,
-) -> Option<()> {
+    budget: &Budget,
+    mut f: impl FnMut(ParsedRule<'a>) -> Result<Option<()>, Exhausted>,
+) -> Result<Option<()>, Exhausted> {
+    budget.work(sets.len())?;
     for index in 0..sets.len() {
         if sets.is_null(index) {
             continue;
         }
-        let rules = rule_set(sets, index, chained)?;
+        let Some(rules) = rule_set(sets, index, chained) else {
+            return Ok(None);
+        };
+        budget.work(rules.len())?;
         for index in 0..rules.len() {
-            f(ParsedRule::try_parse(rules.rule(index)?, chained)?)?;
+            let Some(rule) = rules
+                .rule(index)
+                .and_then(|data| ParsedRule::try_parse(data, chained))
+            else {
+                return Ok(None);
+            };
+            if f(rule)?.is_none() {
+                return Ok(None);
+            }
         }
     }
-    Some(())
+    Ok(Some(()))
 }
 
 /// The digest of the first input value of each rule set's rules.
-fn rule_set_digests(sets: &RuleSets, chained: bool) -> Box<[RuleSetDigest]> {
-    (0..sets.len())
-        .map(|index| {
-            if sets.is_null(index) {
-                return RuleSetDigest::default();
+fn rule_set_digests(
+    sets: &RuleSets,
+    chained: bool,
+    budget: &Budget,
+) -> Result<Box<[RuleSetDigest]>, Exhausted> {
+    budget.work(sets.len())?;
+    budget.alloc::<RuleSetDigest>(sets.len())?;
+    let mut digests = Vec::with_capacity(sets.len());
+    for index in 0..sets.len() {
+        let mut digest = RuleSetDigest::default();
+        if !sets.is_null(index) {
+            if let Some(rules) = rule_set(sets, index, chained) {
+                budget.work(rules.len())?;
+                for index in 0..rules.len() {
+                    let Some(value) = rules
+                        .rule(index)
+                        .and_then(|data| rule_first_input(&data, chained))
+                    else {
+                        digest = RuleSetDigest::full();
+                        break;
+                    };
+                    digest.add(value);
+                }
+            } else {
+                digest = RuleSetDigest::full();
             }
-            let Some(rules) = rule_set(sets, index, chained) else {
-                return RuleSetDigest::full();
-            };
-            let mut digest = RuleSetDigest::default();
-            for index in 0..rules.len() {
-                let Some(value) = rules
-                    .rule(index)
-                    .and_then(|data| rule_first_input(&data, chained))
-                else {
-                    return RuleSetDigest::full();
-                };
-                digest.add(value);
-            }
-            digest
-        })
-        .collect()
+        }
+        digests.push(digest);
+    }
+    Ok(digests.into_boxed_slice())
 }
 
 /// Chained context by glyph sequences, or context by glyph sequences.
@@ -132,14 +154,16 @@ impl<'a> ChainContext1<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext1<'a> {
-    fn digest_second(&self) -> SetDigest {
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
         let mut digest = SetDigest::new();
-        for_each_rule(&self.rule_sets, self.chained, |rule| {
-            let second = rule.input.first().or_else(|| rule.lookahead.first())?;
+        let valid = for_each_rule(&self.rule_sets, self.chained, budget, |rule| {
+            let Some(second) = rule.input.first().or_else(|| rule.lookahead.first()) else {
+                return Ok(None);
+            };
             digest.add(u32::from(second.get()));
-            Some(())
-        })
-        .map_or_else(SetDigest::full, |()| digest)
+            Ok(Some(()))
+        })?;
+        Ok(valid.map_or_else(SetDigest::full, |()| digest))
     }
 }
 
@@ -163,8 +187,12 @@ struct ChainClassCaches {
 }
 
 impl<'a> ChainContext2<'a> {
-    pub fn new(table: &ChainedSequenceContextFormat2<'a>, with_caches: bool) -> Option<Self> {
-        Some(Self::from_parts(
+    pub fn new(
+        table: &ChainedSequenceContextFormat2<'a>,
+        with_caches: bool,
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        Self::from_parts(
             ClassDef::new(table.backtrack_class_def()),
             ClassDef::new(table.input_class_def()),
             ClassDef::new(table.lookahead_class_def()),
@@ -174,18 +202,24 @@ impl<'a> ChainContext2<'a> {
             ),
             true,
             with_caches,
-        ))
+            budget,
+        )
     }
 
-    pub fn from_plain(table: &SequenceContextFormat2<'a>, with_caches: bool) -> Option<Self> {
-        Some(Self::from_parts(
+    pub fn from_plain(
+        table: &SequenceContextFormat2<'a>,
+        with_caches: bool,
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        Self::from_parts(
             ClassDef::None,
             ClassDef::new(table.class_def()),
             ClassDef::None,
             RuleSets::new(table.offset_data(), table.class_seq_rule_set_offsets()),
             false,
             with_caches,
-        ))
+            budget,
+        )
     }
 
     fn from_parts(
@@ -195,8 +229,12 @@ impl<'a> ChainContext2<'a> {
         rule_sets: RuleSets<'a>,
         chained: bool,
         with_caches: bool,
-    ) -> Self {
-        Self {
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        if with_caches {
+            budget.alloc::<ChainClassCaches>(1)?;
+        }
+        Ok(Self {
             backtrack,
             input,
             lookahead,
@@ -206,10 +244,10 @@ impl<'a> ChainContext2<'a> {
                     lookahead: MappingCache::new(),
                 })
             }),
-            rule_set_digests: rule_set_digests(&rule_sets, chained),
+            rule_set_digests: rule_set_digests(&rule_sets, chained, budget)?,
             rule_sets,
             chained,
-        }
+        })
     }
 
     fn rule_set(&self, index: usize) -> Option<Rules<'a>> {
@@ -291,24 +329,24 @@ impl<'a> ChainContext2<'a> {
 impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
     const CACHES_COVERAGE: bool = true;
 
-    fn digest_second(&self) -> SetDigest {
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
         let (input, lookahead) = (&self.input, &self.lookahead);
         if input.is_none() {
-            return SetDigest::full();
+            return Ok(SetDigest::full());
         }
         let mut digest = SetDigest::new();
-        for_each_rule(&self.rule_sets, self.chained, |rule| {
+        let valid = for_each_rule(&self.rule_sets, self.chained, budget, |rule| {
             if let Some(second) = rule.input.first() {
-                input.add_class_to(&mut digest, second.get());
+                input.add_class_to(&mut digest, second.get(), budget)?;
             } else {
-                let second = rule.lookahead.first()?;
-                // A missing class definition puts every glyph in class 0.
-                (!lookahead.is_none()).then_some(())?;
-                lookahead.add_class_to(&mut digest, second.get());
+                let Some(second) = rule.lookahead.first().filter(|_| !lookahead.is_none()) else {
+                    return Ok(None);
+                };
+                lookahead.add_class_to(&mut digest, second.get(), budget)?;
             }
-            Some(())
-        })
-        .map_or_else(SetDigest::full, |()| digest)
+            Ok(Some(()))
+        })?;
+        Ok(valid.map_or_else(SetDigest::full, |()| digest))
     }
 
     fn cache_cost(&self) -> u32 {
@@ -328,25 +366,41 @@ pub(crate) struct ChainContext3<'a> {
 }
 
 impl<'a> ChainContext3<'a> {
-    pub fn new(table: &ChainedSequenceContextFormat3<'a>) -> Option<Self> {
-        Some(Self {
+    pub fn new(
+        table: &ChainedSequenceContextFormat3<'a>,
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        Ok(Self {
             inputs: CoverageArray::new(
                 table.offset_data(),
                 table.input_coverage_offsets().get(1..).unwrap_or_default(),
-            ),
-            backtrack: CoverageArray::new(table.offset_data(), table.backtrack_coverage_offsets()),
-            lookahead: CoverageArray::new(table.offset_data(), table.lookahead_coverage_offsets()),
+                budget,
+            )?,
+            backtrack: CoverageArray::new(
+                table.offset_data(),
+                table.backtrack_coverage_offsets(),
+                budget,
+            )?,
+            lookahead: CoverageArray::new(
+                table.offset_data(),
+                table.lookahead_coverage_offsets(),
+                budget,
+            )?,
             records: table.seq_lookup_records(),
             chained: true,
         })
     }
 
-    pub fn from_plain(table: &SequenceContextFormat3<'a>) -> Option<Self> {
-        Some(Self {
+    pub fn from_plain(
+        table: &SequenceContextFormat3<'a>,
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        Ok(Self {
             inputs: CoverageArray::new(
                 table.offset_data(),
                 table.coverage_offsets().get(1..).unwrap_or_default(),
-            ),
+                budget,
+            )?,
             backtrack: CoverageArray::default(),
             lookahead: CoverageArray::default(),
             records: table.seq_lookup_records(),
@@ -419,11 +473,11 @@ impl<'a> ChainContext3<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext3<'a> {
-    fn digest_second(&self) -> SetDigest {
+    fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
         if self.inputs.is_empty() {
-            self.lookahead.get(0).digest()
+            self.lookahead.get(0).digest(budget)
         } else {
-            self.inputs.get(0).digest()
+            self.inputs.get(0).digest(budget)
         }
     }
 }

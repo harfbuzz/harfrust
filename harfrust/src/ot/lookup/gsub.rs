@@ -2,6 +2,7 @@
 
 use super::coverage::{Coverage, CoverageArray};
 use super::{Offsets, SubtableDigests};
+use crate::budget::{Budget, Exhausted};
 use crate::buffer::{GlyphInfo, GlyphPropsFlags};
 use crate::hint::Likely;
 use crate::ot::apply::{
@@ -232,9 +233,9 @@ pub(crate) struct LigatureSubst1<'a> {
 }
 
 impl<'a> LigatureSubst1<'a> {
-    pub fn new(table: &LigatureSubstFormat1<'a>) -> Option<Self> {
-        Some(Self {
-            seconds: collect_seconds(table),
+    pub fn new(table: &LigatureSubstFormat1<'a>, budget: &Budget) -> Result<Self, Exhausted> {
+        Ok(Self {
+            seconds: collect_seconds(table, budget)?,
             ligature_sets: Offsets::new(table.offset_data(), table.ligature_set_offsets()),
         })
     }
@@ -263,39 +264,28 @@ impl<'a> LigatureSubst1<'a> {
 impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
     const CACHES_COVERAGE: bool = true;
 
-    fn digest_second(&self) -> SetDigest {
-        self.seconds.clone()
+    fn digest_second(&self, _budget: &Budget) -> Result<SetDigest, Exhausted> {
+        Ok(self.seconds.clone())
     }
 }
 
-/// HarfBuzz builds the ligature digest from sanitized tables. Bound the walk
-/// over unsanitized data and fall back to a full digest past it.
-const MAX_LIGATURE_DIGEST_WORK: usize = 16_384;
-
 /// The digest of every ligature's second glyph, or a full digest if a
-/// ligature has none or the walk is too long.
-fn collect_seconds(table: &LigatureSubstFormat1) -> SetDigest {
+/// ligature has none. Nested walks share the font's preprocessing allowance.
+fn collect_seconds(table: &LigatureSubstFormat1, budget: &Budget) -> Result<SetDigest, Exhausted> {
     let mut seconds = SetDigest::new();
-    let mut remaining_work = MAX_LIGATURE_DIGEST_WORK;
     let sets = table.ligature_sets();
-    let Some(work) = remaining_work.checked_sub(sets.len()) else {
-        return SetDigest::full();
-    };
-    remaining_work = work;
+    budget.work(sets.len())?;
     for set in sets.iter().filter_map(Result::ok) {
         let ligatures = set.ligatures();
-        let Some(work) = remaining_work.checked_sub(ligatures.len()) else {
-            return SetDigest::full();
-        };
-        remaining_work = work;
+        budget.work(ligatures.len())?;
         for ligature in ligatures.iter().filter_map(Result::ok) {
             let Some(second) = ligature.component_glyph_ids().first() else {
-                return SetDigest::full();
+                return Ok(SetDigest::full());
             };
             seconds.add(second.get().into());
         }
     }
-    seconds
+    Ok(seconds)
 }
 
 fn ligature_would_apply(ligature: &Ligature, ctx: &WouldApplyContext) -> bool {
@@ -442,11 +432,22 @@ pub(crate) struct ReverseChainSubst1<'a> {
 }
 
 impl<'a> ReverseChainSubst1<'a> {
-    pub fn new(table: &ReverseChainSingleSubstFormat1<'a>) -> Option<Self> {
-        Some(Self {
+    pub fn new(
+        table: &ReverseChainSingleSubstFormat1<'a>,
+        budget: &Budget,
+    ) -> Result<Self, Exhausted> {
+        Ok(Self {
             substitutes: table.substitute_glyph_ids(),
-            backtrack: CoverageArray::new(table.offset_data(), table.backtrack_coverage_offsets()),
-            lookahead: CoverageArray::new(table.offset_data(), table.lookahead_coverage_offsets()),
+            backtrack: CoverageArray::new(
+                table.offset_data(),
+                table.backtrack_coverage_offsets(),
+                budget,
+            )?,
+            lookahead: CoverageArray::new(
+                table.offset_data(),
+                table.lookahead_coverage_offsets(),
+                budget,
+            )?,
         })
     }
 
@@ -511,26 +512,23 @@ mod tests {
     use alloc::vec;
     use read_fonts::{FontData, FontRead};
 
-    fn assert_full_digest(digest: SetDigest) {
-        assert!(digest.may_have(0));
-        assert!(digest.may_have(12345));
-        assert!(digest.may_have(u16::MAX as u32));
-    }
-
     #[test]
     fn collect_seconds_bails_on_too_many_ligature_sets() {
-        let ligature_set_count = MAX_LIGATURE_DIGEST_WORK + 1;
+        let ligature_set_count = 17;
         let mut data = vec![0; 6 + ligature_set_count * 2];
         data[0..2].copy_from_slice(&1u16.to_be_bytes());
         data[4..6].copy_from_slice(&(ligature_set_count as u16).to_be_bytes());
 
         let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
-        assert_full_digest(collect_seconds(&lig_subst));
+        assert_eq!(
+            collect_seconds(&lig_subst, &Budget::new(16, 0)).unwrap_err(),
+            Exhausted
+        );
     }
 
     #[test]
     fn collect_seconds_bails_on_too_many_ligatures() {
-        let ligature_count = MAX_LIGATURE_DIGEST_WORK;
+        let ligature_count = 16;
         let mut data = vec![0; 10 + ligature_count * 2];
         data[0..2].copy_from_slice(&1u16.to_be_bytes());
         data[4..6].copy_from_slice(&1u16.to_be_bytes());
@@ -538,6 +536,9 @@ mod tests {
         data[8..10].copy_from_slice(&(ligature_count as u16).to_be_bytes());
 
         let lig_subst = LigatureSubstFormat1::read(FontData::new(&data)).unwrap();
-        assert_full_digest(collect_seconds(&lig_subst));
+        assert_eq!(
+            collect_seconds(&lig_subst, &Budget::new(16, 0)).unwrap_err(),
+            Exhausted
+        );
     }
 }

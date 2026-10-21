@@ -17,6 +17,7 @@ mod gpos;
 mod gsub;
 
 use super::apply::{ApplyContext, MappingCache, WouldApplyContext};
+use crate::budget::{Budget, Exhausted};
 use crate::once::Once;
 use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
@@ -30,12 +31,12 @@ use yoke::erased::ErasedArcCart;
 use yoke::{Yoke, Yokeable};
 
 /// The lookups of GSUB or GPOS, each parsed on first use.
-#[derive(Default)]
 pub(crate) struct LookupCache {
     lookups: Vec<Once<Option<Box<CachedLookupRef>>>>,
     /// The font's shared tables, which lookups are cached against.
     tables: Option<Arc<Tables>>,
     is_subst: bool,
+    budget: Option<Arc<Budget>>,
 }
 
 impl LookupCache {
@@ -43,18 +44,28 @@ impl LookupCache {
         lookups: Vec::new(),
         tables: None,
         is_subst: false,
+        budget: None,
     };
 
-    pub fn new(tables: Option<Arc<Tables>>, is_subst: bool) -> Self {
+    pub fn new(tables: Option<Arc<Tables>>, is_subst: bool, budget: Arc<Budget>) -> Self {
         let count = tables
             .as_deref()
             .map_or(0, |tables| build::lookup_count(tables, is_subst));
-        let mut lookups = Vec::new();
-        lookups.resize_with(usize::from(count), Once::new);
+        let count = usize::from(count);
+        if budget.work(count).is_err()
+            || budget
+                .alloc::<Once<Option<Box<CachedLookupRef>>>>(count)
+                .is_err()
+        {
+            return Self::EMPTY;
+        }
+        let mut lookups = Vec::with_capacity(count);
+        lookups.resize_with(count, Once::new);
         Self {
             lookups,
             tables,
             is_subst,
+            budget: Some(budget),
         }
     }
 
@@ -65,7 +76,9 @@ impl LookupCache {
         let lookup = match cell.get() {
             Some(lookup) => lookup,
             None => cell.get_or_init(|| {
-                cache_lookup(self.tables.clone()?, self.is_subst, index).map(Box::new)
+                let budget = self.budget.as_deref()?;
+                budget.alloc::<CachedLookupRef>(1).ok()?;
+                cache_lookup(self.tables.clone()?, self.is_subst, index, budget).map(Box::new)
             }),
         };
         lookup.as_deref().map(Yoke::get)
@@ -81,9 +94,10 @@ pub(crate) fn cache_lookup(
     tables: Arc<Tables>,
     is_subst: bool,
     index: u16,
+    budget: &Budget,
 ) -> Option<CachedLookupRef> {
     Yoke::try_attach_to_cart(tables, |tables| {
-        build::build_lookup(tables, is_subst, index).ok_or(())
+        build::build_lookup(tables, is_subst, index, budget)
     })
     .ok()
     .map(Yoke::erase_arc_cart)
@@ -93,7 +107,12 @@ pub(crate) fn cache_lookup(
 /// fallback makes them.
 pub(crate) fn cache_synthesized_subst(data: Vec<u8>) -> Option<CachedLookupRef> {
     Yoke::try_attach_to_cart(Arc::new(data), |data: &Vec<u8>| {
-        build::build_lookup_at(FontData::new(data), 0, true).ok_or(())
+        build::build_lookup_at(
+            FontData::new(data),
+            0,
+            true,
+            &Budget::for_table_bytes(data.len()),
+        )
     })
     .ok()
     .map(Yoke::erase_arc_cart)
@@ -405,8 +424,8 @@ trait SubtableDigests<'a> {
     const CACHES_COVERAGE: bool = false;
 
     /// The glyphs that may follow the first one in a match.
-    fn digest_second(&self) -> SetDigest {
-        SetDigest::full()
+    fn digest_second(&self, _budget: &Budget) -> Result<SetDigest, Exhausted> {
+        Ok(SetDigest::full())
     }
 
     /// How much the subtable gains from the glyph-info class cache.
@@ -510,5 +529,103 @@ fn glyph_class_cached(
         let class = class_def(gid);
         cache.set(gid.into(), class as u32);
         class
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use crate::ot::OtCache;
+
+    #[test]
+    fn exhausted_lookups_are_memoized() {
+        let tables = Arc::new(
+            Tables::new(
+                include_bytes!("../../../tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf")
+                    .to_vec(),
+                0,
+            )
+            .unwrap(),
+        );
+        let budget = Arc::new(Budget::new(1 << 20, 1 << 20));
+        let cache = LookupCache::new(Some(tables), true, budget.clone());
+        assert!(!cache.lookups.is_empty());
+        budget.work(budget.remaining().0).unwrap();
+        assert!(cache.get(0).is_none());
+        assert!(matches!(cache.lookups[0].get(), Some(None)));
+        let remaining = budget.remaining();
+        assert!(cache.get(0).is_none());
+        assert_eq!(budget.remaining(), remaining);
+    }
+
+    #[test]
+    fn overlapping_pair_sets_exhaust_the_shared_budget() {
+        let data = include_bytes!("../../../../fuzz/corpus/fuzz_shape/clusterfuzz-5665051575648256-overlapping-pair-sets.otf");
+        let tables = Arc::new(Tables::new(data.to_vec(), 0).unwrap());
+        let cache = OtCache::new(Some(tables));
+        // Many lookup indices point at the same expensive lookup.
+        for index in [53, 87, 118] {
+            assert!(cache.gpos.get(index).is_none());
+            assert!(matches!(
+                cache.gpos.lookups[index as usize].get(),
+                Some(None)
+            ));
+        }
+        assert!(Arc::ptr_eq(
+            cache.gsub.budget.as_ref().unwrap(),
+            cache.gpos.budget.as_ref().unwrap()
+        ));
+    }
+
+    /// Allows checking every lookup, including ones sample text won't select.
+    #[test]
+    #[ignore = "set HARFRUST_BUDGET_FONTS to font files or directories for calibration"]
+    fn real_font_budget_headroom() {
+        fn collect(path: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+            if path.is_dir() {
+                for entry in std::fs::read_dir(path).unwrap() {
+                    collect(&entry.unwrap().path(), files);
+                }
+            } else if path
+                .extension()
+                .is_some_and(|ext| ext == "ttf" || ext == "otf")
+            {
+                files.push(path.to_owned());
+            }
+        }
+        let paths = std::env::var_os("HARFRUST_BUDGET_FONTS").expect("set HARFRUST_BUDGET_FONTS");
+        let mut files = Vec::new();
+        for path in std::env::split_paths(&paths) {
+            collect(&path, &mut files);
+        }
+        files.sort();
+        assert!(!files.is_empty());
+        for path in files {
+            let tables = Arc::new(Tables::new(std::fs::read(&path).unwrap(), 0).unwrap());
+            let bytes = [tables.gsub_data(), tables.gpos_data(), tables.gdef_data()]
+                .into_iter()
+                .flatten()
+                .map(<[u8]>::len)
+                .sum::<usize>();
+            let cache = OtCache::new(Some(tables));
+            for lookups in [&cache.gsub, &cache.gpos] {
+                for index in 0..lookups.lookups.len() {
+                    assert!(
+                        lookups.get(index as u16).is_some(),
+                        "lookup {index}: {}",
+                        path.display()
+                    );
+                }
+            }
+            let budget = cache.gsub.budget.as_ref().unwrap();
+            let (work, memory) = budget.remaining();
+            let (work_limit, memory_limit) = Budget::for_table_bytes(bytes).remaining();
+            std::println!(
+                "{}: work {}/{work_limit}, bytes {}/{memory_limit}",
+                path.display(),
+                work_limit - work,
+                memory_limit - memory
+            );
+        }
     }
 }
