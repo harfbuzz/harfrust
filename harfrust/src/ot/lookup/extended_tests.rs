@@ -190,7 +190,7 @@ fn apply_nested_context_cached(
     )
     .unwrap();
     let cache = LayoutCache::new(&font);
-    let ot = OtData::new(&cache.ot, &[], [None; 2]);
+    let ot = OtData::new(&cache.ot, &[], layout::SelectedFeatureVariations::default());
     let lookups = if is_subst {
         ot.gsub().unwrap().lookups
     } else {

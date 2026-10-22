@@ -12,7 +12,10 @@ use read_fonts::{
         gdef::Gdef,
         gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
         gsub::{FeatureList, FeatureVariations, Gsub, ScriptList},
-        layout::{Feature as LayoutFeature, LangSys, Script as LayoutScript},
+        layout::{
+            Feature as LayoutFeature, LangSys, LookupVariations, Script as LayoutScript,
+            SelectedFeatureVariations,
+        },
         varc::CoverageTable,
         variations::{DeltaSetIndex, ItemVariationStore},
     },
@@ -26,6 +29,10 @@ pub mod gpos;
 pub mod gsub;
 pub(crate) mod layout;
 pub mod lookup;
+
+#[cfg(test)]
+#[path = "lookup_variations_tests.rs"]
+mod lookup_variations_tests;
 pub(crate) mod map;
 pub(crate) mod shaper;
 
@@ -362,6 +369,9 @@ pub struct OtData<'a> {
     var_store: Option<&'a ItemVariationStore<'a>>,
     pub coords: &'a [F2Dot14],
     pub feature_variations: [Option<u32>; 2],
+    /// Whether a layout table has lookup variations, which plans then
+    /// resolve per feature at `coords`.
+    pub has_lookup_variations: bool,
 }
 
 static EMPTY_OT_CACHE: OtCache = OtCache {
@@ -381,13 +391,14 @@ pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
     var_store: None,
     coords: &[],
     feature_variations: [None; 2],
+    has_lookup_variations: false,
 };
 
 impl<'a> OtData<'a> {
     pub fn new(
         cache: &'a OtCache,
         coords: &'a [F2Dot14],
-        feature_variations: [Option<u32>; 2],
+        variations: SelectedFeatureVariations,
     ) -> Self {
         let tables = cache.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get);
         Self {
@@ -399,7 +410,8 @@ impl<'a> OtData<'a> {
                 .as_ref()
                 .filter(|_| !coords.is_empty()),
             coords,
-            feature_variations,
+            feature_variations: [variations.gsub, variations.gpos],
+            has_lookup_variations: variations.has_lookup_variations,
         }
     }
 
@@ -540,6 +552,11 @@ impl<'a> LayoutTable<'a> {
             Self::Gsub(gsub) => gsub.feature_list().ok(),
             Self::Gpos(gpos) => gpos.feature_list().ok(),
         }
+    }
+
+    /// The table's lookup variations, if it has any.
+    pub(crate) fn lookup_variations(&self) -> Option<LookupVariations<'a>> {
+        self.feature_variations()?.lookup_variations()
     }
 
     fn feature_variations(&self) -> Option<FeatureVariations<'a>> {
