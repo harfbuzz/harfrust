@@ -16,16 +16,20 @@ mod coverage;
 mod gpos;
 mod gsub;
 
+#[cfg(test)]
+mod extended_tests;
+
 use super::apply::{ApplyContext, MappingCache, WouldApplyContext};
 use crate::budget::{Budget, Exhausted};
 use crate::once::Once;
 use crate::set_digest::SetDigest;
 use crate::GlyphInfo;
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use core::ops::Range;
 pub(crate) use coverage::{ClassDef, Coverage};
 use gpos::SecondGlyph;
 use read_fonts::model::Tables;
-use read_fonts::types::{BigEndian, GlyphId, Nullable, Offset16, Scalar};
+use read_fonts::types::GlyphId;
 use read_fonts::{FontData, FontRead};
 use yoke::erased::ErasedArcCart;
 use yoke::{Yoke, Yokeable};
@@ -207,7 +211,7 @@ fn walk_single(
     let subtable = lookup.subtables.first()?;
     let index = subtable.coverage_index(glyph)?;
     let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(0);
-    subtable.apply[is_cached as usize](subtable, ctx, index)
+    subtable.fns.apply[is_cached as usize](subtable, ctx, index)
 }
 
 /// Applies subtables in turn.
@@ -225,7 +229,7 @@ fn walk_each(
             continue;
         };
         let is_cached = use_hot_subtable_cache && lookup.hot_subtable == Some(position);
-        if subtable.apply[is_cached as usize](subtable, ctx, index).is_some() {
+        if subtable.fns.apply[is_cached as usize](subtable, ctx, index).is_some() {
             return Some(());
         }
     }
@@ -259,29 +263,41 @@ pub(crate) struct CachedSubtable<'a> {
     /// The coverage of the glyph that a match starts at.
     coverage: Coverage<'a>,
     coverage_cache: Option<Box<MappingCache>>,
-    /// Applies `kind` without and with the glyph-info class cache.
-    apply: [ApplyFn; 2],
+    /// How `kind` applies.
+    fns: &'static KindFns,
+    /// `fns.apply_sharing`, kept here for the pair walk.
     apply_sharing: ApplySharingFn,
 }
 
 impl CachedSubtable<'_> {
     /// The coverage index of the glyph a match would start at.
     #[inline(always)]
-    fn coverage_index(&self, glyph: u32) -> Option<u16> {
-        match &self.coverage_cache {
-            Some(cache) => coverage_index_cached(|gid| self.coverage.get(gid), glyph.into(), cache),
-            None => self.coverage.get(glyph),
+    fn coverage_index(&self, glyph: u32) -> Option<u32> {
+        let Some(cache) = &self.coverage_cache else {
+            return self.coverage.get(glyph);
+        };
+        match cache.get(glyph) {
+            Some(MappingCache::MAX_VALUE) => None,
+            Some(index) => Some(index),
+            None => self.coverage_index_uncached(glyph, cache),
         }
+    }
+
+    /// Looks up a glyph the cache doesn't hold, and remembers it. Kept out
+    /// of line so the walks inline only the cache hit.
+    #[inline(never)]
+    fn coverage_index_uncached(&self, glyph: u32, cache: &MappingCache) -> Option<u32> {
+        coverage_index_cached(|gid| self.coverage.get(gid), glyph.into(), cache)
     }
 }
 
 /// Applies a subtable of one kind at the given coverage index, returning
 /// `None` for any other kind.
-type ApplyFn = fn(&CachedSubtable, &mut ApplyContext, u16) -> Option<()>;
+type ApplyFn = fn(&CachedSubtable, &mut ApplyContext, u32) -> Option<()>;
 
 /// Applies a subtable of one kind, sharing the search for a pair's second
 /// glyph with the other subtables of its lookup.
-type ApplySharingFn = fn(&CachedSubtable, &mut ApplyContext, u16, &mut SecondGlyph) -> Option<()>;
+type ApplySharingFn = fn(&CachedSubtable, &mut ApplyContext, u32, &mut SecondGlyph) -> Option<()>;
 
 /// How a kind of subtable applies.
 struct KindFns {
@@ -348,18 +364,36 @@ macro_rules! kind_fns {
 fn never_shares(
     _: &CachedSubtable,
     _: &mut ApplyContext,
-    _: u16,
+    _: u32,
     _: &mut SecondGlyph,
 ) -> Option<()> {
     None
 }
 
+/// The payload of a kind, boxed if the kind is marked so.
+macro_rules! kind_payload {
+    ($data:ty) => { $data };
+    ($data:ty, boxed) => { Box<$data> };
+}
+
+macro_rules! wrap_payload {
+    ($value:expr) => {
+        $value
+    };
+    ($value:expr, boxed) => {
+        Box::new($value)
+    };
+}
+
 /// Declares the subtable kinds, the data each holds, and how it applies.
+///
+/// Kinds whose data is much larger than the rest are boxed, so that they
+/// don't set the size of every subtable.
 macro_rules! subtable_kinds {
-    ($($kind:ident($data:ty) $($how:ident)?;)*) => {
+    ($($kind:ident($data:ty) $($how:ident)? $(, $boxed:ident)?;)*) => {
         /// A parsed subtable with the data derived from it.
         pub(crate) enum CachedSubtableKind<'a> {
-            $($kind($data),)*
+            $($kind(kind_payload!($data $(, $boxed)?)),)*
         }
 
         $(
@@ -367,7 +401,7 @@ macro_rules! subtable_kinds {
                 const FNS: &'static KindFns = kind_fns!($kind $($how)?);
 
                 fn into_kind(self) -> CachedSubtableKind<'a> {
-                    CachedSubtableKind::$kind(self)
+                    CachedSubtableKind::$kind(wrap_payload!(self $(, $boxed)?))
                 }
             }
         )*
@@ -384,15 +418,15 @@ subtable_kinds! {
     SinglePos1(gpos::SinglePos1<'a>);
     SinglePos2(gpos::SinglePos2<'a>);
     PairPos1(gpos::PairPos1<'a>) adjusts_pairs;
-    PairPos2(gpos::PairPos2<'a>) adjusts_pairs;
+    PairPos2(gpos::PairPos2<'a>) adjusts_pairs, boxed;
     PairKern1(gpos::PairKern1<'a>) adjusts_pairs;
-    PairKern2(gpos::PairKern2<'a>) adjusts_pairs;
+    PairKern2(gpos::PairKern2<'a>) adjusts_pairs, boxed;
     CursivePos1(gpos::CursivePos1<'a>);
-    MarkBasePos1(gpos::MarkBasePos1<'a>);
-    MarkLigPos1(gpos::MarkLigPos1<'a>);
-    MarkMarkPos1(gpos::MarkMarkPos1<'a>);
+    MarkBasePos1(gpos::MarkBasePos1<'a>), boxed;
+    MarkLigPos1(gpos::MarkLigPos1<'a>), boxed;
+    MarkMarkPos1(gpos::MarkMarkPos1<'a>), boxed;
     ChainContext1(context::ChainContext1<'a>);
-    ChainContext2(context::ChainContext2<'a>) uses_class_cache;
+    ChainContext2(context::ChainContext2<'a>) uses_class_cache, boxed;
     ChainContext3(context::ChainContext3<'a>);
 }
 
@@ -434,39 +468,183 @@ trait SubtableDigests<'a> {
     }
 }
 
-/// A 16-bit offset to a child table, which may be nullable.
-trait ChildOffset: Scalar + Copy {
-    fn to_usize(self) -> usize;
+/// Big-endian unsigned integers of one width, two or three bytes, read from
+/// an array in place. Glyph IDs, offsets and rule values of the original and
+/// extended formats share code through it.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Uints<'a> {
+    bytes: &'a [u8],
+    len: u32,
+    width: u8,
 }
 
-impl ChildOffset for Offset16 {
-    fn to_usize(self) -> usize {
-        self.to_u32() as usize
+impl<'a> Uints<'a> {
+    /// The integers of `width` bytes in `range` of `data`, or `None` if the
+    /// range is out of bounds.
+    pub fn new(data: FontData<'a>, range: Range<usize>, width: usize) -> Option<Self> {
+        let bytes = data.as_bytes().get(range)?;
+        let len = bytes.len() / width;
+        Some(Self {
+            bytes: &bytes[..len * width],
+            len: len as u32,
+            width: width as u8,
+        })
+    }
+
+    /// `count` integers of `width` bytes at `start` of `data`.
+    #[inline(always)]
+    pub fn at(data: FontData<'a>, start: usize, count: usize, width: usize) -> Option<Self> {
+        let end = start.checked_add(count.checked_mul(width)?)?;
+        let bytes = data.as_bytes().get(start..end)?;
+        Some(Self {
+            bytes,
+            len: count as u32,
+            width: width as u8,
+        })
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline(always)]
+    pub fn get(&self, index: usize) -> Option<u32> {
+        // Branching between two fixed widths reads faster than reading any
+        // width. Indices are at most 24 bits, so the products can't
+        // overflow.
+        if self.width == 3 {
+            read_be::<3>(self.bytes, index * 3)
+        } else {
+            read_be::<2>(self.bytes, index * 2)
+        }
+    }
+
+    #[inline(always)]
+    pub fn first(&self) -> Option<u32> {
+        self.get(0)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        (0..self.len()).filter_map(|index| self.get(index))
     }
 }
 
-impl ChildOffset for Nullable<Offset16> {
-    fn to_usize(self) -> usize {
-        self.offset().to_u32() as usize
+/// The unsigned integer of `width` bytes at `pos`, which the caller has
+/// checked is in bounds.
+#[inline(always)]
+pub(crate) fn read_uint(bytes: &[u8], pos: usize, width: usize) -> u32 {
+    be_uint(&bytes[pos..pos + width])
+}
+
+/// The big-endian unsigned integer of `W` bytes at `pos`, or `None` if it
+/// is out of bounds.
+#[inline(always)]
+pub(crate) fn read_be<const W: usize>(bytes: &[u8], pos: usize) -> Option<u32> {
+    let b = bytes.get(pos..pos.checked_add(W)?)?;
+    Some(match W {
+        2 => u32::from(u16::from_be_bytes([b[0], b[1]])),
+        3 => u32::from_be_bytes([0, b[0], b[1], b[2]]),
+        _ => u32::from_be_bytes([b[0], b[1], b[2], b[3]]),
+    })
+}
+
+/// The big-endian unsigned integer of two to four bytes.
+#[inline(always)]
+pub(crate) fn be_uint(bytes: &[u8]) -> u32 {
+    match *bytes {
+        [a, b] => u32::from(u16::from_be_bytes([a, b])),
+        [a, b, c] => u32::from_be_bytes([0, a, b, c]),
+        [a, b, c, d] => u32::from_be_bytes([a, b, c, d]),
+        _ => 0,
+    }
+}
+
+/// Unsigned integers of `W` bytes, read in place: glyph IDs, classes or
+/// offsets whose width a hot path fixes at compile time.
+#[derive(Clone, Copy)]
+pub(crate) struct Values<'a, const W: usize> {
+    values: &'a [[u8; W]],
+}
+
+impl<const W: usize> Default for Values<'_, W> {
+    fn default() -> Self {
+        Self { values: &[] }
+    }
+}
+
+impl<'a, const W: usize> Values<'a, W> {
+    #[inline(always)]
+    pub fn at(data: FontData<'a>, start: usize, count: usize) -> Option<Self> {
+        let bytes = data.as_bytes().get(start..start + count * W)?;
+        Some(Self {
+            values: bytemuck::cast_slice(bytes),
+        })
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
+    #[inline(always)]
+    pub fn get(&self, index: usize) -> Option<u32> {
+        self.values.get(index).map(be_value)
+    }
+
+    pub fn first(&self) -> Option<u32> {
+        self.get(0)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        self.values.iter().map(be_value)
+    }
+}
+
+/// The big-endian value of `W` bytes, two or three.
+#[inline(always)]
+fn be_value<const W: usize>(value: &[u8; W]) -> u32 {
+    if W == 2 {
+        u32::from(u16::from_be_bytes([value[0], value[1]]))
+    } else {
+        u32::from_be_bytes([0, value[0], value[1], value[2]])
     }
 }
 
 /// An array of offsets to child tables, with the data they are relative to.
-#[derive(Clone, Copy)]
-struct Offsets<'a, O: ChildOffset = Offset16> {
+#[derive(Clone, Copy, Default)]
+struct Offsets<'a> {
     data: FontData<'a>,
-    offsets: &'a [BigEndian<O>],
+    offsets: Uints<'a>,
 }
 
-impl<'a, O: ChildOffset> Offsets<'a, O> {
-    fn new(data: FontData<'a>, offsets: &'a [BigEndian<O>]) -> Self {
-        Self { data, offsets }
+impl<'a> Offsets<'a> {
+    /// The offsets of `width` bytes in `range` of `data`, relative to it.
+    fn new(data: FontData<'a>, range: Range<usize>, width: usize) -> Self {
+        Self {
+            data,
+            offsets: Uints::new(data, range, width).unwrap_or_default(),
+        }
+    }
+
+    /// The offsets of `width` bytes in `range` of `data` after the first.
+    fn after_first(data: FontData<'a>, range: Range<usize>, width: usize) -> Self {
+        let start = range.start.saturating_add(width).min(range.end);
+        Self::new(data, start..range.end, width)
     }
 
     fn is_null(&self, index: usize) -> bool {
-        self.offsets
-            .get(index)
-            .is_some_and(|offset| offset.get().to_usize() == 0)
+        self.offsets.get(index) == Some(0)
     }
 
     fn len(&self) -> usize {
@@ -475,8 +653,9 @@ impl<'a, O: ChildOffset> Offsets<'a, O> {
 
     /// The data of the child table at `index`, or `None` if its offset is
     /// null or out of bounds.
+    #[inline(always)]
     fn data(&self, index: usize) -> Option<FontData<'a>> {
-        let offset = self.offsets.get(index)?.get().to_usize();
+        let offset = self.offsets.get(index)? as usize;
         if offset == 0 {
             return None;
         }
@@ -493,21 +672,21 @@ impl<'a, O: ChildOffset> Offsets<'a, O> {
 /// Returns the coverage index of `gid`, remembering it in `cache`.
 #[inline(always)]
 fn coverage_index_cached(
-    coverage: impl Fn(GlyphId) -> Option<u16>,
+    coverage: impl Fn(GlyphId) -> Option<u32>,
     gid: GlyphId,
     cache: &MappingCache,
-) -> Option<u16> {
+) -> Option<u32> {
     if let Some(index) = cache.get(gid.into()) {
         if index == MappingCache::MAX_VALUE {
             None
         } else {
-            Some(index as u16)
+            Some(index)
         }
     } else {
         let index = coverage(gid);
         if let Some(index) = index {
-            if (index as u32) < MappingCache::MAX_VALUE {
-                cache.set(gid.into(), index as u32);
+            if index < MappingCache::MAX_VALUE {
+                cache.set(gid.into(), index);
             }
             Some(index)
         } else {
@@ -518,18 +697,21 @@ fn coverage_index_cached(
 }
 
 /// Returns the class of `gid`, remembering it in `cache`.
-fn glyph_class_cached(
-    class_def: impl Fn(GlyphId) -> u16,
-    gid: GlyphId,
-    cache: &MappingCache,
-) -> u16 {
-    if let Some(class) = cache.get(gid.into()) {
-        class as u16
-    } else {
-        let class = class_def(gid);
-        cache.set(gid.into(), class as u32);
-        class
+#[inline(always)]
+fn glyph_class_cached(class_def: &ClassDef, gid: GlyphId, cache: &MappingCache) -> u32 {
+    match cache.get(gid.into()) {
+        Some(class) => class,
+        None => glyph_class_uncached(class_def, gid, cache),
     }
+}
+
+/// Looks up a class the cache doesn't hold, and remembers it. Kept out of
+/// line so callers inline only the cache hit.
+#[inline(never)]
+fn glyph_class_uncached(class_def: &ClassDef, gid: GlyphId, cache: &MappingCache) -> u32 {
+    let class = class_def.get(gid);
+    cache.set(gid.into(), class);
+    class
 }
 
 #[cfg(all(test, feature = "std"))]

@@ -98,6 +98,27 @@ impl MarkGlyphSetBitmap {
                     }
                 }
             }
+            CoverageTable::Format3(table) => {
+                budget.work(table.glyph_array().len())?;
+                for glyph in table.glyph_array() {
+                    if add_glyph(glyph.get().to_u32()).is_none() {
+                        return Ok(None);
+                    }
+                }
+            }
+            CoverageTable::Format4(table) => {
+                budget.work(table.range_records().len())?;
+                for range in table.range_records() {
+                    let start = range.start_glyph_id().to_u32();
+                    let end = range.end_glyph_id().to_u32();
+                    budget.work(end.saturating_sub(start) as usize + 1)?;
+                    for glyph in start..=end {
+                        if add_glyph(glyph).is_none() {
+                            return Ok(None);
+                        }
+                    }
+                }
+            }
         }
         Ok(Some(bits))
     }
@@ -119,6 +140,16 @@ impl MarkGlyphSetBitmap {
                         u32::from(max.end_glyph_id()),
                     )
                 }),
+            CoverageTable::Format3(table) => table
+                .glyph_array()
+                .first()
+                .zip(table.glyph_array().last())
+                .map(|(min, max)| (min.get().to_u32(), max.get().to_u32())),
+            CoverageTable::Format4(table) => table
+                .range_records()
+                .first()
+                .zip(table.range_records().last())
+                .map(|(min, max)| (min.start_glyph_id().to_u32(), max.end_glyph_id().to_u32())),
         };
 
         if let Some((min_gid, max_gid)) = bounds {
@@ -135,6 +166,8 @@ impl MarkGlyphSetBitmap {
         budget.work(match coverage {
             CoverageTable::Format1(table) => table.glyph_array().len(),
             CoverageTable::Format2(table) => table.range_records().len(),
+            CoverageTable::Format3(table) => table.glyph_array().len(),
+            CoverageTable::Format4(table) => table.range_records().len(),
         })?;
         Ok(Self::Digest(SetDigest::from_coverage(coverage)))
     }
@@ -406,11 +439,12 @@ impl<'a> OtData<'a> {
     }
 
     pub fn glyph_class(&self, glyph_id: u32) -> u16 {
-        self.tables.gdef.classes.get(GlyphId::new(glyph_id))
+        self.tables.gdef.classes.get(GlyphId::new(glyph_id)) as u16
     }
 
     pub fn glyph_mark_attachment_class(&self, glyph_id: u32) -> u16 {
-        self.tables.gdef.mark_classes.get(GlyphId::new(glyph_id))
+        // Glyph props keep only the low bits, as in HarfBuzz.
+        self.tables.gdef.mark_classes.get(GlyphId::new(glyph_id)) as u16
     }
 
     pub(crate) fn glyph_props(&self, glyph: GlyphId) -> u16 {

@@ -15,7 +15,7 @@ exclude = ["benches/", "tests/"]
 read-fonts.workspace = true
 spin = { version = "0.12.3", default-features = false, features = ["once"], optional = true }
 bitflags = "2.9"
-bytemuck = { version = "1.22", features = ["extern_crate_alloc"] }
+bytemuck = { version = "1.22", features = ["extern_crate_alloc", "min_const_generics"] }
 core_maths = { version = "0.1", optional = true }
 smallvec = "1.14"
 yoke = { version = "0.8.0", default-features = false, features = ["alloc", "derive"] }

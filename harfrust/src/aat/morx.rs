@@ -912,9 +912,7 @@ impl ContextualActions<morx::ContextualEntryData> for morx::ContextualSubtable<'
         payload: &morx::ContextualEntryData,
         glyph: GlyphId16,
     ) -> Option<GlyphId16> {
-        self.lookups
-            .get(usize::from(payload.mark_index.get()))
-            .ok()?
+        self.lookup(usize::from(payload.mark_index.get()))?
             .value(glyph.to_u16())
             .ok()
             .map(GlyphId16::new)
@@ -925,9 +923,7 @@ impl ContextualActions<morx::ContextualEntryData> for morx::ContextualSubtable<'
         payload: &morx::ContextualEntryData,
         glyph: GlyphId16,
     ) -> Option<GlyphId16> {
-        self.lookups
-            .get(usize::from(payload.current_index.get()))
-            .ok()?
+        self.lookup(usize::from(payload.current_index.get()))?
             .value(glyph.to_u16())
             .ok()
             .map(GlyphId16::new)
