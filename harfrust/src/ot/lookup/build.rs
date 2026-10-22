@@ -1,7 +1,10 @@
 //! Reading a lookup and deriving the data its subtables apply with.
 
 use super::coverage::Coverage;
-use super::{context, gpos, gsub, CachedLookup, CachedSubtable, IntoKind, SubtableDigests};
+use super::{
+    context, gpos, gsub, CachedLookup, CachedSubtable, CachedSubtableKind, IntoKind, KindFns,
+    SubtableDigests,
+};
 use crate::budget::{Budget, Exhausted};
 use crate::ot::apply::MappingCache;
 use crate::set_digest::SetDigest;
@@ -371,6 +374,10 @@ impl<'a> Source<'a, '_> {
     }
 
     /// Completes a subtable from its first glyph's coverage and its data.
+    ///
+    /// Only the steps that depend on the kind are here; the rest is shared
+    /// by every kind in [`coverage_cache`](Self::coverage_cache) and
+    /// [`assemble`](Self::assemble).
     fn finish<T: IntoKind<'a> + SubtableDigests<'a>>(
         self,
         coverage: Result<CoverageTable<'a>, ReadError>,
@@ -380,25 +387,54 @@ impl<'a> Source<'a, '_> {
         let data = data.ok_or(BuildError::Invalid)?;
         let digest_second = data.digest_second(self.budget)?;
         let cache_cost = data.cache_cost();
-        let coverage_cache = if self.with_caches
-            && T::CACHES_COVERAGE
-            && coverage.cost() >= MIN_CACHED_COVERAGE_COST
-        {
-            self.budget.alloc::<MappingCache>(1)?;
-            Some(Box::new(MappingCache::new()))
-        } else {
-            None
-        };
+        let coverage_cache = self.coverage_cache(&coverage, T::CACHES_COVERAGE)?;
+        let kind = data.into_kind(self.budget)?;
+        self.assemble(
+            kind,
+            coverage,
+            coverage_cache,
+            T::FNS,
+            digest_second,
+            cache_cost,
+        )
+    }
+
+    /// A glyph lookup cache for `coverage`, if the kind uses one and the
+    /// coverage is worth caching.
+    #[inline(never)]
+    fn coverage_cache(
+        &self,
+        coverage: &Coverage,
+        caches_coverage: bool,
+    ) -> Result<Option<Box<MappingCache>>, Exhausted> {
+        if !(self.with_caches && caches_coverage && coverage.cost() >= MIN_CACHED_COVERAGE_COST) {
+            return Ok(None);
+        }
+        self.budget.alloc::<MappingCache>(1)?;
+        Ok(Some(Box::new(MappingCache::new())))
+    }
+
+    /// Puts a built subtable together with its coverage.
+    #[inline(never)]
+    fn assemble(
+        &self,
+        kind: CachedSubtableKind<'a>,
+        coverage: Coverage<'a>,
+        coverage_cache: Option<Box<MappingCache>>,
+        fns: &'static KindFns,
+        digest_second: SetDigest,
+        cache_cost: u32,
+    ) -> Result<BuiltSubtable<'a>, BuildError> {
         Ok(BuiltSubtable {
             subtable: CachedSubtable {
-                kind: data.into_kind(self.budget)?,
+                kind,
                 digest: coverage.digest(self.budget)?,
                 coverage,
                 coverage_cache,
-                fns: T::FNS,
-                apply_sharing: T::FNS.apply_sharing,
+                fns,
+                apply_sharing: fns.apply_sharing,
             },
-            shares_second_glyph: T::FNS.shares_second_glyph,
+            shares_second_glyph: fns.shares_second_glyph,
             digest_second,
             cache_cost,
         })
