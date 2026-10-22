@@ -17,7 +17,7 @@ HarfRust started as a fork of [RustyBuzz](https://docs.rs/rustybuzz) to explore 
 multiple implementations of core font parsing for [`skrifa`](https://docs.rs/skrifa) consumers.
 Further context in https://github.com/googlefonts/fontations/issues/956.
 
-Matches HarfBuzz [v14.5.1](https://github.com/harfbuzz/harfbuzz/releases/tag/14.5.1).
+Matches HarfBuzz [v15.0.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.0.0).
 
 ## Why?
 
@@ -50,7 +50,7 @@ You can run `cargo bench` to see the performance of HarfRust on your machine.
 Enable the opt-in `tracing` Cargo feature to receive HarfBuzz shaping messages:
 
 ```toml
-harfrust = { version = "0.14", features = ["tracing"] }
+harfrust = { version = "0.15", features = ["tracing"] }
 ```
 
 Install a callback before shaping with
@@ -96,7 +96,21 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
   * Determine new version number according to SemVer
     Note that increasing a dependency version to a new major release
     means a breaking change for this crate.
-* Update Cargo.toml release version following SemVer, in TWO places
+* Update the release version following SemVer:
+  * Cargo.toml, in TWO places: `version` under `[workspace.package]` and the
+    `harfrust` entry under `[workspace.dependencies]`
+  * The dependency example in this README
+  * The C API's copy of it: `HR_VERSION_*` in `harfrust_capi/src/shape.rs`
+    and `HR_VERSION_STRING` in `harfrust_capi/cbindgen.toml`
+* If the matched HarfBuzz release changed, update it in:
+  * This README ("Matches HarfBuzz ...") and CHANGELOG.md
+  * `HR_HARFBUZZ_VERSION_*` and `hr_harfbuzz_version_string` in
+    `harfrust_capi/src/shape.rs`
+  * `HR_HARFBUZZ_VERSION_STRING` in `harfrust_capi/cbindgen.toml`
+  * `harfrust_capi/README.md` and `harfrust_capi/tests/skia_version.rs`
+* Regenerate `harfrust_capi/include/hr.h` with cbindgen, as described in
+  `harfrust_capi/README.md`, then run `scripts/gen-hb-compat-header.py`.
+  `cargo test -p harfrust_capi` checks that the header's versions match.
 * Run cargo-semver-checks:
   * `cargo semver-checks check-release -p harfrust`
   * `cargo semver-checks check-release -p hr-shape`

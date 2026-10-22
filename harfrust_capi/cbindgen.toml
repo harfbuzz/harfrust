@@ -51,13 +51,13 @@ trailer = """
 #define HR_DIRECTION_REVERSE(dir) ((hr_direction_t) (((unsigned int) (dir)) ^ 1U))
 
 /** The version of this library, as a string. */
-#define HR_VERSION_STRING "0.14.0"
+#define HR_VERSION_STRING "0.15.0"
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
 
 /** The HarfBuzz release matched by the shaping implementation. */
-#define HR_HARFBUZZ_VERSION_STRING "14.5.1"
+#define HR_HARFBUZZ_VERSION_STRING "15.0.0"
 
 /** True if the matched HarfBuzz version is at least the given version. */
 #define HR_HARFBUZZ_VERSION_ATLEAST(major, minor, micro) ((major) < HR_HARFBUZZ_VERSION_MAJOR || ((major) == HR_HARFBUZZ_VERSION_MAJOR && ((minor) < HR_HARFBUZZ_VERSION_MINOR || ((minor) == HR_HARFBUZZ_VERSION_MINOR && (micro) <= HR_HARFBUZZ_VERSION_MICRO))))

@@ -302,7 +302,7 @@ for OpenType APIs, and `hr-hb-aat.h` for AAT feature metadata. The core header a
 existing callers. The compatibility headers may be included in either order.
 
 `HB_VERSION_*` and `hb_version*` report the HarfBuzz shaping release matched
-by HarfRust, currently 14.5.1. `HR_VERSION_*` and `hr_version*` continue to
+by HarfRust, currently 15.0.0. `HR_VERSION_*` and `hr_version*` continue to
 report the HarfRust package version. This lets source compatibility users
 select HarfBuzz API paths with version checks. It does not imply that every
 API from that HarfBuzz release is available; see the exclusions above.
