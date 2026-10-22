@@ -256,18 +256,18 @@ pub extern "C" fn hr_shape_list_shapers() -> *mut *const c_char {
 /// keeps them in step with the crate version.
 pub const HR_VERSION_MAJOR: c_uint = 0;
 /// The minor version of this library.
-pub const HR_VERSION_MINOR: c_uint = 14;
+pub const HR_VERSION_MINOR: c_uint = 15;
 /// The micro version of this library.
 pub const HR_VERSION_MICRO: c_uint = 0;
 /// The version of this library, as a string.
-pub const HR_VERSION_STRING: &str = "0.14.0";
+pub const HR_VERSION_STRING: &str = "0.15.0";
 
 /// The HarfBuzz release matched by the shaping implementation.
-pub const HR_HARFBUZZ_VERSION_MAJOR: c_uint = 14;
+pub const HR_HARFBUZZ_VERSION_MAJOR: c_uint = 15;
 /// The minor version of the matched HarfBuzz release.
-pub const HR_HARFBUZZ_VERSION_MINOR: c_uint = 5;
+pub const HR_HARFBUZZ_VERSION_MINOR: c_uint = 0;
 /// The micro version of the matched HarfBuzz release.
-pub const HR_HARFBUZZ_VERSION_MICRO: c_uint = 1;
+pub const HR_HARFBUZZ_VERSION_MICRO: c_uint = 0;
 
 /// Returns the HarfBuzz version matched by the shaping implementation.
 ///
@@ -296,7 +296,7 @@ pub unsafe extern "C" fn hr_harfbuzz_version(
 /// Returns the matched HarfBuzz version as a zero-terminated string.
 #[no_mangle]
 pub extern "C" fn hr_harfbuzz_version_string() -> *const c_char {
-    c"14.5.1".as_ptr()
+    c"15.0.0".as_ptr()
 }
 
 /// Returns whether the matched HarfBuzz version is at least the given version.
@@ -372,6 +372,12 @@ mod tests {
         assert_eq!(HR_VERSION_STRING, env!("CARGO_PKG_VERSION"));
     }
 
+    fn harfbuzz_version() -> String {
+        format!(
+            "{HR_HARFBUZZ_VERSION_MAJOR}.{HR_HARFBUZZ_VERSION_MINOR}.{HR_HARFBUZZ_VERSION_MICRO}"
+        )
+    }
+
     /// The header is generated and committed, so it can fall behind the crate.
     #[test]
     fn generated_header_matches_the_crate_version() {
@@ -383,6 +389,22 @@ mod tests {
             ("HR_VERSION_MINOR", HR_VERSION_MINOR.to_string()),
             ("HR_VERSION_MICRO", HR_VERSION_MICRO.to_string()),
             ("HR_VERSION_STRING", format!("{HR_VERSION_STRING:?}")),
+            (
+                "HR_HARFBUZZ_VERSION_MAJOR",
+                HR_HARFBUZZ_VERSION_MAJOR.to_string(),
+            ),
+            (
+                "HR_HARFBUZZ_VERSION_MINOR",
+                HR_HARFBUZZ_VERSION_MINOR.to_string(),
+            ),
+            (
+                "HR_HARFBUZZ_VERSION_MICRO",
+                HR_HARFBUZZ_VERSION_MICRO.to_string(),
+            ),
+            (
+                "HR_HARFBUZZ_VERSION_STRING",
+                format!("{:?}", harfbuzz_version()),
+            ),
         ] {
             let expected = format!("#define {name} {value}");
             assert!(

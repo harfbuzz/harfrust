@@ -7,11 +7,51 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-21
+
+This release matches HarfBuzz [v15.0.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.0.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+### Breaking changes
+
+- Update `read-fonts` to 0.46. `Font` and the rest of the font model that
+  HarfRust re-exports come from that release.
+- `ShapePlanKey::new` borrows the font for the lifetime of the key. A plan
+  built for a font with lookup variations matches only keys at the same
+  location.
+
 ### Added
 
+- Shape fonts with more than 65,535 glyphs, as specified by ISO/IEC
+  14496-22:2026: GSUB and GPOS 1.2, GDEF 1.4, the 24-bit coverage and class
+  definition formats, and the extended format of every lookup subtable.
+- Apply FeatureVariations 1.1 lookup variations.
+- Select feature variations at the default location, whose zero coordinates
+  can satisfy a condition.
 - Add opt-in `tracing` support with `Buffer::set_message_function` callbacks
   and `hr-shape --trace` output, including intermediate Unicode and glyph
   contents. Tracing also works without `std` and compiles out when disabled.
+- Extend the C API with subsetting backed by Skera (the `subset` feature),
+  glyph drawing and painting backed by Skrifa (`draw` and `paint`), HarfBuzz
+  C++ ownership helpers, MATH and baseline queries, the set and map APIs,
+  OpenType tag conversion, glyph collection for sets and lookups, face
+  metadata and table enumeration, UTF-16 and Latin-1 buffer input, and batched
+  nominal glyph callbacks.
+
+### Changed
+
+- Parse each lookup once per font and keep it, with the font's GSUB, GPOS,
+  GDEF and AAT tables, alongside the font data. Creating a `ShaperFont` reads
+  no tables.
+- Keep parsed `morx`, `mort`, `kern` and `kerx` subtables with the font's
+  tables, and build each AAT table's cache when it is first applied. AAT
+  shaping is 5 to 13% faster.
+- Bound the preprocessing of a font's lookups by work and memory budgets that
+  scale with the size of its layout tables and are shared by GSUB, GPOS and
+  GDEF. Long contextual coverage arrays are read on demand.
+- Reduce code size by replacing the standard library sorts with small heap
+  and insertion sorts, sharing AAT class-set collection, and returning `Option`
+  from buffer lookups instead of panicking.
 
 ### Fixed
 
@@ -21,6 +61,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   costing up to a second per `shape` call. HarfBuzz rejects such tables.
 - When a variation selector is replaced by the not-found variation selector glyph, reset that selector's Unicode properties instead of the first glyph's, matching HarfBuzz.
 - Document that glyph IDs are not limited to `u16`: glyphs supplied by the caller, such as the not-found variation selector glyph, are passed through unchanged. Shaping tests now cover values above `u16::MAX`.
+- Clamp built-in advances that variations take below zero, as HarfBuzz does.
+  Custom font callbacks keep signed results.
+- At the character cluster level, scan the whole range for its minimum cluster
+  when setting unsafe flags.
+- Process singleton clusters when producing safe-to-insert-tatweel flags.
+- Merge monotone clusters before moving a Hangul tone mark ahead of its
+  syllable.
+- Round synthesized vertical origins down when a glyph is taller than the line
+  by an odd number of units.
+- Reorder Telugu length marks before virama and include USE symbol clusters
+  in syllable reordering, matching HarfBuzz.
+- Reject U+11A7 as a trailing Jamo when composing Hangul.
+- Keep every above-base mark when moving a Thai Nikhahit.
+- Skip single positioning format 2 for a coverage index past the value
+  records, instead of reading past them.
 
 ## [0.14.0] - 2026-10-03
 
@@ -388,7 +443,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.14.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.15.0...HEAD
+[0.15.0]: https://github.com/harfbuzz/harfrust/compare/0.14.0...0.15.0
 [0.14.0]: https://github.com/harfbuzz/harfrust/compare/0.13.3...0.14.0
 [0.13.3]: https://github.com/harfbuzz/harfrust/compare/0.13.2...0.13.3
 [0.13.2]: https://github.com/harfbuzz/harfrust/compare/0.13.1...0.13.2
