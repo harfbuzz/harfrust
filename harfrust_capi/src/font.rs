@@ -716,10 +716,7 @@ pub unsafe extern "C" fn hr_font_set_var_named_instance(font: *mut hr_font_t, in
     let Some(current) = font.instance() else {
         return;
     };
-    let rebuilt = current
-        .instance_builder()
-        .named_instance(instance as usize)
-        .build();
+    let rebuilt = current.instance_builder().named_instance(instance).build();
     font.set_instance(rebuilt);
 }
 

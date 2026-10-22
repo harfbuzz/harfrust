@@ -78,7 +78,7 @@ pub struct Args {
 
     /// Set named-instance index
     #[arg(long)]
-    named_instance: Option<usize>,
+    named_instance: Option<u32>,
 
     /// Set input text
     #[arg(long)]

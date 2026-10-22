@@ -9,7 +9,7 @@ use read_fonts::{
 };
 
 use crate::aat::common::{
-    AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, START_OF_TEXT,
+    set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, START_OF_TEXT,
 };
 use crate::aat::kerx::SimpleKerning;
 use crate::buffer::*;
@@ -18,6 +18,7 @@ use crate::ot::gpos::attach_type;
 use crate::ot::layout::LayoutTableKind;
 use crate::ot::lookup_flags;
 use crate::plan::ShapePlan;
+use crate::set_digest::SetDigest;
 use crate::LayoutData;
 use crate::Mask;
 use crate::Scale;
@@ -56,24 +57,16 @@ pub fn apply(
 
     c.setup_buffer_glyph_set();
 
-    let kern = layout.aat.kern.as_ref()?;
     let cache = layout.aat.kern_cache()?;
     let subtable_caches = &cache.subtables;
+    c.setup_buffer_digest(subtable_caches.len());
     let safe_to_break = &cache.safe_to_break;
 
-    let mut subtable_idx = 0;
-
     let mut seen_cross_stream = false;
-    for subtable in kern.subtables() {
-        let Ok(subtable) = subtable else { continue };
-
-        let subtable_cache = subtable_caches.get(subtable_idx);
-        let Some(subtable_cache) = subtable_cache.as_ref() else {
-            break;
-        };
-        subtable_idx += 1;
+    for (_index, subtable_cache) in subtable_caches.iter().enumerate() {
+        let subtable = &subtable_cache.subtable;
         #[cfg(feature = "tracing")]
-        let message_index = subtable_idx - 1;
+        let message_index = _index;
 
         if subtable.is_variable() {
             continue;
@@ -84,6 +77,7 @@ pub fn apply(
         }
 
         c.first_set = Some(&subtable_cache.first_set);
+        c.first_digest = subtable_cache.first_digest.clone();
         c.second_set = Some(&subtable_cache.second_set);
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
@@ -119,7 +113,7 @@ pub fn apply(
             }
         }
 
-        let Ok(kind) = subtable.kind() else {
+        let Some(kind) = &subtable_cache.kind else {
             continue;
         };
 
@@ -129,18 +123,18 @@ pub fn apply(
 
         match kind {
             SubtableKind::Format0(format0) if plan.requested_kerning => {
-                apply_simple_kerning(&mut c, &format0, is_cross_stream);
+                apply_simple_kerning(&mut c, format0, is_cross_stream);
             }
             SubtableKind::Format1(format1) => {
-                if apply_state_machine_kerning(&mut c, &format1, is_cross_stream).is_none() {
+                if apply_state_machine_kerning(&mut c, format1, is_cross_stream).is_none() {
                     c.buffer.index_failed();
                 }
             }
             SubtableKind::Format2(format2) if plan.requested_kerning => {
-                apply_simple_kerning(&mut c, &format2, is_cross_stream);
+                apply_simple_kerning(&mut c, format2, is_cross_stream);
             }
             SubtableKind::Format3(format3) if plan.requested_kerning => {
-                apply_simple_kerning(&mut c, &format3, is_cross_stream);
+                apply_simple_kerning(&mut c, format3, is_cross_stream);
             }
             _ => {}
         }
@@ -695,17 +689,21 @@ impl SimpleKerning for Subtable3<'_> {
     }
 }
 
-pub(crate) struct KernSubtableCache {
+pub(crate) struct KernSubtableCache<'a> {
     start_end_safe_to_break: u64,
     safe_to_break: SafeToBreakSubtable,
     first_set: U32Set,
+    first_digest: SetDigest,
     second_set: U32Set,
     class_cache: Box<ClassCache>,
+    subtable: Subtable<'a>,
+    /// The parsed subtable, or `None` if it is unreadable.
+    kind: Option<SubtableKind<'a>>,
 }
 
-impl KernSubtableCache {
+impl<'a> KernSubtableCache<'a> {
     pub(crate) fn new(
-        subtable: &Subtable,
+        subtable: &Subtable<'a>,
         num_glyphs: u32,
         safe_to_break: &mut SafeToBreakAccel,
     ) -> Self {
@@ -713,8 +711,9 @@ impl KernSubtableCache {
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
-        if let Ok(kind) = subtable.kind() {
-            match &kind {
+        let kind = subtable.kind().ok();
+        if let Some(kind) = &kind {
+            match kind {
                 SubtableKind::Format0(format0) => {
                     format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
@@ -738,9 +737,12 @@ impl KernSubtableCache {
         KernSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
+            first_digest: set_digest(&first_set),
             first_set,
             second_set,
             class_cache: Box::new(ClassCache::new()),
+            subtable: subtable.clone(),
+            kind,
         }
     }
 }

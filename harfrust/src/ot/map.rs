@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 use core::ops::Range;
@@ -8,6 +9,8 @@ use super::{Language, Mask, Script, Tag};
 use crate::plan::ShapePlan;
 use crate::tag::TagExt;
 use crate::{LayoutData, ShaperFont};
+use read_fonts::tables::layout::{store_deltas, LookupVariations};
+use read_fonts::types::F2Dot14;
 
 // TODO: Remove once MSRV is 1.80+
 use core::mem::{size_of, size_of_val};
@@ -20,6 +23,8 @@ pub struct OtMap {
     lookups: [Vec<LookupMap>; 2],
     stages: [Vec<StageMap>; 2],
     feature_variations: [Option<u32>; 2],
+    /// The location lookup variations were resolved at, if the font has any.
+    lookup_coords: Option<Box<[F2Dot14]>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,6 +193,10 @@ impl OtMap {
 
     pub fn feature_variations(&self) -> &[Option<u32>; 2] {
         &self.feature_variations
+    }
+
+    pub fn lookup_coords(&self) -> Option<&[F2Dot14]> {
+        self.lookup_coords.as_deref()
     }
 }
 
@@ -376,6 +385,11 @@ impl<'a> OtMapBuilder<'a> {
             lookups,
             stages,
             feature_variations: self.layout.ot.feature_variations,
+            lookup_coords: self
+                .layout
+                .ot
+                .has_lookup_variations
+                .then(|| self.layout.ot.coords.into()),
         }
     }
 
@@ -526,6 +540,14 @@ impl<'a> OtMapBuilder<'a> {
             let mut last_lookup = 0;
 
             let variation_index = self.layout.ot.feature_variations[table_index as usize];
+            let lookup_variations = if self.layout.ot.has_lookup_variations {
+                self.layout
+                    .ot
+                    .layout_table(table_index)
+                    .and_then(|table| table.lookup_variations())
+            } else {
+                None
+            };
 
             for stage in 0..self.current_stage[table_index] {
                 if let Some(feature_index) = required_feature_index[table_index] {
@@ -535,6 +557,7 @@ impl<'a> OtMapBuilder<'a> {
                             table_index,
                             feature_index,
                             variation_index,
+                            lookup_variations.as_ref(),
                             GLOBAL_BIT_MASK,
                             true,
                             true,
@@ -554,6 +577,7 @@ impl<'a> OtMapBuilder<'a> {
                                 table_index,
                                 feature_index,
                                 variation_index,
+                                lookup_variations.as_ref(),
                                 feature.mask,
                                 feature.auto_zwnj,
                                 feature.auto_zwj,
@@ -612,6 +636,7 @@ impl<'a> OtMapBuilder<'a> {
         table_index: LayoutTableKind,
         feature_index: u16,
         variation_index: Option<u32>,
+        lookup_variations: Option<&LookupVariations>,
         mask: Mask,
         auto_zwnj: bool,
         auto_zwj: bool,
@@ -629,8 +654,7 @@ impl<'a> OtMapBuilder<'a> {
             None => table.feature(feature_index)?,
         };
 
-        for index in feature.lookup_list_indices() {
-            let index = index.get();
+        let mut add_lookup = |index: u16| {
             if index < lookup_count {
                 lookups.push(LookupMap {
                     index,
@@ -643,6 +667,26 @@ impl<'a> OtMapBuilder<'a> {
                     feature_tag,
                 });
             }
+        };
+        let indices = feature.lookup_list_indices();
+        let Some(lookup_variations) = lookup_variations else {
+            for index in indices {
+                add_lookup(index.get());
+            }
+            return Some(());
+        };
+        // The feature's lookups at this location: they replace or extend
+        // those of the feature, or of the alternate selected above.
+        let mut resolved: Vec<u16> = indices.iter().map(|index| index.get()).collect();
+        let ot = &self.layout.ot;
+        lookup_variations.apply(
+            feature_index,
+            ot.coords,
+            store_deltas(ot.var_store(), ot.coords),
+            &mut resolved,
+        );
+        for index in resolved {
+            add_lookup(index);
         }
 
         Some(())

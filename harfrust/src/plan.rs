@@ -8,6 +8,7 @@ use crate::ot::shaper::OtShaper;
 use crate::ot::map::*;
 use crate::LayoutData;
 use crate::{font::Font, Direction, Feature, Language, Mask, Script, ShapePlanner, ShaperFont};
+use read_fonts::types::F2Dot14;
 
 /// A reusable plan for shaping with one set of segment properties.
 ///
@@ -113,17 +114,23 @@ pub struct ShapePlanKey<'a> {
     direction: Direction,
     language: Option<&'a Language>,
     pub(crate) feature_variations: [Option<u32>; 2],
+    /// The font's location, if lookup variations depend on it.
+    lookup_coords: Option<&'a [F2Dot14]>,
     features: &'a [Feature],
 }
 
 impl<'a> ShapePlanKey<'a> {
     /// Creates a key for a font, script, and direction.
-    pub fn new(font: &Font, script: Option<Script>, direction: Direction) -> Self {
+    pub fn new(font: &'a Font, script: Option<Script>, direction: Direction) -> Self {
+        let variations = font.feature_variations();
         Self {
             script,
             direction,
             language: None,
-            feature_variations: crate::shaper_font::feature_variations(font),
+            feature_variations: [variations.gsub, variations.gpos],
+            lookup_coords: variations
+                .has_lookup_variations
+                .then(|| font.normalized_coords()),
             features: &[],
         }
     }
@@ -146,6 +153,7 @@ impl<'a> ShapePlanKey<'a> {
             && self.direction == plan.direction
             && self.language == plan.language.as_ref()
             && self.feature_variations == *plan.ot_map.feature_variations()
+            && self.lookup_coords == plan.ot_map.lookup_coords()
             && features_equivalent(self.features, &plan.user_features)
     }
 }

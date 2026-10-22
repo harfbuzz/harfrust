@@ -4035,3 +4035,98 @@ fn nothing_is_advanced_past_the_last_glyph_the_face_has() {
         });
     }
 }
+
+/// Builds a font from `tables`, which must be sorted by tag.
+fn sfnt(tables: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((tables.len() as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, table) in tables {
+        data.extend(*tag);
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend((table.len() as u32).to_be_bytes());
+        offset += table.len().next_multiple_of(4);
+    }
+    for (_, table) in tables {
+        data.extend(table);
+        data.resize(data.len().next_multiple_of(4), 0);
+    }
+    data
+}
+
+/// A `maxp` or `MAXP` table holding only a glyph count.
+fn maxp(count: u32, extended: bool) -> Vec<u8> {
+    let mut data = 0x0000_5000u32.to_be_bytes().to_vec();
+    if extended {
+        data.extend(&count.to_be_bytes()[1..]);
+    } else {
+        data.extend((count as u16).to_be_bytes());
+    }
+    data
+}
+
+/// A GSUB table whose one lookup maps glyph 65536 to 65537 with
+/// SingleSubst format 3.
+fn extended_single_subst_gsub() -> Vec<u8> {
+    #[rustfmt::skip]
+    let data = vec![
+        0, 1, 0, 0, 0, 10, 0, 12, 0, 14, // header
+        0, 0, // script count
+        0, 0, // feature count
+        0, 1, 0, 4, // one lookup
+        0, 1, 0, 0, 0, 1, 0, 8, // single substitution, one subtable
+        0, 3, 0, 0, 0, 9, 0, 0, 1, // format 3, coverage, delta 1
+        0, 3, 0, 0, 1, 1, 0, 0, // coverage format 3: glyph 65536
+    ];
+    data
+}
+
+#[test]
+fn extended_lookup_fallback_covers_glyphs_beyond_64k() {
+    let data = sfnt(&[
+        (b"GSUB", extended_single_subst_gsub()),
+        (b"MAXP", maxp(65550, true)),
+        (b"maxp", maxp(4, false)),
+    ]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let sets = [
+            hr_set_create(),
+            hr_set_create(),
+            hr_set_create(),
+            hr_set_create(),
+        ];
+        hr_ot_layout_lookup_collect_glyphs(
+            face,
+            0x4753_5542,
+            0,
+            sets[0],
+            sets[1],
+            sets[2],
+            sets[3],
+        );
+        assert_eq!(hr_set_has(sets[1], 65536), 1);
+        assert_eq!(hr_set_has(sets[3], 65537), 1);
+        assert_eq!(hr_set_has(sets[1], 65550), 0);
+        for set in sets {
+            hr_set_destroy(set);
+        }
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn glyph_count_prefers_extended_maxp() {
+    let data = sfnt(&[(b"MAXP", maxp(65550, true)), (b"maxp", maxp(4, false))]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        assert_eq!(hr_face_get_glyph_count(face), 65550);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}

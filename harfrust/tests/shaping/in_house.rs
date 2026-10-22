@@ -60153,6 +60153,78 @@ fn variations_006() {
 }
 
 #[test]
+fn variations_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4e9f0bc6a8f25b5fd3547bbc17423ce8cedb915f.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}\u{0046}",
+            "--variations=TEST=0",
+        ),
+        "[A.alt=0+600|B=1+600|C=2+600|D=3+600|E=4+610|F=5+600]"
+    );
+}
+
+#[test]
+fn variations_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4e9f0bc6a8f25b5fd3547bbc17423ce8cedb915f.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}\u{0046}",
+            "--variations=TEST=0,DUMY=1",
+        ),
+        "[A.alt=0+600|B=1+600|C.alt=2+600|D=3+600|E=4+630|F=5+600]"
+    );
+}
+
+#[test]
+fn variations_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4e9f0bc6a8f25b5fd3547bbc17423ce8cedb915f.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}\u{0046}",
+            "--variations=TEST=.3",
+        ),
+        "[A.alt=0+600|B.alt=1+600|C=2+600|D=3+600|E=4+610|F.alt=5+600]"
+    );
+}
+
+#[test]
+fn variations_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4e9f0bc6a8f25b5fd3547bbc17423ce8cedb915f.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}\u{0046}",
+            "--variations=TEST=.6",
+        ),
+        "[A.alt=0+600|B.alt=1+600|C.alt=2+600|D=3+600|E=4+610|F.alt=5+600]"
+    );
+}
+
+#[test]
+fn variations_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4e9f0bc6a8f25b5fd3547bbc17423ce8cedb915f.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}\u{0046}",
+            "--variations=TEST=.8",
+        ),
+        "[A.alt=0+600|B.alt=1+600|C.alt=2+600|D.alt=3+600|E=4+610|F.alt=5+600]"
+    );
+}
+
+#[test]
+fn variations_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/4e9f0bc6a8f25b5fd3547bbc17423ce8cedb915f.ttf",
+            "\u{0041}\u{0042}\u{0043}\u{0044}\u{0045}\u{0046}",
+            "--variations=TEST=0",
+        ),
+        "[A.alt=0+600|B=1+600|C=2+600|D=3+600|E=4+610|F=5+600]"
+    );
+}
+
+#[test]
 fn vertical_002() {
     assert_eq!(
         shape(
@@ -60201,7 +60273,7 @@ fn vertical_007() {
 }
 
 #[test]
-fn vertical_009() {
+fn vertical_008() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/NotoSansCJK-VF.abc.ttf",
@@ -60213,7 +60285,7 @@ fn vertical_009() {
 }
 
 #[test]
-fn vertical_010() {
+fn vertical_009() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/NotoSerifHK-subset.ttf",
@@ -60225,7 +60297,7 @@ fn vertical_010() {
 }
 
 #[test]
-fn vertical_012() {
+fn vertical_011() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/4cbbc461be066fccc611dcc634af6e8cb2705537.ttf",
@@ -60237,7 +60309,7 @@ fn vertical_012() {
 }
 
 #[test]
-fn vertical_013() {
+fn vertical_012() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/191826b9643e3f124d865d617ae609db6a2ce203.ttf",
@@ -60249,7 +60321,7 @@ fn vertical_013() {
 }
 
 #[test]
-fn vertical_014() {
+fn vertical_013() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/f9b1dd4dcb515e757789a22cb4241107746fd3d0.ttf",
@@ -60261,7 +60333,7 @@ fn vertical_014() {
 }
 
 #[test]
-fn vertical_015() {
+fn vertical_014() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/NotoSans-VF.abc.ttf",
@@ -60273,7 +60345,7 @@ fn vertical_015() {
 }
 
 #[test]
-fn vertical_016() {
+fn vertical_015() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/NotoSans-VF.abc.ttf",
@@ -60285,7 +60357,7 @@ fn vertical_016() {
 }
 
 #[test]
-fn vertical_017() {
+fn vertical_016() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/NotoSans-VF.abc.ttf",
