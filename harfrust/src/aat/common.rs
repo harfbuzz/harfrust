@@ -214,6 +214,10 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
     pub fn delete_glyph(&mut self) -> Option<()> {
         self.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED;
         self.buffer.cur_mut(0)?.set_aat_deleted();
+        self.buffer.digest.add(DELETED_GLYPH);
+        if self.using_buffer_glyph_set {
+            self.buffer.glyph_set.insert(DELETED_GLYPH);
+        }
         self.buffer.replace_glyph(DELETED_GLYPH);
         Some(())
     }
@@ -813,5 +817,28 @@ mod tests {
         assert_eq!(context.buffer.out_len, 2);
         assert_eq!(context.buffer.prev().unwrap().glyph_id, DELETED_GLYPH);
         assert!(context.buffer.prev().unwrap().is_aat_deleted());
+    }
+
+    #[test]
+    fn ligature_deletion_enables_later_subtables_in_short_and_cached_buffers() {
+        let data = include_bytes!(
+            "../../tests/fonts/in-house/007e2c13e6baf28a7f1e8f981c2db0cb850b1f1f.ttf"
+        );
+        let font = crate::Font::new(data.to_vec(), 0).unwrap();
+        let shaper_font = ShaperFont::new(&font);
+        // The font ligates 1,2 into 3, then a deleted-glyph transition
+        // enables substitution 4 -> 5. Four glyphs enable the glyph set.
+        for (text, expected) in [("abc", &[3, 5][..]), ("abcc", &[3, 5, 4][..])] {
+            let mut buffer = Buffer::new();
+            buffer.push_str(text);
+            buffer.set_direction(Direction::LeftToRight);
+            crate::shape(&shaper_font, &mut buffer, crate::ShapeOptions::new()).unwrap();
+            let glyphs: Vec<_> = buffer
+                .glyph_infos()
+                .iter()
+                .map(|info| info.glyph_id)
+                .collect();
+            assert_eq!(glyphs, expected, "{text}");
+        }
     }
 }
