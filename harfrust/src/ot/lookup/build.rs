@@ -391,7 +391,7 @@ impl<'a> Source<'a, '_> {
         };
         Ok(BuiltSubtable {
             subtable: CachedSubtable {
-                kind: data.into_kind(),
+                kind: data.into_kind(self.budget)?,
                 digest: coverage.digest(self.budget)?,
                 coverage,
                 coverage_cache,

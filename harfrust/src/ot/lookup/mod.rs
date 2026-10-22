@@ -312,7 +312,7 @@ struct KindFns {
 trait IntoKind<'a>: Sized {
     const FNS: &'static KindFns;
 
-    fn into_kind(self) -> CachedSubtableKind<'a>;
+    fn into_kind(self, budget: &Budget) -> Result<CachedSubtableKind<'a>, Exhausted>;
 }
 
 /// The functions of a kind that applies plainly, adjusts pairs, or keeps
@@ -377,12 +377,14 @@ macro_rules! kind_payload {
 }
 
 macro_rules! wrap_payload {
-    ($value:expr) => {
+    ($value:expr, $budget:expr) => {{
+        let _ = $budget;
         $value
-    };
-    ($value:expr, boxed) => {
+    }};
+    ($value:expr, $budget:expr, boxed) => {{
+        $budget.alloc::<Self>(1)?;
         Box::new($value)
-    };
+    }};
 }
 
 /// Declares the subtable kinds, the data each holds, and how it applies.
@@ -400,8 +402,8 @@ macro_rules! subtable_kinds {
             impl<'a> IntoKind<'a> for $data {
                 const FNS: &'static KindFns = kind_fns!($kind $($how)?);
 
-                fn into_kind(self) -> CachedSubtableKind<'a> {
-                    CachedSubtableKind::$kind(wrap_payload!(self $(, $boxed)?))
+                fn into_kind(self, budget: &Budget) -> Result<CachedSubtableKind<'a>, Exhausted> {
+                    Ok(CachedSubtableKind::$kind(wrap_payload!(self, budget $(, $boxed)?)))
                 }
             }
         )*

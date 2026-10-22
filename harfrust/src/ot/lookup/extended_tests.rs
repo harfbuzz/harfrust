@@ -830,6 +830,24 @@ fn mark_base_pos2(large_offsets: bool) -> Vec<u8> {
 }
 
 #[test]
+fn boxed_payload_is_charged_to_allocation_budget() {
+    let bytes = lookup_bytes(4, &mark_base_pos2(false));
+    let storage = size_of::<super::CachedSubtable>();
+    let payload = size_of::<super::gpos::MarkBasePos1>();
+    for allowance in [storage, storage + payload - 1] {
+        let budget = Budget::new(1 << 20, allowance);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&bytes), 0, false, &budget),
+            Err(super::build::BuildError::Exhausted)
+        ));
+    }
+    let budget = Budget::new(1 << 20, storage + payload);
+    let lookup = build_lookup_at(FontData::new(&bytes), 0, false, &budget).unwrap();
+    assert_eq!(lookup.subtables.len(), 1);
+    assert_eq!(budget.remaining().1, 0);
+}
+
+#[test]
 fn mark_base_pos2_attaches_wide_glyphs_and_resolves_large_anchors() {
     for large_offsets in [false, true] {
         let mut subtable = mark_base_pos2(large_offsets);
