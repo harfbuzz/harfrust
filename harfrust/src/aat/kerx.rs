@@ -28,6 +28,8 @@ use read_fonts::{
     FontData,
 };
 
+// Only tracing messages read the subtable index.
+#[cfg_attr(not(feature = "tracing"), allow(clippy::unused_enumerate_index))]
 pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
     c.buffer.unsafe_to_concat(None, None);
 

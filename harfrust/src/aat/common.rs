@@ -64,6 +64,8 @@ pub struct AatApplyContext<'a, 'f, 'c> {
     pub(crate) safe_to_break: SafeToBreak<'a>,
 }
 
+// The font's lifetimes are named for the font that tracing takes.
+#[cfg_attr(not(feature = "tracing"), allow(clippy::elidable_lifetime_names))]
 impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
     pub fn new(
         plan: &'a ShapePlan,

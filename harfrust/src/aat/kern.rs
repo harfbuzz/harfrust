@@ -35,6 +35,8 @@ pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &Cl
     klass
 }
 
+// Only tracing messages read the subtable index.
+#[cfg_attr(not(feature = "tracing"), allow(clippy::unused_enumerate_index))]
 pub fn apply(
     plan: &ShapePlan,
     layout: LayoutData<'_>,

@@ -156,6 +156,10 @@ jobs:
     - name: Clippy
       run: cargo clippy --all-features --all-targets -- -D warnings
 
+    # hr-shape enables tracing, so the workspace build above always has it.
+    - name: Clippy without tracing
+      run: cargo clippy -p harfrust_capi --all-targets -- -D warnings
+
   windows-c-api:
     name: Windows C API optional subset feature
     runs-on: windows-latest
