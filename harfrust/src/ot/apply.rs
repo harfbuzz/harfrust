@@ -799,6 +799,8 @@ pub struct ApplyContext<'a, 'f, 'c> {
     pub(crate) match_positions: MatchPositions,
 }
 
+// The font's lifetimes are named for the font that tracing takes.
+#[cfg_attr(not(feature = "tracing"), allow(clippy::elidable_lifetime_names))]
 impl<'a, 'f, 'c> ApplyContext<'a, 'f, 'c> {
     pub fn new(
         table_index: LayoutTableKind,
