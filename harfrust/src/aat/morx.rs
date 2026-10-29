@@ -1112,7 +1112,7 @@ impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
 
             // TODO We ignore KashidaLike setting.
             for i in 0..count {
-                let i = usize::from(start + i);
+                let i = usize::from(start) + usize::from(i);
                 if ac
                     .output_glyph(u32::from(self.glyphs.get(i)?.get().to_u16()))
                     .is_none()
@@ -1156,7 +1156,7 @@ impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
 
             // TODO We ignore KashidaLike setting.
             for i in 0..count {
-                let i = usize::from(start + i);
+                let i = usize::from(start) + usize::from(i);
                 if ac
                     .output_glyph(u32::from(self.glyphs.get(i)?.get().to_u16()))
                     .is_none()
