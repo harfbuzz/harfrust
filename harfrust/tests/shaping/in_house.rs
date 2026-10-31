@@ -49401,6 +49401,24 @@ fn indic_syllable_015() {
 }
 
 #[test]
+fn indic_syllable_016() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8116e5d8fedfbec74e45dc350d2416d810bed8c4.ttf",
+            "\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\
+             \u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\
+             \u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\
+             \u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\
+             \u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\
+             \u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\
+             \u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{094D}\u{091F}\u{093F}",
+            "--no-positions",
+        ),
+        "[uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni091F094D091F=0|uni094D=0|uni093F.630=0|uni091F094D091F=0]"
+    );
+}
+
+#[test]
 fn indic_vowel_letter_spoofing_001() {
     assert_eq!(
         shape(

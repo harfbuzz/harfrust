@@ -84,6 +84,42 @@ pub fn insert_dotted_circles(
     Some(true)
 }
 
+// `next_syllable()` cuts syllables longer than `MAX_SYLLABLE_LENGTH`, but the
+// cut is computed from the current glyph positions and is not recorded, so
+// walks before and after substitutions see different pieces.  Record the cut
+// in `syllable()`, which substituted glyphs inherit, by giving each piece its
+// own serial.  The pieces are not syllables on their own and text must not be
+// broken between them, so keep them in one cluster.
+pub(crate) fn limit_syllable_length(buffer: &mut Buffer) {
+    let mut syllable_serial: u8 = 1;
+    let mut first_piece = 0;
+    let mut start = 0;
+    let mut end = buffer.next_syllable(0);
+    while start < buffer.len {
+        let syllable = buffer.info[start].syllable();
+        if end >= buffer.len || buffer.info[end].syllable() != syllable {
+            // Last piece of this syllable.
+            if first_piece < start {
+                buffer.merge_clusters(first_piece, end);
+            }
+            first_piece = end;
+        }
+        if let Some(infos) = buffer.info.get_mut(start..end) {
+            for info in infos {
+                info.set_syllable((syllable_serial << 4) | (syllable & 0x0F));
+            }
+        } else {
+            buffer.index_failed();
+        }
+        syllable_serial += 1;
+        if syllable_serial == 16 {
+            syllable_serial = 1;
+        }
+        start = end;
+        end = buffer.next_syllable(start);
+    }
+}
+
 pub(crate) fn syllabic_clear_var(
     _: &ShapePlan,
     _: &ShaperFont<'_, '_>,
