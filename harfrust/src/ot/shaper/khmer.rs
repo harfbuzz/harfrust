@@ -125,6 +125,7 @@ fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     khmer_machine::find_syllables_khmer(buffer);
+    limit_syllable_length(buffer);
 
     let mut start = 0;
     let mut end = buffer.next_syllable(0);

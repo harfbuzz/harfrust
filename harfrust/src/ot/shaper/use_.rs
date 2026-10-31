@@ -236,6 +236,7 @@ fn setup_syllables(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     use_machine::find_syllables(buffer);
+    limit_syllable_length(buffer);
 
     foreach_syllable!(buffer, start, end, {
         buffer.unsafe_to_break(Some(start), Some(end));
