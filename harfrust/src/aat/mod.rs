@@ -476,6 +476,88 @@ mod tests {
         assert_eq!(positions[1].x_offset, -50);
     }
 
+    /// A morx table with one insertion subtable that inserts `count` glyphs
+    /// of `list`, from `start`, after each of `glyphs`.
+    fn insertion_morx(glyphs: [u16; 2], list: &[u16], start: u16, count: u16) -> Vec<u8> {
+        let first = glyphs[0].min(glyphs[1]);
+        let last = glyphs[0].max(glyphs[1]);
+        // A format 8 lookup giving `glyphs` class 4, padded to four bytes.
+        let mut classes = vec![8, first, last - first + 1];
+        classes.extend((first..=last).map(|gid| if glyphs.contains(&gid) { 4 } else { 1 }));
+        classes.resize(classes.len().next_multiple_of(2), 0);
+        let states = [0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        let entries = [0, 0, 0xFFFF, 0xFFFF, 0, count << 5, start, 0xFFFF];
+        let class_table = 20;
+        let state_array = class_table + 2 * classes.len() as u32;
+        let entry_table = state_array + 2 * states.len() as u32;
+        let insertion_action = entry_table + 2 * entries.len() as u32;
+        let mut body = vec![];
+        for value in [5, class_table, state_array, entry_table, insertion_action] {
+            body.extend(value.to_be_bytes());
+        }
+        for value in classes.iter().chain(&states).chain(&entries).chain(list) {
+            body.extend(value.to_be_bytes());
+        }
+        let subtable_len = 12 + body.len() as u32;
+        let mut morx = vec![];
+        // version 2, one chain of one subtable, an insertion in every direction
+        for value in [
+            0x0002_0000,
+            1,
+            1,
+            16 + subtable_len,
+            0,
+            1,
+            subtable_len,
+            0x2000_0005,
+            1,
+        ] {
+            morx.extend(u32::to_be_bytes(value));
+        }
+        morx.extend(body);
+        morx
+    }
+
+    #[test]
+    fn morx_insertion_index_past_u16() {
+        let bytes = include_bytes!("../../tests/fonts/text-rendering-tests/TestKERNOne.otf");
+        let source = FontRef::new(bytes).unwrap();
+        let source_font = Font::new(bytes.to_vec(), 0).unwrap();
+        let charmap = source_font.charmap();
+        let u = charmap.map_unicode('u' as u32).unwrap().to_u32() as u16;
+        let t = charmap.map_unicode('T' as u32).unwrap().to_u32() as u16;
+        let shape_with = |list: &[u16], start: u16, count: u16| -> Vec<u32> {
+            let morx = insertion_morx([u, t], list, start, count);
+            let source = source.clone();
+            let tables = TableFunction::new(Arc::new(move |tag| {
+                if tag == Tag::new(b"morx") {
+                    Some(Blob::from(morx.clone()))
+                } else {
+                    source
+                        .data_for_tag(tag)
+                        .map(|data| Blob::from(data.as_bytes().to_vec()))
+                }
+            }));
+            let font = Font::new(tables, 0).unwrap();
+            let shaper = ShaperFont::new(&font);
+            let plan = plan_for_text(&font, "uT");
+            let buffer = shape_text(&shaper, "uT", &plan);
+            buffer
+                .glyph_infos()
+                .iter()
+                .map(|info| info.glyph_id)
+                .collect()
+        };
+        // 65,536 glyphs, the first different from the rest.
+        let mut long = vec![u; 0x1_0000];
+        long[0] = t;
+        let short = [t, u, u, u];
+        assert_eq!(shape_with(&short, 2, 2), [u, u, u, t, u, u].map(u32::from));
+        assert_eq!(shape_with(&long, 0xFFFE, 2), shape_with(&short, 2, 2));
+        // The third glyph's index is past the end of either list.
+        assert_eq!(shape_with(&long, 0xFFFE, 3), shape_with(&short, 2, 3));
+    }
+
     #[test]
     fn concurrent_first_shapes_share_morx_cache() {
         let font = Font::new(
