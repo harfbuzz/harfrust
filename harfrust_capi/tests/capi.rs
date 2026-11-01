@@ -2996,6 +2996,31 @@ fn immortal_objects_reject_user_data() {
     }
 }
 
+#[test]
+fn the_empty_buffer_is_not_written_by_the_glyph_getters() {
+    // The empty buffer is one object shared by every thread, so the getters
+    // must neither allocate positions in it nor hand out a writable pointer
+    // into it: it answers as `NULL` does, with nothing.
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| unsafe {
+                let empty = hr_buffer_get_empty();
+                let mut len = 7;
+                assert!(hr_buffer_get_glyph_positions(empty, &raw mut len).is_null());
+                assert_eq!(len, 0);
+                len = 7;
+                assert!(hr_buffer_get_glyph_infos(empty, &raw mut len).is_null());
+                assert_eq!(len, 0);
+                assert_eq!(hr_buffer_has_positions(ptr::null_mut()), 0);
+            })
+        })
+        .collect();
+
+    for thread in threads {
+        thread.join().expect("thread panicked");
+    }
+}
+
 // --------------------------------------------------------------- common ----
 
 #[test]

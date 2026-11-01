@@ -1188,7 +1188,9 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_infos(
     buffer: *mut hr_buffer_t,
     length: *mut c_uint,
 ) -> *mut hr_glyph_info_t {
-    let Some(buffer) = (unsafe { buffer.as_mut() }) else {
+    // The pointer handed out is writable, which the immortal empty buffer,
+    // shared by every thread, must never be. It has no items to give anyway.
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         if let Some(out) = unsafe { length.as_mut() } {
             *out = 0;
         }
@@ -1216,7 +1218,9 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
     buffer: *mut hr_buffer_t,
     length: *mut c_uint,
 ) -> *mut hr_glyph_position_t {
-    let Some(buffer) = (unsafe { buffer.as_mut() }) else {
+    // Allocating positions on demand writes to the buffer, which the immortal
+    // empty one, shared by every thread, must never see. It has none to give.
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         if let Some(out) = unsafe { length.as_mut() } {
             *out = 0;
         }
