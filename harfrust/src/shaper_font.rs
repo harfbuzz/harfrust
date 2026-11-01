@@ -33,6 +33,7 @@ pub struct ShaperFont<'a, 'f> {
     charmap: Charmap<'a>,
     glyph_metrics: Once<GlyphMetrics<'a>>,
     cmap_cache: Option<&'a CharmapCache>,
+    glyph_names: Option<&'a GlyphNameCache>,
     symbol_font_page: Once<u16>,
     pub(crate) scale: Scale,
     funcs: Option<&'f dyn FontFuncs>,
@@ -42,7 +43,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
     /// Prepares a font for shaping, reusing its cached layout data.
     pub fn new(font: &'a Font) -> Self {
         let cached = layout_cache(font);
-        let (ot, aat, apply_trak, cmap_cache) = if let Some(cache) = cached {
+        let (ot, aat, apply_trak, cmap_cache, glyph_names) = if let Some(cache) = cached {
             let coords = font.normalized_coords();
             // The default location can select a feature variation too, and
             // shape plan keys ask the font the same way.
@@ -52,9 +53,10 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
                 AatData::new(&cache.aat),
                 cache.apply_trak,
                 Some(&cache.cmap),
+                Some(&cache.glyph_names),
             )
         } else {
-            (EMPTY_OT_DATA.clone(), EMPTY_AAT_DATA.clone(), false, None)
+            (EMPTY_OT_DATA.clone(), EMPTY_AAT_DATA.clone(), false, None, None)
         };
         let scale = Scale::default();
         Self {
@@ -66,6 +68,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
             charmap: font.charmap(),
             glyph_metrics: Once::new(),
             cmap_cache,
+            glyph_names,
             symbol_font_page: Once::new(),
             scale,
             funcs: None,
@@ -117,7 +120,21 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Returns the name stored for a glyph in the font, if any.
     pub fn glyph_name(&self, glyph: GlyphId) -> Option<GlyphName> {
-        self.font.glyph_name(glyph)
+        // Looking up one name walks the `post` strings or `CFF` charset
+        // ranges in front of it, so read them all in one pass the first
+        // time a name is asked for.
+        let cached = self.glyph_names.and_then(|names| {
+            names
+                .get_or_init(|| {
+                    self.font
+                        .glyph_names()
+                        .take(MAX_CACHED_GLYPH_NAMES)
+                        .map(|(_, name)| name)
+                        .collect()
+                })
+                .get(glyph.to_u32() as usize)
+        });
+        cached.cloned().or_else(|| self.font.glyph_name(glyph))
     }
 
     /// Maps a character through the configured callbacks.
@@ -590,11 +607,19 @@ impl Advances<'_> {
 
 pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
 
+/// Glyph names in glyph order, filled on the first name lookup.
+pub(crate) type GlyphNameCache = Once<Box<[GlyphName]>>;
+
+/// Neither `post` nor a `CFF` charset can name more glyphs than this, so
+/// later glyphs are looked up directly: they only get a synthesized name.
+const MAX_CACHED_GLYPH_NAMES: usize = 0x10000;
+
 /// Font-wide layout data shared by shapers at different variation positions.
 pub(crate) struct LayoutCache {
     pub ot: OtCache,
     pub aat: AatCache,
     pub cmap: CharmapCache,
+    pub glyph_names: GlyphNameCache,
     /// True if the font has both `trak` and `STAT` tables.
     pub apply_trak: bool,
 }
@@ -610,6 +635,7 @@ impl LayoutCache {
             ot,
             aat,
             cmap: CharmapCache::new(),
+            glyph_names: Once::new(),
             apply_trak,
         }
     }
@@ -785,6 +811,30 @@ mod tests {
 
         let _ = shaper.default_glyph_h_advance(GlyphId::new(1));
         assert_eq!(hmtx_loads.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn cached_glyph_names_match_direct_lookups() {
+        // Names from `post`, from `CFF`, and synthesized.
+        for data in [
+            &include_bytes!("../benches/fonts/NotoSansDevanagari-Regular.ttf")[..],
+            &include_bytes!("../tests/fonts/in-house/FallbackPlus-Javanese-no-GDEF.otf")[..],
+            &include_bytes!("../benches/fonts/Roboto-Regular.ttf")[..],
+        ] {
+            let font = Font::new(data.to_vec(), 0).unwrap();
+            let shaper = ShaperFont::new(&font);
+            // One past the last glyph has no name either way.
+            for glyph in 0..=font.num_glyphs() {
+                let glyph = GlyphId::new(glyph);
+                let cached = shaper.glyph_name(glyph);
+                let direct = font.glyph_name(glyph);
+                assert_eq!(cached.as_deref(), direct.as_deref());
+                assert_eq!(
+                    cached.map(|name| name.source()),
+                    direct.map(|name| name.source())
+                );
+            }
+        }
     }
 
     #[test]
