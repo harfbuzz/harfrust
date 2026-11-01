@@ -714,6 +714,32 @@ fn cursive_pos2_resolves_large_and_nullable_anchor_offsets() {
 }
 
 #[test]
+fn cursive_pos_leaves_glyph_unattached_when_reversed_chain_overflows() {
+    let subtable = [
+        0, 1, 0, 14, 0, 2, // Header and two records.
+        0, 0, 0, 22, // First glyph's exit anchor.
+        0, 28, 0, 0, // Second glyph's entry anchor.
+        0, 1, 0, 2, 0, 1, 0, 2, // Coverage.
+        0, 1, 0, 100, 0, 50, // Exit anchor.
+        0, 1, 0, 20, 0, 10, // Entry anchor.
+    ];
+    // Left to right the child follows its parent across the skipped marks.
+    // A chain of -32768 fits the field but its reverse doesn't.
+    for (marks, chain) in [(32766, -32767), (32767, 0)] {
+        let mut glyphs = vec![3; marks + 2];
+        glyphs[0] = 1;
+        glyphs[marks + 1] = 2;
+        let output = apply_subtable_configured(3, false, &subtable, &glyphs, |ctx| {
+            ctx.lookup_props |= u32::from(lookup_flags::IGNORE_MARKS);
+            for info in &mut ctx.buffer.glyph_infos_mut()[1..=marks] {
+                info.set_glyph_props(GlyphPropsFlags::MARK.bits());
+            }
+        });
+        assert_eq!(output.glyph_positions()[marks + 1].attach_chain(), chain);
+    }
+}
+
+#[test]
 fn pair_class_indices_cannot_alias_another_matrix_row() {
     for class in [2, 65536] {
         let mut subtable = vec![

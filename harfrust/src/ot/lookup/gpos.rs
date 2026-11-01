@@ -1029,8 +1029,9 @@ impl<'a> CursivePos1<'a> {
         let chain = parent as isize - child as isize;
         child_pos.set_attach_chain(chain as i16);
         // A distance that doesn't fit the chain field leaves the glyph
-        // unattached, as in HarfBuzz.
-        if isize::from(child_pos.attach_chain()) != chain {
+        // unattached, as in HarfBuzz. So does -32768, whose reverse doesn't
+        // fit: the chain is negated below and again when it is reversed.
+        if isize::from(child_pos.attach_chain()) != chain || chain == isize::from(i16::MIN) {
             child_pos.set_attach_chain(0);
         }
         if direction.is_horizontal() {
