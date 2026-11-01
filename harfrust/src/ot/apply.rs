@@ -436,6 +436,12 @@ where
         while self.buf_idx < stop {
             self.buf_idx += 1;
 
+            // Every glyph visited is charged: a lookup can start at each glyph
+            // of a run it then skips, which would rescan the run every time.
+            if !self.buffer.charge_ops(1) {
+                break;
+            }
+
             match self.match_at(self.buf_idx) {
                 MatchResult::Match => {
                     self.advance_glyph_data();
@@ -462,13 +468,17 @@ where
     #[inline]
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
         let stop: usize = 0;
-        let out_info = self.buffer.out_info_mut();
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
 
+            // Charged as in `next()`.
+            if !self.buffer.charge_ops(1) {
+                break;
+            }
+
             // A position outside the output ends the search.
-            let result = match out_info.get_mut(self.buf_idx) {
+            let result = match self.buffer.out_info_mut().get_mut(self.buf_idx) {
                 Some(info) => match_info(
                     self.matcher,
                     info,

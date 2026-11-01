@@ -308,3 +308,35 @@ fn kerx_process_direction_ltr_kerning() {
         "[b=0@30,0+645|a=1+561]"
     );
 }
+
+/// A lookup that covers a default-ignorable glyph starts on every glyph of an
+/// ignorable run, and each start scans to the end of the run because the
+/// skipping iterator steps over those same ignorables. That is quadratic in
+/// the run, and the skipped glyphs must be charged to the shaping budget.
+///
+/// The test font maps `A` to glyph 1 and both `B` and U+200B to glyph 2, and
+/// lists one PairPos lookup (glyph 2 before glyph 1) 32 times under `kern`.
+/// With `B` the scans are one step each and the text shapes within budget;
+/// with U+200B the same glyph string needs 16 million steps, so the work
+/// limit has to trip.
+#[test]
+fn rescanning_default_ignorables_is_charged_to_the_shaping_budget() {
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/pairpos1-ignorable-rescan.ttf");
+    let font_data = fs::read(path).expect("failed to read test font");
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaping_font = ShaperFont::new(&instance);
+
+    for (filler, within_budget) in [('B', true), ('\u{200B}', false)] {
+        let mut text = String::from("A");
+        text.extend(std::iter::repeat_n(filler, 999));
+
+        let mut buffer = Buffer::new();
+        buffer.push_str(&text);
+        buffer.guess_segment_properties();
+
+        shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+        assert_eq!(buffer.allocation_successful(), within_budget);
+    }
+}
