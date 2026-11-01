@@ -70,12 +70,17 @@ impl AatMapBuilder {
                 return Some(());
             }
 
+            // AAT selectors are 16-bit; no chain can match a larger value.
+            let Ok(setting) = u16::try_from(feature.value) else {
+                return Some(());
+            };
+
             self.features.push(FeatureRange {
                 start: feature.start,
                 end: feature.end,
                 info: FeatureInfo {
                     kind: FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16,
-                    setting: u16::try_from(feature.value).unwrap(),
+                    setting: setting,
                     is_exclusive: true,
                 },
             });
