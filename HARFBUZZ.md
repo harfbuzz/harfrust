@@ -37,6 +37,16 @@ $ ninja -C build
 ```
 
 
+## CoreText compatibility for AAT kerning
+
+Format 1 `kerx` follows native CoreText's measured circular history behavior.
+Apple's written rules describe destructive stack pops, but CoreText retains
+eight history slots and revisits them for each action list. The reset flag
+is ignored. The compatibility change and
+native measurements are documented in
+[HarfBuzz #6540](https://github.com/harfbuzz/harfbuzz/pull/6540).
+Legacy `kern` keeps its existing behavior.
+
 ## Running HarfBuzz's Shaping Tests
 
 This one is easy: we override the default shaper via an environment
