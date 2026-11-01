@@ -711,6 +711,29 @@ impl<'a> LayoutTable<'a> {
         self.langsys(script_index, lang_index)?
             .feature_index_for_tag(&self.feature_list()?, feature_tag)
     }
+
+    /// Returns the index and tag of each feature underneath the specified
+    /// script and language, in the order [`Self::find_language_feature`]
+    /// searches them. Indices beyond the feature list are skipped, as the
+    /// search skips them.
+    pub(crate) fn language_features(
+        &self,
+        script_index: u16,
+        lang_index: Option<u16>,
+    ) -> impl Iterator<Item = (u16, Tag)> + 'a {
+        let indices = self
+            .langsys(script_index, lang_index)
+            .map(|sys| sys.feature_indices())
+            .unwrap_or_default();
+        let records = self
+            .feature_list()
+            .map(|list| list.feature_records())
+            .unwrap_or_default();
+        indices.iter().filter_map(move |index| {
+            let index = index.get();
+            Some((index, records.get(usize::from(index))?.feature_tag()))
+        })
+    }
 }
 
 use crate::algs::HB_CODEPOINT_ENCODE3 as encode3;

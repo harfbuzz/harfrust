@@ -405,7 +405,11 @@ impl<'a> OtMapBuilder<'a> {
         // Sort features and merge duplicates.
         self.dedup_feature_infos();
 
-        for info in &self.feature_infos {
+        let language_feature_indices = self.find_language_features();
+
+        for (info, language_feature_index) in
+            self.feature_infos.iter().zip(language_feature_indices)
+        {
             let bits_needed = if info.flags & F_GLOBAL != 0 && info.max_value == 1 {
                 // Uses the global bit.
                 0
@@ -424,17 +428,14 @@ impl<'a> OtMapBuilder<'a> {
             let mut found = false;
             let mut feature_index = [None; 2];
 
-            for (table_index, table) in self.layout.ot.layout_tables() {
+            for (table_index, _) in self.layout.ot.layout_tables() {
                 if required_tag[table_index] == Some(info.tag) {
                     required_stage[table_index] = info.stage[table_index];
                 }
 
-                if let Some(script) = self.script_index[table_index] {
-                    let lang = self.lang_index[table_index];
-                    if let Some(idx) = table.find_language_feature(script, lang, info.tag) {
-                        feature_index[table_index] = Some(idx);
-                        found = true;
-                    }
+                if let Some(idx) = language_feature_index[table_index] {
+                    feature_index[table_index] = Some(idx);
+                    found = true;
                 }
             }
 
@@ -483,6 +484,42 @@ impl<'a> OtMapBuilder<'a> {
         }
 
         (map_features, required_stage, global_mask)
+    }
+
+    /// Finds every feature info in the chosen language system of each table,
+    /// as [`LayoutTable::find_language_feature`] would one by one.
+    ///
+    /// A language system can list 65535 feature indices and the caller can
+    /// request any number of features, so rather than searching the list
+    /// once per feature, this walks it once per table and looks each listed
+    /// tag up among the requested ones.
+    ///
+    /// [`LayoutTable::find_language_feature`]: super::LayoutTable::find_language_feature
+    fn find_language_features(&self) -> Vec<[Option<u16>; 2]> {
+        // The infos are only sorted by tag when `is_simple` is unset.
+        let mut tags: Vec<(Tag, usize)> = self
+            .feature_infos
+            .iter()
+            .enumerate()
+            .map(|(i, info)| (info.tag, i))
+            .collect();
+        crate::algs::sort_unstable_by(&mut tags, Ord::cmp);
+
+        let mut indices = alloc::vec![[None; 2]; self.feature_infos.len()];
+        for (table_index, table) in self.layout.ot.layout_tables() {
+            let Some(script) = self.script_index[table_index] else {
+                continue;
+            };
+            let lang = self.lang_index[table_index];
+            for (idx, tag) in table.language_features(script, lang) {
+                let start = tags.partition_point(|&(t, _)| t < tag);
+                for &(_, i) in tags[start..].iter().take_while(|&&(t, _)| t == tag) {
+                    // Like the search, keep the first index listed with the tag.
+                    indices[i][table_index].get_or_insert(idx);
+                }
+            }
+        }
+        indices
     }
 
     fn dedup_feature_infos(&mut self) {
@@ -690,5 +727,83 @@ impl<'a> OtMapBuilder<'a> {
         }
 
         Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Direction, Feature, Font, ShapePlan, Tag};
+    use alloc::{sync::Arc, vec::Vec};
+    use read_fonts::model::{Blob, TableFunction};
+
+    use super::LayoutTableKind;
+
+    fn u16s(values: &[u16]) -> Vec<u8> {
+        values
+            .iter()
+            .flat_map(|value| value.to_be_bytes())
+            .collect()
+    }
+
+    /// A GSUB whose DFLT script lists `indices` of `features` in its default
+    /// language system, with no lookups.
+    fn gsub(features: &[&[u8; 4]], indices: &[u16]) -> Vec<u8> {
+        let feature_list = 10 + 8 + 4 + 6 + 2 * indices.len();
+        let lookup_list = feature_list + 2 + 6 * features.len() + 4 * features.len();
+        let mut bytes = u16s(&[1, 0, 10, feature_list as u16, lookup_list as u16]);
+        // DFLT script, with a default language system and no others.
+        bytes.extend_from_slice(&u16s(&[1, 0x4446, 0x4C54, 8, 4, 0]));
+        bytes.extend_from_slice(&u16s(&[0, 0xFFFF, indices.len() as u16]));
+        bytes.extend_from_slice(&u16s(indices));
+        assert_eq!(bytes.len(), feature_list);
+        bytes.extend_from_slice(&u16s(&[features.len() as u16]));
+        for (index, tag) in features.iter().enumerate() {
+            let offset = 2 + 6 * features.len() + 4 * index;
+            bytes.extend_from_slice(tag.as_slice());
+            bytes.extend_from_slice(&u16s(&[offset as u16]));
+        }
+        for _ in features {
+            bytes.extend_from_slice(&u16s(&[0, 0]));
+        }
+        assert_eq!(bytes.len(), lookup_list);
+        bytes.extend_from_slice(&u16s(&[0]));
+        bytes
+    }
+
+    fn font(gsub: Vec<u8>) -> Font {
+        let tables = TableFunction::new(Arc::new(move |tag| {
+            (tag == Tag::new(b"GSUB")).then(|| Blob::from(gsub.clone()))
+        }));
+        Font::new(tables, 0).unwrap()
+    }
+
+    /// The GSUB feature index a plan for `font` resolves `tag` to.
+    fn feature_index(font: &Font, user_features: &[Feature], tag: &[u8; 4]) -> Option<u16> {
+        let plan = ShapePlan::new(font, Direction::LeftToRight, None, None, user_features);
+        plan.ot_map
+            .get_feature_index(LayoutTableKind::Gsub, Tag::new(tag))
+    }
+
+    #[test]
+    fn language_features_resolve_like_a_search_of_the_language_system() {
+        // Index 9 is beyond the feature list, `calt` is not listed, and the
+        // `liga` listed first is not the lower index.
+        let font = font(gsub(
+            &[b"liga", b"liga", b"ss01", b"kern", b"calt"],
+            &[9, 2, 1, 0, 3],
+        ));
+        let ss01 = [Feature::new(Tag::new(b"ss01"), 1, ..)];
+        assert_eq!(feature_index(&font, &[], b"liga"), Some(1));
+        assert_eq!(feature_index(&font, &[], b"kern"), Some(3));
+        assert_eq!(feature_index(&font, &[], b"calt"), None);
+        assert_eq!(feature_index(&font, &[], b"ss01"), None);
+        assert_eq!(feature_index(&font, &ss01, b"ss01"), Some(2));
+        assert_eq!(feature_index(&font, &ss01, b"liga"), Some(1));
+    }
+
+    #[test]
+    fn empty_language_system_finds_no_features() {
+        let font = font(gsub(&[b"liga"], &[]));
+        assert_eq!(feature_index(&font, &[], b"liga"), None);
     }
 }
