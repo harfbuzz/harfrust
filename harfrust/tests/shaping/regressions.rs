@@ -369,3 +369,116 @@ fn ligature_base_walk_is_charged_to_the_operation_budget() {
     shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
     assert!(!buffer.allocation_successful());
 }
+
+/// A GSUB table whose `liga` feature expands glyph 0 into 255 copies of
+/// itself twice, then lists `aliased` lookups that all point at one lookup
+/// of `subtables` SingleSubst subtables covering glyphs 1 and 64 in turn.
+/// The union of those digests admits glyph 0, so the lookup is walked at
+/// every glyph of the buffer although no subtable can apply.
+fn gsub_with_no_op_lookups(aliased: u16, subtables: u16) -> Vec<u8> {
+    fn be16(bytes: &mut Vec<u8>, values: impl IntoIterator<Item = u16>) {
+        for value in values {
+            bytes.extend_from_slice(&value.to_be_bytes());
+        }
+    }
+
+    // SingleSubstFormat1 with a one-glyph coverage at 6 and delta 1.
+    fn single_subst_covering(glyph: u16) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        be16(&mut bytes, [1, 6, 1, 1, 1, glyph]);
+        bytes
+    }
+
+    let covers_1 = single_subst_covering(1);
+    let covers_64 = single_subst_covering(64);
+    let subtable_size = covers_1.len() as u16;
+    let header_size = 6 + 2 * subtables;
+    let mut no_op_lookup = Vec::new();
+    be16(&mut no_op_lookup, [1, 0, subtables]);
+    be16(
+        &mut no_op_lookup,
+        (0..subtables).map(|i| header_size + (i % 2) * subtable_size),
+    );
+    no_op_lookup.extend_from_slice(&covers_1);
+    no_op_lookup.extend_from_slice(&covers_64);
+
+    // MultipleSubstFormat1 with a one-glyph coverage at 8 and one sequence
+    // at 14, as the only subtable of a lookup.
+    let mut expand_lookup = Vec::new();
+    be16(&mut expand_lookup, [2, 0, 1, 8, 1, 8, 1, 14, 1, 1, 0, 255]);
+    be16(&mut expand_lookup, std::iter::repeat_n(0, 255));
+
+    // Lookups 0 and 1 expand; the rest alias the no-op lookup.
+    let lookup_count = 2 + aliased;
+    let no_op_offset = 2 + 2 * lookup_count;
+    let expand_offset = no_op_offset + no_op_lookup.len() as u16;
+    let mut lookup_list = Vec::new();
+    be16(
+        &mut lookup_list,
+        [lookup_count, expand_offset, expand_offset],
+    );
+    be16(
+        &mut lookup_list,
+        std::iter::repeat_n(no_op_offset, usize::from(aliased)),
+    );
+    lookup_list.extend_from_slice(&no_op_lookup);
+    lookup_list.extend_from_slice(&expand_lookup);
+
+    let mut feature_list = Vec::new();
+    be16(&mut feature_list, [1]);
+    feature_list.extend_from_slice(b"liga");
+    be16(&mut feature_list, [8, 0, lookup_count]);
+    be16(&mut feature_list, 0..lookup_count);
+
+    let mut script_list = Vec::new();
+    be16(&mut script_list, [1]);
+    script_list.extend_from_slice(b"DFLT");
+    be16(&mut script_list, [8, 4, 0, 0, 0xFFFF, 1, 0]);
+
+    let feature_list_offset = 10 + script_list.len() as u16;
+    let lookup_list_offset = feature_list_offset + feature_list.len() as u16;
+    let mut gsub = Vec::new();
+    be16(
+        &mut gsub,
+        [1, 0, 10, feature_list_offset, lookup_list_offset],
+    );
+    gsub.extend_from_slice(&script_list);
+    gsub.extend_from_slice(&feature_list);
+    gsub.extend_from_slice(&lookup_list);
+    gsub
+}
+
+/// Shapes "a", which maps to glyph 0, with a font of `gsub` alone.
+fn shape_with_gsub(gsub: Vec<u8>) -> Buffer {
+    use harfrust::font::{Blob, TableFunction};
+    use std::sync::Arc;
+
+    let gsub = Blob::from(gsub);
+    let table = TableFunction::new(Arc::new(move |tag| {
+        (tag == harfrust::Tag::new(b"GSUB")).then(|| gsub.clone())
+    }));
+    let font = Font::new(table, 0).expect("failed to build test font");
+    let shaper = ShaperFont::new(&font);
+
+    let mut buffer = Buffer::new();
+    buffer.push_str("a");
+    buffer.guess_segment_properties();
+    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+    buffer
+}
+
+/// A walk over a lookup's subtables that applies nothing is charged to the
+/// operation limit, so a feature listing such a lookup many times cannot
+/// make shaping take time that the limit never sees.
+#[test]
+fn lookup_walks_that_apply_nothing_are_charged_to_the_operation_limit() {
+    // Two expansions of one character make 65025 glyphs under an operation
+    // limit of 65536, and each no-op lookup is walked at all of them.
+    let buffer = shape_with_gsub(gsub_with_no_op_lookups(8, 63));
+    assert!(!buffer.allocation_successful());
+
+    // Without the no-op lookups the expansions alone stay within the limit.
+    let buffer = shape_with_gsub(gsub_with_no_op_lookups(0, 63));
+    assert!(buffer.allocation_successful());
+    assert_eq!(buffer.len(), 65025);
+}

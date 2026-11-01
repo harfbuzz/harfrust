@@ -159,8 +159,16 @@ impl CachedLookup<'_> {
         &self.digest_second
     }
 
+    /// Applies the lookup at the current glyph, charging the walk to the
+    /// buffer's operation limit. The lookup's digest is the union of its
+    /// subtables', so it admits glyphs none of them covers, and a walk that
+    /// applies nothing is charged nowhere else. A long subtable list pays
+    /// for its length too, as the walk tests every subtable.
     #[inline]
     pub(crate) fn apply(&self, ctx: &mut ApplyContext, use_hot_subtable_cache: bool) -> Option<()> {
+        if !ctx.buffer.charge_ops(1 + self.subtables.len() / 64) {
+            return None;
+        }
         (self.walk)(self, ctx, use_hot_subtable_cache)
     }
 

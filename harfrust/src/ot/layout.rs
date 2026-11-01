@@ -233,6 +233,12 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) -
         return false;
     }
 
+    // The pass scans the buffer for glyphs to start at, even if the lookup's
+    // flags make it skip them all, and a font can list a lookup many times.
+    if !ctx.buffer.charge_ops(ctx.buffer.len) {
+        return false;
+    }
+
     let ret;
     ctx.lookup_props = lookup.props();
     ctx.update_matchers();
@@ -329,7 +335,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let lookup_mask = ctx.lookup_mask();
     let lookup_props = ctx.lookup_props;
 
-    loop {
+    while ctx.buffer.successful {
         let candidate = ctx
             .buffer
             .info
