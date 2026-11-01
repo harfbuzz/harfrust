@@ -399,7 +399,8 @@ where
 {
     let mut classes = U32Set::default();
 
-    for i in 0..machine.n_classes() {
+    // Classes are u16 values, so columns past 0x10000 are unreachable.
+    for i in 0..machine.n_classes().min(1 << 16) {
         if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
             if entry.new_state == START_OF_TEXT
                 && !Ctx::is_action_initiable(&entry)
@@ -1610,6 +1611,37 @@ impl<'a> MorphSubtableCache<'a> {
             glyph_set,
             class_cache: ClassCache::new(),
             kind: kind.map(MorphSubtableKind::Mort),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{FontData, FontRead};
+
+    #[test]
+    fn collect_initial_glyphs_bounds_extended_classes() {
+        #[rustfmt::skip]
+        let mut data = vec![
+            0, 0, 0, 0, // nClasses, set below
+            0, 0, 0, 16, // class table offset
+            0, 0, 0, 32, // state array offset
+            0, 0, 0, 24, // entry table offset
+            0, 8, 0, 1, 0, 1, 0xFF, 0xFF, // lookup format 8: glyph 1 -> class 65535
+            0, 0, 0, 0, // entry 0: no action
+            0, 0, 0x80, 0, // entry 1: mark first
+        ];
+        // Only the highest reachable class uses entry 1.
+        data.resize(32 + (1 << 16) * 2, 0);
+        *data.last_mut().unwrap() = 1;
+
+        for n_classes in [1u32 << 16, u32::MAX] {
+            data[..4].copy_from_slice(&n_classes.to_be_bytes());
+            let machine = ExtendedStateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+            let mut glyphs = U32Set::default();
+            collect_initial_glyphs::<_, _, RearrangementCtx>(&machine, &mut glyphs, 2);
+            assert_eq!(glyphs.iter().collect::<Vec<_>>(), [1]);
         }
     }
 }
