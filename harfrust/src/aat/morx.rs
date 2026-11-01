@@ -79,9 +79,23 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
         let Some(ltag) = aat.ltag.as_ref() else {
             return false;
         };
+        // Index the record array directly, as harfbuzz does. `Ltag::tag_indices`
+        // slices and validates every preceding string, and this runs once per
+        // language-tag feature entry of every chain.
+        let Some(range) = ltag.tag_ranges().get(usize::from(index)) else {
+            return false;
+        };
+        // A tag longer than the requested language cannot be a prefix of it.
+        let len = usize::from(range.length());
+        if len > requested.as_bytes().len() {
+            return false;
+        }
+        let start = usize::from(range.offset());
         let Some(tag) = ltag
-            .tag_indices()
-            .find_map(|(tag_index, tag)| (tag_index == u32::from(index)).then_some(tag))
+            .offset_data()
+            .as_bytes()
+            .get(start..start + len)
+            .and_then(|bytes| core::str::from_utf8(bytes).ok())
         else {
             return false;
         };

@@ -198,6 +198,37 @@ fn thai_sara_am_after_two_above_base_marks() {
     );
 }
 
+/// A `morx` language-tag feature entry names an `ltag` record by index. The
+/// record is read directly rather than by walking every earlier record: a font
+/// with thousands of aliased 64 KB strings and thousands of entries made that
+/// walk cost seconds per shape plan. The test font's `ltag` holds `fr`, `en`
+/// and `zh-Hant`; four entries select records 1 to 4 (the last is out of range)
+/// and each substitutes `a` with a different glyph.
+#[test]
+fn morx_language_tag_selects_ltag_record_by_index() {
+    for (language, expected) in [
+        ("", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=fr", "[gid4=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=en", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=en-US", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=EN_us", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=e", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=eng", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        (
+            "--language=zh-Hant-TW",
+            "[gid6=0+600|gid2=1+600|gid3=2+600]",
+        ),
+        ("--language=zh", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=de", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+    ] {
+        assert_eq!(
+            crate::shape("tests/fonts/morx-language-tag.ttf", "abc", language),
+            expected,
+            "{language}"
+        );
+    }
+}
+
 #[test]
 fn tatweel_flag_production_cleans_singleton_cluster_flags() {
     assert_eq!(
