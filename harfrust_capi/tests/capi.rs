@@ -4496,3 +4496,48 @@ fn a_name_is_looked_up_without_asking_every_claimed_glyph_for_its_own() {
         hr_blob_destroy(blob);
     }
 }
+
+/// A `cmap` table whose one Windows UCS-4 subtable is format 13 with
+/// `groups`, each mapping an inclusive character range to one glyph.
+fn format13_cmap(groups: &[(u32, u32, u32)]) -> Vec<u8> {
+    let mut data = vec![0, 0, 0, 1, 0, 3, 0, 10, 0, 0, 0, 12];
+    data.extend(13u16.to_be_bytes());
+    data.extend(0u16.to_be_bytes());
+    data.extend((16 + 12 * groups.len() as u32).to_be_bytes());
+    data.extend(0u32.to_be_bytes());
+    data.extend((groups.len() as u32).to_be_bytes());
+    for (first, last, glyph) in groups {
+        data.extend(first.to_be_bytes());
+        data.extend(last.to_be_bytes());
+        data.extend(glyph.to_be_bytes());
+    }
+    data
+}
+
+#[test]
+fn unicode_collection_steps_over_overlapping_format13_groups() {
+    // Overlapping groups are counted once, and a group that repeats all of
+    // Unicode costs nothing after the first.
+    let partial = [(0x41, 0x5A, 1), (0x50, 0x7A, 1), (0x61, 0x6A, 1)];
+    let partial = sfnt(&[
+        (b"cmap", format13_cmap(&partial)),
+        (b"maxp", maxp(2, false)),
+    ]);
+    let full = [(0, 0x0010_FFFF, 1); 1000];
+    let full = sfnt(&[
+        (b"cmap", format13_cmap(&full)),
+        (b"maxp", maxp(2, false)),
+    ]);
+    for (data, population) in [(partial, 0x7A - 0x41 + 1), (full, 0x0011_0000)] {
+        unsafe {
+            let blob = blob_over(&data);
+            let face = hr_face_create(blob, 0);
+            let set = hr_set_create();
+            hr_face_collect_unicodes(face, set);
+            assert_eq!(hr_set_get_population(set), population);
+            hr_set_destroy(set);
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
+    }
+}

@@ -612,12 +612,28 @@ pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mu
     // directly, both to bound malformed glyph IDs and to avoid iterating
     // over a million characters in a last-resort font.
     if let CmapSubtable::Format13(table) = subtable {
-        for group in table.groups() {
-            let first = group.start_char_code();
-            let last = group.end_char_code().min(0x0010_FFFF);
-            let glyph = group.glyph_id();
-            if first <= last && glyph != 0 && glyph < font.num_glyphs() {
+        // Groups are meant to be sorted and disjoint, but nothing enforces
+        // that. Sort the accepted ranges and insert only what the earlier
+        // ones did not already cover, so that a malformed table whose groups
+        // overlap cannot insert the same range once per group.
+        let mut ranges: Vec<(u32, u32)> = table
+            .groups()
+            .iter()
+            .filter_map(|group| {
+                let first = group.start_char_code();
+                let last = group.end_char_code().min(0x0010_FFFF);
+                let glyph = group.glyph_id();
+                (first <= last && glyph != 0 && glyph < font.num_glyphs())
+                    .then_some((first, last))
+            })
+            .collect();
+        ranges.sort_unstable();
+        let mut next = 0;
+        for (first, last) in ranges {
+            let first = first.max(next);
+            if first <= last {
                 out.values.insert_range(first..=last);
+                next = last + 1;
             }
         }
     } else {
