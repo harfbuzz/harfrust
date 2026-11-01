@@ -4312,6 +4312,168 @@ fn extended_lookup_fallback_covers_glyphs_beyond_64k() {
     }
 }
 
+/// Collects lookup 0 of a `GSUB` or `GPOS` table in a font with three
+/// glyphs and returns the populations of the before, input, after and
+/// output sets.
+fn collect_lookup_0(tag: &[u8; 4], table: Vec<u8>) -> [u32; 4] {
+    let data = sfnt(&[(tag, table), (b"maxp", maxp(3, false))]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let sets = [
+            hr_set_create(),
+            hr_set_create(),
+            hr_set_create(),
+            hr_set_create(),
+        ];
+        hr_ot_layout_lookup_collect_glyphs(
+            face,
+            u32::from_be_bytes(*tag),
+            0,
+            sets[0],
+            sets[1],
+            sets[2],
+            sets[3],
+        );
+        let populations = sets.map(|set| hr_set_get_population(set));
+        for set in sets {
+            hr_set_destroy(set);
+        }
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+        populations
+    }
+}
+
+/// A GSUB table whose one ligature lookup has `n` subtable offsets, `n`
+/// ligature set offsets and `n` ligature offsets, each array naming one
+/// shared table, and a ligature of `n` components.
+fn aliased_ligature_gsub(n: u16) -> Vec<u8> {
+    let offsets = |offset: u16| (0..n).flat_map(move |_| offset.to_be_bytes());
+    let mut data = vec![0, 1, 0, 0, 0, 10, 0, 12, 0, 14]; // header
+    data.extend([0, 0, 0, 0]); // no scripts, no features
+    data.extend([0, 1, 0, 4]); // one lookup
+    data.extend([0, 4, 0, 0]); // ligature substitution
+    data.extend(n.to_be_bytes());
+    data.extend(offsets(6 + 2 * n)); // subtables
+    data.extend([0, 1]); // format 1
+    data.extend((6 + 2 * n).to_be_bytes()); // coverage
+    data.extend(n.to_be_bytes());
+    data.extend(offsets(6 + 2 * n + 6)); // ligature sets
+    data.extend([0, 1, 0, 1, 0, 1]); // coverage format 1: glyph 1
+    data.extend(n.to_be_bytes());
+    data.extend(offsets(2 + 2 * n)); // ligatures
+    data.extend([0, 2]); // ligature glyph
+    data.extend((n + 1).to_be_bytes());
+    data.extend(offsets(1)); // components
+    data
+}
+
+/// A GPOS table whose one pair positioning lookup has `n` subtable offsets
+/// and `n` pair set offsets, each array naming one shared table, and a pair
+/// set of `n` records.
+fn aliased_pair_pos_gpos(n: u16) -> Vec<u8> {
+    let offsets = |offset: u16| (0..n).flat_map(move |_| offset.to_be_bytes());
+    let mut data = vec![0, 1, 0, 0, 0, 10, 0, 12, 0, 14]; // header
+    data.extend([0, 0, 0, 0]); // no scripts, no features
+    data.extend([0, 1, 0, 4]); // one lookup
+    data.extend([0, 2, 0, 0]); // pair positioning
+    data.extend(n.to_be_bytes());
+    data.extend(offsets(6 + 2 * n)); // subtables
+    data.extend([0, 1]); // format 1
+    data.extend((10 + 2 * n).to_be_bytes()); // coverage
+    data.extend([0, 0, 0, 0]); // no values
+    data.extend(n.to_be_bytes());
+    data.extend(offsets(10 + 2 * n + 6)); // pair sets
+    data.extend([0, 1, 0, 1, 0, 1]); // coverage format 1: glyph 1
+    data.extend(n.to_be_bytes());
+    data.extend(offsets(2)); // second glyphs
+    data
+}
+
+#[test]
+fn aliased_offsets_fall_back_to_all_glyphs() {
+    assert_eq!(
+        collect_lookup_0(b"GSUB", aliased_ligature_gsub(1)),
+        [0, 1, 0, 1]
+    );
+    // Followed to the end, these 1.6 KB would be 200^4 components.
+    assert_eq!(
+        collect_lookup_0(b"GSUB", aliased_ligature_gsub(200)),
+        [3, 3, 3, 3]
+    );
+    assert_eq!(
+        collect_lookup_0(b"GPOS", aliased_pair_pos_gpos(1)),
+        [0, 2, 0, 0]
+    );
+    // Followed to the end, these 1.8 KB would be 300^3 pair records.
+    assert_eq!(
+        collect_lookup_0(b"GPOS", aliased_pair_pos_gpos(300)),
+        [3, 3, 3, 3]
+    );
+}
+
+#[test]
+fn repeated_collections_share_one_allowance() {
+    // One call follows about 30^4 components, within an allowance of 4M steps,
+    // but a lookup list may name the same lookup over and over.
+    let data = sfnt(&[
+        (b"GSUB", aliased_ligature_gsub(30)),
+        (b"maxp", maxp(3, false)),
+    ]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let mut populations = vec![];
+        for _ in 0..50 {
+            let set = hr_set_create();
+            hr_ot_layout_lookup_collect_glyphs(face, 0x4753_5542, 0, set, set, set, set);
+            populations.push(hr_set_get_population(set));
+            hr_set_destroy(set);
+        }
+        assert_eq!(populations[0], 2);
+        assert_eq!(populations[49], 3);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+/// A GSUB table where each of lookups 0 to 6 is a contextual lookup with
+/// `n` records that all apply the next lookup, and lookup 7 maps glyph 1
+/// to glyph 2.
+fn repeatedly_nested_gsub(n: u16) -> Vec<u8> {
+    let mut data = vec![0, 1, 0, 0, 0, 10, 0, 12, 0, 14]; // header
+    data.extend([0, 0, 0, 0]); // no scripts, no features
+    data.extend([0, 8]);
+    let contextual_len = 22 + 4 * n;
+    for index in 0..8 {
+        data.extend((18 + index * contextual_len).to_be_bytes());
+    }
+    for index in 1..8 {
+        data.extend([0, 5, 0, 0, 0, 1, 0, 8]); // contextual, one subtable
+        data.extend([0, 3, 0, 1]); // format 3, one input glyph
+        data.extend(n.to_be_bytes());
+        data.extend((8 + 4 * n).to_be_bytes()); // coverage
+        for _ in 0..n {
+            data.extend([0, 0, 0, index]);
+        }
+        data.extend([0, 1, 0, 1, 0, 1]); // coverage format 1: glyph 1
+    }
+    data.extend([0, 1, 0, 0, 0, 1, 0, 8]); // single substitution, one subtable
+    data.extend([0, 1, 0, 6, 0, 1]); // format 1, coverage, delta 1
+    data.extend([0, 1, 0, 1, 0, 1]); // coverage format 1: glyph 1
+    data
+}
+
+#[test]
+fn repeatedly_nested_lookups_are_collected_without_fallback() {
+    // Followed along every path, lookup 7 would be collected 16^7 times.
+    assert_eq!(
+        collect_lookup_0(b"GSUB", repeatedly_nested_gsub(16)),
+        [0, 1, 0, 1]
+    );
+}
+
 #[test]
 fn glyph_count_prefers_extended_maxp() {
     let data = sfnt(&[(b"MAXP", maxp(65550, true)), (b"maxp", maxp(4, false))]);

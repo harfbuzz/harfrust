@@ -1,7 +1,7 @@
 //! Fonts as a set of tables, mirroring HarfBuzz's `hb-face.h`.
 
 use core::ffi::{c_uint, c_void};
-use core::sync::atomic::{AtomicPtr, Ordering};
+use core::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{Blob, Font, TableFunction};
@@ -137,6 +137,9 @@ pub struct hr_face_t {
     /// Shape plans built over this face, reused across `hr_shape` calls the way
     /// HarfBuzz's cached shape plans are.
     pub(crate) plans: PlanCache,
+    /// Steps `hr_ot_layout_lookup_collect_glyphs` has spent on this face's GSUB
+    /// and GPOS, so that the work across all its calls stays bounded.
+    pub(crate) collect_work: [AtomicUsize; 2],
     #[cfg(feature = "draw")]
     pub(crate) render_data: OnceLock<Option<Vec<u8>>>,
 }
@@ -179,6 +182,7 @@ impl Object for hr_face_t {
                     source: FaceSource::Empty,
                     table_tags: None,
                     plans: PlanCache::default(),
+                    collect_work: Default::default(),
                     #[cfg(feature = "draw")]
                     render_data: OnceLock::new(),
                 })
@@ -245,6 +249,7 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         source: FaceSource::Blob { blob: owned, index },
         table_tags: None,
         plans: PlanCache::default(),
+        collect_work: Default::default(),
         #[cfg(feature = "draw")]
         render_data: OnceLock::new(),
     })
@@ -298,6 +303,7 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
         source: FaceSource::Function(Arc::clone(&state)),
         table_tags: None,
         plans: PlanCache::default(),
+        collect_work: Default::default(),
         #[cfg(feature = "draw")]
         render_data: OnceLock::new(),
     });
