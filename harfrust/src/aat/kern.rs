@@ -1,5 +1,6 @@
 use crate::aat::layout::DELETED_GLYPH;
 use alloc::boxed::Box;
+use core::mem::size_of;
 use read_fonts::{
     tables::{
         aat,
@@ -9,7 +10,8 @@ use read_fonts::{
 };
 
 use crate::aat::common::{
-    set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, START_OF_TEXT,
+    set_digest, set_heap_bytes, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
+    START_OF_TEXT,
 };
 use crate::aat::kerx::SimpleKerning;
 use crate::buffer::*;
@@ -755,5 +757,15 @@ impl<'a> KernSubtableCache<'a> {
             subtable: subtable.clone(),
             kind,
         }
+    }
+
+    /// The bytes this entry keeps for the life of the font. Its glyph sets
+    /// and safe-to-break data can be far larger than the subtable.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        size_of::<Self>()
+            + size_of::<ClassCache>()
+            + set_heap_bytes(&self.first_set)
+            + set_heap_bytes(&self.second_set)
+            + self.safe_to_break.accel_bytes()
     }
 }

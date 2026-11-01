@@ -9,6 +9,7 @@ use crate::Mask;
 use crate::Scale;
 use crate::U32Set;
 use alloc::vec::Vec;
+use core::mem::size_of;
 use read_fonts::tables::aat::*;
 use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::FontData;
@@ -245,6 +246,22 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
 
 /// Tables with fewer subtables than this skip the buffer digest.
 const MIN_DIGESTED_SUBTABLES: usize = 4;
+
+/// The heap bytes that `set` keeps: a page of 512 bits with its length and
+/// page-map entry for every block of 512 glyph ids it has a member in. A
+/// lookup segment spanning the glyph space fills 128 pages from six bytes
+/// of font data, so this is charged to the table's preprocessing budget.
+pub(crate) fn set_heap_bytes(set: &U32Set) -> usize {
+    const PAGE_BYTES: usize = 80;
+    let mut pages = 0;
+    let mut last_page = None;
+    for range in set.iter_ranges() {
+        let (first, last) = (*range.start() / 512, *range.end() / 512);
+        pages += (last - first) as usize + usize::from(last_page != Some(first));
+        last_page = Some(last);
+    }
+    pages * PAGE_BYTES
+}
 
 /// A digest of the glyphs in `set`.
 pub(crate) fn set_digest(set: &U32Set) -> SetDigest {
@@ -490,6 +507,12 @@ impl SafeToBreakSubtable {
             eot_tail_start: eot_tail_start as u32,
             eot_tail_end: eot_tail_end as u32,
         }
+    }
+
+    /// The bytes of [`SafeToBreakAccel`] that this subtable's view covers.
+    pub(crate) fn accel_bytes(&self) -> usize {
+        (self.wouldbe_end - self.wouldbe_start) as usize * size_of::<u16>()
+            + (self.eot_tail_end - self.eot_tail_start) as usize * size_of::<u64>()
     }
 }
 
@@ -821,6 +844,19 @@ mod tests {
         assert!(last.wouldbe_matches(99, 9, false));
         assert!(!last.eot_safe_high(64));
         assert!(last.eot_safe_high(65));
+
+        assert_eq!(first_subtable.accel_bytes(), 4 * 2 + 8);
+        assert_eq!(empty_subtable.accel_bytes(), 0);
+    }
+
+    #[test]
+    fn set_heap_bytes_counts_each_page_once() {
+        let mut set = U32Set::default();
+        assert_eq!(set_heap_bytes(&set), 0);
+        set.extend_unsorted([1, 3, 511, 512, 2000]);
+        assert_eq!(set_heap_bytes(&set), 3 * 80);
+        set.insert_range(0..=0xFFFE);
+        assert_eq!(set_heap_bytes(&set), 128 * 80);
     }
 
     #[test]

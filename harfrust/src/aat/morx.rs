@@ -2,8 +2,8 @@ use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use super::AatData;
 use crate::aat::common::{
-    extended_class_count, set_digest, AatApplyContext, ClassCache, SafeToBreakAccel,
-    SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
+    extended_class_count, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
+    SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::set_digest::SetDigest;
@@ -11,6 +11,7 @@ use crate::tag::lang_matches;
 use crate::Language;
 use crate::U32Set;
 use alloc::{vec, vec::Vec};
+use core::mem::size_of;
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
@@ -1644,6 +1645,12 @@ impl<'a> MorphSubtableCache<'a> {
             class_cache: ClassCache::new(),
             kind: kind.map(MorphSubtableKind::Mort),
         }
+    }
+
+    /// The bytes this entry keeps for the life of the font. Its glyph set
+    /// and safe-to-break data can be far larger than the subtable.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        size_of::<Self>() + set_heap_bytes(&self.glyph_set) + self.safe_to_break.accel_bytes()
     }
 }
 

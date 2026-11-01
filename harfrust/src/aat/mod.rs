@@ -10,6 +10,7 @@ use crate::aat::common::SafeToBreakAccel;
 use crate::aat::kern::KernSubtableCache;
 use crate::aat::kerx::KerxSubtableCache;
 use crate::aat::morx::{MorphSubtableCache, MorphSubtableDescriptor};
+use crate::budget::Budget;
 use crate::once::Once;
 use crate::ot::OtCache;
 use alloc::boxed::Box;
@@ -33,6 +34,9 @@ pub struct AatCache {
     kern: Once<Box<Yoke<KernTableCache<'static>, Arc<Tables>>>>,
     kerx: Once<Box<Yoke<KerxTableCache<'static>, Arc<Tables>>>>,
     tables: Option<Yoke<CachedAatTables<'static>, Arc<Tables>>>,
+    /// The allowance shared by the accelerators above, as the layout
+    /// lookups share theirs.
+    budget: Budget,
 }
 
 impl AatCache {
@@ -43,6 +47,17 @@ impl AatCache {
             0
         };
         let gsub_len = ot_cache.gsub_len;
+        let bytes = tables.as_deref().map_or(0, |tables| {
+            [
+                tables.morx_data(),
+                tables.mort_data(),
+                tables.kern_data(),
+                tables.kerx_data(),
+            ]
+            .into_iter()
+            .flatten()
+            .fold(0usize, |bytes, data| bytes.saturating_add(data.len()))
+        });
         Self {
             morx: Once::new(),
             mort: Once::new(),
@@ -53,6 +68,7 @@ impl AatCache {
                     CachedAatTables::new(tables, gsub_len, active_gdef_len)
                 })
             }),
+            budget: Budget::for_table_bytes(bytes),
         }
     }
 }
@@ -116,7 +132,7 @@ pub(crate) struct MorphTableCache<'a> {
 }
 
 impl<'a> MorphTableCache<'a> {
-    fn new_morx(morx: &Morx<'a>, num_glyphs: u32) -> Self {
+    fn new_morx(morx: &Morx<'a>, num_glyphs: u32, budget: &Budget) -> Self {
         let mut cache = Self::default();
         for (chain_index, chain) in morx.chains().iter().enumerate() {
             let Ok(chain) = chain else {
@@ -128,6 +144,11 @@ impl<'a> MorphTableCache<'a> {
                 };
                 let entry =
                     MorphSubtableCache::new_morx(&subtable, num_glyphs, &mut cache.safe_to_break);
+                // Past the allowance, the remaining subtables stay skipped,
+                // as exhausted layout lookups do.
+                if budget.alloc::<u8>(entry.retained_bytes()).is_err() {
+                    return cache;
+                }
                 cache
                     .descriptors
                     .push(MorphSubtableCache::descriptor_morx(chain_index, &subtable));
@@ -137,7 +158,7 @@ impl<'a> MorphTableCache<'a> {
         cache
     }
 
-    fn new_mort(mort: &Mort<'a>, num_glyphs: u32) -> Self {
+    fn new_mort(mort: &Mort<'a>, num_glyphs: u32, budget: &Budget) -> Self {
         let mut cache = Self::default();
         for (chain_index, chain) in mort.chains().iter().enumerate() {
             let Ok(chain) = chain else {
@@ -149,6 +170,9 @@ impl<'a> MorphTableCache<'a> {
                 };
                 let entry =
                     MorphSubtableCache::new_mort(&subtable, num_glyphs, &mut cache.safe_to_break);
+                if budget.alloc::<u8>(entry.retained_bytes()).is_err() {
+                    return cache;
+                }
                 cache
                     .descriptors
                     .push(MorphSubtableCache::descriptor_mort(chain_index, &subtable));
@@ -167,13 +191,16 @@ pub(crate) struct KernTableCache<'a> {
 }
 
 impl<'a> KernTableCache<'a> {
-    fn new(kern: &Kern<'a>, num_glyphs: u32) -> Self {
+    fn new(kern: &Kern<'a>, num_glyphs: u32, budget: &Budget) -> Self {
         let mut cache = Self::default();
         for subtable in kern.subtables() {
             let Ok(subtable) = subtable else {
                 continue;
             };
             let entry = KernSubtableCache::new(&subtable, num_glyphs, &mut cache.safe_to_break);
+            if budget.alloc::<u8>(entry.retained_bytes()).is_err() {
+                break;
+            }
             cache.subtables.push(entry);
         }
         cache
@@ -188,13 +215,16 @@ pub(crate) struct KerxTableCache<'a> {
 }
 
 impl<'a> KerxTableCache<'a> {
-    fn new(kerx: &Kerx<'a>, num_glyphs: u32) -> Self {
+    fn new(kerx: &Kerx<'a>, num_glyphs: u32, budget: &Budget) -> Self {
         let mut cache = Self::default();
         for subtable in kerx.subtables().iter() {
             let Ok(subtable) = subtable else {
                 continue;
             };
             let entry = KerxSubtableCache::new(&subtable, num_glyphs, &mut cache.safe_to_break);
+            if budget.alloc::<u8>(entry.retained_bytes()).is_err() {
+                break;
+            }
             cache.subtables.push(entry);
         }
         cache
@@ -257,7 +287,7 @@ impl<'a> AatData<'a> {
                 tables
                     .morx
                     .as_ref()
-                    .map(|morx| MorphTableCache::new_morx(morx, tables.num_glyphs))
+                    .map(|morx| MorphTableCache::new_morx(morx, tables.num_glyphs, &cache.budget))
                     .unwrap_or_default()
             }))
         });
@@ -273,7 +303,7 @@ impl<'a> AatData<'a> {
                 tables
                     .mort
                     .as_ref()
-                    .map(|mort| MorphTableCache::new_mort(mort, tables.num_glyphs))
+                    .map(|mort| MorphTableCache::new_mort(mort, tables.num_glyphs, &cache.budget))
                     .unwrap_or_default()
             }))
         });
@@ -289,7 +319,7 @@ impl<'a> AatData<'a> {
                 tables
                     .kern
                     .as_ref()
-                    .map(|kern| KernTableCache::new(kern, tables.num_glyphs))
+                    .map(|kern| KernTableCache::new(kern, tables.num_glyphs, &cache.budget))
                     .unwrap_or_default()
             }))
         });
@@ -305,7 +335,7 @@ impl<'a> AatData<'a> {
                 tables
                     .kerx
                     .as_ref()
-                    .map(|kerx| KerxTableCache::new(kerx, tables.num_glyphs))
+                    .map(|kerx| KerxTableCache::new(kerx, tables.num_glyphs, &cache.budget))
                     .unwrap_or_default()
             }))
         });
@@ -322,7 +352,7 @@ mod tests {
     use alloc::sync::Arc;
     use read_fonts::{
         model::{Blob, TableFunction},
-        FontRef,
+        FontData, FontRead, FontRef,
     };
 
     fn initialized(cache: &AatCache) -> [bool; 4] {
@@ -657,5 +687,47 @@ mod tests {
             }
         });
         assert_eq!(initialized(cache), [true, false, false, false]);
+    }
+
+    #[test]
+    fn morx_cache_stops_at_the_preprocessing_allowance() {
+        const N_SUBTABLES: usize = 8;
+        // A non-contextual subtable whose single format 2 segment maps the
+        // whole glyph space to glyph 1: 30 bytes of font, 128 set pages.
+        #[rustfmt::skip]
+        let subtable = [
+            0, 0, 0, 30, // length
+            0, 0, 0, 4, // coverage: non-contextual
+            0, 0, 0, 1, // subFeatureFlags
+            0, 2, 0, 6, 0, 1, // lookup format 2, unitSize, nUnits
+            0, 6, 0, 0, 0, 0, // searchRange, entrySelector, rangeShift
+            0xFF, 0xFE, 0, 0, 0, 1, // lastGlyph, firstGlyph, value
+        ];
+        #[rustfmt::skip]
+        let mut morx = vec![
+            0, 2, 0, 0, // version 2, unused
+            0, 0, 0, 1, // nChains
+            0, 0, 0, 1, // defaultFlags
+        ];
+        morx.extend_from_slice(&(16 + 30 * N_SUBTABLES as u32).to_be_bytes()); // chainLength
+        morx.extend_from_slice(&[0, 0, 0, 0]); // nFeatureEntries
+        morx.extend_from_slice(&(N_SUBTABLES as u32).to_be_bytes()); // nSubtables
+        for _ in 0..N_SUBTABLES {
+            morx.extend_from_slice(&subtable);
+        }
+        let morx = Morx::read(FontData::new(&morx)).unwrap();
+
+        let budget = Budget::for_table_bytes(morx.offset_data().len());
+        let cache = MorphTableCache::new_morx(&morx, 4, &budget);
+        assert_eq!(cache.subtables.len(), N_SUBTABLES);
+        let entry_bytes = cache.subtables[0].retained_bytes();
+        assert!(entry_bytes > 128 * 80);
+        assert!(budget.remaining().1 <= (4 << 20) - N_SUBTABLES * entry_bytes);
+
+        let budget = Budget::new(usize::MAX, 3 * entry_bytes);
+        let cache = MorphTableCache::new_morx(&morx, 4, &budget);
+        assert_eq!(cache.subtables.len(), 3);
+        assert_eq!(cache.descriptors.len(), 3);
+        assert_eq!(budget.remaining().1, 0);
     }
 }
