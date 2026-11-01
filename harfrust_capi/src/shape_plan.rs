@@ -495,6 +495,8 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 ///
 /// Returns false without shaping if the plan is the empty one, or if `font` or
 /// `buffer` is `NULL`. An empty buffer returns true, having nothing to do.
+/// If the shaper panics, this returns false and clears the buffer, as
+/// `hr_shape_full` does.
 ///
 /// # Aborts
 ///

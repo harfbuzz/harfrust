@@ -250,7 +250,8 @@ The following HarfBuzz APIs are not exposed:
   whatever became of the buffer, so `hr_shape_full` returns true and
   `hr_shape` carries on; `hr_buffer_allocation_successful` is what reports
   the condition. `hr_shape_full` returns false only when no shaper could be
-  run at all.
+  run at all, or when the shaper panicked -- a bug in this library -- in
+  which case the buffer comes back cleared rather than half shaped.
 
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.

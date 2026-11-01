@@ -596,6 +596,12 @@ impl Buffer {
 
         self.serial = 0;
         self.scratch_flags = HB_BUFFER_SCRATCH_FLAG_DEFAULT;
+        // What `enter` lowers and `leave` restores. Shaping that unwound
+        // never got to `leave`; none of this is in use outside of shaping, so
+        // putting it back here leaves a buffer usable after such a panic.
+        self.max_len = Self::MAX_LEN_DEFAULT;
+        self.max_ops = Self::MAX_OPS_DEFAULT;
+        self.allocated_var_bits = 0;
         // How the buffer is configured -- its flags, cluster level, invisible
         // glyph and variation-selector fallback -- outlives its contents, as
         // it does in `hb_buffer_clear_contents`. `Buffer::reset` is what puts
@@ -2694,5 +2700,23 @@ mod tests {
 
         assert_eq!(buffer.next_syllable(0), MAX_SYLLABLE_LENGTH);
         assert_eq!(buffer.next_syllable(MAX_SYLLABLE_LENGTH), buffer.len);
+    }
+
+    #[test]
+    fn clear_undoes_what_an_unfinished_shape_leaves() {
+        let mut buffer = Buffer::new();
+        buffer.info.resize(4, GlyphInfo::default());
+        buffer.len = 4;
+        // Shaping unwound after `enter` and a variable allocation, so `leave`
+        // never ran.
+        buffer.enter();
+        buffer.allocate_unicode_vars();
+        assert_ne!(buffer.allocated_var_bits, 0);
+        assert!(buffer.max_len < Buffer::MAX_LEN_DEFAULT);
+        assert!(buffer.max_ops < Buffer::MAX_OPS_DEFAULT);
+        buffer.clear();
+        assert_eq!(buffer.max_len, Buffer::MAX_LEN_DEFAULT);
+        assert_eq!(buffer.max_ops, Buffer::MAX_OPS_DEFAULT);
+        assert_eq!(buffer.allocated_var_bits, 0);
     }
 }
