@@ -231,12 +231,6 @@ impl hr_font_t {
         shaper.glyph_name(glyph.into())
     }
 
-    /// How many glyphs the face has, which bounds a search over their names.
-    pub(crate) fn glyph_count(&self) -> hr_codepoint_t {
-        // SAFETY: a font owns its reference to its face.
-        unsafe { self.face.as_ref() }.map_or(0, |face| face.glyph_count())
-    }
-
     /// A glyph's extents, from whichever callback answers, or from the font's
     /// own tables when none is installed. `None` when nothing can say.
     pub(crate) fn glyph_extents(
@@ -1499,20 +1493,29 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     let Some(wanted) = (unsafe { crate::common::str_from_raw(name, len) }) else {
         return false.into();
     };
-    // A face carries no index from names back to glyphs, so this is the walk
-    // HarfBuzz's own default does.
-    for candidate in 0..state.glyph_count() {
-        if state
-            .glyph_name(candidate)
-            .is_some_and(|name| name.as_str() == wanted)
-        {
-            if let Some(out) = unsafe { glyph.as_mut() } {
-                *out = candidate;
-            }
-            return true.into();
-        }
+    // The font indexes its stored names once and searches that afterwards.
+    // Asking every glyph the face claims for its name instead would reread
+    // the name source for each of a `MAXP` count nothing bounds.
+    let found = state
+        .instance()
+        .and_then(|instance| instance.glyph_by_name(wanted))
+        .map(|found| found.to_u32())
+        // A glyph the face names nothing still answers to the `gidNNN` that
+        // `hr_font_get_glyph_name` gives it.
+        .or_else(|| {
+            let candidate = wanted.strip_prefix("gid")?.parse().ok()?;
+            state
+                .glyph_name(candidate)
+                .is_some_and(|name| name.as_str() == wanted)
+                .then_some(candidate)
+        });
+    let Some(found) = found else {
+        return false.into();
+    };
+    if let Some(out) = unsafe { glyph.as_mut() } {
+        *out = found;
     }
-    false.into()
+    true.into()
 }
 
 /// The name a glyph goes by, falling back to `gidNNN` when the face names it

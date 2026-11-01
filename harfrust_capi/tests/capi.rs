@@ -4404,3 +4404,95 @@ fn glyph_count_prefers_extended_maxp() {
         hr_blob_destroy(blob);
     }
 }
+
+/// A `CFF ` table with one `endchar` glyph, whose Top DICT is padded with
+/// `padding` no-op `UniqueID` entries ahead of its `charset` and
+/// `CharStrings` operators.
+fn cff_with_padded_top_dict(padding: usize) -> Vec<u8> {
+    fn index(items: &[&[u8]]) -> Vec<u8> {
+        let mut data = (items.len() as u16).to_be_bytes().to_vec();
+        if items.is_empty() {
+            return data;
+        }
+        data.push(4);
+        let mut offset = 1u32;
+        data.extend(offset.to_be_bytes());
+        for item in items {
+            offset += item.len() as u32;
+            data.extend(offset.to_be_bytes());
+        }
+        data.extend(items.concat());
+        data
+    }
+    let header = [1, 0, 4, 4];
+    let names = index(&[b"x"]);
+    let charstrings = index(&[&[0x0e]]);
+    // Header, Name INDEX, Top DICT INDEX (count, offSize, two offsets, the
+    // dict), and empty String and Global Subr INDEXes.
+    let top_dict_len = 2 * padding + 12;
+    let after_top_dict = header.len() + names.len() + (2 + 1 + 8 + top_dict_len) + 2 + 2;
+    let mut top_dict = [0x8b, 0x0d].repeat(padding);
+    top_dict.push(0x1d);
+    top_dict.extend(((after_top_dict + charstrings.len()) as u32).to_be_bytes());
+    top_dict.push(0x0f);
+    top_dict.push(0x1d);
+    top_dict.extend((after_top_dict as u32).to_be_bytes());
+    top_dict.push(0x11);
+    assert_eq!(top_dict.len(), top_dict_len);
+    [
+        &header[..],
+        &names,
+        &index(&[&top_dict]),
+        &index(&[]),
+        &index(&[]),
+        &charstrings,
+        // A format 0 charset naming only `.notdef`.
+        &[0],
+    ]
+    .concat()
+}
+
+/// A `MAXP` table can claim 16.7 million glyphs in seven bytes, and reading
+/// one glyph's name rereads the whole CFF Top DICT. Looking a name up must
+/// not pay one for each of the other.
+#[test]
+fn a_name_is_looked_up_without_asking_every_claimed_glyph_for_its_own() {
+    let data = sfnt(&[
+        (b"CFF ", cff_with_padded_top_dict(2000)),
+        (b"MAXP", maxp(0x00FF_FFFF, true)),
+    ]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let font = hr_font_create(face);
+        assert_eq!(hr_face_get_glyph_count(face), 0x00FF_FFFF);
+        let start = std::time::Instant::now();
+        let mut glyph = 7;
+        assert_eq!(
+            hr_font_get_glyph_from_name(font, c"nosuchglyph".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        assert_eq!(glyph, 0);
+        // One pass over the claimed glyphs, against hours for the product.
+        assert!(start.elapsed().as_secs() < 60, "{:?}", start.elapsed());
+        // The names the face stores are still found.
+        assert_ne!(
+            hr_font_get_glyph_from_name(font, c".notdef".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        assert_eq!(glyph, 0);
+        // And a glyph the face names nothing still answers to its `gidNNN`.
+        assert_ne!(
+            hr_font_get_glyph_from_name(font, c"gid5".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        assert_eq!(glyph, 5);
+        assert_eq!(
+            hr_font_get_glyph_from_name(font, c"gid05".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
