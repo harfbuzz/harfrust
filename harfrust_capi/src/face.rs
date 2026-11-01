@@ -153,6 +153,23 @@ impl hr_face_t {
             .map_or(1000, |head| c_uint::from(head.units_per_em()))
     }
 
+    /// The size of the blob this face reads its tables from, or `None` for a
+    /// face that gets them from a callback.
+    ///
+    /// Tables that do not overlap cannot add up to more than this, so it
+    /// bounds what assembling a copy of the face's tables may cost.
+    #[cfg(any(feature = "draw", feature = "subset"))]
+    pub(crate) fn blob_len(&self) -> Option<usize> {
+        match &self.source {
+            FaceSource::Empty => Some(0),
+            // SAFETY: the face owns a reference to its blob.
+            FaceSource::Blob { blob, .. } => {
+                Some(unsafe { blob.as_ref() }.map_or(0, |blob| blob.bytes().len()))
+            }
+            FaceSource::Function(_) => None,
+        }
+    }
+
     /// The glyph count from `MAXP` if the face has one, else from `maxp`.
     pub(crate) fn glyph_count(&self) -> c_uint {
         self.font

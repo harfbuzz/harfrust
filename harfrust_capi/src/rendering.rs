@@ -19,12 +19,24 @@ unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
         b"HVAR", b"VVAR", b"CFF ", b"CFF2", b"VARC", b"fvar", b"avar", b"COLR", b"CPAL", b"CBLC",
         b"CBDT", b"sbix", b"SVG ", b"cmap",
     ];
+    // A directory whose records overlap can list the same bytes under every
+    // tag. Charge each table to the face's blob so that copying them cannot
+    // cost more than one copy of the font; a callback face supplies its own
+    // tables and has no such bound.
+    let mut budget = unsafe { object::or_empty(face.cast_const()) }
+        .blob_len()
+        .unwrap_or(usize::MAX);
     let mut tables = Vec::new();
     for bytes in TAGS {
         let tag = u32::from_be_bytes(*bytes);
         let blob = unsafe { hr_face_reference_table(face, tag) };
         let mut len = 0;
         let data = unsafe { hr_blob_get_data(blob, &raw mut len) };
+        let Some(left) = budget.checked_sub(len as usize) else {
+            unsafe { hr_blob_destroy(blob) };
+            return None;
+        };
+        budget = left;
         if len != 0 && !data.is_null() {
             tables.push((
                 tag,

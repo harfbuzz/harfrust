@@ -157,6 +157,45 @@ fn outlines_support_callback_faces_without_table_enumeration() {
     }
 }
 
+/// Overlapping table records would otherwise have the whole font copied into
+/// the rendering cache once per tag, so such a face is not rendered.
+#[test]
+fn overlapping_tables_are_not_copied_once_per_tag() {
+    // Every record of the directory runs to the end of the file. The tables
+    // still start at their real data, so the font parses and shapes.
+    let mut bytes = include_bytes!("fonts/Rendering.ttf").to_vec();
+    let len = u32::try_from(bytes.len()).unwrap();
+    let count = usize::from(u16::from_be_bytes([bytes[4], bytes[5]]));
+    for i in 0..count {
+        let record = 12 + 16 * i;
+        let offset = u32::from_be_bytes(bytes[record + 8..record + 12].try_into().unwrap());
+        bytes[record + 12..record + 16].copy_from_slice(&(len - offset).to_be_bytes());
+    }
+    unsafe {
+        let blob = hr_blob_create(
+            bytes.as_ptr().cast(),
+            len,
+            HR_MEMORY_MODE_READONLY,
+            ptr::null_mut(),
+            None,
+        );
+        let face = hr_face_create(blob, 0);
+        assert_ne!(hr_face_get_glyph_count(face), 0);
+        let font = hr_font_create(face);
+        let funcs = draw_funcs();
+        let mut drawing = Drawing::default();
+        assert_eq!(
+            hr_font_draw_glyph_or_fail(font, 1, funcs, ptr::from_mut(&mut drawing).cast()),
+            0
+        );
+        assert!(drawing.0.is_empty());
+        hr_draw_funcs_destroy(funcs);
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
 unsafe extern "C" fn custom_draw(
     _: *mut hr_font_t,
     _: *mut c_void,
