@@ -82,11 +82,15 @@ impl TableFunc {
         // SAFETY: the caller registered this callback and promised it is safe
         // to invoke with the user data it supplied.
         let blob = unsafe { func(face, tag_from_rust(tag), self.user_data) };
-        let owned = unsafe { blob.as_ref() }?;
-        // Clone the underlying storage, which is reference counted and outlives
-        // the wrapper, then release the reference the callback handed us.
-        let data = owned.blob.clone();
-        unsafe { object::destroy(blob) };
+        if blob.is_null() {
+            return None;
+        }
+        // Keep the reference the callback handed us for as long as the bytes
+        // are in use, not only the storage under it: the callback may have
+        // tied the bytes to the blob through its user data, which is released
+        // with the blob. HarfBuzz keeps the callback's blob the same way.
+        // SAFETY: the callback returned a live blob and gave up its reference.
+        let data = unsafe { hr_blob_t::into_data(blob) };
         if data.as_ref().is_empty() {
             return None;
         }
@@ -575,7 +579,8 @@ pub unsafe extern "C" fn hr_face_reference_table(
             let Some(end) = start.checked_add(table.len()) else {
                 return hr_blob_t::empty();
             };
-            hr_blob_t::sub(&blob_ref.blob, start, end)
+            // SAFETY: the face owns a reference to `blob`, so it is live.
+            unsafe { hr_blob_t::sub(*blob, start, end) }
         }
     }
 }

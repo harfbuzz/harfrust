@@ -906,6 +906,25 @@ fn sub_blob_shares_parent_storage() {
     }
 }
 
+#[test]
+fn sub_blob_keeps_its_parent_alive() {
+    static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+    let data = b"0123456789".to_vec();
+    let drops = AtomicUsize::new(0);
+    unsafe {
+        // The bytes may belong to the parent through its user data, so a
+        // sub-blob has to keep the parent itself and not only its storage.
+        let parent = blob_over(&data);
+        let drops_ptr: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
+        hr_blob_set_user_data(parent, &raw const KEY, drops_ptr, Some(count_drop), 1);
+        let sub = hr_blob_create_sub_blob(parent, 2, 3);
+        hr_blob_destroy(parent);
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+        hr_blob_destroy(sub);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+    }
+}
+
 // ---------------------------------------------------------------- faces ----
 
 #[test]
@@ -2502,6 +2521,54 @@ fn custom_font_funcs_do_not_load_builtin_font_tables() {
         hr_font_funcs_destroy(funcs);
         hr_font_destroy(font);
         hr_face_destroy(face);
+    }
+}
+
+/// A table callback that ties each blob it returns to a drop counter through
+/// the blob's user data, the way a caller owning table bytes that way would.
+unsafe extern "C" fn reference_table_with_user_data(
+    face: *mut hr_face_t,
+    tag: hr_tag_t,
+    user_data: *mut c_void,
+) -> *mut hr_blob_t {
+    static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+    unsafe {
+        let (source, drops) = &*user_data.cast::<(TableSource, AtomicUsize)>();
+        let table = reference_table(face, tag, ptr::from_ref(source).cast_mut().cast());
+        let drops: *mut c_void = ptr::from_ref(drops).cast_mut().cast();
+        hr_blob_set_user_data(table, &raw const KEY, drops, Some(count_drop), 1);
+        table
+    }
+}
+
+#[test]
+fn table_callback_blob_lives_as_long_as_its_bytes_are_used() {
+    let state = (
+        TableSource {
+            data: font_data(),
+            requested: Mutex::new(Vec::new()),
+        },
+        AtomicUsize::new(0),
+    );
+    let drops = &state.1;
+    unsafe {
+        let face = hr_face_create_for_tables(
+            Some(reference_table_with_user_data),
+            ptr::from_ref(&state).cast_mut().cast(),
+            None,
+        );
+        // Reading `head` keeps its blob, and with it whatever the callback
+        // tied to the blob, for as long as the face may read the table.
+        assert_eq!(hr_face_get_upem(face), PLAIN_UPEM);
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+
+        // A table handed back to the caller outlives the face the same way.
+        let cmap = hr_face_reference_table(face, hr_tag_from_string(c"cmap".as_ptr(), -1));
+        assert_ne!(hr_blob_get_length(cmap), 0);
+        hr_face_destroy(face);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        hr_blob_destroy(cmap);
+        assert_eq!(drops.load(Ordering::SeqCst), 2);
     }
 }
 
