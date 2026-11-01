@@ -184,6 +184,22 @@ fn ligature_digest_reports_the_same_concat_hazard_as_the_walk() {
     }
 }
 
+// With 'pref' requested, the unformed pref candidate after KA is the VIRAMA,
+// and skipping halants from there runs off the end of the syllable. Final
+// reordering must stop searching for a base rather than read past the syllable,
+// which flagged the buffer as failed and dropped the reph's 'abvm' attachment.
+#[test]
+fn indic_pref_candidate_at_end_of_syllable_ends_base_search() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/in-house/55e2910dbc9ef5dd89f4e146e7e0152169545b6a.ttf",
+            "\u{0D4E}\u{0D15}\u{0020}\u{0D15}\u{0D4D}",
+            "--features=pref",
+        ),
+        "[kamlym=0+1038|rephmlym=0@-363,0+0|space=2+309|kamlym=3+1038|viramamlym=3+0]"
+    );
+}
+
 // Nikhahit moves ahead of every above-base mark before SARA AM, keeping each
 // mark rather than repeating the first.
 #[test]

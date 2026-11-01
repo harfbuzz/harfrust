@@ -1396,10 +1396,12 @@ fn final_reordering_impl(
 
                         break;
                     }
+                }
 
-                    if base == end {
-                        break;
-                    }
+                // The base was lost to trailing halants; there is nothing
+                // after it to look at.
+                if base == end {
+                    break;
                 }
             }
 
