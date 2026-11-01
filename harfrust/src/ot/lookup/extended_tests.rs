@@ -17,6 +17,7 @@ use crate::{Buffer, Direction, Font, LayoutData, Scale};
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::cell::Cell;
 use read_fonts::model::{Blob, TableFunction};
 use read_fonts::tables::gdef::Gdef;
 use read_fonts::tables::layout::{self, CoverageTable};
@@ -76,6 +77,7 @@ fn would_apply(lookup_type: u16, subtable: &[u8], glyphs: &[u32], zero_context: 
     lookup.would_apply(&WouldApplyContext {
         glyphs: &glyphs,
         zero_context,
+        max_ops: &Cell::new(i32::MAX),
     }) == Some(true)
 }
 

@@ -186,7 +186,7 @@ impl CachedLookup<'_> {
 
     pub fn would_apply(&self, ctx: &WouldApplyContext) -> Option<bool> {
         let glyph = ctx.glyphs[0].into();
-        if !self.digest.may_have(glyph) {
+        if !self.digest.may_have(glyph) || !ctx.charge(self.subtables.len()) {
             return Some(false);
         }
         for subtable in &self.subtables {
@@ -759,6 +759,41 @@ mod tests {
             cache.gsub.budget.as_ref().unwrap(),
             cache.gpos.budget.as_ref().unwrap()
         ));
+    }
+
+    #[test]
+    fn would_apply_charges_aliased_rules_to_max_ops() {
+        // A context lookup covering glyph 1, whose rule set lists one
+        // two-glyph rule (second glyph 2) many times over.
+        let rule_count: u16 = 1000;
+        let mut bytes = alloc::vec![0, 5, 0, 0, 0, 1, 0, 8];
+        bytes.extend_from_slice(&[0, 1, 0, 8, 0, 1, 0, 14]);
+        bytes.extend_from_slice(&[0, 1, 0, 1, 0, 1]);
+        bytes.extend_from_slice(&rule_count.to_be_bytes());
+        for _ in 0..rule_count {
+            bytes.extend_from_slice(&(2 + 2 * rule_count).to_be_bytes());
+        }
+        bytes.extend_from_slice(&[0, 2, 0, 0, 0, 2]);
+        let lookup = build::build_lookup_at(
+            FontData::new(&bytes),
+            0,
+            true,
+            &Budget::for_table_bytes(bytes.len()),
+        )
+        .unwrap();
+        let glyphs = [GlyphId::new(1), GlyphId::new(2)];
+        let max_ops = core::cell::Cell::new(i32::MAX);
+        let ctx = WouldApplyContext {
+            glyphs: &glyphs,
+            zero_context: true,
+            max_ops: &max_ops,
+        };
+        assert_eq!(lookup.would_apply(&ctx), Some(true));
+        assert!(max_ops.get() <= i32::MAX - i32::from(rule_count));
+        // With fewer operations left than rules, the walk does not run.
+        max_ops.set(i32::from(rule_count) - 1);
+        assert_ne!(lookup.would_apply(&ctx), Some(true));
+        assert!(max_ops.get() < 0);
     }
 
     /// Allows checking every lookup, including ones sample text won't select.

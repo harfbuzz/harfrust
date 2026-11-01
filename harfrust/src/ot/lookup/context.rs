@@ -1115,18 +1115,20 @@ fn apply_chain_rules<const W: usize>(
     finish_rules(ctx, unsafe_to, None)
 }
 
-/// Whether a rule of `rules` matches the glyphs of `ctx`.
+/// Whether a rule of `rules` matches the glyphs of `ctx`. The rules may
+/// all alias one another, so the walk is charged to `ctx` before it runs.
 fn would_apply_chain_rules<const W: usize>(
     ctx: &WouldApplyContext,
     rules: Rules,
     matches: MatchFn,
 ) -> bool {
-    (0..rules.len())
-        .filter_map(|index| ParsedRule::<W>::try_parse(rules.rule(index)?, rules.layout))
-        .any(|rule| {
-            (!ctx.zero_context || (rule.backtrack.is_empty() && rule.lookahead.is_empty()))
-                && sequence_would_apply(ctx, &rule.input, matches)
-        })
+    ctx.charge(rules.len())
+        && (0..rules.len())
+            .filter_map(|index| ParsedRule::<W>::try_parse(rules.rule(index)?, rules.layout))
+            .any(|rule| {
+                (!ctx.zero_context || (rule.backtrack.is_empty() && rule.lookahead.is_empty()))
+                    && sequence_would_apply(ctx, &rule.input, matches)
+            })
 }
 
 /// Whether `input` matches the glyphs of `ctx` after the first.

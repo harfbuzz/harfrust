@@ -10,6 +10,7 @@ use super::OtData;
 use crate::hint::Likely;
 use crate::unicode::GeneralCategory;
 use crate::Scale;
+use core::cell::Cell;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
@@ -739,6 +740,19 @@ impl RuleSetDigest {
 pub struct WouldApplyContext<'a> {
     pub glyphs: &'a [GlyphId],
     pub zero_context: bool,
+    /// The buffer's remaining operations, which the walks draw on.
+    pub max_ops: &'a Cell<i32>,
+}
+
+impl WouldApplyContext<'_> {
+    /// Charges `count` lookups, subtables, rules or ligatures about to be
+    /// examined. Returns false once the operations are spent.
+    pub fn charge(&self, count: usize) -> bool {
+        let count = i32::try_from(count).unwrap_or(i32::MAX);
+        let left = self.max_ops.get().saturating_sub(count);
+        self.max_ops.set(left);
+        left >= 0
+    }
 }
 
 fn match_properties_mark(

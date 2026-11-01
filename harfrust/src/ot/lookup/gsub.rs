@@ -398,8 +398,10 @@ impl<'a> LigatureSubst1<'a> {
 
 fn set_would_apply<const W: usize>(set: Option<LigatureSet<W>>, ctx: &WouldApplyContext) -> bool {
     set.is_some_and(|set| {
-        set.iter()
-            .any(|ligature| ligature_would_apply(&ligature, ctx))
+        ctx.charge(set.len())
+            && set
+                .iter()
+                .any(|ligature| ligature_would_apply(&ligature, ctx))
     })
 }
 
