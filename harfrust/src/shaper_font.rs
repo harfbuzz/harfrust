@@ -56,7 +56,13 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
                 Some(&cache.glyph_names),
             )
         } else {
-            (EMPTY_OT_DATA.clone(), EMPTY_AAT_DATA.clone(), false, None, None)
+            (
+                EMPTY_OT_DATA.clone(),
+                EMPTY_AAT_DATA.clone(),
+                false,
+                None,
+                None,
+            )
         };
         let scale = Scale::default();
         Self {
