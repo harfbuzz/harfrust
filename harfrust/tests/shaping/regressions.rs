@@ -278,3 +278,33 @@ fn kerx_format1_retained_stack() {
         "[a=0@17,0+578|a=1@13,0+574|b=2@31,0+646]"
     );
 }
+
+// The format 4 subtable runs backwards, attaching each fatha to its base.
+// Disable format 1 kerning so this regression isolates attachment direction.
+#[test]
+fn kerx_process_direction_arabic_marks() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/kerx-backwards-arabic.ttf",
+            "\u{0648}\u{064E}\u{0644}\u{064E}\u{062F}",
+            "--features=-kern",
+        ),
+        "[uni062F.fina=4+474|uni064E=2@-10,-28+0|uni0644.init=2+212|uni064E=0@157,-211+0|uni0648=0+468]"
+    );
+}
+
+#[test]
+fn kerx_process_direction_ltr_marks() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-backwards-mark.ttf", "xb", ""),
+        "[m=0@325,600+150|b=1+615]"
+    );
+}
+
+#[test]
+fn kerx_process_direction_ltr_kerning() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-backwards-kern.ttf", "ba", ""),
+        "[b=0@30,0+645|a=1+561]"
+    );
+}
