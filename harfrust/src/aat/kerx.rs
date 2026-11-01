@@ -1,7 +1,7 @@
 use super::layout::DELETED_GLYPH;
 use crate::aat::common::{
-    get_class, set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
-    TypedCollectGlyphs, START_OF_TEXT,
+    extended_class_count, get_class, set_digest, AatApplyContext, ClassCache, SafeToBreakAccel,
+    SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::aat::kern::apply_pair_kerning;
 use crate::set_digest::SetDigest;
@@ -353,6 +353,7 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
 
 fn collect_initial_glyphs<T>(
     machine: &aat::ExtendedStateTable<T>,
+    data: &[u8],
     glyphs: &mut U32Set,
     num_glyphs: u32,
 ) where
@@ -363,7 +364,7 @@ fn collect_initial_glyphs<T>(
 
     let class_table = &machine.class_table;
     // Classes are u16 values, so columns past 0x10000 are unreachable.
-    for i in 0..machine.n_classes.min(1 << 16) {
+    for i in 0..extended_class_count(machine.n_classes, data) {
         if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
             if entry.new_state == START_OF_TEXT
                 && !entry.is_action_initiable()
@@ -809,7 +810,12 @@ impl<'a> KerxSubtableCache<'a> {
                         &KerxStateEntryExt::is_actionable,
                         &KerxStateEntryExt::has_advance,
                     );
-                    collect_initial_glyphs(&format1.state_table, &mut first_set, num_glyphs);
+                    collect_initial_glyphs(
+                        &format1.state_table,
+                        subtable.data(),
+                        &mut first_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::Format2(format2) => {
                     format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
@@ -822,7 +828,12 @@ impl<'a> KerxSubtableCache<'a> {
                         &KerxStateEntryExt::is_actionable,
                         &KerxStateEntryExt::has_advance,
                     );
-                    collect_initial_glyphs(&format4.state_table, &mut first_set, num_glyphs);
+                    collect_initial_glyphs(
+                        &format4.state_table,
+                        subtable.data(),
+                        &mut first_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::Format6(format6) => {
                     format6.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
@@ -918,7 +929,7 @@ mod tests {
             let machine =
                 aat::ExtendedStateTable::<BigEndian<u16>>::read(FontData::new(&data)).unwrap();
             let mut glyphs = U32Set::default();
-            collect_initial_glyphs(&machine, &mut glyphs, 2);
+            collect_initial_glyphs(&machine, &data, &mut glyphs, 2);
             assert_eq!(glyphs.iter().collect::<Vec<_>>(), [1]);
         }
     }

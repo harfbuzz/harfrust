@@ -369,11 +369,10 @@ impl SafeToBreakAccel {
         // Cover the OUT_OF_BOUNDS column the runtime clamp can select
         // even on degenerate machines; entry() applies the same clamp
         // internally, so the aliasing matches.
-        // Classes are u16 values, so columns past 0x10000 are
-        // unreachable and need no slots.
-        let wouldbe_len = n_classes
-            .max(class::OUT_OF_BOUNDS as usize + 1)
-            .min(1 << 16);
+        // Columns that cannot hold an entry need no slots: the drive
+        // loops stop when entry() fails, before consulting this table.
+        let wouldbe_len =
+            extended_class_count(n_classes, data).max(class::OUT_OF_BOUNDS as usize + 1);
         self.wouldbe.reserve(wouldbe_len);
         for class in 0..wouldbe_len {
             self.wouldbe
@@ -492,6 +491,19 @@ impl SafeToBreakSubtable {
             eot_tail_end: eot_tail_end as u32,
         }
     }
+}
+
+/// Returns how many columns of the extended state table at the start of
+/// `data` can hold an entry. `nClasses` is not checked against the state
+/// array, which runs from its offset to the end of the subtable, matching
+/// how the table reader slices it; a column past its end fails `entry()`
+/// in every state. Classes are u16 values, so columns past 0x10000 are
+/// unreachable as well.
+pub(crate) fn extended_class_count(n_classes: usize, data: &[u8]) -> usize {
+    let n_cells = StateTableParts::read(FontData::new(data)).map_or(0, |parts| {
+        data.len().saturating_sub(parts.state_array_offset as usize) / u16::RAW_BYTE_LEN
+    });
+    n_classes.min(n_cells).min(1 << 16)
 }
 
 // Keep one closure type for the morx and kerx class-set filters so that
@@ -809,6 +821,32 @@ mod tests {
         assert!(last.wouldbe_matches(99, 9, false));
         assert!(!last.eot_safe_high(64));
         assert!(last.eot_safe_high(65));
+    }
+
+    #[test]
+    fn safe_to_break_table_is_bounded_by_the_state_array() {
+        use read_fonts::{types::BigEndian, FontRead};
+
+        #[rustfmt::skip]
+        let data = [
+            0, 1, 0, 0, // nClasses: 65536
+            0, 0, 0, 16, // classTableOffset
+            0, 0, 0, 24, // stateArrayOffset
+            0, 0, 0, 34, // entryTableOffset
+            0, 8, 0, 1, 0, 1, 0, 4, // lookup format 8: glyph 1 is class 4
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // five cells, followed by the entry
+            0, 0, 0, 0, 0xFF, 0xFF, // entry 0
+        ];
+        let machine = ExtendedStateTable::<BigEndian<u16>>::read(FontData::new(&data)).unwrap();
+        // The state array is read to the end of the data: 8 cells.
+        assert_eq!(extended_class_count(machine.n_classes, &data), 8);
+        let mut accel = SafeToBreakAccel::default();
+        let subtable = accel.build_extended(&machine, &data, &|_| false, &|_| true);
+        assert_eq!(accel.wouldbe.len(), 8);
+        assert!(accel
+            .subtable(subtable)
+            .unwrap()
+            .wouldbe_matches(4, 0, true));
     }
 
     #[test]
