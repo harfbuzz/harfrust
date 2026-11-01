@@ -649,18 +649,36 @@ impl CollectGlyphs for Lookup4<'_> {
         T: LookupValue,
         F: Fn(T) -> bool,
     {
+        // Segments of a well-formed lookup are sorted and disjoint, so each
+        // glyph is visited once. A segment that starts before the end of an
+        // earlier one is not walked, which keeps a hostile lookup from
+        // revisiting the same values once per segment; the range spanned by
+        // such segments is added unfiltered instead, so the set stays a
+        // superset of the accepted glyphs.
+        let mut next_glyph = 0u32;
+        let mut unwalked: Option<(u32, u32)> = None;
         for (segment_idx, segment) in self.segments().iter().enumerate() {
-            if segment.first_glyph.get() as u32 == DELETED_GLYPH {
+            let first_glyph = segment.first_glyph.get() as u32;
+            let last_glyph = segment.last_glyph.get() as u32;
+            if first_glyph == DELETED_GLYPH || first_glyph > last_glyph {
                 continue;
             }
-            let segment_values = self.segment_values(segment_idx);
-            if let Ok(segment_values) = segment_values {
+            if first_glyph < next_glyph {
+                let (start, end) = unwalked.unwrap_or((first_glyph, last_glyph));
+                unwalked = Some((start.min(first_glyph), end.max(last_glyph)));
+                continue;
+            }
+            next_glyph = last_glyph + 1;
+            if let Ok(segment_values) = self.segment_values(segment_idx) {
                 for (i, value) in segment_values.iter().enumerate() {
                     if filter(value.get()) {
-                        set.insert(segment.first_glyph.get() as u32 + i as u32);
+                        set.insert(first_glyph + i as u32);
                     }
                 }
             }
+        }
+        if let Some((start, end)) = unwalked {
+            set.insert_range(start..=end);
         }
     }
 }
@@ -842,5 +860,33 @@ mod tests {
                 .collect();
             assert_eq!(glyphs, expected, "{text}");
         }
+    }
+
+    #[test]
+    fn lookup4_overlapping_segments_are_walked_once() {
+        // A format 4 lookup with 100 segments that all cover glyphs 0..=999
+        // and share one value array, followed by one well-formed segment.
+        let n_segments = 101u16;
+        let values_offset = 12 + 6 * n_segments;
+        let mut words = alloc::vec![4u16, 6, n_segments, 0, 0, 0];
+        for _ in 0..100 {
+            words.extend([999, 0, values_offset]);
+        }
+        words.extend([1999, 1000, values_offset]);
+        words.extend([1u16; 1000]);
+        let data: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let lookup = <Lookup as read_fonts::FontRead>::read(FontData::new(&data)).unwrap();
+
+        let filter_calls = core::cell::Cell::new(0u32);
+        let mut set = U32Set::default();
+        lookup.collect_glyphs_filtered::<u16, _>(&mut set, 2000, |class| {
+            filter_calls.set(filter_calls.get() + 1);
+            class == 1
+        });
+
+        // Each glyph is visited once, not once per segment that covers it.
+        assert_eq!(filter_calls.get(), 2000);
+        assert!((0..2000).all(|glyph| set.contains(glyph)));
+        assert!(!set.contains(2000));
     }
 }
