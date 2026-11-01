@@ -844,8 +844,7 @@ mod tests {
         }
         bytes.extend_from_slice(&u16s(&[0, u16::try_from(repeats + 1).unwrap()]));
         bytes.extend(
-            core::iter::repeat(0u16)
-                .take(repeats)
+            core::iter::repeat_n(0u16, repeats)
                 .chain([1])
                 .flat_map(u16::to_be_bytes),
         );

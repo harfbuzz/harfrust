@@ -542,11 +542,12 @@ mod tests {
         // Each subtable is followed by its coverage.
         let single: [u16; 6] = [1, 6, 1, 1, 1, 3];
         let reverse: [u16; 9] = [1, 12, 0, 0, 1, 1, 1, 1, 1];
-        let (first, first_type, second, second_type): (&[u16], u16, &[u16], u16) =
-            match reverse_first {
-                false => (&single, 1, &reverse, 8),
-                true => (&reverse, 8, &single, 1),
-            };
+        let (first, first_type, second, second_type): (&[u16], u16, &[u16], u16) = if reverse_first
+        {
+            (&reverse, 8, &single, 1)
+        } else {
+            (&single, 1, &reverse, 8)
+        };
         // Lookup table with the two ExtensionSubstFormat1 subtables at 10
         // and 18, which point at the subtables that follow them.
         let mut words = alloc::vec![7, 0, 2, 10, 18];
