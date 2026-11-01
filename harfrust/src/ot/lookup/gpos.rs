@@ -111,13 +111,16 @@ fn apply_value_fields(
     if !format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
         return worked;
     }
-    let Some(store) = ctx.layout.ot.var_store() else {
+    if ctx.layout.ot.var_store().is_none() {
         return worked;
-    };
-    let coords = ctx.layout.ot.coords;
+    }
+    let ot = ctx.layout.ot;
+    let max_ops = &mut ctx.buffer.max_ops;
+    let successful = &mut ctx.buffer.successful;
     // Reads the next device offset and resolves its delta, if it applies in
     // this direction. Only variation indices contribute; device tables are
-    // for hinting, which shaping doesn't do.
+    // for hinting, which shaping doesn't do. A delta that the operation
+    // budget can no longer pay for fails shaping and is left out.
     let mut delta = |applies: bool, worked: &mut bool| -> Option<f32> {
         let device = fields.next().unwrap_or(0) as u16 as usize;
         if !applies {
@@ -130,10 +133,10 @@ fn apply_value_fields(
         let outer = base.read_at::<u16>(device).ok()?;
         let inner = base.read_at::<u16>(device + 2).ok()?;
         // Keep the delta fractional so it is rounded once, when scaled.
-        let value = store
-            .compute_delta(DeltaSetIndex { outer, inner }, coords)
-            .unwrap_or_default()
-            .to_f64() as f32;
+        let Some(value) = ot.compute_delta(DeltaSetIndex { outer, inner }, max_ops) else {
+            *successful = false;
+            return None;
+        };
         *worked |= value != 0.0;
         Some(value)
     };
@@ -956,8 +959,13 @@ impl<'a> CursivePos1<'a> {
             return None;
         };
 
-        let (exit_x, exit_y) = ctx.layout.ot.resolve_anchor(&exit_prev);
-        let (entry_x, entry_y) = ctx.layout.ot.resolve_anchor(&entry_this);
+        let max_ops = &mut ctx.buffer.max_ops;
+        let exit = ctx.layout.ot.resolve_anchor(&exit_prev, max_ops);
+        let entry = ctx.layout.ot.resolve_anchor(&entry_this, max_ops);
+        let (Some((exit_x, exit_y)), Some((entry_x, entry_y))) = (exit, entry) else {
+            ctx.buffer.successful = false;
+            return None;
+        };
         let (exit_x, exit_y) = (ctx.scale_x(exit_x), ctx.scale_y(exit_y));
         let (entry_x, entry_y) = (ctx.scale_x(entry_x), ctx.scale_y(entry_y));
 
@@ -1124,8 +1132,13 @@ fn attach_mark(
     mark_anchor: &AnchorTable,
     base_pos: usize,
 ) -> Option<()> {
-    let (base_x, base_y) = ctx.layout.ot.resolve_anchor(base_anchor);
-    let (mark_x, mark_y) = ctx.layout.ot.resolve_anchor(mark_anchor);
+    let max_ops = &mut ctx.buffer.max_ops;
+    let base = ctx.layout.ot.resolve_anchor(base_anchor, max_ops);
+    let mark = ctx.layout.ot.resolve_anchor(mark_anchor, max_ops);
+    let (Some((base_x, base_y)), Some((mark_x, mark_y))) = (base, mark) else {
+        ctx.buffer.successful = false;
+        return None;
+    };
     let x_offset = ctx.scale_x(base_x - mark_x);
     let y_offset = ctx.scale_y(base_y - mark_y);
     // Resolve the base first so a bad index leaves the buffer untouched.

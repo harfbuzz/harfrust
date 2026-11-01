@@ -507,30 +507,64 @@ impl<'a> OtData<'a> {
         }
     }
 
-    pub(super) fn resolve_anchor(&self, anchor: &AnchorTable) -> (f32, f32) {
+    /// Computes the delta of a variation index at `coords`, charging the
+    /// work to `max_ops`. Returns `None` once that budget is spent.
+    ///
+    /// A delta walks every region index of its delta set, evaluating the
+    /// named region over every axis, and a set may list 65535 indices that
+    /// all name the same region. Left uncharged, a lookup application that
+    /// costs one operation could do that walk four times over.
+    pub(super) fn compute_delta(&self, index: DeltaSetIndex, max_ops: &mut i32) -> Option<f32> {
+        const AXIS_STEPS_PER_OP: u32 = 64;
+        let Some(store) = self.var_store() else {
+            return Some(0.0);
+        };
+        let regions = store
+            .item_variation_data()
+            .get(usize::from(index.outer))
+            .and_then(Result::ok)
+            .map_or(0, |data| data.region_indexes().len() as u32);
+        let axes = store
+            .variation_region_list()
+            .map_or(0, |list| u32::from(list.axis_count()));
+        // Both counts are 16-bit, so the product fits a u32 and the
+        // quotient an i32.
+        let ops = regions * axes.max(1) / AXIS_STEPS_PER_OP;
+        *max_ops = max_ops.saturating_sub(ops as i32);
+        if *max_ops < 0 {
+            return None;
+        }
+        // Keep the delta fractional; the caller rounds once when scaling.
+        let delta = store.compute_delta(index, self.coords).unwrap_or_default();
+        Some(delta.to_f64() as f32)
+    }
+
+    /// Resolves an anchor at `coords`, charging its deltas to `max_ops`.
+    /// Returns `None` once that budget is spent.
+    pub(super) fn resolve_anchor(
+        &self,
+        anchor: &AnchorTable,
+        max_ops: &mut i32,
+    ) -> Option<(f32, f32)> {
         let mut x = anchor.x_coordinate() as f32;
         let mut y = anchor.y_coordinate() as f32;
-        if let Some(vs) = self.var_store() {
+        if self.var_store().is_some() {
             // Keep the delta fractional; the caller rounds once when scaling,
             // matching HarfBuzz's Anchor::get_anchor.
-            let delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {
-                Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => {
-                    vs.compute_delta(
-                        DeltaSetIndex {
-                            outer: varix.delta_set_outer_index(),
-                            inner: varix.delta_set_inner_index(),
-                        },
-                        self.coords,
-                    )
-                    .unwrap_or_default()
-                    .to_f64() as f32
-                }
-                _ => 0.0,
+            let mut delta = |val: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>| match val {
+                Some(Ok(DeviceOrVariationIndex::VariationIndex(varix))) => self.compute_delta(
+                    DeltaSetIndex {
+                        outer: varix.delta_set_outer_index(),
+                        inner: varix.delta_set_inner_index(),
+                    },
+                    max_ops,
+                ),
+                _ => Some(0.0),
             };
-            x += delta(anchor.x_device());
-            y += delta(anchor.y_device());
+            x += delta(anchor.x_device())?;
+            y += delta(anchor.y_device())?;
         }
-        (x, y)
+        Some((x, y))
     }
 }
 
