@@ -607,4 +607,22 @@ mod tests {
             }
         }
     }
+
+    // A long run of segment-begin marks used to take quadratic time:
+    // `hieroglyph_cluster` kept the scanner reading to the end of the buffer
+    // for every token while it waited for a hieroglyph that never came.
+    #[test]
+    fn segment_begin_run_is_scanned_in_linear_time() {
+        let mut buffer = Buffer::new();
+        for i in 0..100_000 {
+            buffer.push(0x13437, i);
+            buffer.info[i as usize].set_use_category(category::SB);
+        }
+        find_syllables(&mut buffer);
+        assert_eq!(
+            buffer.info[0].syllable() & 0x0F,
+            SyllableType::SymbolCluster as u8
+        );
+        assert_ne!(buffer.info[0].syllable(), buffer.info[1].syllable());
+    }
 }

@@ -57,6 +57,9 @@ impl Buffer {
 pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
 pub const MAX_SYLLABLE_LENGTH: usize = 64;
+// How far a syllable machine may read past its last match before giving up on
+// a longer one; keeps the scanners linear on unbounded joiner runs.
+pub const MAX_SYLLABLE_LOOKAHEAD: usize = 64;
 
 pub fn has_kerning(aat: &AatData) -> bool {
     aat.kern.is_some()

@@ -14,6 +14,7 @@
 )]
 
 use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
 
 static _khmer_syllable_machine_actions: [i8; 29] = [
     0, 1, 0, 1, 1, 1, 2, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9, 1, 10, 1, 11, 2, 2, 3, 2, 2, 4, 0, 0,
@@ -175,11 +176,11 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
                                         }
                                     }
                                     _mid = _lower + ((_upper - _lower) >> 1);
-                                    if ((buffer.info.get(p)?.khmer_category() as u8)
+                                    if ((category_at(buffer, p, ts, te)?)
                                         < _khmer_syllable_machine_trans_keys[(_mid) as usize])
                                     {
                                         _upper = _mid - 1;
-                                    } else if ((buffer.info.get(p)?.khmer_category() as u8)
+                                    } else if ((category_at(buffer, p, ts, te)?)
                                         > _khmer_syllable_machine_trans_keys[(_mid) as usize])
                                     {
                                         _lower = _mid + 1;
@@ -207,11 +208,11 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
                                         }
                                     }
                                     _mid = _lower + (((_upper - _lower) >> 1) & !1);
-                                    if ((buffer.info.get(p)?.khmer_category() as u8)
+                                    if ((category_at(buffer, p, ts, te)?)
                                         < _khmer_syllable_machine_trans_keys[(_mid) as usize])
                                     {
                                         _upper = _mid - 2;
-                                    } else if ((buffer.info.get(p)?.khmer_category() as u8)
+                                    } else if ((category_at(buffer, p, ts, te)?)
                                         > _khmer_syllable_machine_trans_keys[(_mid + 1) as usize])
                                     {
                                         _lower = _mid + 2;
@@ -344,6 +345,20 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
         }
     }
     Some(())
+}
+
+// Longest-match scanners re-read everything after the last match (`te`) for
+// the next token. Rules with an unbounded prefix that is not a match on its
+// own (`joiner*` before an Xgroup) keep the machine alive across a whole
+// joiner run without ever matching, which makes the scan quadratic in the
+// run length. Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the
+// machine a category no rule continues with, so it falls back to `te` and
+// the scan stays linear.
+fn category_at(buffer: &Buffer, p: usize, ts: usize, te: usize) -> Option<u8> {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+        return Some(u8::MAX);
+    }
+    Some(buffer.info.get(p)?.khmer_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.

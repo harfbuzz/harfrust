@@ -13,6 +13,7 @@
 )]
 
 use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
+use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
 
 %%{
   machine indic_syllable_machine;
@@ -110,9 +111,23 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
 
     %%{
         write init;
-        getkey (buffer.info.get(p).map_or(0, |info| info.indic_category() as u8));
+        getkey (category_at(buffer, p, ts, te));
         write exec;
     }%%
+}
+
+// Longest-match scanners re-read everything after the last match (`te`) for
+// the next token. Rules with an unbounded prefix that is not a match on its
+// own (`z*` before a matra) keep the machine alive across a whole joiner run
+// without ever matching, which makes the scan quadratic in the run length.
+// Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the machine a
+// category no rule continues with, so it falls back to `te` and the scan
+// stays linear.
+fn category_at(buffer: &Buffer, p: usize, ts: usize, te: usize) -> u8 {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+        return u8::MAX;
+    }
+    buffer.info.get(p).map_or(0, |info| info.indic_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.

@@ -13,6 +13,7 @@
 )]
 
 use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
+use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
 
 static _indic_syllable_machine_trans_keys: [u8; 278] = [
     7, 19, 3, 19, 4, 19, 4, 19, 12, 12, 3, 19, 3, 19, 3, 19, 7, 19, 4, 19, 4, 19, 12, 12, 3, 19, 3,
@@ -254,25 +255,13 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
                     {
                         _keys = (cs << 1) as i32;
                         _inds = (_indic_syllable_machine_index_offsets[(cs) as usize]) as i32;
-                        if ((buffer
-                            .info
-                            .get(p)
-                            .map_or(0, |info| info.indic_category() as u8))
-                            <= 57
-                            && (buffer
-                                .info
-                                .get(p)
-                                .map_or(0, |info| info.indic_category() as u8))
-                                >= 1)
+                        if ((category_at(buffer, p, ts, te)) <= 57
+                            && (category_at(buffer, p, ts, te)) >= 1)
                         {
                             {
-                                _ic = (_indic_syllable_machine_char_class[((buffer
-                                    .info
-                                    .get(p)
-                                    .map_or(0, |info| info.indic_category() as u8))
-                                    as i32
-                                    - 1)
-                                    as usize]) as i32;
+                                _ic = (_indic_syllable_machine_char_class
+                                    [((category_at(buffer, p, ts, te)) as i32 - 1) as usize])
+                                    as i32;
                                 if (_ic
                                     <= (_indic_syllable_machine_trans_keys[(_keys + 1) as usize])
                                         as i32
@@ -496,6 +485,20 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
             break '_resume;
         }
     }
+}
+
+// Longest-match scanners re-read everything after the last match (`te`) for
+// the next token. Rules with an unbounded prefix that is not a match on its
+// own (`z*` before a matra) keep the machine alive across a whole joiner run
+// without ever matching, which makes the scan quadratic in the run length.
+// Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the machine a
+// category no rule continues with, so it falls back to `te` and the scan
+// stays linear.
+fn category_at(buffer: &Buffer, p: usize, ts: usize, te: usize) -> u8 {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+        return u8::MAX;
+    }
+    buffer.info.get(p).map_or(0, |info| info.indic_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.

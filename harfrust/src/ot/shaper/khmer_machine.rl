@@ -14,6 +14,7 @@
 )]
 
 use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
+use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
 
 %%{
   machine khmer_syllable_machine;
@@ -95,10 +96,24 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
 
     %%{
         write init;
-        getkey (buffer.info.get(p)?.khmer_category() as u8);
+        getkey (category_at(buffer, p, ts, te)?);
         write exec;
     }%%
     Some(())
+}
+
+// Longest-match scanners re-read everything after the last match (`te`) for
+// the next token. Rules with an unbounded prefix that is not a match on its
+// own (`joiner*` before an Xgroup) keep the machine alive across a whole
+// joiner run without ever matching, which makes the scan quadratic in the
+// run length. Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the
+// machine a category no rule continues with, so it falls back to `te` and
+// the scan stays linear.
+fn category_at(buffer: &Buffer, p: usize, ts: usize, te: usize) -> Option<u8> {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+        return Some(u8::MAX);
+    }
+    Some(buffer.info.get(p)?.khmer_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.

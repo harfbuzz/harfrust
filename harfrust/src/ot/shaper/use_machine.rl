@@ -19,6 +19,7 @@ use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 use crate::GlyphInfo;
 use super::machine_cursor::MachineCursor;
 use super::use_::category;
+use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
 
 %%{
   machine use_syllable_machine;
@@ -190,10 +191,24 @@ pub fn find_syllables(buffer: &mut Buffer) -> Option<()> {
 
     %%{
         write init;
-        getkey (infos.get(p.index())?.get().use_category() as u8);
+        getkey (category_at(infos, p.index(), ts.index(), te.index())?);
         write exec;
     }%%
     Some(())
+}
+
+// Longest-match scanners re-read everything after the last match (`te`) for
+// the next token. Rules with an unbounded prefix that is not a match on its
+// own (`SB*` before a hieroglyph) keep the machine alive across a whole run
+// without ever matching, which makes the scan quadratic in the run length.
+// Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the machine a
+// category no rule continues with, so it falls back to `te` and the scan
+// stays linear.
+fn category_at(infos: &[Cell<GlyphInfo>], p: usize, ts: usize, te: usize) -> Option<u8> {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+        return Some(u8::MAX);
+    }
+    Some(infos.get(p)?.get().use_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.
