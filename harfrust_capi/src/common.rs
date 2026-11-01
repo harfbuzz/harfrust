@@ -10,6 +10,12 @@ use std::sync::{OnceLock, RwLock};
 
 use harfrust::{font::Variation, Direction, Feature, Language, ParseSetting, Script, Tag};
 
+/// HarfBuzz's OpenType rounding: halfway cases go towards positive infinity.
+/// Promote f32 inputs before adding 0.5, matching `_hb_roundf`.
+pub(crate) fn ot_round(value: impl Into<f64>) -> f64 {
+    (value.into() + 0.5).floor()
+}
+
 /// A boolean, as C sees it: zero is false, non-zero is true.
 pub type hr_bool_t = c_int;
 

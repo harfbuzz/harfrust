@@ -558,6 +558,88 @@ fn base_baselines_follow_script_and_font_scale() {
 }
 
 #[test]
+fn base_baselines_round_negative_halves_up() {
+    unsafe {
+        with_named_font("NotoSansCJK.subset1.otf", |_face, font| {
+            hr_font_set_scale(font, -250, -250);
+            let mut coord = 0;
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_TOP_OR_RIGHT,
+                    HR_DIRECTION_LTR,
+                    u32::from_be_bytes(*b"hani"),
+                    0,
+                    &raw mut coord,
+                ),
+                1
+            );
+            // 834 * -0.25 = -208.5.
+            assert_eq!(coord, -208);
+        });
+    }
+}
+
+#[test]
+fn base_device_adjustments_round_negative_halves_up() {
+    unsafe {
+        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fonts/BaselineDevice.otf");
+        with_font_file(&fixture, |_face, font| {
+            hr_font_set_scale(font, -30, -30);
+            hr_font_set_ppem(font, 12, 12);
+            let mut coord = 0;
+            assert_eq!(
+                hr_ot_layout_get_baseline(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_IDEO_FACE_BOTTOM_OR_LEFT,
+                    HR_DIRECTION_LTR,
+                    u32::from_be_bytes(*b"zzzz"),
+                    0,
+                    &raw mut coord,
+                ),
+                1
+            );
+            // The coordinate rounds to 2; the device delta -30/12 to -2.
+            assert_eq!(coord, 0);
+        });
+    }
+}
+
+#[test]
+fn fallback_vertical_origin_rounds_negative_halves_up() {
+    unsafe extern "C" fn no_origin(
+        _: *mut hr_font_t,
+        _: *mut c_void,
+        _: hr_codepoint_t,
+        _: *mut hr_position_t,
+        _: *mut hr_position_t,
+        _: *mut c_void,
+    ) -> hr_bool_t {
+        0
+    }
+    unsafe {
+        with_font(|_face, font| {
+            let funcs = hr_font_funcs_create();
+            hr_font_funcs_set_glyph_v_origin_func(funcs, Some(no_origin), ptr::null_mut(), None);
+            hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(funcs);
+            hr_font_set_scale(font, 1024, -512);
+            let mut y = 0;
+            hr_font_get_glyph_origin_for_direction(
+                font,
+                1,
+                HR_DIRECTION_TTB,
+                ptr::null_mut(),
+                &raw mut y,
+            );
+            // The font's 1103-unit ascender scales to -551.5.
+            assert_eq!(y, -551);
+        });
+    }
+}
+
+#[test]
 fn baseline_fallback_and_script_defaults() {
     assert_eq!(
         hr_ot_layout_get_horizontal_baseline_tag_for_script(HR_SCRIPT_LATIN),

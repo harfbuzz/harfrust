@@ -3,6 +3,7 @@
 // The C drawing/painting ABI uses f32 coordinates, including integer font scales.
 #![allow(clippy::cast_precision_loss)]
 use super::*;
+use crate::common::ot_round;
 use read_fonts::types::GlyphId;
 use skrifa::color::{Brush, ColorPainter, ColorStop, CompositeMode, Extend, Transform};
 use skrifa::metrics::BoundingBox;
@@ -46,9 +47,8 @@ impl HrColorPainter<'_> {
         if color_index == 0xFFFF {
             // Apply alpha to foreground color
             return ((self.foreground & 0xFFFF_FF00)
-                | (((self.foreground & 0xFF) as f32 * alpha)
-                    .round()
-                    .clamp(0.0, 255.0) as u32)) as hr_color_t;
+                | (ot_round((self.foreground & 0xFF) as f32 * alpha).clamp(0.0, 255.0) as u32))
+                as hr_color_t;
         }
 
         let mut custom = 0;
@@ -62,14 +62,14 @@ impl HrColorPainter<'_> {
         } != 0
         {
             return (custom & 0xFFFF_FF00)
-                | ((custom & 0xFF) as f32 * alpha).round().clamp(0.0, 255.0) as u32;
+                | ot_round((custom & 0xFF) as f32 * alpha).clamp(0.0, 255.0) as u32;
         }
         let c = self.color_records.get(color_index as usize);
         if let Some(c) = c {
             (((c.blue as u32) << 24)
                 | ((c.green as u32) << 16)
                 | ((c.red as u32) << 8)
-                | ((c.alpha as f32 * alpha).round().clamp(0.0, 255.0) as u32))
+                | (ot_round(c.alpha as f32 * alpha).clamp(0.0, 255.0) as u32))
                 as hr_color_t
         } else {
             0 as hr_color_t
@@ -528,16 +528,16 @@ pub(super) unsafe fn paint(
         let (sx, sy) = unsafe { crate::rendering::scale(font) };
         let mx = upem / bitmap.ppem_x;
         let my = upem / bitmap.ppem_y;
-        let bx = (bitmap.bearing_x + bitmap.inner_bearing_x * mx).round();
+        let bx = ot_round(bitmap.bearing_x + bitmap.inner_bearing_x * mx) as f32;
         let inner = bitmap.inner_bearing_y
             + if bitmap.placement_origin == Origin::BottomLeft {
                 bitmap.height as f32
             } else {
                 0.0
             };
-        let by = (bitmap.bearing_y + inner * my).round();
-        let w = (bitmap.width as f32 * mx).round();
-        let h = -(bitmap.height as f32 * my).round();
+        let by = ot_round(bitmap.bearing_y + inner * my) as f32;
+        let w = ot_round(bitmap.width as f32 * mx) as f32;
+        let h = ot_round(-(bitmap.height as f32 * my)) as f32;
         let mut extents = hr_glyph_extents_t {
             x_bearing: (bx * sx).floor() as i32,
             y_bearing: (by * sy).floor() as i32,

@@ -22,7 +22,8 @@ def png_chunk(tag, data):
 
 
 def main():
-    names = [".notdef", "triangle", "layers", "linear", "cycle", "svg", "bitmap", "radial", "sweep"]
+    names = [".notdef", "triangle", "layers", "linear", "cycle", "svg", "bitmap", "radial", "sweep",
+             "bitmap_negative"]
     builder = FontBuilder(1000, isTTF=True)
     builder.setupGlyphOrder(names)
     builder.setupCharacterMap({0x41 + i: name for i, name in enumerate(names[1:])})
@@ -68,6 +69,8 @@ def main():
     strike = Strike(ppem=16, resolution=72)
     strike.glyphs["bitmap"] = Glyph(glyphName="bitmap", originOffsetX=1, originOffsetY=2,
                                     graphicType="png ", imageData=image)
+    strike.glyphs["bitmap_negative"] = Glyph(glyphName="bitmap_negative", originOffsetX=-1,
+                                             originOffsetY=-2, graphicType="png ", imageData=image)
     sbix.strikes = {16: strike}
     builder.font["sbix"] = sbix
     builder.font["head"].created = builder.font["head"].modified = 3400000000

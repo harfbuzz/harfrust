@@ -20,8 +20,8 @@ use read_fonts::{ReadError, TableProvider};
 
 use crate::common::hr_glyph_extents_t;
 use crate::common::{
-    hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, script_to_rust,
-    tag_from_rust, tag_to_rust, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
+    hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, ot_round,
+    script_to_rust, tag_from_rust, tag_to_rust, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
 };
 use crate::face::hr_face_t;
 use crate::font::{hr_font_get_glyph_extents, hr_font_get_nominal_glyph, hr_font_t};
@@ -772,7 +772,7 @@ fn axis(direction: hr_direction_t) -> BaseAxis {
 }
 
 fn scale_metric(value: F48Dot16, scale: i32, upem: i32) -> i32 {
-    (value.to_f64() * f64::from(scale) / f64::from(upem)).round() as i32
+    ot_round(value.to_f64() * f64::from(scale) / f64::from(upem)) as i32
 }
 
 fn baseline(
@@ -806,7 +806,7 @@ fn baseline(
     let device = if device_ppem == 0 {
         0
     } else {
-        (f64::from(value.delta_px) * f64::from(scale) / f64::from(device_ppem)).round() as i32
+        ot_round(f64::from(value.delta_px) * f64::from(scale) / f64::from(device_ppem)) as i32
     };
     Some(scaled.saturating_add(device))
 }

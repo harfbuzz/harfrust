@@ -1,7 +1,7 @@
 use crate::GlyphExtents;
 use read_fonts::types::{BoundingBox, F48Dot16};
 
-// libm used for f32::floor() and f32::ceil()
+// libm used for floor() and ceil()
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use core_maths::CoreFloat as _;
@@ -65,15 +65,15 @@ impl Scale {
     }
 
     /// Scales a fractional (font-unit) value, matching HarfBuzz's `em_scalef`
-    /// (`roundf(v * scale / upem)`).
+    /// (round to nearest, with halfway cases towards positive infinity).
     #[inline(always)]
     pub(crate) fn scale_x_f(&self, x: f32) -> i32 {
-        (x * self.x_multf).round() as i32
+        Self::scale_by_mult_f(x, self.x_multf)
     }
 
     #[inline(always)]
     pub(crate) fn scale_y_f(&self, y: f32) -> i32 {
-        (y * self.y_multf).round() as i32
+        Self::scale_by_mult_f(y, self.y_multf)
     }
 
     /// Clamps a scaled advance to the sign of its scale. This applies the
@@ -126,6 +126,13 @@ impl Scale {
     #[inline(always)]
     fn scale_by_mult(value: i32, mult: i64) -> i32 {
         ((i64::from(value) * mult + 32768) >> 16) as i32
+    }
+
+    #[inline(always)]
+    fn scale_by_mult_f(value: f32, mult: f32) -> i32 {
+        // HarfBuzz's _hb_roundf promotes to double before adding 0.5, so
+        // values just below a half and large integers round correctly.
+        (f64::from(value * mult) + 0.5).floor() as i32
     }
 }
 
@@ -183,5 +190,77 @@ impl read_fonts::model::metrics::Scale for Scale {
             x_max: self.scale_x_f(bounds.x_max.to_f32()),
             y_max: self.scale_y_f(bounds.y_max.to_f32()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::model::metrics::Scale as MetricsScale;
+
+    #[test]
+    fn fractional_scaling_rounds_halves_towards_positive_infinity() {
+        for (value, expected) in [
+            (-2.5, -2),
+            (-1.5, -1),
+            (-0.5, 0),
+            (0.0, 0),
+            (0.5, 1),
+            (1.5, 2),
+            (2.5, 3),
+        ] {
+            for factor in [-2_i16, -1, 0, 1, 2] {
+                let units = i32::from(factor) * 1000;
+                let scale = Scale::new(Some((units, -units)), 1000);
+                // Divide the input by the factor so both axes encounter the
+                // same halfway cases at positive and negative font scales.
+                if factor == 0 {
+                    assert_eq!(scale.scale_x_f(value), 0);
+                    assert_eq!(scale.scale_y_f(value), 0);
+                } else {
+                    let input = value / f32::from(factor);
+                    assert_eq!(scale.scale_x_f(input), expected);
+                    assert_eq!(scale.scale_y_f(-input), expected);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fractional_scaling_preserves_precision_when_rounding() {
+        let scale = Scale::default();
+        for (value, expected) in [
+            (f32::from_bits(0.5_f32.to_bits() - 1), 0),
+            (f32::from_bits((-0.5_f32).to_bits() + 1), -1),
+            (8_388_609.0, 8_388_609),
+            (-8_388_609.0, -8_388_609),
+        ] {
+            assert_eq!(scale.scale_x_f(value), expected);
+            assert_eq!(scale.scale_y_f(value), expected);
+        }
+    }
+
+    #[test]
+    fn font_metrics_and_rectangles_use_the_same_rounding() {
+        let scale = Scale::new(Some((500, -500)), 1000);
+        assert_eq!(MetricsScale::scale_x(&scale, F48Dot16::from_f64(-5.0)), -2);
+        assert_eq!(MetricsScale::scale_y(&scale, F48Dot16::from_f64(5.0)), -2);
+        let scale = Scale::default();
+        assert_eq!(MetricsScale::scale_x(&scale, F48Dot16::from_f64(-2.5)), -2);
+        assert_eq!(MetricsScale::scale_y(&scale, F48Dot16::from_f64(-2.5)), -2);
+        assert_eq!(
+            scale.scale_rect(BoundingBox {
+                x_min: F48Dot16::from_f64(-2.5),
+                y_min: F48Dot16::from_f64(-1.5),
+                x_max: F48Dot16::from_f64(0.5),
+                y_max: F48Dot16::from_f64(2.5),
+            }),
+            BoundingBox {
+                x_min: -2,
+                y_min: -1,
+                x_max: 1,
+                y_max: 3,
+            }
+        );
     }
 }
