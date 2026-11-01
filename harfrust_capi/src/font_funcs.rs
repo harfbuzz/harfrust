@@ -766,6 +766,15 @@ impl<'a> FontFuncsAdapter<'a> {
     // Scalar and batch callbacks are alternatives at each font in the chain.
     // A child's scalar callback must take precedence over a parent's batch.
     fn nominal_funcs(&self) -> NominalFuncs<'_> {
+        self.nearest_funcs(|funcs| funcs.nominal_glyph.is_some() || funcs.nominal_glyphs.is_some())
+    }
+
+    // As for the nominal glyph callbacks.
+    fn h_advance_funcs(&self) -> NominalFuncs<'_> {
+        self.nearest_funcs(|funcs| funcs.h_advance.is_some() || funcs.h_advances.is_some())
+    }
+
+    fn nearest_funcs(&self, answers: impl Fn(&hr_font_funcs_t) -> bool) -> NominalFuncs<'_> {
         let mut font = self.font;
         let mut state = self.state;
         loop {
@@ -773,7 +782,7 @@ impl<'a> FontFuncsAdapter<'a> {
                 return NominalFuncs::Builtin;
             }
             if let Some(funcs) = unsafe { state.funcs.as_ref() } {
-                if funcs.nominal_glyph.is_some() || funcs.nominal_glyphs.is_some() {
+                if answers(funcs) {
                     return NominalFuncs::Found(font, state, funcs);
                 }
             }
@@ -920,40 +929,40 @@ impl<'a> FontFuncsAdapter<'a> {
     /// answers. There is always an answer: a chain carrying callbacks that do
     /// not cover this reports one em, as HarfBuzz's nil implementation does.
     pub(crate) fn call_h_advance(&self, glyph: u32) -> Answer<i32> {
-        let mut advance = 0;
-        if unsafe {
-            self.call_h_advances(
-                1,
-                &raw const glyph,
-                size_of::<u32>() as c_uint,
-                &raw mut advance,
-                size_of::<i32>() as c_uint,
-            )
-        } {
-            return Answer::Value(advance);
-        }
-        let (font, data, cb, scale) = match resolve!(self, h_advance) {
-            Resolved::Builtin => return Answer::Builtin,
+        let (font, state, funcs) = match self.h_advance_funcs() {
+            NominalFuncs::Builtin => return Answer::Builtin,
             // Nothing answers, so every glyph is as wide as the font is
             // tall. HarfBuzz's own answer, and not zero.
-            Resolved::Missing => return Answer::Value(self.state.x_scale),
-            Resolved::Found {
-                font,
-                data,
-                callback,
-                scale,
-            } => (font, data, callback, scale),
+            NominalFuncs::Missing => return Answer::Value(self.state.x_scale),
+            NominalFuncs::Found(font, state, funcs) => (font, state, funcs),
+        };
+        // The batch callback answers a scalar query only where there is no
+        // scalar callback to ask, so that one written over scalar queries
+        // does not ask itself.
+        let Some(cb) = &funcs.h_advance else {
+            let mut advance = 0;
+            unsafe {
+                self.call_h_advances(
+                    1,
+                    &raw const glyph,
+                    size_of::<u32>() as c_uint,
+                    &raw mut advance,
+                    size_of::<i32>() as c_uint,
+                );
+            }
+            return Answer::Value(advance);
         };
         let Some(func) = cb.func else {
             return Answer::Value(0);
         };
         // SAFETY: the callback was registered by the caller for this purpose.
-        let advance = unsafe { func(font, data, glyph, cb.user_data) };
-        Answer::Value(rescale(advance, scale.0, self.state.x_scale))
+        let advance = unsafe { func(font, state.callback_data(), glyph, cb.user_data) };
+        Answer::Value(rescale(advance, state.x_scale, self.state.x_scale))
     }
 
     /// Calls a batched callback directly on the caller's strided storage.
-    /// Returns false when there is no batched callback to use.
+    /// Returns false when there is no batched callback to use, which includes
+    /// a nearer font answering through a scalar one.
     ///
     /// # Safety
     ///
@@ -967,13 +976,10 @@ impl<'a> FontFuncsAdapter<'a> {
         first_advance: *mut i32,
         advance_stride: c_uint,
     ) -> bool {
-        let Resolved::Found {
-            font,
-            data,
-            callback: cb,
-            scale,
-        } = resolve!(self, h_advances)
-        else {
+        let NominalFuncs::Found(font, state, funcs) = self.h_advance_funcs() else {
+            return false;
+        };
+        let Some(cb) = &funcs.h_advances else {
             return false;
         };
         let Some(func) = cb.func else {
@@ -982,7 +988,7 @@ impl<'a> FontFuncsAdapter<'a> {
         unsafe {
             func(
                 font,
-                data,
+                state.callback_data(),
                 count,
                 first_glyph,
                 glyph_stride,
@@ -991,14 +997,14 @@ impl<'a> FontFuncsAdapter<'a> {
                 cb.user_data,
             );
         };
-        if scale.0 != self.state.x_scale && scale.0 != 0 {
+        if state.x_scale != self.state.x_scale && state.x_scale != 0 {
             let mut advance = first_advance.cast::<u8>();
             for _ in 0..count {
                 let value = unsafe { advance.cast::<i32>().read_unaligned() };
                 unsafe {
                     advance.cast::<i32>().write_unaligned(rescale(
                         value,
-                        scale.0,
+                        state.x_scale,
                         self.state.x_scale,
                     ));
                 };

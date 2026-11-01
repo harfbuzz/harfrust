@@ -298,6 +298,7 @@ MIT, the same as the rest of the project.
 Nominal glyph callbacks support both scalar and strided batch mapping. A batch
 callback supplies scalar queries when no scalar callback is installed; a local
 scalar callback also takes precedence over an inherited batch callback.
+Horizontal advance callbacks follow the same rule.
 
 HarfBuzz compatibility headers are `hr-hb.h` for core APIs and `hr-hb-ot.h`
 for OpenType APIs, and `hr-hb-aat.h` for AAT feature metadata. The core header also includes the OpenType mappings for
