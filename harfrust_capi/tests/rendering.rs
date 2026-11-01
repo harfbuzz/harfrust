@@ -206,14 +206,14 @@ fn outlines_are_built_once_per_face() {
         let mut drawing = Drawing::default();
         let data = ptr::from_mut(&mut drawing).cast();
         assert_eq!(hr_font_draw_glyph_or_fail(font, 1, funcs, data), 1);
-        let first = crate::rendering::outlines(face).map(ptr::from_ref);
+        let first = rendering::outlines(face).map(ptr::from_ref);
         assert!(first.is_some());
         let segments = drawing.0.len();
         assert_eq!(hr_font_draw_glyph_or_fail(font, 1, funcs, data), 1);
         assert_eq!(drawing.0.len(), 2 * segments);
         // The second draw reused the collection instead of parsing the font
         // tables again; for a CFF font that walk covers the whole Top DICT.
-        assert_eq!(crate::rendering::outlines(face).map(ptr::from_ref), first);
+        assert_eq!(rendering::outlines(face).map(ptr::from_ref), first);
         hr_draw_funcs_destroy(funcs);
         hr_font_destroy(font);
     }

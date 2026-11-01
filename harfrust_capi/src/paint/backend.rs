@@ -591,6 +591,7 @@ pub(super) unsafe fn paint(
     }
     0
 }
+#[allow(clippy::too_many_arguments)]
 unsafe fn image(
     face: &crate::hr_face_t,
     funcs: *mut hr_paint_funcs_t,
