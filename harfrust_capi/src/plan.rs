@@ -10,9 +10,10 @@
 //!
 //! The cache hangs off the face, and everything the planner reads from a font
 //! is fixed for the life of that face: the presence of `GSUB`, `morx` and
-//! `mort`, and the script chosen from `GSUB`. The one input that varies with a
-//! font instance is the pair of `GSUB` and `GPOS` feature variation indices,
-//! and those are part of the key below.
+//! `mort`, and the script chosen from `GSUB`. The inputs that vary with a
+//! font instance are the `GSUB` and `GPOS` feature variation indices and,
+//! when lookups vary with the location, the normalized coordinates, and
+//! `ShapePlanKey` compares those.
 //!
 //! So changing a font's variation settings simply misses and builds a new
 //! plan, rather than leaving a stale one behind, and the other mutable font
@@ -22,42 +23,7 @@
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::Font;
-use harfrust::{Direction, Feature, Language, Script, ShapePlan};
-
-/// Everything a plan depends on.
-///
-/// `ShapePlanKey` cannot be built from a [`Font`], so the cache keeps
-/// its own key rather than asking HarfRust whether a plan matches. Features are
-/// compared exactly, which can miss a reusable plan that HarfBuzz would have
-/// matched, but never returns a wrong one.
-#[derive(PartialEq)]
-struct PlanKey {
-    direction: Direction,
-    script: Option<Script>,
-    language: Option<Language>,
-    /// The `GSUB` and `GPOS` feature variation indices the instance selects,
-    /// so two variable font instances do not share a plan.
-    feature_variations: [Option<u32>; 2],
-    features: Vec<Feature>,
-}
-
-impl PlanKey {
-    /// Compares against a caller's values without building a key from them.
-    fn matches(
-        &self,
-        direction: Direction,
-        script: Option<Script>,
-        language: Option<&Language>,
-        features: &[Feature],
-        feature_variations: [Option<u32>; 2],
-    ) -> bool {
-        self.direction == direction
-            && self.script == script
-            && self.language.as_ref() == language
-            && self.feature_variations == feature_variations
-            && self.features == features
-    }
-}
+use harfrust::{Direction, Feature, Language, Script, ShapePlan, ShapePlanKey};
 
 /// A face's cache of shape plans.
 ///
@@ -85,8 +51,13 @@ impl Drop for PlanCache {
 }
 
 /// One cached plan and the link to the next.
+///
+/// The plan records what it was built for, so HarfRust's own `ShapePlanKey`
+/// decides whether it matches a caller: it ignores where a ranged feature
+/// starts and ends, which each shaping call takes from its own features, and
+/// compares everything a plan does depend on. Keeping a key of this crate's
+/// own here would let the two drift apart.
 struct Node {
-    key: PlanKey,
     /// Counted, because [`hr_shape_plan_create_cached`] hands the same plan
     /// out as an object the caller owns. Shaping only ever borrows it.
     plan: Arc<ShapePlan>,
@@ -104,42 +75,29 @@ impl PlanCache {
         language: Option<&Language>,
         features: &[Feature],
     ) -> &Arc<ShapePlan> {
-        let variations = instance.feature_variations();
-        let feature_variations = [variations.gsub, variations.gpos];
+        let key = ShapePlanKey::new(instance, script, direction)
+            .language(language)
+            .features(features);
 
         // A linear walk, as HarfBuzz does over its per-face plan list. The key
-        // is compared against the caller's own values, so a hit -- the common
-        // case once a face is warm -- builds nothing at all.
+        // borrows the caller's own values, so a hit -- the common case once a
+        // face is warm -- builds nothing at all.
         let mut link = &self.head;
         while let Some(node) = link.get() {
-            if node
-                .key
-                .matches(direction, script, language, features, feature_variations)
-            {
+            if key.matches(&node.plan) {
                 return &node.plan;
             }
             link = &node.next;
         }
 
         let plan = Arc::new(build(instance, direction, script, language, features));
-        // Only a plan the cache keeps needs a language of its own; a hit,
-        // which is the common case once a face is warm, borrows the
-        // caller's.
-        let key = PlanKey {
-            direction,
-            script,
-            language: language.cloned(),
-            feature_variations,
-            features: features.to_vec(),
-        };
-        self.insert(key, plan)
+        self.insert(&key, plan)
     }
 
-    /// Publishes a node at the end of the list, or hands back an equal one that
-    /// another thread published while this one was building.
-    fn insert(&self, key: PlanKey, plan: Arc<ShapePlan>) -> &Arc<ShapePlan> {
+    /// Publishes a node at the end of the list, or hands back a matching one
+    /// that another thread published while this one was building.
+    fn insert(&self, key: &ShapePlanKey<'_>, plan: Arc<ShapePlan>) -> &Arc<ShapePlan> {
         let mut node = Box::new(Node {
-            key,
             plan,
             next: OnceLock::new(),
         });
@@ -153,7 +111,7 @@ impl PlanCache {
                 Err(unplaced) => {
                     node = unplaced;
                     let occupant = link.get().expect("set failed, so it is occupied");
-                    if occupant.key == node.key {
+                    if key.matches(&occupant.plan) {
                         return &occupant.plan;
                     }
                     link = &occupant.next;
@@ -171,4 +129,40 @@ fn build(
     features: &[Feature],
 ) -> ShapePlan {
     ShapePlan::new(instance, direction, script, language, features)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use harfrust::Tag;
+
+    fn font() -> Font {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/tests/fonts/rb_custom/LaBelleAurore.ttf"
+        );
+        let data = std::fs::read(path).expect("failed to read test font");
+        Font::new(data, 0).expect("failed to parse test font")
+    }
+
+    /// Ranges follow the text, so two styled runs must share a plan, while a
+    /// different value or a global feature must not.
+    #[test]
+    fn ranged_features_share_a_plan_whatever_their_range() {
+        let font = font();
+        let instance = font.instance_builder().build();
+        let cache = PlanCache::default();
+        let liga = Tag::new(b"liga");
+        let get = |features: &[Feature]| {
+            cache
+                .get(&instance, Direction::LeftToRight, None, None, features)
+                .clone()
+        };
+
+        let first = get(&[Feature::new(liga, 0, 0..6)]);
+        assert!(Arc::ptr_eq(&first, &get(&[Feature::new(liga, 0, 15..21)])));
+        assert!(!Arc::ptr_eq(&first, &get(&[Feature::new(liga, 1, 0..6)])));
+        assert!(!Arc::ptr_eq(&first, &get(&[Feature::new(liga, 0, ..)])));
+        assert!(Arc::ptr_eq(&first, &get(&[Feature::new(liga, 0, 30..36)])));
+    }
 }
