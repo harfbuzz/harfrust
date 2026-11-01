@@ -1,8 +1,3 @@
-// libm used for f32::round() method
-#[cfg(not(feature = "std"))]
-#[allow(unused_imports)]
-use core_maths::CoreFloat as _;
-
 use read_fonts::tables::trak::TrackTableEntry;
 use read_fonts::types::{BigEndian, Fixed};
 use read_fonts::FontData;

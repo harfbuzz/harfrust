@@ -10,8 +10,8 @@ use harfrust::{
 };
 use read_fonts::TableProvider;
 
-use crate::common::hr_glyph_extents_t;
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_direction_t, hr_position_t, hr_variation_t};
+use crate::common::{hr_glyph_extents_t, ot_round};
 use crate::face::hr_face_t;
 use crate::font_funcs::{hr_font_funcs_t, Answer};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
@@ -1307,7 +1307,7 @@ unsafe fn origin_for_direction(
         .instance()
         .and_then(|instance| instance.metrics().hhea_line)
         .map_or(0, |line| {
-            (line.ascender.to_f64() * f64::from(state.y_scale) / f64::from(state.upem())).round()
+            ot_round(line.ascender.to_f64() * f64::from(state.y_scale) / f64::from(state.upem()))
                 as i32
         });
     (x, y)

@@ -646,7 +646,7 @@ mod painting {
     #[test]
     fn retained_svg_and_bitmap_images_survive_font_destruction() {
         unsafe {
-            for (glyph, format) in [(5, *b"svg "), (6, *b"png ")] {
+            for (glyph, format) in [(5, *b"svg "), (6, *b"png "), (9, *b"png ")] {
                 let font = font();
                 let funcs = funcs();
                 let mut s = Paint::default();
@@ -673,11 +673,17 @@ mod painting {
                     1
                 );
                 assert_eq!(s.image_format, u32::from_be_bytes(format));
-                if glyph == 6 {
+                if glyph == 6 || glyph == 9 {
                     let e = s.extents.unwrap();
+                    // At 1000 upem / 16 ppem, a pixel is 62.5 font units.
+                    // Negative bearings and heights must round towards +inf.
                     assert_eq!(
                         (e.x_bearing, e.y_bearing, e.width, e.height),
-                        (63, 188, 63, -63)
+                        if glyph == 6 {
+                            (63, 188, 63, -62)
+                        } else {
+                            (-62, -62, 63, -62)
+                        }
                     );
                 } else {
                     assert!(s.extents.is_none());

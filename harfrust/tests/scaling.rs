@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::fs;
 use std::path::PathBuf;
 
-use harfrust::{Advances, Buffer, FontFuncs, ShaperFont};
+use harfrust::{Advances, Buffer, Direction, FontFuncs, ShaperFont};
 use read_fonts::types::GlyphId;
 
 fn test_font_path() -> PathBuf {
@@ -253,5 +253,36 @@ fn shape_negative_scale_flips_and_doubles_advances() {
     {
         assert_eq!(scaled.x_advance, -(baseline.x_advance * 2));
         assert_eq!(scaled.y_advance, -(baseline.y_advance * 2));
+    }
+}
+
+#[test]
+fn variable_gpos_rounds_negative_half_deltas_up() {
+    let font = harfrust::Font::new(include_bytes!("fonts/rounding.ttf").to_vec(), 0).unwrap();
+    let instance = font.instance_builder().variations([("wght", 0.25)]).build();
+    let features = ["kern".parse().unwrap()];
+    for (scale, adjustment) in [(1000, 8), (-1000, -7), (2000, 15)] {
+        let shaper = ShaperFont::new(&instance).with_scale(scale);
+        for direction in [Direction::LeftToRight, Direction::TopToBottom] {
+            let mut buffer = buffer_with_text("AB");
+            buffer.set_direction(direction);
+            harfrust::shape(
+                &shaper,
+                &mut buffer,
+                harfrust::ShapeOptions::new().features(&features),
+            )
+            .unwrap();
+            let first = buffer.glyph_positions()[0];
+            let second = buffer.glyph_positions()[1];
+            if direction == Direction::LeftToRight {
+                assert_eq!(first.x_advance - second.x_advance, adjustment);
+                assert_eq!(first.x_offset, adjustment);
+                assert_eq!(first.y_offset, adjustment);
+            } else {
+                assert_eq!(first.y_advance - second.y_advance, -adjustment);
+                assert_eq!(first.x_offset - second.x_offset, adjustment);
+                assert_eq!(first.y_offset - second.y_offset, adjustment);
+            }
+        }
     }
 }
