@@ -587,8 +587,11 @@ pub(crate) fn apply_lookup(
             break;
         }
 
+        // A record that recurses is charged by recurse(); the ones skipped
+        // below are charged here, as a rule can carry 65535 of them.
         let idx = usize::from(record.sequence_index.get());
         if idx >= count {
+            ctx.buffer.charge_ops(1);
             continue;
         }
 
@@ -596,6 +599,7 @@ pub(crate) fn apply_lookup(
 
         // This can happen if earlier recursed lookups deleted many entries.
         if ctx.match_positions[idx] as usize >= orig_len {
+            ctx.buffer.charge_ops(1);
             continue;
         }
 
