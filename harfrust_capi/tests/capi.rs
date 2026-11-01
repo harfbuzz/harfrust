@@ -3100,6 +3100,34 @@ fn languages_are_interned() {
 }
 
 #[test]
+fn interning_many_languages_stays_cheap() {
+    // Content chooses the languages, so the table can grow as large as it
+    // likes; finding one must not mean comparing it with every other. Walking
+    // the table made this many take seconds, and keying it makes it instant.
+    let names: Vec<_> = (0..20_000u32)
+        .map(|i| std::ffi::CString::new(format!("x-{i:x}")).unwrap())
+        .collect();
+    unsafe {
+        let interned: Vec<_> = names
+            .iter()
+            .map(|name| hr_language_from_string(name.as_ptr(), -1))
+            .collect();
+        for (name, language) in names.iter().zip(&interned) {
+            assert_eq!(hr_language_from_string(name.as_ptr(), -1), *language);
+            assert_eq!(
+                core::ffi::CStr::from_ptr(hr_language_to_string(*language)),
+                name.as_c_str()
+            );
+        }
+        // Tags that are not registered intern a language each, and share the
+        // same table.
+        let tag = hr_ot_tag_to_language(u32::from_be_bytes(*b"QQQQ"));
+        assert_eq!(hr_ot_tag_to_language(u32::from_be_bytes(*b"QQQQ")), tag);
+        assert_eq!(hr_language_from_string(hr_language_to_string(tag), -1), tag);
+    }
+}
+
+#[test]
 fn glyph_and_buffer_structs_match_harfbuzz_layout() {
     // hb_glyph_info_t is five 32 bit fields, hb_glyph_position_t likewise.
     assert_eq!(size_of::<hr_glyph_info_t>(), 20);

@@ -6,6 +6,7 @@
 
 use core::ffi::{c_char, c_int, c_uint};
 use core::str::FromStr;
+use std::collections::BTreeMap;
 use std::sync::{OnceLock, RwLock};
 
 use harfrust::{font::Variation, Direction, Feature, Language, ParseSetting, Script, Tag};
@@ -675,16 +676,18 @@ pub struct hr_language_impl_t {
 /// A language, as an interned pointer. `NULL` means "unset".
 pub type hr_language_t = *const hr_language_impl_t;
 
-/// Interned languages, which live for the life of the process.
+/// Interned languages, which live for the life of the process, by their bytes.
 ///
-/// Looking one up is far more common than adding one, and adding is what the
-/// write lock is for.
-static LANGUAGES: RwLock<Vec<&'static hr_language_impl_t>> = RwLock::new(Vec::new());
+/// Content decides how many there are, so finding one must not mean walking
+/// them all. Looking one up is far more common than adding one, and adding is
+/// what the write lock is for.
+static LANGUAGES: RwLock<BTreeMap<&'static [u8], &'static hr_language_impl_t>> =
+    RwLock::new(BTreeMap::new());
 
 fn intern_language(lang: &Language) -> hr_language_t {
     // The common path: already interned, so only a read lock is needed.
     if let Ok(languages) = LANGUAGES.read() {
-        if let Some(found) = languages.iter().find(|entry| entry.lang == *lang) {
+        if let Some(found) = languages.get(lang.as_bytes()) {
             return *found as hr_language_t;
         }
     }
@@ -693,7 +696,7 @@ fn intern_language(lang: &Language) -> hr_language_t {
         return core::ptr::null();
     };
     // Another thread may have interned it between the two locks.
-    if let Some(found) = languages.iter().find(|entry| entry.lang == *lang) {
+    if let Some(found) = languages.get(lang.as_bytes()) {
         return *found as hr_language_t;
     }
     let mut name = lang.as_bytes().to_vec();
@@ -702,7 +705,8 @@ fn intern_language(lang: &Language) -> hr_language_t {
         lang: lang.clone(),
         name: name.into_boxed_slice(),
     }));
-    languages.push(entry);
+    // The key borrows from the leaked entry, which is never freed or moved.
+    languages.insert(entry.lang.as_bytes(), entry);
     entry as hr_language_t
 }
 
@@ -720,28 +724,7 @@ pub(crate) unsafe fn language_ref(language: hr_language_t) -> Option<&'static La
 }
 
 pub(crate) fn language_from_owned(language: Option<Language>) -> hr_language_t {
-    let Some(language) = language else {
-        return core::ptr::null();
-    };
-    if let Ok(languages) = LANGUAGES.read() {
-        if let Some(found) = languages.iter().find(|entry| entry.lang == language) {
-            return *found as hr_language_t;
-        }
-    }
-    let Ok(mut languages) = LANGUAGES.write() else {
-        return core::ptr::null();
-    };
-    if let Some(found) = languages.iter().find(|entry| entry.lang == language) {
-        return *found as hr_language_t;
-    }
-    let mut name = language.as_bytes().to_vec();
-    name.push(0);
-    let entry: &'static hr_language_impl_t = Box::leak(Box::new(hr_language_impl_t {
-        lang: language,
-        name: name.into_boxed_slice(),
-    }));
-    languages.push(entry);
-    entry as hr_language_t
+    language_from_rust(language.as_ref())
 }
 
 pub(crate) fn language_from_rust(language: Option<&Language>) -> hr_language_t {
