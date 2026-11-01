@@ -166,6 +166,71 @@ fn set_batch_iteration_seeks_across_missing_pages() {
 }
 
 #[test]
+fn set_iteration_does_not_rescan_the_preceding_runs() {
+    // Every iteration call used to scan the ranges from the first page, so
+    // walking a set of many separate runs was quadratic: the inverted walks
+    // below took tens of seconds on a debug build.
+    const LIMIT: u32 = 1 << 15;
+    unsafe {
+        for inverted in [false, true] {
+            let set = hr_set_create();
+            if inverted {
+                hr_set_invert(set);
+            }
+            for value in (1..LIMIT).step_by(2) {
+                if inverted {
+                    hr_set_del(set, value);
+                } else {
+                    hr_set_add(set, value);
+                }
+            }
+            let expected: Vec<u32> = (0..LIMIT).filter(|v| (v % 2 == 1) != inverted).collect();
+            let expected_ranges: Vec<(u32, u32)> = expected.iter().map(|&v| (v, v)).collect();
+
+            let mut forwards = Vec::new();
+            let mut value = INVALID;
+            while hr_set_next(set, &raw mut value) != 0 && value < LIMIT {
+                forwards.push(value);
+            }
+            assert_eq!(forwards, expected);
+            let mut backwards = Vec::new();
+            value = LIMIT;
+            while hr_set_previous(set, &raw mut value) != 0 {
+                backwards.push(value);
+            }
+            backwards.reverse();
+            assert_eq!(backwards, expected);
+
+            let mut forwards = Vec::new();
+            let (mut first, mut last) = (INVALID, INVALID);
+            while hr_set_next_range(set, &raw mut first, &raw mut last) != 0 && first < LIMIT {
+                forwards.push((first, last));
+            }
+            assert_eq!(forwards, expected_ranges);
+            let mut backwards = Vec::new();
+            first = LIMIT;
+            while hr_set_previous_range(set, &raw mut first, &raw mut last) != 0 {
+                backwards.push((first, last));
+            }
+            backwards.reverse();
+            assert_eq!(backwards, expected_ranges);
+
+            let mut batched = Vec::new();
+            let mut out = [0; 16];
+            value = INVALID;
+            while batched.len() < expected.len() {
+                let count = hr_set_next_many(set, value, out.as_mut_ptr(), 16) as usize;
+                assert_ne!(count, 0);
+                batched.extend_from_slice(&out[..count]);
+                value = out[count - 1];
+            }
+            assert_eq!(batched, expected);
+            hr_set_destroy(set);
+        }
+    }
+}
+
+#[test]
 fn set_algebra_in_all_inversion_combinations() {
     type Op = unsafe extern "C" fn(*mut hr_set_t, *const hr_set_t);
     type Expected = fn(bool, bool) -> bool;
