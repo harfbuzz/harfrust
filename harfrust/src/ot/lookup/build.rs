@@ -133,6 +133,7 @@ pub(super) fn build_lookup_at<'a>(
             table_data,
             offset: offset + subtable_offset.get().to_u32() as usize,
             is_subst,
+            is_reversed: cached.is_reversed,
             with_caches: index < MAX_CACHED_SUBTABLES,
             budget,
         };
@@ -193,6 +194,8 @@ struct Source<'a, 'b> {
     table_data: FontData<'a>,
     offset: usize,
     is_subst: bool,
+    /// Whether the lookup is applied backward, as its first subtable says.
+    is_reversed: bool,
     with_caches: bool,
     budget: &'b Budget,
 }
@@ -348,6 +351,13 @@ impl<'a> Source<'a, '_> {
                 let ext = ExtensionSubstFormat1::<()>::read(data)?;
                 let ext_type = ext.extension_lookup_type();
                 if is_extension(self.is_subst, ext_type) {
+                    return Err(BuildError::Invalid);
+                }
+                // The direction is fixed by the first subtable: a reverse
+                // chain walked forward never advances past a glyph it keeps
+                // matching, and the other kinds need the output buffer that
+                // a backward walk does not have.
+                if self.is_subst && (ext_type == 8) != self.is_reversed {
                     return Err(BuildError::Invalid);
                 }
                 let offset = self
@@ -523,6 +533,48 @@ mod tests {
         )
         .unwrap();
         assert!(lookup.subtables.is_empty());
+    }
+
+    /// An extension lookup over a SingleSubst of glyph 3 and a
+    /// ReverseChainSingleSubst of glyph 1, the reverse chain first if
+    /// `reverse_first`.
+    fn lookup_with_mixed_extensions(reverse_first: bool) -> Vec<u8> {
+        // Each subtable is followed by its coverage.
+        let single: [u16; 6] = [1, 6, 1, 1, 1, 3];
+        let reverse: [u16; 9] = [1, 12, 0, 0, 1, 1, 1, 1, 1];
+        let (first, first_type, second, second_type): (&[u16], u16, &[u16], u16) =
+            match reverse_first {
+                false => (&single, 1, &reverse, 8),
+                true => (&reverse, 8, &single, 1),
+            };
+        // Lookup table with the two ExtensionSubstFormat1 subtables at 10
+        // and 18, which point at the subtables that follow them.
+        let mut words = alloc::vec![7, 0, 2, 10, 18];
+        words.extend_from_slice(&[1, first_type, 0, 16]);
+        words.extend_from_slice(&[1, second_type, 0, 8 + 2 * first.len() as u16]);
+        words.extend_from_slice(first);
+        words.extend_from_slice(second);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn extension_subtables_against_the_lookup_direction_are_skipped() {
+        for reverse_first in [false, true] {
+            let data = lookup_with_mixed_extensions(reverse_first);
+            let lookup = build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len()),
+            )
+            .unwrap();
+            // A reverse chain walked forward would never advance; the
+            // single substitution walked backward has no output buffer.
+            assert_eq!(lookup.is_reversed, reverse_first);
+            assert_eq!(lookup.subtables.len(), 1);
+            let kept: u16 = if reverse_first { 1 } else { 3 };
+            assert!(lookup.subtables[0].coverage.covers(kept));
+        }
     }
 
     #[test]
