@@ -4,7 +4,7 @@ use super::buffer::GlyphPropsFlags;
 use super::{set_digest::SetDigest, tag::TagExt};
 use crate::budget::{Budget, Exhausted};
 use crate::Tag;
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{collections::BTreeSet, sync::Arc, vec::Vec};
 use lookup::{CachedLookup, ClassDef, Coverage, LookupCache};
 use read_fonts::model::Tables;
 use read_fonts::{
@@ -13,13 +13,14 @@ use read_fonts::{
         gpos::{AnchorTable, DeviceOrVariationIndex, Gpos},
         gsub::{FeatureList, FeatureVariations, Gsub, ScriptList},
         layout::{
-            Feature as LayoutFeature, LangSys, LookupVariations, Script as LayoutScript,
+            Feature as LayoutFeature, FeatureLookups, LangSys, LookupConditionRecord,
+            LookupVariationRecord, LookupVariations, Script as LayoutScript,
             SelectedFeatureVariations,
         },
         varc::CoverageTable,
         variations::{DeltaSetIndex, ItemVariationStore},
     },
-    types::{F2Dot14, GlyphId},
+    types::{F2Dot14, FixedSize, GlyphId},
     FontData, ReadError, TableProvider,
 };
 use yoke::{Yoke, Yokeable};
@@ -559,6 +560,46 @@ impl<'a> LayoutTable<'a> {
         self.feature_variations()?.lookup_variations()
     }
 
+    /// The most lookup indices the lookup variations of a feature can add:
+    /// the total length of its distinct lookup index lists.
+    ///
+    /// Each list is counted once, as when the variations are applied, but
+    /// lists at different offsets may overlap, so the total is not bounded
+    /// by the size of the table.
+    pub(crate) fn lookup_variation_len(&self, feature_index: u16) -> usize {
+        let Some(table) = self.feature_lookups(feature_index) else {
+            return 0;
+        };
+        let mut offsets = BTreeSet::new();
+        table
+            .lookup_condition_records()
+            .iter()
+            .filter(|record| offsets.insert(record.lookup_index_list_offset().to_u32()))
+            .filter_map(|record| record.lookup_index_list(table.offset_data()).ok())
+            .fold(0, |len: usize, list| {
+                len.saturating_add(usize::from(list.lookup_index_count()))
+            })
+    }
+
+    /// The conditional lookups of a feature, if it has readable ones.
+    fn feature_lookups(&self, feature_index: u16) -> Option<FeatureLookups<'a>> {
+        let variations = self.feature_variations()?;
+        let records = variations.lookup_variation_records()?;
+        let index = records
+            .binary_search_by_key(&feature_index, LookupVariationRecord::feature_index)
+            .ok()?;
+        let table = records[index]
+            .feature_lookups(variations.offset_data())
+            .ok()?;
+        // Checked before the records are read, whose range the generated
+        // code computes without checking for overflow.
+        let records_end = usize::try_from(table.lookup_condition_count())
+            .ok()?
+            .checked_mul(LookupConditionRecord::RAW_BYTE_LEN)?
+            .checked_add(table.lookup_condition_count_byte_range().end)?;
+        (records_end <= table.offset_data().len()).then_some(table)
+    }
+
     fn feature_variations(&self) -> Option<FeatureVariations<'a>> {
         match self {
             Self::Gsub(gsub) => gsub.feature_variations(),
@@ -710,6 +751,29 @@ impl<'a> LayoutTable<'a> {
     ) -> Option<u16> {
         self.langsys(script_index, lang_index)?
             .feature_index_for_tag(&self.feature_list()?, feature_tag)
+    }
+
+    /// Returns the index and tag of each feature underneath the specified
+    /// script and language, in the order [`Self::find_language_feature`]
+    /// searches them. Indices beyond the feature list are skipped, as the
+    /// search skips them.
+    pub(crate) fn language_features(
+        &self,
+        script_index: u16,
+        lang_index: Option<u16>,
+    ) -> impl Iterator<Item = (u16, Tag)> + 'a {
+        let indices = self
+            .langsys(script_index, lang_index)
+            .map(|sys| sys.feature_indices())
+            .unwrap_or_default();
+        let records = self
+            .feature_list()
+            .map(|list| list.feature_records())
+            .unwrap_or_default();
+        indices.iter().filter_map(move |index| {
+            let index = index.get();
+            Some((index, records.get(usize::from(index))?.feature_tag()))
+        })
     }
 }
 
