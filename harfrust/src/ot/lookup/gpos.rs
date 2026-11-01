@@ -111,13 +111,16 @@ fn apply_value_fields(
     if !format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
         return worked;
     }
-    let Some(store) = ctx.layout.ot.var_store() else {
+    if ctx.layout.ot.var_store().is_none() {
         return worked;
-    };
-    let coords = ctx.layout.ot.coords;
+    }
+    let ot = ctx.layout.ot;
+    let max_ops = &mut ctx.buffer.max_ops;
+    let successful = &mut ctx.buffer.successful;
     // Reads the next device offset and resolves its delta, if it applies in
     // this direction. Only variation indices contribute; device tables are
-    // for hinting, which shaping doesn't do.
+    // for hinting, which shaping doesn't do. A delta that the operation
+    // budget can no longer pay for fails shaping and is left out.
     let mut delta = |applies: bool, worked: &mut bool| -> Option<f32> {
         let device = fields.next().unwrap_or(0) as u16 as usize;
         if !applies {
@@ -130,10 +133,10 @@ fn apply_value_fields(
         let outer = base.read_at::<u16>(device).ok()?;
         let inner = base.read_at::<u16>(device + 2).ok()?;
         // Keep the delta fractional so it is rounded once, when scaled.
-        let value = store
-            .compute_delta(DeltaSetIndex { outer, inner }, coords)
-            .unwrap_or_default()
-            .to_f64() as f32;
+        let Some(value) = ot.compute_delta(DeltaSetIndex { outer, inner }, max_ops) else {
+            *successful = false;
+            return None;
+        };
         *worked |= value != 0.0;
         Some(value)
     };
@@ -956,8 +959,13 @@ impl<'a> CursivePos1<'a> {
             return None;
         };
 
-        let (exit_x, exit_y) = ctx.layout.ot.resolve_anchor(&exit_prev);
-        let (entry_x, entry_y) = ctx.layout.ot.resolve_anchor(&entry_this);
+        let max_ops = &mut ctx.buffer.max_ops;
+        let exit = ctx.layout.ot.resolve_anchor(&exit_prev, max_ops);
+        let entry = ctx.layout.ot.resolve_anchor(&entry_this, max_ops);
+        let (Some((exit_x, exit_y)), Some((entry_x, entry_y))) = (exit, entry) else {
+            ctx.buffer.successful = false;
+            return None;
+        };
         let (exit_x, exit_y) = (ctx.scale_x(exit_x), ctx.scale_y(exit_y));
         let (entry_x, entry_y) = (ctx.scale_x(entry_x), ctx.scale_y(entry_y));
 
@@ -1014,16 +1022,24 @@ impl<'a> CursivePos1<'a> {
         }
 
         // If the child was attached elsewhere, reverse that chain so it
-        // now hangs off the new parent.
-        reverse_cursive_minor_offset(pos, child, direction, parent)?;
+        // now hangs off the new parent. The chain can be as long as the
+        // buffer, and a contextual lookup can have it reversed again any
+        // number of times, so charge for its links.
+        let reversed = reverse_cursive_minor_offset(pos, child, direction, parent)?;
+        ctx.buffer.max_ops -= reversed as i32;
+        if ctx.buffer.max_ops < 0 {
+            ctx.buffer.successful = false;
+            return None;
+        }
 
-        let child_pos = pos.get_mut(child).likely()?;
+        let child_pos = ctx.buffer.pos.get_mut(child).likely()?;
         child_pos.set_attach_type(attach_type::CURSIVE);
         let chain = parent as isize - child as isize;
         child_pos.set_attach_chain(chain as i16);
         // A distance that doesn't fit the chain field leaves the glyph
-        // unattached, as in HarfBuzz.
-        if isize::from(child_pos.attach_chain()) != chain {
+        // unattached, as in HarfBuzz. So does -32768, whose reverse doesn't
+        // fit: the chain is negated below and again when it is reversed.
+        if isize::from(child_pos.attach_chain()) != chain || chain == isize::from(i16::MIN) {
             child_pos.set_attach_chain(0);
         }
         if direction.is_horizontal() {
@@ -1058,44 +1074,55 @@ impl<'a> SubtableDigests<'a> for CursivePos1<'a> {
 }
 
 /// Reverses the cursive chain from glyph `i` so that it ends at
-/// `new_parent`. Returns `None` only if `i` is outside `pos`.
+/// `new_parent`. Returns the number of links followed, or `None` only if
+/// `i` is outside `pos`.
 fn reverse_cursive_minor_offset(
     pos: &mut [GlyphPosition],
-    i: usize,
+    mut i: usize,
     direction: Direction,
     new_parent: usize,
-) -> Option<()> {
-    let this = pos.get_mut(i).likely()?;
-    let chain = this.attach_chain();
-    let attach_type = this.attach_type();
-    if chain == 0 || attach_type & attach_type::CURSIVE == 0 {
-        return Some(());
+) -> Option<usize> {
+    // The chain can be as long as the buffer, so its links are listed here
+    // rather than held on the call stack by recursion.
+    let mut links = Vec::new();
+    loop {
+        let this = pos.get_mut(i).likely()?;
+        let chain = this.attach_chain();
+        let attach_type = this.attach_type();
+        if chain == 0 || attach_type & attach_type::CURSIVE == 0 {
+            break;
+        }
+        // Clearing each link on the way also ends a looping chain.
+        this.set_attach_chain(0);
+        let j = (i as isize + isize::from(chain)) as usize;
+        // A truncated chain can point outside the buffer, and the chain stops
+        // at the new parent.
+        if j >= pos.len() || j == new_parent {
+            break;
+        }
+        links.push((i, j, chain, attach_type));
+        i = j;
     }
-    this.set_attach_chain(0);
-    let j = (i as isize + isize::from(chain)) as usize;
-    // A truncated chain can point outside the buffer, and the chain stops
-    // at the new parent.
-    if j >= pos.len() || j == new_parent {
-        return Some(());
+    let followed = links.len();
+    // Turn the links around from the far end, so that each glyph is read
+    // before the link that leads to it rewrites it.
+    for (i, j, chain, attach_type) in links.into_iter().rev() {
+        let this = pos.get(i).likely()?;
+        let offset = if direction.is_horizontal() {
+            this.y_offset
+        } else {
+            this.x_offset
+        };
+        let next = pos.get_mut(j).likely()?;
+        if direction.is_horizontal() {
+            next.y_offset = offset.saturating_neg();
+        } else {
+            next.x_offset = offset.saturating_neg();
+        }
+        next.set_attach_chain(-chain);
+        next.set_attach_type(attach_type);
     }
-    reverse_cursive_minor_offset(pos, j, direction, new_parent)?;
-    // Read this glyph after the recursion, which a looping chain can
-    // rewrite.
-    let this = pos.get(i).likely()?;
-    let offset = if direction.is_horizontal() {
-        this.y_offset
-    } else {
-        this.x_offset
-    };
-    let next = pos.get_mut(j).likely()?;
-    if direction.is_horizontal() {
-        next.y_offset = offset.saturating_neg();
-    } else {
-        next.x_offset = offset.saturating_neg();
-    }
-    next.set_attach_chain(-chain);
-    next.set_attach_type(attach_type);
-    Some(())
+    Some(followed)
 }
 
 /// Attaches the current glyph, a mark, to the glyph at `base_pos`.
@@ -1105,12 +1132,17 @@ fn attach_mark(
     mark_anchor: &AnchorTable,
     base_pos: usize,
 ) -> Option<()> {
-    let (base_x, base_y) = ctx.layout.ot.resolve_anchor(base_anchor);
-    let (mark_x, mark_y) = ctx.layout.ot.resolve_anchor(mark_anchor);
+    let max_ops = &mut ctx.buffer.max_ops;
+    let base = ctx.layout.ot.resolve_anchor(base_anchor, max_ops);
+    let mark = ctx.layout.ot.resolve_anchor(mark_anchor, max_ops);
+    let (Some((base_x, base_y)), Some((mark_x, mark_y))) = (base, mark) else {
+        ctx.buffer.successful = false;
+        return None;
+    };
     let x_offset = ctx.scale_x(base_x - mark_x);
     let y_offset = ctx.scale_y(base_y - mark_y);
     // Resolve the base first so a bad index leaves the buffer untouched.
-    let base_offset = cross_offset(&ctx.buffer.pos, base_pos, ctx.buffer.direction)?;
+    let base_offset = cross_offset(ctx.buffer, base_pos)?;
     ctx.buffer
         .unsafe_to_break(Some(base_pos), Some(ctx.buffer.idx + 1));
     let horizontal = ctx.buffer.direction.is_horizontal();
@@ -1151,7 +1183,13 @@ fn attach_mark(
 
 /// The cross-direction offset of the glyph at `index`, summed along its
 /// cursive chain.
-fn cross_offset(pos: &[GlyphPosition], mut index: usize, direction: Direction) -> Option<i32> {
+///
+/// Every link followed is charged to the buffer's operations, like a
+/// recursed lookup: cursive lookups that skip different glyphs can close a
+/// chain into a loop, and every mark on a base walks the base's chain again.
+fn cross_offset(buffer: &mut Buffer, mut index: usize) -> Option<i32> {
+    let direction = buffer.direction;
+    let pos = &buffer.pos;
     let cross = |p: &GlyphPosition| {
         if direction.is_horizontal() {
             p.y_offset
@@ -1162,6 +1200,11 @@ fn cross_offset(pos: &[GlyphPosition], mut index: usize, direction: Direction) -
     let mut this = pos.get(index).likely()?;
     let mut offset = cross(this);
     while this.attach_type() & attach_type::CURSIVE != 0 && this.attach_chain() != 0 {
+        buffer.max_ops -= 1;
+        if buffer.max_ops < 0 {
+            buffer.successful = false;
+            return None;
+        }
         // Stop at a parent outside the buffer.
         let Some(parent) = index
             .checked_add_signed(isize::from(this.attach_chain()))
@@ -1637,5 +1680,72 @@ mod tests {
         reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, usize::MAX);
 
         assert_eq!(pos[1].y_offset, i32::MAX);
+    }
+
+    #[test]
+    fn cross_offset_fails_the_buffer_on_a_looping_chain() {
+        // Two cursive lookups with different flags can link glyphs into a
+        // ring, 0 -> 2 -> 1 -> 0, that no walk escapes. Following it must
+        // run out of operations rather than spin.
+        let mut buffer = Buffer::new();
+        buffer.direction = Direction::LeftToRight;
+        buffer.pos = vec![GlyphPosition::default(); 4];
+        for (i, chain) in [(0, 2), (1, -1), (2, -1)] {
+            buffer.pos[i].y_offset = 10;
+            buffer.pos[i].set_attach_type(attach_type::CURSIVE);
+            buffer.pos[i].set_attach_chain(chain);
+        }
+        buffer.max_ops = 100;
+
+        assert_eq!(cross_offset(&mut buffer, 2), None);
+        assert!(!buffer.successful);
+
+        // A chain that ends is summed and charged once per link.
+        buffer.successful = true;
+        buffer.max_ops = 100;
+        buffer.pos[0].set_attach_chain(0);
+        assert_eq!(cross_offset(&mut buffer, 2), Some(30));
+        assert!(buffer.successful);
+        assert_eq!(buffer.max_ops, 98);
+    }
+
+    #[test]
+    fn reverse_cursive_minor_offset_counts_links() {
+        // The links a reversal follows are charged to max_ops, so the
+        // count must cover the whole chain.
+        let len = 8;
+        let mut pos = vec![GlyphPosition::default(); len];
+        // Glyph 1 hangs off 2, which hangs off 3, ... up to 7, the root.
+        for p in &mut pos[1..len - 1] {
+            p.set_attach_type(attach_type::CURSIVE);
+            p.set_attach_chain(1);
+        }
+
+        // An unattached glyph costs nothing.
+        assert_eq!(
+            reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, 1),
+            Some(0)
+        );
+        // Reversing glyph 1 onto 0 follows every link up to the root.
+        assert_eq!(
+            reverse_cursive_minor_offset(&mut pos, 1, Direction::LeftToRight, 0),
+            Some(len - 2)
+        );
+    }
+
+    #[test]
+    fn reverse_cursive_minor_offset_handles_long_chains() {
+        // One stack frame per link would overflow the stack.
+        let mut pos = vec![GlyphPosition::default(); 1 << 20];
+        let (_, linked) = pos.split_last_mut().unwrap();
+        for glyph in linked {
+            glyph.set_attach_type(attach_type::CURSIVE);
+            glyph.set_attach_chain(1);
+        }
+
+        reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, usize::MAX);
+
+        assert_eq!(pos[0].attach_chain(), 0);
+        assert!(pos[1..].iter().all(|glyph| glyph.attach_chain() == -1));
     }
 }

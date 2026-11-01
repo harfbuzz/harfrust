@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 use read_fonts::model::{Blob, TableFunction};
 use read_fonts::tables::gdef::Gdef;
 use read_fonts::tables::layout::{self, CoverageTable};
-use read_fonts::types::{GlyphId, Tag, Uint24};
+use read_fonts::types::{F2Dot14, GlyphId, Tag, Uint24};
 use read_fonts::{FontData, FontRead};
 
 /// A lookup of `lookup_type` holding `subtable` alone.
@@ -711,6 +711,128 @@ fn cursive_pos2_resolves_large_and_nullable_anchor_offsets() {
     let output = apply_subtable(3, false, &subtable, &[65536, 65537]);
     assert_eq!(output.glyph_positions()[0].x_advance, 0);
     assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+}
+
+#[test]
+fn cursive_pos_leaves_glyph_unattached_when_reversed_chain_overflows() {
+    let subtable = [
+        0, 1, 0, 14, 0, 2, // Header and two records.
+        0, 0, 0, 22, // First glyph's exit anchor.
+        0, 28, 0, 0, // Second glyph's entry anchor.
+        0, 1, 0, 2, 0, 1, 0, 2, // Coverage.
+        0, 1, 0, 100, 0, 50, // Exit anchor.
+        0, 1, 0, 20, 0, 10, // Entry anchor.
+    ];
+    // Left to right the child follows its parent across the skipped marks.
+    // A chain of -32768 fits the field but its reverse doesn't.
+    for (marks, chain) in [(32766, -32767), (32767, 0)] {
+        let mut glyphs = vec![3; marks + 2];
+        glyphs[0] = 1;
+        glyphs[marks + 1] = 2;
+        let output = apply_subtable_configured(3, false, &subtable, &glyphs, |ctx| {
+            ctx.lookup_props |= u32::from(lookup_flags::IGNORE_MARKS);
+            for info in &mut ctx.buffer.glyph_infos_mut()[1..=marks] {
+                info.set_glyph_props(GlyphPropsFlags::MARK.bits());
+            }
+        });
+        assert_eq!(output.glyph_positions()[marks + 1].attach_chain(), chain);
+    }
+}
+
+#[test]
+fn variation_deltas_are_charged_to_max_ops() {
+    // A GDEF whose variation store has one axis, one region peaking at 1,
+    // and a delta set of 640 indices naming it, each with a delta of 1:
+    // a delta costs 640 region evaluations, so 10 operations.
+    let regions = 640usize;
+    let mut gdef = vec![0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18];
+    gdef.extend_from_slice(&[0, 1, 0, 0, 0, 12, 0, 1, 0, 0, 0, 22]);
+    gdef.extend_from_slice(&[0, 1, 0, 1, 0, 0, 0x40, 0, 0x40, 0]);
+    gdef.extend_from_slice(&[0, 1, 0, 0]);
+    gdef.extend_from_slice(&(regions as u16).to_be_bytes());
+    gdef.resize(gdef.len() + regions * 2, 0);
+    gdef.resize(gdef.len() + regions, 1);
+    // Lookup 0 is a cursive lookup whose exit anchor varies x and y, and
+    // whose entry anchor varies x: three deltas per attachment. Lookup 1 is
+    // a single adjustment varying both placements: two deltas. All of them
+    // use that delta set.
+    let mut gpos = vec![0, 1, 0, 0, 0, 0, 0, 0, 0, 10, 0, 2, 0, 6, 0, 74];
+    gpos.extend_from_slice(&[
+        0, 3, 0, 0, 0, 1, 0, 8, // Lookup 0.
+        0, 1, 0, 14, 0, 2, // Header and two records.
+        0, 0, 0, 22, // First glyph's exit anchor.
+        0, 44, 0, 0, // Second glyph's entry anchor.
+        0, 1, 0, 2, 0, 1, 0, 2, // Coverage.
+        0, 3, 0, 100, 0, 50, 0, 10, 0, 16, // Exit anchor.
+        0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0x80, 0, // Its variation indices.
+        0, 3, 0, 20, 0, 10, 0, 10, 0, 0, // Entry anchor.
+        0, 0, 0, 0, 0x80, 0, // Its variation index.
+        0, 1, 0, 0, 0, 1, 0, 8, // Lookup 1.
+        0, 1, 0, 10, 0, 0x30, 0, 16, 0, 22, // Header and value record.
+        0, 1, 0, 1, 0, 1, // Coverage.
+        0, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0x80, 0, // Variation indices.
+    ]);
+    let (gdef, gpos) = (Blob::from(gdef), Blob::from(gpos));
+    let font = Font::new(
+        TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"GDEF") {
+                Some(gdef.clone())
+            } else if tag == Tag::new(b"GPOS") {
+                Some(gpos.clone())
+            } else {
+                None
+            }
+        })),
+        0,
+    )
+    .unwrap();
+    let cache = LayoutCache::new(&font);
+    let coords = [F2Dot14::from_f32(1.0)];
+    let ot = OtData::new(
+        &cache.ot,
+        &coords,
+        layout::SelectedFeatureVariations::default(),
+    );
+    let lookups = ot.gpos().unwrap().lookups;
+    let layout = LayoutData {
+        ot: &ot,
+        aat: &EMPTY_AAT_DATA,
+        units_per_em: 1000,
+        apply_trak: false,
+    };
+    let apply = |index, glyphs: &[u32], max_ops| {
+        let lookup = lookups.get(index).unwrap();
+        apply_lookup_configured(
+            lookup,
+            layout,
+            glyphs,
+            |ctx| ctx.buffer.max_ops = max_ops,
+            false,
+        )
+    };
+
+    let output = apply(0, &[1, 2], 30);
+    assert!(output.successful);
+    assert_eq!(output.max_ops, 0);
+    assert_eq!(output.glyph_positions()[0].x_advance, 740);
+    assert_eq!(output.glyph_positions()[1].x_offset, -660);
+    assert_eq!(output.glyph_positions()[1].y_offset, 680);
+    assert_eq!(output.glyph_positions()[1].attach_chain(), -1);
+    // One operation short fails shaping before the positions change.
+    let output = apply(0, &[1, 2], 29);
+    assert!(!output.successful);
+    assert_eq!(output.glyph_positions()[0].x_advance, 0);
+    assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
+
+    let output = apply(1, &[1], 20);
+    assert!(output.successful);
+    assert_eq!(output.max_ops, 0);
+    assert_eq!(output.glyph_positions()[0].x_offset, 640);
+    assert_eq!(output.glyph_positions()[0].y_offset, 640);
+    let output = apply(1, &[1], 19);
+    assert!(!output.successful);
+    assert_eq!(output.glyph_positions()[0].x_offset, 640);
+    assert_eq!(output.glyph_positions()[0].y_offset, 0);
 }
 
 #[test]
