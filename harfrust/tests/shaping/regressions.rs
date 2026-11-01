@@ -308,3 +308,30 @@ fn kerx_process_direction_ltr_kerning() {
         "[b=0@30,0+645|a=1+561]"
     );
 }
+
+// Removing a run of default ignorables after a right-to-left buffer has been
+// reversed merges each deleted glyph backward into everything merged so far,
+// so the work is quadratic in the run length. The extension walks of
+// merge_clusters() must be charged to max_ops so the budget trips instead.
+#[test]
+fn merging_descending_clusters_is_charged_to_max_ops() {
+    let font_data = fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fonts/rb_custom/OpenSans.subset1.ttf"),
+    )
+    .expect("failed to read test font");
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaping_font = ShaperFont::new(&instance);
+
+    let mut text = String::from("\u{05D0}");
+    text.extend(std::iter::repeat_n('\u{00AD}', 20_000));
+
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text);
+    buffer.guess_segment_properties();
+    buffer.set_flags(harfrust::BufferFlags::REMOVE_DEFAULT_IGNORABLES);
+
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(!buffer.allocation_successful());
+}

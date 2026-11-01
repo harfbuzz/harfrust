@@ -1639,6 +1639,7 @@ impl Buffer {
         self.max_ops -= (end - start) as i32;
         if self.max_ops < 0 {
             self.successful = false;
+            return;
         }
 
         if self.try_merge_clusters(start, end).is_none() {
@@ -1654,6 +1655,7 @@ impl Buffer {
             .iter()
             .map(|info| info.cluster)
             .min()?;
+        let (charged_start, charged_end) = (start, end);
 
         // Extend end
         if cluster != cluster_at(&self.info, end - 1)? {
@@ -1674,8 +1676,8 @@ impl Buffer {
 
         // If we hit the start of buffer, continue in out-buffer.
         let start_cluster = cluster_at(&self.info, start)?;
+        let mut i = self.out_len;
         if self.idx == start && start_cluster != cluster {
-            let mut i = self.out_len;
             while i != 0 {
                 let info = self.out_info_mut().get_mut(i - 1)?;
                 if info.cluster != start_cluster {
@@ -1684,6 +1686,14 @@ impl Buffer {
                 Self::set_cluster(info, cluster, 0);
                 i -= 1;
             }
+        }
+
+        // merge_clusters_impl() only charged the range the caller named; the
+        // extensions and the out-buffer walk can cover the whole buffer, and
+        // a chain of merges over descending clusters revisits all of it.
+        self.max_ops -= (charged_start - start + end - charged_end + self.out_len - i) as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
         }
 
         for info in self.info.get_mut(start..end)? {
@@ -1827,7 +1837,7 @@ impl Buffer {
 
         if let Some(old_cluster) = prev_cluster {
             // Merge cluster backward.
-            if cluster < old_cluster {
+            if cluster < old_cluster && self.max_ops >= 0 {
                 let mut i = self.out_len;
                 while i != 0 {
                     let info = self.out_info_mut().get_mut(i - 1)?;
@@ -1836,6 +1846,10 @@ impl Buffer {
                     }
                     Self::set_cluster(info, cluster, mask);
                     i -= 1;
+                }
+                self.max_ops -= (self.out_len - i) as i32;
+                if self.max_ops < 0 {
+                    self.successful = false;
                 }
             }
             return Some(());
@@ -1875,12 +1889,16 @@ impl Buffer {
                 if j != 0 {
                     // Merge cluster backward.
                     let old_cluster = self.info.get(j - 1).map_or(cluster, |info| info.cluster);
-                    if cluster < old_cluster {
+                    if cluster < old_cluster && self.max_ops >= 0 {
                         for info in self.info.get_mut(..j).unwrap_or_default().iter_mut().rev() {
                             if info.cluster != old_cluster {
                                 break;
                             }
                             Self::set_cluster(info, cluster, mask);
+                            self.max_ops -= 1;
+                        }
+                        if self.max_ops < 0 {
+                            self.successful = false;
                         }
                     }
                     continue;
