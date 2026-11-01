@@ -277,22 +277,23 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
     else {
         return 0;
     };
-    for (height_entry, kern_entry) in table
-        .entries_for_ppem(ppem(state, false))
-        .zip(table.entries_for_ppem(ppem(state, true)))
-    {
-        if let Some(height) = height_entry.max_height {
-            let bound = position(state, height, false);
-            if (state.y_scale >= 0 && correction_height < bound)
-                || (state.y_scale < 0 && correction_height > bound)
-            {
-                return position(state, kern_entry.kern, true);
-            }
+    // The heights are sorted, so binary search them as HarfBuzz does. A height
+    // count is 16 bits and every record may carry a device table, so reading
+    // each one at its size would cost `heightCount * ppem` per query: only the
+    // heights the search probes, and the one kern it selects, are read.
+    let data = table.offset_data();
+    let y_ppem = ppem(state, false);
+    let band = table.correction_height().partition_point(|height| {
+        let bound = position(state, height.value_for_ppem(data, y_ppem), false);
+        if state.y_scale >= 0 {
+            correction_height >= bound
         } else {
-            return position(state, kern_entry.kern, true);
+            correction_height <= bound
         }
-    }
-    0
+    });
+    table.kern_values().get(band).map_or(0, |kern| {
+        position(state, kern.value_for_ppem(data, ppem(state, true)), true)
+    })
 }
 
 /// Returns paginated raw MATH kern entries and their total count.
@@ -322,17 +323,24 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
     if let Some(table) = table {
         total = table.kern_values().len() as c_uint;
         if !kern_entries.is_null() {
-            for (height_entry, kern_entry) in table
-                .entries_for_ppem(ppem(state, false))
-                .zip(table.entries_for_ppem(ppem(state, true)))
+            // Read only the entries written: each height at the y size and
+            // each kern at the x size, skipping the records before the page
+            // rather than reading them.
+            let data = table.offset_data();
+            let heights = table.correction_height();
+            let (x_ppem, y_ppem) = (ppem(state, true), ppem(state, false));
+            for (i, kern) in table
+                .kern_values()
+                .iter()
+                .enumerate()
                 .skip(start_offset as usize)
                 .take(capacity)
             {
                 let value = hr_ot_math_kern_entry_t {
-                    max_correction_height: height_entry
-                        .max_height
-                        .map_or(i32::MAX, |height| position(state, height, false)),
-                    kern_value: position(state, kern_entry.kern, true),
+                    max_correction_height: heights.get(i).map_or(i32::MAX, |height| {
+                        position(state, height.value_for_ppem(data, y_ppem), false)
+                    }),
+                    kern_value: position(state, kern.value_for_ppem(data, x_ppem), true),
                 };
                 unsafe { kern_entries.add(written).write(value) };
                 written += 1;

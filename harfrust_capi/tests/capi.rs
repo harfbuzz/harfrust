@@ -511,6 +511,66 @@ fn math_queries_without_table_return_empty_values() {
     }
 }
 
+/// A font can fill a `MathKern` with 65535 heights that all sit below the
+/// height asked about, and point every record at one device table laid over
+/// the records. Picking a kern, or paging to the last entry, must not read
+/// all of them.
+#[test]
+fn math_kerning_searches_a_full_kern_table() {
+    let mut math = vec![
+        0, 1, 0, 0, 0, 0, 0, 10, 0, 0, // MATH: only MathGlyphInfo
+        0, 0, 0, 0, 0, 0, 0, 8, // MathGlyphInfo: only MathKernInfo
+        0, 12, 0, 1, 0, 18, 0, 0, 0, 0, 0, 0, // MathKernInfo: a top right MathKern
+        0, 1, 0, 1, 0, 1, // Coverage: glyph 1
+        0xFF, 0xFF, // MathKern: heightCount
+    ];
+    let kern_start = math.len() - 2;
+    for _ in 0..65535 + 65536 {
+        math.extend([0x80, 0x00, 0x00, 0x04]); // -32768, device table at 4
+    }
+    // Sizes 1 to 65535, eight bits each: the records after it are its deltas.
+    math[kern_start + 4..kern_start + 10].copy_from_slice(&[0, 1, 0xFF, 0xFF, 0, 3]);
+    let mut data = vec![0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
+    data.extend(b"MATH\0\0\0\0\0\0\0\x1C");
+    data.extend((math.len() as u32).to_be_bytes());
+    data.extend(math);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let font = hr_font_create(face);
+        hr_font_set_ppem(font, 1000, 1000);
+        let start = std::time::Instant::now();
+        assert_eq!(
+            hr_ot_math_get_glyph_kerning(font, 1, HR_OT_MATH_KERN_TOP_RIGHT, 500),
+            -32764
+        );
+        let mut entries = [hr_ot_math_kern_entry_t::default(); 1];
+        let mut count = 1;
+        assert_eq!(
+            hr_ot_math_get_glyph_kernings(
+                font,
+                1,
+                HR_OT_MATH_KERN_TOP_RIGHT,
+                65535,
+                &raw mut count,
+                entries.as_mut_ptr()
+            ),
+            65536
+        );
+        assert_eq!(
+            entries[0],
+            hr_ot_math_kern_entry_t {
+                max_correction_height: i32::MAX,
+                kern_value: -32764
+            }
+        );
+        assert!(start.elapsed() < std::time::Duration::from_secs(1));
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
 #[test]
 fn base_baselines_follow_script_and_font_scale() {
     unsafe {
