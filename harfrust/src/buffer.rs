@@ -1289,7 +1289,7 @@ impl Buffer {
             .unwrap_or_default()
             .iter()
             .map(|i| i.glyph_id);
-        let is_gid16 = |glyph: &u32| *glyph <= u16::MAX as u32;
+        let is_gid16 = |glyph: &u32| u16::try_from(*glyph).is_ok();
         // Ids up to u16::MAX share at most 128 pages of the set, so the
         // order in which they arrive does not matter.
         self.glyph_set
