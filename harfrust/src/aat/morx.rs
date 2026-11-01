@@ -465,6 +465,26 @@ pub(crate) trait DriverContext<T> {
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
+/// Returns the index of the range that holds `cluster`, given the range of
+/// the previous glyph. The ranges are sorted and contiguous; the first starts
+/// at zero and the last ends at `Feature::GLOBAL_END`.
+#[inline(always)]
+fn range_for_cluster(range_flags: &[RangeFlags], mut range: usize, cluster: u32) -> usize {
+    // Monotone clusters stay in the range or move to a neighbour. Clusters
+    // need not be monotone, though (non-monotone cluster levels, or caller
+    // supplied cluster values): search for a far range, don't walk to it.
+    for _ in 0..4 {
+        if cluster < range_flags[range].cluster_first {
+            range -= 1;
+        } else if cluster > range_flags[range].cluster_last {
+            range += 1;
+        } else {
+            return range;
+        }
+    }
+    range_flags.partition_point(|range| range.cluster_last < cluster)
+}
+
 fn drive<T, M, Ctx>(machine: &M, c: &mut Ctx, ac: &mut AatApplyContext) -> Option<()>
 where
     T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug,
@@ -495,14 +515,7 @@ where
                 let mut range = *last_range;
                 if ac.buffer.idx < ac.buffer.len {
                     let cluster = ac.buffer.cur(0)?.cluster;
-                    while cluster < range_flags[range].cluster_first {
-                        range -= 1;
-                    }
-
-                    while cluster > range_flags[range].cluster_last {
-                        range += 1;
-                    }
-
+                    range = range_for_cluster(range_flags, range, cluster);
                     *last_range = range;
                 }
 
@@ -760,14 +773,7 @@ fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) -> Opt
                 let mut range = *last_range;
                 if ac.buffer.idx < ac.buffer.len {
                     let cluster = ac.buffer.cur(0)?.cluster;
-                    while cluster < range_flags[range].cluster_first {
-                        range -= 1;
-                    }
-
-                    while cluster > range_flags[range].cluster_last {
-                        range += 1;
-                    }
-
+                    range = range_for_cluster(range_flags, range, cluster);
                     *last_range = range;
                 }
 
@@ -1656,6 +1662,26 @@ mod tests {
             let mut glyphs = U32Set::default();
             collect_initial_glyphs::<_, _, RearrangementCtx>(&machine, &mut glyphs, 2);
             assert_eq!(glyphs.iter().collect::<Vec<_>>(), [1]);
+        }
+    }
+
+    #[test]
+    fn range_for_cluster_from_any_range() {
+        // Ranges of one, two, ... clusters; the last one runs to the end.
+        let mut ranges: Vec<RangeFlags> = (0..20u32)
+            .map(|i| RangeFlags {
+                flags: 0,
+                cluster_first: i * (i + 1) / 2,
+                cluster_last: (i + 1) * (i + 2) / 2 - 1,
+            })
+            .collect();
+        ranges.last_mut().unwrap().cluster_last = crate::Feature::GLOBAL_END;
+        for last_range in 0..ranges.len() {
+            for (range, flags) in ranges.iter().enumerate() {
+                for cluster in [flags.cluster_first, flags.cluster_last] {
+                    assert_eq!(range_for_cluster(&ranges, last_range, cluster), range);
+                }
+            }
         }
     }
 }
