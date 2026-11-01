@@ -118,6 +118,13 @@ fn preprocess_text_hangul(
 ) -> Option<()> {
     buffer.allocate_var(GlyphInfo::HANGUL_SHAPING_FEATURE_VAR);
 
+    // Only jamo are given a feature below; everything else must read as
+    // "none", not as whatever an earlier shaping of this buffer (by the
+    // Arabic, Indic or Myanmar shaper, say) left in the shared variable.
+    for info in buffer.info_slice_mut() {
+        info.set_hangul_shaping_feature(0);
+    }
+
     // Hangul syllables come in two shapes: LV, and LVT.  Of those:
     //
     //   - LV can be precomposed, or decomposed.  Lets call those
@@ -364,7 +371,13 @@ fn preprocess_text_hangul(
 fn setup_masks_hangul(plan: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
     let hangul_plan = plan.data::<HangulShapePlan>();
     for info in buffer.info_slice_mut() {
-        info.mask |= hangul_plan.mask_array[info.hangul_shaping_feature() as usize];
+        // The feature is only known to be initialised if preprocess_text_hangul()
+        // ran; a message callback may have skipped it.
+        info.mask |= hangul_plan
+            .mask_array
+            .get(usize::from(info.hangul_shaping_feature()))
+            .copied()
+            .unwrap_or_default();
 
         // Keep 'calt' away from jamo; see override_features_hangul().
         let u = info.glyph_id;
