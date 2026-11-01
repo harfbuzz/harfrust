@@ -340,3 +340,32 @@ fn rescanning_default_ignorables_is_charged_to_the_shaping_budget() {
         assert_eq!(buffer.allocation_successful(), within_budget);
     }
 }
+
+/// A match starting at a mark of an earlier ligature walks the output buffer
+/// back over every mark of that ligature to find the ligature itself. The
+/// font ligates `a b` over the marks, so all 6000 `c` belong to the ligature,
+/// and then tries `c d g` at the last `c` 100 x 100 times through nested
+/// lookups. Each try walks the 6000 marks again; charged to the operation
+/// budget, that ends the text after a few thousand tries, where it would
+/// otherwise cost the budget times the text length.
+#[test]
+fn ligature_base_walk_is_charged_to_the_operation_budget() {
+    let font_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/ligature-mark-walk.ttf");
+    let font_data = fs::read(font_path).expect("failed to read test font");
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaper = ShaperFont::new(&instance);
+
+    let mut text = String::with_capacity(6003);
+    text.push('a');
+    text.extend(std::iter::repeat_n('c', 6000));
+    text.push_str("bd");
+
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text);
+    buffer.guess_segment_properties();
+
+    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(!buffer.allocation_successful());
+}

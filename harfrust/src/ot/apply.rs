@@ -127,6 +127,13 @@ pub fn match_input(
                         }
                     }
 
+                    // The walk covers every glyph of the ligature, and each
+                    // match attempt repeats it, so it is charged.
+                    if !iter.buffer.charge_ops(iter.buffer.out_len - j) {
+                        return None;
+                    }
+                    let out = iter.buffer.out_info();
+
                     ligbase = if found
                         && out
                             .get(j)
@@ -1142,10 +1149,12 @@ pub fn ligate_input(
     if !is_mark_ligature && last_lig_id != 0 {
         // Re-adjust components for any marks following.
         let idx = ctx.buffer.idx;
+        let mut walked = 0;
         for info in ctx.buffer.info_slice_mut().iter_mut().skip(idx) {
             if last_lig_id != info.lig_id() {
                 break;
             }
+            walked += 1;
 
             let this_comp = info.lig_comp();
             if this_comp == 0 {
@@ -1158,6 +1167,9 @@ pub fn ligate_input(
             let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
             info.set_lig_props_for_mark(lig_id, new_lig_comp);
         }
+        // The marks are rewritten again by the next ligation, so the walk
+        // is charged.
+        ctx.buffer.charge_ops(walked);
     }
 
     Some(())
