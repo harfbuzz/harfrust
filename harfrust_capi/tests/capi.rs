@@ -3636,6 +3636,58 @@ fn a_destructor_may_set_user_data_on_the_same_object() {
     );
 }
 
+/// What `log_destroy` is handed: the log to write to, and what to write.
+struct DestroyWitness {
+    log: *const Mutex<Vec<&'static str>>,
+    name: &'static str,
+}
+
+unsafe extern "C" fn log_destroy(user_data: *mut c_void) {
+    let witness = unsafe { &*user_data.cast::<DestroyWitness>() };
+    unsafe { &*witness.log }.lock().unwrap().push(witness.name);
+}
+
+#[test]
+fn a_font_runs_its_destroy_callbacks_before_releasing_what_it_holds() {
+    unsafe {
+        let data = std::fs::read(font_path(PLAIN_FONT)).expect("failed to read test font");
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let font = hr_font_create(face);
+        hr_blob_destroy(blob);
+        // The font now holds the only reference to the face.
+        hr_face_destroy(face);
+
+        let log = Mutex::new(Vec::new());
+        let witness = |name| DestroyWitness {
+            log: &raw const log,
+            name,
+        };
+        let on_face = witness("face");
+        let on_font = witness("font user data");
+        let with_funcs = witness("font funcs data");
+        let as_data =
+            |witness: &DestroyWitness| ptr::from_ref(witness).cast_mut().cast::<c_void>();
+        assert_ne!(
+            hr_face_set_user_data(face, &raw const KEY, as_data(&on_face), Some(log_destroy), 1),
+            0
+        );
+        assert_ne!(
+            hr_font_set_user_data(font, &raw const KEY, as_data(&on_font), Some(log_destroy), 1),
+            0
+        );
+        let ffuncs = hr_font_funcs_create();
+        hr_font_set_funcs(font, ffuncs, as_data(&with_funcs), Some(log_destroy));
+        hr_font_funcs_destroy(ffuncs);
+
+        // As in HarfBuzz, a callback may still look at the font's face,
+        // parent or callbacks: the font lets go of those only after every
+        // callback attached to it has run, so the face outlives them all.
+        hr_font_destroy(font);
+        assert_eq!(*log.lock().unwrap(), ["font user data", "font funcs data", "face"]);
+    }
+}
+
 #[test]
 fn a_plan_runs_whatever_variation_the_font_is_at() {
     unsafe {

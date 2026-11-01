@@ -286,6 +286,10 @@ impl hr_font_t {
 impl Drop for hr_font_t {
     fn drop(&mut self) {
         self.prepared = None;
+        // The destroy given to `hr_font_set_funcs` runs while the font still
+        // holds its callbacks, parent and face, as it does in HarfBuzz. Those
+        // go only after every callback the caller attached has run.
+        self.font_data = None;
         // SAFETY: this font owns one reference to each of these.
         unsafe {
             object::destroy(self.funcs);
@@ -765,13 +769,14 @@ pub unsafe extern "C" fn hr_font_set_funcs(
         ffuncs
     };
     font.funcs = unsafe { object::reference(ffuncs) };
-    unsafe { object::destroy(previous) };
     // Dropping the old data runs its destroy callback, unless a sub-font still
-    // holds a reference to it.
+    // holds a reference to it. That happens before the callbacks it was given
+    // with are released, as in HarfBuzz.
     font.font_data = Some(Arc::new(FontData {
         data: font_data,
         destroy,
     }));
+    unsafe { object::destroy(previous) };
 }
 
 /// Installs the built-in callbacks, which read the font's own tables.
@@ -796,8 +801,8 @@ pub unsafe extern "C" fn hr_ot_font_set_funcs(font: *mut hr_font_t) {
     // Said outright, rather than by carrying nothing: a sub-font carrying
     // nothing asks its parent, and this is a font that does not.
     font.funcs = unsafe { object::reference(crate::font_funcs::builtin_funcs()) };
-    unsafe { object::destroy(previous) };
     font.font_data = None;
+    unsafe { object::destroy(previous) };
 }
 
 /// Maps a Unicode scalar value to a glyph, returning false if the font has
