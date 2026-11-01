@@ -255,8 +255,10 @@ The following HarfBuzz APIs are not exposed:
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.
 
-- **The plan cache is bounded** at 32 entries per face, where HarfBuzz's list
-  is unbounded.
+- **The plan cache is bounded** at 32 entries per face, plus 32 more that
+  are recycled oldest first, where HarfBuzz's list is unbounded. Content that
+  varies feature values or language tags on every run therefore cannot grow
+  the face without limit.
 
 - **`hr_shape` fills in unset segment properties** rather than failing, since
   building a plan requires a direction.
@@ -264,8 +266,9 @@ The following HarfBuzz APIs are not exposed:
 ## Threading
 
 Blobs, faces and fonts may be shaped with from several threads at once.
-Reference counts are atomic, the per-face plan cache and the user data on every
-object are behind read-write locks, and the caches HarfRust fills in while
+Reference counts are atomic, the per-face plan cache is a list of one-shot
+cells with a mutex over its overflow, the user data on every object is behind
+a read-write lock, and the caches HarfRust fills in while
 shaping -- lazily loaded tables, glyph lookups, layout lookups -- are atomics
 and one-shot cells. There are tests that shape through one shared face, and
 through one shared font, from several threads; they run under Miri's data race

@@ -2,7 +2,7 @@
 //! `hb-buffer.h`.
 
 use core::ffi::{c_char, c_int, c_uint, c_void};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 use harfrust::{
     Buffer, BufferFlags, ClusterLevel, ContentType, Direction, GlyphInfo, GlyphPosition,
@@ -182,6 +182,13 @@ unsafe impl<const N: usize> Sync for CStrArray<N> {}
 pub struct hr_buffer_t {
     header: ObjectHeader,
     pub(crate) buffer: Buffer,
+    /// Where the last serialization with advances suppressed stopped, and the
+    /// pen position there, so that the next piece carries on from it rather
+    /// than adding up everything before it again. Forgotten whenever the
+    /// buffer is handed out to be changed, since the positions it was added
+    /// up from may move; a position pointer kept from before that and written
+    /// through in between is not seen.
+    serialized_pen: Mutex<(usize, (i32, i32))>,
 }
 
 static EMPTY_BUFFER: OnceLock<Empty<hr_buffer_t>> = OnceLock::new();
@@ -197,9 +204,16 @@ impl Object for hr_buffer_t {
                 Empty::new(hr_buffer_t {
                     header: ObjectHeader::immortal(),
                     buffer: Buffer::new(),
+                    serialized_pen: Mutex::default(),
                 })
             })
             .get()
+    }
+
+    fn will_change(&mut self) {
+        if let Ok(pen) = self.serialized_pen.get_mut() {
+            *pen = Default::default();
+        }
     }
 }
 
@@ -247,6 +261,7 @@ pub extern "C" fn hr_buffer_create() -> *mut hr_buffer_t {
     object::create(hr_buffer_t {
         header: ObjectHeader::new(),
         buffer: Buffer::new(),
+        serialized_pen: Mutex::default(),
     })
 }
 
@@ -795,12 +810,23 @@ unsafe fn add_utf32_items(
     };
     // As in `hr_buffer_add_utf8`: what precedes the item is context only for
     // a buffer holding nothing yet, and what follows it is rebuilt each time.
+    // Only the nearest few items on either side are context, so that a caller
+    // shaping a long text run by run does not pay for the whole text on each
+    // call.
     if buffer.buffer.is_empty() && start > 0 {
-        let pre: Vec<u32> = items[..start].iter().rev().map(|&c| scalar(c)).collect();
-        buffer.buffer.set_pre_context_codepoints(&pre);
+        let mut pre = [0; MAX_CONTEXT_CODEPOINTS];
+        let len = start.min(pre.len());
+        for (slot, &codepoint) in pre[..len].iter_mut().zip(items[..start].iter().rev()) {
+            *slot = scalar(codepoint);
+        }
+        buffer.buffer.set_pre_context_codepoints(&pre[..len]);
     }
-    let post: Vec<u32> = items[end..].iter().map(|&c| scalar(c)).collect();
-    buffer.buffer.set_post_context_codepoints(&post);
+    let mut post = [0; MAX_CONTEXT_CODEPOINTS];
+    let len = (items.len() - end).min(post.len());
+    for (slot, &codepoint) in post[..len].iter_mut().zip(&items[end..]) {
+        *slot = scalar(codepoint);
+    }
+    buffer.buffer.set_post_context_codepoints(&post[..len]);
     for (index, &codepoint) in items[start..end].iter().enumerate() {
         buffer
             .buffer
@@ -1188,7 +1214,9 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_infos(
     buffer: *mut hr_buffer_t,
     length: *mut c_uint,
 ) -> *mut hr_glyph_info_t {
-    let Some(buffer) = (unsafe { buffer.as_mut() }) else {
+    // The pointer handed out is writable, which the immortal empty buffer,
+    // shared by every thread, must never be. It has no items to give anyway.
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         if let Some(out) = unsafe { length.as_mut() } {
             *out = 0;
         }
@@ -1216,12 +1244,16 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
     buffer: *mut hr_buffer_t,
     length: *mut c_uint,
 ) -> *mut hr_glyph_position_t {
-    let Some(buffer) = (unsafe { buffer.as_mut() }) else {
+    // Allocating positions on demand writes to the buffer, which the immortal
+    // empty one, shared by every thread, must never see. It has none to give.
+    let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         if let Some(out) = unsafe { length.as_mut() } {
             *out = 0;
         }
         return core::ptr::null_mut();
     };
+    // The caller may write through what this hands back.
+    buffer.will_change();
     let positions = buffer.buffer.glyph_positions_mut();
     if let Some(out) = unsafe { length.as_mut() } {
         *out = positions.len() as c_uint;
@@ -1560,10 +1592,22 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     // With advances suppressed, each item reports the pen position it sits
     // at, which counts from the start of the buffer and not from the start of
     // the range. Carried as an offset on every item, since the serializer
-    // accumulates within whatever it is given.
+    // accumulates within whatever it is given. Picked up from where the last
+    // call stopped when that is no further on, so that a caller serializing
+    // in several passes does not add up everything before each one again,
+    // which would cost time quadratic in the length of the buffer. Not worked
+    // out at all when positions are left out, since it is never printed.
+    let tracks_pen = flags.contains(SerializeFlags::NO_ADVANCES)
+        && !flags.contains(SerializeFlags::NO_POSITIONS);
     let mut pen = (0i32, 0i32);
-    if flags.contains(SerializeFlags::NO_ADVANCES) && !positions.is_empty() {
-        for position in &positions[..start] {
+    if tracks_pen {
+        let mut from = 0;
+        if let Ok(stopped) = buffer.serialized_pen.lock() {
+            if stopped.0 <= start {
+                (from, pen) = *stopped;
+            }
+        }
+        for position in &positions[from..start] {
             pen.0 = pen.0.saturating_add(position.x_advance);
             pen.1 = pen.1.saturating_add(position.y_advance);
         }
@@ -1630,10 +1674,15 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
         out.push_str(&chunk);
         written += 1;
 
-        if flags.contains(SerializeFlags::NO_ADVANCES) && !positions.is_empty() {
+        if tracks_pen {
             let position = positions[start + at];
             pen.0 = pen.0.saturating_add(position.x_advance);
             pen.1 = pen.1.saturating_add(position.y_advance);
+        }
+    }
+    if tracks_pen {
+        if let Ok(mut stopped) = buffer.serialized_pen.lock() {
+            *stopped = (start + written, pen);
         }
     }
 
@@ -1738,5 +1787,39 @@ mod tests {
             buffer.pre_context_codepoints(),
             &[0x1F600, b'5' as u32, b'4' as u32, b'3' as u32, b'2' as u32]
         );
+    }
+
+    #[test]
+    fn keeps_bounded_utf32_context() {
+        // Five items of context on either side of the item, nearest first,
+        // with the ones that are not characters replaced only by `add_utf32`.
+        let mut text: Vec<u32> = "abcdefgXhijklm".chars().map(u32::from).collect();
+        text[2] = 0xD800;
+        text[10] = 0x11_0000;
+        let codepoints = |text: &str| text.chars().map(u32::from).collect::<Vec<_>>();
+        unsafe {
+            let buffer = hr_buffer_create();
+            hr_buffer_add_utf32(buffer, text.as_ptr(), text.len() as c_int, 7, 1);
+            let context = &(*buffer).buffer;
+            assert_eq!(context.pre_context_codepoints(), codepoints("gfed\u{FFFD}"));
+            assert_eq!(
+                context.post_context_codepoints(),
+                codepoints("hi\u{FFFD}kl")
+            );
+
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_codepoints(buffer, text.as_ptr(), text.len() as c_int, 7, 1);
+            let context = &(*buffer).buffer;
+            assert_eq!(context.pre_context_codepoints()[4], 0xD800);
+            assert_eq!(context.post_context_codepoints()[2], 0x11_0000);
+
+            // Less than five on a side, and an item running to the end.
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_utf32(buffer, text.as_ptr(), text.len() as c_int, 2, -1);
+            let context = &(*buffer).buffer;
+            assert_eq!(context.pre_context_codepoints(), codepoints("ba"));
+            assert_eq!(context.post_context_codepoints(), &[]);
+            hr_buffer_destroy(buffer);
+        }
     }
 }

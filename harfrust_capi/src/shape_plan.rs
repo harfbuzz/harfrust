@@ -235,7 +235,6 @@ unsafe fn create_plan(
         face_ref
             .plans
             .get(&instance, direction, script, language.as_ref(), &features)
-            .clone()
     } else {
         Arc::new(ShapePlan::new(
             &instance,

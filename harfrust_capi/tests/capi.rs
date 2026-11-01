@@ -1295,6 +1295,52 @@ fn serializing_a_range_counts_from_the_start_of_the_buffer() {
 }
 
 #[test]
+fn serializing_in_pieces_carries_the_pen_and_sees_changes_in_between() {
+    unsafe {
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let len = hr_buffer_get_length(buffer);
+            let flags = HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES;
+            let tail_of = |whole: &str| {
+                let from = whole.find('|').expect("more than one glyph");
+                whole[from..].to_owned()
+            };
+
+            // A piece carries on from where the previous one stopped, and
+            // says the same as the whole listing does there ...
+            let (_, whole) = serialize(buffer, 0, len, font, flags);
+            serialize(buffer, 0, 1, font, flags);
+            let (_, tail) = serialize(buffer, 1, len, font, flags);
+            assert_eq!(tail, tail_of(&whole));
+
+            // ... also when the piece is asked for out of order ...
+            serialize(buffer, 1, len, font, flags);
+            let (_, again) = serialize(buffer, 0, len, font, flags);
+            assert_eq!(again, whole);
+
+            // ... and from what is there now, not from before a change to
+            // what came ahead of it.
+            serialize(buffer, 0, 1, font, flags);
+            (*hr_buffer_get_glyph_positions(buffer, ptr::null_mut())).x_advance += 100;
+            let (_, tail) = serialize(buffer, 1, len, font, flags);
+            let (_, whole) = serialize(buffer, 0, len, font, flags);
+            assert_eq!(tail, tail_of(&whole));
+
+            // Shaping anew changes everything ahead of it too.
+            serialize(buffer, 0, 1, font, flags);
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_utf8(buffer, c"cba".as_ptr(), -1, 0, -1);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let (_, tail) = serialize(buffer, 1, len, font, flags);
+            let (_, whole) = serialize(buffer, 0, len, font, flags);
+            assert_eq!(tail, tail_of(&whole));
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
 fn extents_that_cannot_be_worked_out_are_left_out() {
     unsafe {
         // Nothing can say what a glyph's extents are without a font, so the
@@ -2996,6 +3042,31 @@ fn immortal_objects_reject_user_data() {
     }
 }
 
+#[test]
+fn the_empty_buffer_is_not_written_by_the_glyph_getters() {
+    // The empty buffer is one object shared by every thread, so the getters
+    // must neither allocate positions in it nor hand out a writable pointer
+    // into it: it answers as `NULL` does, with nothing.
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| unsafe {
+                let empty = hr_buffer_get_empty();
+                let mut len = 7;
+                assert!(hr_buffer_get_glyph_positions(empty, &raw mut len).is_null());
+                assert_eq!(len, 0);
+                len = 7;
+                assert!(hr_buffer_get_glyph_infos(empty, &raw mut len).is_null());
+                assert_eq!(len, 0);
+                assert_eq!(hr_buffer_has_positions(ptr::null_mut()), 0);
+            })
+        })
+        .collect();
+
+    for thread in threads {
+        thread.join().expect("thread panicked");
+    }
+}
+
 // --------------------------------------------------------------- common ----
 
 #[test]
@@ -3071,6 +3142,34 @@ fn languages_are_interned() {
         // A locale's codeset and modifier are not part of the language.
         let locale = hr_language_from_string(c"en_US.utf8".as_ptr(), -1);
         assert_eq!(locale, a);
+    }
+}
+
+#[test]
+fn interning_many_languages_stays_cheap() {
+    // Content chooses the languages, so the table can grow as large as it
+    // likes; finding one must not mean comparing it with every other. Walking
+    // the table made this many take seconds, and keying it makes it instant.
+    let names: Vec<_> = (0..20_000u32)
+        .map(|i| std::ffi::CString::new(format!("x-{i:x}")).unwrap())
+        .collect();
+    unsafe {
+        let interned: Vec<_> = names
+            .iter()
+            .map(|name| hr_language_from_string(name.as_ptr(), -1))
+            .collect();
+        for (name, language) in names.iter().zip(&interned) {
+            assert_eq!(hr_language_from_string(name.as_ptr(), -1), *language);
+            assert_eq!(
+                core::ffi::CStr::from_ptr(hr_language_to_string(*language)),
+                name.as_c_str()
+            );
+        }
+        // Tags that are not registered intern a language each, and share the
+        // same table.
+        let tag = hr_ot_tag_to_language(u32::from_be_bytes(*b"QQQQ"));
+        assert_eq!(hr_ot_tag_to_language(u32::from_be_bytes(*b"QQQQ")), tag);
+        assert_eq!(hr_language_from_string(hr_language_to_string(tag), -1), tag);
     }
 }
 
