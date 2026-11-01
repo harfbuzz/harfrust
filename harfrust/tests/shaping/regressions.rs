@@ -482,3 +482,126 @@ fn lookup_walks_that_apply_nothing_are_charged_to_the_operation_limit() {
     assert!(buffer.allocation_successful());
     assert_eq!(buffer.len(), 65025);
 }
+
+/// Builds a font from `tables`, which must be sorted by tag.
+fn sfnt(tables: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((tables.len() as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, table) in tables {
+        data.extend(*tag);
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend((table.len() as u32).to_be_bytes());
+        offset += table.len().next_multiple_of(4);
+    }
+    for (_, table) in tables {
+        data.extend(table);
+        data.resize(data.len().next_multiple_of(4), 0);
+    }
+    data
+}
+
+fn be16(values: impl IntoIterator<Item = u16>) -> Vec<u8> {
+    values.into_iter().flat_map(u16::to_be_bytes).collect()
+}
+
+/// A font mapping `a` to glyph 1 and `b` to glyph 2, with a `liga` lookup
+/// holding one ChainedSequenceContextFormat1 subtable on glyph 1. Its rule
+/// set claims `rule_count` rules, but every offset points at the same one:
+/// `input_len` × `a`, a lookahead of `lookahead_len - 1` × `a` then `b`, and no
+/// lookup records. On a run of `a` the lookahead matches until the buffer
+/// ends and fails only there.
+fn aliased_chain_rules_font(rule_count: u16, input_len: u16, lookahead_len: u16) -> Vec<u8> {
+    let mut rule = be16([0, input_len]);
+    rule.extend(be16(std::iter::repeat_n(1, usize::from(input_len) - 1)));
+    rule.extend(be16([lookahead_len]));
+    rule.extend(be16(std::iter::repeat_n(1, usize::from(lookahead_len) - 1)));
+    rule.extend(be16([2, 0]));
+    let rule_offset = 2 + 2 * rule_count;
+    let mut rule_set = be16([rule_count]);
+    rule_set.extend(be16(std::iter::repeat_n(
+        rule_offset,
+        usize::from(rule_count),
+    )));
+    rule_set.extend(rule);
+
+    // Coverage of glyph 1 at offset 8 and the rule set at offset 14.
+    let mut subtable = be16([1, 8, 1, 14, 1, 1, 1]);
+    subtable.extend(rule_set);
+    let mut lookup_list = be16([1, 4, 6, 0, 1, 8]);
+    lookup_list.extend(subtable);
+    let mut script_list = be16([1]);
+    script_list.extend(b"DFLT");
+    script_list.extend(be16([8, 4, 0, 0, 0xFFFF, 1, 0]));
+    let mut feature_list = be16([1]);
+    feature_list.extend(b"liga");
+    feature_list.extend(be16([8, 0, 1, 0]));
+    let mut gsub = be16([
+        1,
+        0,
+        10,
+        10 + script_list.len() as u16,
+        10 + (script_list.len() + feature_list.len()) as u16,
+    ]);
+    gsub.extend(script_list);
+    gsub.extend(feature_list);
+    gsub.extend(lookup_list);
+
+    // cmap format 12: a..b -> 1..2
+    let mut cmap = be16([0, 1, 3, 10]);
+    cmap.extend(12u32.to_be_bytes());
+    cmap.extend(be16([12, 0]));
+    for value in [28u32, 0, 1, u32::from(b'a'), u32::from(b'b'), 1] {
+        cmap.extend(value.to_be_bytes());
+    }
+    // 1000 units per em, one advance for the three glyphs.
+    let mut head = vec![0; 54];
+    head[18..20].copy_from_slice(&1000u16.to_be_bytes());
+    let mut hhea = vec![0; 36];
+    hhea[34..36].copy_from_slice(&1u16.to_be_bytes());
+    let hmtx = be16([500, 0, 0, 0]);
+    let mut maxp = 0x0000_5000u32.to_be_bytes().to_vec();
+    maxp.extend(3u16.to_be_bytes());
+    sfnt(&[
+        (b"GSUB", gsub),
+        (b"cmap", cmap),
+        (b"head", head),
+        (b"hhea", hhea),
+        (b"hmtx", hmtx),
+        (b"maxp", maxp),
+    ])
+}
+
+/// Rule offsets may alias, so a rule set's count and its rules' lookahead
+/// lengths make a walk cost far more than the font's size. The rules looked
+/// at, even when they fail at once, and the glyphs they are matched against
+/// are charged to the operation limit, which ends shaping the way a runaway
+/// recursion does, instead of running for seconds per kilobyte of text.
+#[test]
+fn aliased_chain_rules_are_charged_to_the_operation_limit() {
+    let text = "a".repeat(500);
+    // A rule with two input glyphs and a lookahead of `b` alone fails on the
+    // pre-match; a longer lookahead matches `a`s up to the end of the buffer.
+    for (rule_count, input_len, lookahead_len) in
+        [(1, 2, 1), (8000, 2, 1), (1, 1, 1000), (1024, 1, 1000)]
+    {
+        let font_data = aliased_chain_rules_font(rule_count, input_len, lookahead_len);
+        let font = Font::new(font_data, 0).expect("failed to parse test font");
+        let instance = font.instance_builder().build();
+        let shaping_font = ShaperFont::new(&instance);
+
+        let mut buffer = Buffer::new();
+        buffer.push_str(&text);
+        buffer.guess_segment_properties();
+        shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+
+        // The rules never match, so only the aliased ones exhaust the limit.
+        assert_eq!(
+            buffer.allocation_successful(),
+            rule_count == 1,
+            "{rule_count} rules, input {input_len}, lookahead {lookahead_len}"
+        );
+    }
+}
