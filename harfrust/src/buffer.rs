@@ -860,7 +860,7 @@ impl Buffer {
     /// Only properties that are still unset are filled in.
     pub fn guess_segment_properties(&mut self) {
         if self.script.is_none() {
-            for info in &self.info {
+            for info in self.glyph_infos() {
                 match info.as_codepoint().script() {
                     Script::COMMON | Script::INHERITED | Script::UNKNOWN => {}
                     s => {
@@ -1024,7 +1024,7 @@ impl Buffer {
     /// Resets the cluster value of each item to its index.
     #[inline]
     pub fn reset_clusters(&mut self) {
-        for (i, info) in self.info.iter_mut().enumerate() {
+        for (i, info) in self.info_slice_mut().iter_mut().enumerate() {
             info.cluster = i as u32;
         }
     }
@@ -1281,8 +1281,14 @@ impl Buffer {
     }
     pub(crate) fn update_glyph_set(&mut self) {
         self.glyph_set.clear();
-        self.glyph_set
-            .extend_unsorted(self.info.iter().map(|i| i.glyph_id));
+        let len = self.len;
+        self.glyph_set.extend_unsorted(
+            self.info
+                .get(..len)
+                .unwrap_or_default()
+                .iter()
+                .map(|i| i.glyph_id),
+        );
     }
 
     #[inline]
@@ -1413,8 +1419,11 @@ impl Buffer {
         self.out_len = 0;
         self.have_separate_output = false;
 
-        for pos in &mut self.pos {
-            *pos = GlyphPosition::default();
+        // Only the live items: the vectors keep the largest size the buffer
+        // has had since `clear`, which can be far more than `len`.
+        let len = self.len;
+        if let Some(positions) = self.pos.get_mut(..len) {
+            positions.fill(GlyphPosition::default());
         }
     }
 
@@ -2738,5 +2747,37 @@ mod tests {
         buffer.merge_out_clusters(998, 1000);
         assert_eq!(buffer.max_ops, ops - 2);
         assert!(buffer.successful);
+    }
+
+    #[test]
+    fn clear_positions_touches_only_live_items() {
+        let mut buffer = Buffer::new();
+        assert!(buffer.set_length(4));
+        buffer.pos[3].x_advance = 7;
+        assert!(buffer.set_length(1));
+        buffer.pos[0].x_advance = 7;
+
+        buffer.clear_positions();
+
+        assert_eq!(buffer.pos[0].x_advance, 0);
+        assert_eq!(buffer.pos[3].x_advance, 7);
+    }
+
+    #[test]
+    fn shrunk_buffer_ignores_leftover_items() {
+        let mut buffer = Buffer::new();
+        buffer.push_str("abcd");
+        for info in buffer.info_slice_mut() {
+            info.cluster = 9;
+        }
+        assert!(buffer.set_length(0));
+        buffer.push_str("12");
+
+        buffer.guess_segment_properties();
+        assert_eq!(buffer.script, None);
+
+        buffer.reset_clusters();
+        assert_eq!(buffer.info[2].cluster, 9);
+        assert_eq!(buffer.info[3].cluster, 9);
     }
 }

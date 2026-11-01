@@ -102,7 +102,8 @@ pub fn apply(
             seen_cross_stream = true;
 
             // Attach all glyphs into a chain.
-            for pos in &mut c.buffer.pos {
+            let len = c.buffer.len;
+            for pos in c.buffer.pos.get_mut(..len).unwrap_or_default() {
                 pos.set_attach_type(attach_type::CURSIVE);
                 pos.set_attach_chain(if c.buffer.direction.is_forward() {
                     -1

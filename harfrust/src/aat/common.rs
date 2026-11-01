@@ -138,7 +138,7 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
             if self.using_buffer_glyph_set {
                 return self.buffer.glyph_set.intersects_set(first_set);
             }
-            for info in &self.buffer.info {
+            for info in self.buffer.glyph_infos() {
                 if first_set.contains(info.glyph_id) {
                     return true;
                 }
