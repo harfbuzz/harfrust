@@ -3848,14 +3848,25 @@ fn a_font_runs_its_destroy_callbacks_before_releasing_what_it_holds() {
         let on_face = witness("face");
         let on_font = witness("font user data");
         let with_funcs = witness("font funcs data");
-        let as_data =
-            |witness: &DestroyWitness| ptr::from_ref(witness).cast_mut().cast::<c_void>();
+        let as_data = |witness: &DestroyWitness| ptr::from_ref(witness).cast_mut().cast::<c_void>();
         assert_ne!(
-            hr_face_set_user_data(face, &raw const KEY, as_data(&on_face), Some(log_destroy), 1),
+            hr_face_set_user_data(
+                face,
+                &raw const KEY,
+                as_data(&on_face),
+                Some(log_destroy),
+                1
+            ),
             0
         );
         assert_ne!(
-            hr_font_set_user_data(font, &raw const KEY, as_data(&on_font), Some(log_destroy), 1),
+            hr_font_set_user_data(
+                font,
+                &raw const KEY,
+                as_data(&on_font),
+                Some(log_destroy),
+                1
+            ),
             0
         );
         let ffuncs = hr_font_funcs_create();
@@ -3866,7 +3877,10 @@ fn a_font_runs_its_destroy_callbacks_before_releasing_what_it_holds() {
         // parent or callbacks: the font lets go of those only after every
         // callback attached to it has run, so the face outlives them all.
         hr_font_destroy(font);
-        assert_eq!(*log.lock().unwrap(), ["font user data", "font funcs data", "face"]);
+        assert_eq!(
+            *log.lock().unwrap(),
+            ["font user data", "font funcs data", "face"]
+        );
     }
 }
 
@@ -4605,10 +4619,7 @@ fn unicode_collection_steps_over_overlapping_format13_groups() {
         (b"maxp", maxp(2, false)),
     ]);
     let full = [(0, 0x0010_FFFF, 1); 1000];
-    let full = sfnt(&[
-        (b"cmap", format13_cmap(&full)),
-        (b"maxp", maxp(2, false)),
-    ]);
+    let full = sfnt(&[(b"cmap", format13_cmap(&full)), (b"maxp", maxp(2, false))]);
     for (data, population) in [(partial, 0x7A - 0x41 + 1), (full, 0x0011_0000)] {
         unsafe {
             let blob = blob_over(&data);

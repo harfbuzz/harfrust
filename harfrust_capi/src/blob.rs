@@ -127,9 +127,7 @@ impl hr_blob_t {
     /// `blob` must be a live blob, and the caller must own the reference
     /// being handed over.
     pub(crate) unsafe fn into_data(blob: *mut Self) -> Blob {
-        Blob::Shared(
-            Arc::new(BlobRef(blob)) as Arc<dyn AsRef<[u8]> + Send + Sync>
-        )
+        Blob::Shared(Arc::new(BlobRef(blob)) as Arc<dyn AsRef<[u8]> + Send + Sync>)
     }
 
     /// Creates a blob over a range of `parent`, sharing its storage and

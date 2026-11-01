@@ -127,7 +127,12 @@ enum FaceSource {
 impl FaceSource {
     /// The blob and table directory of a blob-backed face.
     fn blob_directory(&self) -> Option<(&hr_blob_t, &BlobDirectory)> {
-        let FaceSource::Blob { blob, index, directory } = self else {
+        let FaceSource::Blob {
+            blob,
+            index,
+            directory,
+        } = self
+        else {
             return None;
         };
         let blob = unsafe { blob.as_ref() }?;
@@ -170,7 +175,10 @@ impl BlobDirectory {
 
     /// The byte range of the table with `tag`, which may lie outside the blob.
     fn range(&self, tag: Tag) -> Option<(usize, usize)> {
-        let at = self.by_tag.binary_search_by_key(&tag, |&(tag, ..)| tag).ok()?;
+        let at = self
+            .by_tag
+            .binary_search_by_key(&tag, |&(tag, ..)| tag)
+            .ok()?;
         let (_, offset, length) = self.by_tag[at];
         // A zero offset means no table, as in `FontRef::table_data`.
         if offset == 0 {
@@ -672,8 +680,7 @@ pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mu
                 let first = group.start_char_code();
                 let last = group.end_char_code().min(0x0010_FFFF);
                 let glyph = group.glyph_id();
-                (first <= last && glyph != 0 && glyph < font.num_glyphs())
-                    .then_some((first, last))
+                (first <= last && glyph != 0 && glyph < font.num_glyphs()).then_some((first, last))
             })
             .collect();
         ranges.sort_unstable();
