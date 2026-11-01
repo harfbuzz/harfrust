@@ -1110,7 +1110,7 @@ fn attach_mark(
     let x_offset = ctx.scale_x(base_x - mark_x);
     let y_offset = ctx.scale_y(base_y - mark_y);
     // Resolve the base first so a bad index leaves the buffer untouched.
-    let base_offset = cross_offset(&ctx.buffer.pos, base_pos, ctx.buffer.direction)?;
+    let base_offset = cross_offset(ctx.buffer, base_pos)?;
     ctx.buffer
         .unsafe_to_break(Some(base_pos), Some(ctx.buffer.idx + 1));
     let horizontal = ctx.buffer.direction.is_horizontal();
@@ -1151,7 +1151,13 @@ fn attach_mark(
 
 /// The cross-direction offset of the glyph at `index`, summed along its
 /// cursive chain.
-fn cross_offset(pos: &[GlyphPosition], mut index: usize, direction: Direction) -> Option<i32> {
+///
+/// Every link followed is charged to the buffer's operations, like a
+/// recursed lookup: cursive lookups that skip different glyphs can close a
+/// chain into a loop, and every mark on a base walks the base's chain again.
+fn cross_offset(buffer: &mut Buffer, mut index: usize) -> Option<i32> {
+    let direction = buffer.direction;
+    let pos = &buffer.pos;
     let cross = |p: &GlyphPosition| {
         if direction.is_horizontal() {
             p.y_offset
@@ -1162,6 +1168,11 @@ fn cross_offset(pos: &[GlyphPosition], mut index: usize, direction: Direction) -
     let mut this = pos.get(index).likely()?;
     let mut offset = cross(this);
     while this.attach_type() & attach_type::CURSIVE != 0 && this.attach_chain() != 0 {
+        buffer.max_ops -= 1;
+        if buffer.max_ops < 0 {
+            buffer.successful = false;
+            return None;
+        }
         // Stop at a parent outside the buffer.
         let Some(parent) = index
             .checked_add_signed(isize::from(this.attach_chain()))
@@ -1637,5 +1648,32 @@ mod tests {
         reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, usize::MAX);
 
         assert_eq!(pos[1].y_offset, i32::MAX);
+    }
+
+    #[test]
+    fn cross_offset_fails_the_buffer_on_a_looping_chain() {
+        // Two cursive lookups with different flags can link glyphs into a
+        // ring, 0 -> 2 -> 1 -> 0, that no walk escapes. Following it must
+        // run out of operations rather than spin.
+        let mut buffer = Buffer::new();
+        buffer.direction = Direction::LeftToRight;
+        buffer.pos = vec![GlyphPosition::default(); 4];
+        for (i, chain) in [(0, 2), (1, -1), (2, -1)] {
+            buffer.pos[i].y_offset = 10;
+            buffer.pos[i].set_attach_type(attach_type::CURSIVE);
+            buffer.pos[i].set_attach_chain(chain);
+        }
+        buffer.max_ops = 100;
+
+        assert_eq!(cross_offset(&mut buffer, 2), None);
+        assert!(!buffer.successful);
+
+        // A chain that ends is summed and charged once per link.
+        buffer.successful = true;
+        buffer.max_ops = 100;
+        buffer.pos[0].set_attach_chain(0);
+        assert_eq!(cross_offset(&mut buffer, 2), Some(30));
+        assert!(buffer.successful);
+        assert_eq!(buffer.max_ops, 98);
     }
 }
