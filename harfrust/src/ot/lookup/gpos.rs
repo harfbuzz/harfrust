@@ -1014,10 +1014,17 @@ impl<'a> CursivePos1<'a> {
         }
 
         // If the child was attached elsewhere, reverse that chain so it
-        // now hangs off the new parent.
-        reverse_cursive_minor_offset(pos, child, direction, parent)?;
+        // now hangs off the new parent. The chain can be as long as the
+        // buffer, and a contextual lookup can have it reversed again any
+        // number of times, so charge for its links.
+        let reversed = reverse_cursive_minor_offset(pos, child, direction, parent)?;
+        ctx.buffer.max_ops -= reversed as i32;
+        if ctx.buffer.max_ops < 0 {
+            ctx.buffer.successful = false;
+            return None;
+        }
 
-        let child_pos = pos.get_mut(child).likely()?;
+        let child_pos = ctx.buffer.pos.get_mut(child).likely()?;
         child_pos.set_attach_type(attach_type::CURSIVE);
         let chain = parent as isize - child as isize;
         child_pos.set_attach_chain(chain as i16);
@@ -1058,13 +1065,14 @@ impl<'a> SubtableDigests<'a> for CursivePos1<'a> {
 }
 
 /// Reverses the cursive chain from glyph `i` so that it ends at
-/// `new_parent`. Returns `None` only if `i` is outside `pos`.
+/// `new_parent`. Returns the number of links followed, or `None` only if
+/// `i` is outside `pos`.
 fn reverse_cursive_minor_offset(
     pos: &mut [GlyphPosition],
     mut i: usize,
     direction: Direction,
     new_parent: usize,
-) -> Option<()> {
+) -> Option<usize> {
     // The chain can be as long as the buffer, so its links are listed here
     // rather than held on the call stack by recursion.
     let mut links = Vec::new();
@@ -1086,6 +1094,7 @@ fn reverse_cursive_minor_offset(
         links.push((i, j, chain, attach_type));
         i = j;
     }
+    let followed = links.len();
     // Turn the links around from the far end, so that each glyph is read
     // before the link that leads to it rewrites it.
     for (i, j, chain, attach_type) in links.into_iter().rev() {
@@ -1104,7 +1113,7 @@ fn reverse_cursive_minor_offset(
         next.set_attach_chain(-chain);
         next.set_attach_type(attach_type);
     }
-    Some(())
+    Some(followed)
 }
 
 /// Attaches the current glyph, a mark, to the glyph at `base_pos`.
@@ -1684,6 +1693,30 @@ mod tests {
         assert_eq!(cross_offset(&mut buffer, 2), Some(30));
         assert!(buffer.successful);
         assert_eq!(buffer.max_ops, 98);
+    }
+
+    #[test]
+    fn reverse_cursive_minor_offset_counts_links() {
+        // The links a reversal follows are charged to max_ops, so the
+        // count must cover the whole chain.
+        let len = 8;
+        let mut pos = vec![GlyphPosition::default(); len];
+        // Glyph 1 hangs off 2, which hangs off 3, ... up to 7, the root.
+        for p in &mut pos[1..len - 1] {
+            p.set_attach_type(attach_type::CURSIVE);
+            p.set_attach_chain(1);
+        }
+
+        // An unattached glyph costs nothing.
+        assert_eq!(
+            reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, 1),
+            Some(0)
+        );
+        // Reversing glyph 1 onto 0 follows every link up to the root.
+        assert_eq!(
+            reverse_cursive_minor_offset(&mut pos, 1, Direction::LeftToRight, 0),
+            Some(len - 2)
+        );
     }
 
     #[test]
