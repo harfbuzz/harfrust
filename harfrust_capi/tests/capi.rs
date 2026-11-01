@@ -1025,6 +1025,40 @@ fn immutable_font_rejects_changes() {
     }
 }
 
+/// A sub-font answers through its parent, so it holds still only if the
+/// parent does: freezing it freezes the chain, as in HarfBuzz.
+#[test]
+fn freezing_a_sub_font_freezes_the_fonts_it_descends_from() {
+    unsafe {
+        with_font(|_, font| {
+            let child = hr_font_create_sub_font(font);
+            let grandchild = hr_font_create_sub_font(child);
+            hr_font_make_immutable(grandchild);
+            assert_ne!(hr_font_is_immutable(grandchild), 0);
+            assert_ne!(hr_font_is_immutable(child), 0);
+            assert_ne!(hr_font_is_immutable(font), 0);
+
+            // The base font now rejects changes the grandchild would see.
+            hr_font_set_scale(font, 512, 512);
+            let (mut x, mut y) = (0, 0);
+            hr_font_get_scale(font, &raw mut x, &raw mut y);
+            assert_ne!((x, y), (512, 512));
+            let replacement = hr_font_funcs_create();
+            hr_font_set_funcs(font, replacement, ptr::null_mut(), None);
+            hr_font_funcs_destroy(replacement);
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(grandchild, u32::from(b'a'), &raw mut glyph),
+                0,
+                "the base font should still read its own cmap"
+            );
+
+            hr_font_destroy(grandchild);
+            hr_font_destroy(child);
+        });
+    }
+}
+
 // --------------------------------------------------------------- buffers ----
 
 #[test]

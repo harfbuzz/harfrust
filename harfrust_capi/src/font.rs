@@ -470,14 +470,23 @@ pub unsafe extern "C" fn hr_font_get_user_data(
     unsafe { object::get_user_data(font, key) }
 }
 
-/// Marks a font immutable.
+/// Marks a font immutable, and every font it descends from.
+///
+/// A sub-font answers with its parent's callbacks and scale at the time it is
+/// asked, so it only holds still if its parent does. HarfBuzz freezes the
+/// chain the same way.
 ///
 /// # Safety
 ///
 /// `font` must be `NULL` or a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_make_immutable(font: *mut hr_font_t) {
-    unsafe { object::make_immutable(font) };
+    let mut font = font;
+    // SAFETY: each font owns its reference to its parent.
+    while let Some(state) = unsafe { font.as_ref() } {
+        unsafe { object::make_immutable(font) };
+        font = state.parent;
+    }
 }
 
 /// Returns whether a font has been marked immutable.

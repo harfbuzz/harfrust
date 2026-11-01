@@ -3791,7 +3791,11 @@ hr_bool_t hr_font_set_user_data(struct hr_font_t *font,
 void *hr_font_get_user_data(struct hr_font_t *font, const struct hr_user_data_key_t *key);
 
 /**
- * Marks a font immutable.
+ * Marks a font immutable, and every font it descends from.
+ *
+ * A sub-font answers with its parent's callbacks and scale at the time it is
+ * asked, so it only holds still if its parent does. HarfBuzz freezes the
+ * chain the same way.
  *
  * # Safety
  *

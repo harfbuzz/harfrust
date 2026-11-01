@@ -281,7 +281,9 @@ What is not shared is anything being written:
 - **A font must not be modified while another thread shapes with it.**
   `hr_font_set_scale`, `hr_font_set_variations` and `hr_font_set_funcs` all
   write. Call them before sharing the font, then `hr_font_make_immutable` to
-  have later attempts ignored rather than raced.
+  have later attempts ignored rather than raced. A sub-font reads its parent's
+  callbacks and scale on every query, so shaping with it is shaping with its
+  parent too; `hr_font_make_immutable` freezes the whole chain for that reason.
 - **The same goes for a set of callbacks.** Populate an `hr_font_funcs_t`
   before installing it, and `hr_font_funcs_make_immutable` to hold it that way.
 
