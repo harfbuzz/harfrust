@@ -329,6 +329,10 @@ impl LookupCollector {
 const GLOBAL_BIT_SHIFT: u32 = 8 * size_of::<u32>() as u32 - 1;
 const GLOBAL_BIT_MASK: Mask = 1 << GLOBAL_BIT_SHIFT;
 
+/// The most lookup indices the lookup variations of a feature may add:
+/// one for each value a lookup index can take.
+const MAX_LOOKUP_VARIATION_INDICES: usize = 1 << 16;
+
 impl<'a> OtMapBuilder<'a> {
     pub fn new(
         layout: LayoutData<'a>,
@@ -771,7 +775,13 @@ impl<'a> OtMapBuilder<'a> {
             });
         };
         let indices = feature.lookup_list_indices();
-        let Some(lookup_variations) = lookup_variations else {
+        // Condition records may name overlapping lookup index lists, so what
+        // they add is not bounded by the table's size. Lookup variations that
+        // could add more indices than there are lookup index values are
+        // ignored, as nothing a feature can use needs that many.
+        let Some(lookup_variations) = lookup_variations
+            .filter(|_| table.lookup_variation_len(feature_index) <= MAX_LOOKUP_VARIATION_INDICES)
+        else {
             for index in indices {
                 add_lookup(index.get());
             }

@@ -518,3 +518,24 @@ fn lookup_condition_count_and_offsets_are_full_width() {
     let font = font(LayoutTableKind::Gpos, &variations(&conditional, false));
     assert_eq!(plan_lookups(&font, LayoutTableKind::Gpos), [1]);
 }
+
+#[test]
+fn overlapping_lookup_index_lists_are_bounded() {
+    // Each record reads its list one byte further into a run of 0x01 bytes:
+    // 257 indices of lookup 257, which does not exist, from an 8-byte record.
+    // Past 65536 indices in all, the feature keeps its own lookups.
+    for (count, expected) in [(255, vec![]), (256, vec![0])] {
+        let mut conditional = vec![0; 10 + count * 8];
+        put16(&mut conditional, 0, 1);
+        put32(&mut conditional, 6, count);
+        let lists = conditional.len();
+        for index in 0..count {
+            put32(&mut conditional, 14 + index * 8, lists + index);
+        }
+        conditional.resize(lists + count + 2 + 257 * 2, 1);
+        for kind in [LayoutTableKind::Gsub, LayoutTableKind::Gpos] {
+            let font = font(kind, &variations(&conditional, false));
+            assert_eq!(plan_lookups(&font, kind), expected);
+        }
+    }
+}
