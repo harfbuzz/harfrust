@@ -3,7 +3,11 @@ use crate::face::hr_face_t;
 use crate::object;
 use crate::ot_name::hr_ot_name_id_t;
 use core::ffi::c_uint;
-use read_fonts::{tables::feat::Feat, TableProvider};
+use read_fonts::{
+    tables::feat::{Feat, SettingName},
+    types::FixedSize,
+    TableProvider,
+};
 
 /// An AAT feature type.
 pub type hr_aat_layout_feature_type_t = c_uint;
@@ -514,7 +518,24 @@ pub struct hr_aat_layout_feature_selector_info_t {
 
 fn feat(face: &hr_face_t) -> Option<Feat<'_>> {
     let table = face.font()?.tables().feat().ok()?;
-    (table.version().major == 1).then_some(table)
+    (table.version().major == 1 && *face.feat_sane.get_or_init(|| settings_bounded(&table)))
+        .then_some(table)
+}
+
+/// Whether reading the selectors of every listed feature type reads the table
+/// at most 64 times over, the limit HarfBuzz's sanitizer puts on it.
+///
+/// Setting arrays may overlap each other and the feature records, and a
+/// repeated feature type finds the same array each time it is listed.
+fn settings_bounded(table: &Feat) -> bool {
+    let limit = table.offset_data().len().saturating_mul(64).max(16384);
+    let read = table
+        .names()
+        .iter()
+        .filter_map(|record| table.find(record.feature()))
+        .map(|feature| usize::from(feature.n_settings()) * SettingName::RAW_BYTE_LEN)
+        .fold(0, usize::saturating_add);
+    read <= limit
 }
 
 /// Returns the total number of feature types in the face's AAT feat table.

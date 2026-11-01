@@ -140,6 +140,8 @@ pub struct hr_face_t {
     /// Steps `hr_ot_layout_lookup_collect_glyphs` has spent on this face's GSUB
     /// and GPOS, so that the work across all its calls stays bounded.
     pub(crate) collect_work: [AtomicUsize; 2],
+    /// Whether the `feat` table's setting arrays are in proportion to its size.
+    pub(crate) feat_sane: OnceLock<bool>,
     #[cfg(feature = "draw")]
     pub(crate) render_data: OnceLock<Option<Vec<u8>>>,
 }
@@ -183,6 +185,7 @@ impl Object for hr_face_t {
                     table_tags: None,
                     plans: PlanCache::default(),
                     collect_work: Default::default(),
+                    feat_sane: OnceLock::new(),
                     #[cfg(feature = "draw")]
                     render_data: OnceLock::new(),
                 })
@@ -250,6 +253,7 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         table_tags: None,
         plans: PlanCache::default(),
         collect_work: Default::default(),
+        feat_sane: OnceLock::new(),
         #[cfg(feature = "draw")]
         render_data: OnceLock::new(),
     })
@@ -304,6 +308,7 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
         table_tags: None,
         plans: PlanCache::default(),
         collect_work: Default::default(),
+        feat_sane: OnceLock::new(),
         #[cfg(feature = "draw")]
         render_data: OnceLock::new(),
     });
