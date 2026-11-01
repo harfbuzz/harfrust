@@ -112,16 +112,8 @@ pub(crate) unsafe fn reject_data(data: *mut c_void, destroy: hr_destroy_func_t) 
     }
 }
 
-// A parent callback draws in the parent's scale. Record then replay at the
+// A parent callback draws in the parent's scale. Forward each segment at the
 // child's scale, retaining correct path state at the public callback boundary.
-#[derive(Clone, Copy)]
-pub(crate) enum Command {
-    Move(f32, f32),
-    Line(f32, f32),
-    Quad(f32, f32, f32, f32),
-    Curve(f32, f32, f32, f32, f32, f32),
-    Close,
-}
 pub(crate) struct Pen {
     pub(crate) funcs: *mut hr_draw_funcs_t,
     pub(crate) data: *mut c_void,

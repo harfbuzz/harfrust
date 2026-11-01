@@ -273,6 +273,74 @@ fn custom_draw_inherits_parent_scale_and_owns_callback_data() {
     }
 }
 
+// Lines the caller has received, and how many had arrived while the parent's
+// callback was still drawing.
+#[derive(Default)]
+struct Streamed {
+    delivered: usize,
+    during_draw: usize,
+}
+
+unsafe extern "C" fn count_line(
+    _: *mut hr_draw_funcs_t,
+    data: *mut c_void,
+    _: *mut hr_draw_state_t,
+    _: f32,
+    _: f32,
+    _: *mut c_void,
+) {
+    unsafe { (*data.cast::<Streamed>()).delivered += 1 };
+}
+
+unsafe extern "C" fn custom_draw_observing_delivery(
+    _: *mut hr_font_t,
+    _: *mut c_void,
+    _: u32,
+    funcs: *mut hr_draw_funcs_t,
+    data: *mut c_void,
+    streamed: *mut c_void,
+) -> i32 {
+    let mut state = hr_draw_state_t::default();
+    unsafe {
+        hr_draw_move_to(funcs, data, &raw mut state, 10.0, 20.0);
+        hr_draw_line_to(funcs, data, &raw mut state, 30.0, 40.0);
+        let streamed = streamed.cast::<Streamed>();
+        (*streamed).during_draw = (*streamed).delivered;
+        hr_draw_close_path(funcs, data, &raw mut state);
+    }
+    1
+}
+
+// An outline can be far longer than its font, so a sub-font must pass segments
+// on as its parent draws them rather than hold the outline until it returns.
+#[test]
+fn sub_font_draw_streams_segments() {
+    unsafe {
+        let font = font();
+        let callbacks = hr_font_funcs_create();
+        let mut streamed = Streamed::default();
+        hr_font_funcs_set_draw_glyph_or_fail_func(
+            callbacks,
+            Some(custom_draw_observing_delivery),
+            ptr::from_mut(&mut streamed).cast(),
+            None,
+        );
+        hr_font_set_funcs(font, callbacks, ptr::null_mut(), None);
+        hr_font_funcs_destroy(callbacks);
+        let child = hr_font_create_sub_font(font);
+        let funcs = hr_draw_funcs_create();
+        hr_draw_funcs_set_line_to_func(funcs, Some(count_line), ptr::null_mut(), None);
+        assert_eq!(
+            hr_font_draw_glyph_or_fail(child, 1, funcs, ptr::from_mut(&mut streamed).cast()),
+            1
+        );
+        assert_eq!(streamed.during_draw, 1);
+        hr_draw_funcs_destroy(funcs);
+        hr_font_destroy(child);
+        hr_font_destroy(font);
+    }
+}
+
 #[cfg(feature = "paint")]
 mod painting {
     use super::*;
