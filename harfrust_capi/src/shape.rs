@@ -189,7 +189,7 @@ pub unsafe extern "C" fn hr_shape_full(
         }
         let mut options = ShapeOptions::new()
             .features(&features)
-            .plan(plan.map(|plan| &**plan));
+            .plan(plan.as_deref());
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
