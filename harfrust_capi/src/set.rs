@@ -48,6 +48,16 @@ impl hr_set_t {
         })
     }
 
+    // IntSet cannot start its range iterator in the middle, and the bitset
+    // of an inverted set holds the excluded values, so the searches below
+    // that need the run around a value cannot seek to it. Instead they step
+    // from the value with contains() while scanning the ranges from the
+    // first page, and take whichever answers first: stepping is quick when
+    // the runs are short and scanning when few ranges precede them. A walk
+    // over a set of many short runs is therefore linear in its size, rather
+    // than rescanning the preceding ranges on every call. A backward walk
+    // over runs that are both many and far apart can still scan more.
+
     fn next(&self, start: u32) -> u32 {
         if start == HR_SET_VALUE_INVALID {
             return HR_SET_VALUE_INVALID;
@@ -60,13 +70,71 @@ impl hr_set_t {
                 .next()
                 .unwrap_or(HR_SET_VALUE_INVALID);
         }
-        if self.values.contains(start) {
-            return start;
+        let mut ranges = self.ranges();
+        let mut value = start;
+        loop {
+            if value == HR_SET_VALUE_INVALID || self.values.contains(value) {
+                return value;
+            }
+            match ranges.next() {
+                Some(r) if *r.end() >= value => return *r.start(),
+                Some(_) => value += 1,
+                None => return HR_SET_VALUE_INVALID,
+            }
         }
-        // Skip excluded ranges without enumerating each excluded codepoint.
-        self.ranges()
-            .find(|r| *r.end() >= start)
-            .map_or(HR_SET_VALUE_INVALID, |r| start.max(*r.start()))
+    }
+
+    fn previous(&self, end: u32) -> u32 {
+        let mut ranges = self.ranges().take_while(|r| *r.start() < end);
+        let mut last = None;
+        let mut value = end;
+        loop {
+            match value.checked_sub(1) {
+                Some(v) if self.values.contains(v) => return v,
+                Some(v) => value = v,
+                None => return HR_SET_VALUE_INVALID,
+            }
+            match ranges.next() {
+                Some(r) => last = Some(*r.end()),
+                None => return last.unwrap_or(HR_SET_VALUE_INVALID),
+            }
+        }
+    }
+
+    fn next_range(&self, start: u32) -> Option<RangeInclusive<u32>> {
+        let first = self.next(start);
+        if first == HR_SET_VALUE_INVALID {
+            return None;
+        }
+        let mut ranges = self.ranges();
+        let mut last = first;
+        loop {
+            if last == HR_SET_VALUE_INVALID - 1 || !self.values.contains(last + 1) {
+                return Some(first..=last);
+            }
+            match ranges.next() {
+                Some(r) if *r.end() >= first => return Some(first..=*r.end()),
+                _ => last += 1,
+            }
+        }
+    }
+
+    fn previous_range(&self, end: u32) -> Option<RangeInclusive<u32>> {
+        let last = self.previous(end);
+        if last == HR_SET_VALUE_INVALID {
+            return None;
+        }
+        let mut ranges = self.ranges();
+        let mut first = last;
+        loop {
+            if first == 0 || !self.values.contains(first - 1) {
+                return Some(first..=last);
+            }
+            match ranges.next() {
+                Some(r) if *r.end() >= last => return Some(*r.start()..=last),
+                _ => first -= 1,
+            }
+        }
     }
 
     pub(crate) fn add(&mut self, value: u32) {
@@ -498,12 +566,7 @@ pub unsafe extern "C" fn hr_set_previous(
     let Some(codepoint) = (unsafe { codepoint.as_mut() }) else {
         return 0;
     };
-    let end = *codepoint;
-    *codepoint = unsafe { object::or_empty(set) }
-        .ranges()
-        .take_while(|r| *r.start() < end)
-        .last()
-        .map_or(HR_SET_VALUE_INVALID, |r| (end - 1).min(*r.end()));
+    *codepoint = unsafe { object::or_empty(set) }.previous(*codepoint);
     (*codepoint != HR_SET_VALUE_INVALID).into()
 }
 
@@ -522,11 +585,9 @@ pub unsafe extern "C" fn hr_set_next_range(
         return 0;
     }
     let start = unsafe { *last }.wrapping_add(1);
-    let range = unsafe { object::or_empty(set) }
-        .ranges()
-        .find(|r| *r.end() >= start);
+    let range = unsafe { object::or_empty(set) }.next_range(start);
     let (a, b) = range.map_or((HR_SET_VALUE_INVALID, HR_SET_VALUE_INVALID), |r| {
-        (start.max(*r.start()), *r.end())
+        (*r.start(), *r.end())
     });
     unsafe {
         *first = a;
@@ -550,12 +611,9 @@ pub unsafe extern "C" fn hr_set_previous_range(
         return 0;
     }
     let end = unsafe { *first };
-    let range = unsafe { object::or_empty(set) }
-        .ranges()
-        .take_while(|r| *r.start() < end)
-        .last();
+    let range = unsafe { object::or_empty(set) }.previous_range(end);
     let (a, b) = range.map_or((HR_SET_VALUE_INVALID, HR_SET_VALUE_INVALID), |r| {
-        (*r.start(), (end - 1).min(*r.end()))
+        (*r.start(), *r.end())
     });
     unsafe {
         *first = a;
@@ -580,14 +638,15 @@ pub unsafe extern "C" fn hr_set_next_many(
     if size == 0 || out.is_null() {
         return 0;
     }
-    let start = codepoint.wrapping_add(1);
-    let values = unsafe { object::or_empty(set) }
-        .ranges()
-        .filter(|r| *r.end() >= start)
-        .flat_map(|r| start.max(*r.start())..=*r.end());
+    let set = unsafe { object::or_empty(set) };
     let out = unsafe { core::slice::from_raw_parts_mut(out, size as usize) };
     let mut count = 0;
-    for (slot, value) in out.iter_mut().zip(values) {
+    let mut value = codepoint;
+    for slot in out.iter_mut() {
+        value = set.next(value.wrapping_add(1));
+        if value == HR_SET_VALUE_INVALID {
+            break;
+        }
         *slot = value;
         count += 1;
     }
