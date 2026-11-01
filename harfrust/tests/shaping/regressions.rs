@@ -308,3 +308,89 @@ fn kerx_process_direction_ltr_kerning() {
         "[b=0@30,0+645|a=1+561]"
     );
 }
+
+/// Builds a font from `tables`, which must be sorted by tag.
+fn sfnt(tables: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((tables.len() as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, table) in tables {
+        data.extend(*tag);
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend((table.len() as u32).to_be_bytes());
+        offset += table.len().next_multiple_of(4);
+    }
+    for (_, table) in tables {
+        data.extend(table);
+        data.resize(data.len().next_multiple_of(4), 0);
+    }
+    data
+}
+
+// A Devanagari font whose `ccmp` feature turns KA (glyph 2) into 257 copies
+// of itself. Glyph 1 is VOWEL SIGN I and glyph 3 is DOTTED CIRCLE.
+fn ka_expanding_font() -> Vec<u8> {
+    // cmap: one format 12 subtable mapping U+093F, U+0915 and U+25CC.
+    let mut cmap = vec![0, 0, 0, 1, 0, 3, 0, 10, 0, 0, 0, 12];
+    cmap.extend([0, 12, 0, 0, 0, 0, 0, 52, 0, 0, 0, 0, 0, 0, 0, 3]);
+    for (ch, glyph) in [(0x0915u32, 2u32), (0x093F, 1), (0x25CC, 3)] {
+        cmap.extend(ch.to_be_bytes());
+        cmap.extend(ch.to_be_bytes());
+        cmap.extend(glyph.to_be_bytes());
+    }
+
+    // GSUB: script `dev2` -> feature `ccmp` -> one MultipleSubst lookup.
+    #[rustfmt::skip]
+    let mut gsub = vec![
+        0, 1, 0, 0, 0, 10, 0, 30, 0, 44, // header
+        0, 1, b'd', b'e', b'v', b'2', 0, 8, // one script
+        0, 4, 0, 0, // default LangSys only
+        0, 0, 0xFF, 0xFF, 0, 1, 0, 0, // required feature none, feature 0
+        0, 1, b'c', b'c', b'm', b'p', 0, 8, // one feature
+        0, 0, 0, 1, 0, 0, // lookup 0
+        0, 1, 0, 4, // one lookup
+        0, 2, 0, 0, 0, 1, 0, 8, // multiple substitution, one subtable
+        0, 1, 0, 8, 0, 1, 0, 14, // format 1, coverage, one sequence
+        0, 1, 0, 1, 0, 2, // coverage format 1: glyph 2
+        1, 1, // sequence: 257 glyphs
+    ];
+    gsub.extend([0, 2].repeat(257));
+
+    sfnt(&[
+        (b"GSUB", gsub),
+        (b"cmap", cmap),
+        (b"maxp", vec![0, 0, 0x50, 0, 0, 4]),
+    ])
+}
+
+// Inserting a dotted circle into a buffer that `ccmp` has already grown to
+// its glyph limit must give up rather than spin on the glyph that no longer
+// fits in the output.
+#[test]
+fn dotted_circle_insertion_stops_when_the_buffer_is_full() {
+    let font = Font::new(ka_expanding_font(), 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaping_font = ShaperFont::new(&instance);
+
+    // 256 characters allow 65536 glyphs; `ccmp` produces 1 + 255 * 257 of
+    // them, leaving no room for the dotted circle the orphan vowel needs.
+    let mut text = String::from("\u{093F}");
+    text.extend(std::iter::repeat_n('\u{0915}', 255));
+
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text);
+    buffer.guess_segment_properties();
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(!buffer.allocation_successful());
+
+    // One consonant fewer leaves room, and the dotted circle goes in.
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text[..text.len() - '\u{0915}'.len_utf8()]);
+    buffer.guess_segment_properties();
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(buffer.allocation_successful());
+    assert_eq!(buffer.len(), 1 + 254 * 257 + 1);
+    assert_eq!(buffer.glyph_infos()[1].glyph_id, 3);
+}
