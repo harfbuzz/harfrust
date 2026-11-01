@@ -80,7 +80,7 @@ impl AatMapBuilder {
                 end: feature.end,
                 info: FeatureInfo {
                     kind: FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16,
-                    setting: setting,
+                    setting,
                     is_exclusive: true,
                 },
             });
