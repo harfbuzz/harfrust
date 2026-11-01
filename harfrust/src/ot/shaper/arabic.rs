@@ -438,9 +438,16 @@ fn arabic_fallback_shape(
         return Some(false);
     }
 
-    let fallback_plan = arabic_plan
-        .fallback_plan
-        .get_or_init(|| arabic_fallback::FallbackPlan::new(plan, font));
+    // Built outside the cell: building asks the font's callbacks for glyphs,
+    // and application code must not run while the cell blocks other callers.
+    // If several callers build at once, the first to finish wins.
+    let fallback_plan = match arabic_plan.fallback_plan.get() {
+        Some(fallback_plan) => fallback_plan,
+        None => {
+            let built = arabic_fallback::FallbackPlan::new(plan, font);
+            arabic_plan.fallback_plan.get_or_init(|| built)
+        }
+    };
     if let Some(fallback_plan) = fallback_plan {
         fallback_plan.apply(font, buffer);
     }
