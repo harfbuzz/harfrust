@@ -775,13 +775,10 @@ pub unsafe extern "C" fn hr_font_set_funcs(
     // Dropping the old data runs its destroy callback, unless a sub-font still
     // holds a reference to it. That happens before the callbacks it was given
     // with are released, as in HarfBuzz.
-    let previous_data = core::mem::replace(
-        &mut font.font_data,
-        Some(Arc::new(FontData {
-            data: font_data,
-            destroy,
-        })),
-    );
+    let previous_data = font.font_data.replace(Arc::new(FontData {
+        data: font_data,
+        destroy,
+    }));
     drop(previous_data);
     unsafe { object::destroy(previous) };
 }
