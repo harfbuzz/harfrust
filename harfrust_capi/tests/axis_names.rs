@@ -163,6 +163,36 @@ fn names_prefer_exact_languages_then_encoding_and_support_ltag() {
 }
 
 #[test]
+fn ltag_tags_are_cut_at_the_length_harfbuzz_reads() {
+    unsafe {
+        // One Unicode-platform record for name 256, whose ltag entry is a
+        // 103-byte tag; only its first 63 bytes take part in matching.
+        let text = utf16("Long");
+        let mut name_table = Vec::new();
+        for value in [0u16, 1, 18, 0, 4, 0, 256, text.len() as u16, 0] {
+            name_table.extend(value.to_be_bytes());
+        }
+        name_table.extend(text);
+        let tag = format!("en-{}", "a".repeat(100));
+        let mut ltag = Vec::new();
+        for value in [1u32, 0, 1] {
+            ltag.extend(value.to_be_bytes());
+        }
+        for value in [16u16, tag.len() as u16] {
+            ltag.extend(value.to_be_bytes());
+        }
+        ltag.extend(tag.bytes());
+        let face = TableFace::new(vec![
+            (u32::from_be_bytes(*b"name"), name_table),
+            (u32::from_be_bytes(*b"ltag"), ltag),
+        ]);
+        assert_eq!(name(face.0, 256, Some(&tag[..63])), "Long");
+        assert_eq!(name(face.0, 256, Some(&tag[..62])), "");
+        assert_eq!(name(face.0, 256, Some(&tag)), "");
+    }
+}
+
+#[test]
 fn utf16_names_reserve_a_terminator_and_never_split_surrogate_pairs() {
     unsafe {
         let face = name_face();
