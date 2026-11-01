@@ -310,6 +310,9 @@ fn kerx_process_direction_ltr_kerning() {
 }
 
 // Native CoreText reference positions were measured on macOS 15.8.2 and 26.6.2.
+// Unlike Apple's written pop/reset rules, CoreText retains eight circular
+// history slots, initially referring to the first glyph, and ignores Reset.
+// Each action list walks the history independently, wrapping every eight values.
 // See https://github.com/harfbuzz/harfbuzz/pull/6540.
 #[test]
 fn kerx_coretext_stack_leftover() {
