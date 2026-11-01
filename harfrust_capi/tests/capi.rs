@@ -4225,11 +4225,62 @@ fn extended_single_subst_gsub() -> Vec<u8> {
     data
 }
 
+/// `hhea` and `hmtx` tables with one long metric and a side bearing for each
+/// further glyph.
+fn h_metrics(glyphs: usize) -> [(&'static [u8; 4], Vec<u8>); 2] {
+    let mut hhea = vec![0; 36];
+    hhea[1] = 1; // version 1.0
+    hhea[35] = 1; // one long metric
+    [(b"hhea", hhea), (b"hmtx", vec![0; 4 + 2 * (glyphs - 1)])]
+}
+
+#[test]
+fn lookup_fallback_ignores_a_glyph_count_nothing_backs() {
+    let [hhea, hmtx] = h_metrics(65550);
+    for (tables, covered) in [
+        // No count at all.
+        (vec![(b"GSUB", extended_single_subst_gsub())], 65536),
+        // A count no table backs.
+        (
+            vec![
+                (b"GSUB", extended_single_subst_gsub()),
+                (b"MAXP", maxp(0x00FF_FFFF, true)),
+            ],
+            65536,
+        ),
+        // A count the metrics back only in part.
+        (
+            vec![
+                (b"GSUB", extended_single_subst_gsub()),
+                (b"MAXP", maxp(0x00FF_FFFF, true)),
+                hhea,
+                hmtx,
+            ],
+            65550,
+        ),
+    ] {
+        let data = sfnt(&tables);
+        unsafe {
+            let blob = blob_over(&data);
+            let face = hr_face_create(blob, 0);
+            let set = hr_set_create();
+            hr_ot_layout_lookup_collect_glyphs(face, 0x4753_5542, 0, set, set, set, set);
+            assert_eq!(hr_set_get_population(set), covered);
+            hr_set_destroy(set);
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
+    }
+}
+
 #[test]
 fn extended_lookup_fallback_covers_glyphs_beyond_64k() {
+    let [hhea, hmtx] = h_metrics(65550);
     let data = sfnt(&[
         (b"GSUB", extended_single_subst_gsub()),
         (b"MAXP", maxp(65550, true)),
+        hhea,
+        hmtx,
         (b"maxp", maxp(4, false)),
     ]);
     unsafe {

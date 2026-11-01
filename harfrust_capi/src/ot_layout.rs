@@ -258,6 +258,31 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_lookup_count(
     }
 }
 
+/// How many glyph IDs the every-glyph fallback covers.
+///
+/// `MAXP` declares up to 2^24 glyphs in a few bytes, and a face without a
+/// count may have as many, but a set that large takes megabytes and
+/// milliseconds to fill, once per lookup and per set. So beyond the IDs a
+/// classic lookup can name, a count is believed only as far as the horizontal
+/// metrics, which hold a record for every glyph, back it.
+fn fallback_glyph_count(face: &hr_face_t) -> u32 {
+    const CLASSIC: u32 = 1 << 16;
+    let count = match face.glyph_count() {
+        0 => 1 << 24,
+        count => count,
+    };
+    if count <= CLASSIC {
+        return count;
+    }
+    let backed = face
+        .font()
+        .and_then(|font| font.tables().h_glyph_metric_records().ok())
+        .map_or(0, |records| {
+            records.long_metrics().len() + records.side_bearings().len()
+        });
+    count.min(u32::try_from(backed).unwrap_or(u32::MAX).max(CLASSIC))
+}
+
 #[derive(Clone, Copy)]
 struct SetTarget(*mut hr_set_t);
 
@@ -726,11 +751,7 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
     };
     let Some(complete) = complete else { return };
     if !matches!(complete, Ok(true)) {
-        // Without a glyph count, cover every glyph ID a lookup can name.
-        let count = match face.glyph_count() {
-            0 => 1 << 24,
-            count => count,
-        };
+        let count = fallback_glyph_count(face);
         for set in [before, input, after, output] {
             set.include_all_glyphs(count);
         }
