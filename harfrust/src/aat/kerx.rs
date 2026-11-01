@@ -66,6 +66,15 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             continue;
         }
 
+        // Every applied subtable walks the whole buffer, and a font can
+        // carry any number of them; charge each walk so the work stays
+        // within the buffer's operation limit.
+        c.buffer.max_ops -= c.buffer.len as i32;
+        if c.buffer.max_ops < 0 {
+            c.buffer.successful = false;
+            break;
+        }
+
         let reverse = subtable.process_direction() != c.buffer.direction.is_backward();
 
         message_continue!(c, "start subtable {}", message_index);

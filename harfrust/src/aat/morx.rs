@@ -253,6 +253,16 @@ fn apply_table<'a>(
             );
             continue;
         }
+
+        // Every applied subtable walks the whole buffer, and a font can
+        // carry any number of them; charge each walk so the work stays
+        // within the buffer's operation limit.
+        c.buffer.max_ops -= c.buffer.len as i32;
+        if c.buffer.max_ops < 0 {
+            c.buffer.successful = false;
+            break;
+        }
+
         message_continue!(c, "start chainsubtable {}", subtable_idx);
 
         // Buffer contents is always in logical direction.  Determine if

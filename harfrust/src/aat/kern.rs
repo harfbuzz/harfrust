@@ -94,6 +94,15 @@ pub fn apply(
             continue;
         }
 
+        // Every applied subtable walks the whole buffer, and a font can
+        // carry any number of them; charge each walk so the work stays
+        // within the buffer's operation limit.
+        c.buffer.max_ops -= c.buffer.len as i32;
+        if c.buffer.max_ops < 0 {
+            c.buffer.successful = false;
+            break;
+        }
+
         let reverse = c.buffer.direction.is_backward();
         let is_cross_stream = subtable.is_cross_stream();
         message_continue!(c, "start subtable {}", message_index);
