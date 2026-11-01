@@ -559,6 +559,69 @@ mod tests {
     }
 
     #[test]
+    fn kerx_format4_leaves_distant_glyphs_unattached() {
+        let bytes = include_bytes!("../../tests/fonts/text-rendering-tests/TestKERNOne.otf");
+        let source = FontRef::new(bytes).unwrap();
+        let source_font = Font::new(bytes.to_vec(), 0).unwrap();
+        let charmap = source_font.charmap();
+        let base = charmap.map_unicode('u' as u32).unwrap().to_u32() as u16;
+        let attached = charmap.map_unicode('T' as u32).unwrap().to_u32() as u16;
+        let mut classes = [(base, 4u16), (attached, 5u16)];
+        classes.sort_unstable();
+        // A format-4 kerx subtable that marks `base` and attaches every
+        // following `attached` glyph to it.
+        #[rustfmt::skip]
+        let mut kerx = vec![
+            0, 2, 0, 0, // version 2, padding
+            0, 0, 0, 1, // nTables
+            0, 0, 0, 102, // subtable length
+            0, 0, 0, 4, // coverage: horizontal, format 4
+            0, 0, 0, 0, // tupleCount
+            0, 0, 0, 6, // nClasses
+            0, 0, 0, 20, // classTableOffset
+            0, 0, 0, 40, // stateArrayOffset
+            0, 0, 0, 64, // entryTableOffset
+            0x80, 0, 0, 82, // flags: control point coordinates, action offset
+            0, 6, 0, 4, 0, 2, 0, 0, 0, 0, 0, 0, // lookup format 6, two units
+        ];
+        for (glyph, class) in classes {
+            kerx.extend_from_slice(&glyph.to_be_bytes());
+            kerx.extend_from_slice(&class.to_be_bytes());
+        }
+        #[rustfmt::skip]
+        kerx.extend_from_slice(&[
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, // state 0: class 4 takes entry 1
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, // state 1: class 5 takes entry 2
+            0, 0, 0, 0, 0xFF, 0xFF, // entry 0: no action
+            0, 1, 0x80, 0, 0xFF, 0xFF, // entry 1: mark, go to state 1
+            0, 1, 0, 0, 0, 0, // entry 2: action 0, stay in state 1
+            0, 0, 0, 0, 0, 0, 0, 0, // action 0: both points at the origin
+        ]);
+        let tables = TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"kerx") {
+                Some(Blob::from(kerx.clone()))
+            } else {
+                source
+                    .data_for_tag(tag)
+                    .map(|data| Blob::from(data.as_bytes().to_vec()))
+            }
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        let shaper = ShaperFont::new(&font);
+        let text = format!("u{}", "T".repeat(40000));
+        let plan = plan_for_text(&font, &text);
+        assert!(plan.apply_kerx);
+
+        let buffer = shape_text(&shaper, &text, &plan);
+        let positions = buffer.glyph_positions();
+        let base_advance = shaper.default_glyph_h_advance(base.into());
+        assert_eq!(positions[1].x_offset, -base_advance);
+        assert_ne!(positions[32768].x_offset, 0);
+        // 32769 glyphs do not fit the 16-bit attachment chain.
+        assert_eq!(positions[32769].x_offset, 0);
+    }
+
+    #[test]
     fn concurrent_first_shapes_share_morx_cache() {
         let font = Font::new(
             include_bytes!("../../tests/fonts/in-house/MORXTwentyeight.ttf").to_vec(),

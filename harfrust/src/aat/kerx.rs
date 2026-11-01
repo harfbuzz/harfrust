@@ -690,7 +690,19 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
         _tuple_count: u32,
         c: &mut AatApplyContext,
     ) -> Option<()> {
-        if self.mark_set && entry.is_actionable() && c.buffer.idx < c.buffer.len {
+        let idx = c.buffer.idx;
+        let mut distance = self.mark as isize - idx as isize;
+        if c.buffer_is_reversed {
+            distance = -distance;
+        }
+        // A distance that doesn't fit the chain field leaves the glyph
+        // unattached, as in GPOS.
+        let attach_chain = if self.mark_set && entry.is_actionable() && idx < c.buffer.len {
+            i16::try_from(distance).ok()
+        } else {
+            None
+        };
+        if let Some(attach_chain) = attach_chain {
             match (self.ankr_table.as_ref(), &aat.actions) {
                 (Some(ankr_table), Subtable4Actions::AnchorPoints(ankr_data)) => {
                     let action_idx = entry.action_index() as usize * 2;
@@ -739,11 +751,6 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
             }
 
             c.buffer.cur_pos_mut()?.set_attach_type(attach_type::MARK);
-            let idx = c.buffer.idx;
-            let mut attach_chain = self.mark as i16 - idx as i16;
-            if c.buffer_is_reversed {
-                attach_chain = -attach_chain;
-            }
             c.buffer.cur_pos_mut()?.set_attach_chain(attach_chain);
             c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         }
