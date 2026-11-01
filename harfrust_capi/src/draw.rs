@@ -564,10 +564,9 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
     let Some(render_face) = (unsafe { crate::hr_font_get_face(font).as_ref() }) else {
         return 0;
     };
-    let Some(face) = (unsafe { crate::rendering::font_ref(render_face) }) else {
+    let Some(outlines) = (unsafe { crate::rendering::outlines(render_face) }) else {
         return 0;
     };
-    let outlines = skrifa::OutlineGlyphCollection::new(&face);
     let Some(outline) = outlines.get(read_fonts::types::GlyphId::new(glyph)) else {
         return 0;
     };

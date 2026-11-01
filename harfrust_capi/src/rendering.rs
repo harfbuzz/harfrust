@@ -7,16 +7,61 @@ use core::ffi::c_void;
 use harfrust::font::Blob;
 use read_fonts::{types::F2Dot14, FontRef};
 
-/// The face's assembled SFNT, built on first use and never changed after.
-pub(crate) unsafe fn render_blob(face: &hr_face_t) -> Option<&Blob> {
+/// Skrifa's view of a face: the SFNT assembled from its tables, and the
+/// outline collection that borrows it.
+///
+/// Building the collection parses the whole CFF Top DICT, whose length the
+/// font chooses, so it is built once per face here rather than once per
+/// glyph. Like `PreparedFont`, this keeps the view and the data it borrows in
+/// one private owner; the explicit `Drop` clears the borrow before the blob is
+/// released even if the fields are ever reordered.
+pub(crate) struct RenderData {
+    outlines: Option<skrifa::OutlineGlyphCollection<'static>>,
+    blob: Blob,
+}
+
+impl RenderData {
+    fn new(bytes: Vec<u8>) -> Option<Self> {
+        let blob = Blob::from(bytes);
+        let font = FontRef::new(&blob).ok()?;
+        let outlines = skrifa::OutlineGlyphCollection::new(&font);
+        // SAFETY: the collection borrows the data owned by `blob`, which is
+        // reference counted, stable across moving the `Blob` and never written
+        // again. `Drop` clears the borrow before the blob is released.
+        let outlines = Some(unsafe {
+            core::mem::transmute::<
+                skrifa::OutlineGlyphCollection<'_>,
+                skrifa::OutlineGlyphCollection<'static>,
+            >(outlines)
+        });
+        Some(Self { outlines, blob })
+    }
+}
+
+impl Drop for RenderData {
+    fn drop(&mut self) {
+        self.outlines = None;
+    }
+}
+
+unsafe fn render_data(face: &hr_face_t) -> Option<&RenderData> {
     face.render_data
         .get_or_init(|| {
-            unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) }.map(Blob::from)
+            unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) }
+                .and_then(RenderData::new)
         })
         .as_ref()
 }
+/// The face's assembled SFNT, built on first use and never changed after.
+pub(crate) unsafe fn render_blob(face: &hr_face_t) -> Option<&Blob> {
+    unsafe { render_data(face) }.map(|data| &data.blob)
+}
 pub(crate) unsafe fn font_ref(face: &hr_face_t) -> Option<FontRef<'_>> {
     FontRef::new(unsafe { render_blob(face) }?).ok()
+}
+/// The face's outlines, built on first use and kept with the face.
+pub(crate) unsafe fn outlines(face: &hr_face_t) -> Option<&skrifa::OutlineGlyphCollection<'_>> {
+    unsafe { render_data(face) }?.outlines.as_ref()
 }
 unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
     const TAGS: [&[u8; 4]; 24] = [
