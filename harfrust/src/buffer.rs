@@ -681,7 +681,8 @@ impl Buffer {
     ///
     /// This goes false when filling the buffer runs out of memory, and when
     /// shaping needs more room, more operations or more nesting than the
-    /// shaper allows.
+    /// shaper allows. It reports the most recent shaping: a failure lasts
+    /// until the buffer is cleared or shaped again.
     #[inline]
     pub fn allocation_successful(&self) -> bool {
         self.successful
@@ -2243,6 +2244,9 @@ impl Buffer {
 
     // Called around shape()
     pub(crate) fn enter(&mut self) {
+        // Whether the previous shaping failed says nothing about this one;
+        // emptying the buffer with `set_length` doesn't forget it either.
+        self.successful = true;
         self.serial = 0;
         self.scratch_flags = HB_BUFFER_SCRATCH_FLAG_DEFAULT;
 
@@ -2816,5 +2820,26 @@ mod tests {
         assert!(buffer.glyph_set.contains(u16::MAX as u32));
         assert!(buffer.glyph_set.contains(4096 * 512 + 1));
         assert!(!buffer.glyph_set.contains(512 + 2));
+    }
+
+    #[test]
+    fn failed_shaping_does_not_fail_the_next() {
+        let mut buffer = Buffer::new();
+        buffer.push('a' as u32, 0);
+        buffer.enter();
+        buffer.successful = false;
+        buffer.leave();
+        assert!(!buffer.allocation_successful());
+
+        // Emptying the buffer, unlike clearing it, keeps the failure...
+        assert!(buffer.set_length(0));
+        assert!(!buffer.allocation_successful());
+
+        // ... but the next shaping starts afresh and reports its own outcome.
+        buffer.push('b' as u32, 0);
+        buffer.enter();
+        assert!(buffer.successful);
+        buffer.leave();
+        assert!(buffer.allocation_successful());
     }
 }
