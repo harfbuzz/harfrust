@@ -795,12 +795,23 @@ unsafe fn add_utf32_items(
     };
     // As in `hr_buffer_add_utf8`: what precedes the item is context only for
     // a buffer holding nothing yet, and what follows it is rebuilt each time.
+    // Only the nearest few items on either side are context, so that a caller
+    // shaping a long text run by run does not pay for the whole text on each
+    // call.
     if buffer.buffer.is_empty() && start > 0 {
-        let pre: Vec<u32> = items[..start].iter().rev().map(|&c| scalar(c)).collect();
-        buffer.buffer.set_pre_context_codepoints(&pre);
+        let mut pre = [0; MAX_CONTEXT_CODEPOINTS];
+        let len = start.min(pre.len());
+        for (slot, &codepoint) in pre[..len].iter_mut().zip(items[..start].iter().rev()) {
+            *slot = scalar(codepoint);
+        }
+        buffer.buffer.set_pre_context_codepoints(&pre[..len]);
     }
-    let post: Vec<u32> = items[end..].iter().map(|&c| scalar(c)).collect();
-    buffer.buffer.set_post_context_codepoints(&post);
+    let mut post = [0; MAX_CONTEXT_CODEPOINTS];
+    let len = (items.len() - end).min(post.len());
+    for (slot, &codepoint) in post[..len].iter_mut().zip(&items[end..]) {
+        *slot = scalar(codepoint);
+    }
+    buffer.buffer.set_post_context_codepoints(&post[..len]);
     for (index, &codepoint) in items[start..end].iter().enumerate() {
         buffer
             .buffer
@@ -1742,5 +1753,39 @@ mod tests {
             buffer.pre_context_codepoints(),
             &[0x1F600, b'5' as u32, b'4' as u32, b'3' as u32, b'2' as u32]
         );
+    }
+
+    #[test]
+    fn keeps_bounded_utf32_context() {
+        // Five items of context on either side of the item, nearest first,
+        // with the ones that are not characters replaced only by `add_utf32`.
+        let mut text: Vec<u32> = "abcdefgXhijklm".chars().map(u32::from).collect();
+        text[2] = 0xD800;
+        text[10] = 0x11_0000;
+        let codepoints = |text: &str| text.chars().map(u32::from).collect::<Vec<_>>();
+        unsafe {
+            let buffer = hr_buffer_create();
+            hr_buffer_add_utf32(buffer, text.as_ptr(), text.len() as c_int, 7, 1);
+            let context = &(*buffer).buffer;
+            assert_eq!(context.pre_context_codepoints(), codepoints("gfed\u{FFFD}"));
+            assert_eq!(
+                context.post_context_codepoints(),
+                codepoints("hi\u{FFFD}kl")
+            );
+
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_codepoints(buffer, text.as_ptr(), text.len() as c_int, 7, 1);
+            let context = &(*buffer).buffer;
+            assert_eq!(context.pre_context_codepoints()[4], 0xD800);
+            assert_eq!(context.post_context_codepoints()[2], 0x11_0000);
+
+            // Less than five on a side, and an item running to the end.
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_utf32(buffer, text.as_ptr(), text.len() as c_int, 2, -1);
+            let context = &(*buffer).buffer;
+            assert_eq!(context.pre_context_codepoints(), codepoints("ba"));
+            assert_eq!(context.post_context_codepoints(), &[]);
+            hr_buffer_destroy(buffer);
+        }
     }
 }
