@@ -1061,40 +1061,49 @@ impl<'a> SubtableDigests<'a> for CursivePos1<'a> {
 /// `new_parent`. Returns `None` only if `i` is outside `pos`.
 fn reverse_cursive_minor_offset(
     pos: &mut [GlyphPosition],
-    i: usize,
+    mut i: usize,
     direction: Direction,
     new_parent: usize,
 ) -> Option<()> {
-    let this = pos.get_mut(i).likely()?;
-    let chain = this.attach_chain();
-    let attach_type = this.attach_type();
-    if chain == 0 || attach_type & attach_type::CURSIVE == 0 {
-        return Some(());
+    // The chain can be as long as the buffer, so its links are listed here
+    // rather than held on the call stack by recursion.
+    let mut links = Vec::new();
+    loop {
+        let this = pos.get_mut(i).likely()?;
+        let chain = this.attach_chain();
+        let attach_type = this.attach_type();
+        if chain == 0 || attach_type & attach_type::CURSIVE == 0 {
+            break;
+        }
+        // Clearing each link on the way also ends a looping chain.
+        this.set_attach_chain(0);
+        let j = (i as isize + isize::from(chain)) as usize;
+        // A truncated chain can point outside the buffer, and the chain stops
+        // at the new parent.
+        if j >= pos.len() || j == new_parent {
+            break;
+        }
+        links.push((i, j, chain, attach_type));
+        i = j;
     }
-    this.set_attach_chain(0);
-    let j = (i as isize + isize::from(chain)) as usize;
-    // A truncated chain can point outside the buffer, and the chain stops
-    // at the new parent.
-    if j >= pos.len() || j == new_parent {
-        return Some(());
+    // Turn the links around from the far end, so that each glyph is read
+    // before the link that leads to it rewrites it.
+    for (i, j, chain, attach_type) in links.into_iter().rev() {
+        let this = pos.get(i).likely()?;
+        let offset = if direction.is_horizontal() {
+            this.y_offset
+        } else {
+            this.x_offset
+        };
+        let next = pos.get_mut(j).likely()?;
+        if direction.is_horizontal() {
+            next.y_offset = offset.saturating_neg();
+        } else {
+            next.x_offset = offset.saturating_neg();
+        }
+        next.set_attach_chain(-chain);
+        next.set_attach_type(attach_type);
     }
-    reverse_cursive_minor_offset(pos, j, direction, new_parent)?;
-    // Read this glyph after the recursion, which a looping chain can
-    // rewrite.
-    let this = pos.get(i).likely()?;
-    let offset = if direction.is_horizontal() {
-        this.y_offset
-    } else {
-        this.x_offset
-    };
-    let next = pos.get_mut(j).likely()?;
-    if direction.is_horizontal() {
-        next.y_offset = offset.saturating_neg();
-    } else {
-        next.x_offset = offset.saturating_neg();
-    }
-    next.set_attach_chain(-chain);
-    next.set_attach_type(attach_type);
     Some(())
 }
 
@@ -1675,5 +1684,21 @@ mod tests {
         assert_eq!(cross_offset(&mut buffer, 2), Some(30));
         assert!(buffer.successful);
         assert_eq!(buffer.max_ops, 98);
+    }
+
+    #[test]
+    fn reverse_cursive_minor_offset_handles_long_chains() {
+        // One stack frame per link would overflow the stack.
+        let mut pos = vec![GlyphPosition::default(); 1 << 20];
+        let (_, linked) = pos.split_last_mut().unwrap();
+        for glyph in linked {
+            glyph.set_attach_type(attach_type::CURSIVE);
+            glyph.set_attach_chain(1);
+        }
+
+        reverse_cursive_minor_offset(&mut pos, 0, Direction::LeftToRight, usize::MAX);
+
+        assert_eq!(pos[0].attach_chain(), 0);
+        assert!(pos[1..].iter().all(|glyph| glyph.attach_chain() == -1));
     }
 }
