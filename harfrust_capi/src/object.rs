@@ -99,6 +99,11 @@ pub trait Object: Sized + 'static {
 
     /// Returns the immortal empty singleton for this type.
     fn empty() -> *mut Self;
+
+    /// Called before the object is handed out to be changed, for types that
+    /// keep something worked out from their contents. [`as_mutable`] calls
+    /// it; whatever reaches the contents another way must too.
+    fn will_change(&mut self) {}
 }
 
 /// Allocates a new object with a reference count of one.
@@ -312,5 +317,6 @@ pub unsafe fn as_mutable<'a, T: Object>(ptr: *mut T) -> Option<&'a mut T> {
     if obj.header().immutable.load(Ordering::Acquire) {
         return None;
     }
+    obj.will_change();
     Some(obj)
 }

@@ -2,7 +2,7 @@
 //! `hb-buffer.h`.
 
 use core::ffi::{c_char, c_int, c_uint, c_void};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 use harfrust::{
     Buffer, BufferFlags, ClusterLevel, ContentType, Direction, GlyphInfo, GlyphPosition,
@@ -182,6 +182,13 @@ unsafe impl<const N: usize> Sync for CStrArray<N> {}
 pub struct hr_buffer_t {
     header: ObjectHeader,
     pub(crate) buffer: Buffer,
+    /// Where the last serialization with advances suppressed stopped, and the
+    /// pen position there, so that the next piece carries on from it rather
+    /// than adding up everything before it again. Forgotten whenever the
+    /// buffer is handed out to be changed, since the positions it was added
+    /// up from may move; a position pointer kept from before that and written
+    /// through in between is not seen.
+    serialized_pen: Mutex<(usize, (i32, i32))>,
 }
 
 static EMPTY_BUFFER: OnceLock<Empty<hr_buffer_t>> = OnceLock::new();
@@ -197,9 +204,16 @@ impl Object for hr_buffer_t {
                 Empty::new(hr_buffer_t {
                     header: ObjectHeader::immortal(),
                     buffer: Buffer::new(),
+                    serialized_pen: Mutex::default(),
                 })
             })
             .get()
+    }
+
+    fn will_change(&mut self) {
+        if let Ok(pen) = self.serialized_pen.get_mut() {
+            *pen = Default::default();
+        }
     }
 }
 
@@ -247,6 +261,7 @@ pub extern "C" fn hr_buffer_create() -> *mut hr_buffer_t {
     object::create(hr_buffer_t {
         header: ObjectHeader::new(),
         buffer: Buffer::new(),
+        serialized_pen: Mutex::default(),
     })
 }
 
@@ -1237,6 +1252,8 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
         }
         return core::ptr::null_mut();
     };
+    // The caller may write through what this hands back.
+    buffer.will_change();
     let positions = buffer.buffer.glyph_positions_mut();
     if let Some(out) = unsafe { length.as_mut() } {
         *out = positions.len() as c_uint;
@@ -1575,10 +1592,22 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     // With advances suppressed, each item reports the pen position it sits
     // at, which counts from the start of the buffer and not from the start of
     // the range. Carried as an offset on every item, since the serializer
-    // accumulates within whatever it is given.
+    // accumulates within whatever it is given. Picked up from where the last
+    // call stopped when that is no further on, so that a caller serializing
+    // in several passes does not add up everything before each one again,
+    // which would cost time quadratic in the length of the buffer. Not worked
+    // out at all when positions are left out, since it is never printed.
+    let tracks_pen = flags.contains(SerializeFlags::NO_ADVANCES)
+        && !flags.contains(SerializeFlags::NO_POSITIONS);
     let mut pen = (0i32, 0i32);
-    if flags.contains(SerializeFlags::NO_ADVANCES) && !positions.is_empty() {
-        for position in &positions[..start] {
+    if tracks_pen {
+        let mut from = 0;
+        if let Ok(stopped) = buffer.serialized_pen.lock() {
+            if stopped.0 <= start {
+                (from, pen) = *stopped;
+            }
+        }
+        for position in &positions[from..start] {
             pen.0 = pen.0.saturating_add(position.x_advance);
             pen.1 = pen.1.saturating_add(position.y_advance);
         }
@@ -1645,10 +1674,15 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
         out.push_str(&chunk);
         written += 1;
 
-        if flags.contains(SerializeFlags::NO_ADVANCES) && !positions.is_empty() {
+        if tracks_pen {
             let position = positions[start + at];
             pen.0 = pen.0.saturating_add(position.x_advance);
             pen.1 = pen.1.saturating_add(position.y_advance);
+        }
+    }
+    if tracks_pen {
+        if let Ok(mut stopped) = buffer.serialized_pen.lock() {
+            *stopped = (start + written, pen);
         }
     }
 

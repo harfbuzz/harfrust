@@ -10,6 +10,7 @@ use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
 use crate::font::hr_font_t;
 use crate::font_funcs::FontFuncsAdapter;
+use crate::object::Object;
 
 /// Runs `f`, catching any panic rather than letting it unwind into C, which
 /// would be undefined behaviour. Returns `None` if it panicked.
@@ -55,6 +56,7 @@ pub(crate) fn shape_with_plan(
     let has_funcs = font_ref.has_callbacks();
     let adapter = FontFuncsAdapter::new(font, font_ref);
 
+    buffer_ref.will_change();
     guard(|| {
         let mut shaping_font = (*shaper).clone();
         shaping_font.set_scale_separate(font_ref.x_scale, font_ref.y_scale);
@@ -161,6 +163,7 @@ pub unsafe extern "C" fn hr_shape_full(
     let has_funcs = font_ref.has_callbacks();
     let adapter = FontFuncsAdapter::new(font, font_ref);
 
+    buffer_ref.will_change();
     let outcome = guard(|| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
         // so fill in whatever the caller left out rather than failing.

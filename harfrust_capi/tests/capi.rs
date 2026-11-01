@@ -1295,6 +1295,52 @@ fn serializing_a_range_counts_from_the_start_of_the_buffer() {
 }
 
 #[test]
+fn serializing_in_pieces_carries_the_pen_and_sees_changes_in_between() {
+    unsafe {
+        with_font(|_, font| {
+            let buffer = buffer_with_text(TEXT);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let len = hr_buffer_get_length(buffer);
+            let flags = HR_BUFFER_SERIALIZE_FLAG_NO_ADVANCES;
+            let tail_of = |whole: &str| {
+                let from = whole.find('|').expect("more than one glyph");
+                whole[from..].to_owned()
+            };
+
+            // A piece carries on from where the previous one stopped, and
+            // says the same as the whole listing does there ...
+            let (_, whole) = serialize(buffer, 0, len, font, flags);
+            serialize(buffer, 0, 1, font, flags);
+            let (_, tail) = serialize(buffer, 1, len, font, flags);
+            assert_eq!(tail, tail_of(&whole));
+
+            // ... also when the piece is asked for out of order ...
+            serialize(buffer, 1, len, font, flags);
+            let (_, again) = serialize(buffer, 0, len, font, flags);
+            assert_eq!(again, whole);
+
+            // ... and from what is there now, not from before a change to
+            // what came ahead of it.
+            serialize(buffer, 0, 1, font, flags);
+            (*hr_buffer_get_glyph_positions(buffer, ptr::null_mut())).x_advance += 100;
+            let (_, tail) = serialize(buffer, 1, len, font, flags);
+            let (_, whole) = serialize(buffer, 0, len, font, flags);
+            assert_eq!(tail, tail_of(&whole));
+
+            // Shaping anew changes everything ahead of it too.
+            serialize(buffer, 0, 1, font, flags);
+            hr_buffer_clear_contents(buffer);
+            hr_buffer_add_utf8(buffer, c"cba".as_ptr(), -1, 0, -1);
+            hr_shape(font, buffer, ptr::null(), 0);
+            let (_, tail) = serialize(buffer, 1, len, font, flags);
+            let (_, whole) = serialize(buffer, 0, len, font, flags);
+            assert_eq!(tail, tail_of(&whole));
+            hr_buffer_destroy(buffer);
+        });
+    }
+}
+
+#[test]
 fn extents_that_cannot_be_worked_out_are_left_out() {
     unsafe {
         // Nothing can say what a glyph's extents are without a font, so the
