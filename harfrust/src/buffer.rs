@@ -1282,13 +1282,26 @@ impl Buffer {
     pub(crate) fn update_glyph_set(&mut self) {
         self.glyph_set.clear();
         let len = self.len;
-        self.glyph_set.extend_unsorted(
-            self.info
-                .get(..len)
-                .unwrap_or_default()
-                .iter()
-                .map(|i| i.glyph_id),
-        );
+        let glyphs = self
+            .info
+            .get(..len)
+            .unwrap_or_default()
+            .iter()
+            .map(|i| i.glyph_id);
+        let is_gid16 = |glyph: &u32| *glyph <= u16::MAX as u32;
+        // Ids up to u16::MAX share at most 128 pages of the set, so the
+        // order in which they arrive does not matter.
+        self.glyph_set
+            .extend_unsorted(glyphs.clone().filter(is_gid16));
+        // Wider ids can need a page each. The set keeps its pages in a sorted
+        // map that every new page is inserted into, so a page per glyph in
+        // descending order would cost quadratic time to build. Insert them
+        // in ascending order so that each new page is appended instead.
+        let mut wide_glyphs: Vec<u32> = glyphs.filter(|glyph| !is_gid16(glyph)).collect();
+        if !wide_glyphs.is_empty() {
+            crate::algs::sort_unstable_by(&mut wide_glyphs, Ord::cmp);
+            self.glyph_set.extend(wide_glyphs);
+        }
     }
 
     #[inline]
@@ -2779,5 +2792,29 @@ mod tests {
         buffer.reset_clusters();
         assert_eq!(buffer.info[2].cluster, 9);
         assert_eq!(buffer.info[3].cluster, 9);
+    }
+
+    #[test]
+    fn glyph_set_holds_wide_glyph_ids_in_any_order() {
+        // One glyph per 512-id page, descending, mixed with ordinary ids:
+        // the worst order for building the set's sorted page map.
+        let glyphs: Vec<u32> = (1..=4096u32)
+            .rev()
+            .flat_map(|page| [page * 512 + 1, page % 3, u16::MAX as u32])
+            .collect();
+        let mut buffer = Buffer::new();
+        buffer.info.resize(glyphs.len(), GlyphInfo::default());
+        buffer.len = buffer.info.len();
+        for (info, &glyph) in buffer.info.iter_mut().zip(&glyphs) {
+            info.glyph_id = glyph;
+        }
+
+        buffer.update_glyph_set();
+
+        let expected: U32Set = glyphs.iter().copied().collect();
+        assert_eq!(buffer.glyph_set, expected);
+        assert!(buffer.glyph_set.contains(u16::MAX as u32));
+        assert!(buffer.glyph_set.contains(4096 * 512 + 1));
+        assert!(!buffer.glyph_set.contains(512 + 2));
     }
 }
