@@ -1710,6 +1710,9 @@ impl Buffer {
         self.max_ops -= (end - start) as i32;
         if self.max_ops < 0 {
             self.successful = false;
+            // Not every caller stops on failure, and the merge can walk the
+            // whole buffer; once the budget is gone, do no more work.
+            return;
         }
 
         if self.try_merge_out_clusters(start, end).is_none() {
@@ -1726,23 +1729,33 @@ impl Buffer {
             .map(|info| info.cluster)
             .min()?;
 
+        // The caller only paid for start..end; glyphs the extension below
+        // rewrites are charged here.
+        let mut extended = 0;
+
         // Extend start
-        while start != 0
-            && cluster_at(self.out_info(), start - 1)? == cluster_at(self.out_info(), start)?
-        {
-            start -= 1;
+        if cluster != cluster_at(self.out_info(), start)? {
+            while start != 0
+                && cluster_at(self.out_info(), start - 1)? == cluster_at(self.out_info(), start)?
+            {
+                start -= 1;
+                extended += 1;
+            }
         }
 
         // Extend end
-        while end < self.out_len
-            && cluster_at(self.out_info(), end - 1)? == cluster_at(self.out_info(), end)?
-        {
-            end += 1;
+        if cluster != cluster_at(self.out_info(), end - 1)? {
+            while end < self.out_len
+                && cluster_at(self.out_info(), end - 1)? == cluster_at(self.out_info(), end)?
+            {
+                end += 1;
+                extended += 1;
+            }
         }
 
-        // If we hit the start of buffer, continue in out-buffer.
-        if end == self.out_len {
-            let end_cluster = cluster_at(self.out_info(), end - 1)?;
+        // If we hit the end of out-buffer, continue in buffer.
+        let end_cluster = cluster_at(self.out_info(), end - 1)?;
+        if end == self.out_len && end_cluster != cluster {
             let mut i = self.idx;
             while i < self.len {
                 let info = self.info.get_mut(i)?;
@@ -1752,6 +1765,12 @@ impl Buffer {
                 Self::set_cluster(info, cluster, 0);
                 i += 1;
             }
+            extended += i - self.idx;
+        }
+
+        self.max_ops -= extended as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
         }
 
         for info in self.out_info_mut().get_mut(start..end)? {
@@ -2694,5 +2713,30 @@ mod tests {
 
         assert_eq!(buffer.next_syllable(0), MAX_SYLLABLE_LENGTH);
         assert_eq!(buffer.next_syllable(MAX_SYLLABLE_LENGTH), buffer.len);
+    }
+
+    #[test]
+    fn merge_out_clusters_charges_what_it_walks() {
+        let mut buffer = Buffer::new();
+        buffer.info.resize(1000, GlyphInfo::default());
+        for (i, info) in buffer.info.iter_mut().enumerate() {
+            info.cluster = (i / 500) as u32;
+        }
+        buffer.len = buffer.info.len();
+        buffer.have_output = true;
+        buffer.idx = buffer.len;
+        buffer.out_len = buffer.len;
+
+        // Merging across the boundary rewrites the whole second half.
+        let ops = buffer.max_ops;
+        buffer.merge_out_clusters(499, 501);
+        assert!(buffer.out_info().iter().all(|info| info.cluster == 0));
+        assert_eq!(buffer.max_ops, ops - 2 - 499);
+
+        // A range already inside the merged cluster is not walked again.
+        let ops = buffer.max_ops;
+        buffer.merge_out_clusters(998, 1000);
+        assert_eq!(buffer.max_ops, ops - 2);
+        assert!(buffer.successful);
     }
 }
