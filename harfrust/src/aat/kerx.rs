@@ -598,23 +598,21 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
 
             let mut action_index = entry.action_index();
 
-            // From Apple 'kern' spec:
-            // "Each pops one glyph from the kerning stack and applies the kerning value to it.
-            // The end of the list is marked by an odd value...
-            let mut last = false;
             let use_x_scale = c.buffer.direction.is_horizontal() ^ has_cross_stream;
-            while !last && self.depth != 0 {
+            while self.depth != 0 {
+                let v = aat.values.get(action_index as usize)?.get() as i32;
+                // kerx ends a list with a single 0xFFFF, without popping a glyph.
+                if v == -1 {
+                    break;
+                }
                 self.depth -= 1;
                 let idx = self.stack[self.depth];
-                let mut v = aat.values.get(action_index as usize)?.get() as i32;
                 action_index = action_index.checked_add(tuple_count)?;
                 if idx >= c.buffer.len {
                     continue;
                 }
+                c.buffer.unsafe_to_break(Some(idx), Some(c.buffer.idx + 1));
 
-                // "The end of the list is marked by an odd value..."
-                last = v & 1 != 0;
-                v &= !1;
                 let scaled_v = if use_x_scale {
                     c.scale_x(v)
                 } else {

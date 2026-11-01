@@ -221,3 +221,60 @@ fn singleton_tatweel_opportunity_is_unsafe_to_break() {
         "[5=1+200#5|1=0+200]"
     );
 }
+
+// https://github.com/harfbuzz/harfbuzz/issues/6536
+#[test]
+fn kerx_format1_list_end() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-list-end.ttf", "aab", ""),
+        "[a=0@50,0+611|a=1@40,0+601|b=2@31,0+646]"
+    );
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/kerx-list-end.ttf",
+            "aab",
+            "--show-flags --unsafe-to-concat"
+        ),
+        "[a=0@50,0+611#2|a=1@40,0+601#3|b=2@31,0+646#3]"
+    );
+}
+
+// https://github.com/harfbuzz/harfbuzz/issues/6536
+#[test]
+fn kerx_format1_negative_list() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-negative-list.ttf", "aab", ""),
+        "[a=0@-50,0+511|a=1@-40,0+521|b=2@-31,0+584]"
+    );
+}
+
+// https://github.com/harfbuzz/harfbuzz/issues/6536
+#[test]
+fn kerx_format1_value_index() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-value-index.ttf", "ab", ""),
+        "[a=0+561|b=1@30,0+645]"
+    );
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-value-index.ttf", "cb", ""),
+        "[c=0+480|b=1@70,0+685]"
+    );
+}
+
+// https://github.com/harfbuzz/harfbuzz/issues/6536
+#[test]
+fn kerx_format1_short_list() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-short-list.ttf", "aab", ""),
+        "[a=0+561|a=1+561|b=2@31,0+646]"
+    );
+}
+
+// https://github.com/harfbuzz/harfbuzz/issues/6536
+#[test]
+fn kerx_format1_retained_stack() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-retained-stack.ttf", "aab", ""),
+        "[a=0@17,0+578|a=1@13,0+574|b=2@31,0+646]"
+    );
+}
