@@ -506,6 +506,7 @@ pub(super) unsafe fn paint(
     if let Some(svg) = face.svg().ok().and_then(|svg| svg.glyph_data(glyph)) {
         if unsafe {
             image(
+                render_face,
                 funcs,
                 data,
                 svg,
@@ -574,6 +575,7 @@ pub(super) unsafe fn paint(
         extents.height = extents.height.saturating_sub(extents.y_bearing);
         if unsafe {
             image(
+                render_face,
                 funcs,
                 data,
                 bytes,
@@ -590,6 +592,7 @@ pub(super) unsafe fn paint(
     0
 }
 unsafe fn image(
+    face: &crate::hr_face_t,
     funcs: *mut hr_paint_funcs_t,
     data: *mut c_void,
     bytes: &[u8],
@@ -601,22 +604,24 @@ unsafe fn image(
     if bytes.is_empty() {
         return 0;
     }
-    let Ok(length) = u32::try_from(bytes.len()) else {
+    // `bytes` is a slice of the face's rendering data, which never changes
+    // once built. Consumers may retain the blob beyond the callback, so hand
+    // out a sub-blob sharing that storage, as HarfBuzz does with its table
+    // blob, rather than a copy: one SVG document may cover every glyph of a
+    // font, and copying it per paint costs glyphs x document bytes.
+    let Some(render) = (unsafe { crate::rendering::render_blob(face) }) else {
         return 0;
     };
-    // Owned duplicate: consumers may retain the blob beyond the callback/face.
-    let blob = unsafe {
-        crate::hr_blob_create_or_fail(
-            bytes.as_ptr().cast(),
-            length,
-            crate::HR_MEMORY_MODE_DUPLICATE,
-            core::ptr::null_mut(),
-            None,
-        )
-    };
-    if blob.is_null() {
+    let Some(start) = (bytes.as_ptr() as usize).checked_sub(render.as_ptr() as usize) else {
         return 0;
-    }
+    };
+    let Some(end) = start
+        .checked_add(bytes.len())
+        .filter(|end| *end <= render.len())
+    else {
+        return 0;
+    };
+    let blob = hr_blob_t::sub(render, start, end);
     let result = unsafe { hr_paint_image(funcs, data, blob, width, height, format, 0.0, extents) };
     unsafe { crate::hr_blob_destroy(blob) };
     result

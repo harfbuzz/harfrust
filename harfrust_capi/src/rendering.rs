@@ -4,14 +4,19 @@
 #![allow(clippy::cast_precision_loss)]
 use crate::*;
 use core::ffi::c_void;
+use harfrust::font::Blob;
 use read_fonts::{types::F2Dot14, FontRef};
 
+/// The face's assembled SFNT, built on first use and never changed after.
+pub(crate) unsafe fn render_blob(face: &hr_face_t) -> Option<&Blob> {
+    face.render_data
+        .get_or_init(|| {
+            unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) }.map(Blob::from)
+        })
+        .as_ref()
+}
 pub(crate) unsafe fn font_ref(face: &hr_face_t) -> Option<FontRef<'_>> {
-    let bytes = face
-        .render_data
-        .get_or_init(|| unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) })
-        .as_ref()?;
-    FontRef::new(bytes).ok()
+    FontRef::new(unsafe { render_blob(face) }?).ok()
 }
 unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
     const TAGS: [&[u8; 4]; 24] = [

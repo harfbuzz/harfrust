@@ -865,4 +865,42 @@ mod painting {
             }
         }
     }
+
+    /// One SVG document may cover every glyph of a font, so images handed to
+    /// the callback share the face's data rather than copying it per paint.
+    #[test]
+    fn retained_images_share_storage_rather_than_copying() {
+        unsafe {
+            for glyph in [5, 6] {
+                let font = font();
+                let funcs = funcs();
+                let mut images = Vec::new();
+                for _ in 0..2 {
+                    let mut s = Paint::default();
+                    assert_eq!(
+                        hr_font_paint_glyph_or_fail(
+                            font,
+                            glyph,
+                            funcs,
+                            ptr::from_mut(&mut s).cast(),
+                            0,
+                            0
+                        ),
+                        1
+                    );
+                    images.push(s.image);
+                }
+                hr_font_destroy(font);
+                hr_paint_funcs_destroy(funcs);
+                let (mut a, mut b) = (0, 0);
+                let pa = hr_blob_get_data(images[0], &raw mut a);
+                let pb = hr_blob_get_data(images[1], &raw mut b);
+                assert!(a > 50);
+                assert_eq!((pa, a), (pb, b));
+                for image in images {
+                    hr_blob_destroy(image);
+                }
+            }
+        }
+    }
 }

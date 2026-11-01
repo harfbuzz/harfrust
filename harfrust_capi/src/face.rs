@@ -137,8 +137,10 @@ pub struct hr_face_t {
     /// Shape plans built over this face, reused across `hr_shape` calls the way
     /// HarfBuzz's cached shape plans are.
     pub(crate) plans: PlanCache,
+    /// The SFNT assembled for Skrifa, shared with image blobs handed to paint
+    /// callbacks so that retaining one costs no copy.
     #[cfg(feature = "draw")]
-    pub(crate) render_data: OnceLock<Option<Vec<u8>>>,
+    pub(crate) render_data: OnceLock<Option<Blob>>,
 }
 
 impl hr_face_t {
