@@ -1878,4 +1878,23 @@ mod tests {
             .iter()
             .all(|info| info.syllable() == syllable));
     }
+
+    // A long-but-valid syllable: a joiner run of more than
+    // `MAX_SYLLABLE_LOOKAHEAD` before a matra is still one consonant syllable,
+    // the same as an unbounded scan. The look-ahead memo must bound the DoS
+    // without splitting this.
+    #[test]
+    fn long_joiner_run_before_matra_stays_in_the_syllable() {
+        let mut categories = alloc::vec![category::OT_C];
+        categories.resize(1_001, category::OT_ZWJ);
+        categories.push(category::OT_M);
+        let mut buffer = buffer_with_categories(&categories);
+        let len = buffer.len;
+        find_syllables_indic(&mut buffer);
+        let syllable = buffer.info[0].syllable();
+        assert_eq!(syllable & 0x0F, SyllableType::ConsonantSyllable as u8);
+        assert!(buffer.info[..len]
+            .iter()
+            .all(|info| info.syllable() == syllable));
+    }
 }

@@ -19,7 +19,7 @@ use crate::buffer::{Buffer, HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE};
 use crate::GlyphInfo;
 use super::machine_cursor::MachineCursor;
 use super::use_::category;
-use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
+use crate::ot::layout::{SyllableLookaheadMemo, MAX_SYLLABLE_LOOKAHEAD};
 
 %%{
   machine use_syllable_machine;
@@ -179,6 +179,7 @@ pub fn find_syllables(buffer: &mut Buffer) -> Option<()> {
     let pe = p.end();
     let eof = p.end();
     let mut syllable_serial = 1u8;
+    let mut memo = SyllableLookaheadMemo::new();
 
     // Please manually replace assignments of 0 to p, ts, and te
     // to use p0 instead
@@ -191,21 +192,28 @@ pub fn find_syllables(buffer: &mut Buffer) -> Option<()> {
 
     %%{
         write init;
-        getkey (category_at(infos, p.index(), ts.index(), te.index())?);
+        getkey (category_at(infos, &mut memo, p.index(), ts.index(), te.index(), cs)?);
         write exec;
     }%%
     Some(())
 }
 
-// Longest-match scanners re-read everything after the last match (`te`) for
-// the next token. Rules with an unbounded prefix that is not a match on its
-// own (`SB*` before a hieroglyph) keep the machine alive across a whole run
-// without ever matching, which makes the scan quadratic in the run length.
-// Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the machine a
-// category no rule continues with, so it falls back to `te` and the scan
-// stays linear.
-fn category_at(infos: &[Cell<GlyphInfo>], p: usize, ts: usize, te: usize) -> Option<u8> {
-    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+// Supplies the scanner's look-ahead category. Once the look-ahead has run
+// MAX_SYLLABLE_LOOKAHEAD past the last match, consult the memo (see
+// `SyllableLookaheadMemo`): a `(position, state)` pair an earlier token already
+// scanned through without matching is doomed again now, so hand the machine a
+// category no rule continues with, which makes it fall back to `te` exactly as
+// an unbounded scan eventually would. This keeps the scan linear on an SB run
+// while leaving the output of every real cluster unchanged.
+fn category_at(
+    infos: &[Cell<GlyphInfo>],
+    memo: &mut SyllableLookaheadMemo,
+    p: usize,
+    ts: usize,
+    te: usize,
+    cs: i32,
+) -> Option<u8> {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD && memo.is_doomed_revisit(p, ts, cs, infos.len()) {
         return Some(u8::MAX);
     }
     Some(infos.get(p)?.get().use_category() as u8)

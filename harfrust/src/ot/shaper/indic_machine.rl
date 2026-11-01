@@ -13,7 +13,7 @@
 )]
 
 use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
-use crate::ot::layout::MAX_SYLLABLE_LOOKAHEAD;
+use crate::ot::layout::{SyllableLookaheadMemo, MAX_SYLLABLE_LOOKAHEAD};
 
 %%{
   machine indic_syllable_machine;
@@ -102,6 +102,7 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
     let pe = buffer.len;
     let eof = buffer.len;
     let mut syllable_serial = 1u8;
+    let mut memo = SyllableLookaheadMemo::new();
 
     macro_rules! found_syllable {
         ($kind:expr) => {{
@@ -111,20 +112,27 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
 
     %%{
         write init;
-        getkey (category_at(buffer, p, ts, te));
+        getkey (category_at(buffer, &mut memo, p, ts, te, cs));
         write exec;
     }%%
 }
 
-// Longest-match scanners re-read everything after the last match (`te`) for
-// the next token. Rules with an unbounded prefix that is not a match on its
-// own (`z*` before a matra) keep the machine alive across a whole joiner run
-// without ever matching, which makes the scan quadratic in the run length.
-// Past MAX_SYLLABLE_LOOKAHEAD characters of look-ahead hand the machine a
-// category no rule continues with, so it falls back to `te` and the scan
-// stays linear.
-fn category_at(buffer: &Buffer, p: usize, ts: usize, te: usize) -> u8 {
-    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
+// Supplies the scanner's look-ahead category. Once the look-ahead has run
+// MAX_SYLLABLE_LOOKAHEAD past the last match, consult the memo (see
+// `SyllableLookaheadMemo`): a `(position, state)` pair an earlier token already
+// scanned through without matching is doomed again now, so hand the machine a
+// category no rule continues with, which makes it fall back to `te` exactly as
+// an unbounded scan eventually would. This keeps the scan linear on a joiner
+// run while leaving the output of every real syllable unchanged.
+fn category_at(
+    buffer: &Buffer,
+    memo: &mut SyllableLookaheadMemo,
+    p: usize,
+    ts: usize,
+    te: usize,
+    cs: i32,
+) -> u8 {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD && memo.is_doomed_revisit(p, ts, cs, buffer.len) {
         return u8::MAX;
     }
     buffer.info.get(p).map_or(0, |info| info.indic_category() as u8)

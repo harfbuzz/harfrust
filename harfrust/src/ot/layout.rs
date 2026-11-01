@@ -57,9 +57,66 @@ impl Buffer {
 pub const MAX_NESTING_LEVEL: usize = 64;
 pub const MAX_CONTEXT_LENGTH: usize = 64;
 pub const MAX_SYLLABLE_LENGTH: usize = 64;
-// How far a syllable machine may read past its last match before giving up on
-// a longer one; keeps the scanners linear on unbounded joiner runs.
+// How far a syllable machine may read past its last match before it starts
+// remembering the (position, state) pairs it visits, so it can cut short a
+// re-scan it has already performed; keeps the scanners linear on unbounded
+// joiner/SB runs without changing their output.
 pub const MAX_SYLLABLE_LOOKAHEAD: usize = 64;
+
+/// Remembers `(position, machine state)` pairs a longest-match syllable scanner
+/// has already visited past [`MAX_SYLLABLE_LOOKAHEAD`] of look-ahead.
+///
+/// The Indic, Khmer and USE scanners are Ragel longest-match machines: after
+/// every token they rewind to the last match (`te`) and re-read everything
+/// after it. Each grammar has a rule with an unbounded prefix that is not a
+/// match on its own (`z*` before a matra, `joiner*` before an Xgroup, `SB*`
+/// before a hieroglyph), which keeps the machine alive across a whole run
+/// without ever matching, so each of the O(n) tokens re-scans the O(n) tail:
+/// O(n^2) overall.
+///
+/// The machines are deterministic, so the forward trajectory from a
+/// `(position, state)` pair is fixed. If an earlier token already reached the
+/// same pair, it ran on from there without reaching a final state (otherwise it
+/// would have emitted a longer token ending past this position, and no later
+/// token could start here), so a later token that reaches the same pair is
+/// equally doomed and will fall back to the same `te`. Forcing the machine to
+/// take its default transition there emits the identical token and rewinds,
+/// which bounds the look-ahead per token to a constant and keeps the output
+/// byte-for-byte identical to an unbounded scan. Ordinary text never reads more
+/// than a few characters past a match, so the memo is never even allocated.
+pub(crate) struct SyllableLookaheadMemo {
+    // One entry per buffer position, `(state, token start)`; the state is
+    // `u32::MAX` while unseen. Allocated lazily on the first look-ahead past the
+    // threshold.
+    seen: Vec<(u32, u32)>,
+}
+
+impl SyllableLookaheadMemo {
+    pub(crate) fn new() -> Self {
+        Self { seen: Vec::new() }
+    }
+
+    /// Returns `true` when `(p, cs)` was already visited by an earlier token
+    /// (one with a smaller start `ts`) and can therefore be cut short.
+    /// Otherwise records this visit and returns `false`. Called only once the
+    /// look-ahead has passed [`MAX_SYLLABLE_LOOKAHEAD`].
+    pub(crate) fn is_doomed_revisit(&mut self, p: usize, ts: usize, cs: i32, len: usize) -> bool {
+        if self.seen.is_empty() {
+            self.seen = alloc::vec![(u32::MAX, 0u32); len];
+        }
+        let Some(entry) = self.seen.get_mut(p) else {
+            return false;
+        };
+        let cs = cs as u32;
+        let ts = ts as u32;
+        if entry.0 == cs && entry.1 < ts {
+            true
+        } else {
+            *entry = (cs, ts);
+            false
+        }
+    }
+}
 
 pub fn has_kerning(aat: &AatData) -> bool {
     aat.kern.is_some()
