@@ -329,7 +329,8 @@ pub fn find_syllables(buffer: &mut Buffer) -> Option<()> {
                                     p.index(),
                                     ts.index(),
                                     te.index(),
-                                )?) as i32
+                                )?)
+                                    as i32
                                     - 0)
                                     as usize]) as i32;
                                 if (_ic

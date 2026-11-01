@@ -1874,6 +1874,8 @@ mod tests {
         find_syllables_indic(&mut buffer);
         let syllable = buffer.info[0].syllable();
         assert_eq!(syllable & 0x0F, SyllableType::ConsonantSyllable as u8);
-        assert!(buffer.info[..5].iter().all(|info| info.syllable() == syllable));
+        assert!(buffer.info[..5]
+            .iter()
+            .all(|info| info.syllable() == syllable));
     }
 }

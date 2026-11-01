@@ -498,7 +498,10 @@ fn category_at(buffer: &Buffer, p: usize, ts: usize, te: usize) -> u8 {
     if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD {
         return u8::MAX;
     }
-    buffer.info.get(p).map_or(0, |info| info.indic_category() as u8)
+    buffer
+        .info
+        .get(p)
+        .map_or(0, |info| info.indic_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.
