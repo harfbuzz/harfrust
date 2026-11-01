@@ -49419,6 +49419,114 @@ fn indic_syllable_016() {
 }
 
 #[test]
+fn indic_unicode18_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11B0A}\u{093C}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11B0A}\u{093F}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11B0A}\u{094C}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11B0A}\u{094D}\u{0915}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0|1=2]"
+    );
+}
+
+#[test]
+fn indic_unicode18_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11DF1}\u{09BC}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11DF1}\u{09BF}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11DF1}\u{09BE}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{0995}\u{11DF0}",
+            "--no-glyph-names --no-positions --font-funcs=ot",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
+fn indic_unicode18_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/AdobeBlank2.ttf",
+            "\u{11DF0}",
+            "--no-glyph-names --no-positions --font-funcs=ot --script=beng",
+        ),
+        "[1=0|1=0]"
+    );
+}
+
+#[test]
 fn indic_vowel_letter_spoofing_001() {
     assert_eq!(
         shape(
