@@ -66,7 +66,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             continue;
         }
 
-        let reverse = c.buffer.direction.is_backward();
+        let reverse = subtable.process_direction() != c.buffer.direction.is_backward();
 
         message_continue!(c, "start subtable {}", message_index);
 
