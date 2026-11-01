@@ -262,7 +262,8 @@ pub fn find_syllables_indic(buffer: &mut Buffer) {
                             {
                                 _ic = (_indic_syllable_machine_char_class[((category_at(
                                     buffer, &mut memo, p, ts, te, cs,
-                                )) as i32
+                                ))
+                                    as i32
                                     - 1)
                                     as usize]) as i32;
                                 if (_ic

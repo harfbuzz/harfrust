@@ -1,5 +1,6 @@
 //! OpenType layout.
 
+use alloc::vec::Vec;
 use core::ops::{Index, IndexMut};
 
 use super::apply::ApplyContext;
@@ -84,6 +85,7 @@ pub const MAX_SYLLABLE_LOOKAHEAD: usize = 64;
 /// which bounds the look-ahead per token to a constant and keeps the output
 /// byte-for-byte identical to an unbounded scan. Ordinary text never reads more
 /// than a few characters past a match, so the memo is never even allocated.
+#[derive(Default)]
 pub(crate) struct SyllableLookaheadMemo {
     // One entry per buffer position, `(state, token start)`; the state is
     // `u32::MAX` while unseen. Allocated lazily on the first look-ahead past the
@@ -93,7 +95,7 @@ pub(crate) struct SyllableLookaheadMemo {
 
 impl SyllableLookaheadMemo {
     pub(crate) fn new() -> Self {
-        Self { seen: Vec::new() }
+        Self::default()
     }
 
     /// Returns `true` when `(p, cs)` was already visited by an earlier token
