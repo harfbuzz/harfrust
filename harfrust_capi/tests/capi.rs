@@ -956,6 +956,87 @@ fn face_references_a_table() {
     }
 }
 
+/// Builds a font whose directory holds `count` records, every one pointing at
+/// the same four bytes. Record `i` has tag `record_tag(i)`, ascending when
+/// `sorted` and descending otherwise.
+fn sfnt_with_records(count: usize, sorted: bool) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((count as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let offset = 12 + 16 * count;
+    for i in 0..count {
+        let tag = record_tag(if sorted { i } else { count - 1 - i });
+        data.extend(tag.to_be_bytes());
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend(4u32.to_be_bytes());
+    }
+    data.extend([1, 2, 3, 4]);
+    data
+}
+
+/// Distinct tags for [`sfnt_with_records`], avoiding the none tag.
+fn record_tag(i: usize) -> hr_tag_t {
+    i as hr_tag_t + 1
+}
+
+#[test]
+fn walking_every_table_of_a_face_stays_linear() {
+    // The most records a directory can hold. Fetching each table once must
+    // not read the whole directory again per call.
+    const COUNT: usize = u16::MAX as usize;
+    for sorted in [true, false] {
+        let data = sfnt_with_records(COUNT, sorted);
+        unsafe {
+            let blob = blob_over(&data);
+            let face = hr_face_create(blob, 0);
+            let started = std::time::Instant::now();
+            let mut count = COUNT as c_uint;
+            let mut tags = vec![0; COUNT];
+            assert_eq!(
+                hr_face_get_table_tags(face, 0, &raw mut count, tags.as_mut_ptr()),
+                COUNT as c_uint
+            );
+            assert_eq!(count, COUNT as c_uint);
+            for (i, &tag) in tags.iter().enumerate() {
+                assert_eq!(tag, record_tag(if sorted { i } else { COUNT - 1 - i }));
+                let table = hr_face_reference_table(face, tag);
+                assert_eq!(hr_blob_get_length(table), 4);
+                hr_blob_destroy(table);
+            }
+            assert!(started.elapsed() < std::time::Duration::from_secs(10));
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
+    }
+}
+
+#[test]
+fn first_record_of_a_repeated_tag_wins() {
+    // Two records with one tag leave the directory unsorted; `read-fonts`
+    // then finds the first, and so must the face.
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend(2u16.to_be_bytes());
+    data.extend([0; 6]);
+    for (offset, length) in [(44u32, 2u32), (46, 3)] {
+        data.extend(*b"cmap");
+        data.extend(0u32.to_be_bytes());
+        data.extend(offset.to_be_bytes());
+        data.extend(length.to_be_bytes());
+    }
+    data.extend([1, 2, 3, 4, 5]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let tag = hr_tag_from_string(c"cmap".as_ptr(), -1);
+        let table = hr_face_reference_table(face, tag);
+        assert_eq!(hr_blob_get_length(table), 2);
+        hr_blob_destroy(table);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
 #[test]
 fn null_and_empty_faces_are_safe() {
     unsafe {

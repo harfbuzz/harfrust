@@ -116,9 +116,69 @@ enum FaceSource {
         blob: *mut hr_blob_t,
         /// The selected font is independent of the writable index metadata.
         index: c_uint,
+        /// The blob's table directory, read on first use; `None` if the blob
+        /// holds no SFNT font at `index`.
+        directory: OnceLock<Option<BlobDirectory>>,
     },
     /// A caller-supplied table callback.
     Function(Arc<TableFunc>),
+}
+
+impl FaceSource {
+    /// The blob and table directory of a blob-backed face.
+    fn blob_directory(&self) -> Option<(&hr_blob_t, &BlobDirectory)> {
+        let FaceSource::Blob { blob, index, directory } = self else {
+            return None;
+        };
+        let blob = unsafe { blob.as_ref() }?;
+        let directory = directory
+            .get_or_init(|| BlobDirectory::new(blob.bytes(), *index))
+            .as_ref()?;
+        Some((blob, directory))
+    }
+}
+
+/// The table directory of a blob-backed face, kept so that neither looking up
+/// a table nor listing the tags has to walk every record again. A directory
+/// can hold 65535 records, so reading it per lookup made fetching every table
+/// of a face quadratic in the record count.
+struct BlobDirectory {
+    /// The tag of every record, in directory order.
+    tags: Box<[Tag]>,
+    /// The tag, offset and length of every table, sorted by tag. Of several
+    /// records with one tag only the first is kept, which is what the linear
+    /// scan `read-fonts` falls back to for an unsorted directory finds.
+    by_tag: Box<[(Tag, u32, u32)]>,
+}
+
+impl BlobDirectory {
+    fn new(bytes: &[u8], index: c_uint) -> Option<Self> {
+        let font = read_fonts::FontRef::from_index(bytes, index).ok()?;
+        let records = font.table_directory().table_records();
+        let mut by_tag: Vec<_> = records
+            .iter()
+            .map(|record| (record.tag(), record.offset(), record.length()))
+            .collect();
+        // The sort is stable, so the first record of each tag survives.
+        by_tag.sort_by_key(|&(tag, ..)| tag);
+        by_tag.dedup_by_key(|&mut (tag, ..)| tag);
+        Some(Self {
+            tags: records.iter().map(|record| record.tag()).collect(),
+            by_tag: by_tag.into_boxed_slice(),
+        })
+    }
+
+    /// The byte range of the table with `tag`, which may lie outside the blob.
+    fn range(&self, tag: Tag) -> Option<(usize, usize)> {
+        let at = self.by_tag.binary_search_by_key(&tag, |&(tag, ..)| tag).ok()?;
+        let (_, offset, length) = self.by_tag[at];
+        // A zero offset means no table, as in `FontRef::table_data`.
+        if offset == 0 {
+            return None;
+        }
+        let start = offset as usize;
+        Some((start, start.checked_add(length as usize)?))
+    }
 }
 
 impl Drop for FaceSource {
@@ -246,7 +306,11 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         header: ObjectHeader::new(),
         font: Some(font),
         index,
-        source: FaceSource::Blob { blob: owned, index },
+        source: FaceSource::Blob {
+            blob: owned,
+            index,
+            directory: OnceLock::new(),
+        },
         table_tags: None,
         plans: PlanCache::default(),
         #[cfg(feature = "draw")]
@@ -466,22 +530,19 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
                 )
             };
         }
-    } else if let FaceSource::Blob { blob, index } = state.source {
-        let blob = unsafe { object::or_empty(blob.cast_const()) };
-        if let Ok(font) = read_fonts::FontRef::from_index(blob.bytes(), index) {
-            let records = font.table_directory().table_records();
-            if !table_tags.is_null() {
-                if let Some(count) = unsafe { table_count.as_mut() } {
-                    let start = (start_offset as usize).min(records.len());
-                    let len = (*count as usize).min(records.len() - start);
-                    for (i, record) in records[start..start + len].iter().enumerate() {
-                        unsafe { table_tags.add(i).write(tag_from_rust(record.tag())) };
-                    }
-                    *count = len as c_uint;
+    } else if let Some((_, directory)) = state.source.blob_directory() {
+        let tags = &directory.tags;
+        if !table_tags.is_null() {
+            if let Some(count) = unsafe { table_count.as_mut() } {
+                let start = (start_offset as usize).min(tags.len());
+                let len = (*count as usize).min(tags.len() - start);
+                for (i, &tag) in tags[start..start + len].iter().enumerate() {
+                    unsafe { table_tags.add(i).write(tag_from_rust(tag)) };
                 }
+                *count = len as c_uint;
             }
-            return records.len() as c_uint;
         }
+        return tags.len() as c_uint;
     }
     if let Some(count) = unsafe { table_count.as_mut() } {
         *count = 0;
@@ -559,26 +620,14 @@ pub unsafe extern "C" fn hr_face_reference_table(
             Some(data) => hr_blob_t::new(data),
             None => hr_blob_t::empty(),
         },
-        FaceSource::Blob { blob, index } => {
-            let Some(blob_ref) = (unsafe { blob.as_ref() }) else {
+        FaceSource::Blob { blob, .. } => {
+            let Some((_, directory)) = face_ref.source.blob_directory() else {
                 return hr_blob_t::empty();
             };
-            let bytes = blob_ref.bytes();
-            let Ok(font_ref) = read_fonts::FontRef::from_index(bytes, *index) else {
+            let Some((start, end)) = directory.range(tag_to_rust(tag)) else {
                 return hr_blob_t::empty();
             };
-            let Some(table) = font_ref.data_for_tag(tag_to_rust(tag)) else {
-                return hr_blob_t::empty();
-            };
-            let table = table.as_bytes();
-            // `table` is a subslice of `bytes`, so this offset is well defined;
-            // fall back to the empty blob rather than trusting it blindly.
-            let Some(start) = (table.as_ptr() as usize).checked_sub(bytes.as_ptr() as usize) else {
-                return hr_blob_t::empty();
-            };
-            let Some(end) = start.checked_add(table.len()) else {
-                return hr_blob_t::empty();
-            };
+            // `sub` answers a range outside the blob with the empty blob.
             // SAFETY: the face owns a reference to `blob`, so it is live.
             unsafe { hr_blob_t::sub(*blob, start, end) }
         }
