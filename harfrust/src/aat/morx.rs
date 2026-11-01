@@ -1027,10 +1027,17 @@ where
         }
 
         if let Some(replacement) = replacement {
-            ac.buffer.unsafe_to_break(
-                Some(self.mark),
-                Some((ac.buffer.idx + 1).min(ac.buffer.len)),
-            );
+            let end = (ac.buffer.idx + 1).min(ac.buffer.len);
+            // unsafe_to_break() visits every glyph from the mark to here
+            // (it gives up past 255), and an entry that doesn't advance can
+            // ask for that walk again on the same glyph. Charge the walk to
+            // the budget like move_to() and merge_clusters() charge their
+            // ranges, so the driver forces an advance once it is spent.
+            let walk = end.wrapping_sub(self.mark);
+            if walk <= 255 {
+                ac.buffer.max_ops -= walk as i32;
+            }
+            ac.buffer.unsafe_to_break(Some(self.mark), Some(end));
             if ac
                 .replace_glyph_inplace(self.mark, replacement.into())
                 .is_none()

@@ -487,3 +487,29 @@ fn kerx_coretext_history_wrap_and_reset() {
         assert_eq!(crate::shape(font, text, ""), expected, "{font}: {text:?}");
     }
 }
+/// A contextual entry that does not advance and substitutes the marked glyph
+/// flags every glyph from the mark to the current one unsafe-to-break, a walk
+/// of up to 255 glyphs. The test font loops on `c` that way with its `a`
+/// marked 254 glyphs back, so the loop must be charged for the walk rather
+/// than one operation per turn; otherwise this run takes about 25 s in a
+/// debug build instead of a tenth of a second.
+#[test]
+fn morx_contextual_mark_substitution_loop_is_charged_for_its_walk() {
+    let mut text = String::from("a");
+    text.extend(std::iter::repeat_n('b', 253));
+    text.push('c');
+    text.extend(std::iter::repeat_n('b', 1745));
+    let mut expected = String::from("[1");
+    expected.extend(std::iter::repeat_n("|2", 253));
+    expected.push_str("|3");
+    expected.extend(std::iter::repeat_n("|2", 1745));
+    expected.push(']');
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/morx-contextual-mark-loop.ttf",
+            &text,
+            "--no-glyph-names --no-positions --no-clusters",
+        ),
+        expected
+    );
+}
