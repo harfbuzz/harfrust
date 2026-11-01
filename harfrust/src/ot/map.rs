@@ -244,6 +244,88 @@ struct StageInfo {
     pause_func: Option<PauseFn>,
 }
 
+/// The lookups of a table, collected stage by stage.
+///
+/// Features may share lookups and list one any number of times, so the
+/// references of a stage are merged as they are added: a stage holds each
+/// lookup of the table at most once, whatever the features list.
+struct LookupCollector {
+    lookups: Vec<LookupMap>,
+    /// Where the current stage starts in `lookups`.
+    stage_start: usize,
+    /// Per lookup index of the table: its entry in `lookups`, and what
+    /// merging its references of the current stage so far gives.
+    merged: Vec<MergedLookup>,
+}
+
+#[derive(Clone, Copy)]
+struct MergedLookup {
+    position: usize,
+    mask: Mask,
+    auto_zwnj: bool,
+    auto_zwj: bool,
+}
+
+impl LookupCollector {
+    fn new(lookup_count: u16) -> Self {
+        let unused = MergedLookup {
+            position: usize::MAX,
+            mask: 0,
+            auto_zwnj: true,
+            auto_zwj: true,
+        };
+        Self {
+            lookups: Vec::new(),
+            stage_start: 0,
+            merged: alloc::vec![unused; usize::from(lookup_count)],
+        }
+    }
+
+    /// Adds a reference to a lookup from the current stage; one to a lookup
+    /// the table does not have is ignored.
+    fn add(&mut self, lookup: LookupMap) {
+        let Some(merged) = self.merged.get_mut(usize::from(lookup.index)) else {
+            return;
+        };
+        match self.lookups.get_mut(merged.position) {
+            Some(first) if merged.position >= self.stage_start => {
+                // Keep the reference that sorts first, as sorting the stage
+                // and merging adjacent duplicates would.
+                if lookup < *first {
+                    *first = lookup;
+                }
+                merged.mask |= lookup.mask;
+                merged.auto_zwnj &= lookup.auto_zwnj;
+                merged.auto_zwj &= lookup.auto_zwj;
+            }
+            _ => {
+                *merged = MergedLookup {
+                    position: self.lookups.len(),
+                    mask: lookup.mask,
+                    auto_zwnj: lookup.auto_zwnj,
+                    auto_zwj: lookup.auto_zwj,
+                };
+                self.lookups.push(lookup);
+            }
+        }
+    }
+
+    /// Gives the lookups of the current stage their merged masks and flags,
+    /// sorts them, and returns where the next stage starts.
+    fn finish_stage(&mut self) -> usize {
+        let stage = &mut self.lookups[self.stage_start..];
+        for lookup in stage.iter_mut() {
+            let merged = self.merged[usize::from(lookup.index)];
+            lookup.mask = merged.mask;
+            lookup.auto_zwnj = merged.auto_zwnj;
+            lookup.auto_zwj = merged.auto_zwj;
+        }
+        crate::algs::sort_unstable_by(stage, Ord::cmp);
+        self.stage_start = self.lookups.len();
+        self.stage_start
+    }
+}
+
 const GLOBAL_BIT_SHIFT: u32 = 8 * size_of::<u32>() as u32 - 1;
 const GLOBAL_BIT_MASK: Mask = 1 << GLOBAL_BIT_SHIFT;
 
@@ -574,7 +656,12 @@ impl<'a> OtMapBuilder<'a> {
         for table_index in LayoutTableKind::iter() {
             // Collect lookup indices for features.
             let mut stage_index = 0;
-            let mut last_lookup = 0;
+            let lookup_count = self
+                .layout
+                .ot
+                .layout_table(table_index)
+                .map_or(0, |table| table.lookup_count());
+            let mut lookups = LookupCollector::new(lookup_count);
 
             let variation_index = self.layout.ot.feature_variations[table_index as usize];
             let lookup_variations = if self.layout.ot.has_lookup_variations {
@@ -590,7 +677,7 @@ impl<'a> OtMapBuilder<'a> {
                 if let Some(feature_index) = required_feature_index[table_index] {
                     if required_feature_stage[table_index] == stage {
                         self.add_lookups(
-                            &mut map_lookups[table_index],
+                            &mut lookups,
                             table_index,
                             feature_index,
                             variation_index,
@@ -610,7 +697,7 @@ impl<'a> OtMapBuilder<'a> {
                     if let Some(feature_index) = feature.index[table_index] {
                         if feature.stage[table_index] == stage {
                             self.add_lookups(
-                                &mut map_lookups[table_index],
+                                &mut lookups,
                                 table_index,
                                 feature_index,
                                 variation_index,
@@ -627,29 +714,8 @@ impl<'a> OtMapBuilder<'a> {
                     }
                 }
 
-                // Sort lookups and merge duplicates.
-                let lookups = &mut map_lookups[table_index];
-                let len = lookups.len();
-
-                if last_lookup + 1 < len {
-                    crate::algs::sort_unstable_by(&mut lookups[last_lookup..], Ord::cmp);
-
-                    let mut j = last_lookup;
-                    for i in j + 1..len {
-                        if lookups[i].index != lookups[j].index {
-                            j += 1;
-                            lookups[j] = lookups[i];
-                        } else {
-                            lookups[j].mask |= lookups[i].mask;
-                            lookups[j].auto_zwnj &= lookups[i].auto_zwnj;
-                            lookups[j].auto_zwj &= lookups[i].auto_zwj;
-                        }
-                    }
-
-                    lookups.truncate(j + 1);
-                }
-
-                last_lookup = lookups.len();
+                // Sort lookups; duplicates were merged as they were added.
+                let last_lookup = lookups.finish_stage();
 
                 if let Some(info) = self.stages[table_index].get(stage_index) {
                     if info.index == stage {
@@ -662,6 +728,8 @@ impl<'a> OtMapBuilder<'a> {
                     }
                 }
             }
+
+            map_lookups[table_index] = lookups.lookups;
         }
 
         (map_lookups, map_stages)
@@ -669,7 +737,7 @@ impl<'a> OtMapBuilder<'a> {
 
     fn add_lookups(
         &self,
-        lookups: &mut Vec<LookupMap>,
+        lookups: &mut LookupCollector,
         table_index: LayoutTableKind,
         feature_index: u16,
         variation_index: Option<u32>,
@@ -683,7 +751,6 @@ impl<'a> OtMapBuilder<'a> {
     ) -> Option<()> {
         let table = self.layout.ot.layout_table(table_index)?;
 
-        let lookup_count = table.lookup_count();
         let feature = match variation_index {
             Some(idx) => table
                 .feature_substitution(idx, feature_index)
@@ -692,18 +759,16 @@ impl<'a> OtMapBuilder<'a> {
         };
 
         let mut add_lookup = |index: u16| {
-            if index < lookup_count {
-                lookups.push(LookupMap {
-                    index,
-                    auto_zwnj,
-                    auto_zwj,
-                    random,
-                    mask,
-                    per_syllable,
-                    #[cfg(feature = "tracing")]
-                    feature_tag,
-                });
-            }
+            lookups.add(LookupMap {
+                index,
+                auto_zwnj,
+                auto_zwj,
+                random,
+                mask,
+                per_syllable,
+                #[cfg(feature = "tracing")]
+                feature_tag,
+            });
         };
         let indices = feature.lookup_list_indices();
         let Some(lookup_variations) = lookup_variations else {
@@ -732,11 +797,13 @@ impl<'a> OtMapBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Direction, Feature, Font, ShapePlan, Tag};
-    use alloc::{sync::Arc, vec::Vec};
-    use read_fonts::model::{Blob, TableFunction};
-
-    use super::LayoutTableKind;
+    use super::*;
+    use crate::{Direction, Feature, Font};
+    use alloc::sync::Arc;
+    use read_fonts::{
+        model::{Blob, TableFunction},
+        FontRef, TableProvider,
+    };
 
     fn u16s(values: &[u16]) -> Vec<u8> {
         values
@@ -745,9 +812,46 @@ mod tests {
             .collect()
     }
 
+    fn put16(bytes: &mut [u8], position: usize, value: usize) {
+        bytes[position..position + 2].copy_from_slice(&u16::try_from(value).unwrap().to_be_bytes());
+    }
+
+    /// A GSUB with two lookups, where every one of `features` shares one
+    /// Feature table listing lookup 0 `repeats` times and then lookup 1.
+    fn gsub(features: &[Tag], repeats: usize) -> Vec<u8> {
+        let count = u16::try_from(features.len()).unwrap();
+        let mut bytes = u16s(&[1, 0, 10, 0, 0]);
+        // DFLT script whose default language system uses every feature.
+        bytes.extend_from_slice(&u16s(&[1, 0x4446, 0x4C54, 8, 4, 0, 0, 0xFFFF, count]));
+        bytes.extend((0..count).flat_map(u16::to_be_bytes));
+        let list = bytes.len();
+        put16(&mut bytes, 6, list);
+        bytes.extend_from_slice(&u16s(&[count]));
+        let feature = 2 + 6 * features.len();
+        for tag in features {
+            bytes.extend_from_slice(&tag.to_be_bytes());
+            bytes.extend_from_slice(&u16s(&[u16::try_from(feature).unwrap()]));
+        }
+        bytes.extend_from_slice(&u16s(&[0, u16::try_from(repeats + 1).unwrap()]));
+        bytes.extend(
+            core::iter::repeat(0u16)
+                .take(repeats)
+                .chain([1])
+                .flat_map(u16::to_be_bytes),
+        );
+        let list = bytes.len();
+        put16(&mut bytes, 8, list);
+        // Two single substitutions with empty coverage.
+        bytes.extend_from_slice(&u16s(&[2, 6, 24]));
+        for _ in 0..2 {
+            bytes.extend_from_slice(&u16s(&[1, 0, 1, 8, 1, 6, 0, 1, 0]));
+        }
+        bytes
+    }
+
     /// A GSUB whose DFLT script lists `indices` of `features` in its default
     /// language system, with no lookups.
-    fn gsub(features: &[&[u8; 4]], indices: &[u16]) -> Vec<u8> {
+    fn language_system_gsub(features: &[&[u8; 4]], indices: &[u16]) -> Vec<u8> {
         let feature_list = 10 + 8 + 4 + 6 + 2 * indices.len();
         let lookup_list = feature_list + 2 + 6 * features.len() + 4 * features.len();
         let mut bytes = u16s(&[1, 0, 10, feature_list as u16, lookup_list as u16]);
@@ -771,8 +875,15 @@ mod tests {
     }
 
     fn font(gsub: Vec<u8>) -> Font {
+        let source =
+            FontRef::new(include_bytes!("../../benches/fonts/Roboto-Regular.ttf")).unwrap();
         let tables = TableFunction::new(Arc::new(move |tag| {
-            (tag == Tag::new(b"GSUB")).then(|| Blob::from(gsub.clone()))
+            if tag == Tag::new(b"GSUB") {
+                return Some(Blob::from(gsub.clone()));
+            }
+            source
+                .data_for_tag(tag)
+                .map(|data| Blob::from(data.as_bytes().to_vec()))
         }));
         Font::new(tables, 0).unwrap()
     }
@@ -788,7 +899,7 @@ mod tests {
     fn language_features_resolve_like_a_search_of_the_language_system() {
         // Index 9 is beyond the feature list, `calt` is not listed, and the
         // `liga` listed first is not the lower index.
-        let font = font(gsub(
+        let font = font(language_system_gsub(
             &[b"liga", b"liga", b"ss01", b"kern", b"calt"],
             &[9, 2, 1, 0, 3],
         ));
@@ -803,7 +914,41 @@ mod tests {
 
     #[test]
     fn empty_language_system_finds_no_features() {
-        let font = font(gsub(&[b"liga"], &[]));
+        let font = font(language_system_gsub(&[b"liga"], &[]));
         assert_eq!(feature_index(&font, &[], b"liga"), None);
+    }
+
+    #[test]
+    fn shared_feature_tables_do_not_multiply_lookups() {
+        // Features the default shaper enables, and ones the user requests.
+        let user: Vec<Tag> = (1..=20)
+            .map(|n| Tag::from_be_bytes([b's', b's', b'0' + n / 10, b'0' + n % 10]))
+            .collect();
+        let mut features = alloc::vec![
+            Tag::new(b"ccmp"),
+            Tag::new(b"locl"),
+            Tag::new(b"calt"),
+            Tag::new(b"liga"),
+        ];
+        features.extend_from_slice(&user);
+        let repeats = 4096;
+        let font = font(gsub(&features, repeats));
+        let user_features: Vec<Feature> =
+            user.iter().map(|&tag| Feature::new(tag, 1, ..)).collect();
+
+        let plan = ShapePlan::new(&font, Direction::LeftToRight, None, None, &user_features);
+        let lookups = &plan.ot_map.lookups[LayoutTableKind::Gsub];
+        // Each lookup once, merged from every feature as it was added: the
+        // list never holds (features × listed lookups) entries.
+        let indices: Vec<u16> = lookups.iter().map(|lookup| lookup.index).collect();
+        assert_eq!(indices, [0, 1]);
+        assert!(lookups
+            .iter()
+            .all(|lookup| lookup.mask & GLOBAL_BIT_MASK != 0));
+        assert!(
+            lookups.capacity() < repeats,
+            "capacity {}",
+            lookups.capacity()
+        );
     }
 }
