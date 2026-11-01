@@ -125,7 +125,7 @@ pub(crate) fn syllabic_clear_var(
     _: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
 ) -> Option<bool> {
-    for info in &mut buffer.info {
+    for info in buffer.info_slice_mut() {
         info.set_syllable(0);
     }
     buffer.deallocate_var(GlyphInfo::SYLLABLE_VAR);
