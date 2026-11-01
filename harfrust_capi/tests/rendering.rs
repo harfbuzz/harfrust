@@ -289,6 +289,7 @@ mod painting {
         extents: Option<hr_glyph_extents_t>,
         custom: bool,
         strict: bool,
+        color_glyphs: u32,
     }
     unsafe fn state<'a>(data: *mut c_void) -> &'a mut Paint {
         unsafe { &mut *data.cast() }
@@ -675,6 +676,64 @@ mod painting {
             }
             // 200 COLRv1 entries include two intentional cycles; one COLRv0 glyph succeeds.
             assert_eq!(painted, 199);
+            hr_paint_funcs_destroy(funcs);
+            hr_font_destroy(font);
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
+    }
+
+    unsafe extern "C" fn paint_color_glyph(
+        funcs: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        glyph: u32,
+        font: *mut hr_font_t,
+        _: *mut c_void,
+    ) -> hr_bool_t {
+        unsafe {
+            state(data).color_glyphs += 1;
+            hr_font_paint_glyph_or_fail(font, glyph, funcs, data, 0, 0xff)
+        }
+    }
+
+    #[test]
+    fn color_glyph_callback_painting_sub_glyphs_stays_bounded() {
+        unsafe {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../harfrust/tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf");
+            let path = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
+            let blob = hr_blob_create_from_file(path.as_ptr());
+            let face = hr_face_create(blob, 0);
+            let font = hr_font_create(face);
+            let funcs = funcs();
+            // The callback paints each sub-glyph through a nested traversal, the
+            // way hb-cairo does. Glyphs 178 and 179 refer to each other, which
+            // used to recurse until the stack overflowed.
+            hr_paint_funcs_set_color_glyph_func(
+                funcs,
+                Some(paint_color_glyph),
+                ptr::null_mut(),
+                None,
+            );
+            let mut painted = 0;
+            let mut color_glyphs = 0;
+            for glyph in 0..hr_face_get_glyph_count(face) {
+                let mut s = Paint::default();
+                painted += hr_font_paint_glyph_or_fail(
+                    font,
+                    glyph,
+                    funcs,
+                    ptr::from_mut(&mut s).cast(),
+                    0,
+                    0xff,
+                );
+                assert!(s.scopes.is_empty(), "glyph {glyph}");
+                // At most one callback per nested traversal the budget allows.
+                assert!(s.color_glyphs <= 256, "glyph {glyph}");
+                color_glyphs += s.color_glyphs;
+            }
+            assert_eq!(painted, 199);
+            assert!(color_glyphs > 0);
             hr_paint_funcs_destroy(funcs);
             hr_font_destroy(font);
             hr_face_destroy(face);
