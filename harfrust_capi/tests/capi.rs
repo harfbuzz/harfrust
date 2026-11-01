@@ -3789,6 +3789,45 @@ fn a_font_runs_its_destroy_callbacks_before_releasing_what_it_holds() {
     }
 }
 
+static SETTER_REENTRY_DROPS: AtomicUsize = AtomicUsize::new(0);
+unsafe extern "C" fn reenter_setter_on_drop(user_data: *mut c_void) {
+    // Only the first call re-enters, so that a regression fails the count
+    // below instead of recursing.
+    if SETTER_REENTRY_DROPS.fetch_add(1, Ordering::SeqCst) == 0 {
+        unsafe {
+            hr_font_funcs_set_nominal_glyph_func(
+                user_data.cast(),
+                Some(always_glyph_777),
+                ptr::null_mut(),
+                None,
+            );
+        }
+    }
+}
+
+#[test]
+fn a_destructor_may_set_the_callback_it_is_released_from() {
+    // The slot must be empty by the time the destructor runs, or the nested
+    // setter drops the same callback a second time.
+    unsafe {
+        let ffuncs = hr_font_funcs_create();
+        hr_font_funcs_set_nominal_glyph_func(
+            ffuncs,
+            Some(always_glyph_777),
+            ffuncs.cast(),
+            Some(reenter_setter_on_drop),
+        );
+        // Clearing runs the destructor above, which re-enters.
+        hr_font_funcs_set_nominal_glyph_func(ffuncs, None, ptr::null_mut(), None);
+        hr_font_funcs_destroy(ffuncs);
+    }
+    assert_eq!(
+        SETTER_REENTRY_DROPS.load(Ordering::SeqCst),
+        1,
+        "a callback registered once is released once"
+    );
+}
+
 #[test]
 fn a_plan_runs_whatever_variation_the_font_is_at() {
     unsafe {

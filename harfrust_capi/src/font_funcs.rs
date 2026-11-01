@@ -341,7 +341,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
         }
         return;
     };
-    ffuncs.nominal_glyph = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.nominal_glyph,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Sets the callback mapping a strided batch of Unicode codepoints.
@@ -366,7 +370,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyphs_func(
         }
         return;
     };
-    ffuncs.nominal_glyphs = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.nominal_glyphs,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Sets the callback mapping a Unicode scalar value and variation selector
@@ -397,7 +405,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
         }
         return;
     };
-    ffuncs.variation_glyph = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.variation_glyph,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Sets the callback returning a glyph's horizontal advance.
@@ -427,7 +439,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
         }
         return;
     };
-    ffuncs.h_advance = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.h_advance,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Installs the batched horizontal advance callback.
@@ -449,7 +465,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advances_func(
         }
         return;
     };
-    ffuncs.h_advances = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.h_advances,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Installs the horizontal origin callback.
@@ -471,7 +491,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_origin_func(
         }
         return;
     };
-    ffuncs.h_origin = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.h_origin,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Installs the horizontal kerning callback.
@@ -493,7 +517,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_kerning_func(
         }
         return;
     };
-    ffuncs.h_kerning = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.h_kerning,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Installs the vertical kerning callback.
@@ -515,7 +543,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_kerning_func(
         }
         return;
     };
-    ffuncs.v_kerning = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.v_kerning,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Sets the callback returning a glyph's vertical advance.
@@ -545,7 +577,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
         }
         return;
     };
-    ffuncs.v_advance = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.v_advance,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Sets the callback returning a glyph's vertical origin.
@@ -575,7 +611,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
         }
         return;
     };
-    ffuncs.v_origin = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.v_origin,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Sets the callback returning a glyph's ink extents.
@@ -605,7 +645,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
         }
         return;
     };
-    ffuncs.extents = callback_taking(func, user_data, destroy);
+    let previous = core::mem::replace(
+        &mut ffuncs.extents,
+        callback_taking(func, user_data, destroy),
+    );
+    drop(previous);
 }
 
 /// Bridges a [`hr_font_funcs_t`] into HarfRust's [`FontFuncs`] trait for the

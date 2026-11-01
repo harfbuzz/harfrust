@@ -781,10 +781,14 @@ pub unsafe extern "C" fn hr_font_set_funcs(
     // Dropping the old data runs its destroy callback, unless a sub-font still
     // holds a reference to it. That happens before the callbacks it was given
     // with are released, as in HarfBuzz.
-    font.font_data = Some(Arc::new(FontData {
-        data: font_data,
-        destroy,
-    }));
+    let previous_data = core::mem::replace(
+        &mut font.font_data,
+        Some(Arc::new(FontData {
+            data: font_data,
+            destroy,
+        })),
+    );
+    drop(previous_data);
     unsafe { object::destroy(previous) };
 }
 
@@ -810,7 +814,8 @@ pub unsafe extern "C" fn hr_ot_font_set_funcs(font: *mut hr_font_t) {
     // Said outright, rather than by carrying nothing: a sub-font carrying
     // nothing asks its parent, and this is a font that does not.
     font.funcs = unsafe { object::reference(crate::font_funcs::builtin_funcs()) };
-    font.font_data = None;
+    let previous_data = font.font_data.take();
+    drop(previous_data);
     unsafe { object::destroy(previous) };
 }
 
