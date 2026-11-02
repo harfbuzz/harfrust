@@ -57,14 +57,64 @@ impl Drop for ForeignBytes {
     }
 }
 
-/// A slice of another blob, keeping the parent's data alive.
+/// An owned reference to a blob, released when dropped.
+///
+/// This keeps the blob itself alive and not only its storage: the caller may
+/// have tied the bytes to the blob through `hr_blob_set_user_data`, whose
+/// destructors run when the blob is freed, so the bytes must not be read past
+/// the blob's last reference.
+struct BlobRef(*mut hr_blob_t);
+
+// SAFETY: this owns one of the blob's references, so the blob stays live for
+// as long as this does, and a live blob may be shared between threads: its
+// reference count is atomic, its storage is never written, and callers are
+// required to make their user data safe to release from any thread.
+unsafe impl Send for BlobRef {}
+unsafe impl Sync for BlobRef {}
+
+impl AsRef<[u8]> for BlobRef {
+    fn as_ref(&self) -> &[u8] {
+        // SAFETY: the reference this owns keeps the blob alive.
+        unsafe { &*self.0 }.bytes()
+    }
+}
+
+impl Drop for BlobRef {
+    fn drop(&mut self) {
+        // SAFETY: this owns the reference it releases.
+        unsafe { object::destroy(self.0) };
+    }
+}
+
+/// A slice of another blob, keeping the parent alive.
 struct SubBytes {
-    parent: Blob,
+    parent: BlobRef,
     start: usize,
     end: usize,
 }
 
 impl AsRef<[u8]> for SubBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.parent
+            .as_ref()
+            .get(self.start..self.end)
+            .unwrap_or(&[])
+    }
+}
+
+/// A slice of an owned, reference-counted blob, holding its own clone of it.
+///
+/// Unlike `SubBytes`, this keeps a cloned `Blob` rather than a reference to a
+/// parent `hr_blob_t` object, so it is for storage that this library owns
+/// outright (the assembled render SFNT), not for data a `hr_blob_set_user_data`
+/// callback keeps alive through the blob object.
+struct SharedSub {
+    parent: Blob,
+    start: usize,
+    end: usize,
+}
+
+impl AsRef<[u8]> for SharedSub {
     fn as_ref(&self) -> &[u8] {
         self.parent
             .as_ref()
@@ -91,12 +141,52 @@ impl hr_blob_t {
         self.blob.as_ref()
     }
 
-    /// Creates a blob over a range of `parent`, sharing its storage.
-    pub(crate) fn sub(parent: &Blob, start: usize, end: usize) -> *mut Self {
-        if start >= end || end > parent.as_ref().len() {
+    /// Takes over a reference to `blob` as data that keeps the blob alive.
+    ///
+    /// # Safety
+    ///
+    /// `blob` must be a live blob, and the caller must own the reference
+    /// being handed over.
+    pub(crate) unsafe fn into_data(blob: *mut Self) -> Blob {
+        Blob::Shared(Arc::new(BlobRef(blob)) as Arc<dyn AsRef<[u8]> + Send + Sync>)
+    }
+
+    /// Creates a blob over a range of `parent`, sharing its storage and
+    /// keeping `parent` alive.
+    ///
+    /// # Safety
+    ///
+    /// `parent` must be `NULL` or a live blob.
+    pub(crate) unsafe fn sub(parent: *mut Self, start: usize, end: usize) -> *mut Self {
+        let Some(parent_ref) = (unsafe { parent.as_ref() }) else {
+            return Self::empty();
+        };
+        if start >= end || end > parent_ref.bytes().len() {
             return Self::empty();
         }
         let sub = SubBytes {
+            // SAFETY: `parent` is live, and the reference taken here is the
+            // sub-blob's own.
+            parent: BlobRef(unsafe { object::reference(parent) }),
+            start,
+            end,
+        };
+        Self::new(Blob::Shared(
+            Arc::new(sub) as Arc<dyn AsRef<[u8]> + Send + Sync>
+        ))
+    }
+
+    /// Creates a blob over a range of an owned `Blob`, cloning it so the
+    /// sub-blob keeps the storage alive on its own.
+    ///
+    /// For data this library owns and reference-counts (the assembled render
+    /// SFNT), where there is no parent `hr_blob_t` object to reference the way
+    /// `sub` does.
+    pub(crate) fn sub_shared(parent: &Blob, start: usize, end: usize) -> *mut Self {
+        if start >= end || end > parent.as_ref().len() {
+            return Self::empty();
+        }
+        let sub = SharedSub {
             parent: parent.clone(),
             start,
             end,
@@ -269,7 +359,8 @@ pub unsafe extern "C" fn hr_blob_create_from_file_or_fail(
 
 /// Creates a blob over a range of another blob, sharing its storage.
 ///
-/// The range is clamped to the parent's bounds. Never returns `NULL`.
+/// The range is clamped to the parent's bounds. The sub-blob keeps the parent
+/// alive, as in HarfBuzz. Never returns `NULL`.
 ///
 /// # Safety
 ///
@@ -286,21 +377,10 @@ pub unsafe extern "C" fn hr_blob_create_sub_blob(
     // The part cannot outlive what it is a part of being what it was, so the
     // parent is fixed as it stands, as `hr_blob_make_immutable` would.
     unsafe { hr_blob_make_immutable(parent) };
-    let parent = parent_ref;
-    let total = parent.bytes().len();
+    let total = parent_ref.bytes().len();
     let start = (offset as usize).min(total);
     let end = start.saturating_add(length as usize).min(total);
-    if start >= end {
-        return hr_blob_t::empty();
-    }
-    let sub = SubBytes {
-        parent: parent.blob.clone(),
-        start,
-        end,
-    };
-    hr_blob_t::new(Blob::Shared(
-        Arc::new(sub) as Arc<dyn AsRef<[u8]> + Send + Sync>
-    ))
+    unsafe { hr_blob_t::sub(parent, start, end) }
 }
 
 /// Returns a new blob holding a private copy of `blob`'s data.

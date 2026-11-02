@@ -3791,7 +3791,11 @@ hr_bool_t hr_font_set_user_data(struct hr_font_t *font,
 void *hr_font_get_user_data(struct hr_font_t *font, const struct hr_user_data_key_t *key);
 
 /**
- * Marks a font immutable.
+ * Marks a font immutable, and every font it descends from.
+ *
+ * A sub-font answers with its parent's callbacks and scale at the time it is
+ * asked, so it only holds still if its parent does. HarfBuzz freezes the
+ * chain the same way.
  *
  * # Safety
  *
@@ -5343,7 +5347,7 @@ unsigned int hr_set_next_many(const struct hr_set_t *set,
  * The buffer's direction, script and language must be set beforehand; call
  * `hr_buffer_guess_segment_properties` to fill in whatever is missing, which
  * this does for the direction on your behalf. On return the buffer holds
- * glyphs.
+ * glyphs, or nothing if the shaper panicked; see `hr_shape_full`.
  *
  * Call `hr_buffer_allocation_successful` if you want to know whether the
  * buffer ran out of room.
@@ -5377,6 +5381,12 @@ void hr_shape(struct hr_font_t *font,
  * shaper, and every shaper it does run returns true whatever became of the
  * buffer. So a buffer that ran past its length, operation or nesting limits
  * still returns true; call `hr_buffer_allocation_successful` to detect that.
+ *
+ * A panic inside the shaper is the one other way to get false. That is a
+ * bug in this library rather than a property of the input, and the buffer
+ * comes back cleared, as by `hr_buffer_clear_contents`: what the shaper
+ * left in it was neither the text nor glyphs for it, and a buffer still
+ * labelled as glyphs could not be shaped again.
  *
  * # Aborts
  *
@@ -5618,6 +5628,8 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
  *
  * Returns false without shaping if the plan is the empty one, or if `font` or
  * `buffer` is `NULL`. An empty buffer returns true, having nothing to do.
+ * If the shaper panics, this returns false and clears the buffer, as
+ * `hr_shape_full` does.
  *
  * # Aborts
  *

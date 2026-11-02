@@ -13,7 +13,7 @@
 
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::RwLock;
+use std::sync::{PoisonError, RwLock};
 
 /// Reference count of an immortal (inert) object.
 const IMMORTAL: i64 = -1;
@@ -83,6 +83,21 @@ impl ObjectHeader {
 
     fn is_immortal(&self) -> bool {
         self.ref_count.load(Ordering::Relaxed) == IMMORTAL
+    }
+
+    /// Runs the destroy callback of every user data item and forgets them.
+    ///
+    /// The callbacks are the caller's code and may come back into the API,
+    /// so they run once the lock is released, as they do in [`set_user_data`].
+    fn release_user_data(&self) {
+        let items = {
+            let mut items = self
+                .user_data
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            core::mem::take(&mut *items)
+        };
+        drop(items);
     }
 }
 
@@ -170,8 +185,11 @@ pub unsafe fn destroy<T: Object>(ptr: *mut T) {
     if header.ref_count.fetch_sub(1, Ordering::AcqRel) != 1 {
         return;
     }
-    // Last reference: take ownership back and drop it. This also runs the
-    // destroy callback of every attached user data item.
+    // Last reference. As in HarfBuzz, the destroy callback of every attached
+    // user data item runs first, while the object still holds everything it
+    // owns: a callback on a font may look at the font's face. Only then is
+    // ownership taken back and the object dropped.
+    header.release_user_data();
     drop(unsafe { Box::from_raw(ptr) });
 }
 

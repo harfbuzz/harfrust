@@ -4,17 +4,26 @@ use core::ffi::{c_char, c_uint};
 use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use harfrust::{shape, Direction, Feature, ShapeOptions};
+use harfrust::{shape, Buffer, Direction, Feature, ShapeOptions};
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
 use crate::font::hr_font_t;
 use crate::font_funcs::FontFuncsAdapter;
 
-/// Runs `f`, catching any panic rather than letting it unwind into C, which
-/// would be undefined behaviour. Returns `None` if it panicked.
-fn guard<T>(f: impl FnOnce() -> T) -> Option<T> {
-    catch_unwind(AssertUnwindSafe(f)).ok()
+/// Runs `f` over `buffer`, catching any panic rather than letting it unwind
+/// into C, which would be undefined behaviour. Returns `None` if it panicked.
+///
+/// A panic also clears the buffer. The shaper rewrites it in place, labelling
+/// it as glyphs long before it is done, so what an unwind leaves behind is
+/// neither the text that went in nor glyphs for it, and a caller told that
+/// shaping did not run would abort on that label by shaping it again.
+fn guard<T>(buffer: &mut Buffer, f: impl FnOnce(&mut Buffer) -> T) -> Option<T> {
+    let outcome = catch_unwind(AssertUnwindSafe(|| f(&mut *buffer))).ok();
+    if outcome.is_none() {
+        buffer.clear();
+    }
+    outcome
 }
 
 /// Reads `num_features` features, or none if `features` is `NULL`.
@@ -55,7 +64,7 @@ pub(crate) fn shape_with_plan(
     let has_funcs = font_ref.has_callbacks();
     let adapter = FontFuncsAdapter::new(font, font_ref);
 
-    guard(|| {
+    guard(&mut buffer_ref.buffer, |buffer| {
         let mut shaping_font = (*shaper).clone();
         shaping_font.set_scale_separate(font_ref.x_scale, font_ref.y_scale);
         if has_funcs {
@@ -65,7 +74,7 @@ pub(crate) fn shape_with_plan(
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
-        shape(&shaping_font, &mut buffer_ref.buffer, options)
+        shape(&shaping_font, buffer, options)
     })
     .is_some_and(|result| result.is_ok())
     .into()
@@ -76,7 +85,7 @@ pub(crate) fn shape_with_plan(
 /// The buffer's direction, script and language must be set beforehand; call
 /// `hr_buffer_guess_segment_properties` to fill in whatever is missing, which
 /// this does for the direction on your behalf. On return the buffer holds
-/// glyphs.
+/// glyphs, or nothing if the shaper panicked; see [`hr_shape_full`].
 ///
 /// Call `hr_buffer_allocation_successful` if you want to know whether the
 /// buffer ran out of room.
@@ -113,6 +122,12 @@ pub unsafe extern "C" fn hr_shape(
 /// shaper, and every shaper it does run returns true whatever became of the
 /// buffer. So a buffer that ran past its length, operation or nesting limits
 /// still returns true; call `hr_buffer_allocation_successful` to detect that.
+///
+/// A panic inside the shaper is the one other way to get false. That is a
+/// bug in this library rather than a property of the input, and the buffer
+/// comes back cleared, as by `hr_buffer_clear_contents`: what the shaper
+/// left in it was neither the text nor glyphs for it, and a buffer still
+/// labelled as glyphs could not be shaped again.
 ///
 /// # Aborts
 ///
@@ -161,20 +176,20 @@ pub unsafe extern "C" fn hr_shape_full(
     let has_funcs = font_ref.has_callbacks();
     let adapter = FontFuncsAdapter::new(font, font_ref);
 
-    let outcome = guard(|| {
+    let outcome = guard(&mut buffer_ref.buffer, |buffer| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,
         // so fill in whatever the caller left out rather than failing.
-        if buffer_ref.buffer.direction() == Direction::Invalid {
-            crate::buffer::guess_segment_properties(&mut buffer_ref.buffer);
+        if buffer.direction() == Direction::Invalid {
+            crate::buffer::guess_segment_properties(buffer);
         }
 
         // Reuse a plan from the face's cache, as HarfBuzz's `hb_shape` does.
         let plan = unsafe { face.as_ref() }.map(|face| {
             face.plans.get(
                 instance,
-                buffer_ref.buffer.direction(),
-                buffer_ref.buffer.script(),
-                buffer_ref.buffer.language(),
+                buffer.direction(),
+                buffer.script(),
+                buffer.language(),
                 &features,
             )
         });
@@ -190,11 +205,12 @@ pub unsafe extern "C" fn hr_shape_full(
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
-        shape(&shaping_font, &mut buffer_ref.buffer, options)
+        shape(&shaping_font, buffer, options)
     });
 
     match outcome {
-        // A panic that unwound out of the shaper. Nothing useful to say.
+        // A panic that unwound out of the shaper; `guard` has cleared the
+        // buffer. Nothing useful to say.
         None => false.into(),
         // Shaping ran. Whether it gave up partway through on pathological
         // input does not change the answer: HarfBuzz's shapers return true
@@ -370,6 +386,21 @@ mod tests {
             env!("CARGO_PKG_VERSION"),
         );
         assert_eq!(HR_VERSION_STRING, env!("CARGO_PKG_VERSION"));
+    }
+
+    /// A caller told that shaping failed must be able to shape the buffer
+    /// again, rather than abort on one left labelled as glyphs.
+    #[test]
+    fn guard_clears_a_buffer_the_shaper_panicked_in() {
+        let mut buffer = Buffer::new();
+        buffer.push('a' as u32, 0);
+        let outcome = guard(&mut buffer, |buffer| {
+            buffer.set_content_type(Some(harfrust::ContentType::Glyphs));
+            panic!("shaper bug");
+        });
+        assert!(outcome.is_none());
+        assert!(buffer.is_empty());
+        assert_eq!(buffer.content_type(), None);
     }
 
     fn harfbuzz_version() -> String {

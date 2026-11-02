@@ -231,12 +231,6 @@ impl hr_font_t {
         shaper.glyph_name(glyph.into())
     }
 
-    /// How many glyphs the face has, which bounds a search over their names.
-    pub(crate) fn glyph_count(&self) -> hr_codepoint_t {
-        // SAFETY: a font owns its reference to its face.
-        unsafe { self.face.as_ref() }.map_or(0, |face| face.glyph_count())
-    }
-
     /// A glyph's extents, from whichever callback answers, or from the font's
     /// own tables when none is installed. `None` when nothing can say.
     pub(crate) fn glyph_extents(
@@ -286,6 +280,10 @@ impl hr_font_t {
 impl Drop for hr_font_t {
     fn drop(&mut self) {
         self.prepared = None;
+        // The destroy given to `hr_font_set_funcs` runs while the font still
+        // holds its callbacks, parent and face, as it does in HarfBuzz. Those
+        // go only after every callback the caller attached has run.
+        self.font_data = None;
         // SAFETY: this font owns one reference to each of these.
         unsafe {
             object::destroy(self.funcs);
@@ -466,14 +464,23 @@ pub unsafe extern "C" fn hr_font_get_user_data(
     unsafe { object::get_user_data(font, key) }
 }
 
-/// Marks a font immutable.
+/// Marks a font immutable, and every font it descends from.
+///
+/// A sub-font answers with its parent's callbacks and scale at the time it is
+/// asked, so it only holds still if its parent does. HarfBuzz freezes the
+/// chain the same way.
 ///
 /// # Safety
 ///
 /// `font` must be `NULL` or a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_make_immutable(font: *mut hr_font_t) {
-    unsafe { object::make_immutable(font) };
+    let mut font = font;
+    // SAFETY: each font owns its reference to its parent.
+    while let Some(state) = unsafe { font.as_ref() } {
+        unsafe { object::make_immutable(font) };
+        font = state.parent;
+    }
 }
 
 /// Returns whether a font has been marked immutable.
@@ -765,13 +772,15 @@ pub unsafe extern "C" fn hr_font_set_funcs(
         ffuncs
     };
     font.funcs = unsafe { object::reference(ffuncs) };
-    unsafe { object::destroy(previous) };
     // Dropping the old data runs its destroy callback, unless a sub-font still
-    // holds a reference to it.
-    font.font_data = Some(Arc::new(FontData {
+    // holds a reference to it. That happens before the callbacks it was given
+    // with are released, as in HarfBuzz.
+    let previous_data = font.font_data.replace(Arc::new(FontData {
         data: font_data,
         destroy,
     }));
+    drop(previous_data);
+    unsafe { object::destroy(previous) };
 }
 
 /// Installs the built-in callbacks, which read the font's own tables.
@@ -796,8 +805,9 @@ pub unsafe extern "C" fn hr_ot_font_set_funcs(font: *mut hr_font_t) {
     // Said outright, rather than by carrying nothing: a sub-font carrying
     // nothing asks its parent, and this is a font that does not.
     font.funcs = unsafe { object::reference(crate::font_funcs::builtin_funcs()) };
+    let previous_data = font.font_data.take();
+    drop(previous_data);
     unsafe { object::destroy(previous) };
-    font.font_data = None;
 }
 
 /// Maps a Unicode scalar value to a glyph, returning false if the font has
@@ -1480,20 +1490,29 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     let Some(wanted) = (unsafe { crate::common::str_from_raw(name, len) }) else {
         return false.into();
     };
-    // A face carries no index from names back to glyphs, so this is the walk
-    // HarfBuzz's own default does.
-    for candidate in 0..state.glyph_count() {
-        if state
-            .glyph_name(candidate)
-            .is_some_and(|name| name.as_str() == wanted)
-        {
-            if let Some(out) = unsafe { glyph.as_mut() } {
-                *out = candidate;
-            }
-            return true.into();
-        }
+    // The font indexes its stored names once and searches that afterwards.
+    // Asking every glyph the face claims for its name instead would reread
+    // the name source for each of a `MAXP` count nothing bounds.
+    let found = state
+        .instance()
+        .and_then(|instance| instance.glyph_by_name(wanted))
+        .map(|found| found.to_u32())
+        // A glyph the face names nothing still answers to the `gidNNN` that
+        // `hr_font_get_glyph_name` gives it.
+        .or_else(|| {
+            let candidate = wanted.strip_prefix("gid")?.parse().ok()?;
+            state
+                .glyph_name(candidate)
+                .is_some_and(|name| name.as_str() == wanted)
+                .then_some(candidate)
+        });
+    let Some(found) = found else {
+        return false.into();
+    };
+    if let Some(out) = unsafe { glyph.as_mut() } {
+        *out = found;
     }
-    false.into()
+    true.into()
 }
 
 /// The name a glyph goes by, falling back to `gidNNN` when the face names it

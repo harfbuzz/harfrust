@@ -906,6 +906,25 @@ fn sub_blob_shares_parent_storage() {
     }
 }
 
+#[test]
+fn sub_blob_keeps_its_parent_alive() {
+    static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+    let data = b"0123456789".to_vec();
+    let drops = AtomicUsize::new(0);
+    unsafe {
+        // The bytes may belong to the parent through its user data, so a
+        // sub-blob has to keep the parent itself and not only its storage.
+        let parent = blob_over(&data);
+        let drops_ptr: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
+        hr_blob_set_user_data(parent, &raw const KEY, drops_ptr, Some(count_drop), 1);
+        let sub = hr_blob_create_sub_blob(parent, 2, 3);
+        hr_blob_destroy(parent);
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+        hr_blob_destroy(sub);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+    }
+}
+
 // ---------------------------------------------------------------- faces ----
 
 #[test]
@@ -934,6 +953,87 @@ fn face_references_a_table() {
             assert_eq!(hr_blob_get_length(table), 0);
             hr_blob_destroy(table);
         });
+    }
+}
+
+/// Builds a font whose directory holds `count` records, every one pointing at
+/// the same four bytes. Record `i` has tag `record_tag(i)`, ascending when
+/// `sorted` and descending otherwise.
+fn sfnt_with_records(count: usize, sorted: bool) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((count as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let offset = 12 + 16 * count;
+    for i in 0..count {
+        let tag = record_tag(if sorted { i } else { count - 1 - i });
+        data.extend(tag.to_be_bytes());
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend(4u32.to_be_bytes());
+    }
+    data.extend([1, 2, 3, 4]);
+    data
+}
+
+/// Distinct tags for [`sfnt_with_records`], avoiding the none tag.
+fn record_tag(i: usize) -> hr_tag_t {
+    i as hr_tag_t + 1
+}
+
+#[test]
+fn walking_every_table_of_a_face_stays_linear() {
+    // The most records a directory can hold. Fetching each table once must
+    // not read the whole directory again per call.
+    const COUNT: usize = u16::MAX as usize;
+    for sorted in [true, false] {
+        let data = sfnt_with_records(COUNT, sorted);
+        unsafe {
+            let blob = blob_over(&data);
+            let face = hr_face_create(blob, 0);
+            let started = std::time::Instant::now();
+            let mut count = COUNT as c_uint;
+            let mut tags = vec![0; COUNT];
+            assert_eq!(
+                hr_face_get_table_tags(face, 0, &raw mut count, tags.as_mut_ptr()),
+                COUNT as c_uint
+            );
+            assert_eq!(count, COUNT as c_uint);
+            for (i, &tag) in tags.iter().enumerate() {
+                assert_eq!(tag, record_tag(if sorted { i } else { COUNT - 1 - i }));
+                let table = hr_face_reference_table(face, tag);
+                assert_eq!(hr_blob_get_length(table), 4);
+                hr_blob_destroy(table);
+            }
+            assert!(started.elapsed() < std::time::Duration::from_secs(10));
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
+    }
+}
+
+#[test]
+fn first_record_of_a_repeated_tag_wins() {
+    // Two records with one tag leave the directory unsorted; `read-fonts`
+    // then finds the first, and so must the face.
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend(2u16.to_be_bytes());
+    data.extend([0; 6]);
+    for (offset, length) in [(44u32, 2u32), (46, 3)] {
+        data.extend(*b"cmap");
+        data.extend(0u32.to_be_bytes());
+        data.extend(offset.to_be_bytes());
+        data.extend(length.to_be_bytes());
+    }
+    data.extend([1, 2, 3, 4, 5]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let tag = hr_tag_from_string(c"cmap".as_ptr(), -1);
+        let table = hr_face_reference_table(face, tag);
+        assert_eq!(hr_blob_get_length(table), 2);
+        hr_blob_destroy(table);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
     }
 }
 
@@ -1021,6 +1121,40 @@ fn immutable_font_rejects_changes() {
             let (mut x, mut y) = (0, 0);
             hr_font_get_scale(font, &raw mut x, &raw mut y);
             assert_eq!((x, y), (512, 512));
+        });
+    }
+}
+
+/// A sub-font answers through its parent, so it holds still only if the
+/// parent does: freezing it freezes the chain, as in HarfBuzz.
+#[test]
+fn freezing_a_sub_font_freezes_the_fonts_it_descends_from() {
+    unsafe {
+        with_font(|_, font| {
+            let child = hr_font_create_sub_font(font);
+            let grandchild = hr_font_create_sub_font(child);
+            hr_font_make_immutable(grandchild);
+            assert_ne!(hr_font_is_immutable(grandchild), 0);
+            assert_ne!(hr_font_is_immutable(child), 0);
+            assert_ne!(hr_font_is_immutable(font), 0);
+
+            // The base font now rejects changes the grandchild would see.
+            hr_font_set_scale(font, 512, 512);
+            let (mut x, mut y) = (0, 0);
+            hr_font_get_scale(font, &raw mut x, &raw mut y);
+            assert_ne!((x, y), (512, 512));
+            let replacement = hr_font_funcs_create();
+            hr_font_set_funcs(font, replacement, ptr::null_mut(), None);
+            hr_font_funcs_destroy(replacement);
+            let mut glyph: hr_codepoint_t = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(grandchild, u32::from(b'a'), &raw mut glyph),
+                0,
+                "the base font should still read its own cmap"
+            );
+
+            hr_font_destroy(grandchild);
+            hr_font_destroy(child);
         });
     }
 }
@@ -2471,6 +2605,54 @@ fn custom_font_funcs_do_not_load_builtin_font_tables() {
     }
 }
 
+/// A table callback that ties each blob it returns to a drop counter through
+/// the blob's user data, the way a caller owning table bytes that way would.
+unsafe extern "C" fn reference_table_with_user_data(
+    face: *mut hr_face_t,
+    tag: hr_tag_t,
+    user_data: *mut c_void,
+) -> *mut hr_blob_t {
+    static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+    unsafe {
+        let (source, drops) = &*user_data.cast::<(TableSource, AtomicUsize)>();
+        let table = reference_table(face, tag, ptr::from_ref(source).cast_mut().cast());
+        let drops: *mut c_void = ptr::from_ref(drops).cast_mut().cast();
+        hr_blob_set_user_data(table, &raw const KEY, drops, Some(count_drop), 1);
+        table
+    }
+}
+
+#[test]
+fn table_callback_blob_lives_as_long_as_its_bytes_are_used() {
+    let state = (
+        TableSource {
+            data: font_data(),
+            requested: Mutex::new(Vec::new()),
+        },
+        AtomicUsize::new(0),
+    );
+    let drops = &state.1;
+    unsafe {
+        let face = hr_face_create_for_tables(
+            Some(reference_table_with_user_data),
+            ptr::from_ref(&state).cast_mut().cast(),
+            None,
+        );
+        // Reading `head` keeps its blob, and with it whatever the callback
+        // tied to the blob, for as long as the face may read the table.
+        assert_eq!(hr_face_get_upem(face), PLAIN_UPEM);
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+
+        // A table handed back to the caller outlives the face the same way.
+        let cmap = hr_face_reference_table(face, hr_tag_from_string(c"cmap".as_ptr(), -1));
+        assert_ne!(hr_blob_get_length(cmap), 0);
+        hr_face_destroy(face);
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        hr_blob_destroy(cmap);
+        assert_eq!(drops.load(Ordering::SeqCst), 2);
+    }
+}
+
 // --------------------------------------------------------- font callbacks ----
 
 unsafe extern "C" fn fixed_advance(
@@ -3636,6 +3818,111 @@ fn a_destructor_may_set_user_data_on_the_same_object() {
     );
 }
 
+/// What `log_destroy` is handed: the log to write to, and what to write.
+struct DestroyWitness {
+    log: *const Mutex<Vec<&'static str>>,
+    name: &'static str,
+}
+
+unsafe extern "C" fn log_destroy(user_data: *mut c_void) {
+    let witness = unsafe { &*user_data.cast::<DestroyWitness>() };
+    unsafe { &*witness.log }.lock().unwrap().push(witness.name);
+}
+
+#[test]
+fn a_font_runs_its_destroy_callbacks_before_releasing_what_it_holds() {
+    unsafe {
+        let data = std::fs::read(font_path(PLAIN_FONT)).expect("failed to read test font");
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let font = hr_font_create(face);
+        hr_blob_destroy(blob);
+        // The font now holds the only reference to the face.
+        hr_face_destroy(face);
+
+        let log = Mutex::new(Vec::new());
+        let witness = |name| DestroyWitness {
+            log: &raw const log,
+            name,
+        };
+        let on_face = witness("face");
+        let on_font = witness("font user data");
+        let with_funcs = witness("font funcs data");
+        let as_data = |witness: &DestroyWitness| ptr::from_ref(witness).cast_mut().cast::<c_void>();
+        assert_ne!(
+            hr_face_set_user_data(
+                face,
+                &raw const KEY,
+                as_data(&on_face),
+                Some(log_destroy),
+                1
+            ),
+            0
+        );
+        assert_ne!(
+            hr_font_set_user_data(
+                font,
+                &raw const KEY,
+                as_data(&on_font),
+                Some(log_destroy),
+                1
+            ),
+            0
+        );
+        let ffuncs = hr_font_funcs_create();
+        hr_font_set_funcs(font, ffuncs, as_data(&with_funcs), Some(log_destroy));
+        hr_font_funcs_destroy(ffuncs);
+
+        // As in HarfBuzz, a callback may still look at the font's face,
+        // parent or callbacks: the font lets go of those only after every
+        // callback attached to it has run, so the face outlives them all.
+        hr_font_destroy(font);
+        assert_eq!(
+            *log.lock().unwrap(),
+            ["font user data", "font funcs data", "face"]
+        );
+    }
+}
+
+static SETTER_REENTRY_DROPS: AtomicUsize = AtomicUsize::new(0);
+unsafe extern "C" fn reenter_setter_on_drop(user_data: *mut c_void) {
+    // Only the first call re-enters, so that a regression fails the count
+    // below instead of recursing.
+    if SETTER_REENTRY_DROPS.fetch_add(1, Ordering::SeqCst) == 0 {
+        unsafe {
+            hr_font_funcs_set_nominal_glyph_func(
+                user_data.cast(),
+                Some(always_glyph_777),
+                ptr::null_mut(),
+                None,
+            );
+        }
+    }
+}
+
+#[test]
+fn a_destructor_may_set_the_callback_it_is_released_from() {
+    // The slot must be empty by the time the destructor runs, or the nested
+    // setter drops the same callback a second time.
+    unsafe {
+        let ffuncs = hr_font_funcs_create();
+        hr_font_funcs_set_nominal_glyph_func(
+            ffuncs,
+            Some(always_glyph_777),
+            ffuncs.cast(),
+            Some(reenter_setter_on_drop),
+        );
+        // Clearing runs the destructor above, which re-enters.
+        hr_font_funcs_set_nominal_glyph_func(ffuncs, None, ptr::null_mut(), None);
+        hr_font_funcs_destroy(ffuncs);
+    }
+    assert_eq!(
+        SETTER_REENTRY_DROPS.load(Ordering::SeqCst),
+        1,
+        "a callback registered once is released once"
+    );
+}
+
 #[test]
 fn a_plan_runs_whatever_variation_the_font_is_at() {
     unsafe {
@@ -4210,5 +4497,139 @@ fn glyph_count_prefers_extended_maxp() {
         assert_eq!(hr_face_get_glyph_count(face), 65550);
         hr_face_destroy(face);
         hr_blob_destroy(blob);
+    }
+}
+
+/// A `CFF ` table with one `endchar` glyph, whose Top DICT is padded with
+/// `padding` no-op `UniqueID` entries ahead of its `charset` and
+/// `CharStrings` operators.
+fn cff_with_padded_top_dict(padding: usize) -> Vec<u8> {
+    fn index(items: &[&[u8]]) -> Vec<u8> {
+        let mut data = (items.len() as u16).to_be_bytes().to_vec();
+        if items.is_empty() {
+            return data;
+        }
+        data.push(4);
+        let mut offset = 1u32;
+        data.extend(offset.to_be_bytes());
+        for item in items {
+            offset += item.len() as u32;
+            data.extend(offset.to_be_bytes());
+        }
+        data.extend(items.concat());
+        data
+    }
+    let header = [1, 0, 4, 4];
+    let names = index(&[b"x"]);
+    let charstrings = index(&[&[0x0e]]);
+    // Header, Name INDEX, Top DICT INDEX (count, offSize, two offsets, the
+    // dict), and empty String and Global Subr INDEXes.
+    let top_dict_len = 2 * padding + 12;
+    let after_top_dict = header.len() + names.len() + (2 + 1 + 8 + top_dict_len) + 2 + 2;
+    let mut top_dict = [0x8b, 0x0d].repeat(padding);
+    top_dict.push(0x1d);
+    top_dict.extend(((after_top_dict + charstrings.len()) as u32).to_be_bytes());
+    top_dict.push(0x0f);
+    top_dict.push(0x1d);
+    top_dict.extend((after_top_dict as u32).to_be_bytes());
+    top_dict.push(0x11);
+    assert_eq!(top_dict.len(), top_dict_len);
+    [
+        &header[..],
+        &names,
+        &index(&[&top_dict]),
+        &index(&[]),
+        &index(&[]),
+        &charstrings,
+        // A format 0 charset naming only `.notdef`.
+        &[0],
+    ]
+    .concat()
+}
+
+/// A `MAXP` table can claim 16.7 million glyphs in seven bytes, and reading
+/// one glyph's name rereads the whole CFF Top DICT. Looking a name up must
+/// not pay one for each of the other.
+#[test]
+fn a_name_is_looked_up_without_asking_every_claimed_glyph_for_its_own() {
+    let data = sfnt(&[
+        (b"CFF ", cff_with_padded_top_dict(2000)),
+        (b"MAXP", maxp(0x00FF_FFFF, true)),
+    ]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let font = hr_font_create(face);
+        assert_eq!(hr_face_get_glyph_count(face), 0x00FF_FFFF);
+        let start = std::time::Instant::now();
+        let mut glyph = 7;
+        assert_eq!(
+            hr_font_get_glyph_from_name(font, c"nosuchglyph".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        assert_eq!(glyph, 0);
+        // One pass over the claimed glyphs, against hours for the product.
+        assert!(start.elapsed().as_secs() < 60, "{:?}", start.elapsed());
+        // The names the face stores are still found.
+        assert_ne!(
+            hr_font_get_glyph_from_name(font, c".notdef".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        assert_eq!(glyph, 0);
+        // And a glyph the face names nothing still answers to its `gidNNN`.
+        assert_ne!(
+            hr_font_get_glyph_from_name(font, c"gid5".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        assert_eq!(glyph, 5);
+        assert_eq!(
+            hr_font_get_glyph_from_name(font, c"gid05".as_ptr(), -1, &raw mut glyph),
+            0
+        );
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+/// A `cmap` table whose one Windows UCS-4 subtable is format 13 with
+/// `groups`, each mapping an inclusive character range to one glyph.
+fn format13_cmap(groups: &[(u32, u32, u32)]) -> Vec<u8> {
+    let mut data = vec![0, 0, 0, 1, 0, 3, 0, 10, 0, 0, 0, 12];
+    data.extend(13u16.to_be_bytes());
+    data.extend(0u16.to_be_bytes());
+    data.extend((16 + 12 * groups.len() as u32).to_be_bytes());
+    data.extend(0u32.to_be_bytes());
+    data.extend((groups.len() as u32).to_be_bytes());
+    for (first, last, glyph) in groups {
+        data.extend(first.to_be_bytes());
+        data.extend(last.to_be_bytes());
+        data.extend(glyph.to_be_bytes());
+    }
+    data
+}
+
+#[test]
+fn unicode_collection_steps_over_overlapping_format13_groups() {
+    // Overlapping groups are counted once, and a group that repeats all of
+    // Unicode costs nothing after the first.
+    let partial = [(0x41, 0x5A, 1), (0x50, 0x7A, 1), (0x61, 0x6A, 1)];
+    let partial = sfnt(&[
+        (b"cmap", format13_cmap(&partial)),
+        (b"maxp", maxp(2, false)),
+    ]);
+    let full = [(0, 0x0010_FFFF, 1); 1000];
+    let full = sfnt(&[(b"cmap", format13_cmap(&full)), (b"maxp", maxp(2, false))]);
+    for (data, population) in [(partial, 0x7A - 0x41 + 1), (full, 0x0011_0000)] {
+        unsafe {
+            let blob = blob_over(&data);
+            let face = hr_face_create(blob, 0);
+            let set = hr_set_create();
+            hr_face_collect_unicodes(face, set);
+            assert_eq!(hr_set_get_population(set), population);
+            hr_set_destroy(set);
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
     }
 }
