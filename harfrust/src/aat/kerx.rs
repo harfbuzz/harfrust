@@ -1,7 +1,7 @@
 use super::layout::DELETED_GLYPH;
 use crate::aat::common::{
-    get_class, set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
-    TypedCollectGlyphs, START_OF_TEXT,
+    extended_class_count, get_class, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
+    SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::aat::kern::apply_pair_kerning;
 use crate::set_digest::SetDigest;
@@ -15,6 +15,7 @@ use crate::{
 };
 use alloc::boxed::Box;
 use core::convert::TryFrom;
+use core::mem::size_of;
 use read_fonts::{
     tables::{
         aat,
@@ -64,6 +65,15 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 message_index
             );
             continue;
+        }
+
+        // Every applied subtable walks the whole buffer, and a font can
+        // carry any number of them; charge each walk so the work stays
+        // within the buffer's operation limit.
+        c.buffer.max_ops -= c.buffer.len as i32;
+        if c.buffer.max_ops < 0 {
+            c.buffer.successful = false;
+            break;
         }
 
         let reverse = subtable.process_direction() != c.buffer.direction.is_backward();
@@ -344,6 +354,7 @@ impl KerxStateEntryExt for aat::StateEntry<BigEndian<u16>> {
 
 fn collect_initial_glyphs<T>(
     machine: &aat::ExtendedStateTable<T>,
+    data: &[u8],
     glyphs: &mut U32Set,
     num_glyphs: u32,
 ) where
@@ -354,7 +365,7 @@ fn collect_initial_glyphs<T>(
 
     let class_table = &machine.class_table;
     // Classes are u16 values, so columns past 0x10000 are unreachable.
-    for i in 0..machine.n_classes.min(1 << 16) {
+    for i in 0..extended_class_count(machine.n_classes, data) {
         if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
             if entry.new_state == START_OF_TEXT
                 && !entry.is_action_initiable()
@@ -690,7 +701,19 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
         _tuple_count: u32,
         c: &mut AatApplyContext,
     ) -> Option<()> {
-        if self.mark_set && entry.is_actionable() && c.buffer.idx < c.buffer.len {
+        let idx = c.buffer.idx;
+        let mut distance = self.mark as isize - idx as isize;
+        if c.buffer_is_reversed {
+            distance = -distance;
+        }
+        // A distance that doesn't fit the chain field leaves the glyph
+        // unattached, as in GPOS.
+        let attach_chain = if self.mark_set && entry.is_actionable() && idx < c.buffer.len {
+            i16::try_from(distance).ok()
+        } else {
+            None
+        };
+        if let Some(attach_chain) = attach_chain {
             match (self.ankr_table.as_ref(), &aat.actions) {
                 (Some(ankr_table), Subtable4Actions::AnchorPoints(ankr_data)) => {
                     let action_idx = entry.action_index() as usize * 2;
@@ -739,11 +762,6 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
             }
 
             c.buffer.cur_pos_mut()?.set_attach_type(attach_type::MARK);
-            let idx = c.buffer.idx;
-            let mut attach_chain = self.mark as i16 - idx as i16;
-            if c.buffer_is_reversed {
-                attach_chain = -attach_chain;
-            }
             c.buffer.cur_pos_mut()?.set_attach_chain(attach_chain);
             c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         }
@@ -793,7 +811,12 @@ impl<'a> KerxSubtableCache<'a> {
                         &KerxStateEntryExt::is_actionable,
                         &KerxStateEntryExt::has_advance,
                     );
-                    collect_initial_glyphs(&format1.state_table, &mut first_set, num_glyphs);
+                    collect_initial_glyphs(
+                        &format1.state_table,
+                        subtable.data(),
+                        &mut first_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::Format2(format2) => {
                     format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
@@ -806,7 +829,12 @@ impl<'a> KerxSubtableCache<'a> {
                         &KerxStateEntryExt::is_actionable,
                         &KerxStateEntryExt::has_advance,
                     );
-                    collect_initial_glyphs(&format4.state_table, &mut first_set, num_glyphs);
+                    collect_initial_glyphs(
+                        &format4.state_table,
+                        subtable.data(),
+                        &mut first_set,
+                        num_glyphs,
+                    );
                 }
                 SubtableKind::Format6(format6) => {
                     format6.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
@@ -823,6 +851,16 @@ impl<'a> KerxSubtableCache<'a> {
             subtable: subtable.clone(),
             kind,
         }
+    }
+
+    /// The bytes this entry keeps for the life of the font. Its glyph sets
+    /// and safe-to-break data can be far larger than the subtable.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        size_of::<Self>()
+            + size_of::<ClassCache>()
+            + set_heap_bytes(&self.first_set)
+            + set_heap_bytes(&self.second_set)
+            + self.safe_to_break.accel_bytes()
     }
 }
 
@@ -902,7 +940,7 @@ mod tests {
             let machine =
                 aat::ExtendedStateTable::<BigEndian<u16>>::read(FontData::new(&data)).unwrap();
             let mut glyphs = U32Set::default();
-            collect_initial_glyphs(&machine, &mut glyphs, 2);
+            collect_initial_glyphs(&machine, &data, &mut glyphs, 2);
             assert_eq!(glyphs.iter().collect::<Vec<_>>(), [1]);
         }
     }

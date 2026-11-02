@@ -198,6 +198,37 @@ fn thai_sara_am_after_two_above_base_marks() {
     );
 }
 
+/// A `morx` language-tag feature entry names an `ltag` record by index. The
+/// record is read directly rather than by walking every earlier record: a font
+/// with thousands of aliased 64 KB strings and thousands of entries made that
+/// walk cost seconds per shape plan. The test font's `ltag` holds `fr`, `en`
+/// and `zh-Hant`; four entries select records 1 to 4 (the last is out of range)
+/// and each substitutes `a` with a different glyph.
+#[test]
+fn morx_language_tag_selects_ltag_record_by_index() {
+    for (language, expected) in [
+        ("", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=fr", "[gid4=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=en", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=en-US", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=EN_us", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=e", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=eng", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        (
+            "--language=zh-Hant-TW",
+            "[gid6=0+600|gid2=1+600|gid3=2+600]",
+        ),
+        ("--language=zh", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=de", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+    ] {
+        assert_eq!(
+            crate::shape("tests/fonts/morx-language-tag.ttf", "abc", language),
+            expected,
+            "{language}"
+        );
+    }
+}
+
 #[test]
 fn tatweel_flag_production_cleans_singleton_cluster_flags() {
     assert_eq!(
@@ -455,4 +486,30 @@ fn kerx_coretext_history_wrap_and_reset() {
     for (font, text, expected) in cases {
         assert_eq!(crate::shape(font, text, ""), expected, "{font}: {text:?}");
     }
+}
+/// A contextual entry that does not advance and substitutes the marked glyph
+/// flags every glyph from the mark to the current one unsafe-to-break, a walk
+/// of up to 255 glyphs. The test font loops on `c` that way with its `a`
+/// marked 254 glyphs back, so the loop must be charged for the walk rather
+/// than one operation per turn; otherwise this run takes about 25 s in a
+/// debug build instead of a tenth of a second.
+#[test]
+fn morx_contextual_mark_substitution_loop_is_charged_for_its_walk() {
+    let mut text = String::from("a");
+    text.extend(std::iter::repeat_n('b', 253));
+    text.push('c');
+    text.extend(std::iter::repeat_n('b', 1745));
+    let mut expected = String::from("[1");
+    expected.extend(std::iter::repeat_n("|2", 253));
+    expected.push_str("|3");
+    expected.extend(std::iter::repeat_n("|2", 1745));
+    expected.push(']');
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/morx-contextual-mark-loop.ttf",
+            &text,
+            "--no-glyph-names --no-positions --no-clusters",
+        ),
+        expected
+    );
 }

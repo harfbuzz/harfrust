@@ -1,4 +1,4 @@
-//! Limits on work and allocations while deriving cached OpenType layout data.
+//! Limits on work and allocations while deriving cached layout data.
 //!
 //! These are independent of the buffer's shaping limits. They only run while
 //! building caches, including lazy builds shared across shaping calls. Once an

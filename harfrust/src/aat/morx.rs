@@ -2,8 +2,8 @@ use super::layout::*;
 use super::map::{AatMap, AatMapBuilder, RangeFlags};
 use super::AatData;
 use crate::aat::common::{
-    set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
-    TypedCollectGlyphs, START_OF_TEXT,
+    extended_class_count, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
+    SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::set_digest::SetDigest;
@@ -11,6 +11,7 @@ use crate::tag::lang_matches;
 use crate::Language;
 use crate::U32Set;
 use alloc::{vec, vec::Vec};
+use core::mem::size_of;
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{mort, morx};
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
@@ -79,9 +80,23 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
         let Some(ltag) = aat.ltag.as_ref() else {
             return false;
         };
+        // Index the record array directly, as harfbuzz does. `Ltag::tag_indices`
+        // slices and validates every preceding string, and this runs once per
+        // language-tag feature entry of every chain.
+        let Some(range) = ltag.tag_ranges().get(usize::from(index)) else {
+            return false;
+        };
+        // A tag longer than the requested language cannot be a prefix of it.
+        let len = usize::from(range.length());
+        if len > requested.as_bytes().len() {
+            return false;
+        }
+        let start = usize::from(range.offset());
         let Some(tag) = ltag
-            .tag_indices()
-            .find_map(|(tag_index, tag)| (tag_index == u32::from(index)).then_some(tag))
+            .offset_data()
+            .as_bytes()
+            .get(start..start + len)
+            .and_then(|bytes| core::str::from_utf8(bytes).ok())
         else {
             return false;
         };
@@ -239,6 +254,16 @@ fn apply_table<'a>(
             );
             continue;
         }
+
+        // Every applied subtable walks the whole buffer, and a font can
+        // carry any number of them; charge each walk so the work stays
+        // within the buffer's operation limit.
+        c.buffer.max_ops -= c.buffer.len as i32;
+        if c.buffer.max_ops < 0 {
+            c.buffer.successful = false;
+            break;
+        }
+
         message_continue!(c, "start chainsubtable {}", subtable_idx);
 
         // Buffer contents is always in logical direction.  Determine if
@@ -277,7 +302,9 @@ trait MorphStateTable<T>
 where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
-    fn n_classes(&self) -> usize;
+    /// The number of classes that can have entries in the machine at the
+    /// start of `data`.
+    fn n_classes(&self, data: &[u8]) -> usize;
     fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError>;
     fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError>;
     fn collect_glyphs_filtered(
@@ -299,8 +326,8 @@ impl<T> MorphStateTable<T> for ExtendedStateTable<'_, T>
 where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
-    fn n_classes(&self) -> usize {
-        self.n_classes
+    fn n_classes(&self, data: &[u8]) -> usize {
+        extended_class_count(self.n_classes, data)
     }
 
     fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError> {
@@ -336,7 +363,7 @@ impl<T> MorphStateTable<T> for StateTable<'_, T>
 where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
-    fn n_classes(&self) -> usize {
+    fn n_classes(&self, _data: &[u8]) -> usize {
         self.n_classes
     }
 
@@ -391,7 +418,7 @@ where
     class
 }
 
-fn collect_initial_glyphs<T, M, Ctx>(machine: &M, glyphs: &mut U32Set, num_glyphs: u32)
+fn collect_initial_glyphs<T, M, Ctx>(machine: &M, data: &[u8], glyphs: &mut U32Set, num_glyphs: u32)
 where
     T: FixedSize + bytemuck::AnyBitPattern,
     M: MorphStateTable<T>,
@@ -400,7 +427,7 @@ where
     let mut classes = U32Set::default();
 
     // Classes are u16 values, so columns past 0x10000 are unreachable.
-    for i in 0..machine.n_classes().min(1 << 16) {
+    for i in 0..machine.n_classes(data) {
         if let Ok(entry) = machine.entry(START_OF_TEXT, i as u16) {
             if entry.new_state == START_OF_TEXT
                 && !Ctx::is_action_initiable(&entry)
@@ -451,6 +478,26 @@ pub(crate) trait DriverContext<T> {
     fn transition(&mut self, entry: &StateEntry<T>, ac: &mut AatApplyContext) -> Option<()>;
 }
 
+/// Returns the index of the range that holds `cluster`, given the range of
+/// the previous glyph. The ranges are sorted and contiguous; the first starts
+/// at zero and the last ends at `Feature::GLOBAL_END`.
+#[inline(always)]
+fn range_for_cluster(range_flags: &[RangeFlags], mut range: usize, cluster: u32) -> usize {
+    // Monotone clusters stay in the range or move to a neighbour. Clusters
+    // need not be monotone, though (non-monotone cluster levels, or caller
+    // supplied cluster values): search for a far range, don't walk to it.
+    for _ in 0..4 {
+        if cluster < range_flags[range].cluster_first {
+            range -= 1;
+        } else if cluster > range_flags[range].cluster_last {
+            range += 1;
+        } else {
+            return range;
+        }
+    }
+    range_flags.partition_point(|range| range.cluster_last < cluster)
+}
+
 fn drive<T, M, Ctx>(machine: &M, c: &mut Ctx, ac: &mut AatApplyContext) -> Option<()>
 where
     T: bytemuck::AnyBitPattern + FixedSize + core::fmt::Debug,
@@ -481,14 +528,7 @@ where
                 let mut range = *last_range;
                 if ac.buffer.idx < ac.buffer.len {
                     let cluster = ac.buffer.cur(0)?.cluster;
-                    while cluster < range_flags[range].cluster_first {
-                        range -= 1;
-                    }
-
-                    while cluster > range_flags[range].cluster_last {
-                        range += 1;
-                    }
-
+                    range = range_for_cluster(range_flags, range, cluster);
                     *last_range = range;
                 }
 
@@ -746,14 +786,7 @@ fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) -> Opt
                 let mut range = *last_range;
                 if ac.buffer.idx < ac.buffer.len {
                     let cluster = ac.buffer.cur(0)?.cluster;
-                    while cluster < range_flags[range].cluster_first {
-                        range -= 1;
-                    }
-
-                    while cluster > range_flags[range].cluster_last {
-                        range += 1;
-                    }
-
+                    range = range_for_cluster(range_flags, range, cluster);
                     *last_range = range;
                 }
 
@@ -994,10 +1027,17 @@ where
         }
 
         if let Some(replacement) = replacement {
-            ac.buffer.unsafe_to_break(
-                Some(self.mark),
-                Some((ac.buffer.idx + 1).min(ac.buffer.len)),
-            );
+            let end = (ac.buffer.idx + 1).min(ac.buffer.len);
+            // unsafe_to_break() visits every glyph from the mark to here
+            // (it gives up past 255), and an entry that doesn't advance can
+            // ask for that walk again on the same glyph. Charge the walk to
+            // the budget like move_to() and merge_clusters() charge their
+            // ranges, so the driver forces an advance once it is spent.
+            let walk = end.wrapping_sub(self.mark);
+            if walk <= 255 {
+                ac.buffer.max_ops -= walk as i32;
+            }
+            ac.buffer.unsafe_to_break(Some(self.mark), Some(end));
             if ac
                 .replace_glyph_inplace(self.mark, replacement.into())
                 .is_none()
@@ -1446,7 +1486,7 @@ fn accelerate_state_machine<T, M, Ctx>(
     *start_end_safe_to_break = collect_start_end_safe_to_break::<T, M, Ctx>(machine);
     *safe_to_break_subtable =
         machine.build_safe_to_break(safe_to_break, data, &Ctx::is_actionable, &Ctx::can_advance);
-    collect_initial_glyphs::<T, M, Ctx>(machine, glyph_set, num_glyphs);
+    collect_initial_glyphs::<T, M, Ctx>(machine, data, glyph_set, num_glyphs);
 }
 
 impl<'a> MorphSubtableCache<'a> {
@@ -1613,6 +1653,12 @@ impl<'a> MorphSubtableCache<'a> {
             kind: kind.map(MorphSubtableKind::Mort),
         }
     }
+
+    /// The bytes this entry keeps for the life of the font. Its glyph set
+    /// and safe-to-break data can be far larger than the subtable.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        size_of::<Self>() + set_heap_bytes(&self.glyph_set) + self.safe_to_break.accel_bytes()
+    }
 }
 
 #[cfg(test)]
@@ -1640,8 +1686,28 @@ mod tests {
             data[..4].copy_from_slice(&n_classes.to_be_bytes());
             let machine = ExtendedStateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
             let mut glyphs = U32Set::default();
-            collect_initial_glyphs::<_, _, RearrangementCtx>(&machine, &mut glyphs, 2);
+            collect_initial_glyphs::<_, _, RearrangementCtx>(&machine, &data, &mut glyphs, 2);
             assert_eq!(glyphs.iter().collect::<Vec<_>>(), [1]);
+        }
+    }
+
+    #[test]
+    fn range_for_cluster_from_any_range() {
+        // Ranges of one, two, ... clusters; the last one runs to the end.
+        let mut ranges: Vec<RangeFlags> = (0..20u32)
+            .map(|i| RangeFlags {
+                flags: 0,
+                cluster_first: i * (i + 1) / 2,
+                cluster_last: (i + 1) * (i + 2) / 2 - 1,
+            })
+            .collect();
+        ranges.last_mut().unwrap().cluster_last = crate::Feature::GLOBAL_END;
+        for last_range in 0..ranges.len() {
+            for (range, flags) in ranges.iter().enumerate() {
+                for cluster in [flags.cluster_first, flags.cluster_last] {
+                    assert_eq!(range_for_cluster(&ranges, last_range, cluster), range);
+                }
+            }
         }
     }
 }
