@@ -1,6 +1,9 @@
 //! OpenType layout metadata, lookup glyph collection, and BASE baseline queries.
 
+use core::cell::Cell;
 use core::ffi::c_uint;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use std::collections::HashSet;
 
 use harfrust::Tag;
 use read_fonts::tables::base::{BaseAxis, BaseInstance};
@@ -258,6 +261,31 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_lookup_count(
     }
 }
 
+/// How many glyph IDs the every-glyph fallback covers.
+///
+/// `MAXP` declares up to 2^24 glyphs in a few bytes, and a face without a
+/// count may have as many, but a set that large takes megabytes and
+/// milliseconds to fill, once per lookup and per set. So beyond the IDs a
+/// classic lookup can name, a count is believed only as far as the horizontal
+/// metrics, which hold a record for every glyph, back it.
+fn fallback_glyph_count(face: &hr_face_t) -> u32 {
+    const CLASSIC: u32 = 1 << 16;
+    let count = match face.glyph_count() {
+        0 => 1 << 24,
+        count => count,
+    };
+    if count <= CLASSIC {
+        return count;
+    }
+    let backed = face
+        .font()
+        .and_then(|font| font.tables().h_glyph_metric_records().ok())
+        .map_or(0, |records| {
+            records.long_metrics().len() + records.side_bearings().len()
+        });
+    count.min(u32::try_from(backed).unwrap_or(u32::MAX).max(CLASSIC))
+}
+
 #[derive(Clone, Copy)]
 struct SetTarget(*mut hr_set_t);
 
@@ -275,18 +303,66 @@ impl SetTarget {
     }
 }
 
-fn add_coverage(set: SetTarget, coverage: CoverageTable<'_>) {
-    for glyph in coverage.iter() {
-        set.add(glyph.to_u32());
+/// The steps glyph collection may still take on one table of a face.
+///
+/// Offsets may alias, so nested arrays of them can name far more data than the
+/// table holds, and a lookup list may name one such lookup many times. Every
+/// loop charges its steps here, and the steps spent are kept on the face, so
+/// the work across all calls is bounded by the table's size. Running out takes
+/// the every-glyph fallback.
+struct Budget(Cell<usize>);
+
+impl Budget {
+    // The allowance the shaper gives a layout table's preprocessing.
+    fn limit(bytes: usize) -> usize {
+        bytes.saturating_mul(256).clamp(4 << 20, 128 << 20)
+    }
+
+    fn for_table(bytes: usize, spent: &AtomicUsize) -> Self {
+        Self(Cell::new(
+            Self::limit(bytes).saturating_sub(spent.load(Ordering::Relaxed)),
+        ))
+    }
+
+    fn record(&self, bytes: usize, spent: &AtomicUsize) {
+        spent.store(
+            Self::limit(bytes).saturating_sub(self.0.get()),
+            Ordering::Relaxed,
+        );
+    }
+
+    fn work(&self) -> Result<(), ReadError> {
+        let Some(remaining) = self.0.get().checked_sub(1) else {
+            return Err(ReadError::MalformedData("lookup glyph collection ran out"));
+        };
+        self.0.set(remaining);
+        Ok(())
     }
 }
 
-fn add_class_coverage(set: SetTarget, class_def: ClassDef<'_>) {
+fn add_coverage(
+    set: SetTarget,
+    coverage: CoverageTable<'_>,
+    budget: &Budget,
+) -> Result<(), ReadError> {
+    for glyph in coverage.iter() {
+        budget.work()?;
+        set.add(glyph.to_u32());
+    }
+    Ok(())
+}
+
+fn add_class_coverage(
+    set: SetTarget,
+    class_def: ClassDef<'_>,
+    budget: &Budget,
+) -> Result<(), ReadError> {
     match class_def {
         ClassDef::Format1(table) => {
             let start = table.start_glyph_id().to_u32();
             let mut previous_nonzero = false;
             for (index, class) in table.class_value_array().iter().enumerate() {
+                budget.work()?;
                 let nonzero = class.get() != 0;
                 if nonzero || previous_nonzero {
                     set.add(start + index as u32);
@@ -299,6 +375,7 @@ fn add_class_coverage(set: SetTarget, class_def: ClassDef<'_>) {
         }
         ClassDef::Format2(table) => {
             for (glyph, class) in table.iter() {
+                budget.work()?;
                 if class != 0 {
                     set.add(glyph.to_u32());
                 }
@@ -306,32 +383,47 @@ fn add_class_coverage(set: SetTarget, class_def: ClassDef<'_>) {
         }
         ClassDef::Format3(_) | ClassDef::Format4(_) => {
             for (glyph, class) in class_def.iter() {
+                budget.work()?;
                 if class != 0 {
                     set.add(glyph.to_u32());
                 }
             }
         }
     }
+    Ok(())
 }
 
-fn add_class(set: SetTarget, class_def: &ClassDef<'_>, selected: u16) {
+fn add_class(
+    set: SetTarget,
+    class_def: &ClassDef<'_>,
+    selected: u16,
+    budget: &Budget,
+) -> Result<(), ReadError> {
     for (glyph, class) in class_def.iter() {
+        budget.work()?;
         if class == u32::from(selected) {
             set.add(glyph.to_u32());
         }
     }
+    Ok(())
 }
 
 fn collect_nested_substitutions(
     records: &[SequenceLookupRecord],
     lookup_list: &SubstitutionLookupList<'_>,
     output: SetTarget,
+    budget: &Budget,
+    nested_seen: &mut HashSet<(u16, u8)>,
     depth: u8,
 ) -> Result<bool, ReadError> {
     for record in records {
-        let nested = lookup_list
-            .lookups()
-            .get(record.lookup_list_index() as usize)?;
+        budget.work()?;
+        let index = record.lookup_list_index();
+        // A lookup collected at this depth before added the same output.
+        if !nested_seen.insert((index, depth)) {
+            continue;
+        }
+        let nested = lookup_list.lookups().get(index as usize)?;
         if !collect_substitution(
             nested,
             lookup_list,
@@ -339,6 +431,8 @@ fn collect_nested_substitutions(
             SetTarget(core::ptr::null_mut()),
             SetTarget(core::ptr::null_mut()),
             output,
+            budget,
+            nested_seen,
             depth + 1,
         )? {
             return Ok(false);
@@ -347,6 +441,7 @@ fn collect_nested_substitutions(
     Ok(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_substitution(
     lookup: read_fonts::tables::gsub::SubstitutionLookup<'_>,
     lookup_list: &SubstitutionLookupList<'_>,
@@ -354,6 +449,8 @@ fn collect_substitution(
     input: SetTarget,
     after: SetTarget,
     output: SetTarget,
+    budget: &Budget,
+    nested_seen: &mut HashSet<(u16, u8)>,
     depth: u8,
 ) -> Result<bool, ReadError> {
     if depth >= 8 {
@@ -362,18 +459,23 @@ fn collect_substitution(
     match lookup.subtables()? {
         SubstitutionSubtables::Single(subtables) => {
             for subtable in subtables.iter() {
+                budget.work()?;
                 match subtable? {
                     SingleSubst::Format1(table) => {
                         let coverage = table.coverage()?;
                         for glyph in coverage.iter() {
+                            budget.work()?;
                             let id = glyph.to_u32();
                             input.add(id);
-                            output.add((id as u16).wrapping_add_signed(table.delta_glyph_id()) as u32);
+                            output.add(
+                                (id as u16).wrapping_add_signed(table.delta_glyph_id()) as u32,
+                            );
                         }
                     }
                     SingleSubst::Format2(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                         for glyph in table.substitute_glyph_ids() {
+                            budget.work()?;
                             output.add(glyph.get().to_u32());
                         }
                     }
@@ -384,13 +486,16 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Multiple(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 // The extended formats fall back to every glyph.
                 let MultipleSubst::Format1(table) = table? else {
                     return Ok(false);
                 };
-                add_coverage(input, table.coverage()?);
+                add_coverage(input, table.coverage()?, budget)?;
                 for sequence in table.sequences().iter() {
+                    budget.work()?;
                     for glyph in sequence?.substitute_glyph_ids() {
+                        budget.work()?;
                         output.add(glyph.get().to_u32());
                     }
                 }
@@ -398,12 +503,15 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Alternate(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 let AlternateSubst::Format1(table) = table? else {
                     return Ok(false);
                 };
-                add_coverage(input, table.coverage()?);
+                add_coverage(input, table.coverage()?, budget)?;
                 for alternate in table.alternate_sets().iter() {
+                    budget.work()?;
                     for glyph in alternate?.alternate_glyph_ids() {
+                        budget.work()?;
                         output.add(glyph.get().to_u32());
                     }
                 }
@@ -411,15 +519,19 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Ligature(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 let LigatureSubst::Format1(table) = table? else {
                     return Ok(false);
                 };
-                add_coverage(input, table.coverage()?);
+                add_coverage(input, table.coverage()?, budget)?;
                 for set in table.ligature_sets().iter() {
+                    budget.work()?;
                     for ligature in set?.ligatures().iter() {
+                        budget.work()?;
                         let ligature = ligature?;
                         output.add(ligature.ligature_glyph().to_u32());
                         for glyph in ligature.component_glyph_ids() {
+                            budget.work()?;
                             input.add(glyph.get().to_u32());
                         }
                     }
@@ -428,36 +540,46 @@ fn collect_substitution(
         }
         SubstitutionSubtables::Reverse(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 let ReverseChainSingleSubst::Format1(table) = table? else {
                     return Ok(false);
                 };
-                add_coverage(input, table.coverage()?);
+                add_coverage(input, table.coverage()?, budget)?;
                 for coverage in table.backtrack_coverages().iter() {
-                    add_coverage(before, coverage?);
+                    budget.work()?;
+                    add_coverage(before, coverage?, budget)?;
                 }
                 for coverage in table.lookahead_coverages().iter() {
-                    add_coverage(after, coverage?);
+                    budget.work()?;
+                    add_coverage(after, coverage?, budget)?;
                 }
                 for glyph in table.substitute_glyph_ids() {
+                    budget.work()?;
                     output.add(glyph.get().to_u32());
                 }
             }
         }
         SubstitutionSubtables::Contextual(subtables) => {
             for subtable in subtables.iter() {
+                budget.work()?;
                 match subtable? {
                     SequenceContext::Format1(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                         for rule_set in table.seq_rule_sets().iter().flatten() {
+                            budget.work()?;
                             for rule in rule_set?.seq_rules().iter() {
+                                budget.work()?;
                                 let rule = rule?;
                                 for glyph in rule.input_sequence() {
+                                    budget.work()?;
                                     input.add(glyph.get().to_u32());
                                 }
                                 if !collect_nested_substitutions(
                                     rule.seq_lookup_records(),
                                     lookup_list,
                                     output,
+                                    budget,
+                                    nested_seen,
                                     depth,
                                 )? {
                                     return Ok(false);
@@ -466,18 +588,23 @@ fn collect_substitution(
                         }
                     }
                     SequenceContext::Format2(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                         let class_def = table.class_def()?;
                         for rule_set in table.class_seq_rule_sets().iter().flatten() {
+                            budget.work()?;
                             for rule in rule_set?.class_seq_rules().iter() {
+                                budget.work()?;
                                 let rule = rule?;
                                 for class in rule.input_sequence() {
-                                    add_class(input, &class_def, class.get());
+                                    budget.work()?;
+                                    add_class(input, &class_def, class.get(), budget)?;
                                 }
                                 if !collect_nested_substitutions(
                                     rule.seq_lookup_records(),
                                     lookup_list,
                                     output,
+                                    budget,
+                                    nested_seen,
                                     depth,
                                 )? {
                                     return Ok(false);
@@ -487,12 +614,15 @@ fn collect_substitution(
                     }
                     SequenceContext::Format3(table) => {
                         for coverage in table.coverages().iter() {
-                            add_coverage(input, coverage?);
+                            budget.work()?;
+                            add_coverage(input, coverage?, budget)?;
                         }
                         if !collect_nested_substitutions(
                             table.seq_lookup_records(),
                             lookup_list,
                             output,
+                            budget,
+                            nested_seen,
                             depth,
                         )? {
                             return Ok(false);
@@ -504,25 +634,33 @@ fn collect_substitution(
         }
         SubstitutionSubtables::ChainContextual(subtables) => {
             for subtable in subtables.iter() {
+                budget.work()?;
                 match subtable? {
                     ChainedSequenceContext::Format1(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                         for rule_set in table.chained_seq_rule_sets().iter().flatten() {
+                            budget.work()?;
                             for rule in rule_set?.chained_seq_rules().iter() {
+                                budget.work()?;
                                 let rule = rule?;
                                 for glyph in rule.backtrack_sequence() {
+                                    budget.work()?;
                                     before.add(glyph.get().to_u32());
                                 }
                                 for glyph in rule.input_sequence() {
+                                    budget.work()?;
                                     input.add(glyph.get().to_u32());
                                 }
                                 for glyph in rule.lookahead_sequence() {
+                                    budget.work()?;
                                     after.add(glyph.get().to_u32());
                                 }
                                 if !collect_nested_substitutions(
                                     rule.seq_lookup_records(),
                                     lookup_list,
                                     output,
+                                    budget,
+                                    nested_seen,
                                     depth,
                                 )? {
                                     return Ok(false);
@@ -531,26 +669,33 @@ fn collect_substitution(
                         }
                     }
                     ChainedSequenceContext::Format2(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                         let backtrack_class_def = table.backtrack_class_def()?;
                         let input_class_def = table.input_class_def()?;
                         let lookahead_class_def = table.lookahead_class_def()?;
                         for rule_set in table.chained_class_seq_rule_sets().iter().flatten() {
+                            budget.work()?;
                             for rule in rule_set?.chained_class_seq_rules().iter() {
+                                budget.work()?;
                                 let rule = rule?;
                                 for class in rule.backtrack_sequence() {
-                                    add_class(before, &backtrack_class_def, class.get());
+                                    budget.work()?;
+                                    add_class(before, &backtrack_class_def, class.get(), budget)?;
                                 }
                                 for class in rule.input_sequence() {
-                                    add_class(input, &input_class_def, class.get());
+                                    budget.work()?;
+                                    add_class(input, &input_class_def, class.get(), budget)?;
                                 }
                                 for class in rule.lookahead_sequence() {
-                                    add_class(after, &lookahead_class_def, class.get());
+                                    budget.work()?;
+                                    add_class(after, &lookahead_class_def, class.get(), budget)?;
                                 }
                                 if !collect_nested_substitutions(
                                     rule.seq_lookup_records(),
                                     lookup_list,
                                     output,
+                                    budget,
+                                    nested_seen,
                                     depth,
                                 )? {
                                     return Ok(false);
@@ -560,20 +705,29 @@ fn collect_substitution(
                     }
                     ChainedSequenceContext::Format3(table) => {
                         let mut coverages = table.input_coverages().iter();
-                        add_coverage(input, coverages.next().ok_or(ReadError::OutOfBounds)??);
+                        add_coverage(
+                            input,
+                            coverages.next().ok_or(ReadError::OutOfBounds)??,
+                            budget,
+                        )?;
                         for coverage in coverages {
-                            add_coverage(input, coverage?);
+                            budget.work()?;
+                            add_coverage(input, coverage?, budget)?;
                         }
                         for coverage in table.backtrack_coverages().iter() {
-                            add_coverage(before, coverage?);
+                            budget.work()?;
+                            add_coverage(before, coverage?, budget)?;
                         }
                         for coverage in table.lookahead_coverages().iter() {
-                            add_coverage(after, coverage?);
+                            budget.work()?;
+                            add_coverage(after, coverage?, budget)?;
                         }
                         if !collect_nested_substitutions(
                             table.seq_lookup_records(),
                             lookup_list,
                             output,
+                            budget,
+                            nested_seen,
                             depth,
                         )? {
                             return Ok(false);
@@ -591,40 +745,45 @@ fn collect_substitution(
 fn collect_positioning(
     lookup: read_fonts::tables::gpos::PositionLookup<'_>,
     input: SetTarget,
+    budget: &Budget,
 ) -> Result<bool, ReadError> {
     match lookup.subtables()? {
         PositionSubtables::Single(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 match table? {
                     read_fonts::tables::gpos::SinglePos::Format1(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                     }
                     read_fonts::tables::gpos::SinglePos::Format2(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                     }
                     read_fonts::tables::gpos::SinglePos::Format3(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                     }
                     read_fonts::tables::gpos::SinglePos::Format4(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                     }
                 }
             }
         }
         PositionSubtables::Pair(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 match table? {
                     PairPos::Format1(table) => {
-                        add_coverage(input, table.coverage()?);
+                        add_coverage(input, table.coverage()?, budget)?;
                         for pair_set in table.pair_sets().iter() {
+                            budget.work()?;
                             for record in pair_set?.pair_value_records().iter() {
+                                budget.work()?;
                                 input.add(record?.second_glyph().to_u32());
                             }
                         }
                     }
                     PairPos::Format2(table) => {
-                        add_coverage(input, table.coverage()?);
-                        add_class_coverage(input, table.class_def2()?);
+                        add_coverage(input, table.coverage()?, budget)?;
+                        add_class_coverage(input, table.class_def2()?, budget)?;
                     }
                     _ => return Ok(false),
                 }
@@ -632,27 +791,31 @@ fn collect_positioning(
         }
         PositionSubtables::Cursive(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 add_coverage(
                     input,
                     match table? {
                         CursivePos::Format1(table) => table.coverage()?,
                         CursivePos::Format2(table) => table.coverage()?,
                     },
-                );
+                    budget,
+                )?;
             }
         }
         PositionSubtables::MarkToBase(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 let (marks, bases) = match table? {
                     MarkBasePos::Format1(table) => (table.mark_coverage()?, table.base_coverage()?),
                     MarkBasePos::Format2(table) => (table.mark_coverage()?, table.base_coverage()?),
                 };
-                add_coverage(input, marks);
-                add_coverage(input, bases);
+                add_coverage(input, marks, budget)?;
+                add_coverage(input, bases, budget)?;
             }
         }
         PositionSubtables::MarkToLig(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 let (marks, ligatures) = match table? {
                     MarkLigPos::Format1(table) => {
                         (table.mark_coverage()?, table.ligature_coverage()?)
@@ -661,12 +824,13 @@ fn collect_positioning(
                         (table.mark_coverage()?, table.ligature_coverage()?)
                     }
                 };
-                add_coverage(input, marks);
-                add_coverage(input, ligatures);
+                add_coverage(input, marks, budget)?;
+                add_coverage(input, ligatures, budget)?;
             }
         }
         PositionSubtables::MarkToMark(subtables) => {
             for table in subtables.iter() {
+                budget.work()?;
                 let (marks1, marks2) = match table? {
                     MarkMarkPos::Format1(table) => {
                         (table.mark1_coverage()?, table.mark2_coverage()?)
@@ -675,8 +839,8 @@ fn collect_positioning(
                         (table.mark1_coverage()?, table.mark2_coverage()?)
                     }
                 };
-                add_coverage(input, marks1);
-                add_coverage(input, marks2);
+                add_coverage(input, marks1, budget)?;
+                add_coverage(input, marks2, budget)?;
             }
         }
         PositionSubtables::EmptyExtension => {}
@@ -711,26 +875,36 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
         GSUB_TAG => font.tables().gsub().ok().and_then(|table| {
             let list = table.lookup_list().ok()?;
             let lookup = list.lookups().get(lookup_index as usize).ok()?;
-            Some(collect_substitution(
-                lookup, &list, before, input, after, output, 0,
-            ))
+            let bytes = table.offset_data().len();
+            let budget = Budget::for_table(bytes, &face.collect_work[0]);
+            let complete = collect_substitution(
+                lookup,
+                &list,
+                before,
+                input,
+                after,
+                output,
+                &budget,
+                &mut HashSet::new(),
+                0,
+            );
+            budget.record(bytes, &face.collect_work[0]);
+            Some(complete)
         }),
-        GPOS_TAG => font
-            .tables()
-            .gpos()
-            .ok()
-            .and_then(|table| table.lookup_list().ok())
-            .and_then(|list| list.lookups().get(lookup_index as usize).ok())
-            .map(|lookup| collect_positioning(lookup, input)),
+        GPOS_TAG => font.tables().gpos().ok().and_then(|table| {
+            let list = table.lookup_list().ok()?;
+            let lookup = list.lookups().get(lookup_index as usize).ok()?;
+            let bytes = table.offset_data().len();
+            let budget = Budget::for_table(bytes, &face.collect_work[1]);
+            let complete = collect_positioning(lookup, input, &budget);
+            budget.record(bytes, &face.collect_work[1]);
+            Some(complete)
+        }),
         _ => None,
     };
     let Some(complete) = complete else { return };
     if !matches!(complete, Ok(true)) {
-        // Without a glyph count, cover every glyph ID a lookup can name.
-        let count = match face.glyph_count() {
-            0 => 1 << 24,
-            count => count,
-        };
+        let count = fallback_glyph_count(face);
         for set in [before, input, after, output] {
             set.include_all_glyphs(count);
         }

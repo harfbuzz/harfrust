@@ -196,3 +196,42 @@ fn missing_features_and_faces_return_empty_pages_and_no_default() {
         }
     }
 }
+
+#[test]
+fn setting_arrays_that_alias_out_of_proportion_drop_the_table() {
+    // Every feature claims the feature records themselves as its settings.
+    let aliased = |features: u16| {
+        let mut data = Vec::new();
+        for word in [1u16, 0, features, 0, 0, 0] {
+            data.extend(word.to_be_bytes());
+        }
+        for feature in 0..features {
+            data.extend(feature.to_be_bytes());
+            data.extend((features * 3).to_be_bytes());
+            data.extend(12u32.to_be_bytes());
+            data.extend([0; 4]);
+        }
+        data
+    };
+    unsafe {
+        for (features, listed, selectors) in [(10, 10, 30), (2000, 0, 0)] {
+            let face = TableFace::new(vec![(u32::from_be_bytes(*b"feat"), aliased(features))]);
+            let mut count = 0;
+            assert_eq!(
+                hr_aat_layout_get_feature_types(face.0, 0, &raw mut count, ptr::null_mut()),
+                listed
+            );
+            assert_eq!(
+                hr_aat_layout_feature_type_get_selector_infos(
+                    face.0,
+                    0,
+                    0,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut()
+                ),
+                selectors
+            );
+        }
+    }
+}
