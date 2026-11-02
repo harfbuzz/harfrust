@@ -1396,10 +1396,12 @@ fn final_reordering_impl(
 
                         break;
                     }
+                }
 
-                    if base == end {
-                        break;
-                    }
+                // The base was lost to trailing halants; there is nothing
+                // after it to look at.
+                if base == end {
+                    break;
                 }
             }
 
@@ -1822,4 +1824,77 @@ fn final_reordering_impl(
     }
 
     Some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::indic_machine::{find_syllables_indic, SyllableType};
+    use super::*;
+
+    fn buffer_with_categories(categories: &[u8]) -> Buffer {
+        let mut buffer = Buffer::new();
+        for (i, category) in categories.iter().enumerate() {
+            buffer.push(0x0915, i as u32);
+            buffer.info[i].set_indic_category(*category);
+        }
+        buffer
+    }
+
+    // A consonant followed by a long joiner run used to take quadratic time:
+    // `matra_group` kept the scanner reading to the end of the buffer for
+    // every token while it waited for a matra that never came.
+    #[test]
+    fn joiner_run_is_scanned_in_linear_time() {
+        let mut categories = alloc::vec![category::OT_C];
+        categories.resize(100_001, category::OT_ZWJ);
+        let mut buffer = buffer_with_categories(&categories);
+        find_syllables_indic(&mut buffer);
+        assert_eq!(
+            buffer.info[0].syllable() & 0x0F,
+            SyllableType::ConsonantSyllable as u8
+        );
+        assert_eq!(buffer.info[1].syllable(), buffer.info[0].syllable());
+        assert_eq!(
+            buffer.info[2].syllable() & 0x0F,
+            SyllableType::NonIndicCluster as u8
+        );
+    }
+
+    // The look-ahead bound must not split an ordinary syllable whose matra
+    // follows a few joiners.
+    #[test]
+    fn short_joiner_run_before_matra_stays_in_the_syllable() {
+        let mut buffer = buffer_with_categories(&[
+            category::OT_C,
+            category::OT_ZWJ,
+            category::OT_ZWNJ,
+            category::OT_ZWJ,
+            category::OT_M,
+        ]);
+        find_syllables_indic(&mut buffer);
+        let syllable = buffer.info[0].syllable();
+        assert_eq!(syllable & 0x0F, SyllableType::ConsonantSyllable as u8);
+        assert!(buffer.info[..5]
+            .iter()
+            .all(|info| info.syllable() == syllable));
+    }
+
+    // A long-but-valid syllable: a joiner run of more than
+    // `MAX_SYLLABLE_LOOKAHEAD` before a matra is still one consonant syllable,
+    // the same as an unbounded scan. The look-ahead memo must bound the DoS
+    // without splitting this.
+    #[test]
+    fn long_joiner_run_before_matra_stays_in_the_syllable() {
+        let mut categories = alloc::vec![category::OT_C];
+        categories.resize(1_001, category::OT_ZWJ);
+        categories.push(category::OT_M);
+        let mut buffer = buffer_with_categories(&categories);
+        let len = buffer.len;
+        find_syllables_indic(&mut buffer);
+        let syllable = buffer.info[0].syllable();
+        assert_eq!(syllable & 0x0F, SyllableType::ConsonantSyllable as u8);
+        assert!(buffer.info[..len]
+            .iter()
+            .all(|info| info.syllable() == syllable));
+    }
 }

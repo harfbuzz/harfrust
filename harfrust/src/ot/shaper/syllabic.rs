@@ -51,7 +51,9 @@ pub fn insert_dotted_circles(
 
     buffer.idx = 0;
     let mut last_syllable = 0;
-    while buffer.idx < buffer.len {
+    // `next_glyph()` stops advancing once the buffer has failed, so the
+    // loops below must bail out then, as the HarfBuzz originals do.
+    while buffer.idx < buffer.len && buffer.successful {
         let syllable = buffer.cur(0)?.syllable();
         if last_syllable != syllable && (syllable & 0x0F) == broken_syllable_type {
             last_syllable = syllable;
@@ -64,6 +66,7 @@ pub fn insert_dotted_circles(
             // Insert dottedcircle after possible Repha.
             if let Some(repha_category) = repha_category {
                 while buffer.idx < buffer.len
+                    && buffer.successful
                     && last_syllable == buffer.cur(0)?.syllable()
                     && buffer.cur(0)?.ot_shaper_var_u8_category() == repha_category
                 {
