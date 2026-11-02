@@ -137,8 +137,10 @@ pub struct hr_face_t {
     /// Shape plans built over this face, reused across `hr_shape` calls the way
     /// HarfBuzz's cached shape plans are.
     pub(crate) plans: PlanCache,
+    /// The SFNT assembled for Skrifa and its outlines, built on first use by
+    /// `rendering`. Image blobs handed to paint callbacks share the SFNT.
     #[cfg(feature = "draw")]
-    pub(crate) render_data: OnceLock<Option<Vec<u8>>>,
+    pub(crate) render_data: OnceLock<Option<crate::rendering::RenderData>>,
 }
 
 impl hr_face_t {
@@ -151,6 +153,23 @@ impl hr_face_t {
             .as_ref()
             .and_then(|font| font.tables().head().ok())
             .map_or(1000, |head| c_uint::from(head.units_per_em()))
+    }
+
+    /// The size of the blob this face reads its tables from, or `None` for a
+    /// face that gets them from a callback.
+    ///
+    /// Tables that do not overlap cannot add up to more than this, so it
+    /// bounds what assembling a copy of the face's tables may cost.
+    #[cfg(any(feature = "draw", feature = "subset"))]
+    pub(crate) fn blob_len(&self) -> Option<usize> {
+        match &self.source {
+            FaceSource::Empty => Some(0),
+            // SAFETY: the face owns a reference to its blob.
+            FaceSource::Blob { blob, .. } => {
+                Some(unsafe { blob.as_ref() }.map_or(0, |blob| blob.bytes().len()))
+            }
+            FaceSource::Function(_) => None,
+        }
     }
 
     /// The glyph count from `MAXP` if the face has one, else from `maxp`.

@@ -544,9 +544,13 @@ impl OtShapeContext<'_, '_, '_> {
         };
 
         if should_insert && self.font.nominal_glyph(0x25CC).is_some() {
-            let mask = self.buffer.cur(0)?.mask;
-            let cluster = self.buffer.cur(0)?.cluster;
             let buffer = &mut *self.buffer;
+            // Rewind the cursor before reading through it: the previous
+            // shaping of this buffer may have left it anywhere, and emptying
+            // the buffer with `set_length` does not move it.
+            buffer.clear_output();
+            let mask = buffer.cur(0)?.mask;
+            let cluster = buffer.cur(0)?.cluster;
             let mut info = GlyphInfo {
                 glyph_id: 0x25CC,
                 mask,
@@ -555,7 +559,6 @@ impl OtShapeContext<'_, '_, '_> {
             };
 
             info.init_unicode_props(&mut buffer.scratch_flags);
-            buffer.clear_output();
             buffer.output_info(info);
             buffer.sync();
         }
