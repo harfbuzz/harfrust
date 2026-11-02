@@ -102,6 +102,27 @@ impl AsRef<[u8]> for SubBytes {
     }
 }
 
+/// A slice of an owned, reference-counted blob, holding its own clone of it.
+///
+/// Unlike `SubBytes`, this keeps a cloned `Blob` rather than a reference to a
+/// parent `hr_blob_t` object, so it is for storage that this library owns
+/// outright (the assembled render SFNT), not for data a `hr_blob_set_user_data`
+/// callback keeps alive through the blob object.
+struct SharedSub {
+    parent: Blob,
+    start: usize,
+    end: usize,
+}
+
+impl AsRef<[u8]> for SharedSub {
+    fn as_ref(&self) -> &[u8] {
+        self.parent
+            .as_ref()
+            .get(self.start..self.end)
+            .unwrap_or(&[])
+    }
+}
+
 /// Binary data with a lifetime.
 pub struct hr_blob_t {
     header: ObjectHeader,
@@ -147,6 +168,26 @@ impl hr_blob_t {
             // SAFETY: `parent` is live, and the reference taken here is the
             // sub-blob's own.
             parent: BlobRef(unsafe { object::reference(parent) }),
+            start,
+            end,
+        };
+        Self::new(Blob::Shared(
+            Arc::new(sub) as Arc<dyn AsRef<[u8]> + Send + Sync>
+        ))
+    }
+
+    /// Creates a blob over a range of an owned `Blob`, cloning it so the
+    /// sub-blob keeps the storage alive on its own.
+    ///
+    /// For data this library owns and reference-counts (the assembled render
+    /// SFNT), where there is no parent `hr_blob_t` object to reference the way
+    /// `sub` does.
+    pub(crate) fn sub_shared(parent: &Blob, start: usize, end: usize) -> *mut Self {
+        if start >= end || end > parent.as_ref().len() {
+            return Self::empty();
+        }
+        let sub = SharedSub {
+            parent: parent.clone(),
             start,
             end,
         };

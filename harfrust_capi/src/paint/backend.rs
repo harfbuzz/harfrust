@@ -622,7 +622,7 @@ unsafe fn image(
     else {
         return 0;
     };
-    let blob = hr_blob_t::sub(render, start, end);
+    let blob = hr_blob_t::sub_shared(render, start, end);
     let result = unsafe { hr_paint_image(funcs, data, blob, width, height, format, 0.0, extents) };
     unsafe { crate::hr_blob_destroy(blob) };
     result
