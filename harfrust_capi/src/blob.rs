@@ -108,12 +108,14 @@ impl AsRef<[u8]> for SubBytes {
 /// parent `hr_blob_t` object, so it is for storage that this library owns
 /// outright (the assembled render SFNT), not for data a `hr_blob_set_user_data`
 /// callback keeps alive through the blob object.
+#[cfg(feature = "paint")]
 struct SharedSub {
     parent: Blob,
     start: usize,
     end: usize,
 }
 
+#[cfg(feature = "paint")]
 impl AsRef<[u8]> for SharedSub {
     fn as_ref(&self) -> &[u8] {
         self.parent
@@ -182,6 +184,7 @@ impl hr_blob_t {
     /// For data this library owns and reference-counts (the assembled render
     /// SFNT), where there is no parent `hr_blob_t` object to reference the way
     /// `sub` does.
+    #[cfg(feature = "paint")]
     pub(crate) fn sub_shared(parent: &Blob, start: usize, end: usize) -> *mut Self {
         if start >= end || end > parent.as_ref().len() {
             return Self::empty();
