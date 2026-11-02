@@ -1712,6 +1712,42 @@ fn color_fonts_003() {
 }
 
 #[test]
+fn color_fonts_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/ba51123c80fa9526c9c3032cd41c22700a4bc3e2.ttf",
+            "\u{1E49}\u{0306}",
+            "",
+        ),
+        "[nmacronbelow=0+1060|uni0306=0@-1024,199+0]"
+    );
+}
+
+#[test]
+fn color_fonts_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/ba51123c80fa9526c9c3032cd41c22700a4bc3e2.ttf",
+            "\u{1E49}\u{0306}",
+            "--font-size=4000",
+        ),
+        "[nmacronbelow=0+2120|uni0306=0@-2048,398+0]"
+    );
+}
+
+#[test]
+fn color_fonts_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/ba51123c80fa9526c9c3032cd41c22700a4bc3e2.ttf",
+            "\u{1E49}\u{0306}",
+            "--direction=ttb",
+        ),
+        "[nmacronbelow=0@-530,-1612+0,-2440|uni0306=0@36,1733+0]"
+    );
+}
+
+#[test]
 fn context_matching_001() {
     assert_eq!(
         shape(
