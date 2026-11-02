@@ -4,14 +4,64 @@
 #![allow(clippy::cast_precision_loss)]
 use crate::*;
 use core::ffi::c_void;
+use harfrust::font::Blob;
 use read_fonts::{types::F2Dot14, FontRef};
 
+/// Skrifa's view of a face: the SFNT assembled from its tables, and the
+/// outline collection that borrows it.
+///
+/// Building the collection parses the whole CFF Top DICT, whose length the
+/// font chooses, so it is built once per face here rather than once per
+/// glyph. Like `PreparedFont`, this keeps the view and the data it borrows in
+/// one private owner; the explicit `Drop` clears the borrow before the blob is
+/// released even if the fields are ever reordered.
+pub(crate) struct RenderData {
+    outlines: Option<skrifa::OutlineGlyphCollection<'static>>,
+    blob: Blob,
+}
+
+impl RenderData {
+    fn new(bytes: Vec<u8>) -> Option<Self> {
+        let blob = Blob::from(bytes);
+        let font = FontRef::new(&blob).ok()?;
+        let outlines = skrifa::OutlineGlyphCollection::new(&font);
+        // SAFETY: the collection borrows the data owned by `blob`, which is
+        // reference counted, stable across moving the `Blob` and never written
+        // again. `Drop` clears the borrow before the blob is released.
+        let outlines = Some(unsafe {
+            core::mem::transmute::<
+                skrifa::OutlineGlyphCollection<'_>,
+                skrifa::OutlineGlyphCollection<'static>,
+            >(outlines)
+        });
+        Some(Self { outlines, blob })
+    }
+}
+
+impl Drop for RenderData {
+    fn drop(&mut self) {
+        self.outlines = None;
+    }
+}
+
+unsafe fn render_data(face: &hr_face_t) -> Option<&RenderData> {
+    face.render_data
+        .get_or_init(|| {
+            unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) }
+                .and_then(RenderData::new)
+        })
+        .as_ref()
+}
+/// The face's assembled SFNT, built on first use and never changed after.
+pub(crate) unsafe fn render_blob(face: &hr_face_t) -> Option<&Blob> {
+    unsafe { render_data(face) }.map(|data| &data.blob)
+}
 pub(crate) unsafe fn font_ref(face: &hr_face_t) -> Option<FontRef<'_>> {
-    let bytes = face
-        .render_data
-        .get_or_init(|| unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) })
-        .as_ref()?;
-    FontRef::new(bytes).ok()
+    FontRef::new(unsafe { render_blob(face) }?).ok()
+}
+/// The face's outlines, built on first use and kept with the face.
+pub(crate) unsafe fn outlines(face: &hr_face_t) -> Option<&skrifa::OutlineGlyphCollection<'_>> {
+    unsafe { render_data(face) }?.outlines.as_ref()
 }
 unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
     const TAGS: [&[u8; 4]; 24] = [
@@ -19,12 +69,24 @@ unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
         b"HVAR", b"VVAR", b"CFF ", b"CFF2", b"VARC", b"fvar", b"avar", b"COLR", b"CPAL", b"CBLC",
         b"CBDT", b"sbix", b"SVG ", b"cmap",
     ];
+    // A directory whose records overlap can list the same bytes under every
+    // tag. Charge each table to the face's blob so that copying them cannot
+    // cost more than one copy of the font; a callback face supplies its own
+    // tables and has no such bound.
+    let mut budget = unsafe { object::or_empty(face.cast_const()) }
+        .blob_len()
+        .unwrap_or(usize::MAX);
     let mut tables = Vec::new();
     for bytes in TAGS {
         let tag = u32::from_be_bytes(*bytes);
         let blob = unsafe { hr_face_reference_table(face, tag) };
         let mut len = 0;
         let data = unsafe { hr_blob_get_data(blob, &raw mut len) };
+        let Some(left) = budget.checked_sub(len as usize) else {
+            unsafe { hr_blob_destroy(blob) };
+            return None;
+        };
+        budget = left;
         if len != 0 && !data.is_null() {
             tables.push((
                 tag,
@@ -100,16 +162,8 @@ pub(crate) unsafe fn reject_data(data: *mut c_void, destroy: hr_destroy_func_t) 
     }
 }
 
-// A parent callback draws in the parent's scale. Record then replay at the
+// A parent callback draws in the parent's scale. Forward each segment at the
 // child's scale, retaining correct path state at the public callback boundary.
-#[derive(Clone, Copy)]
-pub(crate) enum Command {
-    Move(f32, f32),
-    Line(f32, f32),
-    Quad(f32, f32, f32, f32),
-    Curve(f32, f32, f32, f32, f32, f32),
-    Close,
-}
 pub(crate) struct Pen {
     pub(crate) funcs: *mut hr_draw_funcs_t,
     pub(crate) data: *mut c_void,
