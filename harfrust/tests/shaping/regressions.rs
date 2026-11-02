@@ -275,7 +275,7 @@ fn kerx_format1_short_list() {
 fn kerx_format1_retained_stack() {
     assert_eq!(
         crate::shape("tests/fonts/rb_custom/kerx-retained-stack.ttf", "aab", ""),
-        "[a=0@17,0+578|a=1@13,0+574|b=2@31,0+646]"
+        "[a=0@42,0+603|a=1@17,0+578|b=2@44,0+659]"
     );
 }
 
@@ -307,6 +307,154 @@ fn kerx_process_direction_ltr_kerning() {
         crate::shape("tests/fonts/rb_custom/kerx-backwards-kern.ttf", "ba", ""),
         "[b=0@30,0+645|a=1+561]"
     );
+}
+
+// Native CoreText reference positions were measured on macOS 15.8.2 and 26.6.2.
+// Unlike Apple's written pop/reset rules, CoreText retains eight circular
+// history slots, initially referring to the first glyph, and ignores Reset.
+// Each action list walks the history independently, wrapping every eight values.
+// See https://github.com/harfbuzz/harfbuzz/pull/6540.
+#[test]
+fn kerx_coretext_stack_leftover() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-stack-leftover.ttf", "abc", ""),
+        "[a=0+561|b=1@30,0+645|c=2+480]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stack_extra_value() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-stack-extra-value.ttf", "ab", ""),
+        "[a=0@60,0+621|b=1@10,0+625]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stack_double_push() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-stack-double-push.ttf", "ab", ""),
+        "[a=0@30,0+591|b=1+615]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stack_zero_first() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-stack-zero-first.ttf", "ab", ""),
+        "[a=0@30,0+591|b=1+615]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stack_zero_middle() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/kerx-stack-zero-middle.ttf",
+            "abc",
+            ""
+        ),
+        "[a=0@30,0+591|b=1+615|c=2@10,0+490]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stack_negative_odd() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/kerx-stack-negative-odd.ttf",
+            "aab",
+            ""
+        ),
+        "[a=0@-50,0+511|a=1@-40,0+521|b=2@-31,0+584]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stack_arabic_shape() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/kerx-stack-arabic-shape.ttf",
+            "abcd",
+            ""
+        ),
+        "[a=0@50,0+611|b=1+615|c=2@20,0+500|d=3+615]"
+    );
+}
+
+#[test]
+fn kerx_coretext_stream_20() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-stream-20.ttf", "abababababababababab", ""),
+        "[a=0@10,0+571|b=1@10,0+625|a=2@10,0+571|b=3@10,0+625|a=4@10,0+571|b=5@10,0+625|a=6@10,0+571|b=7@10,0+625|a=8@10,0+571|b=9@10,0+625|a=10@10,0+571|b=11@10,0+625|a=12@10,0+571|b=13@10,0+625|a=14@10,0+571|b=15@10,0+625|a=16@10,0+571|b=17@10,0+625|a=18@10,0+571|b=19@10,0+625]"
+    );
+}
+
+#[test]
+fn kerx_coretext_reset_before_action() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/rb_custom/kerx-reset-before-action.ttf",
+            "ab",
+            ""
+        ),
+        "[a=0@30,0+591|b=1+615]"
+    );
+}
+
+#[test]
+fn kerx_coretext_reset_and_push() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-reset-and-push.ttf", "ab", ""),
+        "[a=0@20,0+581|b=1@10,0+625]"
+    );
+}
+
+#[test]
+fn kerx_coretext_long_list_64() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-long-list-64.ttf", "a", ""),
+        "[a=0@64,0+625]"
+    );
+}
+
+#[test]
+fn kerx_coretext_history_20() {
+    assert_eq!(
+        crate::shape("tests/fonts/rb_custom/kerx-history-20.ttf", "abababababababababab", ""),
+        "[a=0@10,0+571|b=1@10,0+625|a=2@10,0+571|b=3@10,0+625|a=4@10,0+571|b=5@10,0+625|a=6@10,0+571|b=7@10,0+625|a=8@10,0+571|b=9@10,0+625|a=10@10,0+571|b=11@10,0+625|a=12@34,0+595|b=13@32,0+647|a=14@30,0+591|b=15@49,0+664|a=16@46,0+607|b=17@43,0+658|a=18@40,0+601|b=19@37,0+652]"
+    );
+}
+
+#[test]
+fn kerx_coretext_history_wrap_and_reset() {
+    let cases = [
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "a", "[a=0@241,0+802]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "ab", "[a=0@214,0+775|b=1@37,0+652]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "aba", "[a=0@184,0+745|b=1@40,0+655|a=2@37,0+598]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "abababa", "[a=0@56,0+617|b=1@30,0+645|a=2@49,0+610|b=3@46,0+661|a=4@43,0+604|b=5@40,0+655|a=6@37,0+598]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "abababab", "[a=0@34,0+595|b=1@32,0+647|a=2@30,0+591|b=3@49,0+664|a=4@46,0+607|b=5@43,0+658|a=6@40,0+601|b=7@37,0+652]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "ababababa", "[a=0@10,0+571|b=1@34,0+649|a=2@32,0+593|b=3@30,0+645|a=4@49,0+610|b=5@46,0+661|a=6@43,0+604|b=7@40,0+655|a=8@37,0+598]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "abababababababab", "[a=0@10,0+571|b=1@10,0+625|a=2@10,0+571|b=3@10,0+625|a=4@10,0+571|b=5@10,0+625|a=6@10,0+571|b=7@10,0+625|a=8@34,0+595|b=9@32,0+647|a=10@30,0+591|b=11@49,0+664|a=12@46,0+607|b=13@43,0+658|a=14@40,0+601|b=15@37,0+652]"),
+        ("tests/fonts/rb_custom/kerx-history-20.ttf", "ababababababababa", "[a=0@10,0+571|b=1@10,0+625|a=2@10,0+571|b=3@10,0+625|a=4@10,0+571|b=5@10,0+625|a=6@10,0+571|b=7@10,0+625|a=8@10,0+571|b=9@34,0+649|a=10@32,0+593|b=11@30,0+645|a=12@49,0+610|b=13@46,0+661|a=14@43,0+604|b=15@40,0+655|a=16@37,0+598]"),
+        ("tests/fonts/rb_custom/kerx-long-list-64.ttf", "ba", "[b=0@56,0+671|a=1@8,0+569]"),
+        ("tests/fonts/rb_custom/kerx-long-list-64.ttf", "bba", "[b=0@56,0+671|b=1+615|a=2@8,0+569]"),
+        ("tests/fonts/rb_custom/kerx-long-list-64.ttf", "aaa", "[a=0@168,0+729|a=1@16,0+577|a=2@8,0+569]"),
+        ("tests/fonts/rb_custom/kerx-reset-and-push.ttf", "abab", "[a=0@20,0+581|b=1@10,0+625|a=2@20,0+581|b=3@10,0+625]"),
+        ("tests/fonts/rb_custom/kerx-reset-and-push.ttf", "b", "[b=0@30,0+645]"),
+        ("tests/fonts/rb_custom/kerx-reset-and-push.ttf", "abb", "[a=0@20,0+581|b=1@30,0+645|b=2@10,0+625]"),
+        ("tests/fonts/rb_custom/kerx-reset-and-push.ttf", "abaaba", "[a=0@20,0+581|b=1@10,0+625|a=2+561|a=3@20,0+581|b=4@10,0+625|a=5+561]"),
+        ("tests/fonts/rb_custom/kerx-reset-before-action.ttf", "ba", "[b=0+615|a=1@10,0+571]"),
+        ("tests/fonts/rb_custom/kerx-reset-before-action.ttf", "abb", "[a=0@50,0+611|b=1+615|b=2+615]"),
+        ("tests/fonts/rb_custom/kerx-coretext-arabic.ttf", "وَلَد", "[uni062F.fina=4+474|uni064E=2@-61,-28+-51|uni0644.init=2+212|uni064E=0@36,-211+-121|uni0648=0+468]"),
+        ("tests/fonts/rb_custom/kerx-backwards-arabic.ttf", "وَلَد", "[uni062F.fina=4+474|uni064E=2@-61,-28+-51|uni0644.init=2+212|uni064E=0@36,-211+-121|uni0648=0+468]"),
+        ("tests/fonts/rb_custom/kerx-reset-long-list.ttf", "aba", "[a=0@112,0+673|b=1@8,0+623|a=2@8,0+569]"),
+        ("tests/fonts/rb_custom/kerx-reset-without-push-long-list.ttf", "baba", "[b=0@104,0+719|a=1@16,0+577|b=2+615|a=3@8,0+569]"),
+        ("tests/fonts/rb_custom/kerx-reset-each-push-history.ttf", "abababababababababab", "[a=0@10,0+571|b=1@10,0+625|a=2@10,0+571|b=3@10,0+625|a=4@10,0+571|b=5@10,0+625|a=6@10,0+571|b=7@10,0+625|a=8@10,0+571|b=9@10,0+625|a=10@10,0+571|b=11@10,0+625|a=12@34,0+595|b=13@32,0+647|a=14@30,0+591|b=15@49,0+664|a=16@46,0+607|b=17@43,0+658|a=18@40,0+601|b=19@37,0+652]"),
+    ];
+    for (font, text, expected) in cases {
+        assert_eq!(crate::shape(font, text, ""), expected, "{font}: {text:?}");
+    }
 }
 
 /// A lookup that covers a default-ignorable glyph starts on every glyph of an

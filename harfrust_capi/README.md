@@ -105,10 +105,12 @@ different scales.
 palettes, gradients, transforms, clips, composites and cached color glyph
 callbacks. SVG documents and CBDT/sbix PNG or BGRA images are delivered to the
 client's image callback. The client renders those formats and can retain an
-image with `hr_blob_reference`; gradient color lines are only valid during
-their callback. Missing `fill_glyph` and `push_group_for` callbacks use the
-HarfBuzz defaults. Malformed paint graphs return false and unwind open
-transforms, clips and groups.
+image with `hr_blob_reference`; images share the face's rendering cache rather
+than copying it, so a retained image keeps that cache alive until it is
+released. Gradient color lines are only valid during their callback. Missing
+`fill_glyph` and `push_group_for` callbacks use the HarfBuzz defaults.
+Malformed paint graphs return false and unwind open transforms, clips and
+groups.
 
 Rendering reads known tables directly and caches an assembled SFNT once per
 face. Callback faces work without table enumeration. This cache copies the

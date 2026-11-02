@@ -1571,7 +1571,10 @@ impl Buffer {
         cluster_start: u32,
         cluster_end: u32,
     ) {
-        if mask == 0 {
+        // Every call walks the whole buffer, once per ranged feature; once
+        // the operation limit is spent, stop walking (and charging) like
+        // move_to() and shift_forward() do.
+        if mask == 0 || self.max_ops < 0 {
             return;
         }
 
@@ -1581,6 +1584,7 @@ impl Buffer {
         self.max_ops -= self.len as i32;
         if self.max_ops < 0 {
             self.successful = false;
+            return;
         }
 
         if cluster_start == 0 && cluster_end == u32::MAX {
@@ -2707,5 +2711,32 @@ mod tests {
 
         assert_eq!(buffer.next_syllable(0), MAX_SYLLABLE_LENGTH);
         assert_eq!(buffer.next_syllable(MAX_SYLLABLE_LENGTH), buffer.len);
+    }
+
+    #[test]
+    fn set_masks_stops_once_the_operation_limit_is_spent() {
+        let mut buffer = Buffer::new();
+        buffer.push_str("abcd");
+        let len = buffer.len as i32;
+        // Room for one full pass; the second one overruns the limit.
+        buffer.max_ops = 2 * len - 1;
+
+        buffer.set_masks(1, 1, 0, u32::MAX);
+        assert!(buffer.successful);
+        assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));
+
+        // The pass that spends the limit fails the buffer without scanning...
+        buffer.set_masks(2, 2, 0, u32::MAX);
+        assert!(!buffer.successful);
+        assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));
+        let spent = buffer.max_ops;
+
+        // ...and later passes neither scan nor charge, so `max_ops` cannot
+        // keep sinking (and wrapping) under a long list of ranged features.
+        for value in [4, 8] {
+            buffer.set_masks(value, value, 0, u32::MAX);
+        }
+        assert_eq!(buffer.max_ops, spent);
+        assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));
     }
 }

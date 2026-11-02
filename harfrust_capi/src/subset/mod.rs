@@ -265,6 +265,13 @@ unsafe fn font_bytes(face: *mut hr_face_t) -> Option<Vec<u8>> {
     if enumerated != total || count != total {
         return None;
     }
+    // Tables that do not overlap add up to at most the face's blob; charge
+    // each one to that budget so a directory whose records alias the same
+    // bytes cannot have them copied once per tag. A callback face supplies
+    // its own tables and has no such bound.
+    let mut budget = unsafe { crate::object::or_empty(face.cast_const()) }
+        .blob_len()
+        .unwrap_or(usize::MAX);
     let mut builder = FontBuilder::new();
     for tag in tags {
         let blob = Blob(unsafe { crate::hr_face_reference_table(face, tag) });
@@ -273,6 +280,7 @@ unsafe fn font_bytes(face: *mut hr_face_t) -> Option<Vec<u8>> {
         if data.is_null() && len != 0 {
             return None;
         }
+        budget = budget.checked_sub(len as usize)?;
         let data = if len == 0 {
             &[]
         } else {
