@@ -99,6 +99,7 @@ pub struct hr_subset_input_t {
 
 impl Drop for hr_subset_input_t {
     fn drop(&mut self) {
+        self.user_data.release();
         unsafe {
             for set in self.sets {
                 crate::hr_set_destroy(set);
@@ -482,6 +483,12 @@ pub struct hr_subset_plan_t {
     user_data: user_data::UserData,
 }
 
+impl Drop for hr_subset_plan_t {
+    fn drop(&mut self) {
+        self.user_data.release();
+    }
+}
+
 /// Creates a self-contained plan and its glyph mappings, or `NULL` on failure.
 ///
 /// # Safety
@@ -661,4 +668,156 @@ pub unsafe extern "C" fn hr_subset_plan_get_user_data(
     key: *const crate::hr_user_data_key_t,
 ) -> *mut c_void {
     unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.user_data.get(key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::cell::Cell;
+
+    #[derive(Clone, Copy)]
+    enum Owner {
+        Input(*mut hr_subset_input_t),
+        Plan(*mut hr_subset_plan_t),
+    }
+
+    struct Destruction {
+        owner: Owner,
+        key: crate::hr_user_data_key_t,
+        calls: Cell<u32>,
+        resource_released: Cell<bool>,
+        observed_released: Cell<bool>,
+        observed_empty: Cell<bool>,
+        accepted: Cell<c_int>,
+    }
+
+    unsafe extern "C" fn release_resource(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<Destruction>() };
+        state.resource_released.set(true);
+    }
+
+    unsafe extern "C" fn release_metadata(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<Destruction>() };
+        state.calls.set(state.calls.get() + 1);
+        state.observed_released.set(state.resource_released.get());
+        // Replacing this key during Vec::drop used to drop the same item a
+        // second time. Keep the reproducer bounded on that implementation.
+        if state.calls.get() != 1 {
+            return;
+        }
+        let (current, accepted) = unsafe {
+            match state.owner {
+                Owner::Input(input) => (
+                    hr_subset_input_get_user_data(input, &raw const state.key),
+                    hr_subset_input_set_user_data(input, &raw const state.key, data, None, 1),
+                ),
+                Owner::Plan(plan) => (
+                    hr_subset_plan_get_user_data(plan, &raw const state.key),
+                    hr_subset_plan_set_user_data(plan, &raw const state.key, data, None, 1),
+                ),
+            }
+        };
+        state.observed_empty.set(current.is_null());
+        state.accepted.set(accepted);
+    }
+
+    fn check_destruction(owner: Owner) {
+        let mut state = Destruction {
+            owner,
+            key: crate::hr_user_data_key_t { unused: 0 },
+            calls: Cell::new(0),
+            resource_released: Cell::new(false),
+            observed_released: Cell::new(true),
+            observed_empty: Cell::new(false),
+            accepted: Cell::new(-1),
+        };
+        let data = (&raw mut state).cast();
+        unsafe {
+            match owner {
+                Owner::Input(input) => {
+                    let set = hr_subset_input_glyph_set(input);
+                    assert_eq!(
+                        crate::hr_set_set_user_data(
+                            set,
+                            &raw const state.key,
+                            data,
+                            Some(release_resource),
+                            1
+                        ),
+                        1
+                    );
+                    assert_eq!(
+                        hr_subset_input_set_user_data(
+                            input,
+                            &raw const state.key,
+                            data,
+                            Some(release_metadata),
+                            1
+                        ),
+                        1
+                    );
+                    hr_subset_input_destroy(input);
+                }
+                Owner::Plan(plan) => {
+                    let map = hr_subset_plan_old_to_new_glyph_mapping(plan);
+                    assert_eq!(
+                        crate::hr_map_set_user_data(
+                            map,
+                            &raw const state.key,
+                            data,
+                            Some(release_resource),
+                            1
+                        ),
+                        1
+                    );
+                    assert_eq!(
+                        hr_subset_plan_set_user_data(
+                            plan,
+                            &raw const state.key,
+                            data,
+                            Some(release_metadata),
+                            1
+                        ),
+                        1
+                    );
+                    hr_subset_plan_destroy(plan);
+                }
+            }
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert!(!state.observed_released.get());
+        assert!(state.resource_released.get());
+        assert!(state.observed_empty.get());
+        assert_eq!(state.accepted.get(), 0);
+    }
+
+    #[test]
+    fn input_metadata_is_detached_before_callbacks_and_sets_outlive_it() {
+        check_destruction(Owner::Input(hr_subset_input_create_or_fail()));
+    }
+
+    #[test]
+    fn plan_metadata_is_detached_before_callbacks_and_maps_outlive_it() {
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/tests/fonts/rb_custom/LaBelleAurore.ttf"
+        ));
+        unsafe {
+            let blob = crate::hr_blob_create(
+                bytes.as_ptr().cast(),
+                bytes.len() as c_uint,
+                crate::HR_MEMORY_MODE_DUPLICATE,
+                ptr::null_mut(),
+                None,
+            );
+            let face = crate::hr_face_create(blob, 0);
+            let input = hr_subset_input_create_or_fail();
+            let plan = hr_subset_plan_create_or_fail(face, input);
+            assert!(!plan.is_null());
+            hr_subset_input_destroy(input);
+            crate::hr_face_destroy(face);
+            crate::hr_blob_destroy(blob);
+            check_destruction(Owner::Plan(plan));
+        }
+    }
 }

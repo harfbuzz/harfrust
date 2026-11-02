@@ -57,9 +57,8 @@ independent of optional APIs.
 
 ## Current scope
 
-This extension temporarily pins Skera/write-fonts to the Plan API changes
-in [Fontations #2234](https://github.com/googlefonts/fontations/pull/2234).
-Restore published dependencies when that API is released. CFF, CFF2, and VARC
+The dependencies are the published Skera 0.9 and write-fonts 0.55 release
+series, which include the public Plan APIs. CFF, CFF2, and VARC
 fonts return `NULL`: this release does not rewrite those outline tables.
 Unsupported flag bits, missing enumeration, malformed inputs, and Skera
 errors also return `NULL`, allowing Skia to embed the full font instead.
