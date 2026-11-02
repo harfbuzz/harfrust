@@ -398,8 +398,10 @@ impl<'a> LigatureSubst1<'a> {
 
 fn set_would_apply<const W: usize>(set: Option<LigatureSet<W>>, ctx: &WouldApplyContext) -> bool {
     set.is_some_and(|set| {
-        set.iter()
-            .any(|ligature| ligature_would_apply(&ligature, ctx))
+        ctx.charge(set.len())
+            && set
+                .iter()
+                .any(|ligature| ligature_would_apply(&ligature, ctx))
     })
 }
 
@@ -469,10 +471,17 @@ fn apply_ligature_set<const W: usize>(
         }
     }
 
+    // The ligatures may alias, so each one tried is charged.
     let Some(second) = second else {
-        return set
-            .iter()
-            .find_map(|ligature| apply_ligature(ctx, &ligature));
+        for ligature in set.iter() {
+            if !ctx.buffer.charge_ops(1) {
+                break;
+            }
+            if let Some(applied) = apply_ligature(ctx, &ligature) {
+                return Some(applied);
+            }
+        }
+        return None;
     };
     if !seconds.may_have(second) {
         // Every ligature here has a second component and none of them is
@@ -484,6 +493,9 @@ fn apply_ligature_set<const W: usize>(
     }
     let mut unsafe_to_concat = false;
     for ligature in set.iter() {
+        if !ctx.buffer.charge_ops(1) {
+            break;
+        }
         match ligature.components.first() {
             Some(first) if first != second => unsafe_to_concat = true,
             _ => {

@@ -2204,6 +2204,19 @@ impl Buffer {
         info.cluster = cluster;
     }
 
+    /// Charges `count` operations to the work limit, failing the buffer once
+    /// it is spent. Returns false then.
+    #[inline]
+    pub(crate) fn charge_ops(&mut self, count: usize) -> bool {
+        let count = i32::try_from(count).unwrap_or(i32::MAX);
+        self.max_ops = self.max_ops.saturating_sub(count);
+        if self.max_ops < 0 {
+            self.successful = false;
+            return false;
+        }
+        true
+    }
+
     // Called around shape()
     pub(crate) fn enter(&mut self) {
         self.serial = 0;

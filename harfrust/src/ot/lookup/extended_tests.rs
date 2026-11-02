@@ -17,6 +17,7 @@ use crate::{Buffer, Direction, Font, LayoutData, Scale};
 use alloc::sync::Arc;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::cell::Cell;
 use read_fonts::model::{Blob, TableFunction};
 use read_fonts::tables::gdef::Gdef;
 use read_fonts::tables::layout::{self, CoverageTable};
@@ -76,6 +77,7 @@ fn would_apply(lookup_type: u16, subtable: &[u8], glyphs: &[u32], zero_context: 
     lookup.would_apply(&WouldApplyContext {
         glyphs: &glyphs,
         zero_context,
+        max_ops: &Cell::new(i32::MAX),
     }) == Some(true)
 }
 
@@ -1124,6 +1126,23 @@ fn context4_rejects_null_rule_sets_and_truncated_rules() {
     subtable.truncate(subtable.len() - 6);
     let output = apply_nested_context(5, true, &subtable, &[65536, 65537, 65539]);
     assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
+}
+
+#[test]
+fn context1_charges_skipped_lookup_records_to_max_ops() {
+    // One rule on glyph 1 whose records all name sequence index 1, past
+    // the single-glyph match, so none of them reaches a nested lookup.
+    let records: u16 = 1000;
+    let mut subtable = vec![0, 1, 0, 8, 0, 1, 0, 14]; // Header.
+    subtable.extend_from_slice(&[0, 1, 0, 1, 0, 1]); // Coverage.
+    subtable.extend_from_slice(&[0, 1, 0, 4, 0, 1]); // Rule set and rule.
+    subtable.extend_from_slice(&records.to_be_bytes());
+    subtable.extend((0..records).flat_map(|_| [0, 1, 0, 0]));
+    let output = apply_subtable_configured(5, true, &subtable, &[1], |ctx| {
+        ctx.buffer.max_ops = 2 * i32::from(records);
+    });
+    assert!(output.successful);
+    assert!(output.max_ops <= i32::from(records));
 }
 
 fn context5(first_class: u32, second_class: u32, large_offsets: bool) -> Vec<u8> {

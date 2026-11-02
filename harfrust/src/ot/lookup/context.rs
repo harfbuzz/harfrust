@@ -1033,14 +1033,26 @@ fn apply_chain_rules<const W: usize>(
         Prematch::Glyphs(lookahead) => lookahead,
         Prematch::Rejected => return None,
         Prematch::TryAll => {
-            return (0..rules.len())
-                .filter_map(|index| rules.rule(index))
-                .find_map(|data| ParsedRule::<W>::parse(data, rules.layout).apply(ctx, matchers));
+            // The rules may alias, so each one tried is charged.
+            for data in (0..rules.len()).filter_map(|index| rules.rule(index)) {
+                if !ctx.buffer.charge_ops(1) {
+                    break;
+                }
+                if let Some(applied) =
+                    ParsedRule::<W>::parse(data, rules.layout).apply(ctx, matchers)
+                {
+                    return Some(applied);
+                }
+            }
+            return None;
         }
         Prematch::End { unsafe_to } => {
             // Only rules without further input or lookahead can match.
             let mut unsafe_to_concat = false;
             for data in (0..rules.len()).filter_map(|index| rules.rule(index)) {
+                if !ctx.buffer.charge_ops(1) {
+                    break;
+                }
                 let rule = ParsedRule::<W>::parse(data, rules.layout);
                 if !rule.input.is_empty() || !rule.lookahead.is_empty() {
                     unsafe_to_concat = true;
@@ -1054,6 +1066,12 @@ fn apply_chain_rules<const W: usize>(
     let mut unsafe_to = None;
     let mut index = 0;
     while index < rules.len() {
+        // Rule sets may alias their rules, so the font's size doesn't bound
+        // the walk: each rule looked at is charged, including the ones that
+        // fail the pre-match.
+        if !ctx.buffer.charge_ops(1) {
+            break;
+        }
         let Some(data) = rules.rule(index) else {
             index += 1;
             continue;
@@ -1107,7 +1125,11 @@ fn apply_chain_rules<const W: usize>(
         } else {
             unsafe_to.get_or_insert(lookahead.unsafe_to1);
             index = match (input_len > 1).then(|| probe.input(0)).flatten() {
-                Some(first) => skip_rules::<W>(rules, index, first),
+                Some(first) => {
+                    let next = skip_rules::<W>(rules, index, first);
+                    ctx.buffer.charge_ops(next - index - 1);
+                    next
+                }
                 None => index + 1,
             };
         }
@@ -1115,18 +1137,20 @@ fn apply_chain_rules<const W: usize>(
     finish_rules(ctx, unsafe_to, None)
 }
 
-/// Whether a rule of `rules` matches the glyphs of `ctx`.
+/// Whether a rule of `rules` matches the glyphs of `ctx`. The rules may
+/// all alias one another, so the walk is charged to `ctx` before it runs.
 fn would_apply_chain_rules<const W: usize>(
     ctx: &WouldApplyContext,
     rules: Rules,
     matches: MatchFn,
 ) -> bool {
-    (0..rules.len())
-        .filter_map(|index| ParsedRule::<W>::try_parse(rules.rule(index)?, rules.layout))
-        .any(|rule| {
-            (!ctx.zero_context || (rule.backtrack.is_empty() && rule.lookahead.is_empty()))
-                && sequence_would_apply(ctx, &rule.input, matches)
-        })
+    ctx.charge(rules.len())
+        && (0..rules.len())
+            .filter_map(|index| ParsedRule::<W>::try_parse(rules.rule(index)?, rules.layout))
+            .any(|rule| {
+                (!ctx.zero_context || (rule.backtrack.is_empty() && rule.lookahead.is_empty()))
+                    && sequence_would_apply(ctx, &rule.input, matches)
+            })
 }
 
 /// Whether `input` matches the glyphs of `ctx` after the first.

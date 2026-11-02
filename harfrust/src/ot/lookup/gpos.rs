@@ -1193,6 +1193,11 @@ fn find_mark_base(
     iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
     let mut j = iter.buffer.idx;
     while j > last_base_until as usize {
+        // The memo is dropped when contextual lookups step backwards, so
+        // the walk is charged as `next()` and `prev()` charge theirs.
+        if !iter.buffer.charge_ops(1) {
+            break;
+        }
         let mut matched = iter.match_at(j - 1);
         // https://github.com/harfbuzz/harfbuzz/issues/4124
         if matched == MatchResult::Match

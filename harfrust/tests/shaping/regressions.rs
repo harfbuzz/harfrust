@@ -456,3 +456,300 @@ fn kerx_coretext_history_wrap_and_reset() {
         assert_eq!(crate::shape(font, text, ""), expected, "{font}: {text:?}");
     }
 }
+
+/// A lookup that covers a default-ignorable glyph starts on every glyph of an
+/// ignorable run, and each start scans to the end of the run because the
+/// skipping iterator steps over those same ignorables. That is quadratic in
+/// the run, and the skipped glyphs must be charged to the shaping budget.
+///
+/// The test font maps `A` to glyph 1 and both `B` and U+200B to glyph 2, and
+/// lists one PairPos lookup (glyph 2 before glyph 1) 32 times under `kern`.
+/// With `B` the scans are one step each and the text shapes within budget;
+/// with U+200B the same glyph string needs 16 million steps, so the work
+/// limit has to trip.
+#[test]
+fn rescanning_default_ignorables_is_charged_to_the_shaping_budget() {
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/pairpos1-ignorable-rescan.ttf");
+    let font_data = fs::read(path).expect("failed to read test font");
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaping_font = ShaperFont::new(&instance);
+
+    for (filler, within_budget) in [('B', true), ('\u{200B}', false)] {
+        let mut text = String::from("A");
+        text.extend(std::iter::repeat_n(filler, 999));
+
+        let mut buffer = Buffer::new();
+        buffer.push_str(&text);
+        buffer.guess_segment_properties();
+
+        shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+        assert_eq!(buffer.allocation_successful(), within_budget);
+    }
+}
+
+/// A match starting at a mark of an earlier ligature walks the output buffer
+/// back over every mark of that ligature to find the ligature itself. The
+/// font ligates `a b` over the marks, so all 6000 `c` belong to the ligature,
+/// and then tries `c d g` at the last `c` 100 x 100 times through nested
+/// lookups. Each try walks the 6000 marks again; charged to the operation
+/// budget, that ends the text after a few thousand tries, where it would
+/// otherwise cost the budget times the text length.
+#[test]
+fn ligature_base_walk_is_charged_to_the_operation_budget() {
+    let font_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/ligature-mark-walk.ttf");
+    let font_data = fs::read(font_path).expect("failed to read test font");
+    let font = Font::new(font_data, 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaper = ShaperFont::new(&instance);
+
+    let mut text = String::with_capacity(6003);
+    text.push('a');
+    text.extend(std::iter::repeat_n('c', 6000));
+    text.push_str("bd");
+
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text);
+    buffer.guess_segment_properties();
+
+    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(!buffer.allocation_successful());
+}
+
+/// A GSUB table whose `liga` feature expands glyph 0 into 255 copies of
+/// itself twice, then lists `aliased` lookups that all point at one lookup
+/// of `subtables` SingleSubst subtables covering glyphs 1 and 64 in turn.
+/// The union of those digests admits glyph 0, so the lookup is walked at
+/// every glyph of the buffer although no subtable can apply.
+fn gsub_with_no_op_lookups(aliased: u16, subtables: u16) -> Vec<u8> {
+    fn be16(bytes: &mut Vec<u8>, values: impl IntoIterator<Item = u16>) {
+        for value in values {
+            bytes.extend_from_slice(&value.to_be_bytes());
+        }
+    }
+
+    // SingleSubstFormat1 with a one-glyph coverage at 6 and delta 1.
+    fn single_subst_covering(glyph: u16) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        be16(&mut bytes, [1, 6, 1, 1, 1, glyph]);
+        bytes
+    }
+
+    let covers_1 = single_subst_covering(1);
+    let covers_64 = single_subst_covering(64);
+    let subtable_size = covers_1.len() as u16;
+    let header_size = 6 + 2 * subtables;
+    let mut no_op_lookup = Vec::new();
+    be16(&mut no_op_lookup, [1, 0, subtables]);
+    be16(
+        &mut no_op_lookup,
+        (0..subtables).map(|i| header_size + (i % 2) * subtable_size),
+    );
+    no_op_lookup.extend_from_slice(&covers_1);
+    no_op_lookup.extend_from_slice(&covers_64);
+
+    // MultipleSubstFormat1 with a one-glyph coverage at 8 and one sequence
+    // at 14, as the only subtable of a lookup.
+    let mut expand_lookup = Vec::new();
+    be16(&mut expand_lookup, [2, 0, 1, 8, 1, 8, 1, 14, 1, 1, 0, 255]);
+    be16(&mut expand_lookup, std::iter::repeat_n(0, 255));
+
+    // Lookups 0 and 1 expand; the rest alias the no-op lookup.
+    let lookup_count = 2 + aliased;
+    let no_op_offset = 2 + 2 * lookup_count;
+    let expand_offset = no_op_offset + no_op_lookup.len() as u16;
+    let mut lookup_list = Vec::new();
+    be16(
+        &mut lookup_list,
+        [lookup_count, expand_offset, expand_offset],
+    );
+    be16(
+        &mut lookup_list,
+        std::iter::repeat_n(no_op_offset, usize::from(aliased)),
+    );
+    lookup_list.extend_from_slice(&no_op_lookup);
+    lookup_list.extend_from_slice(&expand_lookup);
+
+    let mut feature_list = Vec::new();
+    be16(&mut feature_list, [1]);
+    feature_list.extend_from_slice(b"liga");
+    be16(&mut feature_list, [8, 0, lookup_count]);
+    be16(&mut feature_list, 0..lookup_count);
+
+    let mut script_list = Vec::new();
+    be16(&mut script_list, [1]);
+    script_list.extend_from_slice(b"DFLT");
+    be16(&mut script_list, [8, 4, 0, 0, 0xFFFF, 1, 0]);
+
+    let feature_list_offset = 10 + script_list.len() as u16;
+    let lookup_list_offset = feature_list_offset + feature_list.len() as u16;
+    let mut gsub = Vec::new();
+    be16(
+        &mut gsub,
+        [1, 0, 10, feature_list_offset, lookup_list_offset],
+    );
+    gsub.extend_from_slice(&script_list);
+    gsub.extend_from_slice(&feature_list);
+    gsub.extend_from_slice(&lookup_list);
+    gsub
+}
+
+/// Shapes "a", which maps to glyph 0, with a font of `gsub` alone.
+fn shape_with_gsub(gsub: Vec<u8>) -> Buffer {
+    use harfrust::font::{Blob, TableFunction};
+    use std::sync::Arc;
+
+    let gsub = Blob::from(gsub);
+    let table = TableFunction::new(Arc::new(move |tag| {
+        (tag == harfrust::Tag::new(b"GSUB")).then(|| gsub.clone())
+    }));
+    let font = Font::new(table, 0).expect("failed to build test font");
+    let shaper = ShaperFont::new(&font);
+
+    let mut buffer = Buffer::new();
+    buffer.push_str("a");
+    buffer.guess_segment_properties();
+    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+    buffer
+}
+
+/// A walk over a lookup's subtables that applies nothing is charged to the
+/// operation limit, so a feature listing such a lookup many times cannot
+/// make shaping take time that the limit never sees.
+#[test]
+fn lookup_walks_that_apply_nothing_are_charged_to_the_operation_limit() {
+    // Two expansions of one character make 65025 glyphs under an operation
+    // limit of 65536, and each no-op lookup is walked at all of them.
+    let buffer = shape_with_gsub(gsub_with_no_op_lookups(8, 63));
+    assert!(!buffer.allocation_successful());
+
+    // Without the no-op lookups the expansions alone stay within the limit.
+    let buffer = shape_with_gsub(gsub_with_no_op_lookups(0, 63));
+    assert!(buffer.allocation_successful());
+    assert_eq!(buffer.len(), 65025);
+}
+
+/// Builds a font from `tables`, which must be sorted by tag.
+fn sfnt(tables: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((tables.len() as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, table) in tables {
+        data.extend(*tag);
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend((table.len() as u32).to_be_bytes());
+        offset += table.len().next_multiple_of(4);
+    }
+    for (_, table) in tables {
+        data.extend(table);
+        data.resize(data.len().next_multiple_of(4), 0);
+    }
+    data
+}
+
+fn be16(values: impl IntoIterator<Item = u16>) -> Vec<u8> {
+    values.into_iter().flat_map(u16::to_be_bytes).collect()
+}
+
+/// A font mapping `a` to glyph 1 and `b` to glyph 2, with a `liga` lookup
+/// holding one ChainedSequenceContextFormat1 subtable on glyph 1. Its rule
+/// set claims `rule_count` rules, but every offset points at the same one:
+/// `input_len` × `a`, a lookahead of `lookahead_len - 1` × `a` then `b`, and no
+/// lookup records. On a run of `a` the lookahead matches until the buffer
+/// ends and fails only there.
+fn aliased_chain_rules_font(rule_count: u16, input_len: u16, lookahead_len: u16) -> Vec<u8> {
+    let mut rule = be16([0, input_len]);
+    rule.extend(be16(std::iter::repeat_n(1, usize::from(input_len) - 1)));
+    rule.extend(be16([lookahead_len]));
+    rule.extend(be16(std::iter::repeat_n(1, usize::from(lookahead_len) - 1)));
+    rule.extend(be16([2, 0]));
+    let rule_offset = 2 + 2 * rule_count;
+    let mut rule_set = be16([rule_count]);
+    rule_set.extend(be16(std::iter::repeat_n(
+        rule_offset,
+        usize::from(rule_count),
+    )));
+    rule_set.extend(rule);
+
+    // Coverage of glyph 1 at offset 8 and the rule set at offset 14.
+    let mut subtable = be16([1, 8, 1, 14, 1, 1, 1]);
+    subtable.extend(rule_set);
+    let mut lookup_list = be16([1, 4, 6, 0, 1, 8]);
+    lookup_list.extend(subtable);
+    let mut script_list = be16([1]);
+    script_list.extend(b"DFLT");
+    script_list.extend(be16([8, 4, 0, 0, 0xFFFF, 1, 0]));
+    let mut feature_list = be16([1]);
+    feature_list.extend(b"liga");
+    feature_list.extend(be16([8, 0, 1, 0]));
+    let mut gsub = be16([
+        1,
+        0,
+        10,
+        10 + script_list.len() as u16,
+        10 + (script_list.len() + feature_list.len()) as u16,
+    ]);
+    gsub.extend(script_list);
+    gsub.extend(feature_list);
+    gsub.extend(lookup_list);
+
+    // cmap format 12: a..b -> 1..2
+    let mut cmap = be16([0, 1, 3, 10]);
+    cmap.extend(12u32.to_be_bytes());
+    cmap.extend(be16([12, 0]));
+    for value in [28u32, 0, 1, u32::from(b'a'), u32::from(b'b'), 1] {
+        cmap.extend(value.to_be_bytes());
+    }
+    // 1000 units per em, one advance for the three glyphs.
+    let mut head = vec![0; 54];
+    head[18..20].copy_from_slice(&1000u16.to_be_bytes());
+    let mut hhea = vec![0; 36];
+    hhea[34..36].copy_from_slice(&1u16.to_be_bytes());
+    let hmtx = be16([500, 0, 0, 0]);
+    let mut maxp = 0x0000_5000u32.to_be_bytes().to_vec();
+    maxp.extend(3u16.to_be_bytes());
+    sfnt(&[
+        (b"GSUB", gsub),
+        (b"cmap", cmap),
+        (b"head", head),
+        (b"hhea", hhea),
+        (b"hmtx", hmtx),
+        (b"maxp", maxp),
+    ])
+}
+
+/// Rule offsets may alias, so a rule set's count and its rules' lookahead
+/// lengths make a walk cost far more than the font's size. The rules looked
+/// at, even when they fail at once, and the glyphs they are matched against
+/// are charged to the operation limit, which ends shaping the way a runaway
+/// recursion does, instead of running for seconds per kilobyte of text.
+#[test]
+fn aliased_chain_rules_are_charged_to_the_operation_limit() {
+    let text = "a".repeat(500);
+    // A rule with two input glyphs and a lookahead of `b` alone fails on the
+    // pre-match; a longer lookahead matches `a`s up to the end of the buffer.
+    for (rule_count, input_len, lookahead_len) in
+        [(1, 2, 1), (8000, 2, 1), (1, 1, 1000), (1024, 1, 1000)]
+    {
+        let font_data = aliased_chain_rules_font(rule_count, input_len, lookahead_len);
+        let font = Font::new(font_data, 0).expect("failed to parse test font");
+        let instance = font.instance_builder().build();
+        let shaping_font = ShaperFont::new(&instance);
+
+        let mut buffer = Buffer::new();
+        buffer.push_str(&text);
+        buffer.guess_segment_properties();
+        shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+
+        // The rules never match, so only the aliased ones exhaust the limit.
+        assert_eq!(
+            buffer.allocation_successful(),
+            rule_count == 1,
+            "{rule_count} rules, input {input_len}, lookahead {lookahead_len}"
+        );
+    }
+}
