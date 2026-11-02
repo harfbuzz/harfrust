@@ -170,7 +170,7 @@ impl CachedLookup<'_> {
         if !self.uses_class_cache || !ctx.buffer.try_allocate_var(GlyphInfo::SYLLABLE_VAR) {
             return false;
         }
-        for info in &mut ctx.buffer.info {
+        for info in ctx.buffer.info_slice_mut() {
             info.set_syllable(255);
         }
         ctx.new_syllables = Some(255);
