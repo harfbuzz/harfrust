@@ -308,9 +308,15 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
 /// `ptr` must be `NULL` or a live pointer returned by this API, and the caller
 /// must not alias the returned reference.
 pub unsafe fn as_mutable<'a, T: Object>(ptr: *mut T) -> Option<&'a mut T> {
-    let obj = unsafe { ptr.as_mut() }?;
-    if obj.header().immutable.load(Ordering::Acquire) {
+    // Shared immutable objects, including the empty singletons, may be
+    // queried concurrently. Do not create an exclusive reference until
+    // the shared immutability check has accepted this object.
+    if unsafe { ptr.as_ref() }?
+        .header()
+        .immutable
+        .load(Ordering::Acquire)
+    {
         return None;
     }
-    Some(obj)
+    unsafe { ptr.as_mut() }
 }

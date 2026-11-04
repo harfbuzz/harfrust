@@ -1,7 +1,7 @@
 //! Sets of codepoints and glyph IDs used by layout queries.
 
 use core::ffi::c_void;
-use core::ops::RangeInclusive;
+use core::ops::{Deref, DerefMut, RangeInclusive};
 use read_fonts::collections::IntSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::OnceLock;
@@ -14,7 +14,49 @@ pub const HR_SET_VALUE_INVALID: hr_codepoint_t = HR_CODEPOINT_INVALID;
 
 pub struct hr_set_t {
     header: ObjectHeader,
-    pub(crate) values: IntSet<u32>,
+    pub(crate) values: SetValues,
+}
+
+/// Lazily indexed ranges for queries the dependency cannot seek directly.
+/// All mutations invalidate the index, including calls from other modules.
+#[derive(Default)]
+pub(crate) struct SetValues {
+    values: IntSet<u32>,
+    ranges: OnceLock<Vec<(u32, u32)>>,
+}
+
+impl SetValues {
+    fn indexed_ranges(&self) -> &[(u32, u32)] {
+        self.ranges.get_or_init(|| {
+            self.values
+                .iter_ranges()
+                .map(|range| (*range.start(), *range.end()))
+                .collect()
+        })
+    }
+}
+
+impl Clone for SetValues {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            ranges: OnceLock::new(),
+        }
+    }
+}
+
+impl Deref for SetValues {
+    type Target = IntSet<u32>;
+    fn deref(&self) -> &Self::Target {
+        &self.values
+    }
+}
+
+impl DerefMut for SetValues {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ranges.take();
+        &mut self.values
+    }
 }
 
 static EMPTY_SET: OnceLock<Empty<hr_set_t>> = OnceLock::new();
@@ -29,7 +71,7 @@ impl Object for hr_set_t {
             .get_or_init(|| {
                 Empty::new(hr_set_t {
                     header: ObjectHeader::immortal(),
-                    values: IntSet::default(),
+                    values: SetValues::default(),
                 })
             })
             .get()
@@ -48,57 +90,45 @@ impl hr_set_t {
         })
     }
 
-    // IntSet cannot start its range iterator in the middle, and the bitset
-    // of an inverted set holds the excluded values, so the searches below
-    // that need the run around a value cannot seek to it. Instead they step
-    // from the value with contains() while scanning the ranges from the
-    // first page, and take whichever answers first: stepping is quick when
-    // the runs are short and scanning when few ranges precede them. A walk
-    // over a set of many short runs is therefore linear in its size, rather
-    // than rescanning the preceding ranges on every call. A backward walk
-    // over runs that are both many and far apart can still scan more.
-
     fn next(&self, start: u32) -> u32 {
         if start == HR_SET_VALUE_INVALID {
             return HR_SET_VALUE_INVALID;
         }
         if !self.values.is_inverted() {
-            // The bitset seeks directly to the page containing start.
             return self
                 .values
                 .range(start..)
                 .next()
                 .unwrap_or(HR_SET_VALUE_INVALID);
         }
-        let mut ranges = self.ranges();
-        let mut value = start;
-        loop {
-            if value == HR_SET_VALUE_INVALID || self.values.contains(value) {
+        // Nearby members need neither an allocation nor a range scan. The
+        // dependency's inverted range(start..) walks exclusions one by one,
+        // while iter_ranges() rescans the preceding pages. Cache its ranges
+        // only when this bounded probe does not find the next member.
+        for value in start..=start.saturating_add(7).min(HR_SET_VALUE_INVALID - 1) {
+            if self.values.contains(value) {
                 return value;
             }
-            match ranges.next() {
-                Some(r) if *r.end() >= value => return *r.start(),
-                Some(_) => value += 1,
-                None => return HR_SET_VALUE_INVALID,
-            }
         }
+        let ranges = self.values.indexed_ranges();
+        let index = ranges.partition_point(|range| range.1 < start);
+        ranges
+            .get(index)
+            .map_or(HR_SET_VALUE_INVALID, |range| range.0)
     }
 
     fn previous(&self, end: u32) -> u32 {
-        let mut ranges = self.ranges().take_while(|r| *r.start() < end);
-        let mut last = None;
-        let mut value = end;
-        loop {
-            match value.checked_sub(1) {
-                Some(v) if self.values.contains(v) => return v,
-                Some(v) => value = v,
-                None => return HR_SET_VALUE_INVALID,
-            }
-            match ranges.next() {
-                Some(r) => last = Some(*r.end()),
-                None => return last.unwrap_or(HR_SET_VALUE_INVALID),
-            }
+        let Some(value) = end.checked_sub(1) else {
+            return HR_SET_VALUE_INVALID;
+        };
+        if self.values.contains(value) {
+            return value;
         }
+        let ranges = self.values.indexed_ranges();
+        let index = ranges.partition_point(|range| range.0 < end);
+        index
+            .checked_sub(1)
+            .map_or(HR_SET_VALUE_INVALID, |index| ranges[index].1)
     }
 
     fn next_range(&self, start: u32) -> Option<RangeInclusive<u32>> {
@@ -106,17 +136,9 @@ impl hr_set_t {
         if first == HR_SET_VALUE_INVALID {
             return None;
         }
-        let mut ranges = self.ranges();
-        let mut last = first;
-        loop {
-            if last == HR_SET_VALUE_INVALID - 1 || !self.values.contains(last + 1) {
-                return Some(first..=last);
-            }
-            match ranges.next() {
-                Some(r) if *r.end() >= first => return Some(first..=*r.end()),
-                _ => last += 1,
-            }
-        }
+        let ranges = self.values.indexed_ranges();
+        let index = ranges.partition_point(|range| range.1 < first);
+        Some(first..=ranges[index].1.min(HR_SET_VALUE_INVALID - 1))
     }
 
     fn previous_range(&self, end: u32) -> Option<RangeInclusive<u32>> {
@@ -124,17 +146,9 @@ impl hr_set_t {
         if last == HR_SET_VALUE_INVALID {
             return None;
         }
-        let mut ranges = self.ranges();
-        let mut first = last;
-        loop {
-            if first == 0 || !self.values.contains(first - 1) {
-                return Some(first..=last);
-            }
-            match ranges.next() {
-                Some(r) if *r.end() >= last => return Some(*r.start()..=last),
-                _ => first -= 1,
-            }
-        }
+        let ranges = self.values.indexed_ranges();
+        let index = ranges.partition_point(|range| range.1 < last);
+        Some(ranges[index].0..=last)
     }
 
     pub(crate) fn add(&mut self, value: u32) {
@@ -154,7 +168,7 @@ impl hr_set_t {
 pub extern "C" fn hr_set_create() -> *mut hr_set_t {
     object::create(hr_set_t {
         header: ObjectHeader::new(),
-        values: IntSet::default(),
+        values: SetValues::default(),
     })
 }
 
