@@ -1667,6 +1667,50 @@ mod tests {
     use read_fonts::{FontData, FontRead};
 
     #[test]
+    fn noncontextual_caches_collect_overlapping_lookup_segments() {
+        // Both non-contextual cache constructors use the unfiltered collector.
+        // All 4096 segments cover the same range and share the value array.
+        let count = 4096u16;
+        let values_offset = 12 + 6 * count;
+        let mut words = vec![4u16, 6, count, 0, 0, 0];
+        for _ in 0..count {
+            words.extend([65534, 0, values_offset]);
+        }
+        words.extend([1u16; 65535]);
+        let lookup: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let mut bytes = Vec::new();
+        bytes.extend(((12 + lookup.len()) as u32).to_be_bytes());
+        bytes.extend(4u32.to_be_bytes()); // Non-contextual coverage.
+        bytes.extend(0u32.to_be_bytes());
+        bytes.extend_from_slice(&lookup);
+        let subtable = morx::Subtable::read(FontData::new(&bytes)).unwrap();
+        let mut accel = SafeToBreakAccel::default();
+        let cache = MorphSubtableCache::new_morx(&subtable, 65535, &mut accel);
+        assert_eq!(cache.glyph_set.len(), 65535);
+        assert!(cache.glyph_set.contains(0));
+        assert!(cache.glyph_set.contains(65534));
+        assert!(!cache.glyph_set.contains(65535));
+
+        // Legacy mort uses a 16-bit subtable length, so use the same segment
+        // pattern over a smaller glyph range and value array.
+        let mut legacy_lookup = lookup[..usize::from(values_offset)].to_vec();
+        for segment in legacy_lookup[12..].chunks_exact_mut(6) {
+            segment[..2].copy_from_slice(&999u16.to_be_bytes());
+        }
+        legacy_lookup.extend((0..1000).flat_map(|_| 1u16.to_be_bytes()));
+        let mut bytes = Vec::new();
+        bytes.extend(((8 + legacy_lookup.len()) as u16).to_be_bytes());
+        bytes.extend(4u16.to_be_bytes());
+        bytes.extend(0u32.to_be_bytes());
+        bytes.extend(legacy_lookup);
+        let subtable = mort::Subtable::read(FontData::new(&bytes)).unwrap();
+        let cache = MorphSubtableCache::new_mort(&subtable, 1000, &mut accel);
+        assert_eq!(cache.glyph_set.len(), 1000);
+        assert!((0..1000).all(|glyph| cache.glyph_set.contains(glyph)));
+        assert!(!cache.glyph_set.contains(1000));
+    }
+
+    #[test]
     fn collect_initial_glyphs_bounds_extended_classes() {
         #[rustfmt::skip]
         let mut data = vec![

@@ -646,6 +646,31 @@ impl CollectGlyphs for Lookup0<'_> {
         }
     }
 }
+/// Insert a union of segment ranges without repeatedly rewriting the same
+/// bitset pages. Malformed lookups may overlap or list ranges out of order.
+fn insert_glyph_ranges(set: &mut U32Set, ranges: impl Iterator<Item = (u32, u32)>) {
+    let mut ranges: Vec<_> = ranges
+        .filter(|&(first, last)| first != DELETED_GLYPH && first <= last)
+        .collect();
+    ranges.sort_unstable();
+    let mut merged: Option<(u32, u32)> = None;
+    for (first, last) in ranges {
+        if let Some((start, end)) = merged {
+            if first <= end + 1 {
+                merged = Some((start, end.max(last)));
+            } else {
+                set.insert_range(start..=end);
+                merged = Some((first, last));
+            }
+        } else {
+            merged = Some((first, last));
+        }
+    }
+    if let Some((first, last)) = merged {
+        set.insert_range(first..=last);
+    }
+}
+
 impl CollectGlyphs for Lookup2<'_> {
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
     where
@@ -653,17 +678,16 @@ impl CollectGlyphs for Lookup2<'_> {
         F: Fn(T) -> bool,
     {
         if let Ok(segments) = self.segments::<T>() {
-            for segment in segments {
-                let value = segment.value;
-                if filter(value.get()) {
-                    if segment.first_glyph.get() as u32 == DELETED_GLYPH {
-                        continue;
-                    }
-                    set.insert_range(
-                        segment.first_glyph.get() as u32..=segment.last_glyph.get() as u32,
-                    );
-                }
-            }
+            insert_glyph_ranges(
+                set,
+                segments.iter().filter_map(|segment| {
+                    let value = segment.value;
+                    filter(value.get()).then_some((
+                        u32::from(segment.first_glyph.get()),
+                        u32::from(segment.last_glyph.get()),
+                    ))
+                }),
+            );
         }
     }
 }
@@ -672,26 +696,26 @@ impl CollectGlyphs for Lookup4<'_> {
     where
         T: LookupValue,
     {
-        for segment in self.segments() {
-            if segment.first_glyph.get() as u32 == DELETED_GLYPH {
-                continue;
-            }
-            set.insert_range(segment.first_glyph.get() as u32..=segment.last_glyph.get() as u32);
-        }
+        insert_glyph_ranges(
+            set,
+            self.segments().iter().map(|segment| {
+                (
+                    u32::from(segment.first_glyph.get()),
+                    u32::from(segment.last_glyph.get()),
+                )
+            }),
+        );
     }
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
     {
-        // Segments of a well-formed lookup are sorted and disjoint, so each
-        // glyph is visited once. A segment that starts before the end of an
-        // earlier one is not walked, which keeps a hostile lookup from
-        // revisiting the same values once per segment; the range spanned by
-        // such segments is added unfiltered instead, so the set stays a
-        // superset of the accepted glyphs.
+        // Walk disjoint segments once. Overlapping or unordered segments
+        // contribute unfiltered ranges, keeping the result conservative
+        // without repeatedly scanning aliased arrays or rewriting set pages.
         let mut next_glyph = 0u32;
-        let mut unwalked: Option<(u32, u32)> = None;
+        let mut unwalked = Vec::new();
         for (segment_idx, segment) in self.segments().iter().enumerate() {
             let first_glyph = segment.first_glyph.get() as u32;
             let last_glyph = segment.last_glyph.get() as u32;
@@ -699,8 +723,7 @@ impl CollectGlyphs for Lookup4<'_> {
                 continue;
             }
             if first_glyph < next_glyph {
-                let (start, end) = unwalked.unwrap_or((first_glyph, last_glyph));
-                unwalked = Some((start.min(first_glyph), end.max(last_glyph)));
+                unwalked.push((first_glyph, last_glyph));
                 continue;
             }
             next_glyph = last_glyph + 1;
@@ -712,9 +735,7 @@ impl CollectGlyphs for Lookup4<'_> {
                 }
             }
         }
-        if let Some((start, end)) = unwalked {
-            set.insert_range(start..=end);
-        }
+        insert_glyph_ranges(set, unwalked.into_iter());
     }
 }
 impl CollectGlyphs for Lookup6<'_> {
@@ -934,6 +955,27 @@ mod tests {
                 .collect();
             assert_eq!(glyphs, expected, "{text}");
         }
+    }
+
+    #[test]
+    fn lookup2_merges_accepted_overlapping_and_unordered_ranges() {
+        let mut words = alloc::vec![2u16, 6, 5, 0, 0, 0];
+        for (first, last, value) in [
+            (100, 199, 1),
+            (0, 99, 1),
+            (50, 149, 1),
+            (300, 399, 0),
+            (500, 499, 1),
+        ] {
+            words.extend([last, first, value]);
+        }
+        let data: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let lookup = <Lookup as read_fonts::FontRead>::read(FontData::new(&data)).unwrap();
+        let mut set = U32Set::default();
+        lookup.collect_glyphs_filtered::<u16, _>(&mut set, 600, |value| value == 1);
+        assert_eq!(set.len(), 200);
+        assert!((0..200).all(|glyph| set.contains(glyph)));
+        assert!(!set.contains(300));
     }
 
     #[test]
