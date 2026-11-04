@@ -5155,3 +5155,65 @@ fn wide_single_substitution_with_explicit_outputs_needs_no_metrics() {
         hr_blob_destroy(blob);
     }
 }
+
+#[test]
+fn inverted_set_iteration_seeks_past_a_long_excluded_prefix() {
+    // Previously every next() rebuilt the first range by scanning all the
+    // excluded pages before PREFIX, even though each answer is nearby.
+    const PREFIX: u32 = 1 << 22;
+    const COUNT: usize = 4096;
+    for stride in [2, 32] {
+        unsafe {
+            let set = hr_set_create();
+            hr_set_invert(set);
+            hr_set_del_range(set, 0, PREFIX - 1);
+            for index in 0..COUNT as u32 {
+                hr_set_del_range(
+                    set,
+                    PREFIX + stride * index + 1,
+                    PREFIX + stride * (index + 1) - 1,
+                );
+            }
+            let mut cursor = PREFIX;
+            for index in 1..=COUNT as u32 {
+                assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+                assert_eq!(cursor, PREFIX + stride * index);
+            }
+            let mut batch = [0; COUNT];
+            assert_eq!(
+                hr_set_next_many(set, PREFIX, batch.as_mut_ptr(), COUNT as u32),
+                COUNT as u32
+            );
+            for (index, value) in batch.into_iter().enumerate() {
+                assert_eq!(value, PREFIX + stride * (index as u32 + 1));
+            }
+            hr_set_destroy(set);
+        }
+    }
+}
+
+#[test]
+fn inverted_set_seeks_across_long_gaps_and_invalidates_cached_ranges() {
+    const END: u32 = 1 << 24;
+    unsafe {
+        let set = hr_set_create();
+        hr_set_invert(set);
+        hr_set_del_range(set, 0, END - 1);
+        let mut cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, END);
+        hr_set_add(set, 17);
+        cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, 17);
+        hr_set_del(set, 17);
+        cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, END);
+        hr_set_invert(set);
+        cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, 0);
+        hr_set_destroy(set);
+    }
+}
