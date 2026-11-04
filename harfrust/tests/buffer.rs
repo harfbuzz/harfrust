@@ -148,6 +148,22 @@ fn shaping_a_shaped_buffer_is_refused() {
 }
 
 #[test]
+fn reshaping_as_hangul_ignores_what_another_shaper_left_behind() {
+    let instance = test_instance();
+    // Five Arabic letters: the Arabic shaper records a joining action for
+    // each of them in the per-glyph variable the Hangul shaper also uses.
+    let mut buffer = unicode_buffer("\u{0645}\u{0631}\u{062D}\u{0628}\u{0627}");
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+
+    // Shaping the same items again as Hangul must not trip over those
+    // leftovers.
+    buffer.set_content_type(Some(ContentType::Unicode));
+    buffer.set_script(Some(harfrust::Script::HANGUL));
+    buffer.set_direction(Direction::LeftToRight);
+    assert!(shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).is_ok());
+}
+
+#[test]
 fn shaping_without_a_direction_is_refused() {
     let instance = test_instance();
     let mut buffer = Buffer::new();
