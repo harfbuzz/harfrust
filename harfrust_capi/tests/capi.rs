@@ -3777,6 +3777,70 @@ fn clearing_user_data_removes_the_key() {
 
 static REENTRANT_KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
 static REENTRANT_OTHER: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+
+#[test]
+fn final_destruction_rejects_user_data_reattachment() {
+    use core::cell::Cell;
+
+    struct Destruction {
+        set: *mut hr_set_t,
+        first_calls: Cell<u32>,
+        second_calls: Cell<u32>,
+        observed_empty: Cell<bool>,
+        accepted: Cell<c_int>,
+    }
+
+    unsafe extern "C" fn second_destroy(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<Destruction>() };
+        state.second_calls.set(state.second_calls.get() + 1);
+        // If accepted by the first callback, this query used to run while
+        // Box::drop held exclusive access to the set, violating aliasing.
+        unsafe { hr_set_get_user_data(state.set, &raw const OTHER_KEY) };
+    }
+
+    unsafe extern "C" fn first_destroy(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<Destruction>() };
+        state.first_calls.set(state.first_calls.get() + 1);
+        state
+            .observed_empty
+            .set(unsafe { hr_set_get_user_data(state.set, &raw const KEY).is_null() });
+        state.accepted.set(unsafe {
+            hr_set_set_user_data(
+                state.set,
+                &raw const OTHER_KEY,
+                data,
+                Some(second_destroy),
+                1,
+            )
+        });
+    }
+
+    let state = Destruction {
+        set: hr_set_create(),
+        first_calls: Cell::new(0),
+        second_calls: Cell::new(0),
+        observed_empty: Cell::new(false),
+        accepted: Cell::new(-1),
+    };
+    unsafe {
+        assert_eq!(
+            hr_set_set_user_data(
+                state.set,
+                &raw const KEY,
+                ptr::from_ref(&state).cast_mut().cast(),
+                Some(first_destroy),
+                1,
+            ),
+            1
+        );
+        hr_set_destroy(state.set);
+    }
+    assert_eq!(state.first_calls.get(), 1);
+    assert!(state.observed_empty.get());
+    assert_eq!(state.accepted.get(), 0);
+    assert_eq!(state.second_calls.get(), 0);
+}
+
 unsafe extern "C" fn reenter_on_drop(user_data: *mut c_void) {
     let face = user_data.cast::<hr_face_t>();
     unsafe {

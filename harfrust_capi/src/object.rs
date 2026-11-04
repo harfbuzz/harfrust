@@ -210,8 +210,10 @@ pub unsafe fn set_user_data<T: Object>(
         return false;
     };
     let header = obj.header();
-    // Matches HarfBuzz: inert objects never take user data.
-    if header.is_immortal() || key.is_null() {
+    // Inert objects and objects releasing their final reference never take
+    // user data. A destroy callback may query the detached metadata, but
+    // must not attach callbacks that would later run inside Box::drop.
+    if header.ref_count.load(Ordering::Relaxed) <= 0 || key.is_null() {
         return false;
     }
     // Whatever this displaces is dropped once the lock is released, because
