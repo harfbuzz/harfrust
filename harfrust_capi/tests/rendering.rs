@@ -157,6 +157,68 @@ fn outlines_support_callback_faces_without_table_enumeration() {
     }
 }
 
+/// Overlapping table records would otherwise have the whole font copied into
+/// the rendering cache once per tag, so such a face is not rendered.
+#[test]
+fn overlapping_tables_are_not_copied_once_per_tag() {
+    // Every record of the directory runs to the end of the file. The tables
+    // still start at their real data, so the font parses and shapes.
+    let mut bytes = include_bytes!("fonts/Rendering.ttf").to_vec();
+    let len = u32::try_from(bytes.len()).unwrap();
+    let count = usize::from(u16::from_be_bytes([bytes[4], bytes[5]]));
+    for i in 0..count {
+        let record = 12 + 16 * i;
+        let offset = u32::from_be_bytes(bytes[record + 8..record + 12].try_into().unwrap());
+        bytes[record + 12..record + 16].copy_from_slice(&(len - offset).to_be_bytes());
+    }
+    unsafe {
+        let blob = hr_blob_create(
+            bytes.as_ptr().cast(),
+            len,
+            HR_MEMORY_MODE_READONLY,
+            ptr::null_mut(),
+            None,
+        );
+        let face = hr_face_create(blob, 0);
+        assert_ne!(hr_face_get_glyph_count(face), 0);
+        let font = hr_font_create(face);
+        let funcs = draw_funcs();
+        let mut drawing = Drawing::default();
+        assert_eq!(
+            hr_font_draw_glyph_or_fail(font, 1, funcs, ptr::from_mut(&mut drawing).cast()),
+            0
+        );
+        assert!(drawing.0.is_empty());
+        hr_draw_funcs_destroy(funcs);
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn outlines_are_built_once_per_face() {
+    unsafe {
+        let font = font();
+        let face = &*hr_font_get_face(font);
+        assert!(face.render_data.get().is_none());
+        let funcs = draw_funcs();
+        let mut drawing = Drawing::default();
+        let data = ptr::from_mut(&mut drawing).cast();
+        assert_eq!(hr_font_draw_glyph_or_fail(font, 1, funcs, data), 1);
+        let first = rendering::outlines(face).map(ptr::from_ref);
+        assert!(first.is_some());
+        let segments = drawing.0.len();
+        assert_eq!(hr_font_draw_glyph_or_fail(font, 1, funcs, data), 1);
+        assert_eq!(drawing.0.len(), 2 * segments);
+        // The second draw reused the collection instead of parsing the font
+        // tables again; for a CFF font that walk covers the whole Top DICT.
+        assert_eq!(rendering::outlines(face).map(ptr::from_ref), first);
+        hr_draw_funcs_destroy(funcs);
+        hr_font_destroy(font);
+    }
+}
+
 unsafe extern "C" fn custom_draw(
     _: *mut hr_font_t,
     _: *mut c_void,
@@ -234,6 +296,74 @@ fn custom_draw_inherits_parent_scale_and_owns_callback_data() {
     }
 }
 
+// Lines the caller has received, and how many had arrived while the parent's
+// callback was still drawing.
+#[derive(Default)]
+struct Streamed {
+    delivered: usize,
+    during_draw: usize,
+}
+
+unsafe extern "C" fn count_line(
+    _: *mut hr_draw_funcs_t,
+    data: *mut c_void,
+    _: *mut hr_draw_state_t,
+    _: f32,
+    _: f32,
+    _: *mut c_void,
+) {
+    unsafe { (*data.cast::<Streamed>()).delivered += 1 };
+}
+
+unsafe extern "C" fn custom_draw_observing_delivery(
+    _: *mut hr_font_t,
+    _: *mut c_void,
+    _: u32,
+    funcs: *mut hr_draw_funcs_t,
+    data: *mut c_void,
+    streamed: *mut c_void,
+) -> i32 {
+    let mut state = hr_draw_state_t::default();
+    unsafe {
+        hr_draw_move_to(funcs, data, &raw mut state, 10.0, 20.0);
+        hr_draw_line_to(funcs, data, &raw mut state, 30.0, 40.0);
+        let streamed = streamed.cast::<Streamed>();
+        (*streamed).during_draw = (*streamed).delivered;
+        hr_draw_close_path(funcs, data, &raw mut state);
+    }
+    1
+}
+
+// An outline can be far longer than its font, so a sub-font must pass segments
+// on as its parent draws them rather than hold the outline until it returns.
+#[test]
+fn sub_font_draw_streams_segments() {
+    unsafe {
+        let font = font();
+        let callbacks = hr_font_funcs_create();
+        let mut streamed = Streamed::default();
+        hr_font_funcs_set_draw_glyph_or_fail_func(
+            callbacks,
+            Some(custom_draw_observing_delivery),
+            ptr::from_mut(&mut streamed).cast(),
+            None,
+        );
+        hr_font_set_funcs(font, callbacks, ptr::null_mut(), None);
+        hr_font_funcs_destroy(callbacks);
+        let child = hr_font_create_sub_font(font);
+        let funcs = hr_draw_funcs_create();
+        hr_draw_funcs_set_line_to_func(funcs, Some(count_line), ptr::null_mut(), None);
+        assert_eq!(
+            hr_font_draw_glyph_or_fail(child, 1, funcs, ptr::from_mut(&mut streamed).cast()),
+            1
+        );
+        assert_eq!(streamed.during_draw, 1);
+        hr_draw_funcs_destroy(funcs);
+        hr_font_destroy(child);
+        hr_font_destroy(font);
+    }
+}
+
 #[cfg(feature = "paint")]
 mod painting {
     use super::*;
@@ -250,6 +380,7 @@ mod painting {
         extents: Option<hr_glyph_extents_t>,
         custom: bool,
         strict: bool,
+        color_glyphs: u32,
     }
     unsafe fn state<'a>(data: *mut c_void) -> &'a mut Paint {
         unsafe { &mut *data.cast() }
@@ -643,6 +774,64 @@ mod painting {
         }
     }
 
+    unsafe extern "C" fn paint_color_glyph(
+        funcs: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        glyph: u32,
+        font: *mut hr_font_t,
+        _: *mut c_void,
+    ) -> hr_bool_t {
+        unsafe {
+            state(data).color_glyphs += 1;
+            hr_font_paint_glyph_or_fail(font, glyph, funcs, data, 0, 0xff)
+        }
+    }
+
+    #[test]
+    fn color_glyph_callback_painting_sub_glyphs_stays_bounded() {
+        unsafe {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../harfrust/tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf");
+            let path = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
+            let blob = hr_blob_create_from_file(path.as_ptr());
+            let face = hr_face_create(blob, 0);
+            let font = hr_font_create(face);
+            let funcs = funcs();
+            // The callback paints each sub-glyph through a nested traversal, the
+            // way hb-cairo does. Glyphs 178 and 179 refer to each other, which
+            // used to recurse until the stack overflowed.
+            hr_paint_funcs_set_color_glyph_func(
+                funcs,
+                Some(paint_color_glyph),
+                ptr::null_mut(),
+                None,
+            );
+            let mut painted = 0;
+            let mut color_glyphs = 0;
+            for glyph in 0..hr_face_get_glyph_count(face) {
+                let mut s = Paint::default();
+                painted += hr_font_paint_glyph_or_fail(
+                    font,
+                    glyph,
+                    funcs,
+                    ptr::from_mut(&mut s).cast(),
+                    0,
+                    0xff,
+                );
+                assert!(s.scopes.is_empty(), "glyph {glyph}");
+                // At most one callback per nested traversal the budget allows.
+                assert!(s.color_glyphs <= 256, "glyph {glyph}");
+                color_glyphs += s.color_glyphs;
+            }
+            assert_eq!(painted, 199);
+            assert!(color_glyphs > 0);
+            hr_paint_funcs_destroy(funcs);
+            hr_font_destroy(font);
+            hr_face_destroy(face);
+            hr_blob_destroy(blob);
+        }
+    }
+
     #[test]
     fn retained_svg_and_bitmap_images_survive_font_destruction() {
         unsafe {
@@ -696,6 +885,44 @@ mod painting {
                 let bytes = std::slice::from_raw_parts(bytes.cast::<u8>(), len as usize);
                 assert!(bytes.starts_with(if glyph == 5 { b"<svg" } else { b"\x89PNG" }));
                 hr_blob_destroy(s.image);
+            }
+        }
+    }
+
+    /// One SVG document may cover every glyph of a font, so images handed to
+    /// the callback share the face's data rather than copying it per paint.
+    #[test]
+    fn retained_images_share_storage_rather_than_copying() {
+        unsafe {
+            for glyph in [5, 6] {
+                let font = font();
+                let funcs = funcs();
+                let mut images = Vec::new();
+                for _ in 0..2 {
+                    let mut s = Paint::default();
+                    assert_eq!(
+                        hr_font_paint_glyph_or_fail(
+                            font,
+                            glyph,
+                            funcs,
+                            ptr::from_mut(&mut s).cast(),
+                            0,
+                            0
+                        ),
+                        1
+                    );
+                    images.push(s.image);
+                }
+                hr_font_destroy(font);
+                hr_paint_funcs_destroy(funcs);
+                let (mut a, mut b) = (0, 0);
+                let pa = hr_blob_get_data(images[0], &raw mut a);
+                let pb = hr_blob_get_data(images[1], &raw mut b);
+                assert!(a > 50);
+                assert_eq!((pa, a), (pb, b));
+                for image in images {
+                    hr_blob_destroy(image);
+                }
             }
         }
     }

@@ -8,6 +8,21 @@ use read_fonts::types::GlyphId;
 use skrifa::color::{Brush, ColorPainter, ColorStop, CompositeMode, Extend, Transform};
 use skrifa::metrics::BoundingBox;
 use skrifa::raw::tables::cpal::ColorRecord;
+use std::cell::Cell;
+
+// A color glyph callback may paint the glyph it is handed, which starts another
+// Skrifa traversal with fresh cycle detection, depth limit and node budget. So
+// nested traversals are bounded per thread: how deeply they nest, and how many
+// one outermost paint may start. At either limit the callback is not offered
+// the glyph and Skrifa paints it within the current traversal, under that
+// traversal's own limits.
+const MAX_PAINT_DEPTH: u32 = 8;
+const MAX_NESTED_PAINTS: u32 = 256;
+thread_local! {
+    static PAINT_DEPTH: Cell<u32> = const { Cell::new(0) };
+    static NESTED_PAINTS: Cell<u32> = const { Cell::new(0) };
+}
+
 struct HrColorPainter<'a> {
     font: *mut hr_font_t,
     paint_funcs: *mut hr_paint_funcs_t,
@@ -400,6 +415,9 @@ impl ColorPainter for HrColorPainter<'_> {
         &mut self,
         glyph: GlyphId,
     ) -> Result<skrifa::color::PaintCachedColorGlyph, skrifa::color::PaintError> {
+        if PAINT_DEPTH.get() >= MAX_PAINT_DEPTH || NESTED_PAINTS.get() >= MAX_NESTED_PAINTS {
+            return Ok(skrifa::color::PaintCachedColorGlyph::Unimplemented);
+        }
         self.font_transform(true);
         let painted = unsafe {
             hr_paint_color_glyph(self.paint_funcs, self.paint_data, glyph.to_u32(), self.font)
@@ -471,15 +489,24 @@ pub(super) unsafe fn paint(
             glyph_clips: Vec::new(),
             scopes: Vec::new(),
         };
+        let depth = PAINT_DEPTH.get();
+        NESTED_PAINTS.set(if depth == 0 {
+            0
+        } else {
+            NESTED_PAINTS.get().saturating_add(1)
+        });
+        PAINT_DEPTH.set(depth + 1);
         unsafe { hr_paint_push_font_transform(funcs, data, font) };
         let result = color.paint(coords.as_slice(), &mut painter);
         drop(painter);
         unsafe { hr_paint_pop_transform(funcs, data) };
+        PAINT_DEPTH.set(depth);
         return i32::from(result.is_ok());
     }
     if let Some(svg) = face.svg().ok().and_then(|svg| svg.glyph_data(glyph)) {
         if unsafe {
             image(
+                render_face,
                 funcs,
                 data,
                 svg,
@@ -548,6 +575,7 @@ pub(super) unsafe fn paint(
         extents.height = extents.height.saturating_sub(extents.y_bearing);
         if unsafe {
             image(
+                render_face,
                 funcs,
                 data,
                 bytes,
@@ -563,7 +591,9 @@ pub(super) unsafe fn paint(
     }
     0
 }
+#[allow(clippy::too_many_arguments)]
 unsafe fn image(
+    face: &crate::hr_face_t,
     funcs: *mut hr_paint_funcs_t,
     data: *mut c_void,
     bytes: &[u8],
@@ -575,22 +605,24 @@ unsafe fn image(
     if bytes.is_empty() {
         return 0;
     }
-    let Ok(length) = u32::try_from(bytes.len()) else {
+    // `bytes` is a slice of the face's rendering data, which never changes
+    // once built. Consumers may retain the blob beyond the callback, so hand
+    // out a sub-blob sharing that storage, as HarfBuzz does with its table
+    // blob, rather than a copy: one SVG document may cover every glyph of a
+    // font, and copying it per paint costs glyphs x document bytes.
+    let Some(render) = (unsafe { crate::rendering::render_blob(face) }) else {
         return 0;
     };
-    // Owned duplicate: consumers may retain the blob beyond the callback/face.
-    let blob = unsafe {
-        crate::hr_blob_create_or_fail(
-            bytes.as_ptr().cast(),
-            length,
-            crate::HR_MEMORY_MODE_DUPLICATE,
-            core::ptr::null_mut(),
-            None,
-        )
-    };
-    if blob.is_null() {
+    let Some(start) = (bytes.as_ptr() as usize).checked_sub(render.as_ptr() as usize) else {
         return 0;
-    }
+    };
+    let Some(end) = start
+        .checked_add(bytes.len())
+        .filter(|end| *end <= render.len())
+    else {
+        return 0;
+    };
+    let blob = hr_blob_t::sub(render, start, end);
     let result = unsafe { hr_paint_image(funcs, data, blob, width, height, format, 0.0, extents) };
     unsafe { crate::hr_blob_destroy(blob) };
     result
