@@ -161,6 +161,9 @@ pub unsafe extern "C" fn hr_subset_input_destroy(input: *mut hr_subset_input_t) 
     };
     if state.references.fetch_sub(1, Ordering::Release) == 1 {
         std::sync::atomic::fence(Ordering::Acquire);
+        // Callbacks may query the object. Run them while access is shared,
+        // before reconstructing the Box and taking exclusive ownership.
+        state.user_data.release();
         drop(unsafe { Box::from_raw(input) });
     }
 }
@@ -551,6 +554,9 @@ pub unsafe extern "C" fn hr_subset_plan_destroy(plan: *mut hr_subset_plan_t) {
     };
     if state.references.fetch_sub(1, Ordering::Release) == 1 {
         std::sync::atomic::fence(Ordering::Acquire);
+        // Callbacks may query the object. Run them while access is shared,
+        // before reconstructing the Box and taking exclusive ownership.
+        state.user_data.release();
         drop(unsafe { Box::from_raw(plan) });
     }
 }
