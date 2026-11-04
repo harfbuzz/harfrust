@@ -105,6 +105,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
                 let mut driver = Driver1 {
                     stack: [0; 8],
                     depth: 0,
+                    stack_pos: 0,
                 };
                 if apply_state_machine_kerning(
                     c,
@@ -320,10 +321,6 @@ pub(crate) trait KerxStateEntryExt {
 
     fn has_advance(&self) -> bool {
         self.flags() & 0x4000 == 0
-    }
-
-    fn has_reset(&self) -> bool {
-        self.flags() & 0x2000 != 0
     }
 
     fn has_push(&self) -> bool {
@@ -568,6 +565,7 @@ trait StateTableDriver<T, E> {
 struct Driver1 {
     stack: [usize; 8],
     depth: usize,
+    stack_pos: usize,
 }
 
 impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
@@ -580,33 +578,36 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
         tuple_count: u32,
         c: &mut AatApplyContext,
     ) -> Option<()> {
-        if entry.has_reset() {
-            self.depth = 0;
-        }
-
+        // CoreText ignores the kerx Reset flag.
         if entry.has_push() {
-            if self.depth < self.stack.len() {
-                self.stack[self.depth] = c.buffer.idx;
-                self.depth += 1;
-            } else {
-                self.depth = 0; // Probably not what CoreText does, but better?
-            }
+            self.stack[self.stack_pos] = c.buffer.idx;
+            self.stack_pos = (self.stack_pos + 1) % self.stack.len();
+            self.depth = (self.depth + 1).min(self.stack.len());
         }
 
         if entry.is_actionable() && self.depth != 0 {
-            let tuple_count = u16::try_from(tuple_count.max(1)).ok()?;
+            let tuple_count = usize::try_from(tuple_count.max(1)).ok()?;
 
-            let mut action_index = entry.action_index();
+            let mut action_index = usize::from(entry.action_index());
 
+            // Contrary to the kerx spec's destructive pops, CoreText retains an
+            // eight-slot circular history and walks it anew for each action list.
+            let mut cursor = self.stack_pos;
             let use_x_scale = c.buffer.direction.is_horizontal() ^ has_cross_stream;
-            while self.depth != 0 {
-                let v = aat.values.get(action_index as usize)?.get() as i32;
+            loop {
+                if c.buffer.max_ops <= 0 {
+                    c.buffer.successful = false;
+                    return None;
+                }
+                c.buffer.max_ops -= 1;
+                let v = aat.values.get(action_index)?.get() as i32;
                 // kerx ends a list with a single 0xFFFF, without popping a glyph.
                 if v == -1 {
                     break;
                 }
-                self.depth -= 1;
-                let idx = self.stack[self.depth];
+                aat.values.get(action_index.checked_add(tuple_count - 1)?)?;
+                cursor = (cursor + self.stack.len() - 1) % self.stack.len();
+                let idx = self.stack[cursor];
                 action_index = action_index.checked_add(tuple_count)?;
                 if idx >= c.buffer.len {
                     continue;
@@ -830,6 +831,55 @@ mod tests {
     use super::*;
     use alloc::vec;
     use read_fonts::FontRead;
+
+    #[test]
+    fn format1_action_lists_respect_operation_budget() {
+        use crate::{font::Font, shape, Buffer, ShapeOptions, ShaperFont, Tag};
+        use alloc::sync::Arc;
+        use read_fonts::{
+            model::{Blob, TableFunction},
+            FontRef, TableProvider,
+        };
+
+        let source = FontRef::new(include_bytes!(
+            "../../tests/fonts/rb_custom/kerx-long-list-64.ttf"
+        ))
+        .unwrap();
+        let original = source.data_for_tag(Tag::new(b"kerx")).unwrap();
+        let original = original.as_bytes();
+        let values_offset = 20 + u32::from_be_bytes(original[36..40].try_into().unwrap()) as usize;
+
+        for terminated in [false, true] {
+            let mut kerx = original[..values_offset].to_vec();
+            // One glyph has a budget of 65536 operations. Reusing its history
+            // must not make a longer action list exempt from that budget.
+            for _ in 0..65537 {
+                kerx.extend_from_slice(&1i16.to_be_bytes());
+            }
+            if terminated {
+                kerx.extend_from_slice(&(-1i16).to_be_bytes());
+            }
+            let length = u32::try_from(kerx.len() - 8).unwrap();
+            kerx[8..12].copy_from_slice(&length.to_be_bytes());
+            let source = source.clone();
+            let tables = TableFunction::new(Arc::new(move |tag| {
+                if tag == Tag::new(b"kerx") {
+                    Some(Blob::from(kerx.clone()))
+                } else {
+                    source
+                        .data_for_tag(tag)
+                        .map(|data| Blob::from(data.as_bytes().to_vec()))
+                }
+            }));
+            let font = Font::new(tables, 0).unwrap();
+            let shaper = ShaperFont::new(&font);
+            let mut buffer = Buffer::new();
+            buffer.push_str("a");
+            buffer.guess_segment_properties();
+            shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+            assert!(!buffer.successful);
+        }
+    }
 
     #[test]
     fn collect_initial_glyphs_bounds_extended_classes() {

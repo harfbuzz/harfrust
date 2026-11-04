@@ -2,6 +2,7 @@
 import hashlib
 import os
 import pathlib
+import re
 import shutil
 import sys
 import subprocess
@@ -27,6 +28,8 @@ IGNORE_TEST_CASES = [
     "simple_002",
     # `dfont` is not supported.
     "collections_001",
+    # hr-shape accepts only a uniform --font-size.
+    "anchor_variations_011",
     # Requires support for the ltag table.
     "macos_002",
 
@@ -76,8 +79,8 @@ def convert_unicodes(unicodes):
 
 def prune_test_options(options):
     options = options.replace("--shaper=ot", "")
-    # We don't support font scaling
-    options = options.replace("--font-size=1000", "")
+    # Keep other sizes intact, including nonuniform scales.
+    options = re.sub(r"--font-size=1000(?=\s|$)", "", options)
     # We don't care about extents
     options = options.replace("--show-extents", "")
     options = options.strip()
