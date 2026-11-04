@@ -564,10 +564,9 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
     let Some(render_face) = (unsafe { crate::hr_font_get_face(font).as_ref() }) else {
         return 0;
     };
-    let Some(face) = (unsafe { crate::rendering::font_ref(render_face) }) else {
+    let Some(outlines) = (unsafe { crate::rendering::outlines(render_face) }) else {
         return 0;
     };
-    let outlines = skrifa::OutlineGlyphCollection::new(&face);
     let Some(outline) = outlines.get(read_fonts::types::GlyphId::new(glyph)) else {
         return 0;
     };
@@ -607,9 +606,9 @@ unsafe fn parent_draw(
     funcs: *mut hr_draw_funcs_t,
     data: *mut c_void,
 ) -> hr_bool_t {
-    use crate::rendering::Command;
+    use crate::rendering::Pen;
     use skrifa::outline::OutlinePen;
-    unsafe extern "C" fn record_move(
+    unsafe extern "C" fn forward_move(
         _: *mut hr_draw_funcs_t,
         data: *mut c_void,
         _: *mut hr_draw_state_t,
@@ -617,9 +616,9 @@ unsafe fn parent_draw(
         y: f32,
         _: *mut c_void,
     ) {
-        unsafe { &mut *data.cast::<Vec<Command>>() }.push(Command::Move(x, y));
+        unsafe { &mut *data.cast::<Pen>() }.move_to(x, y);
     }
-    unsafe extern "C" fn record_line(
+    unsafe extern "C" fn forward_line(
         _: *mut hr_draw_funcs_t,
         data: *mut c_void,
         _: *mut hr_draw_state_t,
@@ -627,9 +626,9 @@ unsafe fn parent_draw(
         y: f32,
         _: *mut c_void,
     ) {
-        unsafe { &mut *data.cast::<Vec<Command>>() }.push(Command::Line(x, y));
+        unsafe { &mut *data.cast::<Pen>() }.line_to(x, y);
     }
-    unsafe extern "C" fn record_quad(
+    unsafe extern "C" fn forward_quad(
         _: *mut hr_draw_funcs_t,
         data: *mut c_void,
         _: *mut hr_draw_state_t,
@@ -639,9 +638,9 @@ unsafe fn parent_draw(
         y: f32,
         _: *mut c_void,
     ) {
-        unsafe { &mut *data.cast::<Vec<Command>>() }.push(Command::Quad(a, b, x, y));
+        unsafe { &mut *data.cast::<Pen>() }.quad_to(a, b, x, y);
     }
-    unsafe extern "C" fn record_curve(
+    unsafe extern "C" fn forward_curve(
         _: *mut hr_draw_funcs_t,
         data: *mut c_void,
         _: *mut hr_draw_state_t,
@@ -653,41 +652,42 @@ unsafe fn parent_draw(
         y: f32,
         _: *mut c_void,
     ) {
-        unsafe { &mut *data.cast::<Vec<Command>>() }.push(Command::Curve(a, b, c, d, x, y));
+        unsafe { &mut *data.cast::<Pen>() }.curve_to(a, b, c, d, x, y);
     }
-    unsafe extern "C" fn record_close(
+    unsafe extern "C" fn forward_close(
         _: *mut hr_draw_funcs_t,
         data: *mut c_void,
         _: *mut hr_draw_state_t,
         _: *mut c_void,
     ) {
-        unsafe { &mut *data.cast::<Vec<Command>>() }.push(Command::Close);
+        unsafe { &mut *data.cast::<Pen>() }.close();
     }
-    let recording = hr_draw_funcs_create();
+    let forwarding = hr_draw_funcs_create();
     unsafe {
-        hr_draw_funcs_set_move_to_func(recording, Some(record_move), core::ptr::null_mut(), None);
-        hr_draw_funcs_set_line_to_func(recording, Some(record_line), core::ptr::null_mut(), None);
+        hr_draw_funcs_set_move_to_func(forwarding, Some(forward_move), core::ptr::null_mut(), None);
+        hr_draw_funcs_set_line_to_func(forwarding, Some(forward_line), core::ptr::null_mut(), None);
         hr_draw_funcs_set_quadratic_to_func(
-            recording,
-            Some(record_quad),
+            forwarding,
+            Some(forward_quad),
             core::ptr::null_mut(),
             None,
         );
-        hr_draw_funcs_set_cubic_to_func(recording, Some(record_curve), core::ptr::null_mut(), None);
+        hr_draw_funcs_set_cubic_to_func(
+            forwarding,
+            Some(forward_curve),
+            core::ptr::null_mut(),
+            None,
+        );
         hr_draw_funcs_set_close_path_func(
-            recording,
-            Some(record_close),
+            forwarding,
+            Some(forward_close),
             core::ptr::null_mut(),
             None,
         );
     }
-    let mut commands = Vec::<Command>::new();
-    let result =
-        unsafe { hr_font_draw_glyph_or_fail(parent, glyph, recording, (&raw mut commands).cast()) };
-    unsafe { hr_draw_funcs_destroy(recording) };
     let (sx, sy) = unsafe { crate::rendering::scale(font) };
     let (px, py) = unsafe { crate::rendering::scale(parent) };
-    let mut pen = crate::rendering::Pen {
+    let mut pen = Pen {
         funcs,
         data,
         state: hr_draw_state_t::default(),
@@ -696,14 +696,10 @@ unsafe fn parent_draw(
         x: if px == 0.0 { 0.0 } else { sx / px },
         y: if py == 0.0 { 0.0 } else { sy / py },
     };
-    for command in commands {
-        match command {
-            Command::Move(x, y) => pen.move_to(x, y),
-            Command::Line(x, y) => pen.line_to(x, y),
-            Command::Quad(a, b, x, y) => pen.quad_to(a, b, x, y),
-            Command::Curve(a, b, c, d, x, y) => pen.curve_to(a, b, c, d, x, y),
-            Command::Close => pen.close(),
-        }
-    }
+    // Stream each segment through the pen as the parent emits it: an outline
+    // can be far longer than the font that produced it, so it is never held.
+    let result =
+        unsafe { hr_font_draw_glyph_or_fail(parent, glyph, forwarding, (&raw mut pen).cast()) };
+    unsafe { hr_draw_funcs_destroy(forwarding) };
     result
 }

@@ -4265,3 +4265,32 @@ fn glyph_count_prefers_extended_maxp() {
         hr_blob_destroy(blob);
     }
 }
+
+#[test]
+fn tags_read_only_four_raw_bytes() {
+    unsafe {
+        for len in [-2, -1, 4, 7] {
+            // UTF-8 validation after the fourth byte must not affect the tag.
+            let name = [b'L', b'a', b't', b'n', 0xFF, b'x', 0];
+            assert_eq!(
+                hr_tag_from_string(name.as_ptr().cast(), len),
+                HR_SCRIPT_LATIN
+            );
+            assert_eq!(
+                hr_script_from_string(name.as_ptr().cast(), len),
+                HR_SCRIPT_LATIN
+            );
+        }
+        for (bytes, len, expected) in [
+            (&b"a\0bc"[..], -1, u32::from_be_bytes(*b"a   ")),
+            (&b"abcd"[..], 2, u32::from_be_bytes(*b"ab  ")),
+            (&b"abcd"[..], 4, u32::from_be_bytes(*b"abcd")),
+            (&[0xFF, 0x80, 0xFE, 0x81][..], 4, 0xFF80_FE81),
+            (&b"\0"[..], -1, HR_TAG_NONE),
+            (&b""[..], 0, HR_TAG_NONE),
+        ] {
+            assert_eq!(hr_tag_from_string(bytes.as_ptr().cast(), len), expected);
+        }
+        assert_eq!(hr_tag_from_string(ptr::null(), -1), HR_TAG_NONE);
+    }
+}

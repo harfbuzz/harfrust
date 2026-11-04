@@ -4,7 +4,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use harfrust::{
-    font::Font, shape, Buffer, ContentType, Direction, ShapeError, ShapeOptions, ShaperFont,
+    font::Font, shape, Buffer, BufferFlags, ContentType, Direction, ShapeError, ShapeOptions,
+    ShaperFont,
 };
 
 fn test_instance() -> Font {
@@ -285,4 +286,32 @@ fn not_found_variation_selector_glyph_is_not_limited_to_u16() {
         assert_eq!(ids_and_clusters(buffer.glyph_infos()), [(2, 0), (glyph, 0)]);
         assert_eq!(buffer.glyph_positions()[1].x_advance, 0);
     }
+}
+
+#[test]
+fn emptied_buffer_shapes_like_a_fresh_one() {
+    // The font has a dotted circle and GPOS lookups that run over the text.
+    let instance = font_instance("in-house/1a5face3fcbd929d228235c2f72bbd6f8eb37424.ttf");
+    // Starts with a mark, so shaping inserts a dotted circle in front of it.
+    let text = "\u{0947}\u{0905}";
+
+    let mut fresh = unicode_buffer(text);
+    fresh.set_flags(BufferFlags::BEGINNING_OF_TEXT);
+    shape_with_instance(&instance, &mut fresh, ShapeOptions::new()).unwrap();
+
+    // Emptying the buffer with `set_length(0)` keeps the cursor where the
+    // previous shaping left it; that must not leak into the next one.
+    let mut reused = unicode_buffer("\u{0915}\u{094D}\u{0937}\u{093F} \u{0924}\u{094D}\u{0930}");
+    reused.set_flags(BufferFlags::BEGINNING_OF_TEXT);
+    shape_with_instance(&instance, &mut reused, ShapeOptions::new()).unwrap();
+    reused.set_length(0);
+    reused.push_str(text);
+    reused.guess_segment_properties();
+    shape_with_instance(&instance, &mut reused, ShapeOptions::new()).unwrap();
+
+    assert!(reused.allocation_successful());
+    assert_eq!(
+        ids_and_clusters(reused.glyph_infos()),
+        ids_and_clusters(fresh.glyph_infos())
+    );
 }
