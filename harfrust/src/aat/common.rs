@@ -9,6 +9,7 @@ use crate::Mask;
 use crate::Scale;
 use crate::U32Set;
 use alloc::vec::Vec;
+use core::mem::size_of;
 use read_fonts::tables::aat::*;
 use read_fonts::types::{FixedSize, GlyphId};
 use read_fonts::FontData;
@@ -138,7 +139,7 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
             if self.using_buffer_glyph_set {
                 return self.buffer.glyph_set.intersects_set(first_set);
             }
-            for info in &self.buffer.info {
+            for info in self.buffer.glyph_infos() {
                 if first_set.contains(info.glyph_id) {
                     return true;
                 }
@@ -245,6 +246,22 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
 
 /// Tables with fewer subtables than this skip the buffer digest.
 const MIN_DIGESTED_SUBTABLES: usize = 4;
+
+/// The heap bytes that `set` keeps: a page of 512 bits with its length and
+/// page-map entry for every block of 512 glyph ids it has a member in. A
+/// lookup segment spanning the glyph space fills 128 pages from six bytes
+/// of font data, so this is charged to the table's preprocessing budget.
+pub(crate) fn set_heap_bytes(set: &U32Set) -> usize {
+    const PAGE_BYTES: usize = 80;
+    let mut pages = 0;
+    let mut last_page = None;
+    for range in set.iter_ranges() {
+        let (first, last) = (*range.start() / 512, *range.end() / 512);
+        pages += (last - first) as usize + usize::from(last_page != Some(first));
+        last_page = Some(last);
+    }
+    pages * PAGE_BYTES
+}
 
 /// A digest of the glyphs in `set`.
 pub(crate) fn set_digest(set: &U32Set) -> SetDigest {
@@ -369,11 +386,10 @@ impl SafeToBreakAccel {
         // Cover the OUT_OF_BOUNDS column the runtime clamp can select
         // even on degenerate machines; entry() applies the same clamp
         // internally, so the aliasing matches.
-        // Classes are u16 values, so columns past 0x10000 are
-        // unreachable and need no slots.
-        let wouldbe_len = n_classes
-            .max(class::OUT_OF_BOUNDS as usize + 1)
-            .min(1 << 16);
+        // Columns that cannot hold an entry need no slots: the drive
+        // loops stop when entry() fails, before consulting this table.
+        let wouldbe_len =
+            extended_class_count(n_classes, data).max(class::OUT_OF_BOUNDS as usize + 1);
         self.wouldbe.reserve(wouldbe_len);
         for class in 0..wouldbe_len {
             self.wouldbe
@@ -492,6 +508,25 @@ impl SafeToBreakSubtable {
             eot_tail_end: eot_tail_end as u32,
         }
     }
+
+    /// The bytes of [`SafeToBreakAccel`] that this subtable's view covers.
+    pub(crate) fn accel_bytes(&self) -> usize {
+        (self.wouldbe_end - self.wouldbe_start) as usize * size_of::<u16>()
+            + (self.eot_tail_end - self.eot_tail_start) as usize * size_of::<u64>()
+    }
+}
+
+/// Returns how many columns of the extended state table at the start of
+/// `data` can hold an entry. `nClasses` is not checked against the state
+/// array, which runs from its offset to the end of the subtable, matching
+/// how the table reader slices it; a column past its end fails `entry()`
+/// in every state. Classes are u16 values, so columns past 0x10000 are
+/// unreachable as well.
+pub(crate) fn extended_class_count(n_classes: usize, data: &[u8]) -> usize {
+    let n_cells = StateTableParts::read(FontData::new(data)).map_or(0, |parts| {
+        data.len().saturating_sub(parts.state_array_offset as usize) / u16::RAW_BYTE_LEN
+    });
+    n_classes.min(n_cells).min(1 << 16)
 }
 
 // Keep one closure type for the morx and kerx class-set filters so that
@@ -611,6 +646,31 @@ impl CollectGlyphs for Lookup0<'_> {
         }
     }
 }
+/// Insert a union of segment ranges without repeatedly rewriting the same
+/// bitset pages. Malformed lookups may overlap or list ranges out of order.
+fn insert_glyph_ranges(set: &mut U32Set, ranges: impl Iterator<Item = (u32, u32)>) {
+    let mut ranges: Vec<_> = ranges
+        .filter(|&(first, last)| first != DELETED_GLYPH && first <= last)
+        .collect();
+    ranges.sort_unstable();
+    let mut merged: Option<(u32, u32)> = None;
+    for (first, last) in ranges {
+        if let Some((start, end)) = merged {
+            if first <= end + 1 {
+                merged = Some((start, end.max(last)));
+            } else {
+                set.insert_range(start..=end);
+                merged = Some((first, last));
+            }
+        } else {
+            merged = Some((first, last));
+        }
+    }
+    if let Some((first, last)) = merged {
+        set.insert_range(first..=last);
+    }
+}
+
 impl CollectGlyphs for Lookup2<'_> {
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
     where
@@ -618,17 +678,16 @@ impl CollectGlyphs for Lookup2<'_> {
         F: Fn(T) -> bool,
     {
         if let Ok(segments) = self.segments::<T>() {
-            for segment in segments {
-                let value = segment.value;
-                if filter(value.get()) {
-                    if segment.first_glyph.get() as u32 == DELETED_GLYPH {
-                        continue;
-                    }
-                    set.insert_range(
-                        segment.first_glyph.get() as u32..=segment.last_glyph.get() as u32,
-                    );
-                }
-            }
+            insert_glyph_ranges(
+                set,
+                segments.iter().filter_map(|segment| {
+                    let value = segment.value;
+                    filter(value.get()).then_some((
+                        u32::from(segment.first_glyph.get()),
+                        u32::from(segment.last_glyph.get()),
+                    ))
+                }),
+            );
         }
     }
 }
@@ -637,31 +696,46 @@ impl CollectGlyphs for Lookup4<'_> {
     where
         T: LookupValue,
     {
-        for segment in self.segments() {
-            if segment.first_glyph.get() as u32 == DELETED_GLYPH {
-                continue;
-            }
-            set.insert_range(segment.first_glyph.get() as u32..=segment.last_glyph.get() as u32);
-        }
+        insert_glyph_ranges(
+            set,
+            self.segments().iter().map(|segment| {
+                (
+                    u32::from(segment.first_glyph.get()),
+                    u32::from(segment.last_glyph.get()),
+                )
+            }),
+        );
     }
     fn collect_glyphs_filtered<T, F>(&self, set: &mut U32Set, _num_glyphs: u32, filter: F)
     where
         T: LookupValue,
         F: Fn(T) -> bool,
     {
+        // Walk disjoint segments once. Overlapping or unordered segments
+        // contribute unfiltered ranges, keeping the result conservative
+        // without repeatedly scanning aliased arrays or rewriting set pages.
+        let mut next_glyph = 0u32;
+        let mut unwalked = Vec::new();
         for (segment_idx, segment) in self.segments().iter().enumerate() {
-            if segment.first_glyph.get() as u32 == DELETED_GLYPH {
+            let first_glyph = segment.first_glyph.get() as u32;
+            let last_glyph = segment.last_glyph.get() as u32;
+            if first_glyph == DELETED_GLYPH || first_glyph > last_glyph {
                 continue;
             }
-            let segment_values = self.segment_values(segment_idx);
-            if let Ok(segment_values) = segment_values {
+            if first_glyph < next_glyph {
+                unwalked.push((first_glyph, last_glyph));
+                continue;
+            }
+            next_glyph = last_glyph + 1;
+            if let Ok(segment_values) = self.segment_values(segment_idx) {
                 for (i, value) in segment_values.iter().enumerate() {
                     if filter(value.get()) {
-                        set.insert(segment.first_glyph.get() as u32 + i as u32);
+                        set.insert(first_glyph + i as u32);
                     }
                 }
             }
         }
+        insert_glyph_ranges(set, unwalked.into_iter());
     }
 }
 impl CollectGlyphs for Lookup6<'_> {
@@ -791,6 +865,45 @@ mod tests {
         assert!(last.wouldbe_matches(99, 9, false));
         assert!(!last.eot_safe_high(64));
         assert!(last.eot_safe_high(65));
+
+        assert_eq!(first_subtable.accel_bytes(), 4 * 2 + 8);
+        assert_eq!(empty_subtable.accel_bytes(), 0);
+    }
+
+    #[test]
+    fn set_heap_bytes_counts_each_page_once() {
+        let mut set = U32Set::default();
+        assert_eq!(set_heap_bytes(&set), 0);
+        set.extend_unsorted([1, 3, 511, 512, 2000]);
+        assert_eq!(set_heap_bytes(&set), 3 * 80);
+        set.insert_range(0..=0xFFFE);
+        assert_eq!(set_heap_bytes(&set), 128 * 80);
+    }
+
+    #[test]
+    fn safe_to_break_table_is_bounded_by_the_state_array() {
+        use read_fonts::{types::BigEndian, FontRead};
+
+        #[rustfmt::skip]
+        let data = [
+            0, 1, 0, 0, // nClasses: 65536
+            0, 0, 0, 16, // classTableOffset
+            0, 0, 0, 24, // stateArrayOffset
+            0, 0, 0, 34, // entryTableOffset
+            0, 8, 0, 1, 0, 1, 0, 4, // lookup format 8: glyph 1 is class 4
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // five cells, followed by the entry
+            0, 0, 0, 0, 0xFF, 0xFF, // entry 0
+        ];
+        let machine = ExtendedStateTable::<BigEndian<u16>>::read(FontData::new(&data)).unwrap();
+        // The state array is read to the end of the data: 8 cells.
+        assert_eq!(extended_class_count(machine.n_classes, &data), 8);
+        let mut accel = SafeToBreakAccel::default();
+        let subtable = accel.build_extended(&machine, &data, &|_| false, &|_| true);
+        assert_eq!(accel.wouldbe.len(), 8);
+        assert!(accel
+            .subtable(subtable)
+            .unwrap()
+            .wouldbe_matches(4, 0, true));
     }
 
     #[test]
@@ -842,5 +955,54 @@ mod tests {
                 .collect();
             assert_eq!(glyphs, expected, "{text}");
         }
+    }
+
+    #[test]
+    fn lookup2_merges_accepted_overlapping_and_unordered_ranges() {
+        let mut words = alloc::vec![2u16, 6, 5, 0, 0, 0];
+        for (first, last, value) in [
+            (100, 199, 1),
+            (0, 99, 1),
+            (50, 149, 1),
+            (300, 399, 0),
+            (500, 499, 1),
+        ] {
+            words.extend([last, first, value]);
+        }
+        let data: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let lookup = <Lookup as read_fonts::FontRead>::read(FontData::new(&data)).unwrap();
+        let mut set = U32Set::default();
+        lookup.collect_glyphs_filtered::<u16, _>(&mut set, 600, |value| value == 1);
+        assert_eq!(set.len(), 200);
+        assert!((0..200).all(|glyph| set.contains(glyph)));
+        assert!(!set.contains(300));
+    }
+
+    #[test]
+    fn lookup4_overlapping_segments_are_walked_once() {
+        // A format 4 lookup with 100 segments that all cover glyphs 0..=999
+        // and share one value array, followed by one well-formed segment.
+        let n_segments = 101u16;
+        let values_offset = 12 + 6 * n_segments;
+        let mut words = alloc::vec![4u16, 6, n_segments, 0, 0, 0];
+        for _ in 0..100 {
+            words.extend([999, 0, values_offset]);
+        }
+        words.extend([1999, 1000, values_offset]);
+        words.extend([1u16; 1000]);
+        let data: Vec<u8> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let lookup = <Lookup as read_fonts::FontRead>::read(FontData::new(&data)).unwrap();
+
+        let filter_calls = core::cell::Cell::new(0u32);
+        let mut set = U32Set::default();
+        lookup.collect_glyphs_filtered::<u16, _>(&mut set, 2000, |class| {
+            filter_calls.set(filter_calls.get() + 1);
+            class == 1
+        });
+
+        // Each glyph is visited once, not once per segment that covers it.
+        assert_eq!(filter_calls.get(), 2000);
+        assert!((0..2000).all(|glyph| set.contains(glyph)));
+        assert!(!set.contains(2000));
     }
 }

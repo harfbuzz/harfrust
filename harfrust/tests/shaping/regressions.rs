@@ -184,6 +184,22 @@ fn ligature_digest_reports_the_same_concat_hazard_as_the_walk() {
     }
 }
 
+// With 'pref' requested, the unformed pref candidate after KA is the VIRAMA,
+// and skipping halants from there runs off the end of the syllable. Final
+// reordering must stop searching for a base rather than read past the syllable,
+// which flagged the buffer as failed and dropped the reph's 'abvm' attachment.
+#[test]
+fn indic_pref_candidate_at_end_of_syllable_ends_base_search() {
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/in-house/55e2910dbc9ef5dd89f4e146e7e0152169545b6a.ttf",
+            "\u{0D4E}\u{0D15}\u{0020}\u{0D15}\u{0D4D}",
+            "--features=pref",
+        ),
+        "[kamlym=0+1038|rephmlym=0@-363,0+0|space=2+309|kamlym=3+1038|viramamlym=3+0]"
+    );
+}
+
 // Nikhahit moves ahead of every above-base mark before SARA AM, keeping each
 // mark rather than repeating the first.
 #[test]
@@ -196,6 +212,37 @@ fn thai_sara_am_after_two_above_base_marks() {
         ),
         "[uni0E01=0+500|uni0E4D=0+0|uni0E48=0+0|uni0E49=0+0|uni0E32=0+500]"
     );
+}
+
+/// A `morx` language-tag feature entry names an `ltag` record by index. The
+/// record is read directly rather than by walking every earlier record: a font
+/// with thousands of aliased 64 KB strings and thousands of entries made that
+/// walk cost seconds per shape plan. The test font's `ltag` holds `fr`, `en`
+/// and `zh-Hant`; four entries select records 1 to 4 (the last is out of range)
+/// and each substitutes `a` with a different glyph.
+#[test]
+fn morx_language_tag_selects_ltag_record_by_index() {
+    for (language, expected) in [
+        ("", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=fr", "[gid4=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=en", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=en-US", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=EN_us", "[gid5=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=e", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=eng", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        (
+            "--language=zh-Hant-TW",
+            "[gid6=0+600|gid2=1+600|gid3=2+600]",
+        ),
+        ("--language=zh", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+        ("--language=de", "[gid1=0+600|gid2=1+600|gid3=2+600]"),
+    ] {
+        assert_eq!(
+            crate::shape("tests/fonts/morx-language-tag.ttf", "abc", language),
+            expected,
+            "{language}"
+        );
+    }
 }
 
 #[test]
@@ -307,6 +354,92 @@ fn kerx_process_direction_ltr_kerning() {
         crate::shape("tests/fonts/rb_custom/kerx-backwards-kern.ttf", "ba", ""),
         "[b=0@30,0+645|a=1+561]"
     );
+}
+
+/// Builds a font from `tables`, which must be sorted by tag.
+fn sfnt(tables: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((tables.len() as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, table) in tables {
+        data.extend(*tag);
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend((table.len() as u32).to_be_bytes());
+        offset += table.len().next_multiple_of(4);
+    }
+    for (_, table) in tables {
+        data.extend(table);
+        data.resize(data.len().next_multiple_of(4), 0);
+    }
+    data
+}
+
+// A Devanagari font whose `ccmp` feature turns KA (glyph 2) into 257 copies
+// of itself. Glyph 1 is VOWEL SIGN I and glyph 3 is DOTTED CIRCLE.
+fn ka_expanding_font() -> Vec<u8> {
+    // cmap: one format 12 subtable mapping U+093F, U+0915 and U+25CC.
+    let mut cmap = vec![0, 0, 0, 1, 0, 3, 0, 10, 0, 0, 0, 12];
+    cmap.extend([0, 12, 0, 0, 0, 0, 0, 52, 0, 0, 0, 0, 0, 0, 0, 3]);
+    for (ch, glyph) in [(0x0915u32, 2u32), (0x093F, 1), (0x25CC, 3)] {
+        cmap.extend(ch.to_be_bytes());
+        cmap.extend(ch.to_be_bytes());
+        cmap.extend(glyph.to_be_bytes());
+    }
+
+    // GSUB: script `dev2` -> feature `ccmp` -> one MultipleSubst lookup.
+    #[rustfmt::skip]
+    let mut gsub = vec![
+        0, 1, 0, 0, 0, 10, 0, 30, 0, 44, // header
+        0, 1, b'd', b'e', b'v', b'2', 0, 8, // one script
+        0, 4, 0, 0, // default LangSys only
+        0, 0, 0xFF, 0xFF, 0, 1, 0, 0, // required feature none, feature 0
+        0, 1, b'c', b'c', b'm', b'p', 0, 8, // one feature
+        0, 0, 0, 1, 0, 0, // lookup 0
+        0, 1, 0, 4, // one lookup
+        0, 2, 0, 0, 0, 1, 0, 8, // multiple substitution, one subtable
+        0, 1, 0, 8, 0, 1, 0, 14, // format 1, coverage, one sequence
+        0, 1, 0, 1, 0, 2, // coverage format 1: glyph 2
+        1, 1, // sequence: 257 glyphs
+    ];
+    gsub.extend([0, 2].repeat(257));
+
+    sfnt(&[
+        (b"GSUB", gsub),
+        (b"cmap", cmap),
+        (b"maxp", vec![0, 0, 0x50, 0, 0, 4]),
+    ])
+}
+
+// Inserting a dotted circle into a buffer that `ccmp` has already grown to
+// its glyph limit must give up rather than spin on the glyph that no longer
+// fits in the output.
+#[test]
+fn dotted_circle_insertion_stops_when_the_buffer_is_full() {
+    let font = Font::new(ka_expanding_font(), 0).expect("failed to parse test font");
+    let instance = font.instance_builder().build();
+    let shaping_font = ShaperFont::new(&instance);
+
+    // 256 characters allow 65536 glyphs; `ccmp` produces 1 + 255 * 257 of
+    // them, leaving no room for the dotted circle the orphan vowel needs.
+    let mut text = String::from("\u{093F}");
+    text.extend(std::iter::repeat_n('\u{0915}', 255));
+
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text);
+    buffer.guess_segment_properties();
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(!buffer.allocation_successful());
+
+    // One consonant fewer leaves room, and the dotted circle goes in.
+    let mut buffer = Buffer::new();
+    buffer.push_str(&text[..text.len() - '\u{0915}'.len_utf8()]);
+    buffer.guess_segment_properties();
+    shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(buffer.allocation_successful());
+    assert_eq!(buffer.len(), 1 + 254 * 257 + 1);
+    assert_eq!(buffer.glyph_infos()[1].glyph_id, 3);
 }
 
 // Native CoreText reference positions were measured on macOS 15.8.2 and 26.6.2.
@@ -455,4 +588,30 @@ fn kerx_coretext_history_wrap_and_reset() {
     for (font, text, expected) in cases {
         assert_eq!(crate::shape(font, text, ""), expected, "{font}: {text:?}");
     }
+}
+/// A contextual entry that does not advance and substitutes the marked glyph
+/// flags every glyph from the mark to the current one unsafe-to-break, a walk
+/// of up to 255 glyphs. The test font loops on `c` that way with its `a`
+/// marked 254 glyphs back, so the loop must be charged for the walk rather
+/// than one operation per turn; otherwise this run takes about 25 s in a
+/// debug build instead of a tenth of a second.
+#[test]
+fn morx_contextual_mark_substitution_loop_is_charged_for_its_walk() {
+    let mut text = String::from("a");
+    text.extend(std::iter::repeat_n('b', 253));
+    text.push('c');
+    text.extend(std::iter::repeat_n('b', 1745));
+    let mut expected = String::from("[1");
+    expected.extend(std::iter::repeat_n("|2", 253));
+    expected.push_str("|3");
+    expected.extend(std::iter::repeat_n("|2", 1745));
+    expected.push(']');
+    assert_eq!(
+        crate::shape(
+            "tests/fonts/morx-contextual-mark-loop.ttf",
+            &text,
+            "--no-glyph-names --no-positions --no-clusters",
+        ),
+        expected
+    );
 }

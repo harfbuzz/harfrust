@@ -631,7 +631,7 @@ fn ensure_native_direction(buffer: &mut Buffer) {
         let mut found_number = false;
         let mut found_letter = false;
         let mut found_ri = false;
-        for info in &buffer.info {
+        for info in buffer.glyph_infos() {
             let gc = info.general_category();
             if gc == GeneralCategory::DECIMAL_NUMBER {
                 found_number = true;

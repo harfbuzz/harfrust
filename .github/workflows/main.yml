@@ -98,7 +98,7 @@ jobs:
           -Dsubset=enabled -Dtests=disabled -Dutilities=disabled -Ddocs=disabled \
           -Draster=disabled -Dvector=disabled -Dgpu=disabled
         .ci/venv/bin/meson compile -C .ci/harfbuzz-build
-        for test in compare_skia_hb compare_controls_hb; do
+        for test in compare_skia_hb compare_controls_hb compare_plans_hb; do
           .ci/venv/bin/python "harfrust_capi/tests/subset/$test.py" \
             target/debug/libharfrust_c.so \
             .ci/harfbuzz-build/src/libharfbuzz.so \

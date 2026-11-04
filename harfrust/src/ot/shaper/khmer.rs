@@ -301,3 +301,32 @@ fn setup_masks(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) {
         info.set_khmer_properties();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::khmer_machine::{find_syllables_khmer, SyllableType};
+    use super::*;
+
+    // A consonant followed by a long joiner run used to take quadratic time:
+    // `xgroup` kept the scanner reading to the end of the buffer for every
+    // token while it waited for an Xgroup that never came.
+    #[test]
+    fn joiner_run_is_scanned_in_linear_time() {
+        let mut buffer = Buffer::new();
+        buffer.push(0x1780, 0);
+        buffer.info[0].set_khmer_category(category::OT_C);
+        for i in 1..=100_000 {
+            buffer.push(0x200D, i);
+            buffer.info[i as usize].set_khmer_category(category::OT_ZWJ);
+        }
+        find_syllables_khmer(&mut buffer);
+        assert_eq!(
+            buffer.info[0].syllable() & 0x0F,
+            SyllableType::ConsonantSyllable as u8
+        );
+        assert_eq!(
+            buffer.info[1].syllable() & 0x0F,
+            SyllableType::NonKhmerCluster as u8
+        );
+    }
+}

@@ -14,6 +14,7 @@
 )]
 
 use crate::buffer::{HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE, Buffer};
+use crate::ot::layout::{SyllableLookaheadMemo, MAX_SYLLABLE_LOOKAHEAD};
 
 %%{
   machine khmer_syllable_machine;
@@ -86,6 +87,7 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
     let pe = buffer.len;
     let eof = buffer.len;
     let mut syllable_serial = 1u8;
+    let mut memo = SyllableLookaheadMemo::new();
 
     macro_rules! found_syllable {
         ($kind:expr) => {{
@@ -95,10 +97,31 @@ pub fn find_syllables_khmer(buffer: &mut Buffer) -> Option<()> {
 
     %%{
         write init;
-        getkey (buffer.info.get(p)?.khmer_category() as u8);
+        getkey (category_at(buffer, &mut memo, p, ts, te, cs)?);
         write exec;
     }%%
     Some(())
+}
+
+// Supplies the scanner's look-ahead category. Once the look-ahead has run
+// MAX_SYLLABLE_LOOKAHEAD past the last match, consult the memo (see
+// `SyllableLookaheadMemo`): a `(position, state)` pair an earlier token already
+// scanned through without matching is doomed again now, so hand the machine a
+// category no rule continues with, which makes it fall back to `te` exactly as
+// an unbounded scan eventually would. This keeps the scan linear on a joiner
+// run while leaving the output of every real syllable unchanged.
+fn category_at(
+    buffer: &Buffer,
+    memo: &mut SyllableLookaheadMemo,
+    p: usize,
+    ts: usize,
+    te: usize,
+    cs: i32,
+) -> Option<u8> {
+    if p - ts.max(te) >= MAX_SYLLABLE_LOOKAHEAD && memo.is_doomed_revisit(p, ts, cs, buffer.len) {
+        return Some(u8::MAX);
+    }
+    Some(buffer.info.get(p)?.khmer_category() as u8)
 }
 
 // Called from every syllable action, so one shared copy keeps the machine small.

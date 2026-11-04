@@ -273,6 +273,51 @@ fn arabic_win1256_fallback_is_applied() {
 }
 
 #[test]
+fn arabic_fallback_plan_is_built_with_no_lock_held() {
+    // Only the fallback plan asks for presentation forms that are not in the
+    // text, so this shapes with the plan whose fallback is being built.
+    struct ReentrantFuncs<'a> {
+        plan: &'a harfrust::ShapePlan,
+    }
+
+    impl FontFuncs for ReentrantFuncs<'_> {
+        fn nominal_glyph(&self, font: &ShaperFont, c: u32) -> Option<GlyphId> {
+            if (0xFE8F..=0xFE92).contains(&c) {
+                let plain = ShaperFont::new(font);
+                let options = harfrust::ShapeOptions::new().plan(Some(self.plan));
+                harfrust::shape(&plain, &mut buffer_with_text("ب"), options).unwrap();
+            }
+            (c == 0x0628).then_some(GlyphId::new(1))
+        }
+    }
+
+    // On its own thread, so that a deadlock fails the test.
+    let (done, finished) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        with_test_shaper(|shaper| {
+            let mut buffer = buffer_with_text("بب");
+            let plan = harfrust::ShapePlan::new(
+                shaper,
+                buffer.direction(),
+                buffer.script(),
+                buffer.language(),
+                &[],
+            );
+            let funcs = ReentrantFuncs { plan: &plan };
+            let mut font = ShaperFont::new(shaper);
+            font.set_font_funcs(Some(&funcs));
+            let options = harfrust::ShapeOptions::new().plan(Some(&plan));
+            harfrust::shape(&font, &mut buffer, options).unwrap();
+            done.send(buffer.len()).unwrap();
+        });
+    });
+    assert_eq!(
+        finished.recv_timeout(std::time::Duration::from_secs(60)),
+        Ok(2)
+    );
+}
+
+#[test]
 fn font_funcs_batch_advance_override_is_used() {
     struct BatchAdvanceFuncs {
         batch_calls: Cell<usize>,

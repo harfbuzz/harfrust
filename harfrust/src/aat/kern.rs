@@ -1,5 +1,6 @@
 use crate::aat::layout::DELETED_GLYPH;
 use alloc::boxed::Box;
+use core::mem::size_of;
 use read_fonts::{
     tables::{
         aat,
@@ -9,7 +10,8 @@ use read_fonts::{
 };
 
 use crate::aat::common::{
-    set_digest, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, START_OF_TEXT,
+    set_digest, set_heap_bytes, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
+    START_OF_TEXT,
 };
 use crate::aat::kerx::SimpleKerning;
 use crate::buffer::*;
@@ -94,6 +96,15 @@ pub fn apply(
             continue;
         }
 
+        // Every applied subtable walks the whole buffer, and a font can
+        // carry any number of them; charge each walk so the work stays
+        // within the buffer's operation limit.
+        c.buffer.max_ops -= c.buffer.len as i32;
+        if c.buffer.max_ops < 0 {
+            c.buffer.successful = false;
+            break;
+        }
+
         let reverse = c.buffer.direction.is_backward();
         let is_cross_stream = subtable.is_cross_stream();
         message_continue!(c, "start subtable {}", message_index);
@@ -102,7 +113,8 @@ pub fn apply(
             seen_cross_stream = true;
 
             // Attach all glyphs into a chain.
-            for pos in &mut c.buffer.pos {
+            let len = c.buffer.len;
+            for pos in c.buffer.pos.get_mut(..len).unwrap_or_default() {
                 pos.set_attach_type(attach_type::CURSIVE);
                 pos.set_attach_chain(if c.buffer.direction.is_forward() {
                     -1
@@ -746,5 +758,15 @@ impl<'a> KernSubtableCache<'a> {
             subtable: subtable.clone(),
             kind,
         }
+    }
+
+    /// The bytes this entry keeps for the life of the font. Its glyph sets
+    /// and safe-to-break data can be far larger than the subtable.
+    pub(crate) fn retained_bytes(&self) -> usize {
+        size_of::<Self>()
+            + size_of::<ClassCache>()
+            + set_heap_bytes(&self.first_set)
+            + set_heap_bytes(&self.second_set)
+            + self.safe_to_break.accel_bytes()
     }
 }
