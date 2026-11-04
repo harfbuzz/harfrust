@@ -167,10 +167,8 @@ impl hr_font_t {
         unsafe { self.face.as_ref() }.map_or(1000, |face| face.upem() as c_int)
     }
 
-    fn builtin_shaping_font(&self) -> Option<ShaperFont<'static, 'static>> {
-        let mut font = (*self.prepared.as_ref()?.shaper()?).clone();
-        font.set_scale_separate(self.x_scale, self.y_scale);
-        Some(font)
+    fn builtin_shaping_font(&self) -> Option<&ShaperFont<'static, 'static>> {
+        self.shaper()
     }
 
     /// How far the font's own tables advance a glyph, in reported units.
@@ -277,7 +275,10 @@ impl hr_font_t {
             .iter()
             .map(|coord| c_int::from(coord.to_bits()))
             .collect();
-        let prepared = PreparedFont::new(instance);
+        let mut prepared = PreparedFont::new(instance);
+        if let Some(shaper) = &mut prepared.shaper {
+            shaper.set_scale_separate(self.x_scale, self.y_scale);
+        }
         self.coords = coords;
         self.prepared = Some(prepared);
     }
@@ -527,6 +528,13 @@ pub unsafe extern "C" fn hr_font_set_scale(font: *mut hr_font_t, x_scale: c_int,
     if let Some(font) = unsafe { object::as_mutable(font) } {
         font.x_scale = x_scale;
         font.y_scale = y_scale;
+        if let Some(shaper) = font
+            .prepared
+            .as_mut()
+            .and_then(|prepared| prepared.shaper.as_mut())
+        {
+            shaper.set_scale_separate(x_scale, y_scale);
+        }
     }
 }
 

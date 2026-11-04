@@ -4212,3 +4212,46 @@ fn glyph_count_prefers_extended_maxp() {
         hr_blob_destroy(blob);
     }
 }
+
+#[test]
+fn prepared_metrics_follow_scale_subfonts_and_instance_changes() {
+    unsafe {
+        with_named_font(VARIABLE_FONT, |_, font| {
+            let mut glyph = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, 'a' as u32, &raw mut glyph),
+                0
+            );
+            let original = hr_font_get_glyph_h_advance(font, glyph);
+            assert!(original > 0);
+            let mut upem = 0;
+            hr_font_get_scale(font, &raw mut upem, ptr::null_mut());
+            hr_font_set_scale(font, upem * 2, upem * 3);
+            assert_eq!(hr_font_get_glyph_h_advance(font, glyph), original * 2);
+            let child = hr_font_create_sub_font(font);
+            hr_font_set_scale(font, -upem, 0);
+            assert_eq!(hr_font_get_glyph_h_advance(font, glyph), -original);
+            assert_eq!(hr_font_get_glyph_h_advance(child, glyph), original * 2);
+
+            let variation = hr_variation_t {
+                tag: u32::from_be_bytes(*b"wdth"),
+                value: 200.0,
+            };
+            // Rebuilding the instance must preserve the child's scale.
+            hr_font_set_variations(child, &raw const variation, 1);
+            let wide = hr_font_get_glyph_h_advance(child, glyph);
+            assert!(wide > original * 2);
+            let mut advance = 0;
+            hr_font_get_glyph_h_advances(child, 1, &raw const glyph, 0, &raw mut advance, 0);
+            assert_eq!(advance, wide);
+            let buffer = buffer_with_text("a");
+            hr_shape(child, buffer, ptr::null(), 0);
+            let positions = hr_buffer_get_glyph_positions(buffer, ptr::null_mut());
+            assert_eq!((*positions).x_advance, wide);
+            hr_buffer_destroy(buffer);
+            hr_font_set_variations(child, ptr::null(), 0);
+            assert_eq!(hr_font_get_glyph_h_advance(child, glyph), original * 2);
+            hr_font_destroy(child);
+        });
+    }
+}
