@@ -30,7 +30,18 @@ pub mod attach_type {
 /// A mark can sit up to `i16::MAX` glyphs from its base, so summing the
 /// advances between them once per mark is quadratic in a run of marks.
 /// Propagation never changes advances, so the totals stay valid throughout.
+/// Cursive attachments do not use the totals and leave this vector empty.
+///
+/// Corrections use the exact i64 advance sum and saturate once. At extreme
+/// offsets with mixed-sign advances, this can differ from HarfBuzz's repeated
+/// saturating additions/subtractions, which lose excess at each step.
 fn advance_sums(pos: &[GlyphPosition]) -> Vec<(i64, i64)> {
+    if !pos
+        .iter()
+        .any(|p| p.attach_chain() != 0 && p.attach_type() == attach_type::MARK)
+    {
+        return Vec::new();
+    }
     let mut sums = Vec::with_capacity(pos.len() + 1);
     let (mut x, mut y) = (0i64, 0i64);
     sums.push((x, y));
@@ -164,6 +175,48 @@ pub fn position_finish_offsets(buffer: &mut Buffer) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cursive_only_attachments_do_not_allocate_advance_sums() {
+        let mut pos = [GlyphPosition::default(); 2];
+        pos[0].y_offset = 20;
+        pos[1].y_offset = 10;
+        pos[1].set_attach_type(attach_type::CURSIVE);
+        pos[1].set_attach_chain(-1);
+        let sums = advance_sums(&pos);
+        assert_eq!(sums.capacity(), 0);
+        propagate_attachment_offsets(
+            &mut pos,
+            &sums,
+            2,
+            1,
+            Direction::LeftToRight,
+            MAX_NESTING_LEVEL,
+        );
+        assert_eq!(pos[1].y_offset, 30);
+    }
+
+    #[test]
+    fn mark_advance_correction_saturates_the_exact_mixed_sign_sum() {
+        let mut pos = [GlyphPosition::default(); 3];
+        pos[0].x_advance = 1;
+        pos[1].x_advance = -1;
+        pos[2].x_offset = i32::MIN;
+        pos[2].set_attach_type(attach_type::MARK);
+        pos[2].set_attach_chain(-2);
+        let sums = advance_sums(&pos);
+        propagate_attachment_offsets(
+            &mut pos,
+            &sums,
+            3,
+            2,
+            Direction::LeftToRight,
+            MAX_NESTING_LEVEL,
+        );
+        // The exact net advance is zero. Per-step saturation would instead
+        // lose the first subtraction's underflow and produce MIN + 1.
+        assert_eq!(pos[2].x_offset, i32::MIN);
+    }
 
     #[test]
     fn propagate_attachment_offsets_saturates_deep_mark_chains() {
