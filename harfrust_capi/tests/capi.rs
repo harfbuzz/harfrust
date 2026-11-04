@@ -2996,6 +2996,31 @@ fn immortal_objects_reject_user_data() {
     }
 }
 
+#[test]
+fn the_empty_buffer_is_not_written_by_the_glyph_getters() {
+    // The empty buffer is one object shared by every thread, so the getters
+    // must neither allocate positions in it nor hand out a writable pointer
+    // into it: it answers as `NULL` does, with nothing.
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| unsafe {
+                let empty = hr_buffer_get_empty();
+                let mut len = 7;
+                assert!(hr_buffer_get_glyph_positions(empty, &raw mut len).is_null());
+                assert_eq!(len, 0);
+                len = 7;
+                assert!(hr_buffer_get_glyph_infos(empty, &raw mut len).is_null());
+                assert_eq!(len, 0);
+                assert_eq!(hr_buffer_has_positions(ptr::null_mut()), 0);
+            })
+        })
+        .collect();
+
+    for thread in threads {
+        thread.join().expect("thread panicked");
+    }
+}
+
 // --------------------------------------------------------------- common ----
 
 #[test]
@@ -3071,6 +3096,34 @@ fn languages_are_interned() {
         // A locale's codeset and modifier are not part of the language.
         let locale = hr_language_from_string(c"en_US.utf8".as_ptr(), -1);
         assert_eq!(locale, a);
+    }
+}
+
+#[test]
+fn interning_many_languages_stays_cheap() {
+    // Content chooses the languages, so the table can grow as large as it
+    // likes; finding one must not mean comparing it with every other. Walking
+    // the table made this many take seconds, and keying it makes it instant.
+    let names: Vec<_> = (0..20_000u32)
+        .map(|i| std::ffi::CString::new(format!("x-{i:x}")).unwrap())
+        .collect();
+    unsafe {
+        let interned: Vec<_> = names
+            .iter()
+            .map(|name| hr_language_from_string(name.as_ptr(), -1))
+            .collect();
+        for (name, language) in names.iter().zip(&interned) {
+            assert_eq!(hr_language_from_string(name.as_ptr(), -1), *language);
+            assert_eq!(
+                core::ffi::CStr::from_ptr(hr_language_to_string(*language)),
+                name.as_c_str()
+            );
+        }
+        // Tags that are not registered intern a language each, and share the
+        // same table.
+        let tag = hr_ot_tag_to_language(u32::from_be_bytes(*b"QQQQ"));
+        assert_eq!(hr_ot_tag_to_language(u32::from_be_bytes(*b"QQQQ")), tag);
+        assert_eq!(hr_language_from_string(hr_language_to_string(tag), -1), tag);
     }
 }
 
@@ -4282,5 +4335,67 @@ fn tags_read_only_four_raw_bytes() {
             assert_eq!(hr_tag_from_string(bytes.as_ptr().cast(), len), expected);
         }
         assert_eq!(hr_tag_from_string(ptr::null(), -1), HR_TAG_NONE);
+    }
+}
+
+#[test]
+fn inverted_set_iteration_seeks_past_a_long_excluded_prefix() {
+    // Previously every next() rebuilt the first range by scanning all the
+    // excluded pages before PREFIX, even though each answer is nearby.
+    const PREFIX: u32 = 1 << 22;
+    const COUNT: usize = 4096;
+    for stride in [2, 32] {
+        unsafe {
+            let set = hr_set_create();
+            hr_set_invert(set);
+            hr_set_del_range(set, 0, PREFIX - 1);
+            for index in 0..COUNT as u32 {
+                hr_set_del_range(
+                    set,
+                    PREFIX + stride * index + 1,
+                    PREFIX + stride * (index + 1) - 1,
+                );
+            }
+            let mut cursor = PREFIX;
+            for index in 1..=COUNT as u32 {
+                assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+                assert_eq!(cursor, PREFIX + stride * index);
+            }
+            let mut batch = [0; COUNT];
+            assert_eq!(
+                hr_set_next_many(set, PREFIX, batch.as_mut_ptr(), COUNT as u32),
+                COUNT as u32
+            );
+            for (index, value) in batch.into_iter().enumerate() {
+                assert_eq!(value, PREFIX + stride * (index as u32 + 1));
+            }
+            hr_set_destroy(set);
+        }
+    }
+}
+
+#[test]
+fn inverted_set_seeks_across_long_gaps_and_invalidates_cached_ranges() {
+    const END: u32 = 1 << 24;
+    unsafe {
+        let set = hr_set_create();
+        hr_set_invert(set);
+        hr_set_del_range(set, 0, END - 1);
+        let mut cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, END);
+        hr_set_add(set, 17);
+        cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, 17);
+        hr_set_del(set, 17);
+        cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, END);
+        hr_set_invert(set);
+        cursor = HR_SET_VALUE_INVALID;
+        assert_eq!(hr_set_next(set, &raw mut cursor), 1);
+        assert_eq!(cursor, 0);
+        hr_set_destroy(set);
     }
 }

@@ -56,7 +56,10 @@ fn platform_language<'a>(ltag: &'a [u8], record: &NameRecord) -> Option<&'a str>
                 return None;
             }
             let start = data.read_at::<u16>(12 + code as usize * 4).ok()? as usize;
-            let len = data.read_at::<u16>(14 + code as usize * 4).ok()? as usize;
+            // HarfBuzz reads at most 63 bytes of a tag. This runs once per
+            // candidate record, so the font must not get to choose how much
+            // of the table is validated each time.
+            let len = (data.read_at::<u16>(14 + code as usize * 4).ok()? as usize).min(63);
             return core::str::from_utf8(data.as_bytes().get(start..start + len)?).ok();
         }
         _ => return None,
