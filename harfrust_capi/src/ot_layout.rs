@@ -327,11 +327,41 @@ impl<'a> Budget<'a> {
     }
 }
 
+/// The reader expands range arrays with `flat_map`: reversed ranges yield
+/// no glyphs, but their array entries still have to be visited.
+fn charge_coverage_ranges(coverage: &CoverageTable<'_>, budget: &Budget) -> Result<(), ReadError> {
+    let count = match coverage {
+        CoverageTable::Format2(table) => table.range_records().len(),
+        CoverageTable::Format4(table) => table.range_records().len(),
+        _ => 0,
+    };
+    for _ in 0..count {
+        budget.work()?;
+    }
+    Ok(())
+}
+
+/// Charge records hidden by the reader's range expansion or wide-glyph
+/// filtering as well as the glyphs yielded by its iterator below.
+fn charge_class_entries(class_def: &ClassDef<'_>, budget: &Budget) -> Result<(), ReadError> {
+    let count = match class_def {
+        ClassDef::Format1(_) => 0,
+        ClassDef::Format2(table) => table.class_range_records().len(),
+        ClassDef::Format3(table) => table.class_value_array().len(),
+        ClassDef::Format4(table) => table.class_range_records().len(),
+    };
+    for _ in 0..count {
+        budget.work()?;
+    }
+    Ok(())
+}
+
 fn add_coverage(
     set: SetTarget,
     coverage: CoverageTable<'_>,
     budget: &Budget,
 ) -> Result<(), ReadError> {
+    charge_coverage_ranges(&coverage, budget)?;
     for glyph in coverage.iter() {
         budget.work()?;
         set.add(glyph.to_u32());
@@ -344,6 +374,7 @@ fn add_class_coverage(
     class_def: ClassDef<'_>,
     budget: &Budget,
 ) -> Result<(), ReadError> {
+    charge_class_entries(&class_def, budget)?;
     match class_def {
         ClassDef::Format1(table) => {
             let start = table.start_glyph_id().to_u32();
@@ -386,6 +417,7 @@ fn add_class(
     selected: u16,
     budget: &Budget,
 ) -> Result<(), ReadError> {
+    charge_class_entries(class_def, budget)?;
     for (glyph, class) in class_def.iter() {
         budget.work()?;
         if class == u32::from(selected) {
@@ -450,6 +482,7 @@ fn collect_substitution(
                 match subtable? {
                     SingleSubst::Format1(table) => {
                         let coverage = table.coverage()?;
+                        charge_coverage_ranges(&coverage, budget)?;
                         for glyph in coverage.iter() {
                             budget.work()?;
                             let id = glyph.to_u32();
@@ -467,7 +500,9 @@ fn collect_substitution(
                         }
                     }
                     SingleSubst::Format3(table) => {
-                        for glyph in table.coverage()?.iter() {
+                        let coverage = table.coverage()?;
+                        charge_coverage_ranges(&coverage, budget)?;
+                        for glyph in coverage.iter() {
                             budget.work()?;
                             let id = glyph.to_u32();
                             input.add(id);
@@ -568,8 +603,12 @@ fn collect_substitution(
                 match subtable? {
                     SequenceContext::Format1(table) => {
                         add_coverage(input, table.coverage()?, budget)?;
-                        for rule_set in table.seq_rule_sets().iter().flatten() {
+                        for rule_set in table.seq_rule_sets().iter() {
+                            // Null offsets still consume an array visit.
                             budget.work()?;
+                            let Some(rule_set) = rule_set else {
+                                continue;
+                            };
                             for rule in rule_set?.seq_rules().iter() {
                                 budget.work()?;
                                 let rule = rule?;
@@ -593,8 +632,12 @@ fn collect_substitution(
                     SequenceContext::Format2(table) => {
                         add_coverage(input, table.coverage()?, budget)?;
                         let class_def = table.class_def()?;
-                        for rule_set in table.class_seq_rule_sets().iter().flatten() {
+                        for rule_set in table.class_seq_rule_sets().iter() {
+                            // Null offsets still consume an array visit.
                             budget.work()?;
+                            let Some(rule_set) = rule_set else {
+                                continue;
+                            };
                             for rule in rule_set?.class_seq_rules().iter() {
                                 budget.work()?;
                                 let rule = rule?;
@@ -641,8 +684,12 @@ fn collect_substitution(
                 match subtable? {
                     ChainedSequenceContext::Format1(table) => {
                         add_coverage(input, table.coverage()?, budget)?;
-                        for rule_set in table.chained_seq_rule_sets().iter().flatten() {
+                        for rule_set in table.chained_seq_rule_sets().iter() {
+                            // Null offsets still consume an array visit.
                             budget.work()?;
+                            let Some(rule_set) = rule_set else {
+                                continue;
+                            };
                             for rule in rule_set?.chained_seq_rules().iter() {
                                 budget.work()?;
                                 let rule = rule?;
@@ -676,8 +723,12 @@ fn collect_substitution(
                         let backtrack_class_def = table.backtrack_class_def()?;
                         let input_class_def = table.input_class_def()?;
                         let lookahead_class_def = table.lookahead_class_def()?;
-                        for rule_set in table.chained_class_seq_rule_sets().iter().flatten() {
+                        for rule_set in table.chained_class_seq_rule_sets().iter() {
+                            // Null offsets still consume an array visit.
                             budget.work()?;
+                            let Some(rule_set) = rule_set else {
+                                continue;
+                            };
                             for rule in rule_set?.chained_class_seq_rules().iter() {
                                 budget.work()?;
                                 let rule = rule?;
@@ -1272,6 +1323,198 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback2(
 #[cfg(test)]
 mod budget_tests {
     use super::*;
+    use read_fonts::{FontData, FontRead};
+
+    /// One contextual lookup with 1,000 nullable rule-set slots. In the
+    /// mixed case, every other slot aliases one readable empty rule set.
+    fn contextual_rule_sets(lookup_type: u16, format: u16, mixed: bool) -> Vec<u8> {
+        let count = 1000u16;
+        let class_based = format == 2;
+        let chained = lookup_type == 6;
+        let header_words = match (chained, class_based) {
+            (_, false) => 3,
+            (false, true) => 4,
+            (true, true) => 6,
+        };
+        let coverage_offset = (header_words + usize::from(count)) * 2;
+        let class_def_offset = coverage_offset + 4;
+        let rule_set_offset = class_def_offset + if class_based { 6 } else { 0 };
+        let mut words = vec![format, coverage_offset as u16];
+        if class_based {
+            words.push(class_def_offset as u16);
+            if chained {
+                words.extend([class_def_offset as u16; 2]);
+            }
+        }
+        words.push(count);
+        words.extend((0..count).map(|index| {
+            if mixed && index % 2 == 1 {
+                rule_set_offset as u16
+            } else {
+                0
+            }
+        }));
+        words.extend([1, 0]); // Empty coverage format 1.
+        if class_based {
+            words.extend([1, 0, 0]); // Empty class definition format 1.
+        }
+        words.push(0); // A readable rule set with no rules.
+        let mut data: Vec<u8> = [1, 4, lookup_type, 0, 1, 8]
+            .into_iter()
+            .flat_map(u16::to_be_bytes)
+            .collect();
+        data.extend(words.into_iter().flat_map(u16::to_be_bytes));
+        data
+    }
+
+    fn collection_work(data: &[u8], limit: usize) -> (Result<bool, ReadError>, usize) {
+        let lookup_list = SubstitutionLookupList::Original(
+            read_fonts::tables::gsub::OriginalSubstitutionLookupList::read(FontData::new(data))
+                .unwrap(),
+        );
+        let spent = AtomicUsize::new(0);
+        let budget = Budget {
+            limit,
+            spent: &spent,
+        };
+        let none = SetTarget(core::ptr::null_mut());
+        let result = collect_substitution(
+            lookup_list.lookups().get(0).unwrap(),
+            &lookup_list,
+            none,
+            none,
+            none,
+            none,
+            &budget,
+            &mut HashSet::new(),
+            0,
+        );
+        (result, spent.load(Ordering::Relaxed))
+    }
+
+    #[test]
+    fn null_contextual_rule_sets_consume_collection_work() {
+        for lookup_type in [5, 6] {
+            for format in [1, 2] {
+                for mixed in [false, true] {
+                    let data = contextual_rule_sets(lookup_type, format, mixed);
+                    for limit in [500, 1001] {
+                        let (result, spent) = collection_work(&data, limit);
+                        if limit == 500 {
+                            assert!(
+                                result.is_err(),
+                                "lookup {lookup_type}, format {format}, mixed {mixed}"
+                            );
+                        } else {
+                            assert!(
+                                result.unwrap(),
+                                "lookup {lookup_type}, format {format}, mixed {mixed}"
+                            );
+                        }
+                        assert_eq!(spent, limit);
+                    }
+                }
+            }
+        }
+    }
+
+    // Every range is reversed, so the reader visits the records but yields
+    // no glyphs. Both the narrow and extended formats must charge the records.
+    fn reversed_ranges(format: u16, class_def: bool) -> Vec<u8> {
+        let count = 1000u16;
+        let mut data = format.to_be_bytes().to_vec();
+        let record = if format == 2 {
+            data.extend(count.to_be_bytes());
+            vec![0, 2, 0, 1, 0, 1]
+        } else {
+            data.extend([0, 3, 0xE8]); // Uint24 count.
+            if class_def {
+                vec![0, 0, 2, 0, 0, 1, 0, 1]
+            } else {
+                vec![0, 0, 2, 0, 0, 1, 0, 0, 0]
+            }
+        };
+        for _ in 0..count {
+            data.extend_from_slice(&record);
+        }
+        data
+    }
+
+    #[test]
+    fn reversed_coverage_ranges_consume_collection_work() {
+        let none = SetTarget(core::ptr::null_mut());
+        for format in [2, 4] {
+            let data = reversed_ranges(format, false);
+            let coverage = CoverageTable::read(FontData::new(&data)).unwrap();
+            for limit in [500, 1000] {
+                let spent = AtomicUsize::new(0);
+                let budget = Budget {
+                    limit,
+                    spent: &spent,
+                };
+                assert_eq!(
+                    add_coverage(none, coverage.clone(), &budget).is_ok(),
+                    limit == 1000
+                );
+                assert_eq!(spent.load(Ordering::Relaxed), limit);
+            }
+            // SingleSubst delta forms walk coverage without add_coverage.
+            for single_format in [1, 3] {
+                let mut lookup: Vec<u8> = [1u16, 4, 1, 0, 1, 8]
+                    .into_iter()
+                    .flat_map(u16::to_be_bytes)
+                    .collect();
+                if single_format == 1 {
+                    lookup.extend([0, 1, 0, 6, 0, 1]);
+                } else {
+                    lookup.extend([0, 3, 0, 0, 0, 9, 0, 0, 1]);
+                }
+                lookup.extend_from_slice(&data);
+                for limit in [500, 1001] {
+                    let (result, spent) = collection_work(&lookup, limit);
+                    assert_eq!(result.is_ok(), limit == 1001);
+                    assert_eq!(spent, limit);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn reversed_class_ranges_and_overflowed_glyphs_consume_collection_work() {
+        let mut overflowed = vec![0, 3, 0xFF, 0xFF, 0xFF, 0, 3, 0xE8];
+        for _ in 0..1000 {
+            overflowed.extend([0, 0, 1]);
+        }
+        let none = SetTarget(core::ptr::null_mut());
+        for data in [
+            reversed_ranges(2, true),
+            reversed_ranges(4, true),
+            overflowed,
+        ] {
+            let class_def = ClassDef::read(FontData::new(&data)).unwrap();
+            let total_work = if matches!(class_def, ClassDef::Format3(_)) {
+                1001
+            } else {
+                1000
+            };
+            for selected_class in [false, true] {
+                for limit in [500, total_work] {
+                    let spent = AtomicUsize::new(0);
+                    let budget = Budget {
+                        limit,
+                        spent: &spent,
+                    };
+                    let result = if selected_class {
+                        add_class(none, &class_def, 1, &budget)
+                    } else {
+                        add_class_coverage(none, class_def.clone(), &budget)
+                    };
+                    assert_eq!(result.is_ok(), limit == total_work);
+                    assert_eq!(spent.load(Ordering::Relaxed), limit);
+                }
+            }
+        }
+    }
 
     #[test]
     fn overlapping_collections_cannot_refund_shared_work() {
