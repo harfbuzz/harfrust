@@ -4235,29 +4235,23 @@ fn h_metrics(glyphs: usize) -> [(&'static [u8; 4], Vec<u8>); 2] {
 }
 
 #[test]
-fn lookup_fallback_ignores_a_glyph_count_nothing_backs() {
-    let [hhea, hmtx] = h_metrics(65550);
-    for (tables, covered) in [
+fn wide_lookup_glyphs_do_not_require_metrics_or_a_glyph_count() {
+    let [hhea, hmtx] = h_metrics(4);
+    for tables in [
         // No count at all.
-        (vec![(b"GSUB", extended_single_subst_gsub())], 65536),
+        vec![(b"GSUB", extended_single_subst_gsub())],
         // A count no table backs.
-        (
-            vec![
-                (b"GSUB", extended_single_subst_gsub()),
-                (b"MAXP", maxp(0x00FF_FFFF, true)),
-            ],
-            65536,
-        ),
+        vec![
+            (b"GSUB", extended_single_subst_gsub()),
+            (b"MAXP", maxp(0x00FF_FFFF, true)),
+        ],
         // A count the metrics back only in part.
-        (
-            vec![
-                (b"GSUB", extended_single_subst_gsub()),
-                (b"MAXP", maxp(0x00FF_FFFF, true)),
-                hhea,
-                hmtx,
-            ],
-            65550,
-        ),
+        vec![
+            (b"GSUB", extended_single_subst_gsub()),
+            (b"MAXP", maxp(0x00FF_FFFF, true)),
+            hhea,
+            hmtx,
+        ],
     ] {
         let data = sfnt(&tables);
         unsafe {
@@ -4265,7 +4259,9 @@ fn lookup_fallback_ignores_a_glyph_count_nothing_backs() {
             let face = hr_face_create(blob, 0);
             let set = hr_set_create();
             hr_ot_layout_lookup_collect_glyphs(face, 0x4753_5542, 0, set, set, set, set);
-            assert_eq!(hr_set_get_population(set), covered);
+            assert_eq!(hr_set_get_population(set), 2);
+            assert_eq!(hr_set_has(set, 65536), 1);
+            assert_eq!(hr_set_has(set, 65537), 1);
             hr_set_destroy(set);
             hr_face_destroy(face);
             hr_blob_destroy(blob);
@@ -4274,7 +4270,7 @@ fn lookup_fallback_ignores_a_glyph_count_nothing_backs() {
 }
 
 #[test]
-fn extended_lookup_fallback_covers_glyphs_beyond_64k() {
+fn extended_lookup_collects_glyphs_beyond_64k() {
     let [hhea, hmtx] = h_metrics(65550);
     let data = sfnt(&[
         (b"GSUB", extended_single_subst_gsub()),
@@ -4400,7 +4396,7 @@ fn aliased_offsets_fall_back_to_all_glyphs() {
     // Followed to the end, these 1.6 KB would be 200^4 components.
     assert_eq!(
         collect_lookup_0(b"GSUB", aliased_ligature_gsub(200)),
-        [3, 3, 3, 3]
+        [u32::MAX; 4]
     );
     assert_eq!(
         collect_lookup_0(b"GPOS", aliased_pair_pos_gpos(1)),
@@ -4409,7 +4405,7 @@ fn aliased_offsets_fall_back_to_all_glyphs() {
     // Followed to the end, these 1.8 KB would be 300^3 pair records.
     assert_eq!(
         collect_lookup_0(b"GPOS", aliased_pair_pos_gpos(300)),
-        [3, 3, 3, 3]
+        [u32::MAX; 4]
     );
 }
 
@@ -4432,7 +4428,7 @@ fn repeated_collections_share_one_allowance() {
             hr_set_destroy(set);
         }
         assert_eq!(populations[0], 2);
-        assert_eq!(populations[49], 3);
+        assert_eq!(populations[49], u32::MAX);
         hr_face_destroy(face);
         hr_blob_destroy(blob);
     }
@@ -4512,5 +4508,69 @@ fn tags_read_only_four_raw_bytes() {
             assert_eq!(hr_tag_from_string(bytes.as_ptr().cast(), len), expected);
         }
         assert_eq!(hr_tag_from_string(ptr::null(), -1), HR_TAG_NONE);
+    }
+}
+
+#[test]
+fn conservative_lookup_fallback_preserves_aliased_and_inverted_sets() {
+    let mut table = extended_single_subst_gsub();
+    table[27] = 0xff; // unreadable SingleSubst format
+    let data = sfnt(&[(b"GSUB", table)]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        for inverted in [false, true] {
+            let set = hr_set_create();
+            hr_set_add(set, u32::MAX - 1);
+            if inverted {
+                hr_set_invert(set);
+                hr_set_del(set, 65536);
+            }
+            hr_ot_layout_lookup_collect_glyphs(face, 0x4753_5542, 0, set, set, set, set);
+            assert_eq!(hr_set_get_population(set), u32::MAX);
+            assert_eq!(hr_set_is_inverted(set), 1);
+            assert_eq!(hr_set_has(set, 65536), 1);
+            assert_eq!(hr_set_has(set, 65537), 1);
+            assert_eq!(hr_set_has(set, u32::MAX - 1), 1);
+            hr_set_destroy(set);
+        }
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
+    }
+}
+
+#[test]
+fn wide_single_substitution_with_explicit_outputs_needs_no_metrics() {
+    let mut table = extended_single_subst_gsub();
+    table.truncate(26);
+    table.extend([
+        0, 4, 0, 0, 0, 12, // format 4, coverage offset
+        0, 0, 1, // one output glyph
+        1, 0, 1, // glyph 65537
+        0, 3, 0, 0, 1, 1, 0, 0, // coverage: glyph 65536
+    ]);
+    let data = sfnt(&[(b"GSUB", table)]);
+    unsafe {
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        let input = hr_set_create();
+        let output = hr_set_create();
+        hr_ot_layout_lookup_collect_glyphs(
+            face,
+            0x4753_5542,
+            0,
+            ptr::null_mut(),
+            input,
+            ptr::null_mut(),
+            output,
+        );
+        assert_eq!(hr_set_get_population(input), 1);
+        assert_eq!(hr_set_get_population(output), 1);
+        assert_eq!(hr_set_has(input, 65536), 1);
+        assert_eq!(hr_set_has(output, 65537), 1);
+        hr_set_destroy(input);
+        hr_set_destroy(output);
+        hr_face_destroy(face);
+        hr_blob_destroy(blob);
     }
 }

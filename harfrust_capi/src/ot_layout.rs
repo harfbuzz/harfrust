@@ -1,6 +1,5 @@
 //! OpenType layout metadata, lookup glyph collection, and BASE baseline queries.
 
-use core::cell::Cell;
 use core::ffi::c_uint;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashSet;
@@ -261,31 +260,6 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_lookup_count(
     }
 }
 
-/// How many glyph IDs the every-glyph fallback covers.
-///
-/// `MAXP` declares up to 2^24 glyphs in a few bytes, and a face without a
-/// count may have as many, but a set that large takes megabytes and
-/// milliseconds to fill, once per lookup and per set. So beyond the IDs a
-/// classic lookup can name, a count is believed only as far as the horizontal
-/// metrics, which hold a record for every glyph, back it.
-fn fallback_glyph_count(face: &hr_face_t) -> u32 {
-    const CLASSIC: u32 = 1 << 16;
-    let count = match face.glyph_count() {
-        0 => 1 << 24,
-        count => count,
-    };
-    if count <= CLASSIC {
-        return count;
-    }
-    let backed = face
-        .font()
-        .and_then(|font| font.tables().h_glyph_metric_records().ok())
-        .map_or(0, |records| {
-            records.long_metrics().len() + records.side_bearings().len()
-        });
-    count.min(u32::try_from(backed).unwrap_or(u32::MAX).max(CLASSIC))
-}
-
 #[derive(Clone, Copy)]
 struct SetTarget(*mut hr_set_t);
 
@@ -296,9 +270,12 @@ impl SetTarget {
         }
     }
 
-    fn include_all_glyphs(self, count: u32) {
+    fn include_all_glyphs(self) {
         if let Some(set) = unsafe { object::as_mutable(self.0) } {
-            set.include_all_glyphs(count);
+            // An inverted empty set represents a conservative superset in
+            // constant space, including IDs not backed by MAXP or metrics.
+            set.values.clear();
+            set.values.invert();
         }
     }
 }
@@ -310,33 +287,43 @@ impl SetTarget {
 /// loop charges its steps here, and the steps spent are kept on the face, so
 /// the work across all calls is bounded by the table's size. Running out takes
 /// the every-glyph fallback.
-struct Budget(Cell<usize>);
+struct Budget<'a> {
+    limit: usize,
+    spent: &'a AtomicUsize,
+}
 
-impl Budget {
+impl<'a> Budget<'a> {
     // The allowance the shaper gives a layout table's preprocessing.
     fn limit(bytes: usize) -> usize {
         bytes.saturating_mul(256).clamp(4 << 20, 128 << 20)
     }
 
-    fn for_table(bytes: usize, spent: &AtomicUsize) -> Self {
-        Self(Cell::new(
-            Self::limit(bytes).saturating_sub(spent.load(Ordering::Relaxed)),
-        ))
-    }
-
-    fn record(&self, bytes: usize, spent: &AtomicUsize) {
-        spent.store(
-            Self::limit(bytes).saturating_sub(self.0.get()),
-            Ordering::Relaxed,
-        );
+    fn for_table(bytes: usize, spent: &'a AtomicUsize) -> Self {
+        Self {
+            limit: Self::limit(bytes),
+            spent,
+        }
     }
 
     fn work(&self) -> Result<(), ReadError> {
-        let Some(remaining) = self.0.get().checked_sub(1) else {
-            return Err(ReadError::MalformedData("lookup glyph collection ran out"));
-        };
-        self.0.set(remaining);
-        Ok(())
+        // Consume shared work before doing it, as in the core cache budget.
+        // Overlapping calls must neither receive the same allowance nor
+        // overwrite work charged by another call when they finish.
+        let mut spent = self.spent.load(Ordering::Relaxed);
+        loop {
+            if spent >= self.limit {
+                return Err(ReadError::MalformedData("lookup glyph collection ran out"));
+            }
+            match self.spent.compare_exchange_weak(
+                spent,
+                spent + 1,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(()),
+                Err(actual) => spent = actual,
+            }
+        }
     }
 }
 
@@ -479,8 +466,24 @@ fn collect_substitution(
                             output.add(glyph.get().to_u32());
                         }
                     }
-                    // The extended formats fall back to every glyph.
-                    _ => return Ok(false),
+                    SingleSubst::Format3(table) => {
+                        for glyph in table.coverage()?.iter() {
+                            budget.work()?;
+                            let id = glyph.to_u32();
+                            input.add(id);
+                            output.add(
+                                id.wrapping_add_signed(table.delta_glyph_id().to_i32())
+                                    & 0x00FF_FFFF,
+                            );
+                        }
+                    }
+                    SingleSubst::Format4(table) => {
+                        add_coverage(input, table.coverage()?, budget)?;
+                        for glyph in table.substitute_glyph_ids() {
+                            budget.work()?;
+                            output.add(glyph.get().to_u32());
+                        }
+                    }
                 }
             }
         }
@@ -850,7 +853,8 @@ fn collect_positioning(
 }
 
 /// Collects glyphs touched by one GSUB or GPOS lookup into the supplied sets.
-/// Forms not yet enumerated conservatively include every OpenType glyph ID.
+/// Forms not yet enumerated, malformed data, and work exhaustion conservatively
+/// include every set value, represented by an inverted empty set.
 ///
 /// # Safety
 /// `face` and each non-`NULL` set must be live. Output sets may be the same.
@@ -888,7 +892,6 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
                 &mut HashSet::new(),
                 0,
             );
-            budget.record(bytes, &face.collect_work[0]);
             Some(complete)
         }),
         GPOS_TAG => font.tables().gpos().ok().and_then(|table| {
@@ -897,16 +900,14 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
             let bytes = table.offset_data().len();
             let budget = Budget::for_table(bytes, &face.collect_work[1]);
             let complete = collect_positioning(lookup, input, &budget);
-            budget.record(bytes, &face.collect_work[1]);
             Some(complete)
         }),
         _ => None,
     };
     let Some(complete) = complete else { return };
     if !matches!(complete, Ok(true)) {
-        let count = fallback_glyph_count(face);
         for set in [before, input, after, output] {
-            set.include_all_glyphs(count);
+            set.include_all_glyphs();
         }
     }
 }
@@ -1266,4 +1267,63 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback2(
         return;
     }
     *coord = unsafe { baseline_with_fallback(font, baseline_tag, direction, script) };
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+
+    #[test]
+    fn overlapping_collections_cannot_refund_shared_work() {
+        let spent = AtomicUsize::new(0);
+        let first = Budget {
+            limit: 4,
+            spent: &spent,
+        };
+        let second = Budget {
+            limit: 4,
+            spent: &spent,
+        };
+        assert!(first.work().is_ok());
+        assert!(second.work().is_ok());
+        assert!(first.work().is_ok());
+        assert!(first.work().is_ok());
+        assert!(second.work().is_err());
+        assert!(first.work().is_err());
+        assert_eq!(spent.load(Ordering::Relaxed), 4);
+        assert!(Budget {
+            limit: 4,
+            spent: &spent
+        }
+        .work()
+        .is_err());
+    }
+
+    #[test]
+    fn concurrent_collections_consume_each_step_once() {
+        let spent = AtomicUsize::new(0);
+        let accepted = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..8)
+                .map(|_| {
+                    scope.spawn(|| {
+                        let budget = Budget {
+                            limit: 1000,
+                            spent: &spent,
+                        };
+                        let mut count = 0;
+                        while budget.work().is_ok() {
+                            count += 1;
+                        }
+                        count
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .sum::<usize>()
+        });
+        assert_eq!(accepted, 1000);
+        assert_eq!(spent.load(Ordering::Relaxed), 1000);
+    }
 }

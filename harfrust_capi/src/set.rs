@@ -74,12 +74,6 @@ impl hr_set_t {
             self.values.insert(value);
         }
     }
-
-    pub(crate) fn include_all_glyphs(&mut self, count: u32) {
-        if count > 0 {
-            self.values.insert_range(0..=count - 1);
-        }
-    }
 }
 
 #[no_mangle]
