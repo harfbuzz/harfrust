@@ -50,16 +50,6 @@ pub const HR_FEATURE_GLOBAL_START: c_uint = 0u32;
 /// generated header.
 pub const HR_FEATURE_GLOBAL_END: c_uint = 0xFFFF_FFFFu32;
 
-/// Builds a tag from a string, padding with spaces and truncating past four
-/// bytes, as HarfBuzz's `hb_tag_from_string` does.
-pub(crate) fn tag_from_str(s: &str) -> Tag {
-    let mut bytes = [b' '; 4];
-    for (slot, byte) in bytes.iter_mut().zip(s.bytes()) {
-        *slot = byte;
-    }
-    Tag::new(&bytes)
-}
-
 pub(crate) fn tag_to_rust(tag: hr_tag_t) -> Tag {
     Tag::from_be_bytes(tag.to_be_bytes())
 }
@@ -101,16 +91,24 @@ pub(crate) unsafe fn str_from_raw<'a>(ptr: *const c_char, len: c_int) -> Option<
 /// See [`str_from_raw`].
 #[no_mangle]
 pub unsafe extern "C" fn hr_tag_from_string(str_: *const c_char, len: c_int) -> hr_tag_t {
-    let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
-        return HR_TAG_NONE;
-    };
-    // No name names no tag. Padding nothing out to four spaces would make a
-    // tag of it, which then reads back as a script and a language of their
-    // own rather than as the absence of one.
-    if s.is_empty() {
+    if str_.is_null() || len == 0 {
         return HR_TAG_NONE;
     }
-    tag_from_rust(tag_from_str(s))
+    let len = if len < 0 { 4 } else { (len as usize).min(4) };
+    let mut tag = [b' '; 4];
+    for (index, slot) in tag[..len].iter_mut().enumerate() {
+        // Tags are four raw bytes. Do not scan or validate the rest of a
+        // C string, which neither this tag nor a script parsed from it uses.
+        let byte = unsafe { str_.cast::<u8>().add(index).read() };
+        if byte == 0 {
+            if index == 0 {
+                return HR_TAG_NONE;
+            }
+            break;
+        }
+        *slot = byte;
+    }
+    u32::from_be_bytes(tag)
 }
 
 /// Writes a tag's four bytes into `buf`. No terminating NUL is written.

@@ -588,8 +588,9 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
     }
     set_post_context_utf16(&mut buffer.buffer, &units[end..]);
     let item = &units[start..end];
-    let count = char::decode_utf16(item.iter().copied()).count();
-    let capacity = buffer.buffer.len().saturating_add(count);
+    // One code unit per glyph is an upper bound. Reserving it avoids
+    // decoding the same text once to count and again to append it.
+    let capacity = buffer.buffer.len().saturating_add(item.len());
     if !buffer.buffer.reserve(capacity) {
         return;
     }
