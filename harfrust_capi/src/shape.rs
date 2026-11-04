@@ -27,7 +27,7 @@ fn guard<T>(f: impl FnOnce() -> T) -> Option<T> {
 pub(crate) unsafe fn collect_features(
     features: *const hr_feature_t,
     num_features: c_uint,
-) -> SmallVec<[Feature; 8]> {
+) -> SmallVec<[Feature; 4]> {
     if features.is_null() || num_features == 0 {
         return SmallVec::new();
     }
