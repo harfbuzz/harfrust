@@ -1,8 +1,9 @@
 //! Sets of codepoints and glyph IDs used by layout queries.
 
 use core::ffi::c_void;
-use core::ops::{Deref, DerefMut, RangeInclusive};
+use core::ops::{Deref, RangeInclusive};
 use read_fonts::collections::IntSet;
+use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::OnceLock;
 
@@ -17,22 +18,278 @@ pub struct hr_set_t {
     pub(crate) values: SetValues,
 }
 
-/// Lazily indexed ranges for queries the dependency cannot seek directly.
-/// All mutations invalidate the index, including calls from other modules.
+/// A lazy index of the underlying bitset's stored ranges. For inverted sets
+/// these are exclusions, so inversion leaves the index unchanged. Mutations
+/// update only affected entries instead of rebuilding a snapshot on each query.
 #[derive(Default)]
 pub(crate) struct SetValues {
     values: IntSet<u32>,
-    ranges: OnceLock<Vec<(u32, u32)>>,
+    ranges: OnceLock<BTreeMap<u32, u32>>,
+}
+
+#[derive(Clone, Copy)]
+enum SetOperation {
+    Union,
+    Intersect,
+    Subtract,
+}
+
+#[derive(Clone, Copy)]
+enum IndexOperation {
+    Union,
+    Intersect,
+    Subtract,
+    ReverseSubtract,
+}
+
+fn index_insert(index: &mut BTreeMap<u32, u32>, mut first: u32, mut last: u32) {
+    if let Some((&previous_first, &previous_last)) = index.range(..=first).next_back() {
+        if previous_last >= last {
+            return;
+        }
+        if previous_last >= first.saturating_sub(1) {
+            first = previous_first;
+            index.remove(&previous_first);
+        }
+    }
+    while let Some((&next_first, &next_last)) = index.range(first..).next() {
+        if next_first > last.saturating_add(1) {
+            break;
+        }
+        last = last.max(next_last);
+        index.remove(&next_first);
+    }
+    index.insert(first, last);
+}
+
+fn index_remove(index: &mut BTreeMap<u32, u32>, first: u32, last: u32) {
+    while let Some((&range_first, &range_last)) = index.range(..=last).next_back() {
+        if range_last < first {
+            break;
+        }
+        index.remove(&range_first);
+        if range_last > last {
+            index.insert(last + 1, range_last);
+        }
+        if range_first < first {
+            index.insert(range_first, first - 1);
+            break;
+        }
+    }
+}
+
+fn index_operation(
+    index: &mut BTreeMap<u32, u32>,
+    ranges: impl Iterator<Item = RangeInclusive<u32>>,
+    operation: IndexOperation,
+) {
+    match operation {
+        IndexOperation::Union => {
+            for range in ranges {
+                index_insert(index, *range.start(), *range.end());
+            }
+        }
+        IndexOperation::Subtract => {
+            for range in ranges {
+                index_remove(index, *range.start(), *range.end());
+            }
+        }
+        IndexOperation::Intersect => {
+            let mut first = 0;
+            for range in ranges {
+                if *range.start() > first {
+                    index_remove(index, first, *range.start() - 1);
+                }
+                let Some(next) = range.end().checked_add(1) else {
+                    return;
+                };
+                first = next;
+            }
+            index_remove(index, first, u32::MAX);
+        }
+        IndexOperation::ReverseSubtract => {
+            let previous = core::mem::take(index);
+            *index = ranges.map(|range| (*range.start(), *range.end())).collect();
+            for (first, last) in previous {
+                index_remove(index, first, last);
+            }
+        }
+    }
 }
 
 impl SetValues {
-    fn indexed_ranges(&self) -> &[(u32, u32)] {
+    fn stored_ranges(&self) -> impl Iterator<Item = RangeInclusive<u32>> + '_ {
+        // Keep the unused iterator absent: filtering it after iteration would
+        // still scan ranges that are not part of the bitset's stored values.
+        let (included, excluded) = if self.values.is_inverted() {
+            (None, Some(self.values.iter_excluded_ranges()))
+        } else {
+            (Some(self.values.iter_ranges()), None)
+        };
+        included
+            .into_iter()
+            .flatten()
+            .chain(excluded.into_iter().flatten())
+    }
+
+    fn indexed_ranges(&self) -> &BTreeMap<u32, u32> {
         self.ranges.get_or_init(|| {
-            self.values
-                .iter_ranges()
+            self.stored_ranges()
                 .map(|range| (*range.start(), *range.end()))
                 .collect()
         })
+    }
+
+    fn next_range(&self, mut first: u32) -> Option<RangeInclusive<u32>> {
+        if first == HR_SET_VALUE_INVALID {
+            return None;
+        }
+        let index = self.indexed_ranges();
+        let previous = index.range(..=first).next_back();
+        let last = if self.values.is_inverted() {
+            if let Some((_, &excluded_last)) = previous.filter(|(_, last)| **last >= first) {
+                first = excluded_last.checked_add(1)?;
+                if first == HR_SET_VALUE_INVALID {
+                    return None;
+                }
+            }
+            index
+                .range(first..)
+                .next()
+                .map_or(HR_SET_VALUE_INVALID - 1, |(&excluded_first, _)| {
+                    excluded_first - 1
+                })
+        } else if let Some((_, &last)) = previous.filter(|(_, last)| **last >= first) {
+            last
+        } else {
+            let (&next_first, &last) = index.range(first..).next()?;
+            first = next_first;
+            last
+        };
+        Some(first..=last.min(HR_SET_VALUE_INVALID - 1))
+    }
+
+    fn previous_range(&self, end: u32) -> Option<RangeInclusive<u32>> {
+        let mut last = end.checked_sub(1)?;
+        let index = self.indexed_ranges();
+        let previous = index.range(..=last).next_back();
+        let first = if self.values.is_inverted() {
+            if let Some((&excluded_first, _)) = previous.filter(|(_, end)| **end >= last) {
+                last = excluded_first.checked_sub(1)?;
+            }
+            index
+                .range(..=last)
+                .next_back()
+                .map_or(0, |(_, &excluded_last)| excluded_last + 1)
+        } else {
+            let (&first, &range_last) = previous?;
+            last = last.min(range_last);
+            first
+        };
+        Some(first..=last)
+    }
+
+    fn update_range(&mut self, first: u32, last: u32, include: bool) {
+        if let Some(index) = self.ranges.get_mut() {
+            if include == self.values.is_inverted() {
+                index_remove(index, first, last);
+            } else {
+                index_insert(index, first, last);
+            }
+        }
+    }
+
+    pub(crate) fn insert(&mut self, value: u32) -> bool {
+        let changed = self.values.insert(value);
+        if changed {
+            self.update_range(value, value, true);
+        }
+        changed
+    }
+
+    pub(crate) fn remove(&mut self, value: u32) -> bool {
+        let changed = self.values.remove(value);
+        if changed {
+            self.update_range(value, value, false);
+        }
+        changed
+    }
+
+    pub(crate) fn insert_range(&mut self, range: RangeInclusive<u32>) {
+        let (first, last) = (*range.start(), *range.end());
+        self.values.insert_range(range);
+        if first <= last {
+            self.update_range(first, last, true);
+        }
+    }
+
+    pub(crate) fn remove_range(&mut self, range: RangeInclusive<u32>) {
+        let (first, last) = (*range.start(), *range.end());
+        self.values.remove_range(range);
+        if first <= last {
+            self.update_range(first, last, false);
+        }
+    }
+
+    pub(crate) fn extend(&mut self, values: impl IntoIterator<Item = u32>) {
+        if self.ranges.get().is_none() {
+            self.values.extend(values);
+            return;
+        }
+        for value in values {
+            self.insert(value);
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.values.clear();
+        if let Some(index) = self.ranges.get_mut() {
+            index.clear();
+        }
+    }
+
+    pub(crate) fn invert(&mut self) {
+        self.values.invert();
+    }
+
+    fn operation(&mut self, other: &Self, operation: SetOperation) {
+        use IndexOperation::{Intersect, ReverseSubtract, Subtract, Union};
+        let index_op = match (
+            operation,
+            self.values.is_inverted(),
+            other.values.is_inverted(),
+        ) {
+            (SetOperation::Union, false, false)
+            | (SetOperation::Intersect, true, true)
+            | (SetOperation::Subtract, true, false) => Union,
+            (SetOperation::Union, true, true)
+            | (SetOperation::Intersect, false, false)
+            | (SetOperation::Subtract, false, true) => Intersect,
+            (SetOperation::Union, true, false)
+            | (SetOperation::Intersect, false, true)
+            | (SetOperation::Subtract, false, false) => Subtract,
+            (SetOperation::Union, false, true)
+            | (SetOperation::Intersect, true, false)
+            | (SetOperation::Subtract, true, true) => ReverseSubtract,
+        };
+        match operation {
+            SetOperation::Union => self.values.union(&other.values),
+            SetOperation::Intersect => self.values.intersect(&other.values),
+            SetOperation::Subtract => self.values.subtract(&other.values),
+        }
+        if let Some(index) = self.ranges.get_mut() {
+            index_operation(index, other.stored_ranges(), index_op);
+        }
+    }
+
+    fn union(&mut self, other: &Self) {
+        self.operation(other, SetOperation::Union);
+    }
+    fn intersect(&mut self, other: &Self) {
+        self.operation(other, SetOperation::Intersect);
+    }
+    fn subtract(&mut self, other: &Self) {
+        self.operation(other, SetOperation::Subtract);
     }
 }
 
@@ -43,19 +300,18 @@ impl Clone for SetValues {
             ranges: OnceLock::new(),
         }
     }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.values.clone_from(&source.values);
+        self.ranges.take();
+    }
 }
 
+// Deliberately read-only: every mutation must keep the range index in sync.
 impl Deref for SetValues {
     type Target = IntSet<u32>;
     fn deref(&self) -> &Self::Target {
         &self.values
-    }
-}
-
-impl DerefMut for SetValues {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.ranges.take();
-        &mut self.values
     }
 }
 
@@ -110,11 +366,9 @@ impl hr_set_t {
                 return value;
             }
         }
-        let ranges = self.values.indexed_ranges();
-        let index = ranges.partition_point(|range| range.1 < start);
-        ranges
-            .get(index)
-            .map_or(HR_SET_VALUE_INVALID, |range| range.0)
+        self.values
+            .next_range(start)
+            .map_or(HR_SET_VALUE_INVALID, |range| *range.start())
     }
 
     fn previous(&self, end: u32) -> u32 {
@@ -124,11 +378,14 @@ impl hr_set_t {
         if self.values.contains(value) {
             return value;
         }
-        let ranges = self.values.indexed_ranges();
-        let index = ranges.partition_point(|range| range.0 < end);
-        index
-            .checked_sub(1)
-            .map_or(HR_SET_VALUE_INVALID, |index| ranges[index].1)
+        if !self.values.is_inverted() {
+            if let Some(last) = self.values.last().filter(|last| *last < end) {
+                return last;
+            }
+        }
+        self.values
+            .previous_range(end)
+            .map_or(HR_SET_VALUE_INVALID, |range| *range.end())
     }
 
     fn next_range(&self, start: u32) -> Option<RangeInclusive<u32>> {
@@ -136,9 +393,12 @@ impl hr_set_t {
         if first == HR_SET_VALUE_INVALID {
             return None;
         }
-        let ranges = self.values.indexed_ranges();
-        let index = ranges.partition_point(|range| range.1 < first);
-        Some(first..=ranges[index].1.min(HR_SET_VALUE_INVALID - 1))
+        for last in first..=first.saturating_add(7).min(HR_SET_VALUE_INVALID - 1) {
+            if last == HR_SET_VALUE_INVALID - 1 || !self.values.contains(last + 1) {
+                return Some(first..=last);
+            }
+        }
+        self.values.next_range(first)
     }
 
     fn previous_range(&self, end: u32) -> Option<RangeInclusive<u32>> {
@@ -146,9 +406,12 @@ impl hr_set_t {
         if last == HR_SET_VALUE_INVALID {
             return None;
         }
-        let ranges = self.values.indexed_ranges();
-        let index = ranges.partition_point(|range| range.1 < last);
-        Some(ranges[index].0..=last)
+        for first in (last.saturating_sub(7)..=last).rev() {
+            if first == 0 || !self.values.contains(first - 1) {
+                return Some(first..=last);
+            }
+        }
+        self.values.previous_range(last + 1)
     }
 
     pub(crate) fn add(&mut self, value: u32) {
@@ -439,7 +702,7 @@ pub unsafe extern "C" fn hr_set_is_subset(
 unsafe fn combine(
     set: *mut hr_set_t,
     other: *const hr_set_t,
-    op: fn(&mut IntSet<u32>, &IntSet<u32>),
+    op: fn(&mut SetValues, &SetValues),
     subtract_self: bool,
 ) {
     let other = if other.is_null() {
@@ -465,28 +728,28 @@ unsafe fn combine(
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_set(set: *mut hr_set_t, other: *const hr_set_t) {
-    unsafe { combine(set, other, IntSet::clone_from, false) };
+    unsafe { combine(set, other, SetValues::clone_from, false) };
 }
 
 /// # Safety
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_union(set: *mut hr_set_t, other: *const hr_set_t) {
-    unsafe { combine(set, other, IntSet::union, false) };
+    unsafe { combine(set, other, SetValues::union, false) };
 }
 
 /// # Safety
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_intersect(set: *mut hr_set_t, other: *const hr_set_t) {
-    unsafe { combine(set, other, IntSet::intersect, false) };
+    unsafe { combine(set, other, SetValues::intersect, false) };
 }
 
 /// # Safety
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_subtract(set: *mut hr_set_t, other: *const hr_set_t) {
-    unsafe { combine(set, other, IntSet::subtract, true) };
+    unsafe { combine(set, other, SetValues::subtract, true) };
 }
 
 /// # Safety
@@ -531,16 +794,7 @@ pub unsafe extern "C" fn hr_set_get_min(set: *const hr_set_t) -> hr_codepoint_t 
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_get_max(set: *const hr_set_t) -> hr_codepoint_t {
-    let set = unsafe { object::or_empty(set) };
-    if !set.values.is_inverted() {
-        return set.values.last().unwrap_or(HR_SET_VALUE_INVALID);
-    }
-    if set.values.contains(HR_SET_VALUE_INVALID - 1) {
-        return HR_SET_VALUE_INVALID - 1;
-    }
-    set.ranges()
-        .last()
-        .map_or(HR_SET_VALUE_INVALID, |r| *r.end())
+    unsafe { object::or_empty(set) }.previous(HR_SET_VALUE_INVALID)
 }
 
 /// Finds the next value. Start with `HR_SET_VALUE_INVALID`; exhaustion writes
