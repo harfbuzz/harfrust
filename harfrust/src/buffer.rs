@@ -860,7 +860,7 @@ impl Buffer {
     /// Only properties that are still unset are filled in.
     pub fn guess_segment_properties(&mut self) {
         if self.script.is_none() {
-            for info in &self.info {
+            for info in self.glyph_infos() {
                 match info.as_codepoint().script() {
                     Script::COMMON | Script::INHERITED | Script::UNKNOWN => {}
                     s => {
@@ -1024,7 +1024,7 @@ impl Buffer {
     /// Resets the cluster value of each item to its index.
     #[inline]
     pub fn reset_clusters(&mut self) {
-        for (i, info) in self.info.iter_mut().enumerate() {
+        for (i, info) in self.info_slice_mut().iter_mut().enumerate() {
             info.cluster = i as u32;
         }
     }
@@ -1281,8 +1281,27 @@ impl Buffer {
     }
     pub(crate) fn update_glyph_set(&mut self) {
         self.glyph_set.clear();
+        let len = self.len;
+        let glyphs = self
+            .info
+            .get(..len)
+            .unwrap_or_default()
+            .iter()
+            .map(|i| i.glyph_id);
+        let is_gid16 = |glyph: &u32| u16::try_from(*glyph).is_ok();
+        // Ids up to u16::MAX share at most 128 pages of the set, so the
+        // order in which they arrive does not matter.
         self.glyph_set
-            .extend_unsorted(self.info.iter().map(|i| i.glyph_id));
+            .extend_unsorted(glyphs.clone().filter(is_gid16));
+        // Wider ids can need a page each. The set keeps its pages in a sorted
+        // map that every new page is inserted into, so a page per glyph in
+        // descending order would cost quadratic time to build. Insert them
+        // in ascending order so that each new page is appended instead.
+        let mut wide_glyphs: Vec<u32> = glyphs.filter(|glyph| !is_gid16(glyph)).collect();
+        if !wide_glyphs.is_empty() {
+            crate::algs::sort_unstable_by(&mut wide_glyphs, Ord::cmp);
+            self.glyph_set.extend(wide_glyphs);
+        }
     }
 
     #[inline]
@@ -1413,8 +1432,11 @@ impl Buffer {
         self.out_len = 0;
         self.have_separate_output = false;
 
-        for pos in &mut self.pos {
-            *pos = GlyphPosition::default();
+        // Only the live items: the vectors keep the largest size the buffer
+        // has had since `clear`, which can be far more than `len`.
+        let len = self.len;
+        if let Some(positions) = self.pos.get_mut(..len) {
+            positions.fill(GlyphPosition::default());
         }
     }
 
@@ -1620,6 +1642,7 @@ impl Buffer {
         self.max_ops -= (end - start) as i32;
         if self.max_ops < 0 {
             self.successful = false;
+            return;
         }
 
         if self.try_merge_clusters(start, end).is_none() {
@@ -1635,6 +1658,7 @@ impl Buffer {
             .iter()
             .map(|info| info.cluster)
             .min()?;
+        let (charged_start, charged_end) = (start, end);
 
         // Extend end
         if cluster != cluster_at(&self.info, end - 1)? {
@@ -1655,8 +1679,8 @@ impl Buffer {
 
         // If we hit the start of buffer, continue in out-buffer.
         let start_cluster = cluster_at(&self.info, start)?;
+        let mut i = self.out_len;
         if self.idx == start && start_cluster != cluster {
-            let mut i = self.out_len;
             while i != 0 {
                 let info = self.out_info_mut().get_mut(i - 1)?;
                 if info.cluster != start_cluster {
@@ -1665,6 +1689,14 @@ impl Buffer {
                 Self::set_cluster(info, cluster, 0);
                 i -= 1;
             }
+        }
+
+        // merge_clusters_impl() only charged the range the caller named; the
+        // extensions and the out-buffer walk can cover the whole buffer, and
+        // a chain of merges over descending clusters revisits all of it.
+        self.max_ops -= (charged_start - start + end - charged_end + self.out_len - i) as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
         }
 
         for info in self.info.get_mut(start..end)? {
@@ -1714,6 +1746,9 @@ impl Buffer {
         self.max_ops -= (end - start) as i32;
         if self.max_ops < 0 {
             self.successful = false;
+            // Not every caller stops on failure, and the merge can walk the
+            // whole buffer; once the budget is gone, do no more work.
+            return;
         }
 
         if self.try_merge_out_clusters(start, end).is_none() {
@@ -1730,23 +1765,33 @@ impl Buffer {
             .map(|info| info.cluster)
             .min()?;
 
+        // The caller only paid for start..end; glyphs the extension below
+        // rewrites are charged here.
+        let mut extended = 0;
+
         // Extend start
-        while start != 0
-            && cluster_at(self.out_info(), start - 1)? == cluster_at(self.out_info(), start)?
-        {
-            start -= 1;
+        if cluster != cluster_at(self.out_info(), start)? {
+            while start != 0
+                && cluster_at(self.out_info(), start - 1)? == cluster_at(self.out_info(), start)?
+            {
+                start -= 1;
+                extended += 1;
+            }
         }
 
         // Extend end
-        while end < self.out_len
-            && cluster_at(self.out_info(), end - 1)? == cluster_at(self.out_info(), end)?
-        {
-            end += 1;
+        if cluster != cluster_at(self.out_info(), end - 1)? {
+            while end < self.out_len
+                && cluster_at(self.out_info(), end - 1)? == cluster_at(self.out_info(), end)?
+            {
+                end += 1;
+                extended += 1;
+            }
         }
 
-        // If we hit the start of buffer, continue in out-buffer.
-        if end == self.out_len {
-            let end_cluster = cluster_at(self.out_info(), end - 1)?;
+        // If we hit the end of out-buffer, continue in buffer.
+        let end_cluster = cluster_at(self.out_info(), end - 1)?;
+        if end == self.out_len && end_cluster != cluster {
             let mut i = self.idx;
             while i < self.len {
                 let info = self.info.get_mut(i)?;
@@ -1756,6 +1801,12 @@ impl Buffer {
                 Self::set_cluster(info, cluster, 0);
                 i += 1;
             }
+            extended += i - self.idx;
+        }
+
+        self.max_ops -= extended as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
         }
 
         for info in self.out_info_mut().get_mut(start..end)? {
@@ -1789,7 +1840,7 @@ impl Buffer {
 
         if let Some(old_cluster) = prev_cluster {
             // Merge cluster backward.
-            if cluster < old_cluster {
+            if cluster < old_cluster && self.max_ops >= 0 {
                 let mut i = self.out_len;
                 while i != 0 {
                     let info = self.out_info_mut().get_mut(i - 1)?;
@@ -1798,6 +1849,10 @@ impl Buffer {
                     }
                     Self::set_cluster(info, cluster, mask);
                     i -= 1;
+                }
+                self.max_ops -= (self.out_len - i) as i32;
+                if self.max_ops < 0 {
+                    self.successful = false;
                 }
             }
             return Some(());
@@ -1837,12 +1892,16 @@ impl Buffer {
                 if j != 0 {
                     // Merge cluster backward.
                     let old_cluster = self.info.get(j - 1).map_or(cluster, |info| info.cluster);
-                    if cluster < old_cluster {
+                    if cluster < old_cluster && self.max_ops >= 0 {
                         for info in self.info.get_mut(..j).unwrap_or_default().iter_mut().rev() {
                             if info.cluster != old_cluster {
                                 break;
                             }
                             Self::set_cluster(info, cluster, mask);
+                            self.max_ops -= 1;
+                        }
+                        if self.max_ops < 0 {
+                            self.successful = false;
                         }
                     }
                     continue;
@@ -2725,5 +2784,86 @@ mod tests {
         }
         assert_eq!(buffer.max_ops, spent);
         assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));
+    }
+
+    #[test]
+    fn merge_out_clusters_charges_what_it_walks() {
+        let mut buffer = Buffer::new();
+        buffer.info.resize(1000, GlyphInfo::default());
+        for (i, info) in buffer.info.iter_mut().enumerate() {
+            info.cluster = (i / 500) as u32;
+        }
+        buffer.len = buffer.info.len();
+        buffer.have_output = true;
+        buffer.idx = buffer.len;
+        buffer.out_len = buffer.len;
+
+        // Merging across the boundary rewrites the whole second half.
+        let ops = buffer.max_ops;
+        buffer.merge_out_clusters(499, 501);
+        assert!(buffer.out_info().iter().all(|info| info.cluster == 0));
+        assert_eq!(buffer.max_ops, ops - 2 - 499);
+
+        // A range already inside the merged cluster is not walked again.
+        let ops = buffer.max_ops;
+        buffer.merge_out_clusters(998, 1000);
+        assert_eq!(buffer.max_ops, ops - 2);
+        assert!(buffer.successful);
+    }
+
+    #[test]
+    fn clear_positions_touches_only_live_items() {
+        let mut buffer = Buffer::new();
+        assert!(buffer.set_length(4));
+        buffer.pos[3].x_advance = 7;
+        assert!(buffer.set_length(1));
+        buffer.pos[0].x_advance = 7;
+
+        buffer.clear_positions();
+
+        assert_eq!(buffer.pos[0].x_advance, 0);
+        assert_eq!(buffer.pos[3].x_advance, 7);
+    }
+
+    #[test]
+    fn shrunk_buffer_ignores_leftover_items() {
+        let mut buffer = Buffer::new();
+        buffer.push_str("abcd");
+        for info in buffer.info_slice_mut() {
+            info.cluster = 9;
+        }
+        assert!(buffer.set_length(0));
+        buffer.push_str("12");
+
+        buffer.guess_segment_properties();
+        assert_eq!(buffer.script, None);
+
+        buffer.reset_clusters();
+        assert_eq!(buffer.info[2].cluster, 9);
+        assert_eq!(buffer.info[3].cluster, 9);
+    }
+
+    #[test]
+    fn glyph_set_holds_wide_glyph_ids_in_any_order() {
+        // One glyph per 512-id page, descending, mixed with ordinary ids:
+        // the worst order for building the set's sorted page map.
+        let glyphs: Vec<u32> = (1..=4096u32)
+            .rev()
+            .flat_map(|page| [page * 512 + 1, page % 3, u16::MAX as u32])
+            .collect();
+        let mut buffer = Buffer::new();
+        buffer.info.resize(glyphs.len(), GlyphInfo::default());
+        buffer.len = buffer.info.len();
+        for (info, &glyph) in buffer.info.iter_mut().zip(&glyphs) {
+            info.glyph_id = glyph;
+        }
+
+        buffer.update_glyph_set();
+
+        let expected: U32Set = glyphs.iter().copied().collect();
+        assert_eq!(buffer.glyph_set, expected);
+        assert!(buffer.glyph_set.contains(u16::MAX as u32));
+        assert!(buffer.glyph_set.contains(4096 * 512 + 1));
+        assert!(!buffer.glyph_set.contains(512 + 2));
     }
 }

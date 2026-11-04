@@ -268,7 +268,10 @@ pub enum SyllableType {
 
 pub fn find_syllables(buffer: &mut Buffer) -> Option<()> {
     let mut cs = 0;
-    let infos = Cell::as_slice_of_cells(Cell::from_mut(&mut buffer.info));
+    let len = buffer.len;
+    let infos = Cell::as_slice_of_cells(Cell::from_mut(
+        buffer.info.get_mut(..len).unwrap_or_default(),
+    ));
     let p0 = MachineCursor::new(infos, included);
     let mut p = p0;
     let mut ts = p0;
