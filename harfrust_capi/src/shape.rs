@@ -56,16 +56,15 @@ pub(crate) fn shape_with_plan(
     let adapter = FontFuncsAdapter::new(font, font_ref);
 
     guard(|| {
-        let mut shaping_font = (*shaper).clone();
-        shaping_font.set_scale_separate(font_ref.x_scale, font_ref.y_scale);
-        if has_funcs {
-            shaping_font.set_font_funcs(Some(&adapter));
-        }
+        // The prepared view already has this font's scale. Only callbacks
+        // need a temporary view, because the adapter borrows this call.
+        let shaping_font = has_funcs.then(|| (*shaper).clone().with_font_funcs(Some(&adapter)));
+        let shaping_font = shaping_font.as_ref().unwrap_or(shaper);
         let mut options = ShapeOptions::new().features(features).plan(Some(plan));
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
-        shape(&shaping_font, &mut buffer_ref.buffer, options)
+        shape(shaping_font, &mut buffer_ref.buffer, options)
     })
     .is_some_and(|result| result.is_ok())
     .into()
@@ -179,18 +178,17 @@ pub unsafe extern "C" fn hr_shape_full(
             )
         });
 
-        let mut shaping_font = (*shaper).clone();
-        shaping_font.set_scale_separate(font_ref.x_scale, font_ref.y_scale);
-        if has_funcs {
-            shaping_font.set_font_funcs(Some(&adapter));
-        }
+        // The prepared view already has this font's scale. Only callbacks
+        // need a temporary view, because the adapter borrows this call.
+        let shaping_font = has_funcs.then(|| (*shaper).clone().with_font_funcs(Some(&adapter)));
+        let shaping_font = shaping_font.as_ref().unwrap_or(shaper);
         let mut options = ShapeOptions::new()
             .features(&features)
             .plan(plan.map(|plan| &**plan));
         if font_ref.ptem > 0.0 {
             options = options.point_size(Some(font_ref.ptem));
         }
-        shape(&shaping_font, &mut buffer_ref.buffer, options)
+        shape(shaping_font, &mut buffer_ref.buffer, options)
     });
 
     match outcome {
