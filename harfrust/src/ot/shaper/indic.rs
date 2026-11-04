@@ -1,4 +1,5 @@
 use alloc::boxed::Box;
+use core::cell::Cell;
 use core::cmp;
 use core::ops::Range;
 
@@ -396,13 +397,26 @@ impl IndicWouldSubstituteFeature {
         }
     }
 
-    pub fn would_substitute(&self, map: &OtMap, ot: &OtData<'_>, glyphs: &[GlyphId]) -> bool {
+    /// Draws on `max_ops`, the buffer's remaining operations. Nothing would
+    /// substitute once they are spent.
+    pub fn would_substitute(
+        &self,
+        map: &OtMap,
+        ot: &OtData<'_>,
+        glyphs: &[GlyphId],
+        max_ops: &mut i32,
+    ) -> bool {
+        let max_ops = Cell::from_mut(max_ops);
         for index in self.lookups.clone() {
             let lookup = map.lookup(LayoutTableKind::Gsub, index);
             let ctx = WouldApplyContext {
                 glyphs,
                 zero_context: self.zero_context,
+                max_ops,
             };
+            if !ctx.charge(1) {
+                return false;
+            }
             if ot
                 .lookup(LayoutTableKind::Gsub, lookup.index)
                 .is_some_and(|lookup| lookup.would_apply(&ctx) == Some(true))
@@ -633,14 +647,27 @@ fn update_consonant_positions(
 
     if let Some(virama) = virama_glyph {
         let ot = font.layout().ot;
-        for info in buffer.info_slice_mut() {
+        for info in buffer.info.get_mut(..buffer.len).unwrap_or_default() {
             if info.indic_position() == position::POS_BASE_C {
                 let consonant = info.as_glyph();
                 info.set_indic_position(consonant_position_from_ot(
-                    plan, indic_plan, ot, consonant, virama,
+                    plan,
+                    indic_plan,
+                    ot,
+                    consonant,
+                    virama,
+                    &mut buffer.max_ops,
                 ));
             }
         }
+        check_max_ops(buffer);
+    }
+}
+
+/// Fails the buffer once `would_substitute` calls have spent its operations.
+fn check_max_ops(buffer: &mut Buffer) {
+    if buffer.max_ops < 0 {
+        buffer.successful = false;
     }
 }
 
@@ -650,6 +677,7 @@ fn consonant_position_from_ot(
     ot: &OtData<'_>,
     consonant: GlyphId,
     virama: GlyphId,
+    max_ops: &mut i32,
 ) -> u8 {
     // For old-spec, the order of glyphs is Consonant,Virama,
     // whereas for new-spec, it's Virama,Consonant.  However,
@@ -667,36 +695,36 @@ fn consonant_position_from_ot(
 
     if indic_plan
         .blwf
-        .would_substitute(&plan.ot_map, ot, &[virama, consonant])
+        .would_substitute(&plan.ot_map, ot, &[virama, consonant], max_ops)
         || indic_plan
             .blwf
-            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama], max_ops)
         || indic_plan
             .vatu
-            .would_substitute(&plan.ot_map, ot, &[virama, consonant])
+            .would_substitute(&plan.ot_map, ot, &[virama, consonant], max_ops)
         || indic_plan
             .vatu
-            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama], max_ops)
     {
         return position::POS_BELOW_C;
     }
 
     if indic_plan
         .pstf
-        .would_substitute(&plan.ot_map, ot, &[virama, consonant])
+        .would_substitute(&plan.ot_map, ot, &[virama, consonant], max_ops)
         || indic_plan
             .pstf
-            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama], max_ops)
     {
         return position::POS_POST_C;
     }
 
     if indic_plan
         .pref
-        .would_substitute(&plan.ot_map, ot, &[virama, consonant])
+        .would_substitute(&plan.ot_map, ot, &[virama, consonant], max_ops)
         || indic_plan
             .pref
-            .would_substitute(&plan.ot_map, ot, &[consonant, virama])
+            .would_substitute(&plan.ot_map, ot, &[consonant, virama], max_ops)
     {
         return position::POS_POST_C;
     }
@@ -808,12 +836,17 @@ fn initial_reordering_consonant_syllable(
                     GlyphId::NOTDEF
                 },
             ];
-            if indic_plan
-                .rphf
-                .would_substitute(&plan.ot_map, ot, &glyphs[0..2])
-                || (indic_plan.config.reph_mode == RephMode::Explicit
-                    && indic_plan.rphf.would_substitute(&plan.ot_map, ot, glyphs))
-            {
+            let forms_reph = indic_plan.rphf.would_substitute(
+                &plan.ot_map,
+                ot,
+                &glyphs[0..2],
+                &mut buffer.max_ops,
+            ) || (indic_plan.config.reph_mode == RephMode::Explicit
+                && indic_plan
+                    .rphf
+                    .would_substitute(&plan.ot_map, ot, glyphs, &mut buffer.max_ops));
+            check_max_ops(buffer);
+            if forms_reph {
                 limit += 2;
                 while limit < end && buffer.info.get(limit)?.is_joiner() {
                     limit += 1;
@@ -1250,13 +1283,17 @@ fn initial_reordering_consonant_syllable(
                 buffer.info.get(i)?.as_glyph(),
                 buffer.info.get(i + 1)?.as_glyph(),
             ];
-            if indic_plan.pref.would_substitute(&plan.ot_map, ot, glyphs) {
+            if indic_plan
+                .pref
+                .would_substitute(&plan.ot_map, ot, glyphs, &mut buffer.max_ops)
+            {
                 for info in buffer.info.get_mut(i..i + pref_len)? {
                     info.mask |= indic_plan.mask_array[indic_feature::PREF];
                 }
                 break;
             }
         }
+        check_max_ops(buffer);
     }
 
     // Apply ZWJ/ZWNJ effects

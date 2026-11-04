@@ -164,21 +164,27 @@ fn many_kern_subtables_font(subtables: usize) -> Vec<u8> {
 fn kern_subtable_passes_are_charged_to_the_operation_limit() {
     // Each subtable that applies moves the second glyph of every pair one
     // unit left, so a glyph's x offset counts the passes made over the
-    // buffer. Sixteen glyphs get the minimum budget of 65536 operations,
-    // which pays for 4096 passes over them; the remaining subtables must
-    // be skipped and reported through `allocation_successful`.
+    // buffer. Sixteen glyphs get the minimum budget of 65536 operations.
+    // Each pass charges all 16 glyphs and the pair iterator's 15 visits;
+    // the remaining subtables must be skipped and reported through
+    // `allocation_successful`.
+    let glyph_count = 16;
+    let expected_passes = 65_536 / (glyph_count + glyph_count - 1);
     let font = Font::new(many_kern_subtables_font(5000), 0).unwrap();
     let instance = font.instance_builder().build();
-    let mut buffer = unicode_buffer(&"a".repeat(16));
+    let mut buffer = unicode_buffer(&"a".repeat(glyph_count));
     shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
-    assert_eq!(buffer.len(), 16);
-    assert_eq!(buffer.glyph_positions()[8].x_offset, -4096);
+    assert_eq!(buffer.len(), glyph_count);
+    assert_eq!(
+        buffer.glyph_positions()[8].x_offset,
+        -(expected_passes as i32)
+    );
     assert!(!buffer.allocation_successful());
 
     // A font within the budget applies every subtable.
     let font = Font::new(many_kern_subtables_font(100), 0).unwrap();
     let instance = font.instance_builder().build();
-    let mut buffer = unicode_buffer(&"a".repeat(16));
+    let mut buffer = unicode_buffer(&"a".repeat(glyph_count));
     shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
     assert_eq!(buffer.glyph_positions()[8].x_offset, -100);
     assert!(buffer.allocation_successful());

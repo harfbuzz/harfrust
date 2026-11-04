@@ -10,6 +10,7 @@ use super::OtData;
 use crate::hint::Likely;
 use crate::unicode::GeneralCategory;
 use crate::Scale;
+use core::cell::Cell;
 use read_fonts::tables::layout::SequenceLookupRecord;
 use read_fonts::types::GlyphId;
 
@@ -125,6 +126,13 @@ pub fn match_input(
                             break;
                         }
                     }
+
+                    // The walk covers every glyph of the ligature, and each
+                    // match attempt repeats it, so it is charged.
+                    if !iter.buffer.charge_ops(iter.buffer.out_len - j) {
+                        return None;
+                    }
+                    let out = iter.buffer.out_info();
 
                     ligbase = if found
                         && out
@@ -436,6 +444,12 @@ where
         while self.buf_idx < stop {
             self.buf_idx += 1;
 
+            // Every glyph visited is charged: a lookup can start at each glyph
+            // of a run it then skips, which would rescan the run every time.
+            if !self.buffer.charge_ops(1) {
+                break;
+            }
+
             match self.match_at(self.buf_idx) {
                 MatchResult::Match => {
                     self.advance_glyph_data();
@@ -462,13 +476,17 @@ where
     #[inline]
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
         let stop: usize = 0;
-        let out_info = self.buffer.out_info_mut();
 
         while self.buf_idx > stop {
             self.buf_idx -= 1;
 
+            // Charged as in `next()`.
+            if !self.buffer.charge_ops(1) {
+                break;
+            }
+
             // A position outside the output ends the search.
-            let result = match out_info.get_mut(self.buf_idx) {
+            let result = match self.buffer.out_info_mut().get_mut(self.buf_idx) {
                 Some(info) => match_info(
                     self.matcher,
                     info,
@@ -576,8 +594,11 @@ pub(crate) fn apply_lookup(
             break;
         }
 
+        // A record that recurses is charged by recurse(); the ones skipped
+        // below are charged here, as a rule can carry 65535 of them.
         let idx = usize::from(record.sequence_index.get());
         if idx >= count {
+            ctx.buffer.charge_ops(1);
             continue;
         }
 
@@ -585,6 +606,7 @@ pub(crate) fn apply_lookup(
 
         // This can happen if earlier recursed lookups deleted many entries.
         if ctx.match_positions[idx] as usize >= orig_len {
+            ctx.buffer.charge_ops(1);
             continue;
         }
 
@@ -729,6 +751,19 @@ impl RuleSetDigest {
 pub struct WouldApplyContext<'a> {
     pub glyphs: &'a [GlyphId],
     pub zero_context: bool,
+    /// The buffer's remaining operations, which the walks draw on.
+    pub max_ops: &'a Cell<i32>,
+}
+
+impl WouldApplyContext<'_> {
+    /// Charges `count` lookups, subtables, rules or ligatures about to be
+    /// examined. Returns false once the operations are spent.
+    pub fn charge(&self, count: usize) -> bool {
+        let count = i32::try_from(count).unwrap_or(i32::MAX);
+        let left = self.max_ops.get().saturating_sub(count);
+        self.max_ops.set(left);
+        left >= 0
+    }
 }
 
 fn match_properties_mark(
@@ -1114,10 +1149,12 @@ pub fn ligate_input(
     if !is_mark_ligature && last_lig_id != 0 {
         // Re-adjust components for any marks following.
         let idx = ctx.buffer.idx;
+        let mut walked = 0;
         for info in ctx.buffer.info_slice_mut().iter_mut().skip(idx) {
             if last_lig_id != info.lig_id() {
                 break;
             }
+            walked += 1;
 
             let this_comp = info.lig_comp();
             if this_comp == 0 {
@@ -1130,6 +1167,9 @@ pub fn ligate_input(
             let new_lig_comp = comps_so_far - last_num_comps + this_comp.min(last_num_comps);
             info.set_lig_props_for_mark(lig_id, new_lig_comp);
         }
+        // The marks are rewritten again by the next ligation, so the walk
+        // is charged.
+        ctx.buffer.charge_ops(walked);
     }
 
     Some(())
