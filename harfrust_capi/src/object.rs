@@ -114,6 +114,15 @@ pub trait Object: Sized + 'static {
 
     /// Returns the immortal empty singleton for this type.
     fn empty() -> *mut Self;
+
+    /// Releases callback-owned state before exclusive Box ownership is taken.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must point to this object after its final reference was released.
+    /// No other thread may access it. Detach state before invoking callbacks,
+    /// which may still query the object through its original pointer.
+    unsafe fn finalize(_ptr: *mut Self) {}
 }
 
 /// Allocates a new object with a reference count of one.
@@ -190,6 +199,7 @@ pub unsafe fn destroy<T: Object>(ptr: *mut T) {
     // owns: a callback on a font may look at the font's face. Only then is
     // ownership taken back and the object dropped.
     header.release_user_data();
+    unsafe { T::finalize(ptr) };
     drop(unsafe { Box::from_raw(ptr) });
 }
 
@@ -318,7 +328,7 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
 }
 
 /// Returns a mutable reference to an object, or `None` when `ptr` is `NULL` or
-/// the object has been marked immutable.
+/// the object has been marked immutable or is releasing its final reference.
 ///
 /// Setters use this so that mutating an immutable object is silently ignored,
 /// as it is in HarfBuzz.
@@ -328,9 +338,11 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
 /// `ptr` must be `NULL` or a live pointer returned by this API, and the caller
 /// must not alias the returned reference.
 pub unsafe fn as_mutable<'a, T: Object>(ptr: *mut T) -> Option<&'a mut T> {
-    let obj = unsafe { ptr.as_mut() }?;
-    if obj.header().immutable.load(Ordering::Acquire) {
+    // Reject shared immutable objects and finalization reentry before taking
+    // an exclusive reference. Destroy callbacks may still query the object.
+    let header = unsafe { ptr.as_ref() }?.header();
+    if header.immutable.load(Ordering::Acquire) || header.ref_count.load(Ordering::Relaxed) <= 0 {
         return None;
     }
-    Some(obj)
+    unsafe { ptr.as_mut() }
 }

@@ -18,9 +18,8 @@ use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, 
 
 /// The `font_data` a caller attached along with a set of callbacks.
 ///
-/// Shared because a sub-font inherits its parent's. Whoever lets go of the
-/// last reference runs the destroy callback, so replacing a font's callbacks
-/// cannot pull the data out from under a sub-font.
+/// Reference counted so detaching it and releasing its ownership are separate
+/// operations. Sub-fonts inherit it through their reference to the parent font.
 pub(crate) struct FontData {
     pub(crate) data: *mut c_void,
     destroy: hr_destroy_func_t,
@@ -281,10 +280,6 @@ impl hr_font_t {
 impl Drop for hr_font_t {
     fn drop(&mut self) {
         self.prepared = None;
-        // The destroy given to `hr_font_set_funcs` runs while the font still
-        // holds its callbacks, parent and face, as it does in HarfBuzz. Those
-        // go only after every callback the caller attached has run.
-        self.font_data = None;
         // SAFETY: this font owns one reference to each of these.
         unsafe {
             object::destroy(self.funcs);
@@ -299,6 +294,14 @@ static EMPTY_FONT: OnceLock<Empty<hr_font_t>> = OnceLock::new();
 impl Object for hr_font_t {
     fn header(&self) -> &ObjectHeader {
         &self.header
+    }
+
+    unsafe fn finalize(ptr: *mut Self) {
+        // Detach before running caller code, without keeping an exclusive
+        // reference to the font across a callback that may query it. Funcs,
+        // parent, face and the prepared view remain alive until Box::drop.
+        let data = unsafe { (&raw mut (*ptr).font_data).replace(None) };
+        drop(data);
     }
 
     fn empty() -> *mut Self {
@@ -1587,4 +1590,138 @@ pub unsafe extern "C" fn hr_font_glyph_from_string(
     };
     // SAFETY: as above.
     unsafe { hr_font_get_nominal_glyph(font, unicode, glyph) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::cell::Cell;
+    use core::ptr;
+
+    struct Destruction {
+        font: *mut hr_font_t,
+        face: *mut hr_face_t,
+        calls: Cell<u32>,
+        queried_face: Cell<bool>,
+        replacement_calls: Cell<u32>,
+        replacement_queried_face: Cell<bool>,
+        replacement_released_immediately: Cell<bool>,
+        reset_rejected: Cell<bool>,
+    }
+
+    unsafe extern "C" fn release_replacement(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<Destruction>() };
+        state
+            .replacement_calls
+            .set(state.replacement_calls.get() + 1);
+        state
+            .replacement_queried_face
+            .set(unsafe { hr_font_get_face(state.font) == state.face });
+    }
+
+    unsafe extern "C" fn release_font_data(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<Destruction>() };
+        state.calls.set(state.calls.get() + 1);
+        state
+            .queried_face
+            .set(unsafe { hr_font_get_face(state.font) == state.face });
+        // Finalization rejects replacement ownership and, as for immutable
+        // fonts, immediately releases the supplied data outside any &mut.
+        unsafe { hr_font_set_funcs(state.font, ptr::null_mut(), data, Some(release_replacement)) };
+        state
+            .replacement_released_immediately
+            .set(state.replacement_calls.get() == 1);
+        let funcs = unsafe { (*state.font).funcs };
+        unsafe { hr_ot_font_set_funcs(state.font) };
+        state
+            .reset_rejected
+            .set(unsafe { (*state.font).funcs } == funcs);
+    }
+
+    fn check_finalization(font: *mut hr_font_t, through_sub_font: bool) {
+        let state = Destruction {
+            font,
+            face: unsafe { hr_font_get_face(font) },
+            calls: Cell::new(0),
+            queried_face: Cell::new(false),
+            replacement_calls: Cell::new(0),
+            replacement_queried_face: Cell::new(false),
+            replacement_released_immediately: Cell::new(false),
+            reset_rejected: Cell::new(false),
+        };
+        assert!(!state.face.is_null());
+        unsafe {
+            hr_font_set_funcs(
+                font,
+                ptr::null_mut(),
+                ptr::from_ref(&state).cast_mut().cast(),
+                Some(release_font_data),
+            );
+            let sub = through_sub_font.then(|| hr_font_create_sub_font(font));
+            hr_font_destroy(font);
+            if let Some(sub) = sub {
+                assert_eq!(state.calls.get(), 0);
+                hr_font_destroy(sub);
+            }
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert!(state.queried_face.get());
+        assert_eq!(state.replacement_calls.get(), 1);
+        assert!(state.replacement_queried_face.get());
+        assert!(state.replacement_released_immediately.get());
+        assert!(state.reset_rejected.get());
+    }
+
+    #[test]
+    fn isolated_font_data_destroy_can_query_the_font() {
+        // Avoid PreparedFont's separate self-borrow so default Miri isolates
+        // callback aliasing during font destruction.
+        let font = object::create(hr_font_t {
+            header: ObjectHeader::new(),
+            face: hr_face_t::empty(),
+            prepared: None,
+            x_scale: 1000,
+            y_scale: 1000,
+            x_ppem: 0,
+            y_ppem: 0,
+            ptem: 0.0,
+            coords: Vec::new(),
+            funcs: ptr::null_mut(),
+            font_data: None,
+            parent: ptr::null_mut(),
+        });
+        check_finalization(font, false);
+    }
+
+    fn public_font() -> *mut hr_font_t {
+        let bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/tests/fonts/rb_custom/LaBelleAurore.ttf"
+        ));
+        unsafe {
+            let blob = crate::hr_blob_create(
+                bytes.as_ptr().cast(),
+                bytes.len() as c_uint,
+                crate::HR_MEMORY_MODE_DUPLICATE,
+                ptr::null_mut(),
+                None,
+            );
+            let face = crate::hr_face_create(blob, 0);
+            let font = hr_font_create(face);
+            crate::hr_face_destroy(face);
+            crate::hr_blob_destroy(blob);
+            assert_ne!(font, hr_font_get_empty());
+            font
+        }
+    }
+
+    #[test]
+    fn public_font_data_destroy_can_query_the_font() {
+        check_finalization(public_font(), false);
+    }
+
+    #[test]
+    fn public_font_data_destroy_can_query_parent_released_by_sub_font() {
+        check_finalization(public_font(), true);
+    }
 }
