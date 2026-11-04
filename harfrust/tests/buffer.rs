@@ -107,6 +107,83 @@ fn shaping_sets_glyphs_content_type() {
     assert!(buffer.allocation_successful());
 }
 
+/// Builds a font from `tables`, which must be sorted by tag.
+fn sfnt(tables: &[(&[u8; 4], Vec<u8>)]) -> Vec<u8> {
+    let mut data = 0x0001_0000u32.to_be_bytes().to_vec();
+    data.extend((tables.len() as u16).to_be_bytes());
+    data.extend([0; 6]);
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, table) in tables {
+        data.extend(*tag);
+        data.extend(0u32.to_be_bytes());
+        data.extend((offset as u32).to_be_bytes());
+        data.extend((table.len() as u32).to_be_bytes());
+        offset += table.len().next_multiple_of(4);
+    }
+    for (_, table) in tables {
+        data.extend(table);
+        data.resize(data.len().next_multiple_of(4), 0);
+    }
+    data
+}
+
+/// A two-glyph font mapping `a` to glyph 1, whose version 1.0 `kern` table
+/// holds `subtables` Format 0 subtables that each kern the pair (1, 1) by -2.
+fn many_kern_subtables_font(subtables: usize) -> Vec<u8> {
+    fn words(values: &[u16]) -> Vec<u8> {
+        values.iter().flat_map(|v| v.to_be_bytes()).collect()
+    }
+    // Version, revision, checksum, magic, flags, 1000 units per em.
+    let mut head = words(&[1, 0, 0, 0, 0, 0, 0x5F0F, 0x3CF5, 0, 1000]);
+    head.extend([0; 34]);
+    // Version, metrics, and two entries in `hmtx`.
+    let mut hhea = words(&[1, 0]);
+    hhea.extend([0; 30]);
+    hhea.extend(words(&[2]));
+    // One format 12 subtable mapping U+0061 to glyph 1.
+    let cmap = words(&[
+        0, 1, 3, 10, 0, 12, 12, 0, 0, 28, 0, 0, 0, 1, 0, 0x61, 0, 0x61, 0, 1,
+    ]);
+    let mut kern = words(&[1, 0, (subtables >> 16) as u16, subtables as u16]);
+    for _ in 0..subtables {
+        // Length, coverage (horizontal, format 0), tuple index, one pair
+        // with unused binary-search hints, glyphs 1 and 1, value -2.
+        kern.extend(words(&[0, 22, 0, 0, 1, 0, 0, 0, 1, 1, 0xFFFE]));
+    }
+    sfnt(&[
+        (b"cmap", cmap),
+        (b"head", head),
+        (b"hhea", hhea),
+        (b"hmtx", vec![1, 244, 0, 0, 1, 244, 0, 0]),
+        (b"kern", kern),
+        (b"maxp", vec![0, 0, 0x50, 0, 0, 2]),
+    ])
+}
+
+#[test]
+fn kern_subtable_passes_are_charged_to_the_operation_limit() {
+    // Each subtable that applies moves the second glyph of every pair one
+    // unit left, so a glyph's x offset counts the passes made over the
+    // buffer. Sixteen glyphs get the minimum budget of 65536 operations,
+    // which pays for 4096 passes over them; the remaining subtables must
+    // be skipped and reported through `allocation_successful`.
+    let font = Font::new(many_kern_subtables_font(5000), 0).unwrap();
+    let instance = font.instance_builder().build();
+    let mut buffer = unicode_buffer(&"a".repeat(16));
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+    assert_eq!(buffer.len(), 16);
+    assert_eq!(buffer.glyph_positions()[8].x_offset, -4096);
+    assert!(!buffer.allocation_successful());
+
+    // A font within the budget applies every subtable.
+    let font = Font::new(many_kern_subtables_font(100), 0).unwrap();
+    let instance = font.instance_builder().build();
+    let mut buffer = unicode_buffer(&"a".repeat(16));
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+    assert_eq!(buffer.glyph_positions()[8].x_offset, -100);
+    assert!(buffer.allocation_successful());
+}
+
 #[test]
 fn corrupted_shaping_data_uses_empty_layout_without_failing() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
