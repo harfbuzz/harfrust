@@ -475,6 +475,13 @@ fn collect_substitution(
     if depth >= 8 {
         return Ok(false);
     }
+    // Extension type discovery scans offsets with find_map before returning
+    // subtables, so unreadable extension headers must be charged up front.
+    if let read_fonts::tables::gsub::SubstitutionLookup::Extension(table) = &lookup {
+        for _ in 0..table.subtable_offsets().len() {
+            budget.work()?;
+        }
+    }
     match lookup.subtables()? {
         SubstitutionSubtables::Single(subtables) => {
             for subtable in subtables.iter() {
@@ -801,6 +808,12 @@ fn collect_positioning(
     input: SetTarget,
     budget: &Budget,
 ) -> Result<bool, ReadError> {
+    // As for GSUB, extension type discovery can filter unreadable offsets.
+    if let read_fonts::tables::gpos::PositionLookup::Extension(table) = &lookup {
+        for _ in 0..table.subtable_offsets().len() {
+            budget.work()?;
+        }
+    }
     match lookup.subtables()? {
         PositionSubtables::Single(subtables) => {
             for table in subtables.iter() {
@@ -1512,6 +1525,40 @@ mod budget_tests {
                     assert_eq!(result.is_ok(), limit == total_work);
                     assert_eq!(spent.load(Ordering::Relaxed), limit);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn unreadable_extension_headers_consume_collection_work() {
+        let count = 1000u16;
+        for positioning in [false, true] {
+            let lookup_type = if positioning { 9u16 } else { 7 };
+            let mut data: Vec<u8> = [lookup_type, 0, count]
+                .into_iter()
+                .flat_map(u16::to_be_bytes)
+                .collect();
+            data.extend((0..count).flat_map(|_| u16::MAX.to_be_bytes()));
+            for limit in [500, 1000] {
+                let (result, spent) = if positioning {
+                    let lookup =
+                        read_fonts::tables::gpos::PositionLookup::read(FontData::new(&data))
+                            .unwrap();
+                    let spent = AtomicUsize::new(0);
+                    let budget = Budget {
+                        limit,
+                        spent: &spent,
+                    };
+                    let result =
+                        collect_positioning(lookup, SetTarget(core::ptr::null_mut()), &budget);
+                    (result, spent.load(Ordering::Relaxed))
+                } else {
+                    let mut list = vec![0, 1, 0, 4];
+                    list.extend_from_slice(&data);
+                    collection_work(&list, limit)
+                };
+                assert_eq!(result.is_ok(), limit == 1000);
+                assert_eq!(spent, limit);
             }
         }
     }
