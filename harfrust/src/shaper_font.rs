@@ -611,7 +611,7 @@ impl Advances<'_> {
     }
 }
 
-pub(crate) type CharmapCache = Cache<21, 19, 256, 32>;
+pub(crate) type CharmapCache = Cache<21, 19, 256, 32, true>;
 
 /// Glyph names in glyph order, filled on the first name lookup.
 pub(crate) type GlyphNameCache = Once<Box<[GlyphName]>>;
@@ -745,6 +745,25 @@ mod tests {
 
     use alloc::sync::Arc;
     use read_fonts::model::{Blob, TableFunction};
+
+    #[test]
+    fn nominal_cache_keeps_characters_from_different_unicode_pages() {
+        let font = Font::new(
+            include_bytes!("../benches/fonts/Roboto-Regular.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        let instance = font.instance_builder().build();
+        let shaper = ShaperFont::new(&instance);
+        // Latin A and Cyrillic Es share low bits but have distinct buckets.
+        let codepoints = [0x41, 0x441];
+        let glyphs = codepoints.map(|codepoint| shaper.default_nominal_glyph(codepoint).unwrap());
+        let cache = shaper.cmap_cache().unwrap();
+        for (codepoint, glyph) in codepoints.into_iter().zip(glyphs) {
+            assert_eq!(cache.get(codepoint), Some(glyph.to_u32()));
+            assert_eq!(shaper.default_nominal_glyph(codepoint), Some(glyph));
+        }
+    }
 
     #[test]
     fn cached_glyph_metrics_are_sync() {

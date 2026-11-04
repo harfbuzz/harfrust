@@ -76,7 +76,8 @@ pub type Cache<
     const VALUE_BITS: usize,
     const CACHE_SIZE: usize,
     const STORAGE_BITS: usize,
-> = CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, <() as SelectAtomic<STORAGE_BITS>>::Type>;
+    const MIXED: bool = false,
+> = CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, <() as SelectAtomic<STORAGE_BITS>>::Type, MIXED>;
 
 /// Core cache
 #[derive(Debug)]
@@ -85,12 +86,18 @@ pub struct CacheCore<
     const VALUE_BITS: usize,
     const CACHE_SIZE: usize,
     T: AtomicStorage,
+    const MIXED: bool = false,
 > {
     values: [T; CACHE_SIZE],
 }
 
-impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T: AtomicStorage>
-    CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, T>
+impl<
+        const KEY_BITS: usize,
+        const VALUE_BITS: usize,
+        const CACHE_SIZE: usize,
+        T: AtomicStorage,
+        const MIXED: bool,
+    > CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, T, MIXED>
 {
     pub const MAX_VALUE: u32 = (1 << VALUE_BITS) - 1;
     const CACHE_BITS: usize = CACHE_SIZE.ilog2() as usize;
@@ -117,7 +124,7 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
 
     #[inline]
     pub fn get(&self, key: u32) -> Option<u32> {
-        let index = (key as usize) & (CACHE_SIZE - 1);
+        let index = Self::index(key);
         let stored = self.values[index].get();
         let tag = stored >> VALUE_BITS;
         let expected_tag = key >> Self::CACHE_BITS;
@@ -138,19 +145,59 @@ impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize, T:
     }
 
     #[inline]
+    fn index(key: u32) -> usize {
+        // Mixing spreads Unicode pages over different buckets. With the
+        // tag fixed, this permutes the low bits and still identifies a key
+        // uniquely. Glyph-index caches can keep their unmixed indexing.
+        let key = if MIXED {
+            key ^ (key >> Self::CACHE_BITS)
+        } else {
+            key
+        };
+        (key as usize) & (CACHE_SIZE - 1)
+    }
+
+    #[inline]
     fn set_unchecked(&self, key: u32, value: u32) {
-        let index = (key as usize) & (CACHE_SIZE - 1);
+        let index = Self::index(key);
         let packed = ((key >> Self::CACHE_BITS) << VALUE_BITS) | value;
         self.values[index].set(packed);
     }
 }
 
-impl<const KEY_BITS: usize, const VALUE_BITS: usize, const CACHE_SIZE: usize>
-    CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, AtomicU16>
+impl<
+        const KEY_BITS: usize,
+        const VALUE_BITS: usize,
+        const CACHE_SIZE: usize,
+        const MIXED: bool,
+    > CacheCore<KEY_BITS, VALUE_BITS, CACHE_SIZE, AtomicU16, MIXED>
 {
     pub const fn empty() -> Self {
         Self {
             values: [const { AtomicU16::new(u16::MAX) }; CACHE_SIZE],
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cache;
+
+    #[test]
+    fn mixed_buckets_keep_a_page_and_reject_other_tags() {
+        let cache = Cache::<21, 19, 256, 32, true>::new();
+        let mut previous_page = None;
+        for page in [0, 1, 4, 255, 8191] {
+            for low in 0..256 {
+                cache.set(page * 256 + low, low);
+            }
+            for low in 0..256 {
+                assert_eq!(cache.get(page * 256 + low), Some(low));
+                if let Some(previous) = previous_page {
+                    assert_eq!(cache.get(previous * 256 + low), None);
+                }
+            }
+            previous_page = Some(page);
         }
     }
 }
