@@ -5,6 +5,7 @@ use core::ptr;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use harfrust::{shape, Buffer, Direction, Feature, ShapeOptions};
+use smallvec::SmallVec;
 
 use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t};
@@ -27,6 +28,7 @@ fn guard<T>(buffer: &mut Buffer, f: impl FnOnce(&mut Buffer) -> T) -> Option<T> 
 }
 
 /// Reads `num_features` features, or none if `features` is `NULL`.
+/// Most shaping calls use only a handful of features; keep them inline.
 ///
 /// # Safety
 ///
@@ -34,9 +36,9 @@ fn guard<T>(buffer: &mut Buffer, f: impl FnOnce(&mut Buffer) -> T) -> Option<T> 
 pub(crate) unsafe fn collect_features(
     features: *const hr_feature_t,
     num_features: c_uint,
-) -> Vec<Feature> {
+) -> SmallVec<[Feature; 4]> {
     if features.is_null() || num_features == 0 {
-        return Vec::new();
+        return SmallVec::new();
     }
     // SAFETY: the caller guarantees the array is readable.
     unsafe { core::slice::from_raw_parts(features, num_features as usize) }
