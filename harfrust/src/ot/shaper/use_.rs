@@ -607,4 +607,44 @@ mod tests {
             }
         }
     }
+
+    // A long run of segment-begin marks used to take quadratic time:
+    // `hieroglyph_cluster` kept the scanner reading to the end of the buffer
+    // for every token while it waited for a hieroglyph that never came.
+    #[test]
+    fn segment_begin_run_is_scanned_in_linear_time() {
+        let mut buffer = Buffer::new();
+        for i in 0..100_000 {
+            buffer.push(0x13437, i);
+            buffer.info[i as usize].set_use_category(category::SB);
+        }
+        find_syllables(&mut buffer);
+        assert_eq!(
+            buffer.info[0].syllable() & 0x0F,
+            SyllableType::SymbolCluster as u8
+        );
+        assert_ne!(buffer.info[0].syllable(), buffer.info[1].syllable());
+    }
+
+    // A long-but-valid cluster: a segment-begin run of more than
+    // `MAX_SYLLABLE_LOOKAHEAD` before a hieroglyph is still one hieroglyph
+    // cluster, the same as an unbounded scan. The look-ahead memo must bound
+    // the DoS without splitting this.
+    #[test]
+    fn long_segment_begin_run_before_hieroglyph_stays_one_cluster() {
+        let mut buffer = Buffer::new();
+        for i in 0..1_000 {
+            buffer.push(0x13437, i);
+            buffer.info[i as usize].set_use_category(category::SB);
+        }
+        buffer.push(0x13000, 1_000);
+        buffer.info[1_000].set_use_category(category::G);
+        let len = buffer.len;
+        find_syllables(&mut buffer);
+        let syllable = buffer.info[0].syllable();
+        assert_eq!(syllable & 0x0F, SyllableType::HieroglyphCluster as u8);
+        assert!(buffer.info[..len]
+            .iter()
+            .all(|info| info.syllable() == syllable));
+    }
 }
