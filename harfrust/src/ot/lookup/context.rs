@@ -1034,10 +1034,13 @@ fn apply_chain_rules<const W: usize>(
         Prematch::Rejected => return None,
         Prematch::TryAll => {
             // The rules may alias, so each one tried is charged.
-            for data in (0..rules.len()).filter_map(|index| rules.rule(index)) {
+            for index in 0..rules.len() {
                 if !ctx.buffer.charge_ops(1) {
                     break;
                 }
+                let Some(data) = rules.rule(index) else {
+                    continue;
+                };
                 if let Some(applied) =
                     ParsedRule::<W>::parse(data, rules.layout).apply(ctx, matchers)
                 {
@@ -1049,10 +1052,13 @@ fn apply_chain_rules<const W: usize>(
         Prematch::End { unsafe_to } => {
             // Only rules without further input or lookahead can match.
             let mut unsafe_to_concat = false;
-            for data in (0..rules.len()).filter_map(|index| rules.rule(index)) {
+            for index in 0..rules.len() {
                 if !ctx.buffer.charge_ops(1) {
                     break;
                 }
+                let Some(data) = rules.rule(index) else {
+                    continue;
+                };
                 let rule = ParsedRule::<W>::parse(data, rules.layout);
                 if !rule.input.is_empty() || !rule.lookahead.is_empty() {
                     unsafe_to_concat = true;

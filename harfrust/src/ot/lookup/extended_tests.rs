@@ -1430,3 +1430,34 @@ fn chain_context5_does_not_truncate_wide_classes() {
         }
     }
 }
+
+#[test]
+fn malformed_context_and_ligature_offsets_are_charged() {
+    let count = 1000u16;
+    // Context-format-1 and ligature-format-1 share the header, coverage,
+    // and offset-array layouts used here. Every child offset is unreadable.
+    let mut subtable = vec![0, 1, 0, 8, 0, 1, 0, 14];
+    subtable.extend_from_slice(&[0, 1, 0, 1, 0, 1]);
+    subtable.extend_from_slice(&count.to_be_bytes());
+    subtable.extend((0..count).flat_map(|_| u16::MAX.to_be_bytes()));
+    for lookup_type in [4, 5] {
+        for glyph_count in [1, 128] {
+            let glyphs = vec![1; glyph_count];
+            let initial_ops = 2000 * glyph_count as i32;
+            let output = apply_subtable_configured(lookup_type, true, &subtable, &glyphs, |ctx| {
+                ctx.buffer.max_ops = initial_ops;
+                // Force TryAll for context and the no-second branch for
+                // ligatures, even with glyphs following this one.
+                for info in ctx.buffer.glyph_infos_mut() {
+                    info._set_default_ignorable();
+                }
+            });
+            assert!(output.successful);
+            assert!(
+                output.max_ops <= initial_ops - i32::from(count) * glyph_count as i32,
+                "lookup {lookup_type}, {glyph_count} glyphs: {} ops remain",
+                output.max_ops,
+            );
+        }
+    }
+}
