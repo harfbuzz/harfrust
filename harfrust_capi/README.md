@@ -252,7 +252,8 @@ The following HarfBuzz APIs are not exposed:
   whatever became of the buffer, so `hr_shape_full` returns true and
   `hr_shape` carries on; `hr_buffer_allocation_successful` is what reports
   the condition. `hr_shape_full` returns false only when no shaper could be
-  run at all.
+  run at all, or when the shaper panicked -- a bug in this library -- in
+  which case the buffer comes back cleared rather than half shaped.
 
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.
@@ -283,7 +284,9 @@ What is not shared is anything being written:
 - **A font must not be modified while another thread shapes with it.**
   `hr_font_set_scale`, `hr_font_set_variations` and `hr_font_set_funcs` all
   write. Call them before sharing the font, then `hr_font_make_immutable` to
-  have later attempts ignored rather than raced.
+  have later attempts ignored rather than raced. A sub-font reads its parent's
+  callbacks and scale on every query, so shaping with it is shaping with its
+  parent too; `hr_font_make_immutable` freezes the whole chain for that reason.
 - **The same goes for a set of callbacks.** Populate an `hr_font_funcs_t`
   before installing it, and `hr_font_funcs_make_immutable` to hold it that way.
 
@@ -298,6 +301,7 @@ MIT, the same as the rest of the project.
 Nominal glyph callbacks support both scalar and strided batch mapping. A batch
 callback supplies scalar queries when no scalar callback is installed; a local
 scalar callback also takes precedence over an inherited batch callback.
+Horizontal advance callbacks follow the same rule.
 
 HarfBuzz compatibility headers are `hr-hb.h` for core APIs and `hr-hb-ot.h`
 for OpenType APIs, and `hr-hb-aat.h` for AAT feature metadata. The core header also includes the OpenType mappings for

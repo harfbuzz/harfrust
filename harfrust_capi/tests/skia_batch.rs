@@ -1,4 +1,4 @@
-//! Tests for batched nominal glyph mapping.
+//! Tests for batched nominal glyph mapping and advances.
 
 use crate::*;
 use core::ffi::{c_uint, c_void};
@@ -116,6 +116,107 @@ fn nominal_batches_preserve_strides_partial_results_and_parent_precedence() {
         );
         assert_eq!(glyph, 297);
         hr_font_destroy(child);
+        hr_font_destroy(parent);
+        hr_face_destroy(face);
+    }
+}
+
+unsafe extern "C" fn spaced_advance(
+    font: *mut hr_font_t,
+    _data: *mut c_void,
+    glyph: u32,
+    _user: *mut c_void,
+) -> i32 {
+    unsafe { hr_font_get_glyph_h_advance(hr_font_get_parent(font), glyph) + 7 }
+}
+
+// Written the way HarfBuzz's own default batch is: one scalar query a glyph.
+unsafe extern "C" fn batch_advance_over_scalar(
+    font: *mut hr_font_t,
+    _data: *mut c_void,
+    count: c_uint,
+    glyphs: *const u32,
+    glyph_stride: c_uint,
+    advances: *mut i32,
+    advance_stride: c_uint,
+    _user: *mut c_void,
+) {
+    for i in 0..count as usize {
+        let glyph = unsafe { glyphs.byte_add(i * glyph_stride as usize).read_unaligned() };
+        let advance = unsafe { hr_font_get_glyph_h_advance(font, glyph) };
+        unsafe {
+            advances
+                .byte_add(i * advance_stride as usize)
+                .write_unaligned(advance);
+        };
+    }
+}
+
+unsafe extern "C" fn batch_advance_of_500(
+    _font: *mut hr_font_t,
+    _data: *mut c_void,
+    count: c_uint,
+    _glyphs: *const u32,
+    _glyph_stride: c_uint,
+    advances: *mut i32,
+    advance_stride: c_uint,
+    _user: *mut c_void,
+) {
+    for i in 0..count as usize {
+        unsafe {
+            advances
+                .byte_add(i * advance_stride as usize)
+                .write_unaligned(500);
+        };
+    }
+}
+
+#[test]
+fn scalar_advance_callbacks_take_precedence_over_batch_ones() {
+    unsafe {
+        let face = face();
+        let parent = hr_font_create(face);
+        let funcs = hr_font_funcs_create();
+        hr_font_funcs_set_glyph_h_advances_func(
+            funcs,
+            Some(batch_advance_of_500),
+            ptr::null_mut(),
+            None,
+        );
+        hr_font_set_funcs(parent, funcs, ptr::null_mut(), None);
+        hr_font_funcs_destroy(funcs);
+        let glyphs = [1u32, 2];
+        let mut advances = [0i32; 2];
+
+        // A child's scalar callback overrides the parent's batch.
+        let child = hr_font_create_sub_font(parent);
+        let funcs = hr_font_funcs_create();
+        hr_font_funcs_set_glyph_h_advance_func(funcs, Some(spaced_advance), ptr::null_mut(), None);
+        hr_font_set_funcs(child, funcs, ptr::null_mut(), None);
+        hr_font_funcs_destroy(funcs);
+        assert_eq!(hr_font_get_glyph_h_advance(child, 1), 507);
+        hr_font_get_glyph_h_advances(child, 2, glyphs.as_ptr(), 4, advances.as_mut_ptr(), 4);
+        assert_eq!(advances, [507, 507]);
+        hr_font_destroy(child);
+
+        // A scalar query goes to the scalar callback beside a batch one, so
+        // the batch callback can be written over scalar queries.
+        let child = hr_font_create_sub_font(parent);
+        let funcs = hr_font_funcs_create();
+        hr_font_funcs_set_glyph_h_advance_func(funcs, Some(spaced_advance), ptr::null_mut(), None);
+        hr_font_funcs_set_glyph_h_advances_func(
+            funcs,
+            Some(batch_advance_over_scalar),
+            ptr::null_mut(),
+            None,
+        );
+        hr_font_set_funcs(child, funcs, ptr::null_mut(), None);
+        hr_font_funcs_destroy(funcs);
+        assert_eq!(hr_font_get_glyph_h_advance(child, 1), 507);
+        hr_font_get_glyph_h_advances(child, 2, glyphs.as_ptr(), 4, advances.as_mut_ptr(), 4);
+        assert_eq!(advances, [507, 507]);
+        hr_font_destroy(child);
+
         hr_font_destroy(parent);
         hr_face_destroy(face);
     }

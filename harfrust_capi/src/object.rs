@@ -13,7 +13,7 @@
 
 use core::ffi::c_void;
 use core::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::sync::RwLock;
+use std::sync::{PoisonError, RwLock};
 
 /// Reference count of an immortal (inert) object.
 const IMMORTAL: i64 = -1;
@@ -84,6 +84,21 @@ impl ObjectHeader {
     fn is_immortal(&self) -> bool {
         self.ref_count.load(Ordering::Relaxed) == IMMORTAL
     }
+
+    /// Runs the destroy callback of every user data item and forgets them.
+    ///
+    /// The callbacks are the caller's code and may come back into the API,
+    /// so they run once the lock is released, as they do in [`set_user_data`].
+    fn release_user_data(&self) {
+        let items = {
+            let mut items = self
+                .user_data
+                .write()
+                .unwrap_or_else(PoisonError::into_inner);
+            core::mem::take(&mut *items)
+        };
+        drop(items);
+    }
 }
 
 impl Default for ObjectHeader {
@@ -99,6 +114,15 @@ pub trait Object: Sized + 'static {
 
     /// Returns the immortal empty singleton for this type.
     fn empty() -> *mut Self;
+
+    /// Releases callback-owned state before exclusive Box ownership is taken.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must point to this object after its final reference was released.
+    /// No other thread may access it. Detach state before invoking callbacks,
+    /// which may still query the object through its original pointer.
+    unsafe fn finalize(_ptr: *mut Self) {}
 }
 
 /// Allocates a new object with a reference count of one.
@@ -170,8 +194,12 @@ pub unsafe fn destroy<T: Object>(ptr: *mut T) {
     if header.ref_count.fetch_sub(1, Ordering::AcqRel) != 1 {
         return;
     }
-    // Last reference: take ownership back and drop it. This also runs the
-    // destroy callback of every attached user data item.
+    // Last reference. As in HarfBuzz, the destroy callback of every attached
+    // user data item runs first, while the object still holds everything it
+    // owns: a callback on a font may look at the font's face. Only then is
+    // ownership taken back and the object dropped.
+    header.release_user_data();
+    unsafe { T::finalize(ptr) };
     drop(unsafe { Box::from_raw(ptr) });
 }
 
@@ -192,8 +220,10 @@ pub unsafe fn set_user_data<T: Object>(
         return false;
     };
     let header = obj.header();
-    // Matches HarfBuzz: inert objects never take user data.
-    if header.is_immortal() || key.is_null() {
+    // Inert objects and objects releasing their final reference never take
+    // user data. A destroy callback may query the detached metadata, but
+    // must not attach callbacks that would later run inside Box::drop.
+    if header.ref_count.load(Ordering::Relaxed) <= 0 || key.is_null() {
         return false;
     }
     // Whatever this displaces is dropped once the lock is released, because
@@ -298,7 +328,7 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
 }
 
 /// Returns a mutable reference to an object, or `None` when `ptr` is `NULL` or
-/// the object has been marked immutable.
+/// the object has been marked immutable or is releasing its final reference.
 ///
 /// Setters use this so that mutating an immutable object is silently ignored,
 /// as it is in HarfBuzz.
@@ -308,9 +338,11 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
 /// `ptr` must be `NULL` or a live pointer returned by this API, and the caller
 /// must not alias the returned reference.
 pub unsafe fn as_mutable<'a, T: Object>(ptr: *mut T) -> Option<&'a mut T> {
-    let obj = unsafe { ptr.as_mut() }?;
-    if obj.header().immutable.load(Ordering::Acquire) {
+    // Reject shared immutable objects and finalization reentry before taking
+    // an exclusive reference. Destroy callbacks may still query the object.
+    let header = unsafe { ptr.as_ref() }?.header();
+    if header.immutable.load(Ordering::Acquire) || header.ref_count.load(Ordering::Relaxed) <= 0 {
         return None;
     }
-    Some(obj)
+    unsafe { ptr.as_mut() }
 }
