@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Legacy `kern` class lookup no longer truncates glyph ids above `u16::MAX`. An id that does not fit in 16 bits is out of bounds, matching HarfBuzz and `morx`.
+
 ## [0.15.0] - 2026-10-21
 
 This release matches HarfBuzz [v15.0.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.0.0),

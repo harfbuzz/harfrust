@@ -30,8 +30,12 @@ pub(crate) fn get_class(machine: &aat::StateTable, glyph_id: GlyphId, cache: &Cl
     if let Some(klass) = cache.get(glyph_id.to_u32()) {
         return klass as u8;
     }
-    let klass = machine
-        .class(GlyphId16::new(glyph_id.to_u32() as u16))
+    // Legacy kern class tables are indexed by a 16-bit glyph id. A wider id
+    // is out of bounds, matching `morx` and HarfBuzz. Truncating would alias
+    // it onto a different glyph, or onto the deleted-glyph sentinel at 0xFFFF.
+    let klass = u16::try_from(glyph_id.to_u32())
+        .ok()
+        .and_then(|id| machine.class(GlyphId16::new(id)).ok())
         .unwrap_or(aat::class::OUT_OF_BOUNDS);
     cache.set(glyph_id.to_u32(), klass as u32);
     klass
@@ -768,5 +772,41 @@ impl<'a> KernSubtableCache<'a> {
             + set_heap_bytes(&self.first_set)
             + set_heap_bytes(&self.second_set)
             + self.safe_to_break.accel_bytes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::FontData;
+
+    #[test]
+    fn legacy_kern_class_does_not_truncate_glyph_ids() {
+        // Class table covers only glyph 2, which is class 4. A 32-bit id that
+        // truncates to 2 or to 0xFFFF must be out of bounds, not that class
+        // and not the deleted-glyph class.
+        #[rustfmt::skip]
+        let data: &[u8] = &[
+            0x00, 0x01, // stateSize
+            0x00, 0x0A, // class table offset
+            0x00, 0x0F, // state array offset
+            0x00, 0x10, // entry table offset
+            0x00, 0x10, // values offset
+            0x00, 0x02, // firstGlyph
+            0x00, 0x01, // nGlyphs
+            0x04, // glyph 2 -> class 4
+            0x00, // state array
+            0x00, // entry
+        ];
+        let machine = aat::StateTable::read(FontData::new(data)).unwrap();
+        assert_eq!(get_class(&machine, GlyphId::new(2), &ClassCache::new()), 4);
+        assert_eq!(
+            get_class(&machine, GlyphId::new(65_538), &ClassCache::new()),
+            aat::class::OUT_OF_BOUNDS
+        );
+        assert_eq!(
+            get_class(&machine, GlyphId::new(0x1_FFFF), &ClassCache::new()),
+            aat::class::OUT_OF_BOUNDS
+        );
     }
 }
