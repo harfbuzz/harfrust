@@ -817,6 +817,61 @@ impl RearrangementCtx {
     const DONT_ADVANCE: u16 = 0x4000;
     const MARK_LAST: u16 = 0x2000;
     const VERB: u16 = 0x000F;
+
+    #[inline(never)]
+    fn perform_action(&mut self, flags: u16, ac: &mut AatApplyContext) -> Option<()> {
+        let buffer = &mut *ac.buffer;
+        // The following map has two nibbles, for start-side
+        // and end-side. Values of 0,1,2 mean move that many
+        // to the other side. Value of 3 means move 2 and
+        // flip them.
+        static MAP: [u8; 16] = [
+            0x00, // 0  no change
+            0x10, // 1  Ax => xA
+            0x01, // 2  xD => Dx
+            0x11, // 3  AxD => DxA
+            0x20, // 4  ABx => xAB
+            0x30, // 5  ABx => xBA
+            0x02, // 6  xCD => CDx
+            0x03, // 7  xCD => DCx
+            0x12, // 8  AxCD => CDxA
+            0x13, // 9  AxCD => DCxA
+            0x21, // 10 ABxD => DxAB
+            0x31, // 11 ABxD => DxBA
+            0x22, // 12 ABxCD => CDxAB
+            0x32, // 13 ABxCD => CDxBA
+            0x23, // 14 ABxCD => DCxAB
+            0x33, // 15 ABxCD => DCxBA
+        ];
+
+        let m = MAP[usize::from(flags & Self::VERB)];
+        let l = 2.min(m >> 4) as usize;
+        let r = 2.min(m & 0x0F) as usize;
+        let reverse_l = 3 == (m >> 4);
+        let reverse_r = 3 == (m & 0x0F);
+
+        if (self.end - self.start >= l + r) && (self.end - self.start <= MAX_CONTEXT_LENGTH) {
+            buffer.merge_clusters(self.start, (buffer.idx + 1).min(buffer.len));
+            buffer.merge_clusters(self.start, self.end);
+
+            // Swap the first l glyphs with the last r: rotating the run
+            // left by l puts the l glyphs at the end, then rotating the
+            // rest right by r brings the r glyphs to the front.
+            let run = buffer.info.get_mut(self.start..self.end)?;
+            let len = run.len();
+            run.rotate_left(l);
+            run.get_mut(..len - l)?.rotate_right(r);
+
+            if reverse_l {
+                run.get_mut(len - 2..)?.reverse();
+            }
+
+            if reverse_r {
+                run.get_mut(..2)?.reverse();
+            }
+        }
+        Some(())
+    }
 }
 
 impl DriverContext<NoPayload> for RearrangementCtx {
@@ -850,55 +905,7 @@ impl DriverContext<NoPayload> for RearrangementCtx {
         }
 
         if flags & Self::VERB != 0 && self.start < self.end {
-            // The following map has two nibbles, for start-side
-            // and end-side. Values of 0,1,2 mean move that many
-            // to the other side. Value of 3 means move 2 and
-            // flip them.
-            static MAP: [u8; 16] = [
-                0x00, // 0  no change
-                0x10, // 1  Ax => xA
-                0x01, // 2  xD => Dx
-                0x11, // 3  AxD => DxA
-                0x20, // 4  ABx => xAB
-                0x30, // 5  ABx => xBA
-                0x02, // 6  xCD => CDx
-                0x03, // 7  xCD => DCx
-                0x12, // 8  AxCD => CDxA
-                0x13, // 9  AxCD => DCxA
-                0x21, // 10 ABxD => DxAB
-                0x31, // 11 ABxD => DxBA
-                0x22, // 12 ABxCD => CDxAB
-                0x32, // 13 ABxCD => CDxBA
-                0x23, // 14 ABxCD => DCxAB
-                0x33, // 15 ABxCD => DCxBA
-            ];
-
-            let m = MAP[usize::from(flags & Self::VERB)];
-            let l = 2.min(m >> 4) as usize;
-            let r = 2.min(m & 0x0F) as usize;
-            let reverse_l = 3 == (m >> 4);
-            let reverse_r = 3 == (m & 0x0F);
-
-            if (self.end - self.start >= l + r) && (self.end - self.start <= MAX_CONTEXT_LENGTH) {
-                buffer.merge_clusters(self.start, (buffer.idx + 1).min(buffer.len));
-                buffer.merge_clusters(self.start, self.end);
-
-                // Swap the first l glyphs with the last r: rotating the run
-                // left by l puts the l glyphs at the end, then rotating the
-                // rest right by r brings the r glyphs to the front.
-                let run = buffer.info.get_mut(self.start..self.end)?;
-                let len = run.len();
-                run.rotate_left(l);
-                run.get_mut(..len - l)?.rotate_right(r);
-
-                if reverse_l {
-                    run.get_mut(len - 2..)?.reverse();
-                }
-
-                if reverse_r {
-                    run.get_mut(..2)?.reverse();
-                }
-            }
+            return self.perform_action(flags, ac);
         }
 
         Some(())
@@ -983,36 +990,12 @@ struct ContextualCtx<T> {
 impl<T> ContextualCtx<T> {
     const SET_MARK: u16 = 0x8000;
     const DONT_ADVANCE: u16 = 0x4000;
-}
 
-impl<P, T> DriverContext<P> for ContextualCtx<T>
-where
-    T: ContextualActions<P>,
-{
-    fn in_place() -> bool {
-        true
-    }
-
-    fn can_advance(entry: &StateEntry<P>) -> bool {
-        entry.flags & Self::DONT_ADVANCE == 0
-    }
-
-    fn is_action_initiable(entry: &StateEntry<P>) -> bool {
-        entry.flags & Self::SET_MARK != 0
-    }
-
-    fn is_actionable(entry: &StateEntry<P>) -> bool {
-        T::mark_action(&entry.payload) || T::current_action(&entry.payload)
-    }
-
-    #[inline(always)]
-    fn transition(&mut self, entry: &StateEntry<P>, ac: &mut AatApplyContext) -> Option<()> {
-        // Looks like CoreText applies neither mark nor current substitution for
-        // end-of-text if mark was not explicitly set.
-        if ac.buffer.idx == ac.buffer.len && !self.mark_set {
-            return Some(());
-        }
-
+    #[inline(never)]
+    fn perform_action<P>(&mut self, entry: &StateEntry<P>, ac: &mut AatApplyContext)
+    where
+        T: ContextualActions<P>,
+    {
         let mut replacement = None;
 
         if T::mark_action(&entry.payload) {
@@ -1058,6 +1041,40 @@ where
             if ac.replace_glyph_inplace(idx, replacement.into()).is_none() {
                 ac.buffer.index_failed();
             }
+        }
+    }
+}
+
+impl<P, T> DriverContext<P> for ContextualCtx<T>
+where
+    T: ContextualActions<P>,
+{
+    fn in_place() -> bool {
+        true
+    }
+
+    fn can_advance(entry: &StateEntry<P>) -> bool {
+        entry.flags & Self::DONT_ADVANCE == 0
+    }
+
+    fn is_action_initiable(entry: &StateEntry<P>) -> bool {
+        entry.flags & Self::SET_MARK != 0
+    }
+
+    fn is_actionable(entry: &StateEntry<P>) -> bool {
+        T::mark_action(&entry.payload) || T::current_action(&entry.payload)
+    }
+
+    #[inline(always)]
+    fn transition(&mut self, entry: &StateEntry<P>, ac: &mut AatApplyContext) -> Option<()> {
+        // Looks like CoreText applies neither mark nor current substitution for
+        // end-of-text if mark was not explicitly set.
+        if ac.buffer.idx == ac.buffer.len && !self.mark_set {
+            return Some(());
+        }
+
+        if Self::is_actionable(entry) {
+            self.perform_action(entry, ac);
         }
 
         if entry.flags & Self::SET_MARK != 0 {
@@ -1106,29 +1123,13 @@ impl InsertionCtx<'_> {
     const MARKED_INSERT_BEFORE: u16 = 0x0400;
     const CURRENT_INSERT_COUNT: u16 = 0x03E0;
     const MARKED_INSERT_COUNT: u16 = 0x001F;
-}
 
-impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
-    fn in_place() -> bool {
-        false
-    }
-
-    fn can_advance(entry: &StateEntry<P>) -> bool {
-        entry.flags & Self::DONT_ADVANCE == 0
-    }
-
-    fn is_action_initiable(entry: &StateEntry<P>) -> bool {
-        entry.flags & Self::SET_MARK != 0
-    }
-
-    fn is_actionable(entry: &StateEntry<P>) -> bool {
-        (entry.flags & (Self::CURRENT_INSERT_COUNT | Self::MARKED_INSERT_COUNT) != 0)
-            && (entry.payload.current_insert_index() != 0xFFFF
-                || entry.payload.marked_insert_index() != 0xFFFF)
-    }
-
-    #[inline(always)]
-    fn transition(&mut self, entry: &StateEntry<P>, ac: &mut AatApplyContext) -> Option<()> {
+    #[inline(never)]
+    fn perform_action<P: InsertionPayload>(
+        &mut self,
+        entry: &StateEntry<P>,
+        ac: &mut AatApplyContext,
+    ) -> Option<()> {
         let flags = entry.flags;
         let mark_loc = ac.buffer.out_len;
 
@@ -1237,6 +1238,39 @@ impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
     }
 }
 
+impl<P: InsertionPayload> DriverContext<P> for InsertionCtx<'_> {
+    fn in_place() -> bool {
+        false
+    }
+
+    fn can_advance(entry: &StateEntry<P>) -> bool {
+        entry.flags & Self::DONT_ADVANCE == 0
+    }
+
+    fn is_action_initiable(entry: &StateEntry<P>) -> bool {
+        entry.flags & Self::SET_MARK != 0
+    }
+
+    fn is_actionable(entry: &StateEntry<P>) -> bool {
+        (entry.flags & (Self::CURRENT_INSERT_COUNT | Self::MARKED_INSERT_COUNT) != 0)
+            && (entry.payload.current_insert_index() != 0xFFFF
+                || entry.payload.marked_insert_index() != 0xFFFF)
+    }
+
+    #[inline(always)]
+    fn transition(&mut self, entry: &StateEntry<P>, ac: &mut AatApplyContext) -> Option<()> {
+        if entry.payload.marked_insert_index() != 0xFFFF
+            || entry.payload.current_insert_index() != 0xFFFF
+        {
+            return self.perform_action(entry, ac);
+        }
+        if entry.flags & Self::SET_MARK != 0 {
+            self.mark = ac.buffer.out_len as u32;
+        }
+        Some(())
+    }
+}
+
 const LIGATURE_MAX_MATCHES: usize = 64;
 
 trait LigatureActions<P> {
@@ -1307,6 +1341,111 @@ impl<T> LigatureCtx<T> {
     const LIG_ACTION_LAST: u32 = 0x8000_0000;
     const LIG_ACTION_STORE: u32 = 0x4000_0000;
     const LIG_ACTION_OFFSET: u32 = 0x3FFF_FFFF;
+
+    #[inline(never)]
+    fn perform_action<P>(
+        &mut self,
+        mut ligature_actions_index: usize,
+        ac: &mut AatApplyContext,
+    ) -> Option<()>
+    where
+        T: LigatureActions<P>,
+    {
+        let end = ac.buffer.out_len;
+
+        if self.match_length == 0 {
+            return Some(());
+        }
+
+        if ac.buffer.idx >= ac.buffer.len {
+            return Some(()); // TODO: Work on previous instead?
+        }
+
+        let mut cursor = self.match_length;
+
+        let mut ligature_idx = 0u32;
+        loop {
+            if cursor == 0 {
+                // Stack underflow. Clear the stack.
+                self.match_length = 0;
+                break;
+            }
+
+            cursor -= 1;
+            if !ac
+                .buffer
+                .move_to(self.match_positions[cursor % LIGATURE_MAX_MATCHES])
+            {
+                return Some(());
+            }
+
+            // We cannot use ? in this loop, because we must call
+            // ac.buffer.move_to(end) in the end.
+            let Some(action) = self.table.action(ligature_actions_index) else {
+                break;
+            };
+
+            let mut uoffset = action & Self::LIG_ACTION_OFFSET;
+            if uoffset & 0x2000_0000 != 0 {
+                uoffset |= 0xC000_0000; // Sign-extend.
+            }
+
+            let offset = uoffset as i32;
+            let component = match self.table.component(ac.buffer.cur(0)?.glyph_id, offset) {
+                Some(component) => u32::from(component),
+                None => break,
+            };
+            let Some(next_ligature_idx) = ligature_idx.checked_add(component) else {
+                break;
+            };
+            ligature_idx = next_ligature_idx;
+
+            if (action & (Self::LIG_ACTION_STORE | Self::LIG_ACTION_LAST)) != 0 {
+                let Some(lig) = self.table.ligature(ligature_idx) else {
+                    break;
+                };
+
+                if ac.replace_glyph(u32::from(lig.to_u16())).is_none() {
+                    ac.buffer.index_failed();
+                }
+
+                let lig_end =
+                    self.match_positions[(self.match_length - 1) % LIGATURE_MAX_MATCHES] + 1;
+                // Now go and delete all subsequent components.
+                while self.match_length - 1 > cursor {
+                    self.match_length -= 1;
+                    if !ac
+                        .buffer
+                        .move_to(self.match_positions[self.match_length % LIGATURE_MAX_MATCHES])
+                    {
+                        return Some(());
+                    }
+                    if ac.delete_glyph().is_none() {
+                        ac.buffer.index_failed();
+                    }
+                }
+
+                if !ac.buffer.move_to(lig_end) {
+                    return Some(());
+                }
+                ac.buffer.merge_out_clusters(
+                    self.match_positions[cursor % LIGATURE_MAX_MATCHES],
+                    ac.buffer.out_len,
+                );
+            }
+
+            ligature_actions_index = T::next_action(ligature_actions_index);
+
+            if action & Self::LIG_ACTION_LAST != 0 {
+                break;
+            }
+        }
+
+        if !ac.buffer.move_to(end) {
+            return Some(());
+        }
+        Some(())
+    }
 }
 
 impl<P, T> DriverContext<P> for LigatureCtx<T>
@@ -1344,100 +1483,8 @@ where
             self.match_length += 1;
         }
 
-        if let Some(mut ligature_actions_index) = T::action_start(entry) {
-            let end = ac.buffer.out_len;
-
-            if self.match_length == 0 {
-                return Some(());
-            }
-
-            if ac.buffer.idx >= ac.buffer.len {
-                return Some(()); // TODO: Work on previous instead?
-            }
-
-            let mut cursor = self.match_length;
-
-            let mut ligature_idx = 0u32;
-            loop {
-                if cursor == 0 {
-                    // Stack underflow. Clear the stack.
-                    self.match_length = 0;
-                    break;
-                }
-
-                cursor -= 1;
-                if !ac
-                    .buffer
-                    .move_to(self.match_positions[cursor % LIGATURE_MAX_MATCHES])
-                {
-                    return Some(());
-                }
-
-                // We cannot use ? in this loop, because we must call
-                // ac.buffer.move_to(end) in the end.
-                let Some(action) = self.table.action(ligature_actions_index) else {
-                    break;
-                };
-
-                let mut uoffset = action & Self::LIG_ACTION_OFFSET;
-                if uoffset & 0x2000_0000 != 0 {
-                    uoffset |= 0xC000_0000; // Sign-extend.
-                }
-
-                let offset = uoffset as i32;
-                let component = match self.table.component(ac.buffer.cur(0)?.glyph_id, offset) {
-                    Some(component) => u32::from(component),
-                    None => break,
-                };
-                let Some(next_ligature_idx) = ligature_idx.checked_add(component) else {
-                    break;
-                };
-                ligature_idx = next_ligature_idx;
-
-                if (action & (Self::LIG_ACTION_STORE | Self::LIG_ACTION_LAST)) != 0 {
-                    let Some(lig) = self.table.ligature(ligature_idx) else {
-                        break;
-                    };
-
-                    if ac.replace_glyph(u32::from(lig.to_u16())).is_none() {
-                        ac.buffer.index_failed();
-                    }
-
-                    let lig_end =
-                        self.match_positions[(self.match_length - 1) % LIGATURE_MAX_MATCHES] + 1;
-                    // Now go and delete all subsequent components.
-                    while self.match_length - 1 > cursor {
-                        self.match_length -= 1;
-                        if !ac
-                            .buffer
-                            .move_to(self.match_positions[self.match_length % LIGATURE_MAX_MATCHES])
-                        {
-                            return Some(());
-                        }
-                        if ac.delete_glyph().is_none() {
-                            ac.buffer.index_failed();
-                        }
-                    }
-
-                    if !ac.buffer.move_to(lig_end) {
-                        return Some(());
-                    }
-                    ac.buffer.merge_out_clusters(
-                        self.match_positions[cursor % LIGATURE_MAX_MATCHES],
-                        ac.buffer.out_len,
-                    );
-                }
-
-                ligature_actions_index = T::next_action(ligature_actions_index);
-
-                if action & Self::LIG_ACTION_LAST != 0 {
-                    break;
-                }
-            }
-
-            if !ac.buffer.move_to(end) {
-                return Some(());
-            }
+        if let Some(ligature_actions_index) = T::action_start(entry) {
+            return self.perform_action::<P>(ligature_actions_index, ac);
         }
 
         Some(())
