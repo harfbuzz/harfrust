@@ -166,6 +166,71 @@ fn set_batch_iteration_seeks_across_missing_pages() {
 }
 
 #[test]
+fn set_iteration_does_not_rescan_the_preceding_runs() {
+    // Every iteration call used to scan the ranges from the first page, so
+    // walking a set of many separate runs was quadratic: the inverted walks
+    // below took tens of seconds on a debug build.
+    const LIMIT: u32 = 1 << 15;
+    unsafe {
+        for inverted in [false, true] {
+            let set = hr_set_create();
+            if inverted {
+                hr_set_invert(set);
+            }
+            for value in (1..LIMIT).step_by(2) {
+                if inverted {
+                    hr_set_del(set, value);
+                } else {
+                    hr_set_add(set, value);
+                }
+            }
+            let expected: Vec<u32> = (0..LIMIT).filter(|v| (v % 2 == 1) != inverted).collect();
+            let expected_ranges: Vec<(u32, u32)> = expected.iter().map(|&v| (v, v)).collect();
+
+            let mut forwards = Vec::new();
+            let mut value = INVALID;
+            while hr_set_next(set, &raw mut value) != 0 && value < LIMIT {
+                forwards.push(value);
+            }
+            assert_eq!(forwards, expected);
+            let mut backwards = Vec::new();
+            value = LIMIT;
+            while hr_set_previous(set, &raw mut value) != 0 {
+                backwards.push(value);
+            }
+            backwards.reverse();
+            assert_eq!(backwards, expected);
+
+            let mut forwards = Vec::new();
+            let (mut first, mut last) = (INVALID, INVALID);
+            while hr_set_next_range(set, &raw mut first, &raw mut last) != 0 && first < LIMIT {
+                forwards.push((first, last));
+            }
+            assert_eq!(forwards, expected_ranges);
+            let mut backwards = Vec::new();
+            first = LIMIT;
+            while hr_set_previous_range(set, &raw mut first, &raw mut last) != 0 {
+                backwards.push((first, last));
+            }
+            backwards.reverse();
+            assert_eq!(backwards, expected_ranges);
+
+            let mut batched = Vec::new();
+            let mut out = [0; 16];
+            value = INVALID;
+            while batched.len() < expected.len() {
+                let count = hr_set_next_many(set, value, out.as_mut_ptr(), 16) as usize;
+                assert_ne!(count, 0);
+                batched.extend_from_slice(&out[..count]);
+                value = out[count - 1];
+            }
+            assert_eq!(batched, expected);
+            hr_set_destroy(set);
+        }
+    }
+}
+
+#[test]
 fn set_algebra_in_all_inversion_combinations() {
     type Op = unsafe extern "C" fn(*mut hr_set_t, *const hr_set_t);
     type Expected = fn(bool, bool) -> bool;
@@ -496,5 +561,166 @@ fn container_user_data_and_reference_lifetimes() {
         assert_eq!(destroyed, 1);
         hr_map_destroy(map);
         assert_eq!(destroyed, 2);
+    }
+}
+
+#[test]
+fn set_range_iteration_can_delete_ranges_as_it_walks() {
+    unsafe {
+        for (width, count) in [(1, 16000), (65, 1024)] {
+            let stride = width + 1;
+            for inverted in [false, true] {
+                for backwards in [false, true] {
+                    for subtract in [false, true] {
+                        let set = hr_set_create();
+                        let operand = hr_set_create();
+                        if inverted {
+                            hr_set_invert(set);
+                        }
+                        for index in 0..count {
+                            let first = index * stride;
+                            if inverted {
+                                hr_set_del(set, first + width);
+                            } else {
+                                hr_set_add_range(set, first, first + width - 1);
+                            }
+                        }
+                        let (mut first, mut last) =
+                            (if backwards { count * stride } else { INVALID }, INVALID);
+                        let query = if backwards {
+                            hr_set_previous_range
+                        } else {
+                            hr_set_next_range
+                        };
+                        for index in 0..count {
+                            assert_eq!(query(set, &raw mut first, &raw mut last), 1);
+                            let expected =
+                                if backwards { count - index - 1 } else { index } * stride;
+                            assert_eq!((first, last), (expected, expected + width - 1));
+                            if subtract {
+                                hr_set_clear(operand);
+                                hr_set_add_range(operand, first, last);
+                                hr_set_subtract(set, operand);
+                            } else if width == 1 {
+                                hr_set_del(set, first);
+                            } else {
+                                hr_set_del_range(set, first, last);
+                            }
+                        }
+                        assert_eq!(hr_set_has(set, count * stride), i32::from(inverted));
+                        hr_set_destroy(operand);
+                        hr_set_destroy(set);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn indexed_set_mutations_match_intset_in_all_inversion_combinations() {
+    use read_fonts::collections::IntSet;
+
+    unsafe fn check_ranges(set: *const hr_set_t, expected: &IntSet<u32>) {
+        let expected: Vec<_> = expected
+            .iter_ranges()
+            .filter_map(|range| {
+                let (first, last) = (*range.start(), (*range.end()).min(INVALID - 1));
+                (first <= last).then_some((first, last))
+            })
+            .collect();
+        assert_eq!(unsafe { ranges(set, false) }, expected);
+        assert_eq!(
+            unsafe { ranges(set, true) },
+            expected.into_iter().rev().collect::<Vec<_>>()
+        );
+    }
+
+    type Op = unsafe extern "C" fn(*mut hr_set_t, *const hr_set_t);
+    type ModelOp = fn(&mut IntSet<u32>, &IntSet<u32>);
+    let operations: [(Op, ModelOp); 5] = [
+        (hr_set_set, IntSet::clone_from),
+        (hr_set_union, IntSet::union),
+        (hr_set_intersect, IntSet::intersect),
+        (hr_set_subtract, IntSet::subtract),
+        (hr_set_symmetric_difference, |a, b| {
+            let mut right = b.clone();
+            right.subtract(a);
+            a.subtract(b);
+            a.union(&right);
+        }),
+    ];
+    unsafe {
+        for a_inverted in [false, true] {
+            for b_inverted in [false, true] {
+                for (op, model_op) in operations {
+                    let a = hr_set_create();
+                    let b = hr_set_create();
+                    let mut model_a = IntSet::empty();
+                    let mut model_b = IntSet::empty();
+                    for (first, last) in [
+                        (0, 31),
+                        (40, 100),
+                        (109, 127),
+                        (255, 260),
+                        (INVALID - 32, INVALID - 1),
+                    ] {
+                        hr_set_add_range(a, first, last);
+                        model_a.insert_range(first..=last);
+                    }
+                    for (first, last) in [
+                        (17, 39),
+                        (110, 130),
+                        (259, 259),
+                        (INVALID - 16, INVALID - 1),
+                    ] {
+                        hr_set_add_range(b, first, last);
+                        model_b.insert_range(first..=last);
+                    }
+                    if a_inverted {
+                        hr_set_invert(a);
+                        model_a.invert();
+                    }
+                    if b_inverted {
+                        hr_set_invert(b);
+                        model_b.invert();
+                    }
+                    // Warm the range index before each mutation, then validate
+                    // through both directions rather than only bit membership.
+                    check_ranges(a, &model_a);
+                    op(a, b);
+                    model_op(&mut model_a, &model_b);
+                    check_ranges(a, &model_a);
+                    for (first, last, include) in [
+                        (50, 70, true),
+                        (60, 65, false),
+                        (66, 75, true),
+                        (0, 0, false),
+                        (INVALID - 1, INVALID - 1, true),
+                    ] {
+                        if include {
+                            hr_set_add_range(a, first, last);
+                            model_a.insert_range(first..=last);
+                        } else {
+                            hr_set_del_range(a, first, last);
+                            model_a.remove_range(first..=last);
+                        }
+                        check_ranges(a, &model_a);
+                    }
+                    let added = [5, 12, 200];
+                    hr_set_add_sorted_array(a, added.as_ptr(), added.len() as c_uint);
+                    model_a.extend(added);
+                    check_ranges(a, &model_a);
+                    hr_set_invert(a);
+                    model_a.invert();
+                    check_ranges(a, &model_a);
+                    let copy = hr_set_copy(a);
+                    check_ranges(copy, &model_a);
+                    hr_set_destroy(copy);
+                    hr_set_destroy(a);
+                    hr_set_destroy(b);
+                }
+            }
+        }
     }
 }
