@@ -580,6 +580,103 @@ struct Driver1 {
     stack_pos: usize,
 }
 
+impl Driver1 {
+    #[inline(never)]
+    fn perform_action(
+        &mut self,
+        aat: &Subtable1,
+        entry: &aat::StateEntry<BigEndian<u16>>,
+        has_cross_stream: bool,
+        tuple_count: u32,
+        c: &mut AatApplyContext,
+    ) -> Option<()> {
+        let tuple_count = usize::try_from(tuple_count.max(1)).ok()?;
+
+        let mut action_index = usize::from(entry.action_index());
+
+        // Contrary to the kerx spec's destructive pops, CoreText retains an
+        // eight-slot circular history and walks it anew for each action list.
+        let mut cursor = self.stack_pos;
+        let use_x_scale = c.buffer.direction.is_horizontal() ^ has_cross_stream;
+        loop {
+            if c.buffer.max_ops <= 0 {
+                c.buffer.successful = false;
+                return None;
+            }
+            c.buffer.max_ops -= 1;
+            let v = aat.values.get(action_index)?.get() as i32;
+            // kerx ends a list with a single 0xFFFF, without popping a glyph.
+            if v == -1 {
+                break;
+            }
+            aat.values.get(action_index.checked_add(tuple_count - 1)?)?;
+            cursor = (cursor + self.stack.len() - 1) % self.stack.len();
+            let idx = self.stack[cursor];
+            action_index = action_index.checked_add(tuple_count)?;
+            if idx >= c.buffer.len {
+                continue;
+            }
+            c.buffer.unsafe_to_break(Some(idx), Some(c.buffer.idx + 1));
+
+            let scaled_v = if use_x_scale {
+                c.scale_x(v)
+            } else {
+                c.scale_y(v)
+            };
+            // Testing shows that CoreText only applies kern (cross-stream or not)
+            // if none has been applied by previous subtables. That is, it does
+            // NOT seem to accumulate as otherwise implied by specs.
+
+            let mut has_gpos_attachment = false;
+            let (Some(info), Some(pos)) = (c.buffer.info.get(idx), c.buffer.pos.get_mut(idx))
+            else {
+                continue;
+            };
+            let glyph_mask = info.mask;
+
+            if c.buffer.direction.is_horizontal() {
+                if has_cross_stream {
+                    // The following flag is undocumented in the spec, but described
+                    // in the 'kern' table example.
+                    if v == -0x8000 {
+                        pos.set_attach_type(0);
+                        pos.set_attach_chain(0);
+                        pos.y_offset = 0;
+                    } else if pos.attach_type() != 0 {
+                        pos.y_offset = pos.y_offset.saturating_add(scaled_v);
+                        has_gpos_attachment = true;
+                    }
+                } else if glyph_mask & c.plan.kern_mask != 0 {
+                    pos.x_advance = pos.x_advance.saturating_add(scaled_v);
+                    pos.x_offset = pos.x_offset.saturating_add(scaled_v);
+                }
+            } else {
+                if has_cross_stream {
+                    // CoreText doesn't do crossStream kerning in vertical. We do.
+                    if v == -0x8000 {
+                        pos.set_attach_type(0);
+                        pos.set_attach_chain(0);
+                        pos.x_offset = 0;
+                    } else if pos.attach_type() != 0 {
+                        pos.x_offset = pos.x_offset.saturating_add(scaled_v);
+                        has_gpos_attachment = true;
+                    }
+                } else if glyph_mask & c.plan.kern_mask != 0 {
+                    if pos.y_offset == 0 {
+                        pos.y_advance = pos.y_advance.saturating_add(scaled_v);
+                        pos.y_offset = pos.y_offset.saturating_add(scaled_v);
+                    }
+                }
+            }
+
+            if has_gpos_attachment {
+                c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+            }
+        }
+        Some(())
+    }
+}
+
 impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
     #[inline(always)]
     fn transition(
@@ -598,89 +695,7 @@ impl StateTableDriver<Subtable1<'_>, BigEndian<u16>> for Driver1 {
         }
 
         if entry.is_actionable() && self.depth != 0 {
-            let tuple_count = usize::try_from(tuple_count.max(1)).ok()?;
-
-            let mut action_index = usize::from(entry.action_index());
-
-            // Contrary to the kerx spec's destructive pops, CoreText retains an
-            // eight-slot circular history and walks it anew for each action list.
-            let mut cursor = self.stack_pos;
-            let use_x_scale = c.buffer.direction.is_horizontal() ^ has_cross_stream;
-            loop {
-                if c.buffer.max_ops <= 0 {
-                    c.buffer.successful = false;
-                    return None;
-                }
-                c.buffer.max_ops -= 1;
-                let v = aat.values.get(action_index)?.get() as i32;
-                // kerx ends a list with a single 0xFFFF, without popping a glyph.
-                if v == -1 {
-                    break;
-                }
-                aat.values.get(action_index.checked_add(tuple_count - 1)?)?;
-                cursor = (cursor + self.stack.len() - 1) % self.stack.len();
-                let idx = self.stack[cursor];
-                action_index = action_index.checked_add(tuple_count)?;
-                if idx >= c.buffer.len {
-                    continue;
-                }
-                c.buffer.unsafe_to_break(Some(idx), Some(c.buffer.idx + 1));
-
-                let scaled_v = if use_x_scale {
-                    c.scale_x(v)
-                } else {
-                    c.scale_y(v)
-                };
-                // Testing shows that CoreText only applies kern (cross-stream or not)
-                // if none has been applied by previous subtables. That is, it does
-                // NOT seem to accumulate as otherwise implied by specs.
-
-                let mut has_gpos_attachment = false;
-                let (Some(info), Some(pos)) = (c.buffer.info.get(idx), c.buffer.pos.get_mut(idx))
-                else {
-                    continue;
-                };
-                let glyph_mask = info.mask;
-
-                if c.buffer.direction.is_horizontal() {
-                    if has_cross_stream {
-                        // The following flag is undocumented in the spec, but described
-                        // in the 'kern' table example.
-                        if v == -0x8000 {
-                            pos.set_attach_type(0);
-                            pos.set_attach_chain(0);
-                            pos.y_offset = 0;
-                        } else if pos.attach_type() != 0 {
-                            pos.y_offset = pos.y_offset.saturating_add(scaled_v);
-                            has_gpos_attachment = true;
-                        }
-                    } else if glyph_mask & c.plan.kern_mask != 0 {
-                        pos.x_advance = pos.x_advance.saturating_add(scaled_v);
-                        pos.x_offset = pos.x_offset.saturating_add(scaled_v);
-                    }
-                } else {
-                    if has_cross_stream {
-                        // CoreText doesn't do crossStream kerning in vertical. We do.
-                        if v == -0x8000 {
-                            pos.set_attach_type(0);
-                            pos.set_attach_chain(0);
-                            pos.x_offset = 0;
-                        } else if pos.attach_type() != 0 {
-                            pos.x_offset = pos.x_offset.saturating_add(scaled_v);
-                            has_gpos_attachment = true;
-                        }
-                    } else if glyph_mask & c.plan.kern_mask != 0 {
-                        if pos.y_offset == 0 {
-                            pos.y_advance = pos.y_advance.saturating_add(scaled_v);
-                            pos.y_offset = pos.y_offset.saturating_add(scaled_v);
-                        }
-                    }
-                }
-
-                if has_gpos_attachment {
-                    c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
-                }
-            }
+            return self.perform_action(aat, entry, has_cross_stream, tuple_count, c);
         }
 
         Some(())
@@ -690,6 +705,77 @@ struct Driver4<'a> {
     mark_set: bool,
     mark: usize,
     ankr_table: Option<Ankr<'a>>,
+}
+
+impl Driver4<'_> {
+    #[inline(never)]
+    fn perform_action(
+        &mut self,
+        aat: &Subtable4,
+        entry: &aat::StateEntry<BigEndian<u16>>,
+        c: &mut AatApplyContext,
+    ) -> Option<()> {
+        let mut distance = self.mark as isize - c.buffer.idx as isize;
+        if c.buffer_is_reversed {
+            distance = -distance;
+        }
+        // A distance that doesn't fit the chain field leaves the glyph
+        // unattached, as in GPOS.
+        let Ok(attach_chain) = i16::try_from(distance) else {
+            return Some(());
+        };
+        match (self.ankr_table.as_ref(), &aat.actions) {
+            (Some(ankr_table), Subtable4Actions::AnchorPoints(ankr_data)) => {
+                let action_idx = entry.action_index() as usize * 2;
+                let mark_action_idx = ankr_data.get(action_idx)?.get() as usize;
+                let curr_action_idx = ankr_data.get(action_idx + 1)?.get() as usize;
+                let mark_anchor = c
+                    .buffer
+                    .info
+                    .get(self.mark)
+                    .and_then(|info| ankr_table.anchor_points(info.as_glyph()).ok())
+                    .and_then(|list| list.get(mark_action_idx))
+                    .map(|point| (point.x(), point.y()))
+                    .unwrap_or_default();
+
+                let curr_idx = c.buffer.cur(0)?.as_glyph();
+                let curr_anchor = ankr_table
+                    .anchor_points(curr_idx)
+                    .ok()
+                    .and_then(|list| list.get(curr_action_idx))
+                    .map(|point| (point.x(), point.y()))
+                    .unwrap_or_default();
+
+                let x_offset = c
+                    .scale_x(i32::from(mark_anchor.0))
+                    .saturating_sub(c.scale_x(i32::from(curr_anchor.0)));
+                let y_offset = c
+                    .scale_y(i32::from(mark_anchor.1))
+                    .saturating_sub(c.scale_y(i32::from(curr_anchor.1)));
+                let pos = c.buffer.cur_pos_mut()?;
+                pos.x_offset = x_offset;
+                pos.y_offset = y_offset;
+            }
+            (_, Subtable4Actions::ControlPointCoords(coords)) => {
+                let action_idx = entry.action_index() as usize * 4;
+                let mark_x = coords.get(action_idx)?.get() as i32;
+                let mark_y = coords.get(action_idx + 1)?.get() as i32;
+                let curr_x = coords.get(action_idx + 2)?.get() as i32;
+                let curr_y = coords.get(action_idx + 3)?.get() as i32;
+                let x_offset = c.scale_x(mark_x).saturating_sub(c.scale_x(curr_x));
+                let y_offset = c.scale_y(mark_y).saturating_sub(c.scale_y(curr_y));
+                let pos = c.buffer.cur_pos_mut()?;
+                pos.x_offset = x_offset;
+                pos.y_offset = y_offset;
+            }
+            _ => {}
+        }
+
+        c.buffer.cur_pos_mut()?.set_attach_type(attach_type::MARK);
+        c.buffer.cur_pos_mut()?.set_attach_chain(attach_chain);
+        c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+        Some(())
+    }
 }
 
 impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
@@ -702,69 +788,8 @@ impl StateTableDriver<Subtable4<'_>, BigEndian<u16>> for Driver4<'_> {
         _tuple_count: u32,
         c: &mut AatApplyContext,
     ) -> Option<()> {
-        let idx = c.buffer.idx;
-        let mut distance = self.mark as isize - idx as isize;
-        if c.buffer_is_reversed {
-            distance = -distance;
-        }
-        // A distance that doesn't fit the chain field leaves the glyph
-        // unattached, as in GPOS.
-        let attach_chain = if self.mark_set && entry.is_actionable() && idx < c.buffer.len {
-            i16::try_from(distance).ok()
-        } else {
-            None
-        };
-        if let Some(attach_chain) = attach_chain {
-            match (self.ankr_table.as_ref(), &aat.actions) {
-                (Some(ankr_table), Subtable4Actions::AnchorPoints(ankr_data)) => {
-                    let action_idx = entry.action_index() as usize * 2;
-                    let mark_action_idx = ankr_data.get(action_idx)?.get() as usize;
-                    let curr_action_idx = ankr_data.get(action_idx + 1)?.get() as usize;
-                    let mark_anchor = c
-                        .buffer
-                        .info
-                        .get(self.mark)
-                        .and_then(|info| ankr_table.anchor_points(info.as_glyph()).ok())
-                        .and_then(|list| list.get(mark_action_idx))
-                        .map(|point| (point.x(), point.y()))
-                        .unwrap_or_default();
-
-                    let curr_idx = c.buffer.cur(0)?.as_glyph();
-                    let curr_anchor = ankr_table
-                        .anchor_points(curr_idx)
-                        .ok()
-                        .and_then(|list| list.get(curr_action_idx))
-                        .map(|point| (point.x(), point.y()))
-                        .unwrap_or_default();
-
-                    let x_offset = c
-                        .scale_x(i32::from(mark_anchor.0))
-                        .saturating_sub(c.scale_x(i32::from(curr_anchor.0)));
-                    let y_offset = c
-                        .scale_y(i32::from(mark_anchor.1))
-                        .saturating_sub(c.scale_y(i32::from(curr_anchor.1)));
-                    let pos = c.buffer.cur_pos_mut()?;
-                    pos.x_offset = x_offset;
-                    pos.y_offset = y_offset;
-                }
-                (_, Subtable4Actions::ControlPointCoords(coords)) => {
-                    let action_idx = entry.action_index() as usize * 4;
-                    let mark_x = coords.get(action_idx)?.get() as i32;
-                    let mark_y = coords.get(action_idx + 1)?.get() as i32;
-                    let curr_x = coords.get(action_idx + 2)?.get() as i32;
-                    let curr_y = coords.get(action_idx + 3)?.get() as i32;
-                    let x_offset = c.scale_x(mark_x).saturating_sub(c.scale_x(curr_x));
-                    let y_offset = c.scale_y(mark_y).saturating_sub(c.scale_y(curr_y));
-                    let pos = c.buffer.cur_pos_mut()?;
-                    pos.x_offset = x_offset;
-                    pos.y_offset = y_offset;
-                }
-                _ => {}
-            }
-
-            c.buffer.cur_pos_mut()?.set_attach_type(attach_type::MARK);
-            c.buffer.cur_pos_mut()?.set_attach_chain(attach_chain);
-            c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
+        if self.mark_set && entry.is_actionable() && c.buffer.idx < c.buffer.len {
+            self.perform_action(aat, entry, c)?;
         }
 
         if entry.has_mark() {
