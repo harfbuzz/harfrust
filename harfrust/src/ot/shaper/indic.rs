@@ -406,9 +406,6 @@ impl IndicWouldSubstituteFeature {
         glyphs: &[GlyphId],
         max_ops: &mut i32,
     ) -> bool {
-        if *max_ops < 0 {
-            return false;
-        }
         let max_ops = Cell::from_mut(max_ops);
         for index in self.lookups.clone() {
             let lookup = map.lookup(LayoutTableKind::Gsub, index);
