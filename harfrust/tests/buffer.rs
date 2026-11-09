@@ -161,33 +161,21 @@ fn many_kern_subtables_font(subtables: usize) -> Vec<u8> {
 }
 
 #[test]
-fn kern_subtable_passes_are_charged_to_the_operation_limit() {
+fn kern_tables_with_too_many_subtables_are_ignored() {
     // Each subtable that applies moves the second glyph of every pair one
-    // unit left, so a glyph's x offset counts the passes made over the
-    // buffer. Sixteen glyphs get the minimum budget of 65536 operations.
-    // Each pass charges all 16 glyphs and the pair iterator's 15 visits;
-    // the remaining subtables must be skipped and reported through
-    // `allocation_successful`.
+    // unit left, so a glyph's x offset counts the subtables applied. As in
+    // HarfBuzz, a table with up to 1024 subtables applies all of them, and
+    // one with more is ignored.
     let glyph_count = 16;
-    let expected_passes = 65_536 / (glyph_count + glyph_count - 1);
-    let font = Font::new(many_kern_subtables_font(5000), 0).unwrap();
-    let instance = font.instance_builder().build();
-    let mut buffer = unicode_buffer(&"a".repeat(glyph_count));
-    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
-    assert_eq!(buffer.len(), glyph_count);
-    assert_eq!(
-        buffer.glyph_positions()[8].x_offset,
-        -(expected_passes as i32)
-    );
-    assert!(!buffer.allocation_successful());
-
-    // A font within the budget applies every subtable.
-    let font = Font::new(many_kern_subtables_font(100), 0).unwrap();
-    let instance = font.instance_builder().build();
-    let mut buffer = unicode_buffer(&"a".repeat(glyph_count));
-    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
-    assert_eq!(buffer.glyph_positions()[8].x_offset, -100);
-    assert!(buffer.allocation_successful());
+    for (subtables, expected_passes) in [(1024, 1024), (1025, 0)] {
+        let font = Font::new(many_kern_subtables_font(subtables), 0).unwrap();
+        let instance = font.instance_builder().build();
+        let mut buffer = unicode_buffer(&"a".repeat(glyph_count));
+        shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+        assert_eq!(buffer.len(), glyph_count);
+        assert_eq!(buffer.glyph_positions()[8].x_offset, -expected_passes);
+        assert!(buffer.allocation_successful());
+    }
 }
 
 #[test]
