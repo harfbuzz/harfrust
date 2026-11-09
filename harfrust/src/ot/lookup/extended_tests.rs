@@ -813,14 +813,18 @@ fn variation_deltas_are_charged_to_max_ops() {
         )
     };
 
-    let output = apply(0, &[1, 2], 30);
+    // Three variation deltas cost 30 operations, and marking the pair unsafe
+    // to break two more.
+    let output = apply(0, &[1, 2], 32);
     assert!(output.successful);
     assert_eq!(output.max_ops, 0);
     assert_eq!(output.glyph_positions()[0].x_advance, 740);
     assert_eq!(output.glyph_positions()[1].x_offset, -660);
     assert_eq!(output.glyph_positions()[1].y_offset, 680);
     assert_eq!(output.glyph_positions()[1].attach_chain(), -1);
-    // One operation short fails shaping before the positions change.
+    // One operation short fails shaping after the attachment.
+    assert!(!apply(0, &[1, 2], 31).successful);
+    // Short of the deltas, it fails before the positions change.
     let output = apply(0, &[1, 2], 29);
     assert!(!output.successful);
     assert_eq!(output.glyph_positions()[0].x_advance, 0);
