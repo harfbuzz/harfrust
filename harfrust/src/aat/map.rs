@@ -11,9 +11,34 @@ use crate::{Language, Mask, Tag};
 ///
 /// See <https://github.com/harfbuzz/harfbuzz/blob/2c22a65f0cb99544c36580b9703a43b5dc97a9e1/src/hb-aat-map.hh#L33>
 #[doc(alias = "hb_aat_map_t")]
-#[derive(Default)]
 pub struct AatMap {
     pub chain_flags: Vec<Vec<RangeFlags>>,
+    /// Remaining allowance for this compilation; see [`BUDGET_AAT_MAP`].
+    pub budget: i64,
+}
+
+impl Default for AatMap {
+    fn default() -> Self {
+        Self {
+            chain_flags: Vec::new(),
+            budget: BUDGET_AAT_MAP,
+        }
+    }
+}
+
+/// Starting allowance for compiling one AAT feature map, mirroring HB's
+/// `HB_BUDGET_AAT_MAP`. The morx/mort chains come from the font and the
+/// feature ranges from the caller, so neither input bounds their product;
+/// compilation stops once this is spent and the last ranges compiled extend
+/// to the end of the text (best-effort degradation).
+pub(crate) const BUDGET_AAT_MAP: i64 = 1 << 24;
+
+/// Charges `cost * mult` against `budget` and reports whether it stayed
+/// non-negative, matching HB's `hb_budget_spend`.
+#[inline]
+pub(crate) fn budget_spend(budget: &mut i64, cost: i64, mult: i64) -> bool {
+    *budget -= cost * mult;
+    *budget >= 0
 }
 
 /// HB: hb_aat_map_t::range_flags_t
@@ -198,6 +223,13 @@ impl AatMapBuilder {
                 }
 
                 super::morx::compile_flags(aat, self, m);
+
+                // Out of budget? Stop here; the fix-up below extends the
+                // ranges compiled so far to the end of the text.
+                if !budget_spend(&mut m.budget, 1, active_features.len() as i64) {
+                    break;
+                }
+
                 last_index = event.index;
             }
 

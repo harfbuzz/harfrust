@@ -1,5 +1,5 @@
 use super::layout::*;
-use super::map::{AatMap, AatMapBuilder, RangeFlags};
+use super::map::{budget_spend, AatMap, AatMapBuilder, RangeFlags};
 use super::AatData;
 use crate::aat::common::{
     extended_class_count, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
@@ -19,12 +19,17 @@ use read_fonts::ReadError;
 
 trait MorphChain {
     fn default_flags(&self) -> u32;
+    fn feature_count(&self) -> usize;
     fn for_each_feature(&self, f: impl FnMut(u16, u16, u32, u32));
 }
 
 impl MorphChain for morx::Chain<'_> {
     fn default_flags(&self) -> u32 {
         self.default_flags()
+    }
+
+    fn feature_count(&self) -> usize {
+        self.features().len()
     }
 
     fn for_each_feature(&self, mut f: impl FnMut(u16, u16, u32, u32)) {
@@ -42,6 +47,10 @@ impl MorphChain for morx::Chain<'_> {
 impl MorphChain for mort::Chain<'_> {
     fn default_flags(&self) -> u32 {
         self.default_flags()
+    }
+
+    fn feature_count(&self) -> usize {
+        self.features().len()
     }
 
     fn for_each_feature(&self, mut f: impl FnMut(u16, u16, u32, u32)) {
@@ -112,7 +121,13 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
         language_matches: &impl Fn(u16) -> bool,
         chain_flags: &mut Vec<RangeFlags>,
         builder: &AatMapBuilder,
+        budget: &mut i64,
     ) {
+        // Charge this chain's feature records; the caller charges the base
+        // per-chain cost for every chain it visits and stops compiling further
+        // ranges once the map's budget is exhausted.
+        budget_spend(budget, 1, chain.feature_count() as i64);
+
         let mut flags = chain.default_flags();
         chain.for_each_feature(
             |feature_type, feature_setting, enable_flags, disable_flags| {
@@ -142,17 +157,41 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
             },
         );
 
-        chain_flags.push(RangeFlags {
-            flags,
-            cluster_first: builder.range_first as u32,
-            cluster_last: builder.range_last as u32,
-        });
+        // Ranges are compiled in order and are contiguous. Extend the last
+        // entry instead of starting a new one when this chain does not tell
+        // the two ranges apart; the map would otherwise hold one entry per
+        // chain per range, a product the font and the caller's features do
+        // not bound. Consumers only read flags per cluster, so this is
+        // output-equivalent.
+        match chain_flags.last_mut() {
+            Some(last) if last.flags == flags => {
+                last.cluster_last = builder.range_last as u32;
+            }
+            _ => {
+                // Stored ranges cost memory; charge them more than visited ones.
+                budget_spend(budget, 16, 1);
+                chain_flags.push(RangeFlags {
+                    flags,
+                    cluster_first: builder.range_first as u32,
+                    cluster_last: builder.range_last as u32,
+                });
+            }
+        }
     }
+
+    let AatMap {
+        chain_flags: map_chain_flags,
+        budget,
+    } = map;
 
     if let Some(morx) = aat.morx.as_ref() {
         let chains = morx.chains();
-        map.chain_flags.resize(chains.iter().count(), vec![]);
-        for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
+        map_chain_flags.resize(chains.iter().count(), vec![]);
+        for (chain, chain_flags) in chains.iter().zip(map_chain_flags.iter_mut()) {
+            // Charge every chain the iterator yields, even one too malformed to
+            // parse, so a run of unparseable chains cannot make map compilation
+            // quadratic in the number of ranges without spending any budget.
+            budget_spend(budget, 1, 1);
             if let Ok(chain) = chain {
                 compile_chain(
                     &chain,
@@ -160,13 +199,18 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
                     &language_matches,
                     chain_flags,
                     builder,
+                    budget,
                 );
             }
         }
     } else {
         let chains = aat.mort.as_ref()?.chains();
-        map.chain_flags.resize(chains.iter().count(), vec![]);
-        for (chain, chain_flags) in chains.iter().zip(map.chain_flags.iter_mut()) {
+        map_chain_flags.resize(chains.iter().count(), vec![]);
+        for (chain, chain_flags) in chains.iter().zip(map_chain_flags.iter_mut()) {
+            // Charge every chain the iterator yields, even one too malformed to
+            // parse, so a run of unparseable chains cannot make map compilation
+            // quadratic in the number of ranges without spending any budget.
+            budget_spend(budget, 1, 1);
             if let Ok(chain) = chain {
                 compile_chain(
                     &chain,
@@ -174,6 +218,7 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
                     &language_matches,
                     chain_flags,
                     builder,
+                    budget,
                 );
             }
         }
@@ -1800,5 +1845,197 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A `feat` table exposing feature type 1 (ligatures) with settings 2 (on)
+    /// and 3 (off), so `liga` ranges can be added to a map builder. Mirrors the
+    /// `feat` bytes from `create_morx_face` in HB's test-aat-layout.c.
+    #[rustfmt::skip]
+    const LIGA_FEAT: [u8; 32] = [
+        0,1,0,0,   0,1,   0,0,   0,0,0,0,        // version 1.0, one feature name
+        0,1,   0,2,   0,0,0,0x18,   0,0,   1,0,  // feature 1, 2 settings at offset 24
+        0,2, 1,0,   0,3, 1,0,                    // settings 2 and 3
+    ];
+
+    /// Builds an `AatMap` for the given morx bytes by adding a `liga` range for
+    /// each of `length` clusters, on when `i % period != 0`.
+    fn compile_liga_ranges(morx_bytes: &[u8], length: u32, period: u32) -> AatMap {
+        use crate::aat::{AatData, CachedAatTables};
+        use read_fonts::tables::feat::Feat;
+
+        let morx = morx::Morx::read(FontData::new(morx_bytes)).unwrap();
+        let feat = Feat::read(FontData::new(&LIGA_FEAT)).unwrap();
+        let tables = CachedAatTables {
+            morx: Some(morx),
+            feat: Some(feat),
+            ..CachedAatTables::EMPTY
+        };
+        let aat = AatData {
+            cache: None,
+            tables: &tables,
+        };
+
+        let liga = crate::Tag::new(b"liga");
+        let mut builder = AatMapBuilder::new(None);
+        for i in 0..length {
+            builder.add_feature(
+                &aat,
+                &crate::Feature {
+                    tag: liga,
+                    value: (i % period != 0) as u32,
+                    start: i,
+                    end: i + 1,
+                },
+            );
+        }
+        let mut map = AatMap::default();
+        builder.compile(&aat, &mut map);
+        map
+    }
+
+    /// Compiles an AAT feature map for a morx table with one chain that turns
+    /// glyph 1 into glyph 2 when common ligatures are on (off by default),
+    /// followed by `empty_chains` chains that react to no feature. Each of the
+    /// `length` clusters gets its own `liga` range, on when `i % period != 0`.
+    /// Mirrors `create_morx_face`/`shape_ranged_features` from HB's
+    /// test-aat-layout.c.
+    fn compile_ranged_liga_map(empty_chains: usize, length: u32, period: u32) -> AatMap {
+        #[rustfmt::skip]
+        const CHAIN: [u8; 60] = [
+            0,0,0,0,            // defaultFlags = 0
+            0,0,0,0x3C,         // chainLength = 60
+            0,0,0,2,            // nFeatureEntries = 2
+            0,0,0,1,            // nSubtables = 1
+            0,1, 0,2, 0,0,0,1, 0xFF,0xFF,0xFF,0xFF, // type 1, setting 2 (on)
+            0,1, 0,3, 0,0,0,0, 0xFF,0xFF,0xFF,0xFE, // type 1, setting 3 (off)
+            0,0,0,0x14,         // subtable length = 20
+            0x20,0,0,4,         // coverage: all directions, noncontextual
+            0,0,0,1,            // subFeatureFlags = 1
+            0,8, 0,1, 0,1, 0,2, // lookup format 8: glyph 1 -> glyph 2
+        ];
+
+        let chain_count = (1 + empty_chains) as u32;
+        let mut morx_bytes = vec![0, 2, 0, 0]; // version 2, reserved
+        morx_bytes.extend_from_slice(&chain_count.to_be_bytes());
+        morx_bytes.extend_from_slice(&CHAIN);
+        for _ in 0..empty_chains {
+            // defaultFlags 0, chainLength 16, 0 feature entries, 0 subtables.
+            morx_bytes.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0]);
+        }
+
+        compile_liga_ranges(&morx_bytes, length, period)
+    }
+
+    #[test]
+    fn equal_flag_ranges_merge_per_chain() {
+        let length = 100u32;
+        let period = 3u32;
+        let empty_chains = 5usize;
+        let map = compile_ranged_liga_map(empty_chains, length, period);
+
+        assert_eq!(map.chain_flags.len(), 1 + empty_chains);
+
+        // Chains that react to nothing collapse to a single entry spanning the
+        // whole text, instead of one entry per feature range.
+        for chain in &map.chain_flags[1..] {
+            assert_eq!(chain.len(), 1);
+            assert_eq!(chain[0].cluster_first, 0);
+            assert_eq!(chain[0].cluster_last, crate::Feature::GLOBAL_END);
+        }
+
+        // The reacting chain keeps distinct ranges but still merges equal-flag
+        // neighbours, so it has more than one entry and fewer than one per range.
+        let reacting = &map.chain_flags[0];
+        assert!(reacting.len() > 1);
+        assert!((reacting.len() as u32) < length);
+        assert_eq!(
+            reacting.last().unwrap().cluster_last,
+            crate::Feature::GLOBAL_END
+        );
+
+        // Output-equivalence: the flag seen at every cluster matches the
+        // feature the caller set there (common ligatures on when i % period).
+        let mut range = 0;
+        for i in 0..length {
+            range = range_for_cluster(reacting, range, i);
+            assert_eq!(reacting[range].flags != 0, i % period != 0);
+        }
+
+        // Well within budget.
+        assert!(map.budget >= 0);
+
+        // The empty chains do not perturb the reacting chain's compiled ranges.
+        let baseline = compile_ranged_liga_map(0, length, period);
+        assert_eq!(baseline.chain_flags[0].len(), reacting.len());
+        for (a, b) in baseline.chain_flags[0].iter().zip(reacting.iter()) {
+            assert_eq!(
+                (a.flags, a.cluster_first, a.cluster_last),
+                (b.flags, b.cluster_first, b.cluster_last)
+            );
+        }
+    }
+
+    #[test]
+    fn budget_bounds_chains_times_ranges() {
+        // The product of chains and ranges is what must not be paid in full,
+        // in time or memory. Without the merge and budget this compiles roughly
+        // 20000 chains x 2000 ranges of RangeFlags.
+        let length = 2000u32;
+        let period = 2u32;
+        let empty_chains = 20_000usize;
+        let map = compile_ranged_liga_map(empty_chains, length, period);
+
+        assert_eq!(map.chain_flags.len(), 1 + empty_chains);
+
+        // The budget was exhausted, so compilation stopped before the last
+        // ranges and the reacting chain holds fewer entries than there are
+        // ranges.
+        assert!(map.budget < 0);
+        assert!((map.chain_flags[0].len() as u32) < length);
+
+        // The ranges compiled before the budget ran out are still correct, and
+        // the fix-up extends the last one to the end of the text.
+        let reacting = &map.chain_flags[0];
+        assert_eq!(
+            reacting.last().unwrap().cluster_last,
+            crate::Feature::GLOBAL_END
+        );
+        let mut range = 0;
+        for i in 0..100u32 {
+            range = range_for_cluster(reacting, range, i);
+            assert_eq!(reacting[range].flags != 0, i % period != 0);
+        }
+
+        // Empty chains still collapse to a single entry, however many ranges.
+        assert_eq!(map.chain_flags[1].len(), 1);
+    }
+
+    #[test]
+    fn budget_bounds_unparseable_chains() {
+        // A morx whose chains are all too short to parse (chainLength 4, below
+        // Chain::MIN_SIZE): the chain iterator advances four bytes and yields
+        // an error for each. They compile nothing, but are still visited once
+        // per range, so they must be charged or compilation is quadratic in the
+        // number of ranges at no cost.
+        let n_chains = 20_000usize;
+        let length = 2000u32;
+
+        let mut morx_bytes = vec![0u8, 2, 0, 0]; // version 2, reserved
+        morx_bytes.extend_from_slice(&(n_chains as u32).to_be_bytes());
+        // Every four-byte word reads as 4, so each chain's length field (the
+        // u32 after its four-byte defaultFlags) is 4. A couple of extra words
+        // keep the final length read in bounds.
+        for _ in 0..(n_chains + 2) {
+            morx_bytes.extend_from_slice(&4u32.to_be_bytes());
+        }
+
+        let map = compile_liga_ranges(&morx_bytes, length, 2);
+
+        // The unparseable chains were visited and charged, exhausting the
+        // budget before all ranges were compiled.
+        assert!(map.chain_flags.len() > 1000);
+        assert!(map.budget < 0);
+        // None of them store any range, so the map stays empty.
+        assert!(map.chain_flags.iter().all(|chain| chain.is_empty()));
     }
 }
