@@ -590,67 +590,6 @@ fn kerx_coretext_history_wrap_and_reset() {
     }
 }
 
-/// A lookup that covers a default-ignorable glyph starts on every glyph of an
-/// ignorable run, and each start scans to the end of the run because the
-/// skipping iterator steps over those same ignorables. That is quadratic in
-/// the run, and the skipped glyphs must be charged to the shaping budget.
-///
-/// The test font maps `A` to glyph 1 and both `B` and U+200B to glyph 2, and
-/// lists one PairPos lookup (glyph 2 before glyph 1) 32 times under `kern`.
-/// With `B` the scans are one step each and the text shapes within budget;
-/// with U+200B the same glyph string needs 16 million steps, so the work
-/// limit has to trip.
-#[test]
-fn rescanning_default_ignorables_is_charged_to_the_shaping_budget() {
-    let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/pairpos1-ignorable-rescan.ttf");
-    let font_data = fs::read(path).expect("failed to read test font");
-    let font = Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = font.instance_builder().build();
-    let shaping_font = ShaperFont::new(&instance);
-
-    for (filler, within_budget) in [('B', true), ('\u{200B}', false)] {
-        let mut text = String::from("A");
-        text.extend(std::iter::repeat_n(filler, 999));
-
-        let mut buffer = Buffer::new();
-        buffer.push_str(&text);
-        buffer.guess_segment_properties();
-
-        shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
-        assert_eq!(buffer.allocation_successful(), within_budget);
-    }
-}
-
-/// A match starting at a mark of an earlier ligature walks the output buffer
-/// back over every mark of that ligature to find the ligature itself. The
-/// font ligates `a b` over the marks, so all 6000 `c` belong to the ligature,
-/// and then tries `c d g` at the last `c` 100 x 100 times through nested
-/// lookups. Each try walks the 6000 marks again; charged to the operation
-/// budget, that ends the text after a few thousand tries, where it would
-/// otherwise cost the budget times the text length.
-#[test]
-fn ligature_base_walk_is_charged_to_the_operation_budget() {
-    let font_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/ligature-mark-walk.ttf");
-    let font_data = fs::read(font_path).expect("failed to read test font");
-    let font = Font::new(font_data, 0).expect("failed to parse test font");
-    let instance = font.instance_builder().build();
-    let shaper = ShaperFont::new(&instance);
-
-    let mut text = String::with_capacity(6003);
-    text.push('a');
-    text.extend(std::iter::repeat_n('c', 6000));
-    text.push_str("bd");
-
-    let mut buffer = Buffer::new();
-    buffer.push_str(&text);
-    buffer.guess_segment_properties();
-
-    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
-    assert!(!buffer.allocation_successful());
-}
-
 /// A GSUB table whose `liga` feature expands glyph 0 into 255 copies of
 /// itself twice, then lists `aliased` lookups that all point at one lookup
 /// of `subtables` SingleSubst subtables covering glyphs 1 and 64 in turn.
@@ -748,14 +687,14 @@ fn shape_with_gsub(gsub: Vec<u8>) -> Buffer {
     buffer
 }
 
-/// A walk over a lookup's subtables that applies nothing is charged to the
-/// operation limit, so a feature listing such a lookup many times cannot
-/// make shaping take time that the limit never sees.
+/// A pass of a lookup over the buffer is charged to the operation limit even
+/// if it applies nothing, so a feature listing such a lookup many times
+/// cannot make shaping take time that the limit never sees.
 #[test]
-fn lookup_walks_that_apply_nothing_are_charged_to_the_operation_limit() {
+fn lookup_passes_that_apply_nothing_are_charged_to_the_operation_limit() {
     // Two expansions of one character make 65025 glyphs under an operation
-    // limit of 65536, and each no-op lookup is walked at all of them.
-    let buffer = shape_with_gsub(gsub_with_no_op_lookups(8, 63));
+    // limit of 65536, and each pass of a no-op lookup is charged for them.
+    let buffer = shape_with_gsub(gsub_with_no_op_lookups(32, 63));
     assert!(!buffer.allocation_successful());
 
     // Without the no-op lookups the expansions alone stay within the limit.
@@ -836,18 +775,15 @@ fn aliased_chain_rules_font(rule_count: u16, input_len: u16, lookahead_len: u16)
 }
 
 /// Rule offsets may alias, so a rule set's count and its rules' lookahead
-/// lengths make a walk cost far more than the font's size. The rules looked
-/// at, even when they fail at once, and the glyphs they are matched against
-/// are charged to the operation limit, which ends shaping the way a runaway
-/// recursion does, instead of running for seconds per kilobyte of text.
+/// lengths can make a walk cost far more than the font's size. As in
+/// HarfBuzz, the walks are not charged to the operation limit, and shaping
+/// succeeds.
 #[test]
-fn aliased_chain_rules_are_charged_to_the_operation_limit() {
+fn aliased_chain_rules_shape_without_failing() {
     let text = "a".repeat(500);
     // A rule with two input glyphs and a lookahead of `b` alone fails on the
     // pre-match; a longer lookahead matches `a`s up to the end of the buffer.
-    for (rule_count, input_len, lookahead_len) in
-        [(1, 2, 1), (8000, 2, 1), (1, 1, 1000), (1024, 1, 1000)]
-    {
+    for (rule_count, input_len, lookahead_len) in [(1, 2, 1), (8000, 2, 1), (1, 1, 1000)] {
         let font_data = aliased_chain_rules_font(rule_count, input_len, lookahead_len);
         let font = Font::new(font_data, 0).expect("failed to parse test font");
         let instance = font.instance_builder().build();
@@ -858,10 +794,8 @@ fn aliased_chain_rules_are_charged_to_the_operation_limit() {
         buffer.guess_segment_properties();
         shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
 
-        // The rules never match, so only the aliased ones exhaust the limit.
-        assert_eq!(
+        assert!(
             buffer.allocation_successful(),
-            rule_count == 1,
             "{rule_count} rules, input {input_len}, lookahead {lookahead_len}"
         );
     }

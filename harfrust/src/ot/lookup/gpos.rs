@@ -1236,11 +1236,6 @@ fn find_mark_base(
     iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
     let mut j = iter.buffer.idx;
     while j > last_base_until as usize {
-        // The memo is dropped when contextual lookups step backwards, so
-        // the walk is charged as `next()` and `prev()` charge theirs.
-        if !iter.buffer.charge_ops(1) {
-            break;
-        }
         let mut matched = iter.match_at(j - 1);
         // https://github.com/harfbuzz/harfbuzz/issues/4124
         if matched == MatchResult::Match
@@ -1258,6 +1253,13 @@ fn find_mark_base(
             break;
         }
         j -= 1;
+    }
+    // The memo only amortizes the search while the buffer index moves
+    // forward. A contextual lookup recursing here out of order drops it,
+    // and the search starts over; charge the glyphs searched, as HarfBuzz
+    // does, so that a font cannot repeat that without bound.
+    if !ctx.buffer.charge_ops(ctx.buffer.idx - j) {
+        return None;
     }
     ctx.last_base_until = ctx.buffer.idx as u32;
     ctx.last_base = last_base;

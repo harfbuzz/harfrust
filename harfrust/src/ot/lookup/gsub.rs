@@ -318,20 +318,15 @@ impl<'a, const W: usize> LigatureSet<'a, W> {
         self.offsets.len()
     }
 
-    /// Resolves one ligature without hiding unreadable offsets from callers
-    /// that charge work per entry.
-    fn get(&self, index: usize) -> Option<Ligature<'a, W>> {
-        let offset = self.offsets.get(index)?;
-        if offset == 0 {
-            return None;
-        }
-        Ligature::read(self.data.split_off(offset as usize)?)
-    }
-
     /// The readable ligatures, in order; a null offset is skipped.
     #[inline(always)]
     fn iter(&self) -> impl Iterator<Item = Ligature<'a, W>> + '_ {
-        (0..self.len()).filter_map(|index| self.get(index))
+        self.offsets.iter().filter_map(|offset| {
+            if offset == 0 {
+                return None;
+            }
+            Ligature::read(self.data.split_off(offset as usize)?)
+        })
     }
 }
 
@@ -476,20 +471,10 @@ fn apply_ligature_set<const W: usize>(
         }
     }
 
-    // The ligatures may alias, so each one tried is charged.
     let Some(second) = second else {
-        for index in 0..set.len() {
-            if !ctx.buffer.charge_ops(1) {
-                break;
-            }
-            let Some(ligature) = set.get(index) else {
-                continue;
-            };
-            if let Some(applied) = apply_ligature(ctx, &ligature) {
-                return Some(applied);
-            }
-        }
-        return None;
+        return set
+            .iter()
+            .find_map(|ligature| apply_ligature(ctx, &ligature));
     };
     if !seconds.may_have(second) {
         // Every ligature here has a second component and none of them is
@@ -500,13 +485,7 @@ fn apply_ligature_set<const W: usize>(
         return None;
     }
     let mut unsafe_to_concat = false;
-    for index in 0..set.len() {
-        if !ctx.buffer.charge_ops(1) {
-            break;
-        }
-        let Some(ligature) = set.get(index) else {
-            continue;
-        };
+    for ligature in set.iter() {
         match ligature.components.first() {
             Some(first) if first != second => unsafe_to_concat = true,
             _ => {

@@ -406,6 +406,9 @@ impl IndicWouldSubstituteFeature {
         glyphs: &[GlyphId],
         max_ops: &mut i32,
     ) -> bool {
+        if *max_ops < 0 {
+            return false;
+        }
         let max_ops = Cell::from_mut(max_ops);
         for index in self.lookups.clone() {
             let lookup = map.lookup(LayoutTableKind::Gsub, index);
@@ -414,9 +417,6 @@ impl IndicWouldSubstituteFeature {
                 zero_context: self.zero_context,
                 max_ops,
             };
-            if !ctx.charge(1) {
-                return false;
-            }
             if ot
                 .lookup(LayoutTableKind::Gsub, lookup.index)
                 .is_some_and(|lookup| lookup.would_apply(&ctx) == Some(true))

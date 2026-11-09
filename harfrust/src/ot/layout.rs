@@ -397,7 +397,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let lookup_mask = ctx.lookup_mask();
     let lookup_props = ctx.lookup_props;
 
-    while ctx.buffer.successful {
+    loop {
         let candidate = ctx
             .buffer
             .info
