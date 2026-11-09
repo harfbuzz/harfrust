@@ -1,7 +1,7 @@
 //! OpenType layout metadata, lookup glyph collection, and BASE baseline queries.
 
+use core::cell::Cell;
 use core::ffi::c_uint;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use std::collections::HashSet;
 
 use harfrust::Tag;
@@ -280,16 +280,18 @@ impl SetTarget {
     }
 }
 
-/// The steps glyph collection may still take on one table of a face.
+/// The steps one glyph collection call may take on a table.
 ///
 /// Offsets may alias, so nested arrays of them can name far more data than the
-/// table holds, and a lookup list may name one such lookup many times. Every
-/// loop charges its steps here, and the steps spent are kept on the face, so
-/// the work across all calls is bounded by the table's size. Running out takes
-/// the every-glyph fallback.
+/// table holds, and a lookup list may name one such lookup many times.
+/// HarfBuzz's sanitizer bounds such aliasing once, when it loads the table,
+/// with a work allowance proportional to the table's size; HarfRust reads the
+/// table lazily, so every loop charges its steps here instead, and each call
+/// gets an allowance proportional to the table's size. Running out takes the
+/// every-glyph fallback.
 struct Budget<'a> {
     limit: usize,
-    spent: &'a AtomicUsize,
+    spent: &'a Cell<usize>,
 }
 
 impl<'a> Budget<'a> {
@@ -298,7 +300,7 @@ impl<'a> Budget<'a> {
         bytes.saturating_mul(256).clamp(4 << 20, 128 << 20)
     }
 
-    fn for_table(bytes: usize, spent: &'a AtomicUsize) -> Self {
+    fn for_table(bytes: usize, spent: &'a Cell<usize>) -> Self {
         Self {
             limit: Self::limit(bytes),
             spent,
@@ -306,24 +308,12 @@ impl<'a> Budget<'a> {
     }
 
     fn work(&self) -> Result<(), ReadError> {
-        // Consume shared work before doing it, as in the core cache budget.
-        // Overlapping calls must neither receive the same allowance nor
-        // overwrite work charged by another call when they finish.
-        let mut spent = self.spent.load(Ordering::Relaxed);
-        loop {
-            if spent >= self.limit {
-                return Err(ReadError::MalformedData("lookup glyph collection ran out"));
-            }
-            match self.spent.compare_exchange_weak(
-                spent,
-                spent + 1,
-                Ordering::Relaxed,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => return Ok(()),
-                Err(actual) => spent = actual,
-            }
+        let spent = self.spent.get();
+        if spent >= self.limit {
+            return Err(ReadError::MalformedData("lookup glyph collection ran out"));
         }
+        self.spent.set(spent + 1);
+        Ok(())
     }
 }
 
@@ -944,7 +934,8 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
             let list = table.lookup_list().ok()?;
             let lookup = list.lookups().get(lookup_index as usize).ok()?;
             let bytes = table.offset_data().len();
-            let budget = Budget::for_table(bytes, &face.collect_work[0]);
+            let spent = Cell::new(0);
+            let budget = Budget::for_table(bytes, &spent);
             let complete = collect_substitution(
                 lookup,
                 &list,
@@ -962,7 +953,8 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
             let list = table.lookup_list().ok()?;
             let lookup = list.lookups().get(lookup_index as usize).ok()?;
             let bytes = table.offset_data().len();
-            let budget = Budget::for_table(bytes, &face.collect_work[1]);
+            let spent = Cell::new(0);
+            let budget = Budget::for_table(bytes, &spent);
             let complete = collect_positioning(lookup, input, &budget);
             Some(complete)
         }),
@@ -1385,7 +1377,7 @@ mod budget_tests {
             read_fonts::tables::gsub::OriginalSubstitutionLookupList::read(FontData::new(data))
                 .unwrap(),
         );
-        let spent = AtomicUsize::new(0);
+        let spent = Cell::new(0);
         let budget = Budget {
             limit,
             spent: &spent,
@@ -1402,7 +1394,7 @@ mod budget_tests {
             &mut HashSet::new(),
             0,
         );
-        (result, spent.load(Ordering::Relaxed))
+        (result, spent.get())
     }
 
     #[test]
@@ -1460,7 +1452,7 @@ mod budget_tests {
             let data = reversed_ranges(format, false);
             let coverage = CoverageTable::read(FontData::new(&data)).unwrap();
             for limit in [500, 1000] {
-                let spent = AtomicUsize::new(0);
+                let spent = Cell::new(0);
                 let budget = Budget {
                     limit,
                     spent: &spent,
@@ -1469,7 +1461,7 @@ mod budget_tests {
                     add_coverage(none, coverage.clone(), &budget).is_ok(),
                     limit == 1000
                 );
-                assert_eq!(spent.load(Ordering::Relaxed), limit);
+                assert_eq!(spent.get(), limit);
             }
             // SingleSubst delta forms walk coverage without add_coverage.
             for single_format in [1, 3] {
@@ -1512,7 +1504,7 @@ mod budget_tests {
             };
             for selected_class in [false, true] {
                 for limit in [500, total_work] {
-                    let spent = AtomicUsize::new(0);
+                    let spent = Cell::new(0);
                     let budget = Budget {
                         limit,
                         spent: &spent,
@@ -1523,7 +1515,7 @@ mod budget_tests {
                         add_class_coverage(none, class_def.clone(), &budget)
                     };
                     assert_eq!(result.is_ok(), limit == total_work);
-                    assert_eq!(spent.load(Ordering::Relaxed), limit);
+                    assert_eq!(spent.get(), limit);
                 }
             }
         }
@@ -1544,14 +1536,14 @@ mod budget_tests {
                     let lookup =
                         read_fonts::tables::gpos::PositionLookup::read(FontData::new(&data))
                             .unwrap();
-                    let spent = AtomicUsize::new(0);
+                    let spent = Cell::new(0);
                     let budget = Budget {
                         limit,
                         spent: &spent,
                     };
                     let result =
                         collect_positioning(lookup, SetTarget(core::ptr::null_mut()), &budget);
-                    (result, spent.load(Ordering::Relaxed))
+                    (result, spent.get())
                 } else {
                     let mut list = vec![0, 1, 0, 4];
                     list.extend_from_slice(&data);
@@ -1561,59 +1553,5 @@ mod budget_tests {
                 assert_eq!(spent, limit);
             }
         }
-    }
-
-    #[test]
-    fn overlapping_collections_cannot_refund_shared_work() {
-        let spent = AtomicUsize::new(0);
-        let first = Budget {
-            limit: 4,
-            spent: &spent,
-        };
-        let second = Budget {
-            limit: 4,
-            spent: &spent,
-        };
-        assert!(first.work().is_ok());
-        assert!(second.work().is_ok());
-        assert!(first.work().is_ok());
-        assert!(first.work().is_ok());
-        assert!(second.work().is_err());
-        assert!(first.work().is_err());
-        assert_eq!(spent.load(Ordering::Relaxed), 4);
-        assert!(Budget {
-            limit: 4,
-            spent: &spent
-        }
-        .work()
-        .is_err());
-    }
-
-    #[test]
-    fn concurrent_collections_consume_each_step_once() {
-        let spent = AtomicUsize::new(0);
-        let accepted = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..8)
-                .map(|_| {
-                    scope.spawn(|| {
-                        let budget = Budget {
-                            limit: 1000,
-                            spent: &spent,
-                        };
-                        let mut count = 0;
-                        while budget.work().is_ok() {
-                            count += 1;
-                        }
-                        count
-                    })
-                })
-                .collect();
-            handles
-                .into_iter()
-                .map(|handle| handle.join().unwrap())
-                .sum::<usize>()
-        });
-        assert_eq!(accepted, 1000);
-        assert_eq!(spent.load(Ordering::Relaxed), 1000);
     }
 }

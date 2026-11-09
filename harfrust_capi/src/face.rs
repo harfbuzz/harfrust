@@ -1,7 +1,7 @@
 //! Fonts as a set of tables, mirroring HarfBuzz's `hb-face.h`.
 
 use core::ffi::{c_uint, c_void};
-use core::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{Blob, Font, TableFunction};
@@ -209,9 +209,6 @@ pub struct hr_face_t {
     /// Shape plans built over this face, reused across `hr_shape` calls the way
     /// HarfBuzz's cached shape plans are.
     pub(crate) plans: PlanCache,
-    /// Steps `hr_ot_layout_lookup_collect_glyphs` has spent on this face's GSUB
-    /// and GPOS, so that the work across all its calls stays bounded.
-    pub(crate) collect_work: [AtomicUsize; 2],
     /// Whether the `feat` table's setting arrays are in proportion to its size.
     pub(crate) feat_sane: OnceLock<bool>,
     /// The SFNT assembled for Skrifa and its outlines, built on first use by
@@ -275,7 +272,6 @@ impl Object for hr_face_t {
                     source: FaceSource::Empty,
                     table_tags: None,
                     plans: PlanCache::default(),
-                    collect_work: Default::default(),
                     feat_sane: OnceLock::new(),
                     #[cfg(feature = "draw")]
                     render_data: OnceLock::new(),
@@ -347,7 +343,6 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         },
         table_tags: None,
         plans: PlanCache::default(),
-        collect_work: Default::default(),
         feat_sane: OnceLock::new(),
         #[cfg(feature = "draw")]
         render_data: OnceLock::new(),
@@ -402,7 +397,6 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
         source: FaceSource::Function(Arc::clone(&state)),
         table_tags: None,
         plans: PlanCache::default(),
-        collect_work: Default::default(),
         feat_sane: OnceLock::new(),
         #[cfg(feature = "draw")]
         render_data: OnceLock::new(),
