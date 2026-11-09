@@ -777,13 +777,17 @@ fn aliased_chain_rules_font(rule_count: u16, input_len: u16, lookahead_len: u16)
 /// Rule offsets may alias, so a rule set's count and its rules' lookahead
 /// lengths can make a walk cost far more than the font's size. As in
 /// HarfBuzz, the walks are not charged to the operation limit, and shaping
-/// succeeds.
+/// succeeds. As HarfBuzz's sanitizer does, building the lookup charges every
+/// rule by its length, so a lookup aliasing a long rule thousands of times is
+/// discarded instead of walked at every glyph.
 #[test]
 fn aliased_chain_rules_shape_without_failing() {
     let text = "a".repeat(500);
     // A rule with two input glyphs and a lookahead of `b` alone fails on the
     // pre-match; a longer lookahead matches `a`s up to the end of the buffer.
-    for (rule_count, input_len, lookahead_len) in [(1, 2, 1), (8000, 2, 1), (1, 1, 1000)] {
+    for (rule_count, input_len, lookahead_len) in
+        [(1, 2, 1), (8000, 2, 1), (1, 1, 1000), (8000, 1, 1000)]
+    {
         let font_data = aliased_chain_rules_font(rule_count, input_len, lookahead_len);
         let font = Font::new(font_data, 0).expect("failed to parse test font");
         let instance = font.instance_builder().build();

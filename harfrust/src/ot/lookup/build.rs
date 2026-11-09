@@ -500,6 +500,36 @@ mod tests {
         assert_eq!(lookup.subtables.len(), 3800);
     }
 
+    /// A ChainContextFormat1 lookup on glyph 1 whose one rule set lists
+    /// `rule_count` offsets to a single rule with one input glyph and a
+    /// lookahead of `lookahead_len` glyphs.
+    fn aliased_chain_rules(rule_count: u16, lookahead_len: u16) -> Vec<u8> {
+        let rule_offset = 2 + 2 * rule_count;
+        let mut words = alloc::vec![6, 0, 1, 8]; // Lookup.
+        words.extend_from_slice(&[1, 8, 1, 14, 1, 1, 1]); // Subtable, coverage.
+        words.push(rule_count);
+        words.resize(words.len() + usize::from(rule_count), rule_offset);
+        words.extend_from_slice(&[0, 1, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), 1);
+        words.push(0);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn aliased_chain_rules_are_charged_by_their_length() {
+        // HarfBuzz's sanitizer charges the arrays of every chain rule it
+        // visits, so many offsets to one long rule exhaust its budget.
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_chain_rules(1, 2000);
+        assert!(build_lookup_at(FontData::new(&data), 0, true, &budget).is_ok());
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_chain_rules(1000, 2000);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
     #[test]
     fn malformed_subtables_do_not_abort_a_lookup() {
         let mut data = repeated_single_subst(2);

@@ -104,6 +104,14 @@ fn for_each_rule<'a, const W: usize>(
             else {
                 return Ok(None);
             };
+            // HarfBuzz's sanitizer charges the backtrack, input and
+            // lookahead arrays of every chain rule it visits to its work
+            // budget (ChainRule::sanitize's check_ops), so that rule offsets
+            // aliasing one long rule get the table rejected rather than
+            // walked at every glyph. HarfRust has no sanitize pass, so the
+            // rules are charged here, as the lookup is built, and such a
+            // lookup is discarded.
+            budget.work(rule.backtrack.len() + rule.input.len() + rule.lookahead.len())?;
             if f(rule)?.is_none() {
                 return Ok(None);
             }
