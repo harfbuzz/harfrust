@@ -306,7 +306,7 @@ where
     /// start of `data`.
     fn n_classes(&self, data: &[u8]) -> usize;
     fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError>;
-    fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError>;
+    fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError>;
     fn collect_glyphs_filtered(
         &self,
         glyphs: &mut U32Set,
@@ -334,7 +334,7 @@ where
         self.class(glyph_id)
     }
 
-    fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
+    fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError> {
         self.entry(state, class)
     }
 
@@ -372,7 +372,7 @@ where
         self.class(GlyphId16::new(glyph_id)).map(u16::from)
     }
 
-    fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
+    fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError> {
         let class = u8::try_from(class).unwrap_or(aat::class::OUT_OF_BOUNDS);
         self.entry(state, class)
     }
@@ -640,7 +640,7 @@ where
 
             // 3
             (
-                if state < 64 {
+                if (0..64).contains(&state) {
                     (ac.start_end_safe_to_break & (1 << state)) != 0
                 } else {
                     ac.safe_to_break.eot_safe_high(state)

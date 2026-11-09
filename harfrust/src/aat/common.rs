@@ -16,7 +16,7 @@ use read_fonts::FontData;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
-pub(crate) const START_OF_TEXT: u16 = 0;
+pub(crate) const START_OF_TEXT: i32 = 0;
 
 pub(crate) type ClassCache = MappingCache;
 
@@ -310,12 +310,12 @@ pub(crate) struct SafeToBreak<'a> {
 pub(crate) const WOULDBE_NONE: u16 = !0;
 
 #[inline(always)]
-pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u16 {
-    // States fit 15 bits in any real font. A pathological new state
-    // that doesn't can alias the sentinel and misreport condition 2c,
-    // which only perturbs unsafe-to-break flags -- not worth runtime
-    // checks on this path.
-    new_state | ((advance as u16) << 15)
+pub(crate) fn pack_wouldbe(new_state: i32, advance: bool) -> u16 {
+    // States fit 15 bits in any real font. A pathological or negative new
+    // state (legacy pre-initial rows) that doesn't can alias the sentinel
+    // and misreport condition 2c, which only perturbs unsafe-to-break
+    // flags -- not worth runtime checks on this path.
+    (new_state as u16) | ((advance as u16) << 15)
 }
 
 impl SafeToBreak<'_> {
@@ -323,7 +323,7 @@ impl SafeToBreak<'_> {
     /// take a non-actionable transition to the same state, advancing
     /// the same way?
     #[inline(always)]
-    pub(crate) fn wouldbe_matches(&self, class: u16, next_state: u16, advance: bool) -> bool {
+    pub(crate) fn wouldbe_matches(&self, class: u16, next_state: i32, advance: bool) -> bool {
         let mut class = class as usize;
         if class >= self.n_classes as usize {
             class = class::OUT_OF_BOUNDS as usize;
@@ -334,7 +334,12 @@ impl SafeToBreak<'_> {
     /// Condition 3 for states 64 and up: no end-of-text action can fire
     /// out of this state.
     #[inline(always)]
-    pub(crate) fn eot_safe_high(&self, state: u16) -> bool {
+    pub(crate) fn eot_safe_high(&self, state: i32) -> bool {
+        // Callers only reach here for state >= 64 or a negative (pre-initial)
+        // state; the latter has no high eot bit, so treat it as unsafe.
+        if state < 64 {
+            return false;
+        }
         let ix = (state - 64) as usize;
         self.eot_tail
             .get(ix / 64)
@@ -416,7 +421,7 @@ impl SafeToBreakAccel {
                         .resize(eot_tail_start + (n_rows - 64).div_ceil(64), 0);
                     for state in 64..n_rows {
                         if let Ok(entry) =
-                            machine.entry(state as u16, u16::from(class::END_OF_TEXT))
+                            machine.entry(state as i32, u16::from(class::END_OF_TEXT))
                         {
                             if !is_actionable(&entry) {
                                 let ix = state - 64;
@@ -471,7 +476,7 @@ impl SafeToBreakAccel {
                     self.eot_tail
                         .resize(eot_tail_start + (n_rows - 64).div_ceil(64), 0);
                     for state in 64..n_rows {
-                        if let Ok(entry) = machine.entry(state as u16, class::END_OF_TEXT) {
+                        if let Ok(entry) = machine.entry(state as i32, class::END_OF_TEXT) {
                             if !is_actionable(&entry) {
                                 let ix = state - 64;
                                 self.eot_tail[eot_tail_start + ix / 64] |= 1 << (ix % 64);

@@ -496,7 +496,7 @@ fn apply_state_machine_kerning(
 
             // 3
             (
-                if state < 64 {
+                if (0..64).contains(&state) {
                     (c.start_end_safe_to_break & (1 << state)) != 0
                 } else {
                     c.safe_to_break.eot_safe_high(state)
