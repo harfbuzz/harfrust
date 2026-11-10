@@ -531,6 +531,70 @@ mod tests {
     }
 
     #[test]
+    fn a_readable_first_rule_does_not_exempt_later_rules() {
+        // The first rule set offset points to an appended, valid chain rule
+        // with one input glyph and no lookahead. The glyph digest gives up
+        // on it (no second glyph), which must not stop the remaining aliased
+        // rules from being charged.
+        let mut data = aliased_chain_rules(1000, 2000);
+        let rule_offset = (data.len() - 22) as u16; // The rule set is at byte 22.
+        data[24..26].copy_from_slice(&rule_offset.to_be_bytes());
+        data.extend([1u16, 2, 1, 0, 0].into_iter().flat_map(u16::to_be_bytes));
+        let budget = Budget::new(1 << 20, 1 << 20);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    #[test]
+    fn an_unreadable_first_rule_does_not_exempt_later_rules() {
+        // An unreadable first rule used to abort the charging walk; the
+        // remaining readable aliased rules must still be charged.
+        let mut data = aliased_chain_rules(1000, 2000);
+        data[24..26].copy_from_slice(&u16::MAX.to_be_bytes());
+        let budget = Budget::new(1 << 20, 1 << 20);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    /// A ChainContextFormat2 lookup on glyph 1 with no input class
+    /// definition, whose one rule set lists `rule_count` offsets to a single
+    /// class rule with a lookahead of `lookahead_len` classes.
+    fn aliased_class_chain_rules(rule_count: u16, lookahead_len: u16) -> Vec<u8> {
+        // Lookup.
+        let mut words = alloc::vec![6u16, 0, 1, 8];
+        // Format 2 subtable: coverage at 14, no class defs, rule set at 20.
+        words.extend_from_slice(&[2, 14, 0, 0, 0, 1, 20]);
+        // Coverage of glyph 1.
+        words.extend_from_slice(&[1, 1, 1]);
+        let rule_offset = 2 + 2 * rule_count;
+        words.push(rule_count);
+        words.resize(words.len() + usize::from(rule_count), rule_offset);
+        words.extend_from_slice(&[0, 1, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), 1);
+        words.push(0);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn absent_input_classes_do_not_exempt_the_rules() {
+        // A missing input class definition makes the class digest give up at
+        // once, before it walks any rule. The rules must be charged anyway.
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_class_chain_rules(1, 2000);
+        assert!(build_lookup_at(FontData::new(&data), 0, true, &budget).is_ok());
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_class_chain_rules(1000, 2000);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    #[test]
     fn malformed_subtables_do_not_abort_a_lookup() {
         let mut data = repeated_single_subst(2);
         // Only the first offset points outside the data.

@@ -80,15 +80,62 @@ fn rule_set<'a>(sets: &RuleSets<'a>, index: usize, layout: RuleLayout) -> Option
     Rules::read(sets.data(index)?, layout)
 }
 
+/// Charges every rule of every rule set in `sets` to `budget`, as the
+/// lookup is built, so that a lookup whose rule offsets alias one long rule
+/// is discarded here rather than walked at every glyph.
+///
+/// HarfRust has no sanitize pass, so this stands in for HarfBuzz's
+/// `ChainRule::sanitize()`, which charges each chain rule the byte span of
+/// its backtrack, input and lookahead arrays — `(&lookup - this)`, its
+/// `check_ops`, from harfbuzz/harfbuzz#6507. HarfBuzz charges no such span
+/// for a plain (unchained) sequence rule, so neither do we.
+///
+/// Unlike digest construction, this walk is unconditional: it visits and
+/// pays for every set and rule, so no early exit — a digest giving up, an
+/// absent class definition, or an unreadable rule — can leave a retained
+/// rule uncharged. It charges each offset it visits before following it, so
+/// the walk itself stays bounded.
+fn charge_rules<const W: usize>(
+    sets: &RuleSets,
+    layout: RuleLayout,
+    budget: &Budget,
+) -> Result<(), Exhausted> {
+    budget.work(sets.len())?;
+    for index in 0..sets.len() {
+        if sets.is_null(index) {
+            continue;
+        }
+        let Some(rules) = rule_set(sets, index, layout) else {
+            continue;
+        };
+        budget.work(rules.len())?;
+        if !layout.chained {
+            continue;
+        }
+        for index in 0..rules.len() {
+            if let Some(rule) = rules
+                .rule(index)
+                .and_then(|data| ParsedRule::<W>::try_parse(data, layout))
+            {
+                budget.work(rule.chain_span())?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Calls `f` with each rule of each rule set present in `sets`, stopping
-/// with `None` at one that can't be read.
+/// with `None` at one that can't be read or at which `f` returns `None`.
+///
+/// This builds digests only; it charges no budget. Every caller runs
+/// [`charge_rules`] first, which walks the same rules and pays for them, so
+/// stopping early here — at an unreadable rule or a digest that gives up —
+/// never leaves a retained rule uncharged.
 fn for_each_rule<'a, const W: usize>(
     sets: &RuleSets<'a>,
     layout: RuleLayout,
-    budget: &Budget,
     mut f: impl FnMut(ParsedRule<'a, W>) -> Result<Option<()>, Exhausted>,
 ) -> Result<Option<()>, Exhausted> {
-    budget.work(sets.len())?;
     for index in 0..sets.len() {
         if sets.is_null(index) {
             continue;
@@ -96,7 +143,6 @@ fn for_each_rule<'a, const W: usize>(
         let Some(rules) = rule_set(sets, index, layout) else {
             return Ok(None);
         };
-        budget.work(rules.len())?;
         for index in 0..rules.len() {
             let Some(rule) = rules
                 .rule(index)
@@ -104,14 +150,6 @@ fn for_each_rule<'a, const W: usize>(
             else {
                 return Ok(None);
             };
-            // HarfBuzz's sanitizer charges the backtrack, input and
-            // lookahead arrays of every chain rule it visits to its work
-            // budget (ChainRule::sanitize's check_ops), so that rule offsets
-            // aliasing one long rule get the table rejected rather than
-            // walked at every glyph. HarfRust has no sanitize pass, so the
-            // rules are charged here, as the lookup is built, and such a
-            // lookup is discarded.
-            budget.work(rule.backtrack.len() + rule.input.len() + rule.lookahead.len())?;
             if f(rule)?.is_none() {
                 return Ok(None);
             }
@@ -247,8 +285,9 @@ fn glyph_seconds<const W: usize>(
     layout: RuleLayout,
     budget: &Budget,
 ) -> Result<SetDigest, Exhausted> {
+    charge_rules::<W>(sets, layout, budget)?;
     let mut digest = SetDigest::new();
-    let valid = for_each_rule::<W>(sets, layout, budget, |rule| {
+    let valid = for_each_rule::<W>(sets, layout, |rule| {
         let Some(second) = rule.input.first().or_else(|| rule.lookahead.first()) else {
             return Ok(None);
         };
@@ -449,12 +488,15 @@ impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
     const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        // Charge the rules before any digest early-out, including the
+        // absent-input-class return below, so none goes uncharged.
+        charge_rules::<CLASS>(&self.rule_sets, self.layout, budget)?;
         let (input, lookahead) = (&self.input, &self.lookahead);
         if input.is_none() {
             return Ok(SetDigest::full());
         }
         let mut digest = SetDigest::new();
-        let valid = for_each_rule::<CLASS>(&self.rule_sets, self.layout, budget, |rule| {
+        let valid = for_each_rule::<CLASS>(&self.rule_sets, self.layout, |rule| {
             if let Some(second) = rule.input.first() {
                 input.add_class_to(&mut digest, second, budget)?;
             } else {
@@ -709,6 +751,16 @@ struct ParsedRule<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> ParsedRule<'a, W> {
+    /// The byte span a chain rule contributes to its lookup's build budget:
+    /// its backtrack, input and lookahead arrays with their three count
+    /// fields (hence the constant 6), but not the lookup records. This is
+    /// `(&lookup - this)`, what HarfBuzz's `ChainRule::sanitize()` charges
+    /// (harfbuzz/harfbuzz#6507). The stored `input` is already headless, so
+    /// its length matches HarfBuzz's `lenP1 - 1`.
+    fn chain_span(&self) -> usize {
+        6 + (self.backtrack.len() + self.input.len() + self.lookahead.len()) * W
+    }
+
     /// Parses a rule; an unreadable one is empty.
     fn parse(data: FontData<'a>, layout: RuleLayout) -> Self {
         Self::try_parse(data, layout).unwrap_or_else(|| Self {
