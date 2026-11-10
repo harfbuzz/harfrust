@@ -104,13 +104,37 @@ impl<'a> CachedAatTables<'a> {
         let morx = tables.morx().ok().filter(|morx| {
             let morx_len = morx.offset_data().len() as u32;
             !is_morx_blocklisted(morx_len, gsub_len, gdef_len)
+                && is_within_subtable_limit(
+                    morx.chains()
+                        .iter()
+                        .flatten()
+                        .map(|chain| chain.n_subtables()),
+                )
         });
+        let mort = tables.mort().ok().filter(|mort| {
+            is_within_subtable_limit(
+                mort.chains()
+                    .iter()
+                    .flatten()
+                    .map(|chain| u32::from(chain.n_subtables())),
+            )
+        });
+        let kern = tables.kern().ok().filter(|kern| {
+            is_within_subtable_limit(core::iter::once(match kern {
+                Kern::Ot(kern) => u32::from(kern.n_tables()),
+                Kern::Aat(kern) => kern.n_tables(),
+            }))
+        });
+        let kerx = tables
+            .kerx()
+            .ok()
+            .filter(|kerx| is_within_subtable_limit(core::iter::once(kerx.n_tables())));
         Self {
             morx,
-            mort: tables.mort().ok(),
+            mort,
             ankr: tables.ankr().ok(),
-            kern: tables.kern().ok(),
-            kerx: tables.kerx().ok(),
+            kern,
+            kerx,
             trak: tables.trak().ok(),
             feat: tables.feat().ok(),
             ltag: tables.ltag().ok(),
@@ -244,6 +268,25 @@ impl<'a> core::ops::Deref for AatData<'a> {
     fn deref(&self) -> &Self::Target {
         self.tables
     }
+}
+
+/// The most subtables a `kern`, `kerx`, `mort` or `morx` table may have, as
+/// in HarfBuzz (`HB_AAT_MAX_SUBTABLES`). A table that declares more is
+/// ignored. Each applied subtable walks the whole buffer and its accelerator
+/// keeps glyph sets, so this bounds both.
+const MAX_SUBTABLES: u32 = 1024;
+
+/// Whether the subtable counts of a table's chains (or the table's single
+/// subtable count) add up to at most `MAX_SUBTABLES`.
+fn is_within_subtable_limit(counts: impl Iterator<Item = u32>) -> bool {
+    let mut total = 0u32;
+    for count in counts {
+        total = total.saturating_add(count);
+        if total > MAX_SUBTABLES {
+            return false;
+        }
+    }
+    true
 }
 
 use crate::algs::HB_CODEPOINT_ENCODE3 as encode3;
