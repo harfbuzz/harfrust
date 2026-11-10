@@ -594,6 +594,138 @@ mod tests {
         ));
     }
 
+    /// A contextual lookup with a one-glyph input and records whose
+    /// sequence indices fall outside that input. No record reaches the
+    /// runtime recursion charge, so construction must account for them.
+    fn context_with_skipped_records(chained: bool, format: u16, count: u16) -> Vec<u8> {
+        let mut words = alloc::vec![if chained { 6 } else { 5 }, 0, 1, 8];
+        match (chained, format) {
+            (_, 1) => words.extend_from_slice(&[1, 8, 1, 14]),
+            (false, 2) => words.extend_from_slice(&[2, 10, 0, 1, 16]),
+            (true, 2) => words.extend_from_slice(&[2, 14, 0, 0, 0, 1, 20]),
+            (false, 3) => words.extend_from_slice(&[3, 1, count, 8 + 4 * count]),
+            (true, 3) => words.extend_from_slice(&[3, 0, 1, 12 + 4 * count, 0, count]),
+            _ => unreachable!(),
+        }
+        if format != 3 {
+            words.extend_from_slice(&[1, 1, 1]); // Coverage of glyph 1.
+            words.extend_from_slice(&[1, 4]); // One rule at offset 4.
+            if chained {
+                words.extend_from_slice(&[0, 1, 0, count]);
+            } else {
+                words.extend_from_slice(&[1, count]);
+            }
+        }
+        for _ in 0..count {
+            words.extend_from_slice(&[1, 0]);
+        }
+        if format == 3 {
+            words.extend_from_slice(&[1, 1, 1]); // Input coverage.
+        }
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn context_lookup_records_are_charged_on_every_build() {
+        for chained in [false, true] {
+            for format in 1..=3 {
+                for is_subst in [false, true] {
+                    let mut data = context_with_skipped_records(chained, format, 1000);
+                    if !is_subst {
+                        // GPOS context lookup types are two above GSUB's.
+                        data[1] += 2;
+                    }
+                    let budget = Budget::new(1 << 20, usize::MAX);
+                    let lookup =
+                        build_lookup_at(FontData::new(&data), 0, is_subst, &budget).unwrap();
+                    assert_eq!(lookup.subtables.len(), 1);
+                    // Distinct lookup-list entries can alias this lookup.
+                    // One build fits; 4 MB of repeated record visits don't.
+                    let exhausted = (1..1000).any(|_| {
+                        matches!(
+                            build_lookup_at(FontData::new(&data), 0, is_subst, &budget),
+                            Err(BuildError::Exhausted)
+                        )
+                    });
+                    assert!(
+                        exhausted,
+                        "chained={chained}, format={format}, subst={is_subst}"
+                    );
+                    assert!(budget.remaining().0 < 8192);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn plain_context_input_arrays_are_charged() {
+        // Many rule offsets alias one long input, with no lookup records.
+        let rule_count = 1000u16;
+        let input_count = 2000u16;
+        let mut words = alloc::vec![5, 0, 1, 8, 1, 8, 1, 14, 1, 1, 1];
+        words.push(rule_count);
+        words.resize(words.len() + usize::from(rule_count), 2 + 2 * rule_count);
+        words.extend_from_slice(&[input_count, 0]);
+        words.resize(words.len() + usize::from(input_count - 1), 1);
+        let data: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::new(1 << 20, 1 << 20)
+            ),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    #[test]
+    fn a_singleton_ligature_does_not_exempt_later_sets() {
+        let set_count = 2000u16;
+        let ligature_count = 3000u16;
+        // Lookup, subtable header and set offsets.
+        let mut words = alloc::vec![4, 0, 1, 8, 1, 0, set_count];
+        let offsets_start = words.len();
+        words.resize(offsets_start + usize::from(set_count), 0);
+        // A range coverage avoids a large glyph array.
+        words[5] = (words.len() * 2 - 8) as u16;
+        words.extend_from_slice(&[2, 1, 1, set_count, 0]);
+        let singleton_offset = (words.len() * 2 - 8) as u16;
+        words.extend_from_slice(&[1, 4, 3, 1]); // Set and singleton ligature.
+        let large_set_offset = (words.len() * 2 - 8) as u16;
+        words.push(ligature_count);
+        words.resize(
+            words.len() + usize::from(ligature_count),
+            2 + 2 * ligature_count,
+        );
+        words.extend_from_slice(&[3, 3, 2, 3]); // A three-component ligature.
+        words[offsets_start..offsets_start + usize::from(set_count)].fill(large_set_offset);
+        let mut data: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+
+        // Control: all sets are large, so the existing walk exhausts its budget.
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len())
+            ),
+            Err(BuildError::Exhausted)
+        ));
+        // Giving up on the digest in the first set must not bypass that work.
+        data[offsets_start * 2..offsets_start * 2 + 2]
+            .copy_from_slice(&singleton_offset.to_be_bytes());
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len())
+            ),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
     #[test]
     fn malformed_subtables_do_not_abort_a_lookup() {
         let mut data = repeated_single_subst(2);

@@ -84,11 +84,11 @@ fn rule_set<'a>(sets: &RuleSets<'a>, index: usize, layout: RuleLayout) -> Option
 /// lookup is built, so that a lookup whose rule offsets alias one long rule
 /// is discarded here rather than walked at every glyph.
 ///
-/// HarfRust has no sanitize pass, so this stands in for HarfBuzz's
-/// `ChainRule::sanitize()`, which charges each chain rule the byte span of
-/// its backtrack, input and lookahead arrays — `(&lookup - this)`, its
-/// `check_ops`, from harfbuzz/harfbuzz#6507. HarfBuzz charges no such span
-/// for a plain (unchained) sequence rule, so neither do we.
+/// HarfRust has no sanitize pass, so this stands in for HarfBuzz's rule
+/// sanitizers. `ChainRule::sanitize()` charges its backtrack, input and
+/// lookahead arrays through `check_ops` (harfbuzz/harfbuzz#6507), and its
+/// lookup records through the array sanitizer. Plain `Rule::sanitize()`
+/// charges both its input and lookup-record arrays through `check_range`.
 ///
 /// Unlike digest construction, this walk is unconditional: it visits and
 /// pays for every set and rule, so no early exit — a digest giving up, an
@@ -109,15 +109,12 @@ fn charge_rules<const W: usize>(
             continue;
         };
         budget.work(rules.len())?;
-        if !layout.chained {
-            continue;
-        }
         for index in 0..rules.len() {
             if let Some(rule) = rules
                 .rule(index)
                 .and_then(|data| ParsedRule::<W>::try_parse(data, layout))
             {
-                budget.work(rule.chain_span())?;
+                budget.work(rule.byte_len())?;
             }
         }
     }
@@ -534,6 +531,7 @@ impl<'a> ChainContext3<'a> {
     ) -> Result<Self, Exhausted> {
         let data = table.offset_data();
         let narrow = NARROW.into();
+        budget.work(table.seq_lookup_records().len() * SequenceLookupRecord::RAW_BYTE_LEN)?;
         Ok(Self {
             inputs: CoverageArray::new(
                 Offsets::after_first(data, table.input_coverage_offsets_byte_range(), narrow),
@@ -575,6 +573,7 @@ impl<'a> ChainContext3<'a> {
         records: &'a [SequenceLookupRecord],
         budget: &Budget,
     ) -> Result<Self, Exhausted> {
+        budget.work(records.len() * SequenceLookupRecord::RAW_BYTE_LEN)?;
         Ok(Self {
             inputs: CoverageArray::new(inputs, budget)?,
             backtrack: CoverageArray::default(),
@@ -751,14 +750,14 @@ struct ParsedRule<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> ParsedRule<'a, W> {
-    /// The byte span a chain rule contributes to its lookup's build budget:
-    /// its backtrack, input and lookahead arrays with their three count
-    /// fields (hence the constant 6), but not the lookup records. This is
-    /// `(&lookup - this)`, what HarfBuzz's `ChainRule::sanitize()` charges
-    /// (harfbuzz/harfbuzz#6507). The stored `input` is already headless, so
-    /// its length matches HarfBuzz's `lenP1 - 1`.
-    fn chain_span(&self) -> usize {
-        6 + (self.backtrack.len() + self.input.len() + self.lookahead.len()) * W
+    /// The rule's byte span, including its counts and lookup records.
+    /// Charge every array, even when its records have out-of-range sequence
+    /// indices and will never reach the runtime recursion charge.
+    fn byte_len(&self) -> usize {
+        let counts = if self.chained { 8 } else { 4 };
+        counts
+            + (self.backtrack.len() + self.input.len() + self.lookahead.len()) * W
+            + self.records.len() * SequenceLookupRecord::RAW_BYTE_LEN
     }
 
     /// Parses a rule; an unreadable one is empty.

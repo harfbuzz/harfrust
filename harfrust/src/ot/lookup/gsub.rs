@@ -413,19 +413,32 @@ impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
     }
 }
 
-/// The digest of every ligature's second glyph, or a full digest if a
-/// ligature has none. Nested walks share the font's preprocessing allowance.
-fn collect_seconds<const W: usize>(
-    sets: &Offsets,
-    budget: &Budget,
-) -> Result<SetDigest, Exhausted> {
-    let mut seconds = SetDigest::new();
+/// Charge every ligature set and its offsets before constructing the
+/// digest. A singleton ligature can make the digest full, but later sets
+/// remain reachable during shaping and must still pay for their entries.
+fn charge_ligature_sets<const W: usize>(sets: &Offsets, budget: &Budget) -> Result<(), Exhausted> {
     budget.work(sets.len())?;
     for index in 0..sets.len() {
         let Some(set) = sets.data(index).and_then(LigatureSet::<W>::read) else {
             continue;
         };
         budget.work(set.len())?;
+    }
+    Ok(())
+}
+
+/// The digest of every ligature's second glyph, or a full digest if a
+/// ligature has none. The mandatory accounting runs before any early exit.
+fn collect_seconds<const W: usize>(
+    sets: &Offsets,
+    budget: &Budget,
+) -> Result<SetDigest, Exhausted> {
+    charge_ligature_sets::<W>(sets, budget)?;
+    let mut seconds = SetDigest::new();
+    for index in 0..sets.len() {
+        let Some(set) = sets.data(index).and_then(LigatureSet::<W>::read) else {
+            continue;
+        };
         for ligature in set.iter() {
             let Some(second) = ligature.components.first() else {
                 return Ok(SetDigest::full());
