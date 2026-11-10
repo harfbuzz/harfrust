@@ -893,3 +893,18 @@ fn morx_contextual_mark_substitution_loop_is_charged_for_its_walk() {
         expected
     );
 }
+
+// A classic 'kern' format-1 table whose state machine uses a non-first
+// initial state: the rows before it are numbered negatively (Apple's
+// pre-initial-state layout). Resolving those negative state indices --
+// read-fonts' StateEntry::new_state is now signed -- lets the table
+// apply; before, the entry was rejected and the -100 kern was dropped.
+// Matches HarfBuzz's ANT-2026-FM7UTB3Y fix (its kern-format1 in-house
+// test).
+#[test]
+fn kern_format1_non_first_initial_state_applies() {
+    assert_eq!(
+        crate::shape("tests/fonts/in-house/kern-format1.ttf", "ab", ""),
+        "[gid1=0@-100,0+1014|gid2=1+1149]"
+    );
+}

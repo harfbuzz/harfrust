@@ -16,7 +16,7 @@ use read_fonts::FontData;
 
 pub const HB_BUFFER_SCRATCH_FLAG_AAT_HAS_DELETED: u32 = HB_BUFFER_SCRATCH_FLAG_SHAPER0;
 
-pub(crate) const START_OF_TEXT: u16 = 0;
+pub(crate) const START_OF_TEXT: i32 = 0;
 
 pub(crate) type ClassCache = MappingCache;
 
@@ -280,7 +280,7 @@ pub(crate) fn set_digest(set: &U32Set) -> SetDigest {
 /// subtable cache while retaining O(classes) + O(states) storage.
 #[derive(Default)]
 pub(crate) struct SafeToBreakAccel {
-    wouldbe: Vec<u16>,
+    wouldbe: Vec<i32>,
     eot_tail: Vec<u64>,
 }
 
@@ -296,26 +296,24 @@ pub(crate) struct SafeToBreakSubtable {
 #[derive(Clone, Copy, Default)]
 pub(crate) struct SafeToBreak<'a> {
     n_classes: u32,
-    /// Per class: `entry(START_OF_TEXT, class)` packed as 15 bits of
-    /// new state with the advance bit on top when present and
-    /// non-actionable, `!0` otherwise — so condition 2c is a single
-    /// compare. Real machines' state counts fit 15 bits.
-    wouldbe: &'a [u16],
-    /// Condition-3 bits for states 64 and up; states below 64 keep
-    /// using the `start_end_safe_to_break` word. Empty for machines
-    /// with at most 64 states.
+    /// Per class: the signed new state of `entry(START_OF_TEXT, class)`
+    /// shifted left with the advance bit at the bottom when present and
+    /// non-actionable, `WOULDBE_NONE` otherwise — so condition 2c is a
+    /// single compare. Legacy tables can transition to negative states.
+    wouldbe: &'a [i32],
+    /// Condition-3 bits for states 64 and up; states 0 through 63 use
+    /// the `start_end_safe_to_break` word. Negative states are probed
+    /// directly. Empty for machines with at most 64 non-negative states.
     eot_tail: &'a [u64],
 }
 
-pub(crate) const WOULDBE_NONE: u16 = !0;
+pub(crate) const WOULDBE_NONE: i32 = i32::MAX;
 
 #[inline(always)]
-pub(crate) fn pack_wouldbe(new_state: u16, advance: bool) -> u16 {
-    // States fit 15 bits in any real font. A pathological new state
-    // that doesn't can alias the sentinel and misreport condition 2c,
-    // which only perturbs unsafe-to-break flags -- not worth runtime
-    // checks on this path.
-    new_state | ((advance as u16) << 15)
+pub(crate) fn pack_wouldbe(new_state: i32, advance: bool) -> i32 {
+    // State indices are resolved from u16 offsets or indices, so shifting
+    // preserves their sign and cannot collide with WOULDBE_NONE.
+    (new_state << 1) | i32::from(advance)
 }
 
 impl SafeToBreak<'_> {
@@ -323,7 +321,7 @@ impl SafeToBreak<'_> {
     /// take a non-actionable transition to the same state, advancing
     /// the same way?
     #[inline(always)]
-    pub(crate) fn wouldbe_matches(&self, class: u16, next_state: u16, advance: bool) -> bool {
+    pub(crate) fn wouldbe_matches(&self, class: u16, next_state: i32, advance: bool) -> bool {
         let mut class = class as usize;
         if class >= self.n_classes as usize {
             class = class::OUT_OF_BOUNDS as usize;
@@ -334,7 +332,7 @@ impl SafeToBreak<'_> {
     /// Condition 3 for states 64 and up: no end-of-text action can fire
     /// out of this state.
     #[inline(always)]
-    pub(crate) fn eot_safe_high(&self, state: u16) -> bool {
+    pub(crate) fn eot_safe_high(&self, state: i32) -> bool {
         let ix = (state - 64) as usize;
         self.eot_tail
             .get(ix / 64)
@@ -416,7 +414,7 @@ impl SafeToBreakAccel {
                         .resize(eot_tail_start + (n_rows - 64).div_ceil(64), 0);
                     for state in 64..n_rows {
                         if let Ok(entry) =
-                            machine.entry(state as u16, u16::from(class::END_OF_TEXT))
+                            machine.entry(state as i32, u16::from(class::END_OF_TEXT))
                         {
                             if !is_actionable(&entry) {
                                 let ix = state - 64;
@@ -471,7 +469,7 @@ impl SafeToBreakAccel {
                     self.eot_tail
                         .resize(eot_tail_start + (n_rows - 64).div_ceil(64), 0);
                     for state in 64..n_rows {
-                        if let Ok(entry) = machine.entry(state as u16, class::END_OF_TEXT) {
+                        if let Ok(entry) = machine.entry(state as i32, class::END_OF_TEXT) {
                             if !is_actionable(&entry) {
                                 let ix = state - 64;
                                 self.eot_tail[eot_tail_start + ix / 64] |= 1 << (ix % 64);
@@ -511,7 +509,7 @@ impl SafeToBreakSubtable {
 
     /// The bytes of [`SafeToBreakAccel`] that this subtable's view covers.
     pub(crate) fn accel_bytes(&self) -> usize {
-        (self.wouldbe_end - self.wouldbe_start) as usize * size_of::<u16>()
+        (self.wouldbe_end - self.wouldbe_start) as usize * size_of::<i32>()
             + (self.eot_tail_end - self.eot_tail_start) as usize * size_of::<u64>()
     }
 }
@@ -832,6 +830,24 @@ mod tests {
     use core::mem::size_of;
 
     #[test]
+    fn safe_to_break_distinguishes_signed_states_and_advance() {
+        for state in [-65535, -1, 0, 32767, 32768, 65535] {
+            for advance in [false, true] {
+                let wouldbe = [pack_wouldbe(state, advance), WOULDBE_NONE];
+                let safe = SafeToBreak {
+                    n_classes: 2,
+                    wouldbe: &wouldbe,
+                    eot_tail: &[],
+                };
+                assert!(safe.wouldbe_matches(0, state, advance));
+                assert!(!safe.wouldbe_matches(0, state, !advance));
+                assert!(!safe.wouldbe_matches(0, state ^ 0x8000, advance));
+                assert!(!safe.wouldbe_matches(1, state, advance));
+            }
+        }
+    }
+
+    #[test]
     fn safe_to_break_subtable_views_are_packed_and_bounded() {
         assert_eq!(size_of::<SafeToBreakSubtable>(), 16);
 
@@ -866,7 +882,7 @@ mod tests {
         assert!(!last.eot_safe_high(64));
         assert!(last.eot_safe_high(65));
 
-        assert_eq!(first_subtable.accel_bytes(), 4 * 2 + 8);
+        assert_eq!(first_subtable.accel_bytes(), 4 * 4 + 8);
         assert_eq!(empty_subtable.accel_bytes(), 0);
     }
 
