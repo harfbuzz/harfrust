@@ -487,7 +487,10 @@ fn apply_state_machine_kerning(
 
             // 3
             (
-                if state < 64 {
+                if state < 0 {
+                    subtable.entry(state, aat::class::END_OF_TEXT)
+                        .map_or(true, |entry| !entry.is_actionable())
+                } else if state < 64 {
                     (c.start_end_safe_to_break & (1 << state)) != 0
                 } else {
                     c.safe_to_break.eot_safe_high(state)

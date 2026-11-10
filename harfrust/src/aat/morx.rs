@@ -342,7 +342,7 @@ where
     /// start of `data`.
     fn n_classes(&self, data: &[u8]) -> usize;
     fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError>;
-    fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError>;
+    fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError>;
     fn collect_glyphs_filtered(
         &self,
         glyphs: &mut U32Set,
@@ -370,7 +370,7 @@ where
         self.class(glyph_id)
     }
 
-    fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
+    fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError> {
         self.entry(state, class)
     }
 
@@ -408,7 +408,7 @@ where
         self.class(GlyphId16::new(glyph_id)).map(u16::from)
     }
 
-    fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
+    fn entry(&self, state: i32, class: u16) -> Result<StateEntry<T>, ReadError> {
         let class = u8::try_from(class).unwrap_or(aat::class::OUT_OF_BOUNDS);
         self.entry(state, class)
     }
@@ -676,7 +676,10 @@ where
 
             // 3
             (
-                if state < 64 {
+                if state < 0 {
+                    machine.entry(state, aat::class::END_OF_TEXT as u16)
+                        .map_or(true, |entry| !Ctx::is_actionable(&entry))
+                } else if state < 64 {
                     (ac.start_end_safe_to_break & (1 << state)) != 0
                 } else {
                     ac.safe_to_break.eot_safe_high(state)
@@ -1748,6 +1751,70 @@ impl<'a> MorphSubtableCache<'a> {
 mod tests {
     use super::*;
     use read_fonts::{FontData, FontRead};
+
+    #[test]
+    fn legacy_negative_states_rearrange_and_check_end_of_text() {
+        let font = crate::Font::new(
+            include_bytes!("../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        let shaper_font = crate::ShaperFont::new(&font);
+        let plan = crate::ShapePlan::new(&font, crate::Direction::LeftToRight, None, None, &[]);
+
+        for eot_entry in [0, 2] {
+            #[rustfmt::skip]
+            let data = [
+                0, 6, 0, 8, 0, 20, 0, 26, // classes, class/state/entry offsets
+                0, 1, 0, 2, 4, 5, // glyphs 1 and 2 have classes 4 and 5
+                eot_entry, 0, 0, 0, 0, 2, // state -1, before the initial state
+                0, 0, 0, 0, 1, 0, // state 0
+                0, 20, 0, 0, // entry 0: return to state 0, no action
+                0, 14, 0x80, 0, // entry 1: mark first, transition to state -1
+                0, 14, 0x20, 3, // entry 2: swap first/last, stay in state -1
+            ];
+            let machine = StateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+            let mut accel = SafeToBreakAccel::default();
+            let subtable = accel.build_legacy(
+                &machine,
+                &RearrangementCtx::is_actionable,
+                &RearrangementCtx::can_advance,
+            );
+            let class_cache = ClassCache::new();
+            let mut buffer = crate::Buffer::new();
+            for glyph in 1..=3 {
+                buffer.push(glyph, glyph - 1);
+            }
+            let mut ac = AatApplyContext::new(
+                &plan,
+                shaper_font.layout(),
+                crate::Scale::default(),
+                &mut buffer,
+                #[cfg(feature = "tracing")]
+                &shaper_font,
+            );
+            ac.machine_class_cache = Some(&class_cache);
+            ac.start_end_safe_to_break =
+                collect_start_end_safe_to_break::<_, _, RearrangementCtx>(&machine);
+            ac.safe_to_break = accel.subtable(subtable).unwrap();
+
+            drive(
+                &machine,
+                &mut RearrangementCtx { start: 0, end: 0 },
+                &mut ac,
+            )
+            .unwrap();
+
+            let infos = ac.buffer.glyph_infos();
+            assert_eq!(
+                infos.iter().map(|info| info.glyph_id).collect::<Vec<_>>(),
+                [2, 1, 3]
+            );
+            // Breaking before glyph 3 is unsafe only when the negative
+            // state's end-of-text transition would rearrange the prefix.
+            assert_eq!(infos[2].flags().is_unsafe_to_break(), eot_entry == 2);
+        }
+    }
 
     #[test]
     fn noncontextual_caches_collect_overlapping_lookup_segments() {
