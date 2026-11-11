@@ -679,6 +679,121 @@ mod tests {
         ));
     }
 
+    /// A GSUB ChainContextFormat3 lookup whose `subtable_count` offsets all
+    /// alias one subtable with a one-glyph input and `lookahead_len`
+    /// lookahead coverage offsets, all aliasing one coverage (glyph 1).
+    fn aliased_lookahead_context(subtable_count: u16, lookahead_len: u16) -> Vec<u8> {
+        let subtable_offset = 6 + 2 * subtable_count;
+        let mut words = alloc::vec![6u16, 0, subtable_count];
+        words.resize(words.len() + usize::from(subtable_count), subtable_offset);
+        // Format 3: no backtrack, one input, `lookahead_len` lookahead, no
+        // records. One coverage follows at `cov_offset`.
+        let cov_offset = 12 + 2 * lookahead_len;
+        words.extend_from_slice(&[3, 0, 1, cov_offset, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), cov_offset);
+        words.push(0);
+        words.extend_from_slice(&[1, 1, 1]);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    /// A GSUB ReverseChainSingleSubstFormat1 lookup whose `subtable_count`
+    /// offsets all alias one subtable with no backtrack, `lookahead_len`
+    /// lookahead coverage offsets aliasing one coverage (glyph 1), and one
+    /// substitute.
+    fn aliased_lookahead_reverse(subtable_count: u16, lookahead_len: u16) -> Vec<u8> {
+        let subtable_offset = 6 + 2 * subtable_count;
+        let mut words = alloc::vec![8u16, 0, subtable_count];
+        words.resize(words.len() + usize::from(subtable_count), subtable_offset);
+        let cov_offset = 12 + 2 * lookahead_len;
+        words.extend_from_slice(&[1, cov_offset, 0, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), cov_offset);
+        words.extend_from_slice(&[1, 2]); // One substitute glyph.
+        words.extend_from_slice(&[1, 1, 1]); // Coverage of glyph 1.
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn long_coverage_arrays_are_charged_even_when_read_lazily() {
+        // One subtable with a long lookahead is accepted and retained, which
+        // also confirms the bytes reach the lazy-coverage path.
+        for data in [
+            aliased_lookahead_context(1, 2000),
+            aliased_lookahead_reverse(1, 2000),
+        ] {
+            let budget = Budget::for_table_bytes(data.len());
+            let lookup = build_lookup_at(FontData::new(&data), 0, true, &budget).unwrap();
+            assert_eq!(lookup.subtables.len(), 1);
+        }
+        // Thousands of subtables aliasing that lookahead overrun the budget,
+        // although the array is read lazily and never cached.
+        for data in [
+            aliased_lookahead_context(3000, 2000),
+            aliased_lookahead_reverse(3000, 2000),
+        ] {
+            assert!(matches!(
+                build_lookup_at(
+                    FontData::new(&data),
+                    0,
+                    true,
+                    &Budget::for_table_bytes(data.len())
+                ),
+                Err(BuildError::Exhausted)
+            ));
+        }
+    }
+
+    /// A GSUB ligature lookup whose `set_count` offsets all alias one set,
+    /// whose `ligature_count` offsets all alias one ligature of
+    /// `component_count` glyphs.
+    fn aliased_ligature_components(
+        set_count: u16,
+        ligature_count: u16,
+        component_count: u16,
+    ) -> Vec<u8> {
+        // Lookup, subtable header and set offsets.
+        let mut words = alloc::vec![4u16, 0, 1, 8, 1, 0, set_count];
+        let offsets_start = words.len();
+        words.resize(offsets_start + usize::from(set_count), 0);
+        // A range coverage avoids a large glyph array.
+        words[5] = (words.len() * 2 - 8) as u16;
+        words.extend_from_slice(&[2, 1, 1, set_count, 0]);
+        // One ligature set whose offsets all alias one ligature. Ligature
+        // offsets are relative to the set, not the subtable.
+        let set_offset = (words.len() * 2 - 8) as u16;
+        words.push(ligature_count);
+        let ligature_offset = 2 + 2 * ligature_count;
+        words.resize(words.len() + usize::from(ligature_count), ligature_offset);
+        // The ligature: its glyph, its count, and `component_count - 1`
+        // stored components.
+        words.extend_from_slice(&[9, component_count]);
+        words.resize(words.len() + usize::from(component_count - 1), 1);
+        words[offsets_start..offsets_start + usize::from(set_count)].fill(set_offset);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn aliased_ligature_components_are_charged() {
+        // A single long ligature is accepted, confirming the build path and
+        // that one legitimate ligature is not over-charged.
+        let data = aliased_ligature_components(1, 1, 64);
+        let budget = Budget::for_table_bytes(data.len());
+        let lookup = build_lookup_at(FontData::new(&data), 0, true, &budget).unwrap();
+        assert_eq!(lookup.subtables.len(), 1);
+        // Thousands of sets aliasing one set whose offsets all alias one long
+        // ligature overrun the budget, although the set and offset counts
+        // alone would not.
+        let data = aliased_ligature_components(1000, 1000, 64);
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len())
+            ),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
     #[test]
     fn a_singleton_ligature_does_not_exempt_later_sets() {
         let set_count = 2000u16;
