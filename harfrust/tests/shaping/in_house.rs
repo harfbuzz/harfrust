@@ -50199,6 +50199,42 @@ fn indic_vowel_letter_spoofing_053() {
 }
 
 #[test]
+fn indic_zero_context_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/6966ad94041e47fe21c5e3dbc0bee218b5e8357b.ttf",
+            "\u{0B15}\u{0B4D}\u{0B15}",
+            "",
+        ),
+        "[ka.ori=0+500|virama.ori=0+0|ka.ori=2+500]"
+    );
+}
+
+#[test]
+fn indic_zero_context_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/6966ad94041e47fe21c5e3dbc0bee218b5e8357b.ttf",
+            "\u{0995}\u{09CD}\u{0995}",
+            "",
+        ),
+        "[ka.bng=0+500|ka.bng=0+500|virama.bng=0+0]"
+    );
+}
+
+#[test]
+fn indic_zero_context_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/6966ad94041e47fe21c5e3dbc0bee218b5e8357b.ttf",
+            "\u{0D15}\u{0D4D}\u{0D15}",
+            "",
+        ),
+        "[ka.mlm=0+500|ka.below.mlm=0+0]"
+    );
+}
+
+#[test]
 fn item_context_001() {
     assert_eq!(
         shape(
