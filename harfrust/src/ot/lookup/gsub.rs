@@ -654,9 +654,6 @@ impl<'a> ReverseChainSubst1<'a> {
     }
 
     pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
-        if !ctx.buffer.successful {
-            return None;
-        }
         // Reverse chaining lookups can't be nested.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
             return None;

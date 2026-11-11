@@ -1746,3 +1746,38 @@ fn ligature_base_walk_exhaustion_stops_candidate_retries() {
         buffer.max_ops
     );
 }
+
+/// A ChainedSequenceContextFormat3 subtable: no backtrack, one input coverage
+/// (glyph 1), one lookahead coverage (`lookahead`), no records. Matching scans
+/// the lookahead for `lookahead` via the skipping iterator. This path uses no
+/// per-rule entry guard, so only the shared subtable loop bounds its repetition.
+fn chain_context3_subtable(lookahead: u16) -> Vec<u8> {
+    let w: Vec<u16> = vec![3, 0, 1, 14, 1, 20, 0, 1, 1, 1, 1, 1, lookahead];
+    w.into_iter().flat_map(u16::to_be_bytes).collect()
+}
+
+/// A lookup of `lookup_type` whose `count` offsets all alias `subtable`, so the
+/// shared subtable loop runs the same scan `count` times.
+fn aliased_subtables(lookup_type: u16, count: u16, subtable: &[u8]) -> Vec<u8> {
+    let mut w: Vec<u16> = vec![lookup_type, 0, count];
+    let sub_offset = ((3 + usize::from(count)) * 2) as u16;
+    w.resize(w.len() + usize::from(count), sub_offset);
+    let mut bytes: Vec<u8> = w.into_iter().flat_map(u16::to_be_bytes).collect();
+    bytes.extend_from_slice(subtable);
+    bytes
+}
+
+#[test]
+fn subtable_retry_stops_at_shared_guard() {
+    // 16384 aliased chain-context format-3 subtables: each rescans the
+    // lookahead for the absent glyph 2. No per-rule guard covers this path, so
+    // only the shared subtable loop bounds the repetition.
+    let data = aliased_subtables(6, 16384, &chain_context3_subtable(2));
+    let buffer = apply_string_ignorables(&data, &[1; 513]);
+    assert!(!buffer.successful, "buffer should be marked unsuccessful");
+    assert!(
+        buffer.max_ops < 0 && buffer.max_ops > -4096,
+        "shared-loop guard should stop a bounded step past zero: {}",
+        buffer.max_ops
+    );
+}
