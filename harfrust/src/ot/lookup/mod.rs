@@ -232,6 +232,9 @@ fn walk_each(
         if subtable.fns.apply[is_cached as usize](subtable, ctx, index).is_some() {
             return Some(());
         }
+        if !ctx.buffer.successful {
+            return None;
+        }
     }
     None
 }

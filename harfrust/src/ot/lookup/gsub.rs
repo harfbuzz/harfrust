@@ -535,6 +535,9 @@ fn apply_ligature_set<const W: usize>(
 }
 
 fn apply_ligature<const W: usize>(ctx: &mut ApplyContext, ligature: &Ligature<W>) -> Option<()> {
+    if !ctx.buffer.successful {
+        return None;
+    }
     let components = &ligature.components;
     let ligature_glyph = ligature.glyph.into();
     // A ligature of one glyph is an in-place replacement, not a ligation.

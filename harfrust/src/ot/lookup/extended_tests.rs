@@ -1539,3 +1539,245 @@ fn chain_context5_does_not_truncate_wide_classes() {
         }
     }
 }
+
+// Budget-exhaustion regression tests (dfrg's #604 review). Each attack is a
+// tiny aliased font that, on the unfixed head, makes apply_string() re-run a
+// matching walk millions of times; the fix must end unsuccessful with `max_ops`
+// only a bounded step past zero.
+
+/// A GSUB ligature lookup (type 4): coverage of glyph 1, one ligature set whose
+/// `ligature_count` offsets all alias one two-component ligature whose second
+/// component is `second`. With `second` absent from the buffer, each candidate
+/// makes the skipping iterator walk the whole buffer.
+fn aliased_skip_ligature(ligature_count: u16, second: u16) -> Vec<u8> {
+    aliased_ligature(ligature_count, 1, second)
+}
+
+/// As [`aliased_skip_ligature`], with an explicit first-component coverage
+/// glyph so the input can be placed after an unrelated prefix.
+fn aliased_ligature(ligature_count: u16, coverage: u16, second: u16) -> Vec<u8> {
+    // LigatureSubstFormat1: format, coverageOffset, ligSetCount, ligSetOffset.
+    let mut w: Vec<u16> = vec![1, 8, 1, 14];
+    // Coverage format 1 of `coverage` (at byte 8).
+    w.extend_from_slice(&[1, 1, coverage]);
+    // Ligature set (at byte 14): count, then aliased offsets.
+    let set_start = w.len();
+    w.push(ligature_count);
+    let lig_word = set_start + 1 + usize::from(ligature_count);
+    let lig_offset = ((lig_word - set_start) * 2) as u16;
+    for _ in 0..ligature_count {
+        w.push(lig_offset);
+    }
+    // Ligature: glyph 9, two components, second component `second`.
+    w.extend_from_slice(&[9, 2, second]);
+    let subtable: Vec<u8> = w.into_iter().flat_map(u16::to_be_bytes).collect();
+    lookup_bytes(4, &subtable)
+}
+
+/// A GSUB reverse chain single-subst lookup (type 8) whose `subtable_count`
+/// offsets all alias one subtable: coverage of glyph 1, one backtrack coverage
+/// of glyph `backtrack` (absent, so each subtable walks the backtrack), subst
+/// glyph 1 -> 3.
+fn aliased_reverse_backtrack(subtable_count: u16, backtrack: u16) -> Vec<u8> {
+    // ReverseChainSingleSubstFormat1 subtable.
+    let sub: Vec<u16> = vec![
+        1, 14, // format, coverageOffset
+        1, 20, // backtrackCount, backtrackCoverageOffset[0]
+        0,  // lookaheadCount
+        1, 3, // substituteCount, substitute[0]
+        1, 1, 1, // coverage of glyph 1 (byte 14)
+        1, 1, backtrack, // coverage of `backtrack` (byte 20)
+    ];
+    let mut w: Vec<u16> = vec![8, 0, subtable_count];
+    let sub_offset = ((3 + usize::from(subtable_count)) * 2) as u16;
+    for _ in 0..subtable_count {
+        w.push(sub_offset);
+    }
+    w.extend_from_slice(&sub);
+    w.into_iter().flat_map(u16::to_be_bytes).collect()
+}
+
+/// Builds `lookup_data` as a GSUB lookup and applies it to `glyphs` (each made
+/// default-ignorable, so the skipping iterator skips rather than stops) through
+/// the production apply_string() path, with a realistic `Buffer::enter()`
+/// allowance. Returns the buffer for `max_ops`/`successful` inspection.
+fn apply_string_ignorables(lookup_data: &[u8], glyphs: &[u32]) -> Buffer {
+    let lookup = build_lookup_at(
+        FontData::new(lookup_data),
+        0,
+        true,
+        &Budget::new(1 << 20, 16 << 20),
+    )
+    .unwrap();
+    let layout = LayoutData {
+        ot: &EMPTY_OT_DATA,
+        aat: &EMPTY_AAT_DATA,
+        units_per_em: 1000,
+        apply_trak: false,
+    };
+    let mut buffer = Buffer::new();
+    assert!(buffer.set_length(glyphs.len()));
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.allocate_gsubgpos_vars();
+    for (info, glyph) in buffer.glyph_infos_mut().iter_mut().zip(glyphs) {
+        info.glyph_id = *glyph;
+        info.mask = 1;
+        info._set_default_ignorable();
+    }
+    buffer.enter();
+    #[cfg(feature = "tracing")]
+    let font = Font::new(
+        include_bytes!("../../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
+        0,
+    )
+    .unwrap();
+    #[cfg(feature = "tracing")]
+    let shaper_font = crate::ShaperFont::new(&font);
+    let mut ctx = ApplyContext::new(
+        LayoutTableKind::Gsub,
+        layout,
+        Scale::default(),
+        &mut buffer,
+        #[cfg(feature = "tracing")]
+        &shaper_font,
+    );
+    crate::ot::layout::apply_string_for_test::<crate::ot::GsubTable>(&mut ctx, &lookup);
+    buffer
+}
+
+#[test]
+fn skip_walk_exhaustion_stops_forward_matching() {
+    // 256 aliased ligatures, each walking 64 default-ignorables per position,
+    // would spend ~500k ops; the allowance is 65536. The skip charge must stop
+    // the retries, not merely decrement past zero.
+    let data = aliased_skip_ligature(256, 2);
+    let buffer = apply_string_ignorables(&data, &[1; 64]);
+    assert!(!buffer.successful, "buffer should be marked unsuccessful");
+    assert!(buffer.max_ops < 0, "budget should be spent");
+    assert!(
+        buffer.max_ops > -4096,
+        "enforcement should stop a bounded step past zero, not millions: {}",
+        buffer.max_ops
+    );
+}
+
+#[test]
+fn skip_walk_exhaustion_stops_reverse_matching() {
+    // 256 aliased reverse subtables each walk the backtrack for an absent glyph.
+    let data = aliased_reverse_backtrack(256, 2);
+    let buffer = apply_string_ignorables(&data, &[1; 64]);
+    assert!(!buffer.successful, "buffer should be marked unsuccessful");
+    assert!(buffer.max_ops < 0, "budget should be spent");
+    assert!(
+        buffer.max_ops > -4096,
+        "reverse enforcement should stop a bounded step past zero: {}",
+        buffer.max_ops
+    );
+}
+
+/// Applies `lookup_data` to a buffer of `prefix` glyph-1s followed by the input
+/// pair (glyphs 10, 11), all carrying ligature props of one base so that the
+/// ligature-base walk in `match_input` scans the whole prefix for each
+/// candidate. The two input glyphs belong to different components, so every
+/// candidate walks the prefix and then rejects the match.
+fn apply_string_ligbase(lookup_data: &[u8], prefix: usize) -> Buffer {
+    let lookup = build_lookup_at(
+        FontData::new(lookup_data),
+        0,
+        true,
+        &Budget::new(1 << 20, 16 << 20),
+    )
+    .unwrap();
+    let layout = LayoutData {
+        ot: &EMPTY_OT_DATA,
+        aat: &EMPTY_AAT_DATA,
+        units_per_em: 1000,
+        apply_trak: false,
+    };
+    let mut glyphs: Vec<u32> = vec![1; prefix];
+    glyphs.push(10);
+    glyphs.push(11);
+    let mut buffer = Buffer::new();
+    assert!(buffer.set_length(glyphs.len()));
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.allocate_gsubgpos_vars();
+    let last = glyphs.len() - 1;
+    for (i, (info, glyph)) in buffer.glyph_infos_mut().iter_mut().zip(&glyphs).enumerate() {
+        info.glyph_id = *glyph;
+        info.mask = 1;
+        // One ligature base: the prefix and the first input glyph are component
+        // 1 (non-zero, so the walk never finds the base and scans to the start);
+        // the second input glyph is component 2, which triggers the walk.
+        let comp = if i == last { 2 } else { 1 };
+        info.set_lig_props_for_mark(1, comp);
+    }
+    buffer.enter();
+    #[cfg(feature = "tracing")]
+    let font = Font::new(
+        include_bytes!("../../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
+        0,
+    )
+    .unwrap();
+    #[cfg(feature = "tracing")]
+    let shaper_font = crate::ShaperFont::new(&font);
+    let mut ctx = ApplyContext::new(
+        LayoutTableKind::Gsub,
+        layout,
+        Scale::default(),
+        &mut buffer,
+        #[cfg(feature = "tracing")]
+        &shaper_font,
+    );
+    crate::ot::layout::apply_string_for_test::<crate::ot::GsubTable>(&mut ctx, &lookup);
+    buffer
+}
+
+#[test]
+fn ligature_base_walk_exhaustion_stops_candidate_retries() {
+    // 8192 aliased ligatures each re-scan the 32-glyph prefix, ~262k ops; the
+    // allowance is ~139k. The ligature-base charge must stop the retries.
+    let data = aliased_ligature(8192, 10, 11);
+    let buffer = apply_string_ligbase(&data, 32);
+    assert!(!buffer.successful, "buffer should be marked unsuccessful");
+    assert!(buffer.max_ops < 0, "budget should be spent");
+    assert!(
+        buffer.max_ops > -4096,
+        "enforcement should stop a bounded step past zero, not hundreds of thousands: {}",
+        buffer.max_ops
+    );
+}
+
+/// A ChainedSequenceContextFormat3 subtable: no backtrack, one input coverage
+/// (glyph 1), one lookahead coverage (`lookahead`), no records. Matching scans
+/// the lookahead for `lookahead` via the skipping iterator. This path uses no
+/// per-rule entry guard, so only the shared subtable loop bounds its repetition.
+fn chain_context3_subtable(lookahead: u16) -> Vec<u8> {
+    let w: Vec<u16> = vec![3, 0, 1, 14, 1, 20, 0, 1, 1, 1, 1, 1, lookahead];
+    w.into_iter().flat_map(u16::to_be_bytes).collect()
+}
+
+/// A lookup of `lookup_type` whose `count` offsets all alias `subtable`, so the
+/// shared subtable loop runs the same scan `count` times.
+fn aliased_subtables(lookup_type: u16, count: u16, subtable: &[u8]) -> Vec<u8> {
+    let mut w: Vec<u16> = vec![lookup_type, 0, count];
+    let sub_offset = ((3 + usize::from(count)) * 2) as u16;
+    w.resize(w.len() + usize::from(count), sub_offset);
+    let mut bytes: Vec<u8> = w.into_iter().flat_map(u16::to_be_bytes).collect();
+    bytes.extend_from_slice(subtable);
+    bytes
+}
+
+#[test]
+fn subtable_retry_stops_at_shared_guard() {
+    // 16384 aliased chain-context format-3 subtables: each rescans the
+    // lookahead for the absent glyph 2. No per-rule guard covers this path, so
+    // only the shared subtable loop bounds the repetition.
+    let data = aliased_subtables(6, 16384, &chain_context3_subtable(2));
+    let buffer = apply_string_ignorables(&data, &[1; 513]);
+    assert!(!buffer.successful, "buffer should be marked unsuccessful");
+    assert!(
+        buffer.max_ops < 0 && buffer.max_ops > -4096,
+        "shared-loop guard should stop a bounded step past zero: {}",
+        buffer.max_ops
+    );
+}
