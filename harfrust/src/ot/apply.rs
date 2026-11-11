@@ -127,11 +127,8 @@ pub fn match_input(
                         }
                     }
 
-                    // The walk covers every glyph of the ligature, and each
-                    // match attempt repeats it, so it is charged.
-                    if !iter.buffer.charge_ops(iter.buffer.out_len - j) {
-                        return None;
-                    }
+                    // Charge the walk; it repeats for every match attempt.
+                    iter.buffer.spend_ops(iter.buffer.out_len - j);
                     let out = iter.buffer.out_info();
 
                     ligbase = if found
@@ -455,11 +452,12 @@ where
                     }
                     return false;
                 }
-                // Only skipping charges, one unit after the match check, so a
-                // first-try match does no extra work while repeated skip walks
-                // over default-ignorables exhaust the budget.
+                // Only skipping charges, so a first-try match does no extra
+                // work. The decrement is branchless and never early-returns, so
+                // `unsafe_to` is always set by the loop's normal exit; the
+                // callers that loop stop repeated walks once `successful` clears.
                 MatchResult::Skip => {
-                    self.buffer.max_ops -= 1;
+                    self.buffer.spend_ops(1);
                     continue;
                 }
             }
@@ -507,7 +505,7 @@ where
                 }
                 // Only skipping charges, as in next().
                 MatchResult::Skip => {
-                    self.buffer.max_ops -= 1;
+                    self.buffer.spend_ops(1);
                     continue;
                 }
             }

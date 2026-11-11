@@ -815,6 +815,9 @@ impl<'a, const W: usize> ParsedRule<'a, W> {
         ctx: &mut ApplyContext,
         matchers: &ChainMatchers<impl Matcher, impl Matcher, impl Matcher>,
     ) -> Option<()> {
+        if !ctx.buffer.successful {
+            return None;
+        }
         let mut end_index = ctx.buffer.idx;
         let mut match_end = 0;
         if !match_input(

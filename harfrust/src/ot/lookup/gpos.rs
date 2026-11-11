@@ -1214,6 +1214,9 @@ fn find_mark_base(
     accept: fn(&Buffer, usize) -> Option<bool>,
     coverage: &Coverage,
 ) -> Option<usize> {
+    if !ctx.buffer.successful {
+        return None;
+    }
     if ctx.last_base_until > ctx.buffer.idx as u32 {
         ctx.last_base_until = 0;
         ctx.last_base = -1;

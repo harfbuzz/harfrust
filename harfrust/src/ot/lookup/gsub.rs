@@ -535,6 +535,9 @@ fn apply_ligature_set<const W: usize>(
 }
 
 fn apply_ligature<const W: usize>(ctx: &mut ApplyContext, ligature: &Ligature<W>) -> Option<()> {
+    if !ctx.buffer.successful {
+        return None;
+    }
     let components = &ligature.components;
     let ligature_glyph = ligature.glyph.into();
     // A ligature of one glyph is an in-place replacement, not a ligation.
@@ -651,6 +654,9 @@ impl<'a> ReverseChainSubst1<'a> {
     }
 
     pub fn apply(&self, ctx: &mut ApplyContext, index: u32) -> Option<()> {
+        if !ctx.buffer.successful {
+            return None;
+        }
         // Reverse chaining lookups can't be nested.
         if ctx.nesting_level_left != MAX_NESTING_LEVEL {
             return None;

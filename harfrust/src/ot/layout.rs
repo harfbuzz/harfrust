@@ -290,6 +290,16 @@ pub fn apply_layout_table<T: LayoutTable>(
     }
 }
 
+/// Test-only access to the production per-pass entry, so budget-exhaustion
+/// regression tests exercise the real `apply_forward`/`apply_backward` loops.
+#[cfg(test)]
+pub(crate) fn apply_string_for_test<T: LayoutTable>(
+    ctx: &mut ApplyContext,
+    lookup: &CachedLookup,
+) -> bool {
+    apply_string::<T>(ctx, lookup)
+}
+
 fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     if ctx.buffer.is_empty() || ctx.lookup_mask() == 0 {
         return false;
@@ -424,6 +434,10 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
 
         ctx.buffer.idx = idx;
         ret |= lookup.apply(ctx, false).is_some();
+
+        if !ctx.buffer.successful {
+            break;
+        }
 
         if idx == 0 {
             break;

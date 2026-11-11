@@ -2282,6 +2282,17 @@ impl Buffer {
         true
     }
 
+    /// Charge `count` ops branch-free, flagging the buffer unsuccessful once
+    /// the budget is spent. Unlike [`charge_ops`](Self::charge_ops) it never
+    /// early-exits, so the hot matching loops stay branchless; the loops that
+    /// repeat walks check `successful` to stop.
+    #[inline(always)]
+    pub(crate) fn spend_ops(&mut self, count: usize) {
+        let count = i32::try_from(count).unwrap_or(i32::MAX);
+        self.max_ops = self.max_ops.saturating_sub(count);
+        self.successful &= self.max_ops >= 0;
+    }
+
     // Called around shape()
     pub(crate) fn enter(&mut self) {
         self.serial = 0;
