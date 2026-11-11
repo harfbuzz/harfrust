@@ -500,6 +500,347 @@ mod tests {
         assert_eq!(lookup.subtables.len(), 3800);
     }
 
+    /// A ChainContextFormat1 lookup on glyph 1 whose one rule set lists
+    /// `rule_count` offsets to a single rule with one input glyph and a
+    /// lookahead of `lookahead_len` glyphs.
+    fn aliased_chain_rules(rule_count: u16, lookahead_len: u16) -> Vec<u8> {
+        let rule_offset = 2 + 2 * rule_count;
+        let mut words = alloc::vec![6, 0, 1, 8]; // Lookup.
+        words.extend_from_slice(&[1, 8, 1, 14, 1, 1, 1]); // Subtable, coverage.
+        words.push(rule_count);
+        words.resize(words.len() + usize::from(rule_count), rule_offset);
+        words.extend_from_slice(&[0, 1, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), 1);
+        words.push(0);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn aliased_chain_rules_are_charged_by_their_length() {
+        // HarfBuzz's sanitizer charges the arrays of every chain rule it
+        // visits, so many offsets to one long rule exhaust its budget.
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_chain_rules(1, 2000);
+        assert!(build_lookup_at(FontData::new(&data), 0, true, &budget).is_ok());
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_chain_rules(1000, 2000);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    #[test]
+    fn a_readable_first_rule_does_not_exempt_later_rules() {
+        // The first rule set offset points to an appended, valid chain rule
+        // with one input glyph and no lookahead. The glyph digest gives up
+        // on it (no second glyph), which must not stop the remaining aliased
+        // rules from being charged.
+        let mut data = aliased_chain_rules(1000, 2000);
+        let rule_offset = (data.len() - 22) as u16; // The rule set is at byte 22.
+        data[24..26].copy_from_slice(&rule_offset.to_be_bytes());
+        data.extend([1u16, 2, 1, 0, 0].into_iter().flat_map(u16::to_be_bytes));
+        let budget = Budget::new(1 << 20, 1 << 20);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    #[test]
+    fn an_unreadable_first_rule_does_not_exempt_later_rules() {
+        // An unreadable first rule used to abort the charging walk; the
+        // remaining readable aliased rules must still be charged.
+        let mut data = aliased_chain_rules(1000, 2000);
+        data[24..26].copy_from_slice(&u16::MAX.to_be_bytes());
+        let budget = Budget::new(1 << 20, 1 << 20);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    /// A ChainContextFormat2 lookup on glyph 1 with no input class
+    /// definition, whose one rule set lists `rule_count` offsets to a single
+    /// class rule with a lookahead of `lookahead_len` classes.
+    fn aliased_class_chain_rules(rule_count: u16, lookahead_len: u16) -> Vec<u8> {
+        // Lookup.
+        let mut words = alloc::vec![6u16, 0, 1, 8];
+        // Format 2 subtable: coverage at 14, no class defs, rule set at 20.
+        words.extend_from_slice(&[2, 14, 0, 0, 0, 1, 20]);
+        // Coverage of glyph 1.
+        words.extend_from_slice(&[1, 1, 1]);
+        let rule_offset = 2 + 2 * rule_count;
+        words.push(rule_count);
+        words.resize(words.len() + usize::from(rule_count), rule_offset);
+        words.extend_from_slice(&[0, 1, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), 1);
+        words.push(0);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn absent_input_classes_do_not_exempt_the_rules() {
+        // A missing input class definition makes the class digest give up at
+        // once, before it walks any rule. The rules must be charged anyway.
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_class_chain_rules(1, 2000);
+        assert!(build_lookup_at(FontData::new(&data), 0, true, &budget).is_ok());
+        let budget = Budget::new(1 << 20, 1 << 20);
+        let data = aliased_class_chain_rules(1000, 2000);
+        assert!(matches!(
+            build_lookup_at(FontData::new(&data), 0, true, &budget),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    /// A contextual lookup with a one-glyph input and records whose
+    /// sequence indices fall outside that input. No record reaches the
+    /// runtime recursion charge, so construction must account for them.
+    fn context_with_skipped_records(chained: bool, format: u16, count: u16) -> Vec<u8> {
+        let mut words = alloc::vec![if chained { 6 } else { 5 }, 0, 1, 8];
+        match (chained, format) {
+            (_, 1) => words.extend_from_slice(&[1, 8, 1, 14]),
+            (false, 2) => words.extend_from_slice(&[2, 10, 0, 1, 16]),
+            (true, 2) => words.extend_from_slice(&[2, 14, 0, 0, 0, 1, 20]),
+            (false, 3) => words.extend_from_slice(&[3, 1, count, 8 + 4 * count]),
+            (true, 3) => words.extend_from_slice(&[3, 0, 1, 12 + 4 * count, 0, count]),
+            _ => unreachable!(),
+        }
+        if format != 3 {
+            words.extend_from_slice(&[1, 1, 1]); // Coverage of glyph 1.
+            words.extend_from_slice(&[1, 4]); // One rule at offset 4.
+            if chained {
+                words.extend_from_slice(&[0, 1, 0, count]);
+            } else {
+                words.extend_from_slice(&[1, count]);
+            }
+        }
+        for _ in 0..count {
+            words.extend_from_slice(&[1, 0]);
+        }
+        if format == 3 {
+            words.extend_from_slice(&[1, 1, 1]); // Input coverage.
+        }
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn context_lookup_records_are_charged_on_every_build() {
+        for chained in [false, true] {
+            for format in 1..=3 {
+                for is_subst in [false, true] {
+                    let mut data = context_with_skipped_records(chained, format, 1000);
+                    if !is_subst {
+                        // GPOS context lookup types are two above GSUB's.
+                        data[1] += 2;
+                    }
+                    let budget = Budget::new(1 << 20, usize::MAX);
+                    let lookup =
+                        build_lookup_at(FontData::new(&data), 0, is_subst, &budget).unwrap();
+                    assert_eq!(lookup.subtables.len(), 1);
+                    // Distinct lookup-list entries can alias this lookup.
+                    // One build fits; 4 MB of repeated record visits don't.
+                    let exhausted = (1..1000).any(|_| {
+                        matches!(
+                            build_lookup_at(FontData::new(&data), 0, is_subst, &budget),
+                            Err(BuildError::Exhausted)
+                        )
+                    });
+                    assert!(
+                        exhausted,
+                        "chained={chained}, format={format}, subst={is_subst}"
+                    );
+                    assert!(budget.remaining().0 < 8192);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn plain_context_input_arrays_are_charged() {
+        // Many rule offsets alias one long input, with no lookup records.
+        let rule_count = 1000u16;
+        let input_count = 2000u16;
+        let mut words = alloc::vec![5, 0, 1, 8, 1, 8, 1, 14, 1, 1, 1];
+        words.push(rule_count);
+        words.resize(words.len() + usize::from(rule_count), 2 + 2 * rule_count);
+        words.extend_from_slice(&[input_count, 0]);
+        words.resize(words.len() + usize::from(input_count - 1), 1);
+        let data: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::new(1 << 20, 1 << 20)
+            ),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    /// A GSUB ChainContextFormat3 lookup whose `subtable_count` offsets all
+    /// alias one subtable with a one-glyph input and `lookahead_len`
+    /// lookahead coverage offsets, all aliasing one coverage (glyph 1).
+    fn aliased_lookahead_context(subtable_count: u16, lookahead_len: u16) -> Vec<u8> {
+        let subtable_offset = 6 + 2 * subtable_count;
+        let mut words = alloc::vec![6u16, 0, subtable_count];
+        words.resize(words.len() + usize::from(subtable_count), subtable_offset);
+        // Format 3: no backtrack, one input, `lookahead_len` lookahead, no
+        // records. One coverage follows at `cov_offset`.
+        let cov_offset = 12 + 2 * lookahead_len;
+        words.extend_from_slice(&[3, 0, 1, cov_offset, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), cov_offset);
+        words.push(0);
+        words.extend_from_slice(&[1, 1, 1]);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    /// A GSUB ReverseChainSingleSubstFormat1 lookup whose `subtable_count`
+    /// offsets all alias one subtable with no backtrack, `lookahead_len`
+    /// lookahead coverage offsets aliasing one coverage (glyph 1), and one
+    /// substitute.
+    fn aliased_lookahead_reverse(subtable_count: u16, lookahead_len: u16) -> Vec<u8> {
+        let subtable_offset = 6 + 2 * subtable_count;
+        let mut words = alloc::vec![8u16, 0, subtable_count];
+        words.resize(words.len() + usize::from(subtable_count), subtable_offset);
+        let cov_offset = 12 + 2 * lookahead_len;
+        words.extend_from_slice(&[1, cov_offset, 0, lookahead_len]);
+        words.resize(words.len() + usize::from(lookahead_len), cov_offset);
+        words.extend_from_slice(&[1, 2]); // One substitute glyph.
+        words.extend_from_slice(&[1, 1, 1]); // Coverage of glyph 1.
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn long_coverage_arrays_are_charged_even_when_read_lazily() {
+        // One subtable with a long lookahead is accepted and retained, which
+        // also confirms the bytes reach the lazy-coverage path.
+        for data in [
+            aliased_lookahead_context(1, 2000),
+            aliased_lookahead_reverse(1, 2000),
+        ] {
+            let budget = Budget::for_table_bytes(data.len());
+            let lookup = build_lookup_at(FontData::new(&data), 0, true, &budget).unwrap();
+            assert_eq!(lookup.subtables.len(), 1);
+        }
+        // Thousands of subtables aliasing that lookahead overrun the budget,
+        // although the array is read lazily and never cached.
+        for data in [
+            aliased_lookahead_context(3000, 2000),
+            aliased_lookahead_reverse(3000, 2000),
+        ] {
+            assert!(matches!(
+                build_lookup_at(
+                    FontData::new(&data),
+                    0,
+                    true,
+                    &Budget::for_table_bytes(data.len())
+                ),
+                Err(BuildError::Exhausted)
+            ));
+        }
+    }
+
+    /// A GSUB ligature lookup whose `set_count` offsets all alias one set,
+    /// whose `ligature_count` offsets all alias one ligature of
+    /// `component_count` glyphs.
+    fn aliased_ligature_components(
+        set_count: u16,
+        ligature_count: u16,
+        component_count: u16,
+    ) -> Vec<u8> {
+        // Lookup, subtable header and set offsets.
+        let mut words = alloc::vec![4u16, 0, 1, 8, 1, 0, set_count];
+        let offsets_start = words.len();
+        words.resize(offsets_start + usize::from(set_count), 0);
+        // A range coverage avoids a large glyph array.
+        words[5] = (words.len() * 2 - 8) as u16;
+        words.extend_from_slice(&[2, 1, 1, set_count, 0]);
+        // One ligature set whose offsets all alias one ligature. Ligature
+        // offsets are relative to the set, not the subtable.
+        let set_offset = (words.len() * 2 - 8) as u16;
+        words.push(ligature_count);
+        let ligature_offset = 2 + 2 * ligature_count;
+        words.resize(words.len() + usize::from(ligature_count), ligature_offset);
+        // The ligature: its glyph, its count, and `component_count - 1`
+        // stored components.
+        words.extend_from_slice(&[9, component_count]);
+        words.resize(words.len() + usize::from(component_count - 1), 1);
+        words[offsets_start..offsets_start + usize::from(set_count)].fill(set_offset);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn aliased_ligature_components_are_charged() {
+        // A single long ligature is accepted, confirming the build path and
+        // that one legitimate ligature is not over-charged.
+        let data = aliased_ligature_components(1, 1, 64);
+        let budget = Budget::for_table_bytes(data.len());
+        let lookup = build_lookup_at(FontData::new(&data), 0, true, &budget).unwrap();
+        assert_eq!(lookup.subtables.len(), 1);
+        // Thousands of sets aliasing one set whose offsets all alias one long
+        // ligature overrun the budget, although the set and offset counts
+        // alone would not.
+        let data = aliased_ligature_components(1000, 1000, 64);
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len())
+            ),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
+    #[test]
+    fn a_singleton_ligature_does_not_exempt_later_sets() {
+        let set_count = 2000u16;
+        let ligature_count = 3000u16;
+        // Lookup, subtable header and set offsets.
+        let mut words = alloc::vec![4, 0, 1, 8, 1, 0, set_count];
+        let offsets_start = words.len();
+        words.resize(offsets_start + usize::from(set_count), 0);
+        // A range coverage avoids a large glyph array.
+        words[5] = (words.len() * 2 - 8) as u16;
+        words.extend_from_slice(&[2, 1, 1, set_count, 0]);
+        let singleton_offset = (words.len() * 2 - 8) as u16;
+        words.extend_from_slice(&[1, 4, 3, 1]); // Set and singleton ligature.
+        let large_set_offset = (words.len() * 2 - 8) as u16;
+        words.push(ligature_count);
+        words.resize(
+            words.len() + usize::from(ligature_count),
+            2 + 2 * ligature_count,
+        );
+        words.extend_from_slice(&[3, 3, 2, 3]); // A three-component ligature.
+        words[offsets_start..offsets_start + usize::from(set_count)].fill(large_set_offset);
+        let mut data: Vec<_> = words.into_iter().flat_map(u16::to_be_bytes).collect();
+
+        // Control: all sets are large, so the existing walk exhausts its budget.
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len())
+            ),
+            Err(BuildError::Exhausted)
+        ));
+        // Giving up on the digest in the first set must not bypass that work.
+        data[offsets_start * 2..offsets_start * 2 + 2]
+            .copy_from_slice(&singleton_offset.to_be_bytes());
+        assert!(matches!(
+            build_lookup_at(
+                FontData::new(&data),
+                0,
+                true,
+                &Budget::for_table_bytes(data.len())
+            ),
+            Err(BuildError::Exhausted)
+        ));
+    }
+
     #[test]
     fn malformed_subtables_do_not_abort_a_lookup() {
         let mut data = repeated_single_subst(2);

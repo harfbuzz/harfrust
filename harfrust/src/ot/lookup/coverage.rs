@@ -30,10 +30,18 @@ impl Default for CoverageArray<'_> {
 
 impl<'a> CoverageArray<'a> {
     pub fn new(offsets: Offsets<'a>, budget: &Budget) -> Result<Self, Exhausted> {
+        // Charge the offset array whether or not it is cached. The matchers
+        // walk it either way, and `match_lookahead`/`match_backtrack` are not
+        // bounded by `MAX_CONTEXT_LENGTH` (only the input is), so a long
+        // lookahead or backtrack aliased across subtables would otherwise be
+        // walked at every covered glyph for free. HarfBuzz sanitizes these
+        // arrays regardless of caching; keeping the charge here makes the
+        // accounting independent of the eager/lazy storage decision, without
+        // allocating an eager cache for long arrays.
+        budget.work(offsets.len())?;
         if offsets.len() > MAX_CONTEXT_LENGTH {
             return Ok(Self::Uncached(offsets));
         }
-        budget.work(offsets.len())?;
         budget.alloc::<Coverage>(offsets.len())?;
         Ok(Self::Cached(
             (0..offsets.len())
@@ -493,6 +501,30 @@ mod tests {
             }
             assert_eq!(coverages.get(3).get(42u32), Some(0));
         }
+    }
+
+    #[test]
+    fn long_arrays_are_charged_before_being_left_uncached() {
+        // An array longer than MAX_CONTEXT_LENGTH is read on demand, but the
+        // matchers still walk it, so building it must charge its length even
+        // though it is never cached.
+        let count = MAX_CONTEXT_LENGTH + 1;
+        let tables = [0, 1, 0, 1, 0, 42];
+        let offsets = alloc::vec![Some(0); count];
+        let bytes = offsets_then(&offsets, &tables);
+        // One unit short of the offset count is not enough.
+        let offsets = Offsets::new(FontData::new(&bytes), 0..count * 2, 2);
+        assert!(matches!(
+            CoverageArray::new(offsets, &Budget::new(count - 1, usize::MAX)),
+            Err(Exhausted)
+        ));
+        // With exactly the offset count it stays uncached, spending the work
+        // allowance but allocating nothing from the byte allowance.
+        let budget = Budget::new(count, 0);
+        let offsets = Offsets::new(FontData::new(&bytes), 0..count * 2, 2);
+        let coverages = CoverageArray::new(offsets, &budget).unwrap();
+        assert!(matches!(coverages, CoverageArray::Uncached(_)));
+        assert_eq!(budget.remaining(), (0, 0));
     }
 
     #[test]

@@ -414,9 +414,6 @@ impl IndicWouldSubstituteFeature {
                 zero_context: self.zero_context,
                 max_ops,
             };
-            if !ctx.charge(1) {
-                return false;
-            }
             if ot
                 .lookup(LayoutTableKind::Gsub, lookup.index)
                 .is_some_and(|lookup| lookup.would_apply(&ctx) == Some(true))

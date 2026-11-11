@@ -80,15 +80,59 @@ fn rule_set<'a>(sets: &RuleSets<'a>, index: usize, layout: RuleLayout) -> Option
     Rules::read(sets.data(index)?, layout)
 }
 
+/// Charges every rule of every rule set in `sets` to `budget`, as the
+/// lookup is built, so that a lookup whose rule offsets alias one long rule
+/// is discarded here rather than walked at every glyph.
+///
+/// HarfRust has no sanitize pass, so this stands in for HarfBuzz's rule
+/// sanitizers. `ChainRule::sanitize()` charges its backtrack, input and
+/// lookahead arrays through `check_ops` (harfbuzz/harfbuzz#6507), and its
+/// lookup records through the array sanitizer. Plain `Rule::sanitize()`
+/// charges both its input and lookup-record arrays through `check_range`.
+///
+/// Unlike digest construction, this walk is unconditional: it visits and
+/// pays for every set and rule, so no early exit — a digest giving up, an
+/// absent class definition, or an unreadable rule — can leave a retained
+/// rule uncharged. It charges each offset it visits before following it, so
+/// the walk itself stays bounded.
+fn charge_rules<const W: usize>(
+    sets: &RuleSets,
+    layout: RuleLayout,
+    budget: &Budget,
+) -> Result<(), Exhausted> {
+    budget.work(sets.len())?;
+    for index in 0..sets.len() {
+        if sets.is_null(index) {
+            continue;
+        }
+        let Some(rules) = rule_set(sets, index, layout) else {
+            continue;
+        };
+        budget.work(rules.len())?;
+        for index in 0..rules.len() {
+            if let Some(rule) = rules
+                .rule(index)
+                .and_then(|data| ParsedRule::<W>::try_parse(data, layout))
+            {
+                budget.work(rule.byte_len())?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Calls `f` with each rule of each rule set present in `sets`, stopping
-/// with `None` at one that can't be read.
+/// with `None` at one that can't be read or at which `f` returns `None`.
+///
+/// This builds digests only; it charges no budget. Every caller runs
+/// [`charge_rules`] first, which walks the same rules and pays for them, so
+/// stopping early here — at an unreadable rule or a digest that gives up —
+/// never leaves a retained rule uncharged.
 fn for_each_rule<'a, const W: usize>(
     sets: &RuleSets<'a>,
     layout: RuleLayout,
-    budget: &Budget,
     mut f: impl FnMut(ParsedRule<'a, W>) -> Result<Option<()>, Exhausted>,
 ) -> Result<Option<()>, Exhausted> {
-    budget.work(sets.len())?;
     for index in 0..sets.len() {
         if sets.is_null(index) {
             continue;
@@ -96,7 +140,6 @@ fn for_each_rule<'a, const W: usize>(
         let Some(rules) = rule_set(sets, index, layout) else {
             return Ok(None);
         };
-        budget.work(rules.len())?;
         for index in 0..rules.len() {
             let Some(rule) = rules
                 .rule(index)
@@ -239,8 +282,9 @@ fn glyph_seconds<const W: usize>(
     layout: RuleLayout,
     budget: &Budget,
 ) -> Result<SetDigest, Exhausted> {
+    charge_rules::<W>(sets, layout, budget)?;
     let mut digest = SetDigest::new();
-    let valid = for_each_rule::<W>(sets, layout, budget, |rule| {
+    let valid = for_each_rule::<W>(sets, layout, |rule| {
         let Some(second) = rule.input.first().or_else(|| rule.lookahead.first()) else {
             return Ok(None);
         };
@@ -441,12 +485,15 @@ impl<'a> SubtableDigests<'a> for ChainContext2<'a> {
     const CACHES_COVERAGE: bool = true;
 
     fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
+        // Charge the rules before any digest early-out, including the
+        // absent-input-class return below, so none goes uncharged.
+        charge_rules::<CLASS>(&self.rule_sets, self.layout, budget)?;
         let (input, lookahead) = (&self.input, &self.lookahead);
         if input.is_none() {
             return Ok(SetDigest::full());
         }
         let mut digest = SetDigest::new();
-        let valid = for_each_rule::<CLASS>(&self.rule_sets, self.layout, budget, |rule| {
+        let valid = for_each_rule::<CLASS>(&self.rule_sets, self.layout, |rule| {
             if let Some(second) = rule.input.first() {
                 input.add_class_to(&mut digest, second, budget)?;
             } else {
@@ -484,6 +531,7 @@ impl<'a> ChainContext3<'a> {
     ) -> Result<Self, Exhausted> {
         let data = table.offset_data();
         let narrow = NARROW.into();
+        budget.work(table.seq_lookup_records().len() * SequenceLookupRecord::RAW_BYTE_LEN)?;
         Ok(Self {
             inputs: CoverageArray::new(
                 Offsets::after_first(data, table.input_coverage_offsets_byte_range(), narrow),
@@ -525,6 +573,7 @@ impl<'a> ChainContext3<'a> {
         records: &'a [SequenceLookupRecord],
         budget: &Budget,
     ) -> Result<Self, Exhausted> {
+        budget.work(records.len() * SequenceLookupRecord::RAW_BYTE_LEN)?;
         Ok(Self {
             inputs: CoverageArray::new(inputs, budget)?,
             backtrack: CoverageArray::default(),
@@ -701,6 +750,16 @@ struct ParsedRule<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> ParsedRule<'a, W> {
+    /// The rule's byte span, including its counts and lookup records.
+    /// Charge every array, even when its records have out-of-range sequence
+    /// indices and will never reach the runtime recursion charge.
+    fn byte_len(&self) -> usize {
+        let counts = if self.chained { 8 } else { 4 };
+        counts
+            + (self.backtrack.len() + self.input.len() + self.lookahead.len()) * W
+            + self.records.len() * SequenceLookupRecord::RAW_BYTE_LEN
+    }
+
     /// Parses a rule; an unreadable one is empty.
     fn parse(data: FontData<'a>, layout: RuleLayout) -> Self {
         Self::try_parse(data, layout).unwrap_or_else(|| Self {
@@ -1033,32 +1092,14 @@ fn apply_chain_rules<const W: usize>(
         Prematch::Glyphs(lookahead) => lookahead,
         Prematch::Rejected => return None,
         Prematch::TryAll => {
-            // The rules may alias, so each one tried is charged.
-            for index in 0..rules.len() {
-                if !ctx.buffer.charge_ops(1) {
-                    break;
-                }
-                let Some(data) = rules.rule(index) else {
-                    continue;
-                };
-                if let Some(applied) =
-                    ParsedRule::<W>::parse(data, rules.layout).apply(ctx, matchers)
-                {
-                    return Some(applied);
-                }
-            }
-            return None;
+            return (0..rules.len())
+                .filter_map(|index| rules.rule(index))
+                .find_map(|data| ParsedRule::<W>::parse(data, rules.layout).apply(ctx, matchers));
         }
         Prematch::End { unsafe_to } => {
             // Only rules without further input or lookahead can match.
             let mut unsafe_to_concat = false;
-            for index in 0..rules.len() {
-                if !ctx.buffer.charge_ops(1) {
-                    break;
-                }
-                let Some(data) = rules.rule(index) else {
-                    continue;
-                };
+            for data in (0..rules.len()).filter_map(|index| rules.rule(index)) {
                 let rule = ParsedRule::<W>::parse(data, rules.layout);
                 if !rule.input.is_empty() || !rule.lookahead.is_empty() {
                     unsafe_to_concat = true;
@@ -1072,12 +1113,6 @@ fn apply_chain_rules<const W: usize>(
     let mut unsafe_to = None;
     let mut index = 0;
     while index < rules.len() {
-        // Rule sets may alias their rules, so the font's size doesn't bound
-        // the walk: each rule looked at is charged, including the ones that
-        // fail the pre-match.
-        if !ctx.buffer.charge_ops(1) {
-            break;
-        }
         let Some(data) = rules.rule(index) else {
             index += 1;
             continue;
@@ -1131,11 +1166,7 @@ fn apply_chain_rules<const W: usize>(
         } else {
             unsafe_to.get_or_insert(lookahead.unsafe_to1);
             index = match (input_len > 1).then(|| probe.input(0)).flatten() {
-                Some(first) => {
-                    let next = skip_rules::<W>(rules, index, first);
-                    ctx.buffer.charge_ops(next - index - 1);
-                    next
-                }
+                Some(first) => skip_rules::<W>(rules, index, first),
                 None => index + 1,
             };
         }

@@ -813,30 +813,29 @@ fn variation_deltas_are_charged_to_max_ops() {
         )
     };
 
-    // Three variation deltas cost 30 operations, two lookup applications
-    // cost two, and the cursive backward match visits one glyph.
-    let cursive_ops = 33;
-    let output = apply(0, &[1, 2], cursive_ops);
+    // Three variation deltas cost 30 operations, and marking the pair unsafe
+    // to break two more.
+    let output = apply(0, &[1, 2], 32);
     assert!(output.successful);
     assert_eq!(output.max_ops, 0);
     assert_eq!(output.glyph_positions()[0].x_advance, 740);
     assert_eq!(output.glyph_positions()[1].x_offset, -660);
     assert_eq!(output.glyph_positions()[1].y_offset, 680);
     assert_eq!(output.glyph_positions()[1].attach_chain(), -1);
-    // One operation short fails shaping before the positions change.
-    let output = apply(0, &[1, 2], cursive_ops - 1);
+    // One operation short fails shaping after the attachment.
+    assert!(!apply(0, &[1, 2], 31).successful);
+    // Short of the deltas, it fails before the positions change.
+    let output = apply(0, &[1, 2], 29);
     assert!(!output.successful);
     assert_eq!(output.glyph_positions()[0].x_advance, 0);
     assert_eq!(output.glyph_positions()[1].attach_chain(), 0);
 
-    // Two deltas cost 20 operations, plus one lookup application.
-    let single_ops = 21;
-    let output = apply(1, &[1], single_ops);
+    let output = apply(1, &[1], 20);
     assert!(output.successful);
     assert_eq!(output.max_ops, 0);
     assert_eq!(output.glyph_positions()[0].x_offset, 640);
     assert_eq!(output.glyph_positions()[0].y_offset, 640);
-    let output = apply(1, &[1], single_ops - 1);
+    let output = apply(1, &[1], 19);
     assert!(!output.successful);
     assert_eq!(output.glyph_positions()[0].x_offset, 640);
     assert_eq!(output.glyph_positions()[0].y_offset, 0);
@@ -1255,23 +1254,6 @@ fn context4_rejects_null_rule_sets_and_truncated_rules() {
     assert_eq!(output.glyph_infos()[1].glyph_id, 65537);
 }
 
-#[test]
-fn context1_charges_skipped_lookup_records_to_max_ops() {
-    // One rule on glyph 1 whose records all name sequence index 1, past
-    // the single-glyph match, so none of them reaches a nested lookup.
-    let records: u16 = 1000;
-    let mut subtable = vec![0, 1, 0, 8, 0, 1, 0, 14]; // Header.
-    subtable.extend_from_slice(&[0, 1, 0, 1, 0, 1]); // Coverage.
-    subtable.extend_from_slice(&[0, 1, 0, 4, 0, 1]); // Rule set and rule.
-    subtable.extend_from_slice(&records.to_be_bytes());
-    subtable.extend((0..records).flat_map(|_| [0, 1, 0, 0]));
-    let output = apply_subtable_configured(5, true, &subtable, &[1], |ctx| {
-        ctx.buffer.max_ops = 2 * i32::from(records);
-    });
-    assert!(output.successful);
-    assert!(output.max_ops <= i32::from(records));
-}
-
 fn context5(first_class: u32, second_class: u32, large_offsets: bool) -> Vec<u8> {
     let set_count = first_class + 1;
     let header_end = 13 + set_count * 3;
@@ -1554,37 +1536,6 @@ fn chain_context5_does_not_truncate_wide_classes() {
                 use_hot_cache,
             );
             assert_eq!(output.glyph_infos()[2].glyph_id, 65537);
-        }
-    }
-}
-
-#[test]
-fn malformed_context_and_ligature_offsets_are_charged() {
-    let count = 1000u16;
-    // Context-format-1 and ligature-format-1 share the header, coverage,
-    // and offset-array layouts used here. Every child offset is unreadable.
-    let mut subtable = vec![0, 1, 0, 8, 0, 1, 0, 14];
-    subtable.extend_from_slice(&[0, 1, 0, 1, 0, 1]);
-    subtable.extend_from_slice(&count.to_be_bytes());
-    subtable.extend((0..count).flat_map(|_| u16::MAX.to_be_bytes()));
-    for lookup_type in [4, 5] {
-        for glyph_count in [1, 128] {
-            let glyphs = vec![1; glyph_count];
-            let initial_ops = 2000 * glyph_count as i32;
-            let output = apply_subtable_configured(lookup_type, true, &subtable, &glyphs, |ctx| {
-                ctx.buffer.max_ops = initial_ops;
-                // Force TryAll for context and the no-second branch for
-                // ligatures, even with glyphs following this one.
-                for info in ctx.buffer.glyph_infos_mut() {
-                    info._set_default_ignorable();
-                }
-            });
-            assert!(output.successful);
-            assert!(
-                output.max_ops <= initial_ops - i32::from(count) * glyph_count as i32,
-                "lookup {lookup_type}, {glyph_count} glyphs: {} ops remain",
-                output.max_ops,
-            );
         }
     }
 }

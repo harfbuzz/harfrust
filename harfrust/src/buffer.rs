@@ -2345,6 +2345,12 @@ impl Buffer {
             return;
         }
 
+        // Charged as in HarfBuzz's hb_buffer_t::_infos_set_glyph_flags().
+        self.max_ops -= (end - start) as i32;
+        if self.max_ops < 0 {
+            self.successful = false;
+        }
+
         let cluster_level = self.cluster_level;
 
         let infos = if out_info {

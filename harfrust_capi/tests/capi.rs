@@ -4814,9 +4814,10 @@ fn aliased_offsets_fall_back_to_all_glyphs() {
 }
 
 #[test]
-fn repeated_collections_share_one_allowance() {
-    // One call follows about 30^4 components, within an allowance of 4M steps,
-    // but a lookup list may name the same lookup over and over.
+fn repeated_collections_each_get_an_allowance() {
+    // One call follows about 30^4 components, within an allowance of 4M steps.
+    // As in HarfBuzz, whose sanitizer bounds the table once, each call gets
+    // the same allowance and the same result.
     let data = sfnt(&[
         (b"GSUB", aliased_ligature_gsub(30)),
         (b"maxp", maxp(3, false)),
@@ -4831,8 +4832,7 @@ fn repeated_collections_share_one_allowance() {
             populations.push(hr_set_get_population(set));
             hr_set_destroy(set);
         }
-        assert_eq!(populations[0], 2);
-        assert_eq!(populations[49], u32::MAX);
+        assert!(populations.iter().all(|&population| population == 2));
         hr_face_destroy(face);
         hr_blob_destroy(blob);
     }

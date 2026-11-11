@@ -295,9 +295,12 @@ fn apply_string<T: LayoutTable>(ctx: &mut ApplyContext, lookup: &CachedLookup) -
         return false;
     }
 
-    // The pass scans the buffer for glyphs to start at, even if the lookup's
-    // flags make it skip them all, and a font can list a lookup many times.
-    if !ctx.buffer.charge_ops(ctx.buffer.len) {
+    // Lookups can share subtables, features can share lookups, and each
+    // stage applies its lookups anew, so the number of passes over the
+    // buffer is not bounded by the font size. Charge each pass for walking
+    // the buffer, even if it ends up applying at no glyph. Skipping a glyph
+    // is cheap, hence the division. Same as HarfBuzz's apply_string().
+    if !ctx.buffer.charge_ops(ctx.buffer.len / 16) {
         return false;
     }
 
@@ -381,6 +384,10 @@ pub(crate) fn apply_synthesized_subst_lookup(ctx: &mut ApplyContext, lookup: &Ca
 
     debug_assert!(lookup.is_subst);
     debug_assert!(!lookup.is_reverse());
+    // Charged as in apply_string(), which HarfBuzz uses for these too.
+    if !ctx.buffer.charge_ops(ctx.buffer.len / 16) {
+        return;
+    }
     ctx.lookup_props = lookup.props();
     ctx.update_matchers();
     ctx.buffer.clear_output();
@@ -397,7 +404,7 @@ fn apply_backward(ctx: &mut ApplyContext, lookup: &CachedLookup) -> bool {
     let lookup_mask = ctx.lookup_mask();
     let lookup_props = ctx.lookup_props;
 
-    while ctx.buffer.successful {
+    loop {
         let candidate = ctx
             .buffer
             .info

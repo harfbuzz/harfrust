@@ -295,6 +295,15 @@ impl<'a, const W: usize> Ligature<'a, W> {
             components: Values::at(data, W + 2, count.saturating_sub(1))?,
         })
     }
+
+    /// The ligature's byte span: its glyph, its component count, and the
+    /// stored components after the first. HarfBuzz's `Ligature::sanitize`
+    /// charges the glyph and the headless component array through
+    /// `check_range`; matching that span here charges the components that
+    /// `apply_ligature` later walks.
+    fn byte_len(&self) -> usize {
+        W + 2 + self.components.len() * W
+    }
 }
 
 /// The ligatures of a ligature set, read on demand. Its offsets and glyph
@@ -318,20 +327,15 @@ impl<'a, const W: usize> LigatureSet<'a, W> {
         self.offsets.len()
     }
 
-    /// Resolves one ligature without hiding unreadable offsets from callers
-    /// that charge work per entry.
-    fn get(&self, index: usize) -> Option<Ligature<'a, W>> {
-        let offset = self.offsets.get(index)?;
-        if offset == 0 {
-            return None;
-        }
-        Ligature::read(self.data.split_off(offset as usize)?)
-    }
-
     /// The readable ligatures, in order; a null offset is skipped.
     #[inline(always)]
     fn iter(&self) -> impl Iterator<Item = Ligature<'a, W>> + '_ {
-        (0..self.len()).filter_map(|index| self.get(index))
+        self.offsets.iter().filter_map(|offset| {
+            if offset == 0 {
+                return None;
+            }
+            Ligature::read(self.data.split_off(offset as usize)?)
+        })
     }
 }
 
@@ -418,19 +422,38 @@ impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
     }
 }
 
-/// The digest of every ligature's second glyph, or a full digest if a
-/// ligature has none. Nested walks share the font's preprocessing allowance.
-fn collect_seconds<const W: usize>(
-    sets: &Offsets,
-    budget: &Budget,
-) -> Result<SetDigest, Exhausted> {
-    let mut seconds = SetDigest::new();
+/// Charge every ligature set, its offsets, and each ligature's component
+/// span before constructing the digest. A singleton ligature can make the
+/// digest full, but later sets remain reachable during shaping and must
+/// still pay for their entries. The offset counts bound the walk, so a set
+/// whose offsets all alias one long ligature is discarded here rather than
+/// matched at every covered glyph.
+fn charge_ligature_sets<const W: usize>(sets: &Offsets, budget: &Budget) -> Result<(), Exhausted> {
     budget.work(sets.len())?;
     for index in 0..sets.len() {
         let Some(set) = sets.data(index).and_then(LigatureSet::<W>::read) else {
             continue;
         };
         budget.work(set.len())?;
+        for ligature in set.iter() {
+            budget.work(ligature.byte_len())?;
+        }
+    }
+    Ok(())
+}
+
+/// The digest of every ligature's second glyph, or a full digest if a
+/// ligature has none. The mandatory accounting runs before any early exit.
+fn collect_seconds<const W: usize>(
+    sets: &Offsets,
+    budget: &Budget,
+) -> Result<SetDigest, Exhausted> {
+    charge_ligature_sets::<W>(sets, budget)?;
+    let mut seconds = SetDigest::new();
+    for index in 0..sets.len() {
+        let Some(set) = sets.data(index).and_then(LigatureSet::<W>::read) else {
+            continue;
+        };
         for ligature in set.iter() {
             let Some(second) = ligature.components.first() else {
                 return Ok(SetDigest::full());
@@ -476,20 +499,10 @@ fn apply_ligature_set<const W: usize>(
         }
     }
 
-    // The ligatures may alias, so each one tried is charged.
     let Some(second) = second else {
-        for index in 0..set.len() {
-            if !ctx.buffer.charge_ops(1) {
-                break;
-            }
-            let Some(ligature) = set.get(index) else {
-                continue;
-            };
-            if let Some(applied) = apply_ligature(ctx, &ligature) {
-                return Some(applied);
-            }
-        }
-        return None;
+        return set
+            .iter()
+            .find_map(|ligature| apply_ligature(ctx, &ligature));
     };
     if !seconds.may_have(second) {
         // Every ligature here has a second component and none of them is
@@ -500,13 +513,7 @@ fn apply_ligature_set<const W: usize>(
         return None;
     }
     let mut unsafe_to_concat = false;
-    for index in 0..set.len() {
-        if !ctx.buffer.charge_ops(1) {
-            break;
-        }
-        let Some(ligature) = set.get(index) else {
-            continue;
-        };
+    for ligature in set.iter() {
         match ligature.components.first() {
             Some(first) if first != second => unsafe_to_concat = true,
             _ => {

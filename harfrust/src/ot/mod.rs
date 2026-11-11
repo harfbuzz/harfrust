@@ -515,6 +515,13 @@ impl<'a> OtData<'a> {
     /// named region over every axis, and a set may list 65535 indices that
     /// all name the same region. Left uncharged, a lookup application that
     /// costs one operation could do that walk four times over.
+    ///
+    /// HarfBuzz charges nothing here: its per-font region scalar cache
+    /// (`hb_scalar_cache_t`, passed to the apply context as
+    /// `var_store_cache`) evaluates each region over the axes at most once,
+    /// so a delta costs a step per region index, which the table's size
+    /// bounds. HarfRust evaluates every region afresh, so it charges the
+    /// region-by-axis walk instead, until it caches region scalars too.
     pub(super) fn compute_delta(&self, index: DeltaSetIndex, max_ops: &mut i32) -> Option<f32> {
         const AXIS_STEPS_PER_OP: u32 = 64;
         let Some(store) = self.var_store() else {
