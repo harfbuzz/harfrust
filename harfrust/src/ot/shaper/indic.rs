@@ -574,11 +574,11 @@ fn setup_syllables(_: &ShapePlan, _: &ShaperFont<'_, '_>, buffer: &mut Buffer) -
     buffer.allocate_var(GlyphInfo::SYLLABLE_VAR);
 
     indic_machine::find_syllables_indic(buffer);
-    limit_syllable_length(buffer);
 
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
+        record_syllable_cut(buffer, start, end);
         buffer.unsafe_to_break(Some(start), Some(end));
         start = end;
         end = buffer.next_syllable(start);
@@ -613,13 +613,12 @@ fn initial_reordering(
         ret = true;
     }
 
-    // Inserted dotted-circles may have pushed a piece over the limit again;
-    // final reordering needs to see the same pieces we see here.
-    limit_syllable_length(buffer);
-
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
+        // locl, ccmp, or inserted dotted-circles may have pushed a piece over
+        // the limit again; final reordering needs to see the same pieces.
+        record_syllable_cut(buffer, start, end);
         if initial_reordering_syllable(plan, indic_plan, font, start, end, buffer).is_none() {
             buffer.index_failed();
         }
