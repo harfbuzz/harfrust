@@ -461,7 +461,7 @@ impl IndicShapePlan {
         // context.  Testing with Bengali new-spec however shows that it doesn't.
         // So, the heuristic here is the way it is.  It should *only* be changed,
         // as we discover more cases of what Windows does.  DON'T TOUCH OTHERWISE.
-        let zero_context = is_old_spec && script != Some(Script::MALAYALAM);
+        let zero_context = !is_old_spec && script != Some(Script::MALAYALAM);
 
         let mut mask_array = [0; INDIC_FEATURES.len()];
         for (i, feature) in INDIC_FEATURES.iter().enumerate() {
