@@ -295,6 +295,15 @@ impl<'a, const W: usize> Ligature<'a, W> {
             components: Values::at(data, W + 2, count.saturating_sub(1))?,
         })
     }
+
+    /// The ligature's byte span: its glyph, its component count, and the
+    /// stored components after the first. HarfBuzz's `Ligature::sanitize`
+    /// charges the glyph and the headless component array through
+    /// `check_range`; matching that span here charges the components that
+    /// `apply_ligature` later walks.
+    fn byte_len(&self) -> usize {
+        W + 2 + self.components.len() * W
+    }
 }
 
 /// The ligatures of a ligature set, read on demand. Its offsets and glyph
@@ -413,9 +422,12 @@ impl<'a> SubtableDigests<'a> for LigatureSubst1<'a> {
     }
 }
 
-/// Charge every ligature set and its offsets before constructing the
-/// digest. A singleton ligature can make the digest full, but later sets
-/// remain reachable during shaping and must still pay for their entries.
+/// Charge every ligature set, its offsets, and each ligature's component
+/// span before constructing the digest. A singleton ligature can make the
+/// digest full, but later sets remain reachable during shaping and must
+/// still pay for their entries. The offset counts bound the walk, so a set
+/// whose offsets all alias one long ligature is discarded here rather than
+/// matched at every covered glyph.
 fn charge_ligature_sets<const W: usize>(sets: &Offsets, budget: &Budget) -> Result<(), Exhausted> {
     budget.work(sets.len())?;
     for index in 0..sets.len() {
@@ -423,6 +435,9 @@ fn charge_ligature_sets<const W: usize>(sets: &Offsets, budget: &Budget) -> Resu
             continue;
         };
         budget.work(set.len())?;
+        for ligature in set.iter() {
+            budget.work(ligature.byte_len())?;
+        }
     }
     Ok(())
 }
