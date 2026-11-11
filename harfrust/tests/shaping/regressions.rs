@@ -846,3 +846,32 @@ fn kern_format1_non_first_initial_state_applies() {
         "[gid1=0@-100,0+1014|gid2=1+1149]"
     );
 }
+
+// Each script's 'blwf' rule forms a below-base KA only after a KA, so it
+// would substitute only with context. New-spec 'ory2' uses zero-context
+// matching and keeps the second KA as the base; old-spec 'beng' and Malayalam
+// ('mlm2') allow context and take it as a below-base consonant. Matches
+// HarfBuzz.
+#[test]
+fn indic_zero_context_would_substitute_for_new_spec_only() {
+    for (text, expected) in [
+        (
+            "\u{0B15}\u{0B4D}\u{0B15}",
+            "[ka.ori=0+500|virama.ori=0+0|ka.ori=2+500]",
+        ),
+        (
+            "\u{0995}\u{09CD}\u{0995}",
+            "[ka.bng=0+500|ka.bng=0+500|virama.bng=0+0]",
+        ),
+        (
+            "\u{0D15}\u{0D4D}\u{0D15}",
+            "[ka.mlm=0+500|ka.below.mlm=0+0]",
+        ),
+    ] {
+        assert_eq!(
+            crate::shape("tests/fonts/indic-zero-context.ttf", text, ""),
+            expected,
+            "{text:?}"
+        );
+    }
+}
