@@ -57,7 +57,7 @@ independent of optional APIs.
 
 ## Current scope
 
-The dependencies are the published Skera 0.9 and write-fonts 0.55 release
+The dependencies are the published Skera 0.10 and write-fonts 0.56 release
 series, which include the public Plan APIs. CFF, CFF2, and VARC
 fonts return `NULL`: this release does not rewrite those outline tables.
 Unsupported flag bits, missing enumeration, malformed inputs, and Skera

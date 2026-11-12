@@ -17,7 +17,7 @@ HarfRust started as a fork of [RustyBuzz](https://docs.rs/rustybuzz) to explore 
 multiple implementations of core font parsing for [`skrifa`](https://docs.rs/skrifa) consumers.
 Further context in https://github.com/googlefonts/fontations/issues/956.
 
-Matches HarfBuzz [v15.0.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.0.0).
+Matches HarfBuzz [v15.1.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.1.0).
 
 ## Why?
 
@@ -50,7 +50,7 @@ You can run `cargo bench` to see the performance of HarfRust on your machine.
 Enable the opt-in `tracing` Cargo feature to receive HarfBuzz shaping messages:
 
 ```toml
-harfrust = { version = "0.15", features = ["tracing"] }
+harfrust = { version = "0.16", features = ["tracing"] }
 ```
 
 Install a callback before shaping with
