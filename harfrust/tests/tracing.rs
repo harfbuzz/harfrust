@@ -93,6 +93,48 @@ fn callback_observes_unicode_glyphs_and_positions() {
 }
 
 #[test]
+fn callback_reads_written_and_unread_glyphs_during_substitution() {
+    let cases = [
+        // A ligature writes fewer glyphs than it reads, so the output stays
+        // in place.
+        (
+            include_bytes!("../benches/fonts/Roboto-Regular.ttf").as_slice(),
+            "affib",
+            "ligated glyph at 1",
+            vec![0, 1, 4],
+        ),
+        // A multiple substitution writes more glyphs than it reads, so the
+        // buffer has a separate output.
+        (
+            include_bytes!("fonts/aots/gsub2_1_simple_f1.otf").as_slice(),
+            "\u{0011}\u{0012}\u{0013}",
+            "multiplied glyphs at 1,2,3",
+            vec![0, 1, 1, 1, 2],
+        ),
+    ];
+    let features = ["test".parse::<Feature>().unwrap()];
+    for (data, text, read_at, expected) in cases {
+        let instance = Font::new(data.to_vec(), 0)
+            .unwrap()
+            .instance_builder()
+            .build();
+        let font = ShaperFont::new(&instance);
+        let clusters = Arc::new(Mutex::new(Vec::new()));
+        let captured = clusters.clone();
+        let mut buffer = buffer(text);
+        buffer.set_message_function(Some(Box::new(move |buffer, _, message| {
+            if message == read_at {
+                let clusters = buffer.glyph_infos().iter().map(|info| info.cluster);
+                captured.lock().unwrap().extend(clusters);
+            }
+            true
+        })));
+        shape(&font, &mut buffer, ShapeOptions::new().features(&features)).unwrap();
+        assert_eq!(*clusters.lock().unwrap(), expected, "{text:?}");
+    }
+}
+
+#[test]
 fn rejecting_gsub_matches_disabling_ligatures() {
     let instance = instance();
     let font = ShaperFont::new(&instance);

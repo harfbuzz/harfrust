@@ -538,6 +538,12 @@ pub struct Buffer {
     pub(crate) max_ops: i32,
     #[cfg(feature = "tracing")]
     message_function: Option<Box<MessageFunction>>,
+    // This is `Some` while a message callback runs and substitution keeps
+    // separate input/output cursors. `len` and `glyph_infos` then give the
+    // emitted prefix followed by the remaining input. The first call of
+    // `glyph_infos` makes the copy and keeps it in the cell.
+    #[cfg(feature = "tracing")]
+    message_info: Option<crate::once::Once<Vec<GlyphInfo>>>,
 }
 
 impl Buffer {
@@ -573,6 +579,8 @@ impl Buffer {
             glyph_set: U32Set::default(),
             #[cfg(feature = "tracing")]
             message_function: None,
+            #[cfg(feature = "tracing")]
+            message_info: None,
         }
     }
 
@@ -607,6 +615,12 @@ impl Buffer {
         self.max_len = Self::MAX_LEN_DEFAULT;
         self.max_ops = Self::MAX_OPS_DEFAULT;
         self.allocated_var_bits = 0;
+        // `message` empties this after the callback returns. A callback that
+        // panics does not return.
+        #[cfg(feature = "tracing")]
+        {
+            self.message_info = None;
+        }
         // How the buffer is configured -- its flags, cluster level, invisible
         // glyph and not-found fallbacks -- outlives its contents, as
         // it does in `hb_buffer_clear_contents`. `Buffer::reset` is what puts
@@ -652,13 +666,17 @@ impl Buffer {
     /// shaping it is the number of glyphs.
     #[inline]
     pub fn len(&self) -> usize {
+        #[cfg(feature = "tracing")]
+        if self.message_info.is_some() {
+            return self.out_len + self.len - self.idx;
+        }
         self.len
     }
 
     /// Checks that buffer contains no elements.
     /// Returns `true` if the buffer contains no items.
     pub fn is_empty(&self) -> bool {
-        self.len == 0
+        self.len() == 0
     }
 
     /// Sets the number of items in the buffer.
@@ -1029,6 +1047,15 @@ impl Buffer {
     /// codepoint rather than a glyph id.
     #[inline]
     pub fn glyph_infos(&self) -> &[GlyphInfo] {
+        #[cfg(feature = "tracing")]
+        if let Some(joined) = &self.message_info {
+            return joined.get_or_init(|| {
+                let mut info = Vec::with_capacity(self.len());
+                info.extend_from_slice(&self.out_info()[..self.out_len]);
+                info.extend_from_slice(&self.info[self.idx..self.len]);
+                info
+            });
+        }
         debug_assert!(self.len <= self.info.len());
         self.info.get(..self.len).unwrap_or_default()
     }
@@ -2523,32 +2550,11 @@ impl Buffer {
             // Substitution keeps separate input/output cursors. Present the
             // emitted prefix followed by the remaining input without syncing
             // the live buffer, which could change its allocation-limit behavior.
-            let ret = if self.have_output && (self.have_separate_output || self.out_len != self.idx)
-            {
-                let mut info = Vec::with_capacity(self.out_len + self.len - self.idx);
-                info.extend_from_slice(&self.out_info()[..self.out_len]);
-                info.extend_from_slice(&self.info[self.idx..self.len]);
-                let snapshot = Buffer {
-                    flags: self.flags,
-                    cluster_level: self.cluster_level,
-                    invisible: self.invisible,
-                    not_found: self.not_found,
-                    not_found_variation_selector: self.not_found_variation_selector,
-                    content_type: self.content_type,
-                    direction: self.direction,
-                    script: self.script,
-                    language: self.language.clone(),
-                    successful: self.successful,
-                    len: info.len(),
-                    info,
-                    context: self.context,
-                    context_len: self.context_len,
-                    ..Buffer::new()
-                };
-                function(&snapshot, font, msg)
-            } else {
-                function(self, font, msg)
-            };
+            if self.have_output && (self.have_separate_output || self.out_len != self.idx) {
+                self.message_info = Some(crate::once::Once::new());
+            }
+            let ret = function(self, font, msg);
+            self.message_info = None;
             self.message_function = Some(function);
             ret
         } else {
