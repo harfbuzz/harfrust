@@ -7,10 +7,58 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-11
+
+This release matches HarfBuzz [v15.1.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.1.0),
+and has an MSRV (minimum supported Rust version) of 1.85.
+
+### Breaking changes
+
+- Update `read-fonts` to 0.47. `Font` and the rest of the font model that
+  HarfRust re-exports come from that release.
+
+### Added
+
+- Extend the C subsetting API with reusable plans, glyph mappings, configurable
+  table passthrough, user data, and C++ ownership helpers.
+- Include Unicode 18 additions in the Indic shaping categories.
+
+### Changed
+
+- Bound shaping work across OpenType lookups, contextual matching, cluster
+  merging, syllable scanning and AAT processing. Bound AAT cache construction,
+  feature-map compilation, and C API layout collection and rendering work.
+- Cache glyph-name lookups, C API font tables and outline collections; reuse
+  scaled fonts for built-in queries. Improve C API set iteration, language
+  interning and shape-plan matching, and decode UTF-16 input in one pass.
+- Reduce code size by sharing subtable construction and outlining AAT
+  state-machine action handlers.
+- Update `icu_properties` to 2.3 and the C API's optional Fontations
+  dependencies to Skrifa 0.50, Skera 0.10 and `write-fonts` 0.56.
+
 ### Fixed
 
-- Legacy `kern` class lookup no longer truncates glyph ids above `u16::MAX`. An id that does not fit in 16 bits is out of bounds, matching HarfBuzz and `morx`. (#595)
-- Indic `rphf`, `pref`, `blwf`, `pstf` and `vatu` detection uses zero-context matching for new-spec scripts and allows context for old-spec scripts and Malayalam, as HarfBuzz does. It was the other way round.
+- Legacy `kern` class lookup no longer truncates glyph IDs above `u16::MAX`.
+  An ID that does not fit in 16 bits is out of bounds, matching HarfBuzz and
+  `morx`. (#595)
+- Indic `rphf`, `pref`, `blwf`, `pstf` and `vatu` detection uses zero-context
+  matching for new-spec scripts and allows context for old-spec scripts and
+  Malayalam, as HarfBuzz does. It was the other way round.
+- Match HarfBuzz's OpenType rounding, including negative halfway values for
+  variation deltas, baselines, fallback origins and paint metrics.
+- Handle signed AAT state offsets, `kerx` processing direction, format 1
+  history and list terminators; reject overflowing attachment chains and
+  out-of-range `aalt` selectors.
+- Keep syllable cuts consistent across shaping passes, bound Indic base
+  searches to their syllable, initialize Hangul feature state, and rewind
+  the buffer before reading a dotted circle's source.
+- Propagate GPOS mark offsets using running advance totals and reverse
+  cursive chains iteratively. Reject overflowing cursive attachments and
+  GSUB extension subtables with a conflicting direction.
+- Keep C API callback data and table blobs alive while in use, run destroy
+  callbacks before releasing owned resources, and honor object immutability
+  during callbacks and destruction. Leave buffers reusable after a shaping
+  panic and avoid writing to the shared empty buffer.
 
 ## [0.15.0] - 2026-10-21
 
@@ -448,7 +496,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.15.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.16.0...HEAD
+[0.16.0]: https://github.com/harfbuzz/harfrust/compare/0.15.0...0.16.0
 [0.15.0]: https://github.com/harfbuzz/harfrust/compare/0.14.0...0.15.0
 [0.14.0]: https://github.com/harfbuzz/harfrust/compare/0.13.3...0.14.0
 [0.13.3]: https://github.com/harfbuzz/harfrust/compare/0.13.2...0.13.3

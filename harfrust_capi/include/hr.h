@@ -67,7 +67,7 @@
 /**
  * The minor version of this library.
  */
-#define HR_VERSION_MINOR 15
+#define HR_VERSION_MINOR 16
 
 /**
  * The micro version of this library.
@@ -82,7 +82,7 @@
 /**
  * The minor version of the matched HarfBuzz release.
  */
-#define HR_HARFBUZZ_VERSION_MINOR 0
+#define HR_HARFBUZZ_VERSION_MINOR 1
 
 /**
  * The micro version of the matched HarfBuzz release.
@@ -2669,7 +2669,8 @@ struct hr_blob_t *hr_blob_create_from_file_or_fail(const char *file_name);
 /**
  * Creates a blob over a range of another blob, sharing its storage.
  *
- * The range is clamped to the parent's bounds. Never returns `NULL`.
+ * The range is clamped to the parent's bounds. The sub-blob keeps the parent
+ * alive, as in HarfBuzz. Never returns `NULL`.
  *
  * # Safety
  *
@@ -4863,7 +4864,8 @@ unsigned int hr_ot_layout_table_get_lookup_count(struct hr_face_t *face, hr_tag_
 
 /**
  * Collects glyphs touched by one GSUB or GPOS lookup into the supplied sets.
- * Forms not yet enumerated conservatively include every OpenType glyph ID.
+ * Forms not yet enumerated, malformed data, and work exhaustion conservatively
+ * include every set value, represented by an inverted empty set.
  *
  * # Safety
  * `face` and each non-`NULL` set must be live. Output sets may be the same.
@@ -5347,7 +5349,7 @@ unsigned int hr_set_next_many(const struct hr_set_t *set,
  * The buffer's direction, script and language must be set beforehand; call
  * `hr_buffer_guess_segment_properties` to fill in whatever is missing, which
  * this does for the direction on your behalf. On return the buffer holds
- * glyphs, or nothing if the shaper panicked; see `hr_shape_full`.
+ * glyphs, or nothing if the shaper panicked; see [`hr_shape_full`].
  *
  * Call `hr_buffer_allocation_successful` if you want to know whether the
  * buffer ran out of room.
@@ -5699,13 +5701,13 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 #define HR_DIRECTION_REVERSE(dir) ((hr_direction_t) (((unsigned int) (dir)) ^ 1U))
 
 /** The version of this library, as a string. */
-#define HR_VERSION_STRING "0.15.0"
+#define HR_VERSION_STRING "0.16.0"
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))
 
 /** The HarfBuzz release matched by the shaping implementation. */
-#define HR_HARFBUZZ_VERSION_STRING "15.0.0"
+#define HR_HARFBUZZ_VERSION_STRING "15.1.0"
 
 /** True if the matched HarfBuzz version is at least the given version. */
 #define HR_HARFBUZZ_VERSION_ATLEAST(major, minor, micro) ((major) < HR_HARFBUZZ_VERSION_MAJOR || ((major) == HR_HARFBUZZ_VERSION_MAJOR && ((minor) < HR_HARFBUZZ_VERSION_MINOR || ((minor) == HR_HARFBUZZ_VERSION_MINOR && (micro) <= HR_HARFBUZZ_VERSION_MICRO))))
