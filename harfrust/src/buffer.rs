@@ -2686,15 +2686,59 @@ impl core::fmt::Debug for Buffer {
     }
 }
 
+// The text of a message. HarfBuzz formats a message into a C string of 100
+// bytes, with its terminator. The writer cuts the text after 99 bytes, at a
+// character boundary.
+#[cfg(feature = "tracing")]
+pub(crate) struct MessageText {
+    bytes: [u8; 99],
+    len: usize,
+}
+
+#[cfg(feature = "tracing")]
+impl MessageText {
+    pub(crate) fn new() -> Self {
+        MessageText {
+            bytes: [0; 99],
+            len: 0,
+        }
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        // The writer copies only whole characters.
+        core::str::from_utf8(&self.bytes[..self.len]).unwrap_or_default()
+    }
+}
+
+#[cfg(feature = "tracing")]
+impl core::fmt::Write for MessageText {
+    fn write_str(&mut self, text: &str) -> core::fmt::Result {
+        let mut end = text.len().min(self.bytes.len() - self.len);
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        self.bytes[self.len..self.len + end].copy_from_slice(&text.as_bytes()[..end]);
+        self.len += end;
+        // Stop formatting once the text is truncated. Otherwise a later,
+        // shorter piece could still fit and follow the dropped characters.
+        if end < text.len() {
+            return Err(core::fmt::Error);
+        }
+        Ok(())
+    }
+}
+
 // All arguments (including formatting and font references) disappear when
-// tracing is disabled. Allocate message text only when a callback is installed.
+// tracing is disabled. Format the text of a message only when the buffer has a
+// callback.
 macro_rules! buffer_message {
     ($buffer:expr, $font:expr, $($arg:tt)*) => {{
         #[cfg(feature = "tracing")]
         {
             if $buffer.messaging() {
-                let msg = alloc::format!($($arg)*);
-                $buffer.message($font, &msg)
+                let mut msg = crate::buffer::MessageText::new();
+                let _ = core::fmt::Write::write_fmt(&mut msg, format_args!($($arg)*));
+                $buffer.message($font, msg.as_str())
             } else {
                 true
             }
