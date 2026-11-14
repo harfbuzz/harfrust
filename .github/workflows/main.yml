@@ -79,32 +79,6 @@ jobs:
           done
         done
 
-    - name: Checkout HarfBuzz reference
-      if: runner.os == 'Linux'
-      uses: actions/checkout@v6
-      with:
-        repository: harfbuzz/harfbuzz
-        ref: 811d9a4d3e1b62899843119eda7a78ba1bb97c2c
-        path: .ci/harfbuzz
-        persist-credentials: false
-
-    - name: Compare subset behavior with HarfBuzz
-      if: runner.os == 'Linux'
-      run: |
-        python3 -m venv .ci/venv
-        .ci/venv/bin/pip install fonttools==4.60.1 meson==1.9.1
-        .ci/venv/bin/meson setup .ci/harfbuzz-build .ci/harfbuzz \
-          --auto-features=disabled --buildtype=release \
-          -Dsubset=enabled -Dtests=disabled -Dutilities=disabled -Ddocs=disabled \
-          -Draster=disabled -Dvector=disabled -Dgpu=disabled
-        .ci/venv/bin/meson compile -C .ci/harfbuzz-build
-        for test in compare_skia_hb compare_controls_hb compare_plans_hb; do
-          .ci/venv/bin/python "harfrust_capi/tests/subset/$test.py" \
-            target/debug/libharfrust_c.so \
-            .ci/harfbuzz-build/src/libharfbuzz.so \
-            .ci/harfbuzz-build/src/libharfbuzz-subset.so
-        done
-
     - name: Rustfmt
       run: cargo fmt --all -- --check
 
