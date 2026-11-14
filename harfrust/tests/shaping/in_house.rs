@@ -55284,6 +55284,168 @@ fn sara_am_052() {
 }
 
 #[test]
+fn shaping_parity_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=ltr --font-size=600",
+        ),
+        "[1=0+1|2=1@-1,-1+299]"
+    );
+}
+
+#[test]
+fn shaping_parity_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=ltr --font-size=-600",
+        ),
+        "[1=0+-1|2=1@1,1+-299]"
+    );
+}
+
+#[test]
+fn shaping_parity_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=rtl --font-size=600",
+        ),
+        "[2=1+1|1=0@-1,1+299]"
+    );
+}
+
+#[test]
+fn shaping_parity_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=rtl --font-size=-600",
+        ),
+        "[2=1+-1|1=0@1,-1+-299]"
+    );
+}
+
+#[test]
+fn shaping_parity_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=sr",
+        ),
+        "[2=0+600]"
+    );
+}
+
+#[test]
+fn shaping_parity_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=SR_Latn_RS",
+        ),
+        "[2=0+600]"
+    );
+}
+
+#[test]
+fn shaping_parity_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=zh-Hant",
+        ),
+        "[3=0+600]"
+    );
+}
+
+#[test]
+fn shaping_parity_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=zh-Hant-TW",
+        ),
+        "[3=0+600]"
+    );
+}
+
+#[test]
+fn shaping_parity_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=zh",
+        ),
+        "[1=0+600]"
+    );
+}
+
+#[test]
+fn shaping_parity_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-long-language-tag.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss-sub",
+        ),
+        "[2=0+600]"
+    );
+}
+
+#[test]
+fn shaping_parity_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/kerx-attachment-overflow.ttf",
+            "\u{41}\u{78}\u{301}",
+            "--no-glyph-names --no-clusters",
+        ),
+        "[1+500|3+500|4@-1000,100+500]"
+    );
+}
+
+#[test]
+fn shaping_parity_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/kerx-attachment-overflow.ttf",
+            "\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{41}\u{AD}\u{78}\u{301}",
+            "--no-glyph-names --no-clusters",
+        ),
+        "[1+500|3+500|4@0,100+500]"
+    );
+}
+
+#[test]
+fn shaping_parity_013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/mvar-huge-ascender.ttf",
+            "\u{41}",
+            "--no-glyph-names --direction=ttb --variations=TEST=1 --font-funcs=ot",
+        ),
+        "[1=0@-250,-1073742073+0,-2147483648]"
+    );
+}
+
+#[test]
 fn simple_001() {
     assert_eq!(
         shape(

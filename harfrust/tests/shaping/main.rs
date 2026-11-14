@@ -16,9 +16,12 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     // Exercise tracing on the whole shaping corpus, including contextual GSUB,
     // length-changing substitutions, script reordering, and AAT state machines.
     #[cfg(feature = "tracing")]
-    if text.len() <= 1024 && !font_path.ends_with("TestGSUBThree.ttf") {
+    if text.len() <= 1024
+        && !font_path.ends_with("TestGSUBThree.ttf")
+        && !font_path.ends_with("kerx-attachment-overflow.ttf")
+    {
         // Full snapshots at every operation are quadratic for the long-run
-        // regression and the malformed font that expands to the shaping limit.
+        // regression and fonts that expand short input to the shaping limit.
         let traced = hr_shape::shape(font_path, text, &format!("{options} --trace"))
             .unwrap_or_else(|err| panic!("hr-shape tracing failed: {err}"));
         let result = traced
