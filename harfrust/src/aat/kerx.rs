@@ -713,6 +713,7 @@ impl Driver4<'_> {
         // A distance that doesn't fit the chain field leaves the glyph
         // unattached, as in GPOS.
         let Ok(attach_chain) = i16::try_from(distance) else {
+            c.buffer.cur_pos_mut()?.set_attach_chain(0);
             return Some(());
         };
         match (self.ankr_table.as_ref(), &aat.actions) {
