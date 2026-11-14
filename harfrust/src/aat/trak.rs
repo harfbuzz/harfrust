@@ -113,14 +113,18 @@ impl TrackDataExt for read_fonts::tables::trak::TrackData<'_> {
 
         let t0 = tracks.get(i).map_or(0.0, |t| t.track().to_f32());
         let t1 = tracks.get(j).map_or(0.0, |t| t.track().to_f32());
-        let interp = if (t1 - t0).abs() < f32::EPSILON {
-            0.0
-        } else {
-            (track - t0) / (t1 - t0)
-        };
-
         let a = tracks.get(i).map_or(0.0, get_value);
         let b = tracks.get(j).map_or(0.0, get_value);
+
+        #[allow(
+            clippy::float_cmp,
+            reason = "Match HarfBuzz's exact duplicate-track check."
+        )]
+        if t0 == t1 {
+            return f32::midpoint(a, b);
+        }
+
+        let interp = (track - t0) / (t1 - t0);
         a + interp * (b - a)
     }
 }
