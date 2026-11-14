@@ -9,7 +9,7 @@ use crate::budget::{Budget, Exhausted};
 use crate::buffer::{Buffer, GlyphPosition, HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT};
 use crate::hint::{Likely, LikelyOk};
 use crate::ot::apply::{ApplyContext, MappingCache, MatchResult, SkippingIterator};
-use crate::ot::gpos::attach_type;
+use crate::ot::gpos::{attach_type, cross_offset};
 use crate::ot::layout::MAX_NESTING_LEVEL;
 use crate::ot::lookup_flags;
 use crate::set_digest::SetDigest;
@@ -1134,7 +1134,7 @@ fn attach_mark(
     let x_offset = ctx.scale_x(base_x - mark_x);
     let y_offset = ctx.scale_y(base_y - mark_y);
     // Resolve the base first so a bad index leaves the buffer untouched.
-    let base_offset = cross_offset(ctx.buffer, base_pos)?;
+    let base_offset = cross_offset(ctx.buffer, base_pos, false)?;
     ctx.buffer
         .unsafe_to_break(Some(base_pos), Some(ctx.buffer.idx + 1));
     let horizontal = ctx.buffer.direction.is_horizontal();
@@ -1171,40 +1171,6 @@ fn attach_mark(
     ctx.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
     ctx.buffer.idx += 1;
     Some(())
-}
-
-/// The cross-direction offset of the glyph at `index`, summed along its
-/// cursive chain.
-fn cross_offset(buffer: &Buffer, mut index: usize) -> Option<i32> {
-    let direction = buffer.direction;
-    let pos = buffer.pos.get(..buffer.len).unwrap_or_default();
-    let cross = |p: &GlyphPosition| {
-        if direction.is_horizontal() {
-            p.y_offset
-        } else {
-            p.x_offset
-        }
-    };
-    let mut this = pos.get(index).likely()?;
-    let mut offset = cross(this);
-    // An acyclic chain has at most len - 1 links. Cursive lookups with
-    // different flags can form a cycle, so bound the walk by the glyph
-    // count, as HarfBuzz does.
-    for _ in 1..pos.len() {
-        if this.attach_type() & attach_type::CURSIVE == 0 || this.attach_chain() == 0 {
-            break;
-        }
-        // Stop at a parent outside the buffer.
-        let Some(parent) = index
-            .checked_add_signed(isize::from(this.attach_chain()))
-            .and_then(|parent| Some((parent, pos.get(parent)?)))
-        else {
-            break;
-        };
-        (index, this) = parent;
-        offset = offset.saturating_add(cross(this));
-    }
-    Some(offset)
 }
 
 /// Searches back from the current glyph for the base a mark attaches to,
@@ -1693,11 +1659,15 @@ mod tests {
             buffer.pos[i].set_attach_chain(chain);
         }
 
-        assert_eq!(cross_offset(&buffer, 2), Some(40));
+        assert_eq!(cross_offset(&buffer, 2, false), Some(40));
 
         // A chain that ends is summed once per link.
         buffer.pos[0].set_attach_chain(0);
-        assert_eq!(cross_offset(&buffer, 2), Some(30));
+        assert_eq!(cross_offset(&buffer, 2, false), Some(30));
+
+        // AAT stores attachment chains in the original buffer order.
+        buffer.pos[..buffer.len].reverse();
+        assert_eq!(cross_offset(&buffer, 1, true), Some(30));
     }
 
     #[test]

@@ -25,6 +25,42 @@ pub mod attach_type {
     pub const CURSIVE: u8 = 2;
 }
 
+/// The cross-direction offset of the glyph at `index`, summed along its
+/// cursive chain.
+pub(crate) fn cross_offset(buffer: &Buffer, mut index: usize, reversed: bool) -> Option<i32> {
+    let direction = buffer.direction;
+    let pos = buffer.pos.get(..buffer.len).unwrap_or_default();
+    let cross = |p: &GlyphPosition| {
+        if direction.is_horizontal() {
+            p.y_offset
+        } else {
+            p.x_offset
+        }
+    };
+    let mut this = pos.get(index).likely()?;
+    let mut offset = cross(this);
+    // An acyclic chain has at most len - 1 links. Cursive lookups with
+    // different flags can form a cycle, so bound the walk by the glyph
+    // count, as HarfBuzz does.
+    for _ in 1..pos.len() {
+        if this.attach_type() & attach_type::CURSIVE == 0 || this.attach_chain() == 0 {
+            break;
+        }
+        // AAT stores attachment chains in the original buffer order.
+        let chain = isize::from(this.attach_chain());
+        // Stop at a parent outside the buffer.
+        let Some(parent) = index
+            .checked_add_signed(if reversed { -chain } else { chain })
+            .and_then(|parent| Some((parent, pos.get(parent)?)))
+        else {
+            break;
+        };
+        (index, this) = parent;
+        offset = offset.saturating_add(cross(this));
+    }
+    Some(offset)
+}
+
 /// Running totals of the advances in `pos`: entry `k` is the sum over `pos[..k]`.
 ///
 /// A mark can sit up to `i16::MAX` glyphs from its base, so summing the

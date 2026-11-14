@@ -289,11 +289,8 @@ impl Matcher {
         info: &mut GlyphInfo,
         glyph_data: u32,
         match_func: Option<&impl Fn(&mut GlyphInfo, u32) -> bool>,
-        syllable: u8,
     ) -> MayMatch {
-        if (info.mask & self.mask) == 0
-            || (self.per_syllable && syllable != 0 && syllable != info.syllable())
-        {
+        if (info.mask & self.mask) == 0 {
             return MayMatch::No;
         }
 
@@ -336,13 +333,18 @@ fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
     match_func: Option<&F>,
     syllable: u8,
 ) -> MatchResult {
+    // Do not skip glyphs from another syllable.
+    if matcher.per_syllable && syllable != 0 && syllable != info.syllable() {
+        return MatchResult::NotMatch;
+    }
+
     let skip = matcher.may_skip(info, ot, lookup_props);
 
     if skip == MaySkip::Yes {
         return MatchResult::Skip;
     }
 
-    let _match = matcher.may_match(info, glyph_data, match_func, syllable);
+    let _match = matcher.may_match(info, glyph_data, match_func);
 
     if _match == MayMatch::Yes || (_match == MayMatch::Maybe && skip == MaySkip::No) {
         return MatchResult::Match;
