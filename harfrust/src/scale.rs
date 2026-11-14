@@ -76,6 +76,16 @@ impl Scale {
         Self::scale_by_mult_f(y, self.y_multf)
     }
 
+    #[inline(always)]
+    pub(crate) fn scale_x_unrounded(&self, x: f32) -> f32 {
+        x * self.x_multf
+    }
+
+    #[inline(always)]
+    pub(crate) fn scale_y_unrounded(&self, y: f32) -> f32 {
+        y * self.y_multf
+    }
+
     /// Clamps a scaled advance to the sign of its scale. This applies the
     /// unsigned font-unit bound while preserving deliberately negative scales.
     pub(crate) fn clamp_x_advance(&self, advance: i32) -> i32 {
@@ -130,9 +140,14 @@ impl Scale {
 
     #[inline(always)]
     fn scale_by_mult_f(value: f32, mult: f32) -> i32 {
+        Self::round(value * mult)
+    }
+
+    #[inline(always)]
+    pub(crate) fn round(value: f32) -> i32 {
         // HarfBuzz's _hb_roundf promotes to double before adding 0.5, so
         // values just below a half and large integers round correctly.
-        (f64::from(value * mult) + 0.5).floor() as i32
+        (f64::from(value) + 0.5).floor() as i32
     }
 }
 
@@ -153,18 +168,20 @@ impl read_fonts::model::metrics::Scale for Scale {
 
     fn scale_x(&self, value: F48Dot16) -> i32 {
         if value.to_bits().trailing_zeros() >= 16 {
-            self.scale_x(value.to_i32())
-        } else {
-            self.scale_x_f(value.to_f32())
+            if let Ok(integer) = i32::try_from(value.to_bits() >> 16) {
+                return self.scale_x(integer);
+            }
         }
+        self.scale_x_f(value.to_f32())
     }
 
     fn scale_y(&self, value: F48Dot16) -> i32 {
         if value.to_bits().trailing_zeros() >= 16 {
-            self.scale_y(value.to_i32())
-        } else {
-            self.scale_y_f(value.to_f32())
+            if let Ok(integer) = i32::try_from(value.to_bits() >> 16) {
+                return self.scale_y(integer);
+            }
         }
+        self.scale_y_f(value.to_f32())
     }
 
     fn scale_glyph_extents(

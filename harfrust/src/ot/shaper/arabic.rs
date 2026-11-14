@@ -557,7 +557,12 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             {
                 i -= 1;
                 let info = buffer.info.get(i)?;
-                let width = font.glyph_h_advance(info.as_glyph());
+                // GPOS attachment propagation has finished, so position.var
+                // can cache the tile advance for the copying pass.
+                if step == MEASURE {
+                    buffer.pos.get_mut(i)?.var = font.glyph_h_advance(info.as_glyph()) as u32;
+                }
+                let width = buffer.pos.get(i)?.var as i32;
 
                 if info.arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
@@ -612,7 +617,7 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
                 let mut x_offset = w_remaining / 2;
                 for k in (start + 1..=end).rev() {
                     let info = *buffer.info.get(k - 1)?;
-                    let width = font.glyph_h_advance(info.as_glyph());
+                    let width = buffer.pos.get(k - 1)?.var as i32;
 
                     let mut repeat = 1;
                     if info.arabic_shaping_action() == arabic_action::STRETCHING_REPEATING {

@@ -14,6 +14,7 @@ use crate::ot::layout::MAX_NESTING_LEVEL;
 use crate::ot::lookup_flags;
 use crate::set_digest::SetDigest;
 use crate::Direction;
+use crate::Scale;
 use alloc::{boxed::Box, vec::Vec};
 use core::ops::Range;
 use read_fonts::tables::gpos::{
@@ -967,8 +968,19 @@ impl<'a> CursivePos1<'a> {
             ctx.buffer.successful = false;
             return None;
         };
-        let (exit_x, exit_y) = (ctx.scale_x(exit_x), ctx.scale_y(exit_y));
-        let (entry_x, entry_y) = (ctx.scale_x(entry_x), ctx.scale_y(entry_y));
+        let (exit_x, exit_y) = (
+            ctx.scale.scale_x_unrounded(exit_x),
+            ctx.scale.scale_y_unrounded(exit_y),
+        );
+        let (entry_x, entry_y) = (
+            ctx.scale.scale_x_unrounded(entry_x),
+            ctx.scale.scale_y_unrounded(entry_y),
+        );
+        // Round the difference, rather than subtracting rounded anchors.
+        let mut x_offset = Scale::round(entry_x - exit_x);
+        let mut y_offset = Scale::round(entry_y - exit_y);
+        let (exit_x, exit_y) = (Scale::round(exit_x), Scale::round(exit_y));
+        let (entry_x, entry_y) = (Scale::round(entry_x), Scale::round(entry_y));
 
         let direction = ctx.buffer.direction;
         let j = ctx.buffer.idx;
@@ -1013,8 +1025,6 @@ impl<'a> CursivePos1<'a> {
         // stays on the baseline; right to left, the common Arabic case, the
         // later glyph is the parent.
         let (mut child, mut parent) = (i, j);
-        let mut x_offset = entry_x.saturating_sub(exit_x);
-        let mut y_offset = entry_y.saturating_sub(exit_y);
         // The low 16 bits of the props are the lookup flags.
         if ctx.lookup_props as u16 & lookup_flags::RIGHT_TO_LEFT == 0 {
             core::mem::swap(&mut child, &mut parent);

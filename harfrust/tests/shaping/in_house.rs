@@ -668,6 +668,36 @@ fn aat_kerx_055() {
 }
 
 #[test]
+fn aat_kerx_056() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/kerx-attachment-overflow.ttf",
+            "\u{41}\u{78}\u{301}",
+            "--no-glyph-names --no-clusters",
+        ),
+        "[1+500|3+500|4@-1000,100+500]"
+    );
+}
+
+#[test]
+fn aat_kerx_057() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/kerx-attachment-overflow.ttf",
+            "\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\u{2060}\
+             \u{2060}\u{2060}\u{2060}\u{2060}\u{41}\u{AD}\u{78}\u{301}",
+            "--no-glyph-names --no-clusters",
+        ),
+        "[1+500|3+500|4@0,100+500]"
+    );
+}
+
+#[test]
 fn aat_morx_001() {
     assert_eq!(
         shape(
@@ -868,6 +898,78 @@ fn aat_morx_017() {
             "--language=zh",
         ),
         "[gid1=0+600]"
+    );
+}
+
+#[test]
+fn aat_morx_018() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=sr",
+        ),
+        "[2=0+600]"
+    );
+}
+
+#[test]
+fn aat_morx_019() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=SR_Latn_RS",
+        ),
+        "[2=0+600]"
+    );
+}
+
+#[test]
+fn aat_morx_020() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=zh-Hant",
+        ),
+        "[3=0+600]"
+    );
+}
+
+#[test]
+fn aat_morx_021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=zh-Hant-TW",
+        ),
+        "[3=0+600]"
+    );
+}
+
+#[test]
+fn aat_morx_022() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-language-canonicalization.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=zh",
+        ),
+        "[1=0+600]"
+    );
+}
+
+#[test]
+fn aat_morx_023() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/morx-long-language-tag.ttf",
+            "\u{41}",
+            "--no-glyph-names --language=sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss-sub",
+        ),
+        "[2=0+600]"
     );
 }
 
@@ -3045,6 +3147,54 @@ fn cursive_positioning_013() {
             "",
         ),
         "[A=0+100|B=1@-100,0+0|C=2@-100,0+400|D=3@-500,0+0]"
+    );
+}
+
+#[test]
+fn cursive_positioning_014() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=ltr --font-size=600",
+        ),
+        "[1=0+1|2=1@-1,-1+299]"
+    );
+}
+
+#[test]
+fn cursive_positioning_015() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=ltr --font-size=-600",
+        ),
+        "[1=0+-1|2=1@1,1+-299]"
+    );
+}
+
+#[test]
+fn cursive_positioning_016() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=rtl --font-size=600",
+        ),
+        "[2=1+1|1=0@-1,1+299]"
+    );
+}
+
+#[test]
+fn cursive_positioning_017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/cursive-anchor-rounding.ttf",
+            "\u{41}\u{42}",
+            "--no-glyph-names --direction=rtl --font-size=-600",
+        ),
+        "[2=1+-1|1=0@1,-1+-299]"
     );
 }
 
@@ -61661,6 +61811,18 @@ fn vertical_016() {
             "--direction=t --variations wght=700",
         ),
         "[gid1=0@-302,-954+0,-1362|gid2=1@-316,-1056+0,-1362]"
+    );
+}
+
+#[test]
+fn vertical_017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/mvar-huge-ascender.ttf",
+            "\u{41}",
+            "--no-glyph-names --direction=ttb --variations=TEST=1 --font-funcs=ot",
+        ),
+        "[1=0@-250,-1073742073+0,-2147483648]"
     );
 }
 

@@ -30,6 +30,29 @@ impl Language {
         core::str::from_utf8(&self.0).unwrap_or_default()
     }
 
+    pub(crate) fn matches_raw(raw: &[u8], specific: Option<&Self>) -> bool {
+        if raw.is_empty() || raw[0] == 0 {
+            return specific.is_none();
+        }
+        let Some(specific) = specific else {
+            return false;
+        };
+        let specific = specific.as_bytes();
+        let mut len = 0;
+        // Match hb_language_from_string(raw, length) without allocating.
+        for &byte in raw.iter().take(63) {
+            let byte = canonical_byte(byte);
+            if !byte.is_ascii_alphanumeric() && byte != b'-' {
+                break;
+            }
+            if specific.get(len) != Some(&byte) {
+                return false;
+            }
+            len += 1;
+        }
+        specific.len() == len || specific.get(len) == Some(&b'-')
+    }
+
     fn from_bytes(bytes: &[u8]) -> Self {
         if bytes.is_empty() {
             Language(SmallVec::new())
@@ -38,15 +61,19 @@ impl Language {
 
             // Convert uppercase to lowercase and replace '_' with '-'.
             for b in &mut bytes.iter_mut() {
-                if b.is_ascii_uppercase() {
-                    *b = b.to_ascii_lowercase();
-                } else if *b == b'_' {
-                    *b = b'-';
-                }
+                *b = canonical_byte(*b);
             }
 
             Language(bytes)
         }
+    }
+}
+
+fn canonical_byte(byte: u8) -> u8 {
+    if byte == b'_' {
+        b'-'
+    } else {
+        byte.to_ascii_lowercase()
     }
 }
 
