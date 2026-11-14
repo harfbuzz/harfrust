@@ -168,18 +168,20 @@ impl read_fonts::model::metrics::Scale for Scale {
 
     fn scale_x(&self, value: F48Dot16) -> i32 {
         if value.to_bits().trailing_zeros() >= 16 {
-            self.scale_x(value.to_i32())
-        } else {
-            self.scale_x_f(value.to_f32())
+            if let Ok(integer) = i32::try_from(value.to_bits() >> 16) {
+                return self.scale_x(integer);
+            }
         }
+        self.scale_x_f(value.to_f32())
     }
 
     fn scale_y(&self, value: F48Dot16) -> i32 {
         if value.to_bits().trailing_zeros() >= 16 {
-            self.scale_y(value.to_i32())
-        } else {
-            self.scale_y_f(value.to_f32())
+            if let Ok(integer) = i32::try_from(value.to_bits() >> 16) {
+                return self.scale_y(integer);
+            }
         }
+        self.scale_y_f(value.to_f32())
     }
 
     fn scale_glyph_extents(

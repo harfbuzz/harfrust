@@ -241,6 +241,16 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Returns the scaled vertical advance from the font's own tables.
     pub fn default_glyph_v_advance(&self, glyph: GlyphId) -> i32 {
+        if !self
+            .font
+            .tables()
+            .vmtx()
+            .is_ok_and(|table| !table.v_metrics().is_empty())
+        {
+            if let Some(line) = self.font.metrics().scaled(self.scale).h_line() {
+                return line.descender.saturating_sub(line.ascender);
+            }
+        }
         self.scale
             .clamp_y_advance(self.glyph_metrics().v_advance(glyph))
             .saturating_neg()
