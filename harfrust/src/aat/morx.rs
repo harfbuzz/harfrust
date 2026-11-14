@@ -7,7 +7,6 @@ use crate::aat::common::{
 };
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::set_digest::SetDigest;
-use crate::tag::lang_matches;
 use crate::Language;
 use crate::U32Set;
 use alloc::{vec, vec::Vec};
@@ -83,9 +82,6 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
         let Some(index) = setting.checked_sub(1) else {
             return false;
         };
-        let Some(requested) = builder.language.as_ref() else {
-            return false;
-        };
         let Some(ltag) = aat.ltag.as_ref() else {
             return false;
         };
@@ -95,24 +91,12 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
         let Some(range) = ltag.tag_ranges().get(usize::from(index)) else {
             return false;
         };
-        // A tag longer than the requested language cannot be a prefix of it.
         let len = usize::from(range.length());
-        if len > requested.as_bytes().len() {
-            return false;
-        }
         let start = usize::from(range.offset());
-        let Some(tag) = ltag
-            .offset_data()
-            .as_bytes()
-            .get(start..start + len)
-            .and_then(|bytes| core::str::from_utf8(bytes).ok())
-        else {
+        let Some(tag) = ltag.offset_data().as_bytes().get(start..start + len) else {
             return false;
         };
-        let Some(language) = Language::new(tag) else {
-            return false;
-        };
-        lang_matches(requested.as_bytes(), language.as_bytes())
+        Language::matches_raw(tag, builder.language.as_ref())
     };
 
     fn compile_chain(
