@@ -9,7 +9,7 @@ use crate::U32Set;
 use crate::{
     buffer::*,
     ot::apply::{ApplyContext, SkippingIterator},
-    ot::gpos::attach_type,
+    ot::gpos::{attach_type, cross_offset},
     ot::layout::LayoutTableKind,
     ot::lookup_flags,
 };
@@ -762,7 +762,15 @@ impl Driver4<'_> {
             _ => {}
         }
 
-        c.buffer.cur_pos_mut()?.set_attach_type(attach_type::MARK);
+        let base_offset = cross_offset(c.buffer, self.mark, c.buffer_is_reversed)?;
+        let horizontal = c.buffer.direction.is_horizontal();
+        let pos = c.buffer.cur_pos_mut()?;
+        if horizontal {
+            pos.y_offset = pos.y_offset.saturating_add(base_offset);
+        } else {
+            pos.x_offset = pos.x_offset.saturating_add(base_offset);
+        }
+        pos.set_attach_type(attach_type::MARK);
         c.buffer.cur_pos_mut()?.set_attach_chain(attach_chain);
         c.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
         Some(())
