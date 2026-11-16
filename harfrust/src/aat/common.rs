@@ -60,6 +60,7 @@ pub struct AatApplyContext<'a, 'f, 'c> {
     /// A digest of `first_set`.
     pub(crate) first_digest: SetDigest,
     pub(crate) second_set: Option<&'a U32Set>,
+    pub(crate) second_set_gates: bool,
     pub(crate) machine_class_cache: Option<&'a ClassCache>,
     pub(crate) start_end_safe_to_break: u64,
     pub(crate) safe_to_break: SafeToBreak<'a>,
@@ -93,6 +94,7 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
             first_set: None,
             first_digest: SetDigest::full(),
             second_set: None,
+            second_set_gates: false,
             machine_class_cache: None,
             start_end_safe_to_break: 0,
             safe_to_break: SafeToBreak::default(),
@@ -148,6 +150,24 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
         } else {
             true
         }
+    }
+
+    /// A machine can act only when the buffer contains a completer glyph.
+    /// Pair formats keep their finer per-pair check instead.
+    pub(crate) fn buffer_intersects_second(&self) -> bool {
+        if !self.second_set_gates {
+            return true;
+        }
+        let Some(second_set) = self.second_set else {
+            return true;
+        };
+        if self.using_buffer_glyph_set {
+            return self.buffer.glyph_set.intersects_set(second_set);
+        }
+        self.buffer
+            .glyph_infos()
+            .iter()
+            .any(|info| second_set.contains(info.glyph_id))
     }
 
     pub fn output_glyph(&mut self, glyph: u32) -> Option<()> {
@@ -527,6 +547,56 @@ pub(crate) fn extended_class_count(n_classes: usize, data: &[u8]) -> usize {
     n_classes.min(n_cells).min(1 << 16)
 }
 
+/// Collect glyphs whose class triggers an action from a reachable state.
+/// `None` means the set cannot gate this machine: an end-of-text or
+/// out-of-bounds transition can act without a glyph from the class lookup,
+/// or the machine is malformed or has too many classes to collect cheaply.
+/// Legacy machines are excluded by their callers, since states can be negative.
+#[inline(never)]
+pub(crate) fn collect_second_glyphs<T: bytemuck::AnyBitPattern + FixedSize>(
+    machine: &ExtendedStateTable<T>,
+    num_glyphs: u32,
+    is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
+) -> Option<U32Set> {
+    // Match HarfBuzz's one-page class filter. Require the reserved columns
+    // as well, so even a degenerate machine's OUT_OF_BOUNDS clamp is covered.
+    if !(4..=512).contains(&machine.n_classes) {
+        return None;
+    }
+
+    let mut classes = U32Set::default();
+    let mut visited = U32Set::default();
+    let mut queue = Vec::new();
+    visited.insert(START_OF_TEXT as u32);
+    queue.push(START_OF_TEXT);
+    while let Some(state) = queue.pop() {
+        for class in 0..machine.n_classes {
+            let entry = machine.entry(state, class as u16).ok()?;
+            if is_actionable(&entry) {
+                if class == usize::from(class::END_OF_TEXT)
+                    || class == usize::from(class::OUT_OF_BOUNDS)
+                {
+                    return None;
+                }
+                classes.insert(class as u32);
+            }
+            if visited.insert(entry.new_state as u32) {
+                queue.push(entry.new_state);
+            }
+        }
+    }
+
+    let mut glyphs = U32Set::default();
+    let filter = class_set_filter(&classes);
+    if filter(u16::from(class::DELETED_GLYPH)) {
+        glyphs.insert(DELETED_GLYPH);
+    }
+    machine
+        .class_table
+        .collect_glyphs_filtered(&mut glyphs, num_glyphs, filter);
+    Some(glyphs)
+}
+
 // Keep one closure type for the morx and kerx class-set filters so that
 // their lookup collectors share a monomorphization.
 pub(crate) fn class_set_filter(classes: &U32Set) -> impl Fn(u16) -> bool + '_ {
@@ -828,6 +898,114 @@ mod tests {
     use super::*;
     use crate::{Buffer, Direction, ShapePlan, ShaperFont};
     use core::mem::size_of;
+
+    fn completer_machine_data() -> Vec<u8> {
+        // Class 4 reaches state 2; class 5 completes it. State 1 is
+        // unreachable and has actions even on end-of-text/out-of-bounds.
+        #[rustfmt::skip]
+        let words = [
+            0u16, 7, 0, 16, 0, 28, 0, 70, // extended header
+            8, 1, 3, 4, 5, 6, // lookup: glyphs 1, 2, 3 -> classes 4, 5, 6
+            0, 0, 0, 0, 1, 0, 0, // state 0
+            2, 2, 2, 2, 2, 2, 2, // state 1 (unreachable)
+            0, 0, 0, 0, 1, 2, 0, // state 2
+            0, 0, // entry 0: return to start, no action
+            2, 0, // entry 1: enter/stay in state 2, no action
+            2, 1, // entry 2: action, stay in state 2
+        ];
+        words.iter().flat_map(|word| word.to_be_bytes()).collect()
+    }
+
+    #[test]
+    fn second_glyphs_follow_only_reachable_states() {
+        use read_fonts::FontRead;
+        let data = completer_machine_data();
+        let machine = ExtendedStateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+        let glyphs = collect_second_glyphs(&machine, 4, &|entry| entry.flags != 0).unwrap();
+        assert_eq!(glyphs.iter().collect::<Vec<_>>(), [2]);
+
+        // A machine with no actions can always be skipped.
+        assert!(collect_second_glyphs(&machine, 4, &|_| false)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn second_glyphs_handle_reserved_classes() {
+        use read_fonts::FontRead;
+        for class in [
+            class::END_OF_TEXT,
+            class::OUT_OF_BOUNDS,
+            class::DELETED_GLYPH,
+        ] {
+            let mut data = completer_machine_data();
+            let cell = 28 + (2 * 7 + usize::from(class)) * 2;
+            data[cell..cell + 2].copy_from_slice(&2u16.to_be_bytes());
+            let machine = ExtendedStateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+            let glyphs = collect_second_glyphs(&machine, 4, &|entry| entry.flags != 0);
+            if class == class::DELETED_GLYPH {
+                assert_eq!(
+                    glyphs.unwrap().iter().collect::<Vec<_>>(),
+                    [2, DELETED_GLYPH]
+                );
+            } else {
+                assert!(glyphs.is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn second_glyphs_leave_malformed_or_large_machines_ungated() {
+        use read_fonts::FontRead;
+        for n_classes in [0u32, 1, 3, 513, u32::MAX] {
+            let mut data = completer_machine_data();
+            data[..4].copy_from_slice(&n_classes.to_be_bytes());
+            let machine = ExtendedStateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+            assert!(collect_second_glyphs(&machine, 4, &|entry| entry.flags != 0).is_none());
+        }
+        let mut data = completer_machine_data();
+        // A reachable transition names a state beyond the state array.
+        data[74..76].copy_from_slice(&u16::MAX.to_be_bytes());
+        let machine = ExtendedStateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+        assert!(collect_second_glyphs(&machine, 4, &|entry| entry.flags != 0).is_none());
+    }
+
+    #[test]
+    fn second_gate_uses_live_glyphs_in_short_and_cached_buffers() {
+        let font = crate::Font::new(
+            include_bytes!("../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        let shaper_font = ShaperFont::new(&font);
+        let plan = ShapePlan::new(&font, Direction::LeftToRight, None, None, &[]);
+        let mut second_set = U32Set::default();
+        second_set.insert(2);
+        let empty_set = U32Set::default();
+        for len in [1, 3, 4, 8] {
+            let mut buffer = Buffer::new();
+            for i in 0..len {
+                buffer.push(1, i as u32);
+            }
+            let mut c = AatApplyContext::new(
+                &plan,
+                shaper_font.layout(),
+                Scale::default(),
+                &mut buffer,
+                #[cfg(feature = "tracing")]
+                &shaper_font,
+            );
+            c.setup_buffer_glyph_set();
+            c.second_set = Some(&second_set);
+            assert!(c.buffer_intersects_second()); // Pair/ungateable format.
+            c.second_set_gates = true;
+            assert!(!c.buffer_intersects_second());
+            c.replace_glyph_inplace(len - 1, 2).unwrap();
+            assert!(c.buffer_intersects_second());
+            c.second_set = Some(&empty_set);
+            assert!(!c.buffer_intersects_second());
+        }
+    }
 
     #[test]
     fn safe_to_break_distinguishes_signed_states_and_advance() {

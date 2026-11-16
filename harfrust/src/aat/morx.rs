@@ -271,6 +271,8 @@ fn apply_table<'a>(
         c.subtable_flags = desc.sub_feature_flags;
         c.first_set = Some(&subtable_cache.glyph_set);
         c.first_digest = subtable_cache.glyph_digest.clone();
+        c.second_set = subtable_cache.second_set.as_ref();
+        c.second_set_gates = subtable_cache.second_set.is_some();
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
@@ -279,6 +281,15 @@ fn apply_table<'a>(
             message!(
                 c,
                 "skipped chainsubtable {} because no glyph matches",
+                subtable_idx
+            );
+            continue;
+        }
+
+        if !c.buffer_intersects_second() {
+            message!(
+                c,
+                "skipped chainsubtable {} because no completer glyph matches",
                 subtable_idx
             );
             continue;
@@ -333,6 +344,13 @@ where
         num_glyphs: u32,
         filter: impl Fn(u16) -> bool,
     );
+    fn collect_second_glyphs(
+        &self,
+        _num_glyphs: u32,
+        _is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
+    ) -> Option<U32Set> {
+        None
+    }
     fn build_safe_to_break(
         &self,
         accel: &mut SafeToBreakAccel,
@@ -376,6 +394,14 @@ where
         can_advance: &dyn Fn(&StateEntry<T>) -> bool,
     ) -> SafeToBreakSubtable {
         accel.build_extended(self, data, is_actionable, can_advance)
+    }
+
+    fn collect_second_glyphs(
+        &self,
+        num_glyphs: u32,
+        is_actionable: &dyn Fn(&StateEntry<T>) -> bool,
+    ) -> Option<U32Set> {
+        crate::aat::common::collect_second_glyphs(self, num_glyphs, is_actionable)
     }
 }
 
@@ -1535,6 +1561,7 @@ pub(crate) struct MorphSubtableCache<'a> {
     safe_to_break: SafeToBreakSubtable,
     glyph_set: U32Set,
     glyph_digest: SetDigest,
+    second_set: Option<U32Set>,
     class_cache: ClassCache,
     /// The parsed subtable, or `None` if it is unreadable.
     kind: Option<MorphSubtableKind<'a>>,
@@ -1548,7 +1575,8 @@ fn accelerate_state_machine<T, M, Ctx>(
     start_end_safe_to_break: &mut u64,
     safe_to_break_subtable: &mut SafeToBreakSubtable,
     glyph_set: &mut U32Set,
-) where
+) -> Option<U32Set>
+where
     T: FixedSize + bytemuck::AnyBitPattern,
     M: MorphStateTable<T>,
     Ctx: DriverContext<T>,
@@ -1557,6 +1585,7 @@ fn accelerate_state_machine<T, M, Ctx>(
     *safe_to_break_subtable =
         machine.build_safe_to_break(safe_to_break, data, &Ctx::is_actionable, &Ctx::can_advance);
     collect_initial_glyphs::<T, M, Ctx>(machine, data, glyph_set, num_glyphs);
+    machine.collect_second_glyphs(num_glyphs, &Ctx::is_actionable)
 }
 
 impl<'a> MorphSubtableCache<'a> {
@@ -1592,11 +1621,12 @@ impl<'a> MorphSubtableCache<'a> {
         let mut start_end_safe_to_break = 0u64;
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut glyph_set = U32Set::default();
+        let mut second_set = None;
         let kind = subtable.kind().ok();
         if let Some(kind) = &kind {
             match kind {
                 morx::SubtableKind::Rearrangement(table) => {
-                    accelerate_state_machine::<_, _, RearrangementCtx>(
+                    second_set = accelerate_state_machine::<_, _, RearrangementCtx>(
                         table,
                         subtable.data(),
                         num_glyphs,
@@ -1607,7 +1637,11 @@ impl<'a> MorphSubtableCache<'a> {
                     );
                 }
                 morx::SubtableKind::Contextual(table) => {
-                    accelerate_state_machine::<_, _, ContextualCtx<morx::ContextualSubtable<'_>>>(
+                    second_set = accelerate_state_machine::<
+                        _,
+                        _,
+                        ContextualCtx<morx::ContextualSubtable<'_>>,
+                    >(
                         &table.state_table,
                         subtable.data(),
                         num_glyphs,
@@ -1618,21 +1652,22 @@ impl<'a> MorphSubtableCache<'a> {
                     );
                 }
                 morx::SubtableKind::Ligature(table) => {
-                    accelerate_state_machine::<_, _, LigatureCtx<morx::LigatureSubtable<'_>>>(
-                        &table.state_table,
-                        subtable.data(),
-                        num_glyphs,
-                        safe_to_break,
-                        &mut start_end_safe_to_break,
-                        &mut safe_to_break_subtable,
-                        &mut glyph_set,
-                    );
+                    second_set =
+                        accelerate_state_machine::<_, _, LigatureCtx<morx::LigatureSubtable<'_>>>(
+                            &table.state_table,
+                            subtable.data(),
+                            num_glyphs,
+                            safe_to_break,
+                            &mut start_end_safe_to_break,
+                            &mut safe_to_break_subtable,
+                            &mut glyph_set,
+                        );
                 }
                 morx::SubtableKind::NonContextual(ref lookup) => {
                     lookup.collect_glyphs(&mut glyph_set, num_glyphs);
                 }
                 morx::SubtableKind::Insertion(table) => {
-                    accelerate_state_machine::<_, _, InsertionCtx<'_>>(
+                    second_set = accelerate_state_machine::<_, _, InsertionCtx<'_>>(
                         &table.state_table,
                         subtable.data(),
                         num_glyphs,
@@ -1649,6 +1684,7 @@ impl<'a> MorphSubtableCache<'a> {
             safe_to_break: safe_to_break_subtable,
             glyph_digest: set_digest(&glyph_set),
             glyph_set,
+            second_set,
             class_cache: ClassCache::new(),
             kind: kind.map(MorphSubtableKind::Morx),
         }
@@ -1662,11 +1698,12 @@ impl<'a> MorphSubtableCache<'a> {
         let mut start_end_safe_to_break = 0u64;
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut glyph_set = U32Set::default();
+        let mut second_set = None;
         let kind = subtable.kind().ok();
         if let Some(kind) = &kind {
             match kind {
                 mort::SubtableKind::Rearrangement(table) => {
-                    accelerate_state_machine::<_, _, RearrangementCtx>(
+                    second_set = accelerate_state_machine::<_, _, RearrangementCtx>(
                         table,
                         subtable.data(),
                         num_glyphs,
@@ -1677,7 +1714,11 @@ impl<'a> MorphSubtableCache<'a> {
                     );
                 }
                 mort::SubtableKind::Contextual(table) => {
-                    accelerate_state_machine::<_, _, ContextualCtx<mort::ContextualSubtable<'_>>>(
+                    second_set = accelerate_state_machine::<
+                        _,
+                        _,
+                        ContextualCtx<mort::ContextualSubtable<'_>>,
+                    >(
                         &table.state_table,
                         subtable.data(),
                         num_glyphs,
@@ -1688,21 +1729,22 @@ impl<'a> MorphSubtableCache<'a> {
                     );
                 }
                 mort::SubtableKind::Ligature(table) => {
-                    accelerate_state_machine::<_, _, LigatureCtx<mort::LigatureSubtable<'_>>>(
-                        &table.state_table,
-                        subtable.data(),
-                        num_glyphs,
-                        safe_to_break,
-                        &mut start_end_safe_to_break,
-                        &mut safe_to_break_subtable,
-                        &mut glyph_set,
-                    );
+                    second_set =
+                        accelerate_state_machine::<_, _, LigatureCtx<mort::LigatureSubtable<'_>>>(
+                            &table.state_table,
+                            subtable.data(),
+                            num_glyphs,
+                            safe_to_break,
+                            &mut start_end_safe_to_break,
+                            &mut safe_to_break_subtable,
+                            &mut glyph_set,
+                        );
                 }
                 mort::SubtableKind::NonContextual(ref lookup) => {
                     lookup.collect_glyphs(&mut glyph_set, num_glyphs);
                 }
                 mort::SubtableKind::Insertion(table) => {
-                    accelerate_state_machine::<_, _, InsertionCtx<'_>>(
+                    second_set = accelerate_state_machine::<_, _, InsertionCtx<'_>>(
                         &table.state_table,
                         subtable.data(),
                         num_glyphs,
@@ -1719,6 +1761,7 @@ impl<'a> MorphSubtableCache<'a> {
             safe_to_break: safe_to_break_subtable,
             glyph_digest: set_digest(&glyph_set),
             glyph_set,
+            second_set,
             class_cache: ClassCache::new(),
             kind: kind.map(MorphSubtableKind::Mort),
         }
@@ -1727,7 +1770,10 @@ impl<'a> MorphSubtableCache<'a> {
     /// The bytes this entry keeps for the life of the font. Its glyph set
     /// and safe-to-break data can be far larger than the subtable.
     pub(crate) fn retained_bytes(&self) -> usize {
-        size_of::<Self>() + set_heap_bytes(&self.glyph_set) + self.safe_to_break.accel_bytes()
+        size_of::<Self>()
+            + set_heap_bytes(&self.glyph_set)
+            + self.second_set.as_ref().map_or(0, set_heap_bytes)
+            + self.safe_to_break.accel_bytes()
     }
 }
 
@@ -1735,6 +1781,95 @@ impl<'a> MorphSubtableCache<'a> {
 mod tests {
     use super::*;
     use read_fonts::{FontData, FontRead};
+
+    #[test]
+    fn second_gate_skips_incomplete_rearrangements_and_preserves_output() {
+        #[rustfmt::skip]
+        let words = [
+            0u16, 6, 0, 16, 0, 26, 0, 50, // extended header
+            8, 1, 2, 4, 5, // glyphs 1, 2 -> classes 4, 5
+            0, 0, 0, 0, 1, 0, // state 0
+            0, 0, 0, 0, 1, 2, // state 1
+            0, 0, // entry 0: return to start
+            1, 0x8000, // entry 1: mark first
+            0, 0x2003, // entry 2: mark last, swap first and last
+        ];
+        let data: Vec<_> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+        let mut bytes = Vec::new();
+        bytes.extend((12 + data.len() as u32).to_be_bytes());
+        bytes.extend(0u32.to_be_bytes()); // Rearrangement coverage.
+        bytes.extend(1u32.to_be_bytes()); // Feature flags.
+        bytes.extend(data);
+        let subtable = morx::Subtable::read(FontData::new(&bytes)).unwrap();
+        let mut accel = SafeToBreakAccel::default();
+        let cache = MorphSubtableCache::new_morx(&subtable, 4, &mut accel);
+        assert_eq!(
+            cache
+                .second_set
+                .as_ref()
+                .unwrap()
+                .iter()
+                .collect::<Vec<_>>(),
+            [2]
+        );
+        let mut caches = [cache];
+        let descriptors = [MorphSubtableCache::descriptor_morx(0, &subtable)];
+        let map = AatMap {
+            chain_flags: vec![vec![RangeFlags {
+                flags: 1,
+                cluster_first: 0,
+                cluster_last: u32::MAX,
+            }]],
+            ..AatMap::default()
+        };
+        let font = crate::Font::new(
+            include_bytes!("../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        let shaper_font = crate::ShaperFont::new(&font);
+        let plan = crate::ShapePlan::new(&font, crate::Direction::LeftToRight, None, None, &[]);
+        let mut gated_output = Vec::new();
+        for gated in [true, false] {
+            if !gated {
+                caches[0].second_set = None;
+            }
+            for glyphs in [&[1, 3][..], &[1, 3, 3, 3], &[1, 2], &[1, 2, 3, 3]] {
+                let mut buffer = crate::Buffer::new();
+                buffer.push_codepoints(glyphs);
+                buffer.set_direction(crate::Direction::LeftToRight);
+                buffer.set_flags(crate::BufferFlags::PRODUCE_UNSAFE_TO_CONCAT);
+                buffer.unsafe_to_concat(None, None);
+                let mut c = AatApplyContext::new(
+                    &plan,
+                    shaper_font.layout(),
+                    crate::Scale::default(),
+                    &mut buffer,
+                    #[cfg(feature = "tracing")]
+                    &shaper_font,
+                );
+                c.setup_buffer_glyph_set();
+                apply_table(&mut c, &map, &accel, &caches, &descriptors).unwrap();
+                let skipped = gated && !glyphs.contains(&2);
+                assert_eq!(c.buffer.idx, if skipped { 0 } else { glyphs.len() });
+                let output: Vec<_> = c
+                    .buffer
+                    .glyph_infos()
+                    .iter()
+                    .map(|info| (info.glyph_id, info.cluster, info.flags()))
+                    .collect();
+                if glyphs.contains(&2) {
+                    assert_eq!(output[0].0, 2);
+                    assert_eq!(output[1].0, 1);
+                }
+                if gated {
+                    gated_output.push(output);
+                } else {
+                    assert_eq!(gated_output.remove(0), output);
+                }
+            }
+        }
+    }
 
     #[test]
     fn legacy_negative_states_rearrange_and_check_end_of_text() {
@@ -1758,6 +1893,12 @@ mod tests {
                 0, 14, 0x20, 3, // entry 2: swap first/last, stay in state -1
             ];
             let machine = StateTable::<NoPayload>::read(FontData::new(&data)).unwrap();
+            assert!(MorphStateTable::collect_second_glyphs(
+                &machine,
+                4,
+                &RearrangementCtx::is_actionable,
+            )
+            .is_none());
             let mut accel = SafeToBreakAccel::default();
             let subtable = accel.build_legacy(
                 &machine,
@@ -1820,6 +1961,7 @@ mod tests {
         let subtable = morx::Subtable::read(FontData::new(&bytes)).unwrap();
         let mut accel = SafeToBreakAccel::default();
         let cache = MorphSubtableCache::new_morx(&subtable, 65535, &mut accel);
+        assert!(cache.second_set.is_none());
         assert_eq!(cache.glyph_set.len(), 65535);
         assert!(cache.glyph_set.contains(0));
         assert!(cache.glyph_set.contains(65534));
@@ -1839,6 +1981,7 @@ mod tests {
         bytes.extend(legacy_lookup);
         let subtable = mort::Subtable::read(FontData::new(&bytes)).unwrap();
         let cache = MorphSubtableCache::new_mort(&subtable, 1000, &mut accel);
+        assert!(cache.second_set.is_none());
         assert_eq!(cache.glyph_set.len(), 1000);
         assert!((0..1000).all(|glyph| cache.glyph_set.contains(glyph)));
         assert!(!cache.glyph_set.contains(1000));
