@@ -1,7 +1,8 @@
 use super::layout::DELETED_GLYPH;
 use crate::aat::common::{
-    extended_class_count, get_class, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
-    SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
+    collect_second_glyphs, extended_class_count, get_class, set_digest, set_heap_bytes,
+    AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs,
+    START_OF_TEXT,
 };
 use crate::aat::kern::apply_pair_kerning;
 use crate::set_digest::SetDigest;
@@ -54,6 +55,7 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         c.first_set = Some(&subtable_cache.first_set);
         c.first_digest = subtable_cache.first_digest.clone();
         c.second_set = Some(&subtable_cache.second_set);
+        c.second_set_gates = subtable_cache.second_set_gates;
         c.machine_class_cache = Some(&subtable_cache.class_cache);
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
@@ -62,6 +64,15 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             message!(
                 c,
                 "skipped subtable {} because no glyph matches",
+                message_index
+            );
+            continue;
+        }
+
+        if !c.buffer_intersects_second() {
+            message!(
+                c,
+                "skipped subtable {} because no completer glyph matches",
                 message_index
             );
             continue;
@@ -807,6 +818,7 @@ pub(crate) struct KerxSubtableCache<'a> {
     first_set: U32Set,
     first_digest: SetDigest,
     second_set: U32Set,
+    second_set_gates: bool,
     class_cache: Box<ClassCache>,
     subtable: Subtable<'a>,
     /// The parsed subtable, or `None` if it is unreadable.
@@ -823,6 +835,7 @@ impl<'a> KerxSubtableCache<'a> {
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
+        let mut second_set_gates = false;
         let kind = subtable.kind().ok();
         if let Some(kind) = &kind {
             match kind {
@@ -830,6 +843,14 @@ impl<'a> KerxSubtableCache<'a> {
                     format0.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
                 SubtableKind::Format1(format1) => {
+                    if let Some(glyphs) = collect_second_glyphs(
+                        &format1.state_table,
+                        num_glyphs,
+                        &KerxStateEntryExt::is_actionable,
+                    ) {
+                        second_set = glyphs;
+                        second_set_gates = true;
+                    }
                     start_end_safe_to_break = collect_start_end_safe_to_break(&format1.state_table);
                     safe_to_break_subtable = safe_to_break.build_extended(
                         &format1.state_table,
@@ -848,6 +869,14 @@ impl<'a> KerxSubtableCache<'a> {
                     format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
                 }
                 SubtableKind::Format4(format4) => {
+                    if let Some(glyphs) = collect_second_glyphs(
+                        &format4.state_table,
+                        num_glyphs,
+                        &KerxStateEntryExt::is_actionable,
+                    ) {
+                        second_set = glyphs;
+                        second_set_gates = true;
+                    }
                     start_end_safe_to_break = collect_start_end_safe_to_break(&format4.state_table);
                     safe_to_break_subtable = safe_to_break.build_extended(
                         &format4.state_table,
@@ -873,6 +902,7 @@ impl<'a> KerxSubtableCache<'a> {
             first_digest: set_digest(&first_set),
             first_set,
             second_set,
+            second_set_gates,
             class_cache: Box::new(ClassCache::new()),
             subtable: subtable.clone(),
             kind,
@@ -895,6 +925,46 @@ mod tests {
     use super::*;
     use alloc::vec;
     use read_fonts::FontRead;
+
+    #[test]
+    fn machine_caches_collect_completers_unless_end_of_text_can_act() {
+        for format in [1u32, 4] {
+            for end_of_text_action in [false, true] {
+                #[rustfmt::skip]
+                let mut words = vec![
+                    0u16, 6, 0, 20, 0, 30, 0, 54, // extended header
+                    0, 72, // value offset (format 1) / action flags (format 4)
+                    8, 1, 2, 4, 5, // glyphs 1, 2 -> classes 4, 5
+                    0, 0, 0, 0, 1, 0, // state 0
+                    0, 0, 0, 0, 1, 2, // state 1
+                    0, 0, 0xFFFF, // entry 0: no action
+                    1, 0x8000, 0xFFFF, // entry 1: push/mark
+                    0, 0, 0, // entry 2: action index 0
+                    0, 0, 0, 0, // kerning values / control point coordinates
+                ];
+                if format == 4 {
+                    words[8] = 0x8000; // Coordinate actions.
+                }
+                if end_of_text_action {
+                    words[21] = 2; // State 1's end-of-text cell.
+                }
+                let data: Vec<_> = words.iter().flat_map(|word| word.to_be_bytes()).collect();
+                let mut bytes = Vec::new();
+                bytes.extend((12 + data.len() as u32).to_be_bytes());
+                bytes.extend(format.to_be_bytes());
+                bytes.extend(0u32.to_be_bytes()); // Tuple count.
+                bytes.extend(data);
+                let subtable = Subtable::read(FontData::new(&bytes)).unwrap();
+                let mut accel = SafeToBreakAccel::default();
+                let cache = KerxSubtableCache::new(&subtable, 4, &mut accel);
+                assert!(cache.kind.is_some());
+                assert_eq!(cache.second_set_gates, !end_of_text_action);
+                if !end_of_text_action {
+                    assert_eq!(cache.second_set.iter().collect::<Vec<_>>(), [2]);
+                }
+            }
+        }
+    }
 
     #[test]
     fn format1_action_lists_respect_operation_budget() {
