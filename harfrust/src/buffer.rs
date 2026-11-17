@@ -75,6 +75,7 @@ pub struct GlyphInfo {
     ///
     /// Glyph IDs are not confined to `u16`. User-provided glyphs (e.g.
     /// `Buffer::set_invisible_glyph`,
+    /// `Buffer::set_not_found_glyph`,
     /// `Buffer::set_not_found_variation_selector_glyph`, or custom
     /// `FontFuncs` (see crate::FontFuncs)) are provided as is and can be larger than `u16::MAX`
     /// or the number of glyphs in the font.
@@ -492,6 +493,7 @@ pub struct Buffer {
     pub(crate) flags: BufferFlags,
     pub(crate) cluster_level: ClusterLevelCode,
     pub(crate) invisible: Option<GlyphId>,
+    pub(crate) not_found: Option<u32>,
     pub(crate) not_found_variation_selector: Option<u32>,
 
     // Buffer contents.
@@ -543,6 +545,7 @@ impl Buffer {
             flags: BufferFlags::empty(),
             cluster_level: HB_BUFFER_CLUSTER_LEVEL_DEFAULT,
             invisible: None,
+            not_found: None,
             scratch_flags: HB_BUFFER_SCRATCH_FLAG_DEFAULT,
             not_found_variation_selector: None,
             max_len: Self::MAX_LEN_DEFAULT,
@@ -603,7 +606,7 @@ impl Buffer {
         self.max_ops = Self::MAX_OPS_DEFAULT;
         self.allocated_var_bits = 0;
         // How the buffer is configured -- its flags, cluster level, invisible
-        // glyph and variation-selector fallback -- outlives its contents, as
+        // glyph and not-found fallbacks -- outlives its contents, as
         // it does in `hb_buffer_clear_contents`. `Buffer::reset` is what puts
         // those back.
     }
@@ -615,6 +618,7 @@ impl Buffer {
         self.flags = BufferFlags::empty();
         self.cluster_level = HB_BUFFER_CLUSTER_LEVEL_DEFAULT;
         self.invisible = None;
+        self.not_found = None;
         self.not_found_variation_selector = None;
     }
 
@@ -929,6 +933,25 @@ impl Buffer {
     #[inline]
     pub fn set_invisible_glyph(&mut self, glyph: Option<GlyphId>) {
         self.invisible = glyph;
+    }
+
+    /// Returns the glyph used to replace characters not found in the font, if set.
+    #[inline]
+    pub fn not_found_glyph(&self) -> Option<u32> {
+        self.not_found
+    }
+
+    /// Sets the glyph used to replace characters not found in the font during shaping.
+    ///
+    /// If `None`, missing characters use glyph zero, also known as the `.notdef`
+    /// glyph. Setting a different value allows callers to distinguish missing
+    /// characters from characters explicitly mapped to `.notdef`.
+    ///
+    /// The glyph is taken as is and does not have to be present in the font;
+    /// any `u32` value, even above `u16::MAX`, is accepted.
+    #[inline]
+    pub fn set_not_found_glyph(&mut self, glyph: Option<u32>) {
+        self.not_found = glyph;
     }
 
     /// Returns the glyph used to replace not-found variation selectors, if set.
@@ -2443,6 +2466,7 @@ impl Buffer {
                     flags: self.flags,
                     cluster_level: self.cluster_level,
                     invisible: self.invisible,
+                    not_found: self.not_found,
                     not_found_variation_selector: self.not_found_variation_selector,
                     content_type: self.content_type,
                     direction: self.direction,

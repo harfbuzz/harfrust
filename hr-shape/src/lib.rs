@@ -156,6 +156,10 @@ pub struct Args {
     #[arg(long)]
     remove_default_ignorables: bool,
 
+    /// Glyph value to replace not-found characters with
+    #[arg(long)]
+    not_found_glyph: Option<u32>,
+
     /// Glyph value to replace not-found variation-selector characters with
     #[arg(long)]
     not_found_variation_selector_glyph: Option<u32>,
@@ -514,6 +518,7 @@ fn render_with_trace(
                 if !args.utf8_clusters {
                     buffer.reset_clusters();
                 }
+                buffer.set_not_found_glyph(args.not_found_glyph);
                 if let Some(g) = args.not_found_variation_selector_glyph {
                     buffer.set_not_found_variation_selector_glyph(Some(g));
                 }
@@ -705,6 +710,27 @@ mod tests {
         assert_eq!(output, "1: \n");
         let trace = String::from_utf8(trace).unwrap();
         assert!(trace.lines().all(|line| line.ends_with("\tbuffer: ")));
+    }
+
+    #[test]
+    fn not_found_glyph_option_is_applied_to_each_line() {
+        let font = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/tests/fonts/in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf"
+        );
+        let args = Args::try_parse_from([
+            "hr-shape",
+            font,
+            "f\u{10FFFF}\nf\u{10FFFF}",
+            "--not-found-glyph=65536",
+            "--no-glyph-names",
+            "--num-iterations=2",
+        ])
+        .unwrap();
+        assert_eq!(
+            render(args).unwrap(),
+            "[2=0+711|65536=1+0]\n[2=0+711|65536=1+0]\n"
+        );
     }
 
     #[test]

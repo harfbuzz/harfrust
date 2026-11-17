@@ -35,10 +35,13 @@ impl NormalizeContext<'_, '_, '_, '_> {
     }
 
     fn set_current_glyph(&mut self) -> Option<()> {
+        let not_found = self.buffer.not_found.unwrap_or(0);
         let info = self.buffer.cur_mut(0)?;
-        if let Some(glyph_id) = self.font.nominal_glyph(info.glyph_id) {
-            info.set_normalizer_glyph_index(u32::from(glyph_id));
-        }
+        let glyph_id = self
+            .font
+            .nominal_glyph(info.glyph_id)
+            .map_or(not_found, u32::from);
+        info.set_normalizer_glyph_index(glyph_id);
         Some(())
     }
 }
@@ -235,8 +238,9 @@ fn decompose_current_character(ctx: &mut NormalizeContext, shortest: bool) -> Op
         }
     }
 
-    // Insert a .notdef glyph if decomposition failed.
-    if next_char(ctx.buffer, 0).is_none() {
+    // Use the not-found glyph if decomposition and character fallbacks failed.
+    let not_found = ctx.buffer.not_found.unwrap_or(0);
+    if next_char(ctx.buffer, not_found).is_none() {
         ctx.buffer.index_failed();
     }
     Some(())
