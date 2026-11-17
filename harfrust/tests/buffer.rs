@@ -376,6 +376,93 @@ fn not_found_variation_selector_glyph_is_not_limited_to_u16() {
 }
 
 #[test]
+fn not_found_glyph_replaces_only_missing_characters() {
+    let instance = font_instance("in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf");
+    let font = ShaperFont::new(&instance);
+
+    for glyph in [None, Some(0), Some(1), Some(65_536), Some(u32::MAX)] {
+        let mut buffer = unicode_buffer("f\u{10FFFF}");
+        buffer.set_not_found_glyph(glyph);
+        shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+
+        let replacement = glyph.unwrap_or(0);
+        assert_eq!(
+            ids_and_clusters(buffer.glyph_infos()),
+            [(2, 0), (replacement, 1)]
+        );
+        assert_eq!(
+            buffer.glyph_positions()[1].x_advance,
+            font.glyph_h_advance(harfrust::GlyphId::new(replacement))
+        );
+        assert_eq!(buffer.not_found_glyph(), glyph);
+    }
+}
+
+#[test]
+fn not_found_glyph_survives_clear_and_is_cleared_by_reset() {
+    let instance = test_instance();
+    let mut buffer = unicode_buffer("\u{10FFFF}");
+    assert_eq!(buffer.not_found_glyph(), None);
+    buffer.set_not_found_glyph(Some(65_536));
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+
+    buffer.clear();
+    assert_eq!(buffer.not_found_glyph(), Some(65_536));
+    buffer.push_str("\u{10FFFF}");
+    buffer.guess_segment_properties();
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+    assert_eq!(ids_and_clusters(buffer.glyph_infos()), [(65_536, 0)]);
+
+    buffer.reset();
+    assert_eq!(buffer.not_found_glyph(), None);
+    buffer.push_str("\u{10FFFF}");
+    buffer.guess_segment_properties();
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+    assert_eq!(ids_and_clusters(buffer.glyph_infos()), [(0, 0)]);
+
+    buffer.set_not_found_glyph(Some(u32::MAX));
+    buffer.set_not_found_glyph(None);
+    assert_eq!(buffer.not_found_glyph(), None);
+}
+
+#[test]
+fn not_found_glyph_applies_in_variation_selector_clusters() {
+    let instance = font_instance("in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf");
+
+    for text in [
+        "\u{10FFFF}\u{FE00}",
+        "\u{10FFFF}\u{FE00}\u{FE01}",
+        "\u{10FFFF}\u{0301}\u{FE00}",
+    ] {
+        let mut buffer = unicode_buffer(text);
+        buffer.set_flags(BufferFlags::PRESERVE_DEFAULT_IGNORABLES);
+        buffer.set_not_found_glyph(Some(65_536));
+        shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+
+        assert_eq!(buffer.len(), text.chars().count());
+        assert!(buffer
+            .glyph_infos()
+            .iter()
+            .all(|info| info.glyph_id == 65_536));
+    }
+}
+
+#[test]
+fn not_found_glyph_is_independent_of_variation_selector_fallback() {
+    let instance = font_instance("in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf");
+    let mut buffer = unicode_buffer("f\u{FE00}\u{10FFFF}");
+    buffer.set_not_found_glyph(Some(65_536));
+    buffer.set_not_found_variation_selector_glyph(Some(1_000_000));
+    shape_with_instance(&instance, &mut buffer, ShapeOptions::new()).unwrap();
+
+    assert_eq!(
+        ids_and_clusters(buffer.glyph_infos()),
+        [(2, 0), (1_000_000, 0), (65_536, 4)]
+    );
+    assert_eq!(buffer.glyph_positions()[1].x_advance, 0);
+}
+
+#[test]
 fn emptied_buffer_shapes_like_a_fresh_one() {
     // The font has a dotted circle and GPOS lookups that run over the text.
     let instance = font_instance("in-house/1a5face3fcbd929d228235c2f72bbd6f8eb37424.ttf");

@@ -128,6 +128,78 @@ fn font_funcs_nominal_override_is_used() {
 }
 
 #[test]
+fn not_found_glyph_preserves_explicit_notdef_mappings() {
+    struct ExplicitNotdef;
+
+    impl FontFuncs for ExplicitNotdef {
+        fn nominal_glyph(&self, _: &ShaperFont, c: u32) -> Option<GlyphId> {
+            (c == u32::from('a')).then_some(GlyphId::new(0))
+        }
+    }
+
+    let glyphs = with_test_shaper(|shaper| {
+        let mut buffer = buffer_with_text("ab");
+        buffer.set_not_found_glyph(Some(65_536));
+        shape_test(
+            shaper,
+            buffer,
+            TestOptions::new().font_funcs(Some(&ExplicitNotdef)),
+        )
+    });
+
+    assert_eq!(
+        glyphs
+            .glyph_infos()
+            .iter()
+            .map(|info| info.glyph_id)
+            .collect::<Vec<_>>(),
+        [0, 65_536]
+    );
+}
+
+#[test]
+fn not_found_glyph_keeps_normalization_fallbacks() {
+    struct FallbackGlyphs;
+
+    impl FontFuncs for FallbackGlyphs {
+        fn nominal_glyph(&self, _: &ShaperFont, c: u32) -> Option<GlyphId> {
+            let glyph = match c {
+                0x0065 => 1, // e, for decomposing U+00E9.
+                0x0301 => 2, // combining acute accent.
+                0x0020 => 3, // space, for U+00A0.
+                0x2010 => 4, // hyphen, for U+2011.
+                _ => return None,
+            };
+            Some(GlyphId::new(glyph))
+        }
+    }
+
+    with_test_shaper(|shaper| {
+        for (text, expected) in [
+            ("\u{00E9}", vec![1, 2]),
+            ("\u{00A0}", vec![3]),
+            ("\u{2011}", vec![4]),
+        ] {
+            let mut buffer = buffer_with_text(text);
+            buffer.set_not_found_glyph(Some(65_536));
+            let glyphs = shape_test(
+                shaper,
+                buffer,
+                TestOptions::new().font_funcs(Some(&FallbackGlyphs)),
+            );
+            assert_eq!(
+                glyphs
+                    .glyph_infos()
+                    .iter()
+                    .map(|info| info.glyph_id)
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+    });
+}
+
+#[test]
 fn font_funcs_default_fallback_is_available() {
     struct DelegatingFuncs {
         nominal_calls: Cell<usize>,

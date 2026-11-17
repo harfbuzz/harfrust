@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add `Buffer::set_not_found_glyph` and `Buffer::not_found_glyph`, and
+  `hr-shape --not-found-glyph`, to select a replacement for characters not
+  found in the font, matching HarfBuzz.
+
 ## [0.16.0] - 2026-11-11
 
 This release matches HarfBuzz [v15.1.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.1.0),

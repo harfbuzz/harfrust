@@ -27,11 +27,13 @@ fn callback_observes_unicode_glyphs_and_positions() {
     let instance = instance();
     let font = ShaperFont::new(&instance);
     let mut buffer = buffer("o\u{0301}ffice AV");
+    buffer.set_not_found_glyph(Some(65_536));
     let messages = Arc::new(Mutex::new(Vec::new()));
     let captured = messages.clone();
     let mut calls = 0;
     buffer.set_message_function(Some(Box::new(move |buffer, font, message| {
         calls += 1;
+        assert_eq!(buffer.not_found_glyph(), Some(65_536));
         assert_eq!(buffer.glyph_infos().len(), buffer.len());
         assert!(
             buffer.glyph_positions().is_empty() || buffer.glyph_positions().len() == buffer.len()
