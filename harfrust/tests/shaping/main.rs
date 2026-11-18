@@ -40,3 +40,5 @@ pub fn shape(font_path: &str, text: &str, options: &str) -> String {
     }
     output
 }
+
+mod upstream_reports;

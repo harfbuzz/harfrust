@@ -1213,8 +1213,12 @@ fn find_mark_base(
         {
             matched = MatchResult::Skip;
         }
-        if matched == MatchResult::Match {
-            last_base = j as i32 - 1;
+        if matched != MatchResult::Skip {
+            last_base = if matched == MatchResult::Match {
+                j as i32 - 1
+            } else {
+                -1
+            };
             break;
         }
         j -= 1;
