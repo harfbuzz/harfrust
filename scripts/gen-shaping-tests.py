@@ -76,7 +76,7 @@ def convert_unicodes(unicodes):
 
 def prune_test_options(options):
     options = options.replace("--shaper=ot", "").replace("--shapers=ot", "")
-    options = re.sub(r"--font-funcs=(?:ot|ft)(?=\s|$)", "", options)
+    options = re.sub(r"--font-funcs=ft(?=\s|$)", "", options)
     # Keep other sizes intact, including nonuniform scales.
     options = re.sub(r"--font-size=1000(?=\s|$)", "", options)
     # We don't care about extents
@@ -128,7 +128,8 @@ def convert_test_file(
         options_list = []
 
     options_list.insert(0, str(hb_shape_exe))
-    options_list.append("--font-funcs=ot")
+    if "--font-funcs=ot" not in options_list:
+        options_list.append("--font-funcs=ot")
 
     abs_font_path = (
         root_dir.joinpath("harfrust").joinpath(fontfile_rs)
