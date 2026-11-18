@@ -444,6 +444,10 @@ pub fn normalize<'x>(
             }
         }
 
+        // Decomposition can introduce marks into otherwise simple input.
+        if ctx.buffer.successful && ctx.buffer.out_len != count {
+            all_simple = false;
+        }
         ctx.buffer.sync();
         message!(ctx, "end decompose");
     }
