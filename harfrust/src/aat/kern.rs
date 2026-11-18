@@ -84,6 +84,11 @@ pub fn apply(
             continue;
         }
 
+        // Cross-stream kerning replaces the attachment chains used by GPOS.
+        if c.plan.apply_gpos && subtable.is_cross_stream() {
+            continue;
+        }
+
         c.first_set = Some(&subtable_cache.first_set);
         c.first_digest = subtable_cache.first_digest.clone();
         c.second_set = Some(&subtable_cache.second_set);

@@ -106,7 +106,7 @@ fn cmap0_002() {
         shape(
             "tests/fonts/aots/cmap0_font1.otf",
             "\u{0000}\u{0001}\u{0033}\u{0034}\u{0035}\u{0036}\u{0037}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|17|56|12|0|0]"
     );
@@ -118,7 +118,7 @@ fn cmap10_002() {
         shape(
             "tests/fonts/aots/cmap10_font1.otf",
             "\u{0000}\u{0001}\u{9232}\u{109422}\u{109423}\u{109424}\u{109425}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|0|26|27|32|0]"
     );
@@ -130,7 +130,7 @@ fn cmap10_003() {
         shape(
             "tests/fonts/aots/cmap10_font2.otf",
             "\u{0000}\u{0001}\u{0021}\u{0022}\u{0023}\u{0024}\u{0025}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|0|0|0|0|0]"
     );
@@ -143,7 +143,7 @@ fn cmap12_002() {
             "tests/fonts/aots/cmap12_font1.otf",
             "\u{0000}\u{0001}\u{0010}\u{101723}\u{101724}\u{101727}\u{101728}\u{102522}\u{102523}\u{102527}\
              \u{102528}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|23|24|27|0|0|53|57|0|0]"
     );
@@ -156,7 +156,7 @@ fn cmap4_002() {
             "tests/fonts/aots/cmap4_font1.otf",
             "\u{0000}\u{0001}\u{0010}\u{0011}\u{0012}\u{001E}\u{001F}\u{00C7}\u{00C8}\u{00CD}\
              \u{00D2}\u{00D3}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|40|41|53|0|0|256|261|266|0|0]"
     );
@@ -169,7 +169,7 @@ fn cmap4_003() {
             "tests/fonts/aots/cmap4_font2.otf",
             "\u{0000}\u{0001}\u{0010}\u{0011}\u{0012}\u{001E}\u{001F}\u{00C7}\u{00C8}\u{00CD}\
              \u{00D2}\u{00D3}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|0|0|0|0|0|0|0|0|0|0]"
     );
@@ -182,7 +182,7 @@ fn cmap4_004() {
             "tests/fonts/aots/cmap4_font3.otf",
             "\u{0000}\u{0001}\u{0010}\u{0011}\u{0012}\u{001E}\u{001F}\u{00C7}\u{00C8}\u{00CD}\
              \u{00D2}\u{00D3}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|0|0|0|0|0|0|0|0|0|65534]"
     );
@@ -194,7 +194,7 @@ fn cmap4_005() {
         shape(
             "tests/fonts/aots/cmap4_font4.otf",
             "\u{0000}\u{AFC7}\u{AFC8}\u{AFC9}\u{B02B}\u{B02C}\u{B02D}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|44500|44501|44599|44600|0]"
     );
@@ -206,7 +206,7 @@ fn cmap4_006() {
         shape(
             "tests/fonts/aots/cmap4_font4.otf",
             "\u{0000}\u{0063}\u{0064}\u{01F3}\u{01F4}\u{01F5}\u{03E8}\u{03E9}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|65136|65535|0|1|500|0]"
     );
@@ -218,7 +218,7 @@ fn cmap6_002() {
         shape(
             "tests/fonts/aots/cmap6_font1.otf",
             "\u{0000}\u{0001}\u{0021}\u{0022}\u{0023}\u{0024}\u{0025}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|17|56|12|0|0]"
     );
@@ -230,7 +230,7 @@ fn cmap6_003() {
         shape(
             "tests/fonts/aots/cmap6_font2.otf",
             "\u{0000}\u{0001}\u{0021}\u{0022}\u{0023}\u{0024}\u{0025}\u{FFFF}",
-            "--features=test --no-clusters --no-glyph-names --no-positions",
+            "--features=test --no-clusters --no-glyph-names --no-positions --font-funcs=ot",
         ),
         "[0|0|0|0|0|0|0|0]"
     );

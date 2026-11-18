@@ -207,7 +207,6 @@ impl<'a> ShapePlanner<'a> {
         // Decide who does substitutions. GSUB, morx, or fallback.
         let apply_morx = self.apply_morx;
 
-        let mut apply_gpos = false;
         let mut apply_kerx = false;
         let mut apply_kern = false;
 
@@ -215,24 +214,26 @@ impl<'a> ShapePlanner<'a> {
         let has_kerx = self.layout.aat.kerx.is_some();
         let has_gsub = !apply_morx && self.layout.ot.gsub().is_some();
         let has_gpos = !disable_gpos && self.layout.ot.gpos().is_some();
+        let mut apply_gpos = has_gpos;
 
         // Prefer GPOS over kerx if GSUB is present;
         // https://github.com/harfbuzz/harfbuzz/issues/3008
         if has_kerx && !(has_gsub && has_gpos) {
             apply_kerx = true;
-        } else if has_gpos {
-            apply_gpos = true;
+            apply_gpos = false;
         }
 
-        if !apply_kerx && (!has_gpos_kern || !apply_gpos) {
-            if has_kerning(self.layout.aat) {
-                apply_kern = self.script_fallback_position;
-            }
+        let needs_kerning = !has_gpos_kern || !apply_gpos;
+        if needs_kerning && has_kerx {
+            apply_kerx = true;
+        }
+        if needs_kerning && !apply_kerx && has_kerning(self.layout.aat) {
+            apply_kern = self.script_fallback_position;
         }
 
         let apply_fallback_kern = !(apply_gpos || apply_kerx || apply_kern);
         let zero_marks = self.script_zero_marks
-            && !apply_kerx
+            && (!apply_kerx || apply_gpos)
             && (!apply_kern || !has_machine_kerning(self.layout.aat));
 
         let has_gpos_mark = apply_gpos && ot_map.get_1_mask(Tag::new(b"mark")) != 0;

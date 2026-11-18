@@ -319,7 +319,8 @@ impl OtShapeContext<'_, '_, '_> {
         let buffer = &mut *self.buffer;
         if plan.apply_gpos {
             gpos::position(plan, self.font, buffer);
-        } else if plan.apply_kerx {
+        }
+        if plan.apply_kerx {
             aat::layout::position(
                 plan,
                 layout,

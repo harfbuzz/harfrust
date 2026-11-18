@@ -8,7 +8,7 @@ fn aat_kern_cross_stream_001() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -20,7 +20,7 @@ fn aat_kern_cross_stream_002() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -32,7 +32,7 @@ fn aat_kern_cross_stream_003() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -44,7 +44,7 @@ fn aat_kern_cross_stream_004() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -56,7 +56,7 @@ fn aat_kern_cross_stream_005() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -68,7 +68,7 @@ fn aat_kern_cross_stream_006() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -80,7 +80,7 @@ fn aat_kern_cross_stream_007() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -92,7 +92,7 @@ fn aat_kern_cross_stream_008() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -104,7 +104,7 @@ fn aat_kern_cross_stream_009() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -116,7 +116,7 @@ fn aat_kern_cross_stream_010() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -128,7 +128,7 @@ fn aat_kern_cross_stream_011() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -140,7 +140,7 @@ fn aat_kern_cross_stream_012() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -152,7 +152,7 @@ fn aat_kern_cross_stream_013() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0063}\u{0064}\u{0065}",
-            "--show-flags",
+            "--font-funcs=ot --show-flags",
         ),
         "[c=0+500|d=1+500|e=2+500]"
     );
@@ -164,7 +164,7 @@ fn aat_kern_cross_stream_014() {
         shape(
             "tests/fonts/in-house/187957e1a42ebc0d7dbcdef988433f14e3d3cd48.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --features=kern=0",
+            "--font-funcs=ot --show-flags --features=kern=0",
         ),
         "[a=0+500|b=1+500|c=2+500|d=3+500|e=4+500]"
     );
@@ -176,7 +176,7 @@ fn aat_kern_cross_stream_015() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -188,7 +188,7 @@ fn aat_kern_cross_stream_016() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -200,7 +200,7 @@ fn aat_kern_cross_stream_017() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -212,7 +212,7 @@ fn aat_kern_cross_stream_018() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -224,7 +224,7 @@ fn aat_kern_cross_stream_019() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -236,7 +236,7 @@ fn aat_kern_cross_stream_020() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -248,7 +248,7 @@ fn aat_kern_cross_stream_021() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -260,7 +260,7 @@ fn aat_kern_cross_stream_022() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -272,7 +272,7 @@ fn aat_kern_cross_stream_023() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -284,7 +284,7 @@ fn aat_kern_cross_stream_024() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -296,7 +296,7 @@ fn aat_kern_cross_stream_025() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -308,7 +308,7 @@ fn aat_kern_cross_stream_026() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -320,7 +320,7 @@ fn aat_kern_cross_stream_027() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0063}\u{0064}\u{0065}",
-            "--show-flags",
+            "--font-funcs=ot --show-flags",
         ),
         "[c=0+500|d=1+500|e=2+500]"
     );
@@ -332,7 +332,7 @@ fn aat_kern_cross_stream_028() {
         shape(
             "tests/fonts/in-house/993ffd0fb8064d5fcce6ffd90f1821e9012ad47e.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --features=kern=0",
+            "--font-funcs=ot --show-flags --features=kern=0",
         ),
         "[a=0+500|b=1+500|c=2+500|d=3+500|e=4+500]"
     );
@@ -344,7 +344,7 @@ fn aat_kern_cross_stream_029() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -356,7 +356,7 @@ fn aat_kern_cross_stream_030() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -368,7 +368,7 @@ fn aat_kern_cross_stream_031() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -380,7 +380,7 @@ fn aat_kern_cross_stream_032() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[a=0+500|b=1@0,100+500#1|c=2@0,100+500#1|d=3@0,100+500#1|e=4@0,100+500#1]"
     );
@@ -392,7 +392,7 @@ fn aat_kern_cross_stream_033() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -404,7 +404,7 @@ fn aat_kern_cross_stream_034() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -416,7 +416,7 @@ fn aat_kern_cross_stream_035() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -428,7 +428,7 @@ fn aat_kern_cross_stream_036() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0063}\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[c=0+500|a=1+500#1|b=2@0,100+500#1|c=3@0,100+500#1|d=4@0,100+500#1|e=5@0,100+500#1]"
     );
@@ -440,7 +440,7 @@ fn aat_kern_cross_stream_037() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=0",
+            "--font-funcs=ot --show-flags --cluster-level=0",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -452,7 +452,7 @@ fn aat_kern_cross_stream_038() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=1",
+            "--font-funcs=ot --show-flags --cluster-level=1",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -464,7 +464,7 @@ fn aat_kern_cross_stream_039() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=2",
+            "--font-funcs=ot --show-flags --cluster-level=2",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -476,7 +476,7 @@ fn aat_kern_cross_stream_040() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0062}\u{0062}\u{0062}",
-            "--show-flags --cluster-level=3",
+            "--font-funcs=ot --show-flags --cluster-level=3",
         ),
         "[a=0+500|b=1@0,100+500#1|b=2@0,100+500#1|b=3@0,100+500#1|b=4@0,100+500#1]"
     );
@@ -488,7 +488,7 @@ fn aat_kern_cross_stream_041() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0063}\u{0064}\u{0065}",
-            "--show-flags",
+            "--font-funcs=ot --show-flags",
         ),
         "[c=0+500|d=1+500|e=2+500]"
     );
@@ -500,7 +500,7 @@ fn aat_kern_cross_stream_042() {
         shape(
             "tests/fonts/in-house/06d32d0954d07437b029bc7dca7c1deebb9191a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}\u{0065}",
-            "--show-flags --features=kern=0",
+            "--font-funcs=ot --show-flags --features=kern=0",
         ),
         "[a=0+500|b=1+500|c=2+500|d=3+500|e=4+500]"
     );
@@ -1209,7 +1209,7 @@ fn aat_kerx_058() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+560#2|V=1@-40,0+560#3]"
     );
 }
 
@@ -1221,7 +1221,7 @@ fn aat_kerx_059() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
         ),
-        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+        "[A=0+560#2|acute=0@-260,600+0#2|V=2@-40,0+560#3]"
     );
 }
 
@@ -1233,7 +1233,7 @@ fn aat_kerx_060() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1245,7 +1245,7 @@ fn aat_kerx_061() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
         ),
-        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
     );
 }
 
@@ -1257,7 +1257,7 @@ fn aat_kerx_062() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+560#2|V=1@-40,0+560#3]"
     );
 }
 
@@ -1269,7 +1269,7 @@ fn aat_kerx_063() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
         ),
-        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+        "[A=0+560#2|acute=1@-260,600+0#3|V=2@-40,0+560#3]"
     );
 }
 
@@ -1281,7 +1281,7 @@ fn aat_kerx_064() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1293,7 +1293,7 @@ fn aat_kerx_065() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
         ),
-        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
     );
 }
 
@@ -1305,7 +1305,7 @@ fn aat_kerx_066() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+560#2|V=1@-40,0+560#3]"
     );
 }
 
@@ -1317,7 +1317,7 @@ fn aat_kerx_067() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
         ),
-        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+        "[A=0+560#2|acute=1@-260,600+0#3|V=2@-40,0+560#3]"
     );
 }
 
@@ -1329,7 +1329,7 @@ fn aat_kerx_068() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1341,7 +1341,7 @@ fn aat_kerx_069() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
         ),
-        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
     );
 }
 
@@ -1353,7 +1353,7 @@ fn aat_kerx_070() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+560#2|V=1@-40,0+560#3]"
     );
 }
 
@@ -1365,7 +1365,7 @@ fn aat_kerx_071() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
         ),
-        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+        "[A=0+560#2|acute=0@-260,600+0#2|V=2@-40,0+560#3]"
     );
 }
 
@@ -1377,7 +1377,7 @@ fn aat_kerx_072() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1389,7 +1389,7 @@ fn aat_kerx_073() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
         ),
-        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
     );
 }
 
@@ -1425,7 +1425,7 @@ fn aat_kerx_076() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1437,7 +1437,7 @@ fn aat_kerx_077() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
         ),
-        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
     );
 }
 
@@ -1473,7 +1473,7 @@ fn aat_kerx_080() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1485,7 +1485,7 @@ fn aat_kerx_081() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
         ),
-        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
     );
 }
 
@@ -1521,7 +1521,7 @@ fn aat_kerx_084() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1533,7 +1533,7 @@ fn aat_kerx_085() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
         ),
-        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
     );
 }
 
@@ -1569,7 +1569,7 @@ fn aat_kerx_088() {
             "\u{0041}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
         ),
-        "[A=0+600|V=1+600]"
+        "[A=0+600#2|V=1+600#2]"
     );
 }
 
@@ -1581,7 +1581,7 @@ fn aat_kerx_089() {
             "\u{0041}\u{0301}\u{0056}",
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
         ),
-        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
     );
 }
 
@@ -1774,6 +1774,870 @@ fn aat_kerx_105() {
             "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
         ),
         "[A=0+600#2|acute=0+200#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_106() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_107() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_108() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1@-300,600+0#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_109() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_110() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_111() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1@-300,600+0#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_112() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_113() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_114() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_115() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_116() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_117() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_118() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_119() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_120() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_121() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_122() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_123() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_124() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_125() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_126() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1@-300,600+0#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_127() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_128() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_129() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7b8fa611ac24d73c8359e23d25c33aa9269351b6.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1@-300,600+0#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_130() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_131() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0+200#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_132() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1+200#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_133() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_134() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=0+200#2|V=2@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_135() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3|acute=1@0,80+200#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_136() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_137() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1+200#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_138() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2+200#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_139() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_140() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=1+200#3|V=2@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_141() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3|acute=2@0,80+200#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_142() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_143() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1+200#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_144() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2+200#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_145() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_146() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=1+200#3|V=2@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_147() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3|acute=2@0,80+200#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_148() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_149() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0+200#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_150() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1+200#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_151() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_152() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=0+200#2|V=2@0,80+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_153() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/8910c4d8b22c397731b130b6ab9016bdae3b8ff8.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|V=1@0,80+600#3|acute=1@0,80+200#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_154() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_155() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_156() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1@-300,600+0#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_157() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_158() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=0@-260,600+0#2|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_159() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3|acute=1@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_160() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_161() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_162() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_163() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_164() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=1@-260,600+0#3|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_165() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_166() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_167() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_168() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_169() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_170() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=1@-260,600+0#3|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_171() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3|acute=2@-300,600+0#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_172() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_173() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_174() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2|acute=1@-300,600+0#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_175() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_176() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=0@-260,600+0#2|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_177() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/bedbc7aacfe874c3968aa3d9662159fdd574b2f7.ttf",
+            "\u{0041}\u{0056}\u{0301}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3|acute=1@-300,600+0#3]"
     );
 }
 
@@ -3852,7 +4716,7 @@ fn arabic_stch_004() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}",
-            "",
+            "--font-funcs=ot",
         ),
         "[beth=1+500|sam.end=0@-500,0+0|sam.rep=0@-400,0+0|sam.rep=0@-300,0+0|sam.end=0@-100,0+0]"
     );
@@ -3864,7 +4728,7 @@ fn arabic_stch_005() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[beth=1+1000|sam.end=0@-1000,0+0|sam.rep=0@-800,0+0|sam.rep=0@-600,0+0|sam.end=0@-200,0+0]"
     );
@@ -3876,7 +4740,7 @@ fn arabic_stch_006() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}",
-            "--font-size=-1000",
+            "--font-funcs=ot --font-size=-1000",
         ),
         "[beth=1+-500|sam.end=0@700,0+0|sam.rep=0@600,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
     );
@@ -3888,7 +4752,7 @@ fn arabic_stch_007() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}",
-            "",
+            "--font-funcs=ot",
         ),
         "[beth=2+500|beth=1+500|sam.end=0@-1000,0+0|sam.rep=0@-900,0+0|sam.rep=0@-700,0+0|sam.rep=0@-500,0+0|sam.rep=0@-300,0+0|sam.end=0@-100,0+0]"
     );
@@ -3900,7 +4764,7 @@ fn arabic_stch_008() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[beth=2+1000|beth=1+1000|sam.end=0@-2000,0+0|sam.rep=0@-1800,0+0|sam.rep=0@-1400,0+0|sam.rep=0@-1000,0+0|sam.rep=0@-600,0+0|sam.end=0@-200,0+0]"
     );
@@ -3912,7 +4776,7 @@ fn arabic_stch_009() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}",
-            "--font-size=-1000",
+            "--font-funcs=ot --font-size=-1000",
         ),
         "[beth=2+-500|beth=1+-500|sam.end=0@1000,0+0|sam.rep=0@900,0+0|sam.rep=0@700,0+0|sam.rep=0@500,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
     );
@@ -3924,7 +4788,7 @@ fn arabic_stch_010() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}\u{0712}",
-            "",
+            "--font-funcs=ot",
         ),
         "[beth=3+500|beth=2+500|beth=1+500|sam.end=0@-1504,0+0|sam.rep=0@-1404,0+0|sam.rep=0@-1220,0+0|sam.rep=0@-1036,0+0|sam.rep=0@-852,0+0|sam.rep=0@-668,0+0|sam.rep=0@-484,0+0|sam.rep=0@-300,0+0|sam.end=0@-100,0+0]"
     );
@@ -3936,7 +4800,7 @@ fn arabic_stch_011() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}\u{0712}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[beth=3+1000|beth=2+1000|beth=1+1000|sam.end=0@-3002,0+0|sam.rep=0@-2802,0+0|sam.rep=0@-2435,0+0|sam.rep=0@-2068,0+0|sam.rep=0@-1701,0+0|sam.rep=0@-1334,0+0|sam.rep=0@-967,0+0|sam.rep=0@-600,0+0|sam.end=0@-200,0+0]"
     );
@@ -3948,7 +4812,7 @@ fn arabic_stch_012() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}\u{0712}",
-            "--font-size=-1000",
+            "--font-funcs=ot --font-size=-1000",
         ),
         "[beth=3+-500|beth=2+-500|beth=1+-500|sam.end=0@1696,0+0|sam.rep=0@1596,0+0|sam.rep=0@1380,0+0|sam.rep=0@1164,0+0|sam.rep=0@948,0+0|sam.rep=0@732,0+0|sam.rep=0@516,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
     );
@@ -3960,7 +4824,7 @@ fn arabic_stch_013() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}",
-            "",
+            "--font-funcs=ot",
         ),
         "[beth=4+500|beth=3+500|beth=2+500|beth=1+500|sam.end=0@-2000,0+0|sam.rep=0@-1900,0+0|sam.rep=0@-1700,0+0|sam.rep=0@-1500,0+0|sam.rep=0@-1300,0+0|sam.rep=0@-1100,0+0|sam.rep=0@-900,0+0|sam.rep=0@-700,0+0|sam.rep=0@-500,0+0|sam.rep=0@-300,0+0|sam.end=0@-100,0+0]"
     );
@@ -3972,7 +4836,7 @@ fn arabic_stch_014() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[beth=4+1000|beth=3+1000|beth=2+1000|beth=1+1000|sam.end=0@-4000,0+0|sam.rep=0@-3800,0+0|sam.rep=0@-3400,0+0|sam.rep=0@-3000,0+0|sam.rep=0@-2600,0+0|sam.rep=0@-2200,0+0|sam.rep=0@-1800,0+0|sam.rep=0@-1400,0+0|sam.rep=0@-1000,0+0|sam.rep=0@-600,0+0|sam.end=0@-200,0+0]"
     );
@@ -3984,7 +4848,7 @@ fn arabic_stch_015() {
         shape(
             "tests/fonts/in-house/ecffb411b5ec4b1d9536c883377a81e9fb6aa861.ttf",
             "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}",
-            "--font-size=-1000",
+            "--font-funcs=ot --font-size=-1000",
         ),
         "[beth=4+-500|beth=3+-500|beth=2+-500|beth=1+-500|sam.end=0@2000,0+0|sam.rep=0@1900,0+0|sam.rep=0@1700,0+0|sam.rep=0@1500,0+0|sam.rep=0@1300,0+0|sam.rep=0@1100,0+0|sam.rep=0@900,0+0|sam.rep=0@700,0+0|sam.rep=0@500,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
     );
@@ -4333,7 +5197,7 @@ fn color_fonts_007() {
         shape(
             "tests/fonts/in-house/74794bf40f59dc39046132ac29098961c61f5b16.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=0",
+            "--font-funcs=ot  --font-ppem=0",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4346,7 +5210,7 @@ fn color_fonts_008() {
         shape(
             "tests/fonts/in-house/74794bf40f59dc39046132ac29098961c61f5b16.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=10",
+            "--font-funcs=ot  --font-ppem=10",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4359,7 +5223,7 @@ fn color_fonts_009() {
         shape(
             "tests/fonts/in-house/74794bf40f59dc39046132ac29098961c61f5b16.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=20",
+            "--font-funcs=ot  --font-ppem=20",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4372,7 +5236,7 @@ fn color_fonts_010() {
         shape(
             "tests/fonts/in-house/74794bf40f59dc39046132ac29098961c61f5b16.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-size=2000 --font-ppem=0",
+            "--font-funcs=ot --font-size=2000 --font-ppem=0",
         ),
         "[a=0+800|b=1+800|c=2+800]"
     );
@@ -4385,7 +5249,7 @@ fn color_fonts_011() {
         shape(
             "tests/fonts/in-house/74794bf40f59dc39046132ac29098961c61f5b16.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-size=2000 --font-ppem=10",
+            "--font-funcs=ot --font-size=2000 --font-ppem=10",
         ),
         "[a=0+800|b=1+800|c=2+800]"
     );
@@ -4398,7 +5262,7 @@ fn color_fonts_012() {
         shape(
             "tests/fonts/in-house/74794bf40f59dc39046132ac29098961c61f5b16.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-size=2000 --font-ppem=20",
+            "--font-funcs=ot --font-size=2000 --font-ppem=20",
         ),
         "[a=0+800|b=1+800|c=2+800]"
     );
@@ -4411,7 +5275,7 @@ fn color_fonts_013() {
         shape(
             "tests/fonts/in-house/d849d6e53e845842b6fc5ed95b16712be164f6d7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=0",
+            "--font-funcs=ot  --font-ppem=0",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4424,7 +5288,7 @@ fn color_fonts_014() {
         shape(
             "tests/fonts/in-house/d849d6e53e845842b6fc5ed95b16712be164f6d7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=10",
+            "--font-funcs=ot  --font-ppem=10",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4437,7 +5301,7 @@ fn color_fonts_015() {
         shape(
             "tests/fonts/in-house/d849d6e53e845842b6fc5ed95b16712be164f6d7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=20",
+            "--font-funcs=ot  --font-ppem=20",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4450,7 +5314,7 @@ fn color_fonts_016() {
         shape(
             "tests/fonts/in-house/d849d6e53e845842b6fc5ed95b16712be164f6d7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-size=2000 --font-ppem=0",
+            "--font-funcs=ot --font-size=2000 --font-ppem=0",
         ),
         "[a=0+800|b=1+800|c=2+800]"
     );
@@ -4463,7 +5327,7 @@ fn color_fonts_017() {
         shape(
             "tests/fonts/in-house/d849d6e53e845842b6fc5ed95b16712be164f6d7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-size=2000 --font-ppem=10",
+            "--font-funcs=ot --font-size=2000 --font-ppem=10",
         ),
         "[a=0+800|b=1+800|c=2+800]"
     );
@@ -4476,7 +5340,7 @@ fn color_fonts_018() {
         shape(
             "tests/fonts/in-house/d849d6e53e845842b6fc5ed95b16712be164f6d7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-size=2000 --font-ppem=20",
+            "--font-funcs=ot --font-size=2000 --font-ppem=20",
         ),
         "[a=0+800|b=1+800|c=2+800]"
     );
@@ -4489,7 +5353,7 @@ fn color_fonts_019() {
         shape(
             "tests/fonts/in-house/f1c904114e47ed4b8cea4eea75cf62d7e86f11e0.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=10",
+            "--font-funcs=ot --font-ppem=10",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4502,7 +5366,7 @@ fn color_fonts_020() {
         shape(
             "tests/fonts/in-house/7b6ce3c3344258d040b3d7031de89b093c3951b7.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=10",
+            "--font-funcs=ot --font-ppem=10",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -4515,7 +5379,7 @@ fn color_fonts_021() {
         shape(
             "tests/fonts/in-house/738df86ab5ea7e369dd0788f46bec03e5dd0162b.ttf",
             "\u{0061}\u{0062}\u{0063}",
-            "--font-ppem=10",
+            "--font-funcs=ot --font-ppem=10",
         ),
         "[a=0+400|b=1+400|c=2+400]"
     );
@@ -51766,7 +52630,7 @@ fn hebrew_diacritics_032() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[shinDot=0+500]"
     );
@@ -51778,7 +52642,7 @@ fn hebrew_diacritics_033() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=0 --features=mark=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark=0",
         ),
         "[shinDot=0+500]"
     );
@@ -51790,7 +52654,7 @@ fn hebrew_diacritics_034() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[shinDot=0+500]"
     );
@@ -51802,7 +52666,7 @@ fn hebrew_diacritics_035() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=1 --features=mark=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark=0",
         ),
         "[shinDot=0+500]"
     );
@@ -51814,7 +52678,7 @@ fn hebrew_diacritics_036() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51826,7 +52690,7 @@ fn hebrew_diacritics_037() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=0 --features=mark=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51838,7 +52702,7 @@ fn hebrew_diacritics_038() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51850,7 +52714,7 @@ fn hebrew_diacritics_039() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=1 --features=mark=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51862,7 +52726,7 @@ fn hebrew_diacritics_040() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51874,7 +52738,7 @@ fn hebrew_diacritics_041() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=0 --features=mark=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51886,7 +52750,7 @@ fn hebrew_diacritics_042() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51898,7 +52762,7 @@ fn hebrew_diacritics_043() {
         shape(
             "tests/fonts/in-house/bb51a90030dc6cd3a2eb7e7311aae77650c2fc58.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=1 --features=mark=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51910,7 +52774,7 @@ fn hebrew_diacritics_044() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[shindot=0@200,500+0|shin=0+500]"
     );
@@ -51922,7 +52786,7 @@ fn hebrew_diacritics_045() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=0 --features=mark=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark=0",
         ),
         "[shinDot=0+500]"
     );
@@ -51934,7 +52798,7 @@ fn hebrew_diacritics_046() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[shindot=1@200,500+0|shin=0+500]"
     );
@@ -51946,7 +52810,7 @@ fn hebrew_diacritics_047() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}",
-            "--cluster-level=1 --features=mark=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark=0",
         ),
         "[shinDot=0+500]"
     );
@@ -51958,7 +52822,7 @@ fn hebrew_diacritics_048() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[dagesh=0@200,500+0|shindot=0@200,500+0|shin=0+500]"
     );
@@ -51970,7 +52834,7 @@ fn hebrew_diacritics_049() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=0 --features=mark=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -51982,7 +52846,7 @@ fn hebrew_diacritics_050() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[dagesh=1@200,500+0|shindot=1@200,500+0|shin=0+500]"
     );
@@ -51994,7 +52858,7 @@ fn hebrew_diacritics_051() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05BC}\u{05C1}",
-            "--cluster-level=1 --features=mark=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -52006,7 +52870,7 @@ fn hebrew_diacritics_052() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[dagesh=0@200,500+0|shindot=0@200,500+0|shin=0+500]"
     );
@@ -52018,7 +52882,7 @@ fn hebrew_diacritics_053() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=0 --features=mark=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -52030,7 +52894,7 @@ fn hebrew_diacritics_054() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[dagesh=2@200,500+0|shindot=1@200,500+0|shin=0+500]"
     );
@@ -52042,7 +52906,7 @@ fn hebrew_diacritics_055() {
         shape(
             "tests/fonts/in-house/70378f918c2748079028be3fa2ee6b1aa73488ff.ttf",
             "\u{05E9}\u{05C1}\u{05BC}",
-            "--cluster-level=1 --features=mark=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark=0",
         ),
         "[shinDageshDot=0+500]"
     );
@@ -53178,7 +54042,7 @@ fn indic_unicode18_009() {
         shape(
             "tests/fonts/in-house/AdobeBlank2.ttf",
             "\u{11DF0}",
-            "--no-glyph-names --no-positions  --script=beng",
+            "--no-glyph-names --no-positions --font-funcs=ot --script=beng",
         ),
         "[1=0|1=0]"
     );
@@ -54126,7 +54990,7 @@ fn kern_format0_001() {
         shape(
             "tests/fonts/in-house/b6bf0ab0b0fc70ac196c46bbf1882762fc5704a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "",
+            "--font-funcs=ot",
         ),
         "[a=0+500|b=1@0,100+500|c=2+500|d=3+500]"
     );
@@ -54138,7 +55002,7 @@ fn kern_format0_002() {
         shape(
             "tests/fonts/in-house/b6bf0ab0b0fc70ac196c46bbf1882762fc5704a7.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[a=0+1000|b=1@0,200+1000|c=2+1000|d=3+1000]"
     );
@@ -54150,7 +55014,7 @@ fn kern_format0_003() {
         shape(
             "tests/fonts/in-house/b6bf0ab0b0fc70ac196c46bbf1882762fc5704a7.ttf",
             "\u{0062}\u{0063}",
-            "",
+            "--font-funcs=ot",
         ),
         "[b=0+500|c=1+500]"
     );
@@ -54162,7 +55026,7 @@ fn kern_format0_004() {
         shape(
             "tests/fonts/in-house/b6bf0ab0b0fc70ac196c46bbf1882762fc5704a7.ttf",
             "\u{0062}\u{0063}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[b=0+1000|c=1+1000]"
     );
@@ -54174,7 +55038,7 @@ fn kern_format0_005() {
         shape(
             "tests/fonts/in-house/88065020d8006ae5481d47e53606efe967940b79.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "",
+            "--font-funcs=ot",
         ),
         "[a=0+500|b=1@0,100+500|c=2+500|d=3+500]"
     );
@@ -54186,7 +55050,7 @@ fn kern_format0_006() {
         shape(
             "tests/fonts/in-house/88065020d8006ae5481d47e53606efe967940b79.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[a=0+1000|b=1@0,200+1000|c=2+1000|d=3+1000]"
     );
@@ -54198,7 +55062,7 @@ fn kern_format0_007() {
         shape(
             "tests/fonts/in-house/88065020d8006ae5481d47e53606efe967940b79.ttf",
             "\u{0062}\u{0063}",
-            "",
+            "--font-funcs=ot",
         ),
         "[b=0+500|c=1+500]"
     );
@@ -54210,7 +55074,7 @@ fn kern_format0_008() {
         shape(
             "tests/fonts/in-house/88065020d8006ae5481d47e53606efe967940b79.ttf",
             "\u{0062}\u{0063}",
-            "--font-size=2000",
+            "--font-funcs=ot --font-size=2000",
         ),
         "[b=0+1000|c=1+1000]"
     );
@@ -54271,7 +55135,7 @@ fn kern_vertical_001() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb",
+            "--font-funcs=ot --direction=ttb",
         ),
         "[a=0@-250,-850+0,-1000|b=1@-250,-850+0,-1000|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
@@ -54283,7 +55147,7 @@ fn kern_vertical_002() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb  --features=vkrn=0",
+            "--font-funcs=ot --direction=ttb  --features=vkrn=0",
         ),
         "[a=0@-250,-850+0,-1000|b=1@-250,-850+0,-1000|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
@@ -54295,7 +55159,7 @@ fn kern_vertical_003() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb  --features=vkrn=1",
+            "--font-funcs=ot --direction=ttb  --features=vkrn=1",
         ),
         "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1150|c=2@-250,-950+0,-1100|d=3@-250,-850+0,-1000]"
     );
@@ -54307,7 +55171,7 @@ fn kern_vertical_004() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb  --features=vkrn[0:2]",
+            "--font-funcs=ot --direction=ttb  --features=vkrn[0:2]",
         ),
         "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1050|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
@@ -54319,7 +55183,7 @@ fn kern_vertical_005() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000",
+            "--font-funcs=ot --direction=ttb --font-size=2000",
         ),
         "[a=0@-500,-1700+0,-2000|b=1@-500,-1700+0,-2000|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
@@ -54331,7 +55195,7 @@ fn kern_vertical_006() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000 --features=vkrn=0",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=0",
         ),
         "[a=0@-500,-1700+0,-2000|b=1@-500,-1700+0,-2000|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
@@ -54343,7 +55207,7 @@ fn kern_vertical_007() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000 --features=vkrn=1",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=1",
         ),
         "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2300|c=2@-500,-1900+0,-2200|d=3@-500,-1700+0,-2000]"
     );
@@ -54355,7 +55219,7 @@ fn kern_vertical_008() {
         shape(
             "tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000 --features=vkrn[0:2]",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn[0:2]",
         ),
         "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2100|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
@@ -54367,7 +55231,7 @@ fn kern_vertical_009() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb",
+            "--font-funcs=ot --direction=ttb",
         ),
         "[a=0@-250,-850+0,-1000|b=1@-250,-850+0,-1000|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
@@ -54379,7 +55243,7 @@ fn kern_vertical_010() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb  --features=vkrn=0",
+            "--font-funcs=ot --direction=ttb  --features=vkrn=0",
         ),
         "[a=0@-250,-850+0,-1000|b=1@-250,-850+0,-1000|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
@@ -54391,7 +55255,7 @@ fn kern_vertical_011() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb  --features=vkrn=1",
+            "--font-funcs=ot --direction=ttb  --features=vkrn=1",
         ),
         "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1150|c=2@-250,-950+0,-1100|d=3@-250,-850+0,-1000]"
     );
@@ -54403,7 +55267,7 @@ fn kern_vertical_012() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb  --features=vkrn[0:2]",
+            "--font-funcs=ot --direction=ttb  --features=vkrn[0:2]",
         ),
         "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1050|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
@@ -54415,7 +55279,7 @@ fn kern_vertical_013() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000",
+            "--font-funcs=ot --direction=ttb --font-size=2000",
         ),
         "[a=0@-500,-1700+0,-2000|b=1@-500,-1700+0,-2000|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
@@ -54427,7 +55291,7 @@ fn kern_vertical_014() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000 --features=vkrn=0",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=0",
         ),
         "[a=0@-500,-1700+0,-2000|b=1@-500,-1700+0,-2000|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
@@ -54439,7 +55303,7 @@ fn kern_vertical_015() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000 --features=vkrn=1",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=1",
         ),
         "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2300|c=2@-500,-1900+0,-2200|d=3@-500,-1700+0,-2000]"
     );
@@ -54451,7 +55315,7 @@ fn kern_vertical_016() {
         shape(
             "tests/fonts/in-house/3e5f05f2524819d989682a3ee8d8c108d06cc190.ttf",
             "\u{0061}\u{0062}\u{0063}\u{0064}",
-            "--direction=ttb --font-size=2000 --features=vkrn[0:2]",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn[0:2]",
         ),
         "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2100|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
@@ -55871,7 +56735,7 @@ fn khmer_misc_093() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17D2179A=0+287|uni1780=0+636]"
     );
@@ -55883,7 +56747,7 @@ fn khmer_misc_094() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17D2179A=0+287|uni1780=0+636]"
     );
@@ -55895,7 +56759,7 @@ fn khmer_misc_095() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{179A}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17D2179A=0+287|uni1780=0+636|uni17D2=0+0|uni179A=4+288]"
     );
@@ -55907,7 +56771,7 @@ fn khmer_misc_096() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{179A}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17D2179A=0+287|uni1780=0+636|uni17D2=3+0|uni179A=4+288]"
     );
@@ -55919,7 +56783,7 @@ fn khmer_misc_097() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{1780}\u{17D2}\u{179A}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17D2179A.low=0+287|uni1780=0+636|uni17D21780=0@-2,-26+0]"
     );
@@ -55931,7 +56795,7 @@ fn khmer_misc_098() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{1780}\u{17D2}\u{179A}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17D2179A.low=0+287|uni1780=0+636|uni17D21780=0@-2,-26+0]"
     );
@@ -55943,7 +56807,7 @@ fn khmer_misc_099() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{1780}\u{17D2}\u{1780}\u{17D2}\u{179A}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni1780=0+636|uni17D21780=0@-2,-26+0|uni17D21780=0@-2,-296+0|uni17D2=0+0|uni179A=6+288]"
     );
@@ -55955,7 +56819,7 @@ fn khmer_misc_100() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{1780}\u{17D2}\u{1780}\u{17D2}\u{179A}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni1780=0+636|uni17D21780=1@-2,-26+0|uni17D21780=3@-2,-296+0|uni17D2=5+0|uni179A=6+288]"
     );
@@ -55967,7 +56831,7 @@ fn khmer_misc_101() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{179A}\u{17C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17C1=0+288|uni17D2179A=0+287|uni1780=0+636|uni17D2=0+0|uni179A=0+288]"
     );
@@ -55979,7 +56843,7 @@ fn khmer_misc_102() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{179A}\u{17C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17C1=0+288|uni17D2179A=0+287|uni1780=0+636|uni17D2=0+0|uni179A=0+288]"
     );
@@ -55991,7 +56855,7 @@ fn khmer_misc_103() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{1780}\u{17C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17C1=0+288|uni17D2179A.low=0+287|uni1780=0+636|uni17D21780=0@-2,-26+0]"
     );
@@ -56003,7 +56867,7 @@ fn khmer_misc_104() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{1780}\u{17C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17C1=0+288|uni17D2179A.low=0+287|uni1780=0+636|uni17D21780=0@-2,-26+0]"
     );
@@ -56015,7 +56879,7 @@ fn khmer_misc_105() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{1780}\u{17D2}\u{179A}\u{17C1}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17C1=0+288|uni17D2179A.low=0+287|uni1780=0+636|uni17D21780=0@-2,-26+0]"
     );
@@ -56027,7 +56891,7 @@ fn khmer_misc_106() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{1780}\u{17D2}\u{179A}\u{17C1}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17C1=0+288|uni17D2179A.low=0+287|uni1780=0+636|uni17D21780=0@-2,-26+0]"
     );
@@ -56039,7 +56903,7 @@ fn khmer_misc_107() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{179A}\u{17D2}\u{179A}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[uni17D2179A=0+287|uni1780=0+636|uni17D2=0+0|uni179A=4+288|uni17D2=4+0|uni179A=6+288]"
     );
@@ -56051,7 +56915,7 @@ fn khmer_misc_108() {
         shape(
             "tests/fonts/in-house/3998336402905b8be8301ef7f47cf7e050cbb1bd.ttf",
             "\u{1780}\u{17D2}\u{179A}\u{17D2}\u{179A}\u{17D2}\u{179A}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[uni17D2179A=0+287|uni1780=0+636|uni17D2=3+0|uni179A=4+288|uni17D2=5+0|uni179A=6+288]"
     );
@@ -56968,7 +57832,7 @@ fn mark_attachment_009() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[a=0+500|e=1+500|acutecomb=1@-350,500+0]"
     );
@@ -56980,7 +57844,7 @@ fn mark_attachment_010() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[a=0+500|e=1+500|acutecomb=2@-350,500+0]"
     );
@@ -56992,7 +57856,7 @@ fn mark_attachment_011() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[a=0+500|e=1+500|acutecomb=1+0]"
     );
@@ -57004,7 +57868,7 @@ fn mark_attachment_012() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[a=0+500|e=1+500|acutecomb=2+0]"
     );
@@ -57016,7 +57880,7 @@ fn mark_attachment_013() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[a=0+500|e=1+500|acutecomb=1+0|acutecomb=1+0]"
     );
@@ -57028,7 +57892,7 @@ fn mark_attachment_014() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[a=0+500|e=1+500|acutecomb=2+0|acutecomb=3+0]"
     );
@@ -57040,7 +57904,7 @@ fn mark_attachment_015() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0301}\u{0065}\u{0301}",
-            "--cluster-level=0 --features=mark[2:3]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[2:3]=0",
         ),
         "[a=0+500|acutecomb=0@-350,500+0|e=2+500|acutecomb=2+0]"
     );
@@ -57052,7 +57916,7 @@ fn mark_attachment_016() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0301}\u{0065}\u{0301}",
-            "--cluster-level=1 --features=mark[2:3]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[2:3]=0",
         ),
         "[a=0+500|acutecomb=1@-350,500+0|e=2+500|acutecomb=3+0]"
     );
@@ -57064,7 +57928,7 @@ fn mark_attachment_017() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[f=0+500|g=1+500|acutecomb=1@-350,600+0]"
     );
@@ -57076,7 +57940,7 @@ fn mark_attachment_018() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[f=0+500|g=1+500|acutecomb=2@-350,600+0]"
     );
@@ -57088,7 +57952,7 @@ fn mark_attachment_019() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[f=0+500|g=1+500|acutecomb=1+0]"
     );
@@ -57100,7 +57964,7 @@ fn mark_attachment_020() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[f=0+500|g=1+500|acutecomb=2+0]"
     );
@@ -57112,7 +57976,7 @@ fn mark_attachment_021() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[f=0+500|g=1+500|acutecomb=1+0|acutecomb=1+0]"
     );
@@ -57124,7 +57988,7 @@ fn mark_attachment_022() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[f=0+500|g=1+500|acutecomb=2+0|acutecomb=3+0]"
     );
@@ -57136,7 +58000,7 @@ fn mark_attachment_023() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0301}\u{0067}\u{0301}",
-            "--cluster-level=0 --features=mark[2:3]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[2:3]=0",
         ),
         "[f=0+500|acutecomb=0@-350,500+0|g=2+500|acutecomb=2+0]"
     );
@@ -57148,7 +58012,7 @@ fn mark_attachment_024() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0301}\u{0067}\u{0301}",
-            "--cluster-level=1 --features=mark[2:3]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[2:3]=0",
         ),
         "[f=0+500|acutecomb=1@-350,500+0|g=2+500|acutecomb=3+0]"
     );
@@ -57160,7 +58024,7 @@ fn mark_attachment_025() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}\u{0061}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[a=0+500|e=1+500|acutecomb=1+0|a=3+500|acutecomb=3@-350,500+0]"
     );
@@ -57172,7 +58036,7 @@ fn mark_attachment_026() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0065}\u{0301}\u{0061}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[a=0+500|e=1+500|acutecomb=2+0|a=3+500|acutecomb=4@-350,500+0]"
     );
@@ -57184,7 +58048,7 @@ fn mark_attachment_027() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}\u{0066}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[f=0+500|g=1+500|acutecomb=1+0|f=3+500|acutecomb=3@-350,500+0]"
     );
@@ -57196,7 +58060,7 @@ fn mark_attachment_028() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0066}\u{0067}\u{0301}\u{0066}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[f=0+500|g=1+500|acutecomb=2+0|f=3+500|acutecomb=4@-350,500+0]"
     );
@@ -57208,7 +58072,7 @@ fn mark_attachment_029() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0078}\u{0301}",
-            "--cluster-level=0",
+            "--font-funcs=ot --cluster-level=0",
         ),
         "[a=0+500|x=1+500|acutecomb=1+0]"
     );
@@ -57220,7 +58084,7 @@ fn mark_attachment_030() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0078}\u{0301}",
-            "--cluster-level=1",
+            "--font-funcs=ot --cluster-level=1",
         ),
         "[a=0+500|x=1+500|acutecomb=2+0]"
     );
@@ -57232,7 +58096,7 @@ fn mark_attachment_031() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0301}\u{0301}",
-            "--cluster-level=0 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=0 --features=mark[1:2]=0",
         ),
         "[a=0+500|acutecomb=0@-350,500+0|acutecomb=0@-350,500+0]"
     );
@@ -57244,7 +58108,7 @@ fn mark_attachment_032() {
         shape(
             "tests/fonts/in-house/eb9569a16e1f299552e2e17e9eb5873cb193091f.ttf",
             "\u{0061}\u{0301}\u{0301}",
-            "--cluster-level=1 --features=mark[1:2]=0",
+            "--font-funcs=ot --cluster-level=1 --features=mark[1:2]=0",
         ),
         "[a=0+500|acutecomb=1+0|acutecomb=2@-350,500+0]"
     );
