@@ -41,8 +41,17 @@ The following conformance issues need to be fixed:
 
 ## Performance
 
-HarfRust is less than 25% slower than HarfBuzz on most common fonts. For a comparison see this [spreadsheet][3].
-You can run `cargo bench` to see the performance of HarfRust on your machine.
+Performance depends on the font, text, compiler, and build configuration. Recent
+comparisons show similar performance on common Latin workloads, with HarfRust
+faster on some workloads and HarfBuzz faster on others; there is no single
+percentage that describes all fonts and scripts.
+
+For comparisons through both libraries' C APIs using the same C++ harness, use
+[benchmark-harf](https://github.com/harfbuzz/benchmark-harf). See
+[HARFBUZZ.md](./HARFBUZZ.md#comparing-the-c-apis-with-benchmark-harf) for build,
+measurement, and correctness checks. `cargo bench` also runs HarfRust's Rust
+benchmark suite against HarfBuzz bindings. The historical performance
+[spreadsheet][3] records earlier comparisons with their own configurations.
 
 
 ## Tracing shaping
