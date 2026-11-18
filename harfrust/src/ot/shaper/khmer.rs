@@ -231,7 +231,7 @@ fn reorder_consonant_syllable(
         // before the base glyph. Then the COENG + RO characters are assigned to have
         // the 'pref' OpenType feature applied to them.
         let cat = buffer.info.get(i)?.indic_category();
-        if cat == category::OT_H && num_coengs <= 2 && i + 1 < end {
+        if cat == category::OT_H && num_coengs < 2 && i + 1 < end {
             num_coengs += 1;
 
             if buffer.info.get(i + 1)?.indic_category() == category::OT_Ra {
