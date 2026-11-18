@@ -141,6 +141,10 @@ impl<'a> ShapePlanner<'a> {
                 self.ot_map.add_feature(tag, flags, 1);
             }
         } else {
+            // Keep a fallback mask when vertical kerning is requested.
+            self.ot_map
+                .add_feature(Tag::new(b"vkrn"), F_GLOBAL_HAS_FALLBACK, 0);
+
             // We only apply `vert` feature. See:
             // https://github.com/harfbuzz/harfbuzz/commit/d71c0df2d17f4590d5611239577a6cb532c26528
             // https://lists.freedesktop.org/archives/harfbuzz/2013-August/003490.html
@@ -233,7 +237,7 @@ impl<'a> ShapePlanner<'a> {
             && !apply_kerx
             && (!apply_kern || !has_machine_kerning(self.layout.aat));
 
-        let has_gpos_mark = ot_map.get_1_mask(Tag::new(b"mark")) != 0;
+        let has_gpos_mark = apply_gpos && ot_map.get_1_mask(Tag::new(b"mark")) != 0;
 
         let mut adjust_mark_positioning_when_zeroing =
             !apply_gpos && !apply_kerx && (!apply_kern || !has_cross_kerning(self.layout.aat));
