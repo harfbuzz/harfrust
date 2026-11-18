@@ -212,6 +212,16 @@ fn preprocess_text_hangul(
                     }
 
                     buffer.replace_glyphs(1, 2, &chars);
+                    if !buffer.successful {
+                        break;
+                    }
+                    let dotted_circle = buffer.out_len - if chars[0] == 0x25CC { 2 } else { 1 };
+                    let mut scratch_flags = buffer.scratch_flags;
+                    buffer
+                        .out_info_mut()
+                        .get_mut(dotted_circle)?
+                        .init_unicode_props(&mut scratch_flags);
+                    buffer.scratch_flags = scratch_flags;
                 } else {
                     // No dotted circle available in the font; just leave tone mark untouched.
                     buffer.next_glyph();
@@ -357,6 +367,9 @@ fn preprocess_text_hangul(
                 buffer.next_glyph();
                 continue;
             }
+        } else if u == 0x25CC {
+            // An existing dotted circle is a placeholder base for a tone mark.
+            end = start + 1;
         }
 
         // Didn't find a recognizable syllable, so we leave end <= start;
