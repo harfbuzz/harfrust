@@ -152,6 +152,12 @@ pub fn apply(
     if c.buffer_is_reversed {
         c.reverse_buffer();
     }
+
+    // Cross-stream offsets propagate beyond the matched pairs.
+    if seen_cross_stream && c.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT != 0
+    {
+        c.buffer.unsafe_to_break(None, None);
+    }
     buffer_message!(c.buffer, font, "end table kern");
     Some(())
 }
@@ -184,7 +190,6 @@ fn machine_kern<F>(
     ctx.update_matchers();
 
     let horizontal = ctx.buffer.direction.is_horizontal();
-    let use_x_scale = horizontal ^ cross_stream;
     let mut i = 0;
     let mut iter = SkippingIterator::new(&mut ctx, false);
     while i < iter.buffer.len {
@@ -214,14 +219,9 @@ fn machine_kern<F>(
             continue;
         };
         let kern = get_kerning(first.glyph_id, second.glyph_id);
-        let kern = if use_x_scale {
-            scale.scale_x(kern)
-        } else {
-            scale.scale_y(kern)
-        };
         let pos = &mut iter.buffer.pos;
         if kern != 0 {
-            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream);
+            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream, scale);
             if cross_stream {
                 iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
             }
@@ -243,7 +243,24 @@ pub(super) fn apply_pair_kerning(
     kern: i32,
     horizontal: bool,
     cross_stream: bool,
+    scale: Scale,
 ) -> Option<()> {
+    if cross_stream && kern == -0x8000 {
+        let second = pos.get_mut(j)?;
+        second.set_attach_type(0);
+        second.set_attach_chain(0);
+        if horizontal {
+            second.y_offset = 0;
+        } else {
+            second.x_offset = 0;
+        }
+        return Some(());
+    }
+    let kern = if horizontal ^ cross_stream {
+        scale.scale_x(kern)
+    } else {
+        scale.scale_y(kern)
+    };
     if cross_stream {
         let second = pos.get_mut(j)?;
         if horizontal {

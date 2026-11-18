@@ -168,6 +168,12 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
         c.reverse_buffer();
     }
 
+    // Cross-stream offsets propagate beyond the matched pairs.
+    if seen_cross_stream && c.buffer.scratch_flags & HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT != 0
+    {
+        c.buffer.unsafe_to_break(None, None);
+    }
+
     Some(())
 }
 
@@ -256,7 +262,6 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
 
     let horizontal = ctx.buffer.direction.is_horizontal();
     let cross_stream = subtable.is_cross_stream();
-    let use_x_scale = horizontal ^ cross_stream;
 
     let first_set = c.first_set.as_ref().unwrap();
     let second_set = c.second_set.as_ref().unwrap();
@@ -299,15 +304,10 @@ fn apply_simple_kerning<T: SimpleKerning>(c: &mut AatApplyContext, subtable: &Su
                 .and_then(|value| kind.resolve_tuple_kerning(value, subtable.tuple_count()))
                 .unwrap_or(0)
         };
-        let kern = if use_x_scale {
-            scale.scale_x(kern)
-        } else {
-            scale.scale_y(kern)
-        };
 
         let pos = &mut iter.buffer.pos;
         if kern != 0 {
-            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream);
+            apply_pair_kerning(pos, i, j, kern, horizontal, cross_stream, scale);
             if cross_stream {
                 iter.buffer.scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_GPOS_ATTACHMENT;
             }
