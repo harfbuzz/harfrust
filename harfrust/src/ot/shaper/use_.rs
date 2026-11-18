@@ -361,6 +361,15 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) -> Option<()
             }
         }
 
+        // ZWNJ can be retained inside the preceding syllable.
+        if buffer
+            .info
+            .get(start..end)?
+            .iter()
+            .any(|info| info.use_category() == category::ZWNJ)
+        {
+            last_form = None;
+        }
         last_start = start;
         start = end;
         end = buffer.next_syllable(start);
