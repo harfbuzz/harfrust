@@ -183,12 +183,18 @@ impl AatMapBuilder {
 
         crate::algs::sort_unstable_by(&mut feature_events, Ord::cmp);
 
-        // Add a strategic final event.
+        // Add a strategic final event. Give it a strictly-highest seq so its
+        // (deactivating) event can never match a real feature's seq, which run
+        // 0..self.features.len(); FeatureInfo::default() would use seq 0 and
+        // collide with the first feature.
         feature_events.push(FeatureEvent {
             index: u32::MAX as usize,
             start: false,
             seq: feature_events.len(),
-            feature: FeatureInfo::default(),
+            feature: FeatureInfo {
+                seq: self.features.len() + 1,
+                ..FeatureInfo::default()
+            },
         });
 
         // Scan events and save features for each range.
