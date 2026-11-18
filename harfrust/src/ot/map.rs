@@ -38,6 +38,7 @@ pub struct FeatureMap {
     // mask for value=1, for quick access
     one_mask: Mask,
     needs_fallback: bool,
+    is_global: bool,
     auto_zwnj: bool,
     auto_zwj: bool,
     random: bool,
@@ -134,6 +135,13 @@ impl OtMap {
         self.features
             .binary_search_by_key(&feature_tag, |f| f.tag)
             .map_or(0, |idx| self.features[idx].one_mask)
+    }
+
+    #[inline]
+    pub fn is_global(&self, feature_tag: Tag) -> bool {
+        self.features
+            .binary_search_by_key(&feature_tag, |f| f.tag)
+            .is_ok_and(|idx| self.features[idx].is_global)
     }
 
     #[inline]
@@ -506,7 +514,7 @@ impl<'a> OtMapBuilder<'a> {
                 OtMap::MAX_BITS.min(num_bits)
             };
 
-            if info.max_value == 0 || next_bit + bits_needed >= GLOBAL_BIT_SHIFT {
+            if info.max_value == 0 || next_bit + bits_needed > GLOBAL_BIT_SHIFT {
                 // Feature disabled, or not enough bits.
                 continue;
             }
@@ -558,6 +566,7 @@ impl<'a> OtMapBuilder<'a> {
                 mask,
                 one_mask: (1 << shift) & mask,
                 needs_fallback: !found,
+                is_global: info.flags & F_GLOBAL != 0,
                 auto_zwnj: info.flags & F_MANUAL_ZWNJ == 0,
                 auto_zwj: info.flags & F_MANUAL_ZWJ == 0,
                 random: info.flags & F_RANDOM != 0,
