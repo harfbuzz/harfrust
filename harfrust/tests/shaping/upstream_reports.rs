@@ -1,4 +1,6 @@
 mod arabic_stch;
+mod compact_coverage;
+mod composite_anchors;
 mod cross_stream_flags;
 mod hebrew;
 mod kern_reset;
