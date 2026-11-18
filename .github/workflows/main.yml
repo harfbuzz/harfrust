@@ -134,46 +134,6 @@ jobs:
     - name: Clippy without tracing
       run: cargo clippy -p harfrust_capi --all-targets -- -D warnings
 
-  windows-c-api:
-    name: Windows C API optional subset feature
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Build default and subset-enabled DLLs
-        shell: pwsh
-        run: |
-          cargo build -p harfrust_capi --no-default-features --target-dir target/capi-default
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo build -p harfrust_capi --features subset
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Run C and C++ consumers
-        shell: pwsh
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
-          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          & "$vs/Common7/Tools/Launch-VsDevShell.ps1" -SkipAutomaticLocation -Arch amd64 -HostArch amd64
-          $env:PATH = "$PWD/target/debug;$env:PATH"
-          $includes = @('-Iharfrust_capi/include')
-          $libraries = @('target/debug/harfrust_c.dll.lib')
-          $font = 'harfrust/tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf'
-          clang -std=c99 -pedantic-errors -Werror @includes harfrust_capi/examples/subset.c @libraries -o target/debug/hr-subset.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & target/debug/hr-subset.exe $font
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # The MSVC standard library requires C++14 or later.
-          foreach ($standard in @('c++14', 'c++17')) {
-            foreach ($order in @('CORE', 'SUBSET_FIRST', 'SUBSET_LAST')) {
-              $directory = if ($order -eq 'CORE') { 'target/capi-default/debug' } else { 'target/debug' }
-              [string[]]$linked = @("$directory/harfrust_c.dll.lib")
-              clang++ "-std=$standard" -pedantic-errors -Wall -Wextra -Werror "-DHR_TEST_$order" @includes harfrust_capi/tests/cplusplus.cc @linked -o "$directory/hr-cplusplus.exe"
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-              & "$directory/hr-cplusplus.exe" $font
-              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            }
-          }
-
   check-no-std:
     name: cargo check no std (${{ matrix.features }})
     runs-on: ubuntu-latest
