@@ -771,6 +771,7 @@ impl Driver4<'_> {
                 pos.x_offset = x_offset;
                 pos.y_offset = y_offset;
             }
+            (_, Subtable4Actions::ControlPoints(_)) => return Some(()),
             _ => {}
         }
 

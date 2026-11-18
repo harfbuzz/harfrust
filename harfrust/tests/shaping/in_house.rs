@@ -1778,6 +1778,54 @@ fn aat_kerx_105() {
 }
 
 #[test]
+fn aat_kerx_178() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--font-funcs=ot",
+        ),
+        "[A=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_179() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--font-funcs=ot --variations=wght=1",
+        ),
+        "[B=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_180() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--font-funcs=ot",
+        ),
+        "[A=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_181() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--font-funcs=ot --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
 fn aat_morx_001() {
     assert_eq!(
         shape(
