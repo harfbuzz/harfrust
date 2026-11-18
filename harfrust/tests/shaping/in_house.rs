@@ -4706,7 +4706,7 @@ fn arabic_stch_003() {
             "\u{0661}\u{0662}\u{0663}\u{0891}\u{0664}\u{066B}",
             "--direction=l",
         ),
-        "[one-ar=0+449|two-ar=1+449|three-ar=2+449|piastre-ar.head=3@-192,0+0|piastre-ar.repeat=3@452,0+0|piastre-ar.tail=3@586,0+0|four-ar=4+449|decimalseparator-ar=5+222]"
+        "[one-ar=0+449|two-ar=1+449|three-ar=2+449|piastre-ar.head=3@-259,0+0|piastre-ar.repeat=3@385,0+0|piastre-ar.tail=3@519,0+0|four-ar=4+449|decimalseparator-ar=5+222]"
     );
 }
 
@@ -4851,6 +4851,366 @@ fn arabic_stch_015() {
             "--font-funcs=ot --font-size=-1000",
         ),
         "[beth=4+-500|beth=3+-500|beth=2+-500|beth=1+-500|sam.end=0@2000,0+0|sam.rep=0@1900,0+0|sam.rep=0@1700,0+0|sam.rep=0@1500,0+0|sam.rep=0@1300,0+0|sam.rep=0@1100,0+0|sam.rep=0@900,0+0|sam.rep=0@700,0+0|sam.rep=0@500,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_016() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl",
+        ),
+        "[beth=1+100|sam.end=0@-250,0+0|sam.rep=0@-150,0+0|sam.end=0@50,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=2000",
+        ),
+        "[beth=1+200|sam.end=0@-500,0+0|sam.rep=0@-300,0+0|sam.end=0@100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_018() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=-1000",
+        ),
+        "[beth=1+-100|sam.end=0@250,0+0|sam.rep=0@150,0+0|sam.end=0@-50,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_019() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl",
+        ),
+        "[beth=2+100|beth=1+100|sam.end=0@-300,0+0|sam.rep=0@-200,0+0|sam.end=0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_020() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=2000",
+        ),
+        "[beth=2+200|beth=1+200|sam.end=0@-600,0+0|sam.rep=0@-400,0+0|sam.end=0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=-1000",
+        ),
+        "[beth=2+-100|beth=1+-100|sam.end=0@300,0+0|sam.rep=0@200,0+0|sam.end=0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_022() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl",
+        ),
+        "[beth=3+100|beth=2+100|beth=1+100|sam.end=0@-350,0+0|sam.rep=0@-250,0+0|sam.end=0@-50,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_023() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=2000",
+        ),
+        "[beth=3+200|beth=2+200|beth=1+200|sam.end=0@-700,0+0|sam.rep=0@-500,0+0|sam.end=0@-100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_024() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=-1000",
+        ),
+        "[beth=3+-100|beth=2+-100|beth=1+-100|sam.end=0@350,0+0|sam.rep=0@250,0+0|sam.end=0@50,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_025() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl",
+        ),
+        "[beth=4+100|beth=3+100|beth=2+100|beth=1+100|sam.end=0@-400,0+0|sam.rep=0@-300,0+0|sam.end=0@-100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_026() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=2000",
+        ),
+        "[beth=4+200|beth=3+200|beth=2+200|beth=1+200|sam.end=0@-800,0+0|sam.rep=0@-600,0+0|sam.end=0@-200,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_027() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=-1000",
+        ),
+        "[beth=4+-100|beth=3+-100|beth=2+-100|beth=1+-100|sam.end=0@400,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_028() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl",
+        ),
+        "[beth=5+100|beth=4+100|beth=3+100|beth=2+100|beth=1+100|sam.end=0@-500,0+0|sam.rep=0@-400,0+0|sam.rep=0@-300,0+0|sam.end=0@-100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_029() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=2000",
+        ),
+        "[beth=5+200|beth=4+200|beth=3+200|beth=2+200|beth=1+200|sam.end=0@-1000,0+0|sam.rep=0@-800,0+0|sam.rep=0@-600,0+0|sam.end=0@-200,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_030() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{070F}\u{0712}\u{0712}\u{0712}\u{0712}\u{0712}",
+            "--font-funcs=ot --script=syrc --direction=rtl --font-size=-1000",
+        ),
+        "[beth=5+-100|beth=4+-100|beth=3+-100|beth=2+-100|beth=1+-100|sam.end=0@700,0+0|sam.rep=0@600,0+0|sam.rep=0@300,0+0|sam.end=0@100,0+0]"
+    );
+}
+
+#[test]
+fn arabic_stch_031() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr",
+        ),
+        "[sam.end=0@-150,0+0|sam.rep=0@-50,0+0|sam.end=0@150,0+0|beth=1+100]"
+    );
+}
+
+#[test]
+fn arabic_stch_032() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=2000",
+        ),
+        "[sam.end=0@-300,0+0|sam.rep=0@-100,0+0|sam.end=0@300,0+0|beth=1+200]"
+    );
+}
+
+#[test]
+fn arabic_stch_033() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=-1000",
+        ),
+        "[sam.end=0@150,0+0|sam.rep=0@50,0+0|sam.end=0@-150,0+0|beth=1+-100]"
+    );
+}
+
+#[test]
+fn arabic_stch_034() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr",
+        ),
+        "[sam.end=0@-100,0+0|sam.rep=0+0|sam.end=0@200,0+0|beth=1+100|beth=2+100]"
+    );
+}
+
+#[test]
+fn arabic_stch_035() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=2000",
+        ),
+        "[sam.end=0@-200,0+0|sam.rep=0+0|sam.end=0@400,0+0|beth=1+200|beth=2+200]"
+    );
+}
+
+#[test]
+fn arabic_stch_036() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=-1000",
+        ),
+        "[sam.end=0@100,0+0|sam.rep=0+0|sam.end=0@-200,0+0|beth=1+-100|beth=2+-100]"
+    );
+}
+
+#[test]
+fn arabic_stch_037() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr",
+        ),
+        "[sam.end=0@-50,0+0|sam.rep=0@50,0+0|sam.end=0@250,0+0|beth=1+100|beth=2+100|beth=3+100]"
+    );
+}
+
+#[test]
+fn arabic_stch_038() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=2000",
+        ),
+        "[sam.end=0@-100,0+0|sam.rep=0@100,0+0|sam.end=0@500,0+0|beth=1+200|beth=2+200|beth=3+200]"
+    );
+}
+
+#[test]
+fn arabic_stch_039() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=-1000",
+        ),
+        "[sam.end=0@50,0+0|sam.rep=0@-50,0+0|sam.end=0@-250,0+0|beth=1+-100|beth=2+-100|beth=3+-100]"
+    );
+}
+
+#[test]
+fn arabic_stch_040() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr",
+        ),
+        "[sam.end=0+0|sam.rep=0@100,0+0|sam.end=0@300,0+0|beth=1+100|beth=2+100|beth=3+100|beth=4+100]"
+    );
+}
+
+#[test]
+fn arabic_stch_041() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=2000",
+        ),
+        "[sam.end=0+0|sam.rep=0@200,0+0|sam.end=0@600,0+0|beth=1+200|beth=2+200|beth=3+200|beth=4+200]"
+    );
+}
+
+#[test]
+fn arabic_stch_042() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=-1000",
+        ),
+        "[sam.end=0+0|sam.rep=0@-100,0+0|sam.end=0@-300,0+0|beth=1+-100|beth=2+-100|beth=3+-100|beth=4+-100]"
+    );
+}
+
+#[test]
+fn arabic_stch_043() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr",
+        ),
+        "[sam.end=0+0|sam.rep=0@100,0+0|sam.rep=0@300,0+0|sam.end=0@400,0+0|beth=1+100|beth=2+100|beth=3+100|beth=4+100|beth=5+100]"
+    );
+}
+
+#[test]
+fn arabic_stch_044() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=2000",
+        ),
+        "[sam.end=0+0|sam.rep=0@200,0+0|sam.rep=0@600,0+0|sam.end=0@800,0+0|beth=1+200|beth=2+200|beth=3+200|beth=4+200|beth=5+200]"
+    );
+}
+
+#[test]
+fn arabic_stch_045() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/86a531ec997c2c3fabf0456c500515f615d78564.ttf",
+            "\u{0891}\u{0661}\u{0661}\u{0661}\u{0661}\u{0661}",
+            "--font-funcs=ot --script=arab --direction=ltr --font-size=-1000",
+        ),
+        "[sam.end=0+0|sam.rep=0@-100,0+0|sam.rep=0@-300,0+0|sam.end=0@-600,0+0|beth=1+-100|beth=2+-100|beth=3+-100|beth=4+-100|beth=5+-100]"
     );
 }
 

@@ -605,8 +605,8 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             // See if we can improve the fit by adding an extra repeat and squeezing them together a bit.
             let mut extra_repeat_overlap = 0;
             let shortfall = remaining - repeating * (i64::from(n_copies) + 1);
-            if shortfall == 0 {
-                w_remaining = 0;
+            if shortfall <= 0 {
+                w_remaining = clamp_i64_to_i32(-shortfall * sign);
             }
             if shortfall > 0 && n_repeating > 0 {
                 n_copies += 1;
@@ -623,6 +623,9 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             } else {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
+                if !rtl {
+                    x_offset = -x_offset;
+                }
                 for k in (start + 1..=end).rev() {
                     let info = *buffer.info.get(k - 1)?;
                     let width = buffer.pos.get(k - 1)?.var as i32;
