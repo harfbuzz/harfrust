@@ -5,14 +5,14 @@ We aspire to match HarfBuzz, in correctness and performance.
 We have our own subset of the HarfBuzz shaping tests in `tests`,
 which all pass (`cargo test`).
 
-We also have our own benchmark suite against HarfBuzz with
-`cargo bench` that runs the same shaping benchmarks using the
-[`harfbuzz_rs`](https://github.com/harfbuzz/harfbuzz_rs)
-Rust HarfBuzz bindings crate.
+For performance comparisons through the C APIs, use
+[benchmark-harf](https://github.com/harfbuzz/benchmark-harf), described below.
+We also have a Rust benchmark suite with `cargo bench` that compares against the
+[`harfbuzz_rs`](https://github.com/harfbuzz/harfbuzz_rs) bindings. These measure
+different API paths and should be reported separately.
 
-This document tells you how to run HarfBuzz's own shaping tests
-and benchmark suite against HarfRust, and how to compare the
-results.
+This document covers direct C API comparisons and HarfBuzz's own shaping tests
+and benchmarks using its HarfRust integration.
 
 ## Building HarfBuzz with HarfRust support
 
@@ -67,100 +67,135 @@ The nine remaining shaping failures are all in
 fallback lookups for fonts without the required OpenType substitutions.
 
 
+## Comparing the C APIs with benchmark-harf
+
+[benchmark-harf](https://github.com/harfbuzz/benchmark-harf) builds one C++
+Google Benchmark executable with the same shaping loop compiled in separate
+translation units against HarfBuzz's `<hb.h>` and HarfRust's `<hr-hb.h>`
+compatibility header. It links both libraries into one process. This keeps the
+calling code and C API usage consistent, avoiding differences between a Rust
+benchmark's native Rust path and its HarfBuzz bindings.
+
+The result suffixes identify three distinct paths:
+
+- `/hb`: HarfBuzz's native OpenType/AAT shaper (named `ot` internally).
+- `/hr`: HarfRust through its C API.
+- `/hb-hr`: HarfRust through HarfBuzz's integration, registered only when that
+  HarfBuzz build supports it.
+
+Use `/hb` and `/hr` for a direct C API comparison. The `/hb-hr` path measures
+HarfBuzz's integration overhead as well as HarfRust shaping; it may also use a
+different HarfRust revision or dependency build from the standalone C library.
+Both engines support OpenType and AAT shaping.
+
+### Building and running
+
+Install a C++ compiler, Rust, Meson, Ninja, GLib development files, and Google
+Benchmark (or allow Meson to fetch its fallback). The following example uses
+sibling source directories `~/hb`, `~/hr`, and `~/benchmark-harf`. It creates
+separate release build directories; substitute your source paths as needed.
+
+```sh
+# Build HarfBuzz's native library; its HarfRust integration is optional.
+CXX=clang++ CC=clang meson setup "$HOME/hb/build-capi-bench" "$HOME/hb" \
+  --buildtype=release -Db_lto=true -Dharfrust=disabled
+meson compile -C "$HOME/hb/build-capi-bench"
+
+# Run from the source tree so Cargo also reads its .cargo/config.toml.
+# HarfRust's workspace release profile enables fat LTO and one codegen unit.
+cd "$HOME/hr"
+cargo build --target-dir "$HOME/hr/target-capi-bench" \
+  -p harfrust_capi --release
+
+git clone https://github.com/harfbuzz/benchmark-harf.git "$HOME/benchmark-harf"
+CXX=clang++ CC=clang meson setup "$HOME/benchmark-harf/build" \
+  "$HOME/benchmark-harf" --buildtype=release -Db_lto=true \
+  -Dhb_root="$HOME/hb" -Dhb_build="$HOME/hb/build-capi-bench" \
+  -Dhr_root="$HOME/hr" -Dhr_build="$HOME/hr/target-capi-bench/release"
+meson compile -C "$HOME/benchmark-harf/build"
+
+# Compare both native C API paths on an identical font/text pair.
+"$HOME/benchmark-harf/build/benchmark-harf" \
+  "$HOME/hb/perf/fonts/Roboto-Regular.ttf" \
+  "$HOME/hb/perf/texts/en-thelittleprince.txt" \
+  --benchmark_filter='/(hb|hr)$' \
+  --benchmark_min_time=0.5s --benchmark_repetitions=9 \
+  --benchmark_enable_random_interleaving=true \
+  --benchmark_out=results.json --benchmark_out_format=json
+```
+
+The harness uses fonts and corpora from the configured HarfBuzz source tree
+when run without explicit font/text pairs. You can pass multiple pairs, or
+select benchmarks with `--benchmark_filter`. See its README for the current
+workload list and optional local AAT font inputs. By default, available AAT
+collections are read from the configured HarfBuzz source root; use
+`--aat-font-dir=/path/to/local/fonts` to select another directory. Missing
+optional fonts are skipped, and explicit font/text pairs replace all defaults.
+Proprietary fonts must be supplied locally and are not distributed with the
+harness. For variable fonts,
+use `--variations='wght=700'`; use `--direction=rtl` (or another direction) to
+override the direction guessed from the text.
+
+### Making a fair comparison
+
+Each timed iteration shapes the entire corpus one newline-delimited line at a
+time. The final line must end with a newline to be included. The harness loads
+the font and text and performs one warm-up pass before timing; it reuses the
+font and buffer across lines and iterations. Results are milliseconds per
+complete corpus, not per line or per glyph, and describe warm shaping rather
+than font loading or cold startup.
+
+Use identical font bytes, collection face, text bytes, line boundaries,
+direction, script, language, features, variations, font scale, and buffer
+settings. The current harness uses face index zero, default features, and
+guessed segment properties unless direction is overridden. Extend both
+compiled paths together if you need other settings. Check output parity
+(glyph IDs, clusters, advances, and offsets) separately before interpreting
+timings: the benchmark does not compare glyph output. Exclude and report
+inputs for which either engine fails, reaches a shaping budget, or returns
+incomplete output; a quick failed or truncated shape is not a performance win.
+
+Build both libraries in release mode with comparable optimization and LTO
+settings. Record the C++ and Rust compiler versions, LLVM versions, target CPU
+flags, Cargo features, exact HarfBuzz/HarfRust/Fontations revisions, local
+patches, and benchmark-harf revision. Compiler choice and target tuning can
+change the ranking; linking into the same process does not remove those
+compiler differences. Check which libraries the executable actually loads,
+particularly after changing build paths or environment variables.
+
+Keep the machine otherwise idle, use a stable CPU frequency policy, and pin
+the process to one CPU where practical (for example, `taskset -c 2` on Linux).
+Use repeated, interleaved runs and compare the median CPU times in the JSON
+output, retaining the individual repetitions to assess variation. Report
+workloads separately rather than treating one corpus as representative of all
+shaping. Current results are workload dependent: common Latin cases can be
+close, while either engine can lead on other fonts and scripts. The
+[historical spreadsheet](https://docs.google.com/spreadsheets/d/1lyPPZHXIF8gE0Tpx7_IscwhwaZa4KOpdt7vnV0jQT9o/preview)
+contains earlier comparisons; its timings are not a substitute for measuring
+the revisions and configuration you plan to use.
+
 ## Running HarfBuzz's Benchmark Tests
 
-The tool we are interested in is `build/perf/benchmark-shape`.
-You can try running it, and it will run a few benchmarks against
-all compiled shaping backends. There is a `--help` option, but
-the following are the most useful:
-
-`--benchmark_filter=REGEX` to select which benchmarks to run.
-  Note the underscore in the option name. The regex is matched
-  against the benchmark name.  To only run against HarfRust,
-  you can use `--benchmark_filter=harfrust`. Eg.:
-```
-$ build/perf/benchmark-shape --benchmark_filter=harfrust
-2025-08-05T14:49:40-06:00
-Running build/perf/benchmark-shape
-Run on (24 X 2208 MHz CPU s)
-CPU Caches:
-  L1 Data 32 KiB (x12)
-  L1 Instruction 32 KiB (x12)
-  L2 Unified 512 KiB (x12)
-  L3 Unified 32768 KiB (x2)
-Load Average: 0.54, 0.60, 0.61
-----------------------------------------------------------------------------------------------------------------
-Benchmark                                                                      Time             CPU   Iterations
-----------------------------------------------------------------------------------------------------------------
-BM_Shape/NotoNastaliqUrdu-Regular.ttf/fa-thelittleprince.txt/harfrust        193 ms          192 ms            4
-BM_Shape/NotoNastaliqUrdu-Regular.ttf/fa-words.txt/harfrust                  213 ms          212 ms            3
-BM_Shape/Amiri-Regular.ttf/fa-thelittleprince.txt/harfrust                  69.6 ms         69.2 ms           10
-BM_Shape/NotoSansDevanagari-Regular.ttf/hi-words.txt/harfrust               41.8 ms         41.6 ms           17
-BM_Shape/Roboto-Regular.ttf/en-thelittleprince.txt/harfrust                 21.3 ms         21.2 ms           33
-BM_Shape/Roboto-Regular.ttf/en-words.txt/harfrust                           28.7 ms         28.6 ms           24
-BM_Shape/SourceSerifVariable-Roman.ttf/react-dom.txt/harfrust                233 ms          232 ms            3
-```
-
-We are interested in the CPU column.  To get the output from HarfBuzz's
-own shaper (called `ot` for historical reasons) as well as HarfRust, you can use:
-```sh
-$ build/perf/benchmark-shape --benchmark_filter='/(ot|harfrust)'
-...
-----------------------------------------------------------------------------------------------------------------
-Benchmark                                                                      Time             CPU   Iterations
-----------------------------------------------------------------------------------------------------------------
-BM_Shape/NotoNastaliqUrdu-Regular.ttf/fa-thelittleprince.txt/ot             83.1 ms         82.7 ms            9
-BM_Shape/NotoNastaliqUrdu-Regular.ttf/fa-thelittleprince.txt/harfrust        189 ms          188 ms            4
-BM_Shape/NotoNastaliqUrdu-Regular.ttf/fa-words.txt/ot                       96.6 ms         96.0 ms            7
-BM_Shape/NotoNastaliqUrdu-Regular.ttf/fa-words.txt/harfrust                  213 ms          212 ms            3
-BM_Shape/Amiri-Regular.ttf/fa-thelittleprince.txt/ot                        39.6 ms         39.4 ms           18
-BM_Shape/Amiri-Regular.ttf/fa-thelittleprince.txt/harfrust                  67.9 ms         67.6 ms           10
-BM_Shape/NotoSansDevanagari-Regular.ttf/hi-words.txt/ot                     25.1 ms         25.0 ms           28
-BM_Shape/NotoSansDevanagari-Regular.ttf/hi-words.txt/harfrust               42.6 ms         42.5 ms           17
-BM_Shape/Roboto-Regular.ttf/en-thelittleprince.txt/ot                       8.83 ms         8.79 ms           80
-BM_Shape/Roboto-Regular.ttf/en-thelittleprince.txt/harfrust                 21.4 ms         21.3 ms           33
-BM_Shape/Roboto-Regular.ttf/en-words.txt/ot                                 11.9 ms         11.9 ms           59
-BM_Shape/Roboto-Regular.ttf/en-words.txt/harfrust                           29.5 ms         29.3 ms           24
-BM_Shape/SourceSerifVariable-Roman.ttf/react-dom.txt/ot                     97.5 ms         97.0 ms            7
-BM_Shape/SourceSerifVariable-Roman.ttf/react-dom.txt/harfrust                234 ms          233 ms            3
-```
-
-You might get a warning that your CPU frequency scaling is not set to
-performance and that might affect the results.  You can try to fix that
-depending on what OS you are using.  On Linux, you can try:
-```sh
-$ sudo cpupower frequency-set -g performance
-```
-
-`--benchmark_out=FILE` to write the results to a file, in JSON format.
-This can be used to compare results across runs, using a comparison tool
-provided by the benchmark framework:
-```sh
-$ subprojects/benchmark-1.8.4/tools/compare.py benchmarks BEFORE.json AFTER.json
-```
-Substitute 1.8.4 with the actual version you have.
-
-`--benchmark_repetitions=NUM` to run the benchmarks multiple times, to
-get more stable results.  Note that in each run, each benchmark is
-already run to a minimum of 0.5 seconds.
-
-To run the benchmark tool against a custom font, you need to also pick
-a test file to shape, and you just pass the two to the benchmark tool.
-There are a few useful text files in `perf/texts` directory.  For example,
-to run the lookup-heavy Gulzar font against the `fa-words.txt` file:
+HarfBuzz's `build/perf/benchmark-shape` remains useful for measuring its shaper
+integration. Build with `-Dbenchmark=enabled -Dharfrust=enabled` as above, then
+compare its native `ot` path with the `harfrust` path:
 
 ```sh
-$ build/perf/benchmark-shape Gulzar-Regular.ttf perf/texts/fa-words.txt --benchmark_filter='(ot|harfrust)'
-...
---------------------------------------------------------------------------------------------
-Benchmark                                                  Time             CPU   Iterations
---------------------------------------------------------------------------------------------
-BM_Shape/Gulzar-Regular.ttf/fa-words.txt/ot              607 ms          604 ms            1
-BM_Shape/Gulzar-Regular.ttf/fa-words.txt/harfrust       2085 ms         2074 ms            1
+build/perf/benchmark-shape --benchmark_filter='/(ot|harfrust)$' \
+  --benchmark_repetitions=9 --benchmark_out=integration-results.json \
+  --benchmark_out_format=json
 ```
 
-We maintain a running performance comparison of HarfRust against HarfBuzz
-over time [here](https://docs.google.com/spreadsheets/d/1lyPPZHXIF8gE0Tpx7_IscwhwaZa4KOpdt7vnV0jQT9o/preview).
+It also accepts custom font/text pairs, for example:
+
+```sh
+build/perf/benchmark-shape Gulzar-Regular.ttf perf/texts/fa-words.txt \
+  --benchmark_filter='/(ot|harfrust)$'
+```
+
+Read the CPU column and apply the same workload, build, output-parity, and
+measurement controls described above. Label these results as the HarfBuzz
+integration path, rather than direct HarfRust C API timings.
 
 
 ## Running against local HarfRust and Fontations
