@@ -2372,7 +2372,7 @@ impl Buffer {
         let Some(infos) = info.get(start..end) else {
             return cluster;
         };
-        if self.cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS {
+        if !ClusterLevel::new(self.cluster_level).is_monotone() {
             for glyph_info in infos {
                 cluster = min(cluster, glyph_info.cluster);
             }
@@ -2687,7 +2687,7 @@ fn set_cluster_flags(
     let cluster_first = infos.get(start)?.cluster;
     let cluster_last = infos.get(end - 1)?.cluster;
 
-    if cluster_level == HB_BUFFER_CLUSTER_LEVEL_CHARACTERS
+    if !ClusterLevel::new(cluster_level).is_monotone()
         || (cluster != cluster_first && cluster != cluster_last)
     {
         for info in infos.get_mut(start..end)? {
@@ -2820,6 +2820,53 @@ pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flag_ranges_follow_cluster_monotonicity() {
+        const FEATURE: Mask = 0x100;
+        let flag = GlyphFlags::UNSAFE_TO_BREAK.to_bits();
+        for level in 0..=3 {
+            // Both monotone directions remain valid at every level.
+            let mut cases: Vec<&[u32]> = vec![&[1, 1, 2, 3], &[3, 2, 1, 1]];
+            if !ClusterLevel::new(level).is_monotone() {
+                // Interior minimum; repeated minima must not stop flagging.
+                cases.extend([&[3, 1, 2, 4][..], &[1, 2, 1, 3], &[4, 1, 2, 1]]);
+            }
+            for clusters in cases {
+                let mut buffer = Buffer::new();
+                assert!(buffer.set_length(clusters.len()));
+                buffer.cluster_level = level;
+                for (info, &cluster) in buffer.info.iter_mut().zip(clusters) {
+                    info.cluster = cluster;
+                    info.mask = FEATURE;
+                }
+                let minimum = *clusters.iter().min().unwrap();
+                assert_eq!(
+                    buffer._infos_find_min_cluster(&buffer.info, 0, clusters.len(), None),
+                    minimum
+                );
+                // An existing minimum is included, even outside the range.
+                assert_eq!(
+                    buffer._infos_find_min_cluster(&buffer.info, 0, clusters.len(), Some(0)),
+                    0
+                );
+                buffer._infos_set_glyph_flags(false, 0, clusters.len(), minimum, flag);
+                for info in &buffer.info {
+                    assert_eq!(
+                        info.mask,
+                        FEATURE | if info.cluster == minimum { 0 } else { flag }
+                    );
+                }
+                let remaining = buffer.max_ops;
+                assert_eq!(
+                    buffer._infos_find_min_cluster(&buffer.info, 2, 2, Some(7)),
+                    7
+                );
+                buffer._infos_set_glyph_flags(false, 2, 2, minimum, flag);
+                assert_eq!(buffer.max_ops, remaining);
+            }
+        }
+    }
 
     #[test]
     fn next_syllable_is_bounded() {
