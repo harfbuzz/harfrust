@@ -550,6 +550,7 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             let mut w_total: i32 = 0; // Total to be filled
             let mut w_fixed: i32 = 0; // Sum of fixed tiles
             let mut w_repeating: i32 = 0; // Sum of repeating tiles
+            let mut n_fixed: i32 = 0;
             let mut n_repeating: i32 = 0;
 
             let end = i;
@@ -566,6 +567,7 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
 
                 if info.arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
+                    n_fixed += 1;
                 } else {
                     w_repeating = w_repeating.saturating_add(width);
                     n_repeating += 1;
@@ -618,8 +620,21 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
                 }
             }
 
+            // Cap the number of copies so a crafted font cannot make the buffer
+            // grow without bound (and so n_copies * n_repeating cannot overflow).
+            const STCH_MAX_GLYPHS: i32 = 256;
+            let mut max_copies: i32 = 0;
+            if n_repeating > 0 {
+                let base_glyphs = n_fixed + n_repeating;
+                if base_glyphs < STCH_MAX_GLYPHS {
+                    max_copies = (STCH_MAX_GLYPHS - base_glyphs) / n_repeating;
+                }
+            }
+            n_copies = n_copies.min(max_copies);
+
             if step == MEASURE {
-                extra_glyphs_needed += (n_copies * n_repeating) as usize;
+                extra_glyphs_needed = extra_glyphs_needed
+                    .saturating_add((n_copies as usize).saturating_mul(n_repeating as usize));
             } else {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
