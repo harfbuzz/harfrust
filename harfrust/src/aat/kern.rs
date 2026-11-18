@@ -84,8 +84,11 @@ pub fn apply(
             continue;
         }
 
-        // Cross-stream kerning replaces the attachment chains used by GPOS.
-        if c.plan.apply_gpos && subtable.is_cross_stream() {
+        // Only simple, in-stream kerning may run alongside GPOS.
+        if c.plan.apply_gpos
+            && (subtable.is_cross_stream()
+                || matches!(&subtable_cache.kind, Some(SubtableKind::Format1(_))))
+        {
             continue;
         }
 
