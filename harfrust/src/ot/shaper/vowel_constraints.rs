@@ -14,12 +14,18 @@ fn cur_glyph(buffer: &Buffer, i: usize) -> u32 {
 
 fn output_dotted_circle(buffer: &mut Buffer) {
     buffer.output_glyph(0x25CC);
+    if !buffer.successful {
+        return;
+    }
+    let mut scratch_flags = buffer.scratch_flags;
     {
         let out_idx = buffer.out_len - 1;
         if let Some(info) = buffer.out_info_mut().get_mut(out_idx) {
+            info.init_unicode_props(&mut scratch_flags);
             info.clear_continuation();
         }
     }
+    buffer.scratch_flags = scratch_flags;
 }
 
 fn output_with_dotted_circle(buffer: &mut Buffer) {
