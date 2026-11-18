@@ -169,10 +169,8 @@ Use repeated, interleaved runs and compare the median CPU times in the JSON
 output, retaining the individual repetitions to assess variation. Report
 workloads separately rather than treating one corpus as representative of all
 shaping. Current results are workload dependent: common Latin cases can be
-close, while either engine can lead on other fonts and scripts. The
-[historical spreadsheet](https://docs.google.com/spreadsheets/d/1lyPPZHXIF8gE0Tpx7_IscwhwaZa4KOpdt7vnV0jQT9o/preview)
-contains earlier comparisons; its timings are not a substitute for measuring
-the revisions and configuration you plan to use.
+close, while either engine can lead on other fonts and scripts. Measure the
+revisions and configuration you plan to use.
 
 ## Running HarfBuzz's Benchmark Tests
 
