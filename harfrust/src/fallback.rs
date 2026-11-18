@@ -280,7 +280,7 @@ fn position_around_base(ctx: &mut FallbackShapeContext, base: usize, end: usize)
     };
 
     base_extents.y_bearing = base_extents.y_bearing.saturating_add(base_pos.y_offset);
-    base_extents.x_bearing = 0;
+    base_extents.x_bearing = base_pos.x_offset;
 
     // Use horizontal advance for horizontal positioning.
     // Generally a better idea. Also works for zero-ink glyphs. See:
