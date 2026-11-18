@@ -12,6 +12,12 @@ use harfrust::{
     ShaperFont,
 };
 
+fn parse_font_size(value: &str) -> Result<(i32, i32), String> {
+    let (x, y) = value.split_once(',').unwrap_or((value, value));
+    let parse = |value: &str| value.parse::<i32>().map_err(|e| e.to_string());
+    Ok((parse(x)?, parse(y)?))
+}
+
 #[derive(Default)]
 struct ShapePlanCache {
     plans: Vec<ShapePlan>,
@@ -68,9 +74,9 @@ pub struct Args {
     #[arg(long)]
     font_ptem: Option<f32>,
 
-    /// Set the font scale on both axes
-    #[arg(long)]
-    font_size: Option<i32>,
+    /// Set the font scale (one value, or separate x,y values)
+    #[arg(long, value_parser = parse_font_size)]
+    font_size: Option<(i32, i32)>,
 
     /// Comma-separated list of font variations
     #[arg(long, value_delimiter = ',', value_parser = Variation::parse_setting)]
@@ -364,7 +370,7 @@ fn render_with_trace(
     };
     let mut shaping_font = ShaperFont::new(&instance);
     if let Some(size) = args.font_size {
-        shaping_font.set_scale(size);
+        shaping_font.set_scale_separate(size.0, size.1);
     }
 
     let pre_context = args
