@@ -63,8 +63,3 @@ needless_continue = "allow" # 4
 ref_option = "allow" # 2
 fn_params_excessive_bools = "allow" # 2
 large_stack_arrays = "allow"
-
-[patch.crates-io]
-# Temporary until Fontations #2474 is merged and released.
-read-fonts = { git = "https://github.com/googlefonts/fontations", rev = "ce5a0f5b0fb9ab1fb65fa35c4f20de8d6d4f7964" }
-font-types = { git = "https://github.com/googlefonts/fontations", rev = "ce5a0f5b0fb9ab1fb65fa35c4f20de8d6d4f7964" }

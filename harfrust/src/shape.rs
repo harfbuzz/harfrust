@@ -320,7 +320,14 @@ impl OtShapeContext<'_, '_, '_> {
         if plan.apply_gpos {
             gpos::position(plan, self.font, buffer);
         } else if plan.apply_kerx {
-            aat::layout::position(plan, layout, self.font.scale, buffer, self.font);
+            aat::layout::position(
+                plan,
+                layout,
+                self.font.scale,
+                buffer,
+                #[cfg(feature = "tracing")]
+                self.font,
+            );
         }
         if plan.apply_kern {
             aat::kern::apply(
