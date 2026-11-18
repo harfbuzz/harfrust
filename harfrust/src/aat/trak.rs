@@ -33,7 +33,7 @@ pub fn apply(
             if buffer.direction.is_horizontal() {
                 pos.x_advance = pos.x_advance.saturating_add(advance_to_add);
             } else {
-                pos.y_advance = pos.y_advance.saturating_add(advance_to_add);
+                pos.y_advance = pos.y_advance.saturating_sub(advance_to_add);
             }
         }
     });

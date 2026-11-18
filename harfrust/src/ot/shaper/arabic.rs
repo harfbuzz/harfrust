@@ -550,6 +550,7 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             let mut w_total: i32 = 0; // Total to be filled
             let mut w_fixed: i32 = 0; // Sum of fixed tiles
             let mut w_repeating: i32 = 0; // Sum of repeating tiles
+            let mut n_fixed: i32 = 0;
             let mut n_repeating: i32 = 0;
 
             let end = i;
@@ -566,6 +567,7 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
 
                 if info.arabic_shaping_action() == arabic_action::STRETCHING_FIXED {
                     w_fixed = w_fixed.saturating_add(width);
+                    n_fixed += 1;
                 } else {
                     w_repeating = w_repeating.saturating_add(width);
                     n_repeating += 1;
@@ -591,18 +593,26 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             let mut n_copies: i32 = 0;
 
             let mut w_remaining = w_total.saturating_sub(w_fixed);
-            if w_remaining > w_repeating && w_repeating > 0 {
-                n_copies = w_remaining / (w_repeating) - 1;
+            let sign = if font.scale().scale_x_unrounded(1.0) < 0.0 {
+                -1
+            } else {
+                1
+            };
+            let remaining = (i64::from(w_total) - i64::from(w_fixed)) * sign;
+            let repeating = i64::from(w_repeating) * sign;
+            if remaining > repeating && repeating > 0 {
+                n_copies = clamp_i64_to_i32(remaining / repeating - 1);
             }
 
             // See if we can improve the fit by adding an extra repeat and squeezing them together a bit.
             let mut extra_repeat_overlap = 0;
-            let shortfall =
-                i64::from(w_remaining) - i64::from(w_repeating) * i64::from(n_copies + 1);
+            let shortfall = remaining - repeating * (i64::from(n_copies) + 1);
+            if shortfall <= 0 {
+                w_remaining = clamp_i64_to_i32(-shortfall * sign);
+            }
             if shortfall > 0 && n_repeating > 0 {
                 n_copies += 1;
-                let excess =
-                    i64::from(n_copies + 1) * i64::from(w_repeating) - i64::from(w_remaining);
+                let excess = (i64::from(n_copies) + 1) * repeating - remaining;
                 if excess > 0 {
                     extra_repeat_overlap =
                         clamp_i64_to_i32(excess / (i64::from(n_copies) * i64::from(n_repeating)));
@@ -610,11 +620,27 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
                 }
             }
 
+            // Cap the number of copies so a crafted font cannot make the buffer
+            // grow without bound (and so n_copies * n_repeating cannot overflow).
+            const STCH_MAX_GLYPHS: i32 = 256;
+            let mut max_copies: i32 = 0;
+            if n_repeating > 0 {
+                let base_glyphs = n_fixed + n_repeating;
+                if base_glyphs < STCH_MAX_GLYPHS {
+                    max_copies = (STCH_MAX_GLYPHS - base_glyphs) / n_repeating;
+                }
+            }
+            n_copies = n_copies.min(max_copies);
+
             if step == MEASURE {
-                extra_glyphs_needed += (n_copies * n_repeating) as usize;
+                extra_glyphs_needed = extra_glyphs_needed
+                    .saturating_add((n_copies as usize).saturating_mul(n_repeating as usize));
             } else {
                 buffer.unsafe_to_break(Some(context), Some(end));
                 let mut x_offset = w_remaining / 2;
+                if !rtl {
+                    x_offset = -x_offset;
+                }
                 for k in (start + 1..=end).rev() {
                     let info = *buffer.info.get(k - 1)?;
                     let width = buffer.pos.get(k - 1)?.var as i32;

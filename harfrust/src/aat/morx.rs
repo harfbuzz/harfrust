@@ -833,11 +833,9 @@ fn apply_noncontextual(lookup: &aat::LookupU16, ac: &mut AatApplyContext) -> Opt
         if let Some(range_flags) = ac.range_flags.as_ref() {
             if let Some(last_range) = last_range.as_mut() {
                 let mut range = *last_range;
-                if ac.buffer.idx < ac.buffer.len {
-                    let cluster = ac.buffer.cur(0)?.cluster;
-                    range = range_for_cluster(range_flags, range, cluster);
-                    *last_range = range;
-                }
+                let cluster = ac.buffer.info.get(i)?.cluster;
+                range = range_for_cluster(range_flags, range, cluster);
+                *last_range = range;
 
                 if range_flags[range].flags & ac.subtable_flags == 0 {
                     continue;

@@ -141,6 +141,10 @@ impl<'a> ShapePlanner<'a> {
                 self.ot_map.add_feature(tag, flags, 1);
             }
         } else {
+            // Keep a fallback mask when vertical kerning is requested.
+            self.ot_map
+                .add_feature(Tag::new(b"vkrn"), F_GLOBAL_HAS_FALLBACK, 0);
+
             // We only apply `vert` feature. See:
             // https://github.com/harfbuzz/harfbuzz/commit/d71c0df2d17f4590d5611239577a6cb532c26528
             // https://lists.freedesktop.org/archives/harfbuzz/2013-August/003490.html
@@ -203,7 +207,6 @@ impl<'a> ShapePlanner<'a> {
         // Decide who does substitutions. GSUB, morx, or fallback.
         let apply_morx = self.apply_morx;
 
-        let mut apply_gpos = false;
         let mut apply_kerx = false;
         let mut apply_kern = false;
 
@@ -211,29 +214,29 @@ impl<'a> ShapePlanner<'a> {
         let has_kerx = self.layout.aat.kerx.is_some();
         let has_gsub = !apply_morx && self.layout.ot.gsub().is_some();
         let has_gpos = !disable_gpos && self.layout.ot.gpos().is_some();
+        let mut apply_gpos = has_gpos;
 
         // Prefer GPOS over kerx if GSUB is present;
         // https://github.com/harfbuzz/harfbuzz/issues/3008
         if has_kerx && !(has_gsub && has_gpos) {
             apply_kerx = true;
-        } else if has_gpos {
-            apply_gpos = true;
+            apply_gpos = false;
         }
 
-        if !apply_kerx && (!has_gpos_kern || !apply_gpos) {
-            if has_kerx {
-                apply_kerx = true;
-            } else if has_kerning(self.layout.aat) {
-                apply_kern = self.script_fallback_position;
-            }
+        let needs_kerning = !has_gpos_kern || !apply_gpos;
+        if needs_kerning && has_kerx {
+            apply_kerx = true;
+        }
+        if needs_kerning && !apply_kerx && has_kerning(self.layout.aat) {
+            apply_kern = self.script_fallback_position;
         }
 
         let apply_fallback_kern = !(apply_gpos || apply_kerx || apply_kern);
         let zero_marks = self.script_zero_marks
-            && !apply_kerx
+            && (!apply_kerx || apply_gpos)
             && (!apply_kern || !has_machine_kerning(self.layout.aat));
 
-        let has_gpos_mark = ot_map.get_1_mask(Tag::new(b"mark")) != 0;
+        let has_gpos_mark = apply_gpos && ot_map.get_1_mask(Tag::new(b"mark")) != 0;
 
         let mut adjust_mark_positioning_when_zeroing =
             !apply_gpos && !apply_kerx && (!apply_kern || !has_cross_kerning(self.layout.aat));

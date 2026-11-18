@@ -107,6 +107,7 @@ impl AatMapBuilder {
                     kind: FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16,
                     setting,
                     is_exclusive: true,
+                    seq: self.features.len(),
                 },
             });
         }
@@ -147,6 +148,7 @@ impl AatMapBuilder {
                         kind: mapping.aat_feature_type as u16,
                         setting,
                         is_exclusive: feature_name.is_exclusive(),
+                        seq: self.features.len(),
                     },
                 });
             }
@@ -181,12 +183,18 @@ impl AatMapBuilder {
 
         crate::algs::sort_unstable_by(&mut feature_events, Ord::cmp);
 
-        // Add a strategic final event.
+        // Add a strategic final event. Give it a strictly-highest seq so its
+        // (deactivating) event can never match a real feature's seq, which run
+        // 0..self.features.len(); FeatureInfo::default() would use seq 0 and
+        // collide with the first feature.
         feature_events.push(FeatureEvent {
             index: u32::MAX as usize,
             start: false,
             seq: feature_events.len(),
-            feature: FeatureInfo::default(),
+            feature: FeatureInfo {
+                seq: self.features.len() + 1,
+                ..FeatureInfo::default()
+            },
         });
 
         // Scan events and save features for each range.
@@ -236,7 +244,10 @@ impl AatMapBuilder {
             if event.start {
                 active_features.push(event.feature);
             } else {
-                if let Some(index) = active_features.iter().position(|&f| f == event.feature) {
+                if let Some(index) = active_features
+                    .iter()
+                    .position(|f| f.seq == event.feature.seq)
+                {
                     active_features.remove(index);
                 }
             }
@@ -258,6 +269,7 @@ pub struct FeatureInfo {
     pub kind: u16,
     pub setting: u16,
     pub is_exclusive: bool,
+    seq: usize,
 }
 
 impl Ord for FeatureInfo {
@@ -273,7 +285,7 @@ impl PartialOrd for FeatureInfo {
         } else if !self.is_exclusive && (self.setting & !1) != (other.setting & !1) {
             Some(self.setting.cmp(&other.setting))
         } else {
-            Some(Ordering::Equal)
+            Some(other.seq.cmp(&self.seq))
         }
     }
 }

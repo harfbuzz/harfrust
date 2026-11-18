@@ -117,6 +117,7 @@ pub mod category {
     pub const HM: u8 = 54; // HIEROGLYPH_MOD
     pub const HR: u8 = 55; // HIEROGLYPH_MIRROR
     pub const RK: u8 = 56; // REORDERING_KILLER
+    pub const SP: u8 = 57; // SPACE (independent cluster)
 }
 
 // These features are applied all at once, before reordering,
@@ -309,16 +310,33 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) -> Option<()
     let mut start = 0;
     let mut end = buffer.next_syllable(0);
     while start < buffer.len {
-        let syllable = buffer.info.get(start)?.syllable() & 0x0F;
+        let mut syllable = buffer.info.get(start)?.syllable() & 0x0F;
+        // Generic bases can take marks, but don't join neighbouring words.
+        let mut base = start;
+        if matches!(
+            buffer.info.get(base)?.use_category(),
+            category::R | category::CS
+        ) {
+            base += 1;
+        }
+        if base < end && buffer.info.get(base)?.use_category() == category::GB {
+            syllable = SyllableType::NonCluster as u8;
+        }
         if syllable == SyllableType::HieroglyphCluster as u8
             || syllable == SyllableType::NonCluster as u8
+            || syllable == SyllableType::SymbolCluster as u8
         {
+            if last_form.is_some() {
+                buffer.unsafe_to_concat(Some(last_start), Some(end));
+            }
             last_form = None;
         } else {
             let join = last_form == Some(JoiningForm::Terminal)
                 || last_form == Some(JoiningForm::Isolated);
+            buffer.unsafe_to_concat(Some(last_start), Some(end));
 
             if join {
+                buffer.unsafe_to_break(Some(last_start), Some(end));
                 // Fixup previous syllable's form.
                 let form = if last_form == Some(JoiningForm::Terminal) {
                     JoiningForm::Medial
@@ -343,6 +361,15 @@ fn setup_topographical_masks(plan: &ShapePlan, buffer: &mut Buffer) -> Option<()
             }
         }
 
+        // ZWNJ can be retained inside the preceding syllable.
+        if buffer
+            .info
+            .get(start..end)?
+            .iter()
+            .any(|info| info.use_category() == category::ZWNJ)
+        {
+            last_form = None;
+        }
         last_start = start;
         start = end;
         end = buffer.next_syllable(start);

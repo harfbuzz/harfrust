@@ -1765,6 +1765,7 @@ impl Buffer {
         }
 
         if !ClusterLevel::new(self.cluster_level).is_graphemes() {
+            self.unsafe_to_break_in_outbuffer(start, end);
             return;
         }
 
@@ -1968,6 +1969,22 @@ impl Buffer {
             end,
             Some(true),
             None,
+        );
+    }
+
+    /// Both endpoints are output-buffer indices.
+    pub(crate) fn unsafe_to_break_in_outbuffer(&mut self, start: usize, end: usize) {
+        debug_assert!(start <= end && end <= self.out_len);
+        if end - start < 2 {
+            return;
+        }
+        let cluster = self._infos_find_min_cluster(self.out_info(), start, end, None);
+        self._infos_set_glyph_flags(
+            true,
+            start,
+            end,
+            cluster,
+            (GlyphFlags::UNSAFE_TO_BREAK | GlyphFlags::UNSAFE_TO_CONCAT).to_bits(),
         );
     }
 

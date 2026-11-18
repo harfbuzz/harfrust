@@ -7,24 +7,63 @@ use crate::buffer::Buffer;
 use crate::BufferFlags;
 use crate::Script;
 
-/// The glyph `i` places past the current one, or 0, which matches nothing.
+/// Look ahead across default ignorables; 0 matches nothing at end of input.
 fn cur_glyph(buffer: &Buffer, i: usize) -> u32 {
-    buffer.cur(i).map_or(0, |info| info.glyph_id)
+    let mut pos = buffer.idx;
+    for _ in 0..i {
+        if pos >= buffer.len {
+            return 0;
+        }
+        pos += 1;
+        while pos < buffer.len
+            && buffer
+                .info
+                .get(pos)
+                .is_some_and(|info| info.is_default_ignorable())
+        {
+            pos += 1;
+        }
+    }
+    if pos < buffer.len {
+        buffer.info.get(pos).map_or(0, |info| info.glyph_id)
+    } else {
+        0
+    }
+}
+
+fn next_vowel_constraint_glyph(buffer: &mut Buffer) {
+    if !buffer.successful {
+        return;
+    }
+    buffer.next_glyph();
+    while buffer.successful
+        && buffer
+            .cur(0)
+            .is_some_and(|info| info.is_default_ignorable())
+    {
+        buffer.next_glyph();
+    }
 }
 
 fn output_dotted_circle(buffer: &mut Buffer) {
     buffer.output_glyph(0x25CC);
+    if !buffer.successful {
+        return;
+    }
+    let mut scratch_flags = buffer.scratch_flags;
     {
         let out_idx = buffer.out_len - 1;
         if let Some(info) = buffer.out_info_mut().get_mut(out_idx) {
+            info.init_unicode_props(&mut scratch_flags);
             info.clear_continuation();
         }
     }
+    buffer.scratch_flags = scratch_flags;
 }
 
 fn output_with_dotted_circle(buffer: &mut Buffer) {
     output_dotted_circle(buffer);
-    buffer.next_glyph();
+    next_vowel_constraint_glyph(buffer);
 }
 
 pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
@@ -38,6 +77,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
     // UGLY UGLY UGLY business of adding dotted-circle in the middle of
     // vowel-sequences that look like another vowel.  Data for each script
     // collected from the USE script development spec.
+    // Default ignorables are transparent between listed code points.
     //
     // https://github.com/harfbuzz/harfbuzz/issues/1019
     buffer.clear_output();
@@ -45,6 +85,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::DEVANAGARI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -75,16 +116,20 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                             && buffer.idx + 2 < buffer.len
                             && 0x0907 == cur_glyph(buffer, 2)
                         {
-                            buffer.next_glyph();
-                            buffer.next_glyph();
+                            next_vowel_constraint_glyph(buffer);
+                            next_vowel_constraint_glyph(buffer);
                             output_dotted_circle(buffer);
                         }
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -92,6 +137,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::BENGALI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -106,9 +152,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -116,6 +166,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::GURMUKHI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -139,9 +190,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     },
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -149,6 +204,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::GUJARATI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -163,9 +219,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -173,6 +233,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::ORIYA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -184,9 +245,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -194,15 +259,20 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::TAMIL) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 if 0x0B85 == cur_glyph(buffer, 0) && 0x0BC2 == cur_glyph(buffer, 1) {
-                    buffer.next_glyph();
+                    next_vowel_constraint_glyph(buffer);
                     output_dotted_circle(buffer);
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -210,6 +280,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::TELUGU) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -224,9 +295,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -234,6 +309,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::KANNADA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -245,9 +321,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -255,6 +335,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::MALAYALAM) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -272,9 +353,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     },
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -282,6 +367,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::SINHALA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -305,9 +391,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     },
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -315,6 +405,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::BRAHMI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -329,9 +420,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -339,6 +434,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::KHOJKI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -362,9 +458,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -372,6 +472,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::KHUDAWADI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -383,9 +484,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     },
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -393,6 +498,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::TIRHUTA) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -410,9 +516,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     },
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -420,6 +530,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::MODI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -431,9 +542,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     },
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }
@@ -441,6 +556,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
         Some(Script::TAKRI) => {
             buffer.idx = 0;
             while buffer.idx + 1 < buffer.len {
+                let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
                 match cur_glyph(buffer, 0) {
@@ -455,9 +571,13 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
                     }
                     _ => {}
                 }
-                buffer.next_glyph();
+                next_vowel_constraint_glyph(buffer);
                 if matched {
                     output_with_dotted_circle(buffer);
+                    // The dotted circle depends on the surrounding context, so the
+                    // matched run (possibly split across clusters by a transparent
+                    // default ignorable) must not be broken or concatenated.
+                    buffer.unsafe_to_break_in_outbuffer(start, buffer.out_len);
                 }
             }
         }

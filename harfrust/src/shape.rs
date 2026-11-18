@@ -319,7 +319,8 @@ impl OtShapeContext<'_, '_, '_> {
         let buffer = &mut *self.buffer;
         if plan.apply_gpos {
             gpos::position(plan, self.font, buffer);
-        } else if plan.apply_kerx {
+        }
+        if plan.apply_kerx {
             aat::layout::position(
                 plan,
                 layout,
@@ -358,7 +359,7 @@ impl OtShapeContext<'_, '_, '_> {
         }
 
         for feature in self.features {
-            if !feature.is_global() {
+            if !feature.is_global() && !self.plan.ot_map.is_global(feature.tag) {
                 let (mask, shift) = self.plan.ot_map.get_mask(feature.tag);
                 self.buffer
                     .set_masks(feature.value << shift, mask, feature.start, feature.end);

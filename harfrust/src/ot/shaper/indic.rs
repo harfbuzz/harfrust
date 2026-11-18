@@ -1843,15 +1843,18 @@ fn final_reordering_impl(
 
     // Apply 'init' to the Left Matra if it's a word start.
     if buffer.info.get(start)?.indic_position() == position::POS_PRE_M {
-        if start == 0
-            || !buffer
-                .info
-                .get(start - 1)?
-                .general_category()
-                .in_range_inclusive(GeneralCategory::FORMAT, GeneralCategory::NON_SPACING_MARK)
+        let previous_category = if start != 0 {
+            buffer.info.get(start - 1)?.general_category()
+        } else if buffer.context_len[0] != 0 {
+            buffer.context[0][0].general_category()
+        } else {
+            GeneralCategory::SPACE_SEPARATOR
+        };
+        if !previous_category
+            .in_range_inclusive(GeneralCategory::FORMAT, GeneralCategory::NON_SPACING_MARK)
         {
             buffer.info.get_mut(start)?.mask |= indic_plan.mask_array[indic_feature::INIT];
-        } else {
+        } else if start != 0 {
             buffer.unsafe_to_break(Some(start - 1), Some(start + 1));
         }
     }

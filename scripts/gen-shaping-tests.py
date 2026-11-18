@@ -4,6 +4,7 @@ import os
 import pathlib
 import re
 import shutil
+import shlex
 import sys
 import subprocess
 from pathlib import Path
@@ -24,12 +25,8 @@ IGNORE_TESTS = [
 IGNORE_TEST_CASES = [
     # aots tests
     # in-house tests
-    # --shaper=fallback is not supported.
-    "simple_002",
     # `dfont` is not supported.
     "collections_001",
-    # hr-shape accepts only a uniform --font-size.
-    "anchor_variations_011",
     # Requires support for the ltag table.
     "macos_002",
 
@@ -78,7 +75,8 @@ def convert_unicodes(unicodes):
 
 
 def prune_test_options(options):
-    options = options.replace("--shaper=ot", "")
+    options = options.replace("--shaper=ot", "").replace("--shapers=ot", "")
+    options = re.sub(r"--font-funcs=ft(?=\s|$)", "", options)
     # Keep other sizes intact, including nonuniform scales.
     options = re.sub(r"--font-size=1000(?=\s|$)", "", options)
     # We don't care about extents
@@ -94,6 +92,11 @@ def convert_test_file(
         return ""  # Directive; ignore.
 
     fontfile, options, unicodes, glyphs_expected = data.split(";")
+
+    # Tests selecting another backend do not exercise HarfRust's OT shaper.
+    shaper = re.search(r"--shapers?=([^\s]+)", options)
+    if shaper and shaper.group(1) != "ot":
+        return ""
 
     # MacOS tests contain hashes, remove them.
     if "@" in fontfile:
@@ -113,15 +116,20 @@ def convert_test_file(
 
     options = prune_test_options(options)
 
+    # Keep these cases visible until hr-shape supports pixel-size selection.
+    ignore = '#[ignore = "hr-shape does not support --font-ppem yet"]\n' if "--font-ppem" in options else ""
+
     # We have to actually run hb-shape instead of using predefined results,
     # because hb sometimes stores results for freetype and not for embedded OpenType
     # engine, which we are using.
     if len(options) != 0:
-        options_list = options.split(" ")
+        options_list = shlex.split(options)
     else:
         options_list = []
 
     options_list.insert(0, str(hb_shape_exe))
+    if "--font-funcs=ot" not in options_list:
+        options_list.append("--font-funcs=ot")
 
     abs_font_path = (
         root_dir.joinpath("harfrust").joinpath(fontfile_rs)
@@ -154,7 +162,7 @@ def convert_test_file(
 
     if glyphs_expected == "*":
         final_string = (
-            f"#[test]\n"
+            f"#[test]\n{ignore}"
             f"fn {test_name}() {{\n"
             f"    shape(\n"
             f'        "{fontfile_rs}",\n'
@@ -166,7 +174,7 @@ def convert_test_file(
         )
     else:
         final_string = (
-            f"#[test]\n"
+            f"#[test]\n{ignore}"
             f"fn {test_name}() {{\n"
             f"    assert_eq!(\n"
             f"        shape(\n"
