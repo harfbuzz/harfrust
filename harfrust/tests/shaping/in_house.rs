@@ -1202,6 +1202,582 @@ fn aat_kerx_057() {
 }
 
 #[test]
+fn aat_kerx_058() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_059() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_060() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_061() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_062() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_063() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_064() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_065() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_066() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_067() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_068() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_069() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_070() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_071() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_072() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_073() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/11e07cf5fba370815e56d631b49376e132589174.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_074() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+560|V=1+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_075() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_076() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_077() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_078() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+560|V=1+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_079() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_080() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_081() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_082() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+560|V=1+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_083() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_084() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_085() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600|acute=1@-300,600+0#3|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_086() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+560|V=1+600#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_087() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+600#2|acute=0@-300,600+0#2|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_088() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600|V=1+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_089() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e02ccd47995402cbb5ae6427caae9f022d62fdb6.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600|acute=0@-300,600+0|V=2+600]"
+    );
+}
+
+#[test]
+fn aat_kerx_090() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_091() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=0+200#2|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_092() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_093() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=0 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0+200#2|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_094() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_095() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=1+200#3|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_096() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_097() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1+200#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_098() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_099() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=1+200#3|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_100() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_101() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=1+200#3|V=2+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_102() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+560#2|V=1@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_103() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=1",
+        ),
+        "[A=0+560#2|acute=0+200#2|V=2@-40,0+560#3]"
+    );
+}
+
+#[test]
+fn aat_kerx_104() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|V=1+600#2]"
+    );
+}
+
+#[test]
+fn aat_kerx_105() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/b586a239d6b75ee4e7931ecbe86a8117145cb041.ttf",
+            "\u{0041}\u{0301}\u{0056}",
+            "--show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3 --features=kern=0",
+        ),
+        "[A=0+600#2|acute=0+200#2|V=2+600#2]"
+    );
+}
+
+#[test]
 fn aat_morx_001() {
     assert_eq!(
         shape(

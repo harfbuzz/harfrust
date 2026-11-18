@@ -225,9 +225,7 @@ impl<'a> ShapePlanner<'a> {
         }
 
         if !apply_kerx && (!has_gpos_kern || !apply_gpos) {
-            if has_kerx {
-                apply_kerx = true;
-            } else if has_kerning(self.layout.aat) {
+            if has_kerning(self.layout.aat) {
                 apply_kern = self.script_fallback_position;
             }
         }
