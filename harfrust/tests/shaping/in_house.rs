@@ -1778,6 +1778,870 @@ fn aat_kerx_105() {
 }
 
 #[test]
+fn aat_kerx_106() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0  --direction=ltr",
+        ),
+        "[A=0+600|acute=0@-200,580+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_107() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0  --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@100,780+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_108() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ltr",
+        ),
+        "[A=0+200|acute=0@-67,193+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_109() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ttb",
+        ),
+        "[A=0@-100,-266+0,-333|acute=0@33,260+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_110() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[A=0+-600|acute=0@200,580+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_111() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[A=0@300,-800+0,-1000|acute=0@-100,780+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_112() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5  --direction=ltr",
+        ),
+        "[A=0+600|acute=0@-155,620+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_113() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5  --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@145,820+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_114() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ltr",
+        ),
+        "[A=0+200|acute=0@-52,206+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_115() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ttb",
+        ),
+        "[A=0@-100,-266+0,-333|acute=0@48,273+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_116() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[A=0+-600|acute=0@155,620+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_117() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[A=0@300,-800+0,-1000|acute=0@-145,820+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_118() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1  --direction=ltr",
+        ),
+        "[A=0+600|acute=0@-110,660+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_119() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1  --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@190,860+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_120() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ltr",
+        ),
+        "[A=0+200|acute=0@-36,220+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_121() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ttb",
+        ),
+        "[A=0@-100,-266+0,-333|acute=0@64,287+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_122() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[A=0+-600|acute=0@110,660+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_123() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[A=0@300,-800+0,-1000|acute=0@-190,860+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_124() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0  --direction=ltr",
+        ),
+        "[B=0+600|acute=0@-100,780+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_125() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0  --direction=ttb",
+        ),
+        "[B=0@-300,-800+0,-1000|acute=0@200,980+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_126() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ltr",
+        ),
+        "[B=0+200|acute=0@-33,259+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_127() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ttb",
+        ),
+        "[B=0@-100,-266+0,-333|acute=0@67,326+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_128() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[B=0+-600|acute=0@100,780+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_129() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[B=0@300,-800+0,-1000|acute=0@-200,980+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_130() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5  --direction=ltr",
+        ),
+        "[B=0+600|acute=0@-55,820+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_131() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5  --direction=ttb",
+        ),
+        "[B=0@-300,-800+0,-1000|acute=0@245,1020+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_132() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ltr",
+        ),
+        "[B=0+200|acute=0@-19,273+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_133() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ttb",
+        ),
+        "[B=0@-100,-266+0,-333|acute=0@81,340+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_134() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[B=0+-600|acute=0@55,820+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_135() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[B=0@300,-800+0,-1000|acute=0@-245,1020+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_136() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1  --direction=ltr",
+        ),
+        "[B=0+600|acute=0@-10,860+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_137() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1  --direction=ttb",
+        ),
+        "[B=0@-300,-800+0,-1000|acute=0@290,1060+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_138() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ltr",
+        ),
+        "[B=0+200|acute=0@-3,287+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_139() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ttb",
+        ),
+        "[B=0@-100,-266+0,-333|acute=0@97,354+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_140() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[B=0+-600|acute=0@10,860+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_141() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e3fbfe1110e277b89dc44ad184c4362b6764b237.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[B=0@300,-800+0,-1000|acute=0@-290,1060+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_142() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0  --direction=ltr",
+        ),
+        "[A=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_143() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0  --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_144() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ltr",
+        ),
+        "[A=0+200|acute=0+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_145() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ttb",
+        ),
+        "[A=0@-100,-266+0,-333|acute=0@-33,-266+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_146() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[A=0+-600|acute=0+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_147() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[A=0@300,-800+0,-1000|acute=0@100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_148() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5  --direction=ltr",
+        ),
+        "[A=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_149() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5  --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_150() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ltr",
+        ),
+        "[A=0+200|acute=0+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_151() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ttb",
+        ),
+        "[A=0@-100,-266+0,-333|acute=0@-33,-266+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_152() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[A=0+-600|acute=0+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_153() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[A=0@300,-800+0,-1000|acute=0@100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_154() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1  --direction=ltr",
+        ),
+        "[A=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_155() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1  --direction=ttb",
+        ),
+        "[A=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_156() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ltr",
+        ),
+        "[A=0+200|acute=0+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_157() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ttb",
+        ),
+        "[A=0@-100,-266+0,-333|acute=0@-33,-266+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_158() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[A=0+-600|acute=0+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_159() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0041}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[A=0@300,-800+0,-1000|acute=0@100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_160() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0  --direction=ltr",
+        ),
+        "[B=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_161() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0  --direction=ttb",
+        ),
+        "[B=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_162() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ltr",
+        ),
+        "[B=0+200|acute=0+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_163() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=333 --direction=ttb",
+        ),
+        "[B=0@-100,-266+0,-333|acute=0@-33,-266+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_164() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[B=0+-600|acute=0+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_165() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[B=0@300,-800+0,-1000|acute=0@100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_166() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5  --direction=ltr",
+        ),
+        "[B=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_167() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5  --direction=ttb",
+        ),
+        "[B=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_168() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ltr",
+        ),
+        "[B=0+200|acute=0+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_169() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=333 --direction=ttb",
+        ),
+        "[B=0@-100,-266+0,-333|acute=0@-33,-266+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_170() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[B=0+-600|acute=0+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_171() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=0.5 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[B=0@300,-800+0,-1000|acute=0@100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_172() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1  --direction=ltr",
+        ),
+        "[B=0+600|acute=0+200]"
+    );
+}
+
+#[test]
+fn aat_kerx_173() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1  --direction=ttb",
+        ),
+        "[B=0@-300,-800+0,-1000|acute=0@-100,-800+0,-1000]"
+    );
+}
+
+#[test]
+fn aat_kerx_174() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ltr",
+        ),
+        "[B=0+200|acute=0+67]"
+    );
+}
+
+#[test]
+fn aat_kerx_175() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=333 --direction=ttb",
+        ),
+        "[B=0@-100,-266+0,-333|acute=0@-33,-266+0,-333]"
+    );
+}
+
+#[test]
+fn aat_kerx_176() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ltr",
+        ),
+        "[B=0+-600|acute=0+-200]"
+    );
+}
+
+#[test]
+fn aat_kerx_177() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/7834fd0341351d1e51332870432b51b3e66876ed.ttf",
+            "\u{0042}\u{0301}",
+            "--variations=wght=1 --font-size=-1000,1000 --direction=ttb",
+        ),
+        "[B=0@300,-800+0,-1000|acute=0@100,-800+0,-1000]"
+    );
+}
+
+#[test]
 fn aat_morx_001() {
     assert_eq!(
         shape(

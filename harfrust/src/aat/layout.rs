@@ -563,7 +563,7 @@ pub fn position(
     layout: LayoutData<'_>,
     scale: Scale,
     buffer: &mut Buffer,
-    #[cfg(feature = "tracing")] font: &crate::ShaperFont<'_, '_>,
+    font: &crate::ShaperFont<'_, '_>,
 ) {
     let mut c = AatApplyContext::new(
         plan,
@@ -573,6 +573,11 @@ pub fn position(
         #[cfg(feature = "tracing")]
         font,
     );
+    c.point_outlines = Some(font.outline_glyphs_with(
+        read_fonts::model::glyph::GlyphSourceOrder::new(&[
+            read_fonts::model::glyph::GlyphSource::Glyf,
+        ]),
+    ));
     message_return!(c, "start table kerx");
     kerx::apply(&mut c);
     message!(c, "end table kerx");

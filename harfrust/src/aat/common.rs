@@ -43,6 +43,7 @@ pub struct AatApplyContext<'a, 'f, 'c> {
     pub plan: &'a ShapePlan,
     pub layout: LayoutData<'a>,
     pub scale: Scale,
+    pub(crate) point_outlines: Option<read_fonts::model::glyph::outline::OutlineGlyphs<'a>>,
     #[cfg(feature = "tracing")]
     pub font: &'a crate::ShaperFont<'f, 'c>,
     #[cfg(not(feature = "tracing"))]
@@ -80,6 +81,7 @@ impl<'a, 'f, 'c> AatApplyContext<'a, 'f, 'c> {
             plan,
             layout,
             scale,
+            point_outlines: None,
             #[cfg(not(feature = "tracing"))]
             font_lifetimes: core::marker::PhantomData,
             buffer,

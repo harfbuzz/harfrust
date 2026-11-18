@@ -728,6 +728,35 @@ impl Driver4<'_> {
             return Some(());
         };
         match (self.ankr_table.as_ref(), &aat.actions) {
+            (_, Subtable4Actions::ControlPoints(points)) => {
+                // Loading can walk the whole outline, as in HB #6762.
+                c.buffer.max_ops -= 2 * 256;
+                if c.buffer.max_ops <= 0 {
+                    return None;
+                }
+                let action_idx = entry.action_index() as usize * 2;
+                let mark_index = points.get(action_idx)?.get() as usize;
+                let curr_index = points.get(action_idx + 1)?.get() as usize;
+                let point = |glyph: GlyphId, index: usize| {
+                    let outlines = c.point_outlines.as_ref()?;
+                    let read_fonts::model::glyph::outline::OutlineGlyph::Glyf(outline) =
+                        outlines.get(glyph)?
+                    else {
+                        return None;
+                    };
+                    let p = outline.contour_point(index).ok()??;
+                    Some((c.scale.scale_x_f(p.x), c.scale.scale_y_f(p.y)))
+                };
+                let Some(mark) = point(c.buffer.info.get(self.mark)?.as_glyph(), mark_index) else {
+                    return Some(());
+                };
+                let Some(curr) = point(c.buffer.cur(0)?.as_glyph(), curr_index) else {
+                    return Some(());
+                };
+                let pos = c.buffer.cur_pos_mut()?;
+                pos.x_offset = mark.0.saturating_sub(curr.0);
+                pos.y_offset = mark.1.saturating_sub(curr.1);
+            }
             (Some(ankr_table), Subtable4Actions::AnchorPoints(ankr_data)) => {
                 let action_idx = entry.action_index() as usize * 2;
                 let mark_action_idx = ankr_data.get(action_idx)?.get() as usize;
