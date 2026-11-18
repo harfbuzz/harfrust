@@ -591,18 +591,26 @@ fn apply_stch_passes(font: &ShaperFont<'_, '_>, buffer: &mut Buffer, rtl: bool) 
             let mut n_copies: i32 = 0;
 
             let mut w_remaining = w_total.saturating_sub(w_fixed);
-            if w_remaining > w_repeating && w_repeating > 0 {
-                n_copies = w_remaining / (w_repeating) - 1;
+            let sign = if font.scale().scale_x_unrounded(1.0) < 0.0 {
+                -1
+            } else {
+                1
+            };
+            let remaining = (i64::from(w_total) - i64::from(w_fixed)) * sign;
+            let repeating = i64::from(w_repeating) * sign;
+            if remaining > repeating && repeating > 0 {
+                n_copies = clamp_i64_to_i32(remaining / repeating - 1);
             }
 
             // See if we can improve the fit by adding an extra repeat and squeezing them together a bit.
             let mut extra_repeat_overlap = 0;
-            let shortfall =
-                i64::from(w_remaining) - i64::from(w_repeating) * i64::from(n_copies + 1);
+            let shortfall = remaining - repeating * (i64::from(n_copies) + 1);
+            if shortfall == 0 {
+                w_remaining = 0;
+            }
             if shortfall > 0 && n_repeating > 0 {
                 n_copies += 1;
-                let excess =
-                    i64::from(n_copies + 1) * i64::from(w_repeating) - i64::from(w_remaining);
+                let excess = (i64::from(n_copies) + 1) * repeating - remaining;
                 if excess > 0 {
                     extra_repeat_overlap =
                         clamp_i64_to_i32(excess / (i64::from(n_copies) * i64::from(n_repeating)));
