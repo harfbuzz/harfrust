@@ -107,6 +107,7 @@ impl AatMapBuilder {
                     kind: FEATURE_TYPE_CHARACTER_ALTERNATIVES as u16,
                     setting,
                     is_exclusive: true,
+                    seq: self.features.len(),
                 },
             });
         }
@@ -147,6 +148,7 @@ impl AatMapBuilder {
                         kind: mapping.aat_feature_type as u16,
                         setting,
                         is_exclusive: feature_name.is_exclusive(),
+                        seq: self.features.len(),
                     },
                 });
             }
@@ -236,7 +238,10 @@ impl AatMapBuilder {
             if event.start {
                 active_features.push(event.feature);
             } else {
-                if let Some(index) = active_features.iter().position(|&f| f == event.feature) {
+                if let Some(index) = active_features
+                    .iter()
+                    .position(|f| f.seq == event.feature.seq)
+                {
                     active_features.remove(index);
                 }
             }
@@ -258,6 +263,7 @@ pub struct FeatureInfo {
     pub kind: u16,
     pub setting: u16,
     pub is_exclusive: bool,
+    seq: usize,
 }
 
 impl Ord for FeatureInfo {
@@ -273,7 +279,7 @@ impl PartialOrd for FeatureInfo {
         } else if !self.is_exclusive && (self.setting & !1) != (other.setting & !1) {
             Some(self.setting.cmp(&other.setting))
         } else {
-            Some(Ordering::Equal)
+            Some(other.seq.cmp(&self.seq))
         }
     }
 }
