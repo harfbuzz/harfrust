@@ -117,6 +117,7 @@ pub mod category {
     pub const HM: u8 = 54; // HIEROGLYPH_MOD
     pub const HR: u8 = 55; // HIEROGLYPH_MIRROR
     pub const RK: u8 = 56; // REORDERING_KILLER
+    pub const SP: u8 = 57; // SPACE (independent cluster)
 }
 
 // These features are applied all at once, before reordering,

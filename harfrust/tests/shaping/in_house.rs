@@ -63386,6 +63386,354 @@ fn use_marchen_035() {
 }
 
 #[test]
+fn use_spaces_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{00A0}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|iMatra=1+0|space=1+250]"
+    );
+}
+
+#[test]
+fn use_spaces_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{1680}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2000}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2001}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2002}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2003}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_008() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2004}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_009() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2005}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_010() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2006}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_011() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2007}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_012() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2008}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_013() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2009}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_014() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{200A}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_015() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{202F}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_016() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{205F}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{3000}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_018() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=1",
+        ),
+        "[ka=0+600|space=1+250|iMatra=2+0#3|dottedcircle=2+600#3]"
+    );
+}
+
+#[test]
+fn use_spaces_019() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=2",
+        ),
+        "[ka=0+600|space=1+250|iMatra=2+0#3|dottedcircle=2+600#3]"
+    );
+}
+
+#[test]
+fn use_spaces_020() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel --cluster-level=3",
+        ),
+        "[ka=0+600|space=1+250|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0020}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[space=0+250|iMatra=0+0|dottedcircle=0+600]"
+    );
+}
+
+#[test]
+fn use_spaces_022() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{0020}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|space=2+250|iMatra=2+0|dottedcircle=2+600]"
+    );
+}
+
+#[test]
+fn use_spaces_023() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{FE0F}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|space=1+0|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_024() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0020}\u{034F}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|space=1+250|space=1+0|iMatra=1+0|dottedcircle=1+600]"
+    );
+}
+
+#[test]
+fn use_spaces_025() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0024}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|iMatra=1+0|space=1+250]"
+    );
+}
+
+#[test]
+fn use_spaces_026() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{2605}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|iMatra=1+0|space=1+250]"
+    );
+}
+
+#[test]
+fn use_spaces_027() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0021}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|iMatra=1+0|space=1+250]"
+    );
+}
+
+#[test]
+fn use_spaces_028() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{0915}\u{0041}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[ka=0+600|iMatra=1+0|space=1+250]"
+    );
+}
+
+#[test]
+fn use_spaces_029() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/24a7a2dafb236a2fab08df1d42b2e90b7212465f.ttf",
+            "\u{00A0}\u{093F}",
+            "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
+        ),
+        "[iMatra=0+0|space=0+250]"
+    );
+}
+
+#[test]
 fn use_syllable_001() {
     assert_eq!(
         shape(
@@ -64110,10 +64458,10 @@ fn use_syllable_061() {
     assert_eq!(
         shape(
             "tests/fonts/in-house/120745604aba737bce5ef73212c04de117b9fba3.ttf",
-            "\u{0915}\u{0020}\u{093F}\u{0915}",
+            "\u{0915}\u{0020}\u{25CC}\u{093F}\u{0915}",
             "--font-funcs=ot --show-flags --unsafe-to-concat --safe-to-insert-tatweel",
         ),
-        "[ka.isol=0+600#2|iMatra=1+0#2|space=1+250#2|ka.isol=3+600#2]"
+        "[ka.isol=0+600#2|space=1+250#2|iMatra=2+0#2|dottedcircle=2+600#2|ka.fina=4+600#3]"
     );
 }
 
