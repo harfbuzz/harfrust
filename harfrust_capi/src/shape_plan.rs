@@ -191,8 +191,13 @@ unsafe fn collect_coords(coords: *const i32, num_coords: c_uint) -> Vec<Normaliz
 }
 
 /// Builds the font instance a plan is compiled against.
-fn instance_for(face: &hr_face_t, coords: &[NormalizedCoord]) -> Option<Font> {
+fn instance_for(face: &hr_face_t, coords: &[NormalizedCoord], cached: bool) -> Option<Font> {
     let font = face.font()?;
+    // Empty coordinates select the default instance. Nondefault cached plans
+    // also use it when the layout cannot vary with the location.
+    if cached && (coords.is_empty() || !face.plans.has_layout_variations(font)) {
+        return Some(font.default_instance());
+    }
     Some(
         font.instance_builder()
             .normalized_coords(coords.iter().copied())
@@ -226,7 +231,7 @@ unsafe fn create_plan(
         return hr_shape_plan_t::empty();
     }
 
-    let Some(instance) = instance_for(face_ref, coords) else {
+    let Some(instance) = instance_for(face_ref, coords, cached) else {
         return hr_shape_plan_t::empty();
     };
     let features = unsafe { collect_features(user_features, num_user_features) };
@@ -583,4 +588,75 @@ fn plan_matches_buffer(plan: &ShapePlan, buffer: &harfrust::Buffer) -> bool {
     plan.direction() == buffer.direction()
         && plan.script().unwrap_or(unset) == buffer.script().unwrap_or(unset)
         && plan.language() == buffer.language()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cached_instance_skips_coords_only_without_layout_variations() {
+        let cases: &[(&[u8], i16, bool)] = &[
+            (
+                include_bytes!("../../harfrust/tests/fonts/in-house/NotoSans-VF.abc.ttf"),
+                8192,
+                false,
+            ),
+            (
+                include_bytes!(
+                    "../../harfrust/tests/fonts/text-rendering-tests/AdobeVFPrototype-Subset.otf"
+                ),
+                -8192,
+                true,
+            ),
+            (
+                include_bytes!("../../harfrust/tests/fonts/default-gpos-variations.ttf"),
+                8192,
+                true,
+            ),
+        ];
+        for &(bytes, coordinate, has_variations) in cases {
+            unsafe {
+                let blob = crate::hr_blob_create(
+                    bytes.as_ptr().cast(),
+                    bytes.len() as u32,
+                    crate::HR_MEMORY_MODE_READONLY,
+                    core::ptr::null_mut(),
+                    None,
+                );
+                let face = crate::hr_face_create(blob, 0);
+                let coords = [NormalizedCoord::from_bits(coordinate)];
+                let varied = instance_for(&*face, &coords, false).unwrap();
+                // A present table may select no record at this location.
+                let selected = varied.feature_variations();
+                assert!(selected.gsub.is_none() && selected.gpos.is_none());
+                assert_eq!((*face).plans.has_layout_variations(&varied), has_variations);
+                assert_eq!(varied.normalized_coords()[0], coords[0]);
+                let cached = instance_for(&*face, &coords, true).unwrap();
+                assert_eq!(
+                    cached.normalized_coords(),
+                    if has_variations {
+                        varied.normalized_coords()
+                    } else {
+                        &[]
+                    }
+                );
+                let default = instance_for(&*face, &[], true).unwrap();
+                assert!(default.normalized_coords().is_empty());
+                let selection = default.feature_variations();
+                assert_eq!(
+                    selection.gsub.is_some() || selection.gpos.is_some(),
+                    has_variations
+                );
+                assert_eq!(
+                    selection,
+                    instance_for(&*face, &[], false)
+                        .unwrap()
+                        .feature_variations()
+                );
+                crate::hr_face_destroy(face);
+                crate::hr_blob_destroy(blob);
+            }
+        }
+    }
 }
