@@ -592,22 +592,7 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
         set_pre_context_utf16(&mut buffer.buffer, &units[..start]);
     }
     set_post_context_utf16(&mut buffer.buffer, &units[end..]);
-    let item = &units[start..end];
-    // One code unit per glyph is an upper bound. Reserving it avoids
-    // decoding the same text once to count and again to append it.
-    let capacity = buffer.buffer.len().saturating_add(item.len());
-    if !buffer.buffer.reserve(capacity) {
-        return;
-    }
-    let mut cluster = start;
-    for decoded in char::decode_utf16(item.iter().copied()) {
-        let (codepoint, width) = match decoded {
-            Ok(character) => (character as u32, character.len_utf16()),
-            Err(_) => (char::REPLACEMENT_CHARACTER as u32, 1),
-        };
-        buffer.buffer.push(codepoint, cluster as c_uint);
-        cluster += width;
-    }
+    buffer.buffer.push_utf16(&units[start..end], start as u32);
 }
 
 /// Appends Latin-1 text. Offsets and clusters count bytes.
