@@ -40,6 +40,10 @@ using AddLatin1 = void (*)(hb_buffer_t *, const uint8_t *, int, unsigned int, in
 static_assert(std::is_same<decltype(&hb_buffer_add_latin1), AddLatin1>::value,
               "Latin-1 accepts unsigned bytes");
 
+using GlyphFlags = hb_glyph_flags_t (*)(const hb_glyph_info_t *);
+static_assert(std::is_same<decltype(&hb_glyph_info_get_glyph_flags), GlyphFlags>::value,
+              "the inline flag accessor keeps its addressable ABI function");
+
 struct Orientation {
   bool horizontal;
 };
