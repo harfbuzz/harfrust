@@ -738,25 +738,36 @@ impl Buffer {
         }
     }
 
+    /// Appends Latin-1 bytes with clusters numbered from the given byte offset.
+    pub fn push_latin1(&mut self, bytes: &[u8], cluster_offset: u32) {
+        self.push_code_units(bytes, cluster_offset);
+    }
+
     /// Appends codepoints with cluster values starting at zero.
     ///
     /// Cluster indices restart at zero on each call.
     pub fn push_codepoints(&mut self, codepoints: &[u32]) {
-        if !self.ensure(self.len + codepoints.len()) {
+        self.push_code_units(codepoints, 0);
+    }
+
+    fn push_code_units<T: Copy + Into<u32>>(&mut self, units: &[T], cluster_offset: u32) {
+        let start = self.len;
+        let end = start.saturating_add(units.len());
+        if !self.ensure(end) {
             return;
         }
         self.content_type = Some(ContentType::Unicode);
-        let Some(slots) = self.info.get_mut(self.len..) else {
+        let Some(slots) = self.info.get_mut(start..end) else {
             return;
         };
-        for (slot, (i, &c)) in slots.iter_mut().zip(codepoints.iter().enumerate()) {
+        for (i, (slot, &unit)) in slots.iter_mut().zip(units).enumerate() {
             *slot = GlyphInfo {
-                glyph_id: c,
-                cluster: i as u32,
+                glyph_id: unit.into(),
+                cluster: cluster_offset.wrapping_add(i as u32),
                 ..GlyphInfo::default()
             };
-            self.len += 1;
         }
+        self.len = end;
     }
 
     /// Appends glyph infos to the buffer.
