@@ -2897,6 +2897,16 @@ mod tests {
     }
 
     #[test]
+    fn enter_caps_the_work_budget_for_long_inputs() {
+        let mut buffer = Buffer::new();
+        // At this length the uncapped allowance is 2^32.
+        assert!(buffer.set_length(1 << 16));
+        buffer.max_ops = 0;
+        buffer.enter();
+        assert_eq!(buffer.max_ops, Buffer::MAX_OPS_DEFAULT);
+    }
+
+    #[test]
     fn clear_undoes_what_an_unfinished_shape_leaves() {
         let mut buffer = Buffer::new();
         buffer.info.resize(4, GlyphInfo::default());

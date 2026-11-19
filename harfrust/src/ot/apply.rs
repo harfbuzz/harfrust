@@ -1250,8 +1250,11 @@ mod tests {
 
     #[test]
     fn skipped_run_charges_do_not_clamp_the_count() {
-        let limit = i32::MAX as usize;
-        for count in [1, 31, 32, 32 * limit, 32 * (limit + 1), usize::MAX] {
+        let limit = i32::MAX as u64;
+        let large_counts = [32 * limit, 32 * (limit + 1)]
+            .into_iter()
+            .filter_map(|count| usize::try_from(count).ok());
+        for count in [1, 31, 32, usize::MAX].into_iter().chain(large_counts) {
             for budget in [i32::MAX, 0, -1, i32::MIN + 1, i32::MIN] {
                 for successful in [false, true] {
                     let mut buffer = Buffer::new();
