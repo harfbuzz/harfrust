@@ -7,14 +7,44 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-11-19
+
+This release matches HarfBuzz 15.2.0,
+and has an MSRV (minimum supported Rust version) of 1.85.
+
 ### Added
 
 - Add `Buffer::set_not_found_glyph` and `Buffer::not_found_glyph`, and
   `hr-shape --not-found-glyph`, to select a replacement for characters not
   found in the font, matching HarfBuzz.
+- Add `Buffer::push_utf16` and `Buffer::push_latin1` for bulk input with a
+  caller-supplied cluster offset.
+- Accept separate horizontal and vertical scales in `hr-shape --font-size`,
+  matching HarfBuzz.
+
+### Changed
+
+- Reduce setup overhead for short ASCII runs and bulk C API text input.
+- Speed up OpenType contextual matching and AAT kerning and subtable filtering.
+- Reuse C API font instances for cached shaping plans whose layout does not
+  depend on variation coordinates, and inline the C glyph-flags accessor.
 
 ### Fixed
 
+- Match HarfBuzz's Arabic stretch-tile placement, repeat limits and legacy
+  fallback mappings; correct Indic initial matra detection, Hangul dotted-circle
+  properties, Khmer coeng reordering, and USE symbol clusters and ZWNJ word
+  boundaries.
+- Recompose marks introduced by decomposition and keep default ignorables from
+  bypassing vowel constraints.
+- Honor OpenType and AAT feature-request precedence and fallback-positioning
+  selections. Apply eligible `kerx` fallback alongside GPOS, while leaving
+  unsupported contour-point attachments untouched.
+- Correct AAT vertical tracking, duplicate tracking entries and cross-stream
+  kerning, GPOS mark-base searches, and fallback mark placement. Preserve
+  unsafe-to-break flags for nonmonotone clusters and positioning dependencies.
+- Scale fractional glyph extents before rounding, including cursive anchors,
+  and preserve CBDT painting order.
 - Stop valid complex fonts, such as Duployan ones, from exhausting the shaping
   work budget: skipped glyphs are charged 1/32 of an operation, and the
   per-character work and length allowances are larger, matching HarfBuzz.
@@ -511,7 +541,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.16.0...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.16.1...HEAD
+[0.16.1]: https://github.com/harfbuzz/harfrust/compare/0.16.0...0.16.1
 [0.16.0]: https://github.com/harfbuzz/harfrust/compare/0.15.0...0.16.0
 [0.15.0]: https://github.com/harfbuzz/harfrust/compare/0.14.0...0.15.0
 [0.14.0]: https://github.com/harfbuzz/harfrust/compare/0.13.3...0.14.0

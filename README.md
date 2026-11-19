@@ -17,7 +17,7 @@ HarfRust started as a fork of [RustyBuzz](https://docs.rs/rustybuzz) to explore 
 multiple implementations of core font parsing for [`skrifa`](https://docs.rs/skrifa) consumers.
 Further context in https://github.com/googlefonts/fontations/issues/956.
 
-Matches HarfBuzz [v15.1.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.1.0).
+Matches HarfBuzz 15.2.0.
 
 ## Why?
 
@@ -58,7 +58,7 @@ benchmark suite against HarfBuzz bindings.
 Enable the opt-in `tracing` Cargo feature to receive HarfBuzz shaping messages:
 
 ```toml
-harfrust = { version = "0.16", features = ["tracing"] }
+harfrust = { version = "0.16.1", features = ["tracing"] }
 ```
 
 Install a callback before shaping with
@@ -133,6 +133,7 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
     version files in crates.io might turn into text files showing the symlink's target.
   * `cargo publish -p harfrust`
   * `cargo publish -p hr-shape`
+  * `cargo publish -p harfrust_capi`
 * Go to GitHub releases page, copy commit message and release tagged version.
 
 ## Developer documents

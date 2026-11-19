@@ -274,14 +274,14 @@ pub const HR_VERSION_MAJOR: c_uint = 0;
 /// The minor version of this library.
 pub const HR_VERSION_MINOR: c_uint = 16;
 /// The micro version of this library.
-pub const HR_VERSION_MICRO: c_uint = 0;
+pub const HR_VERSION_MICRO: c_uint = 1;
 /// The version of this library, as a string.
-pub const HR_VERSION_STRING: &str = "0.16.0";
+pub const HR_VERSION_STRING: &str = "0.16.1";
 
 /// The HarfBuzz release matched by the shaping implementation.
 pub const HR_HARFBUZZ_VERSION_MAJOR: c_uint = 15;
 /// The minor version of the matched HarfBuzz release.
-pub const HR_HARFBUZZ_VERSION_MINOR: c_uint = 1;
+pub const HR_HARFBUZZ_VERSION_MINOR: c_uint = 2;
 /// The micro version of the matched HarfBuzz release.
 pub const HR_HARFBUZZ_VERSION_MICRO: c_uint = 0;
 
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn hr_harfbuzz_version(
 /// Returns the matched HarfBuzz version as a zero-terminated string.
 #[no_mangle]
 pub extern "C" fn hr_harfbuzz_version_string() -> *const c_char {
-    c"15.1.0".as_ptr()
+    c"15.2.0".as_ptr()
 }
 
 /// Returns whether the matched HarfBuzz version is at least the given version.
