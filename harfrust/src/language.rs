@@ -4,8 +4,15 @@ use smallvec::SmallVec;
 type SmallVecLanguage = SmallVec<[u8; 8]>;
 
 /// A language tag used to select shaping rules.
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug)]
 pub struct Language(SmallVecLanguage);
+
+impl Clone for Language {
+    fn clone(&self) -> Self {
+        // The bytes are Copy, so the inline tag can be copied as a slice.
+        Self(SmallVecLanguage::from_slice(self.as_bytes()))
+    }
+}
 
 impl Language {
     /// Creates a language from nonempty bytes.
