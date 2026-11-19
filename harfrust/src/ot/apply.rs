@@ -357,10 +357,15 @@ fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
     MatchResult::Skip
 }
 
-/// Charges a nonempty skipped run exactly as repeated one-operation charges would.
+/// Charges a nonempty run of skipped glyphs.
+///
+/// A work-budget unit stands for roughly a hundred nanoseconds of shaping;
+/// skipping a glyph costs a few. Charge the run accordingly; short runs are
+/// free.
 #[inline]
 fn spend_skip_ops(buffer: &mut Buffer, count: usize) {
     debug_assert!(count > 0);
+    let count = count / 32;
     if let Ok(count) = i32::try_from(count) {
         buffer.spend_ops(count as usize);
     } else {
@@ -1246,15 +1251,15 @@ mod tests {
     #[test]
     fn skipped_run_charges_do_not_clamp_the_count() {
         let limit = i32::MAX as usize;
-        for count in [1, limit, limit + 1, 2 * limit + 1, usize::MAX] {
+        for count in [1, 31, 32, 32 * limit, 32 * (limit + 1), usize::MAX] {
             for budget in [i32::MAX, 0, -1, i32::MIN + 1, i32::MIN] {
                 for successful in [false, true] {
                     let mut buffer = Buffer::new();
                     buffer.max_ops = budget;
                     buffer.successful = successful;
                     spend_skip_ops(&mut buffer, count);
-                    let expected =
-                        (i128::from(budget) - count as i128).max(i128::from(i32::MIN)) as i32;
+                    let expected = (i128::from(budget) - (count / 32) as i128)
+                        .max(i128::from(i32::MIN)) as i32;
                     assert_eq!(buffer.max_ops, expected);
                     assert_eq!(buffer.successful, successful && expected >= 0);
                 }
@@ -1267,9 +1272,10 @@ mod tests {
         // 2 is an ignorable that fails the predicate; 1 matches and 3 is a
         // visible nonmatch. Try direct matches, skipped runs and both ends.
         for reverse in [false, true] {
-            for skips in [0, 1, 3] {
+            for skips in [0, 1, 3, 70] {
                 for terminal in [Some(1), Some(3), None] {
-                    for budget in [0, skips, skips - 1, i32::MIN + 1] {
+                    let charge = skips / 32;
+                    for budget in [0, charge, charge - 1, i32::MIN + 1] {
                         for successful in [false, true] {
                             let mut glyphs: Vec<u32> = vec![0];
                             glyphs.extend(core::iter::repeat_n(2, skips as usize));
@@ -1355,7 +1361,7 @@ mod tests {
                                     expected_index + 1
                                 }
                             );
-                            let remaining = budget.saturating_sub(skips);
+                            let remaining = budget.saturating_sub(charge);
                             assert_eq!(iter.buffer.max_ops, remaining);
                             assert_eq!(
                                 iter.buffer.successful,

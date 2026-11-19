@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `hr-shape --not-found-glyph`, to select a replacement for characters not
   found in the font, matching HarfBuzz.
 
+### Fixed
+
+- Stop valid complex fonts, such as Duployan ones, from exhausting the shaping
+  work budget: skipped glyphs are charged 1/32 of an operation, and the
+  per-character work and length allowances are larger, matching HarfBuzz.
+
 ## [0.16.0] - 2026-11-11
 
 This release matches HarfBuzz [v15.1.0](https://github.com/harfbuzz/harfbuzz/releases/tag/15.1.0),
