@@ -58,8 +58,9 @@ impl<'a> CoverageArray<'a> {
     }
 
     /// Rule indices used by matchers that look up a coverage for each position.
-    pub fn indices(&self) -> core::ops::Range<u32> {
-        0..self.len() as u32
+    pub fn indices(&self) -> impl ExactSizeIterator<Item = u32> {
+        // Both narrow and wide formats store the coverage count in a u16.
+        (0..self.len() as u16).map(u32::from)
     }
 
     pub fn is_empty(&self) -> bool {
