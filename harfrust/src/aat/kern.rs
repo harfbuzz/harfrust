@@ -1,10 +1,10 @@
 use crate::aat::layout::DELETED_GLYPH;
 use alloc::boxed::Box;
-use core::mem::size_of;
+use core::mem::{size_of, size_of_val};
 use read_fonts::{
     tables::{
         aat,
-        kern::{Subtable, Subtable0, Subtable2, Subtable3, SubtableKind},
+        kern::{Subtable, Subtable2, Subtable3, SubtableKind},
     },
     types::{GlyphId, GlyphId16},
 };
@@ -89,7 +89,7 @@ pub fn apply(
         // Only simple, in-stream kerning may run alongside GPOS.
         if c.plan.apply_gpos
             && (subtable.is_cross_stream()
-                || matches!(&subtable_cache.kind, Some(CachedKern::State(..))))
+                || matches!(&subtable_cache.kind, Some(SubtableKind::Format1(_))))
         {
             continue;
         }
@@ -97,6 +97,7 @@ pub fn apply(
         c.first_set = Some(&subtable_cache.first_set);
         c.first_digest = subtable_cache.first_digest.clone();
         c.second_set = Some(&subtable_cache.second_set);
+        c.machine_class_cache = subtable_cache.class_cache.as_deref();
         c.start_end_safe_to_break = subtable_cache.start_end_safe_to_break;
         c.safe_to_break = safe_to_break.subtable(subtable_cache.safe_to_break)?;
 
@@ -140,41 +141,24 @@ pub fn apply(
         }
 
         match kind {
-            CachedKern::Pairs(table, filter) if plan.requested_kerning => {
-                machine_kern(
-                    c.layout,
-                    c.scale,
-                    c.buffer,
-                    #[cfg(feature = "tracing")]
-                    c.font,
-                    c.plan.kern_mask,
+            SubtableKind::Format0(format0) if plan.requested_kerning => {
+                apply_simple_kerning(
+                    &mut c,
                     is_cross_stream,
-                    |left, right| {
-                        let possible = if (left | right) < 256 {
-                            filter.may_contain(left, right)
-                        } else {
-                            subtable_cache.first_set.contains(left)
-                                && subtable_cache.second_set.contains(right)
-                        };
-                        if possible {
-                            table.kerning(left.into(), right.into()).unwrap_or(0)
-                        } else {
-                            0
-                        }
-                    },
+                    subtable_cache.pair_filter.as_deref(),
+                    |l, r| format0.kerning(l, r),
                 );
             }
-            CachedKern::State(format1, cache) => {
-                c.machine_class_cache = Some(cache);
+            SubtableKind::Format1(format1) => {
                 if apply_state_machine_kerning(&mut c, format1, is_cross_stream).is_none() {
                     c.buffer.index_failed();
                 }
             }
-            CachedKern::Format2(format2) if plan.requested_kerning => {
-                apply_simple_kerning(&mut c, format2, is_cross_stream);
+            SubtableKind::Format2(format2) if plan.requested_kerning => {
+                apply_simple_kerning(&mut c, is_cross_stream, None, |l, r| format2.kerning(l, r));
             }
-            CachedKern::Format3(format3) if plan.requested_kerning => {
-                apply_simple_kerning(&mut c, format3, is_cross_stream);
+            SubtableKind::Format3(format3) if plan.requested_kerning => {
+                apply_simple_kerning(&mut c, is_cross_stream, None, |l, r| format3.kerning(l, r));
             }
             _ => {}
         }
@@ -320,10 +304,11 @@ pub(super) fn apply_pair_kerning(
     Some(())
 }
 
-fn apply_simple_kerning<T: SimpleKerning>(
+fn apply_simple_kerning(
     c: &mut AatApplyContext,
-    subtable: &T,
     is_cross_stream: bool,
+    pair_filter: Option<&PairFilter>,
+    kerning: impl Fn(GlyphId, GlyphId) -> Option<i32>,
 ) {
     let first_set = c.first_set.as_ref().unwrap();
     let second_set = c.second_set.as_ref().unwrap();
@@ -337,12 +322,14 @@ fn apply_simple_kerning<T: SimpleKerning>(
         c.plan.kern_mask,
         is_cross_stream,
         |left, right| {
-            if !first_set.contains(left) || !second_set.contains(right) {
-                0
+            let possible = match pair_filter {
+                Some(filter) if (left | right) < 256 => filter.may_contain(left, right),
+                _ => first_set.contains(left) && second_set.contains(right),
+            };
+            if possible {
+                kerning(left.into(), right.into()).unwrap_or(0)
             } else {
-                subtable
-                    .simple_kerning(left.into(), right.into())
-                    .unwrap_or(0)
+                0
             }
         },
     );
@@ -753,22 +740,17 @@ impl PairFilter {
     }
 }
 
-enum CachedKern<'a> {
-    Pairs(Subtable0<'a>, Box<PairFilter>),
-    State(aat::StateTable<'a>, Box<ClassCache>),
-    Format2(Subtable2<'a>),
-    Format3(Subtable3<'a>),
-}
-
 pub(crate) struct KernSubtableCache<'a> {
     start_end_safe_to_break: u64,
     safe_to_break: SafeToBreakSubtable,
     first_set: U32Set,
     first_digest: SetDigest,
     second_set: U32Set,
+    class_cache: Option<Box<ClassCache>>,
+    pair_filter: Option<Box<PairFilter>>,
     subtable: Subtable<'a>,
     /// The parsed subtable, or `None` if it is unreadable.
-    kind: Option<CachedKern<'a>>,
+    kind: Option<SubtableKind<'a>>,
 }
 
 impl<'a> KernSubtableCache<'a> {
@@ -781,43 +763,48 @@ impl<'a> KernSubtableCache<'a> {
         let mut safe_to_break_subtable = safe_to_break.empty_subtable();
         let mut first_set = U32Set::default();
         let mut second_set = U32Set::default();
-        let kind = subtable.kind().ok().map(|kind| match kind {
-            SubtableKind::Format0(table) => {
-                let mut filter = Box::new(PairFilter([0; 64]));
-                for pair in table.pairs() {
-                    let left = pair.left().to_u32();
-                    let right = pair.right().to_u32();
-                    first_set.insert(left);
-                    second_set.insert(right);
-                    filter.insert(left, right);
+        let mut class_cache = None;
+        let mut pair_filter = None;
+        let kind = subtable.kind().ok();
+        if let Some(kind) = &kind {
+            match kind {
+                SubtableKind::Format0(format0) => {
+                    let mut filter = Box::new(PairFilter([0; 64]));
+                    for pair in format0.pairs() {
+                        let left = pair.left().to_u32();
+                        let right = pair.right().to_u32();
+                        first_set.insert(left);
+                        second_set.insert(right);
+                        filter.insert(left, right);
+                    }
+                    pair_filter = Some(filter);
                 }
-                CachedKern::Pairs(table, filter)
+                SubtableKind::Format1(format1) => {
+                    class_cache = Some(Box::new(ClassCache::new()));
+                    start_end_safe_to_break = collect_start_end_safe_to_break(format1);
+                    safe_to_break_subtable = safe_to_break.build_legacy(
+                        format1,
+                        &KernStateEntryExt::is_actionable,
+                        &KernStateEntryExt::has_advance,
+                    );
+                    collect_initial_glyphs(format1, &mut first_set, num_glyphs);
+                }
+                SubtableKind::Format2(format2) => {
+                    format2.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
+                SubtableKind::Format3(format3) => {
+                    format3.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
+                }
             }
-            SubtableKind::Format1(table) => {
-                start_end_safe_to_break = collect_start_end_safe_to_break(&table);
-                safe_to_break_subtable = safe_to_break.build_legacy(
-                    &table,
-                    &KernStateEntryExt::is_actionable,
-                    &KernStateEntryExt::has_advance,
-                );
-                collect_initial_glyphs(&table, &mut first_set, num_glyphs);
-                CachedKern::State(table, Box::new(ClassCache::new()))
-            }
-            SubtableKind::Format2(table) => {
-                table.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
-                CachedKern::Format2(table)
-            }
-            SubtableKind::Format3(table) => {
-                table.collect_glyphs(&mut first_set, &mut second_set, num_glyphs);
-                CachedKern::Format3(table)
-            }
-        });
+        }
         KernSubtableCache {
             start_end_safe_to_break,
             safe_to_break: safe_to_break_subtable,
             first_digest: set_digest(&first_set),
             first_set,
             second_set,
+            class_cache,
+            pair_filter,
             subtable: subtable.clone(),
             kind,
         }
@@ -827,11 +814,8 @@ impl<'a> KernSubtableCache<'a> {
     /// and safe-to-break data can be far larger than the subtable.
     pub(crate) fn retained_bytes(&self) -> usize {
         size_of::<Self>()
-            + match &self.kind {
-                Some(CachedKern::Pairs(..)) => size_of::<PairFilter>(),
-                Some(CachedKern::State(..)) => size_of::<ClassCache>(),
-                _ => 0,
-            }
+            + self.class_cache.as_deref().map_or(0, size_of_val)
+            + self.pair_filter.as_deref().map_or(0, size_of_val)
             + set_heap_bytes(&self.first_set)
             + set_heap_bytes(&self.second_set)
             + self.safe_to_break.accel_bytes()
