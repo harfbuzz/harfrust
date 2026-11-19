@@ -5675,6 +5675,16 @@ hr_script_t hr_unicode_script(struct hr_unicode_funcs_t *_ufuncs, hr_codepoint_t
 
 #endif  /* HARFRUST_H */
 
+/* Keep the ABI entry point available when the function address is taken. */
+#ifndef hr_glyph_info_get_glyph_flags
+static inline hr_glyph_flags_t
+harfrust_glyph_info_flags_inline(const hr_glyph_info_t *info)
+{
+    return info ? (hr_glyph_flags_t)(info->mask & HR_GLYPH_FLAG_DEFINED) : 0;
+}
+#define hr_glyph_info_get_glyph_flags(info) harfrust_glyph_info_flags_inline(info)
+#endif
+
 /* Convenience macros with no Rust counterpart, matching HarfBuzz's. */
 
 /** Builds a tag from four characters. */
