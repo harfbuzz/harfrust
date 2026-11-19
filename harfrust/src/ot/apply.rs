@@ -27,7 +27,7 @@ pub fn match_always(_info: &mut GlyphInfo, _value: u32) -> bool {
 
 pub fn match_input(
     ctx: &mut ApplyContext,
-    input_len: u16,
+    input: impl ExactSizeIterator<Item = u32>,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     end_position: &mut usize,
     p_total_component_count: Option<&mut u8>,
@@ -61,7 +61,7 @@ pub fn match_input(
         MaySkip,
     }
 
-    let count = usize::from(input_len) + 1;
+    let count = input.len() + 1;
 
     if count == 1 {
         *end_position = ctx.buffer.idx + 1;
@@ -82,7 +82,6 @@ pub fn match_input(
     if iter.reset(iter.buffer.idx).is_none() {
         iter.buffer.index_failed();
     }
-    iter.set_glyph_data(0);
 
     let first = *iter.buffer.cur(0)?;
     let first_lig_id = first.lig_id();
@@ -90,14 +89,14 @@ pub fn match_input(
     let mut total_component_count = 0;
     let mut ligbase = Ligbase::NotChecked;
 
-    for i in 1..count {
+    for (index, glyph_data) in input.enumerate() {
         let mut unsafe_to = 0;
-        if !iter.next(Some(&mut unsafe_to)) {
+        if !iter.next_with_data(Some(&mut unsafe_to), glyph_data) {
             *end_position = unsafe_to;
             return Some(false);
         }
 
-        iter.set_match_position(i, iter.index());
+        iter.set_match_position(index + 1, iter.index());
 
         let Some(&this) = iter.buffer.info.get(iter.index()) else {
             return Some(false);
@@ -172,11 +171,11 @@ pub fn match_input(
 
 pub fn match_backtrack(
     ctx: &mut ApplyContext,
-    backtrack_len: u16,
+    backtrack: impl ExactSizeIterator<Item = u32>,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     match_start: &mut usize,
 ) -> bool {
-    if backtrack_len == 0 {
+    if backtrack.len() == 0 {
         *match_start = ctx.buffer.backtrack_len();
         return true;
     }
@@ -185,11 +184,10 @@ pub fn match_backtrack(
     if iter.reset_back(iter.buffer.backtrack_len()).is_none() {
         iter.buffer.index_failed();
     }
-    iter.set_glyph_data(0);
 
-    for _ in 0..backtrack_len {
+    for glyph_data in backtrack {
         let mut unsafe_from = 0;
-        if !iter.prev(Some(&mut unsafe_from)) {
+        if !iter.prev_with_data(Some(&mut unsafe_from), glyph_data) {
             *match_start = unsafe_from;
             return false;
         }
@@ -201,12 +199,12 @@ pub fn match_backtrack(
 
 pub fn match_lookahead(
     ctx: &mut ApplyContext,
-    lookahead_len: u16,
+    lookahead: impl ExactSizeIterator<Item = u32>,
     match_func: impl Fn(&mut GlyphInfo, u32) -> bool,
     start_index: usize,
     end_index: &mut usize,
 ) -> bool {
-    if lookahead_len == 0 {
+    if lookahead.len() == 0 {
         *end_index = start_index;
         return true;
     }
@@ -218,11 +216,10 @@ pub fn match_lookahead(
     if iter.reset(start_index - 1).is_none() {
         iter.buffer.index_failed();
     }
-    iter.set_glyph_data(0);
 
-    for _ in 0..lookahead_len {
+    for glyph_data in lookahead {
         let mut unsafe_to = 0;
-        if !iter.next(Some(&mut unsafe_to)) {
+        if !iter.next_with_data(Some(&mut unsafe_to), glyph_data) {
             *end_index = unsafe_to;
             return false;
         }
@@ -391,7 +388,6 @@ pub struct SkippingIterator<'f, 'c, F> {
     matcher: &'c Matcher,
     match_positions: &'c mut MatchPositions,
     buf_len: usize,
-    glyph_data: u32,
     pub(crate) buf_idx: usize,
     match_func: Option<F>,
     lookup_props: u32,
@@ -422,7 +418,6 @@ where
         SkippingIterator {
             buffer: ctx.buffer,
             ot: ctx.layout.ot,
-            glyph_data: 0,
             buf_len,
             buf_idx: 0,
             matcher,
@@ -442,14 +437,6 @@ where
         self.match_positions[idx] = position as u32;
     }
 
-    pub fn set_glyph_data(&mut self, glyph_data: u32) {
-        self.glyph_data = glyph_data;
-    }
-
-    fn advance_glyph_data(&mut self) {
-        self.glyph_data += 1;
-    }
-
     pub fn set_lookup_props(&mut self, lookup_props: u32) {
         self.lookup_props = lookup_props;
     }
@@ -460,21 +447,23 @@ where
 
     #[inline(always)]
     pub fn next(&mut self, unsafe_to: Option<&mut usize>) -> bool {
+        self.next_with_data(unsafe_to, 0)
+    }
+
+    #[inline(always)]
+    pub fn next_with_data(&mut self, unsafe_to: Option<&mut usize>, glyph_data: u32) -> bool {
         if self.buf_idx < self.buf_len.saturating_sub(1) {
             let start = self.buf_idx;
             self.buf_idx += 1;
-            match self.match_at(self.buf_idx) {
-                MatchResult::Match => {
-                    self.advance_glyph_data();
-                    return true;
-                }
+            match self.match_at(self.buf_idx, glyph_data) {
+                MatchResult::Match => return true,
                 MatchResult::NotMatch => {
                     if let Some(unsafe_to) = unsafe_to {
                         *unsafe_to = self.buf_idx + 1;
                     }
                     return false;
                 }
-                MatchResult::Skip => return self.next_slow(start, unsafe_to),
+                MatchResult::Skip => return self.next_slow(start, unsafe_to, glyph_data),
             }
         }
         if let Some(unsafe_to) = unsafe_to {
@@ -487,14 +476,13 @@ where
     // callers stop repeated walks once successful clears. Keep budget writes
     // out of the matching loop and the common first-candidate path.
     #[inline(never)]
-    fn next_slow(&mut self, start: usize, unsafe_to: Option<&mut usize>) -> bool {
+    fn next_slow(&mut self, start: usize, unsafe_to: Option<&mut usize>, glyph_data: u32) -> bool {
         let stop = self.buf_len.saturating_sub(1);
         while self.buf_idx < stop {
             self.buf_idx += 1;
-            match self.match_at(self.buf_idx) {
+            match self.match_at(self.buf_idx, glyph_data) {
                 MatchResult::Match => {
                     spend_skip_ops(self.buffer, self.buf_idx - start - 1);
-                    self.advance_glyph_data();
                     return true;
                 }
                 MatchResult::NotMatch => {
@@ -516,21 +504,23 @@ where
 
     #[inline(always)]
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
+        self.prev_with_data(unsafe_from, 0)
+    }
+
+    #[inline(always)]
+    pub fn prev_with_data(&mut self, unsafe_from: Option<&mut usize>, glyph_data: u32) -> bool {
         if self.buf_idx > 0 {
             let start = self.buf_idx;
             self.buf_idx -= 1;
-            match self.match_back_at(self.buf_idx) {
-                MatchResult::Match => {
-                    self.advance_glyph_data();
-                    return true;
-                }
+            match self.match_back_at(self.buf_idx, glyph_data) {
+                MatchResult::Match => return true,
                 MatchResult::NotMatch => {
                     if let Some(unsafe_from) = unsafe_from {
                         *unsafe_from = self.buf_idx.max(1) - 1;
                     }
                     return false;
                 }
-                MatchResult::Skip => return self.prev_slow(start, unsafe_from),
+                MatchResult::Skip => return self.prev_slow(start, unsafe_from, glyph_data),
             }
         }
         if let Some(unsafe_from) = unsafe_from {
@@ -540,13 +530,17 @@ where
     }
 
     #[inline(never)]
-    fn prev_slow(&mut self, start: usize, unsafe_from: Option<&mut usize>) -> bool {
+    fn prev_slow(
+        &mut self,
+        start: usize,
+        unsafe_from: Option<&mut usize>,
+        glyph_data: u32,
+    ) -> bool {
         while self.buf_idx > 0 {
             self.buf_idx -= 1;
-            match self.match_back_at(self.buf_idx) {
+            match self.match_back_at(self.buf_idx, glyph_data) {
                 MatchResult::Match => {
                     spend_skip_ops(self.buffer, start - self.buf_idx - 1);
-                    self.advance_glyph_data();
                     return true;
                 }
                 MatchResult::NotMatch => {
@@ -567,7 +561,7 @@ where
     }
 
     #[inline(always)]
-    fn match_back_at(&mut self, idx: usize) -> MatchResult {
+    fn match_back_at(&mut self, idx: usize, glyph_data: u32) -> MatchResult {
         // A position outside the output ends the search without charging it.
         match self.buffer.out_info_mut().get_mut(idx) {
             Some(info) => match_info(
@@ -575,7 +569,7 @@ where
                 info,
                 self.ot,
                 self.lookup_props,
-                self.glyph_data,
+                glyph_data,
                 self.match_func.as_ref(),
                 self.syllable,
             ),
@@ -608,7 +602,7 @@ where
     }
 
     #[inline(always)]
-    pub fn match_at(&mut self, idx: usize) -> MatchResult {
+    pub fn match_at(&mut self, idx: usize, glyph_data: u32) -> MatchResult {
         // A position outside the buffer never matches.
         let Some(info) = self.buffer.info.get_mut(idx).likely() else {
             return MatchResult::NotMatch;
@@ -618,7 +612,7 @@ where
             info,
             self.ot,
             self.lookup_props,
-            self.glyph_data,
+            glyph_data,
             self.match_func.as_ref(),
             self.syllable,
         )
@@ -1326,18 +1320,19 @@ mod tests {
                             let mut iter = SkippingIterator::with_match_fn(
                                 &mut ctx,
                                 false,
-                                Some(|info: &mut GlyphInfo, _| info.glyph_id == 1),
+                                Some(|info: &mut GlyphInfo, data| {
+                                    assert_eq!(data, 9);
+                                    info.glyph_id == 1
+                                }),
                             );
                             iter.buf_idx = if reverse { iter.buf_len - 1 } else { 0 };
-                            iter.glyph_data = 9;
                             let mut unsafe_end = usize::MAX;
                             let matched = if reverse {
-                                iter.prev(Some(&mut unsafe_end))
+                                iter.prev_with_data(Some(&mut unsafe_end), 9)
                             } else {
-                                iter.next(Some(&mut unsafe_end))
+                                iter.next_with_data(Some(&mut unsafe_end), 9)
                             };
                             assert_eq!(matched, terminal == Some(1));
-                            assert_eq!(iter.glyph_data, if matched { 10 } else { 9 });
                             let walked = skips as usize + usize::from(terminal.is_some());
                             let expected_index = if reverse {
                                 iter.buf_len - 1 - walked

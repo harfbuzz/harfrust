@@ -57,6 +57,11 @@ impl<'a> CoverageArray<'a> {
         }
     }
 
+    /// Rule indices used by matchers that look up a coverage for each position.
+    pub fn indices(&self) -> core::ops::Range<u32> {
+        0..self.len() as u32
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

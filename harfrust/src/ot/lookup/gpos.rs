@@ -1201,7 +1201,7 @@ fn find_mark_base(
     iter.set_lookup_props(u32::from(lookup_flags::IGNORE_MARKS));
     let mut j = iter.buffer.idx;
     while j > last_base_until as usize {
-        let mut matched = iter.match_at(j - 1);
+        let mut matched = iter.match_at(j - 1, 0);
         // https://github.com/harfbuzz/harfbuzz/issues/4124
         if matched == MatchResult::Match
             && accept(iter.buffer, j - 1) != Some(true)
