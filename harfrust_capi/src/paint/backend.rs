@@ -531,8 +531,7 @@ pub(super) unsafe fn paint(
     } else {
         Size::new(ppem as f32)
     };
-    // sbix comes first, matching HarfBuzz's glyph extents and PNG lookup.
-    for format in [BitmapFormat::Sbix, BitmapFormat::Cbdt] {
+    for format in [BitmapFormat::Cbdt, BitmapFormat::Sbix] {
         let Some(bitmap) = BitmapStrikes::with_format(&face, format)
             .and_then(|strikes| strikes.glyph_for_size(size, glyph))
         else {

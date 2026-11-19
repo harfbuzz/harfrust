@@ -198,12 +198,13 @@ impl read_fonts::model::metrics::Scale for Scale {
         &self,
         extents: read_fonts::model::metrics::GlyphExtents<F48Dot16>,
     ) -> read_fonts::model::metrics::GlyphExtents<i32> {
-        // HarfBuzz rounds the corners to whole font units before scaling.
+        // Scale the unrounded corners, so the box stays tight around
+        // fractional outlines.
         let (left, top, right, bottom) = Self::round_outward(
-            extents.x_bearing.to_f32().round() * self.x_multf,
-            extents.y_bearing.to_f32().round() * self.y_multf,
-            (extents.x_bearing + extents.width).to_f32().round() * self.x_multf,
-            (extents.y_bearing - extents.height).to_f32().round() * self.y_multf,
+            extents.x_bearing.to_f32() * self.x_multf,
+            extents.y_bearing.to_f32() * self.y_multf,
+            (extents.x_bearing + extents.width).to_f32() * self.x_multf,
+            (extents.y_bearing - extents.height).to_f32() * self.y_multf,
         );
         let x_bearing = left as i32;
         let y_bearing = top as i32;
