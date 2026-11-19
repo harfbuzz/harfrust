@@ -357,6 +357,28 @@ fn match_info<F: Fn(&mut GlyphInfo, u32) -> bool>(
     MatchResult::Skip
 }
 
+/// Charges a nonempty skipped run exactly as repeated one-operation charges would.
+#[inline]
+fn spend_skip_ops(buffer: &mut Buffer, count: usize) {
+    debug_assert!(count > 0);
+    if let Ok(count) = i32::try_from(count) {
+        buffer.spend_ops(count as usize);
+    } else {
+        spend_large_skip_ops(buffer, count);
+    }
+}
+
+#[inline(never)]
+fn spend_large_skip_ops(buffer: &mut Buffer, count: usize) {
+    // spend_ops clamps the count to i32::MAX. A run can be longer after
+    // GSUB expansion, so subtract in a wider type instead. Any count beyond
+    // i64::MAX necessarily saturates the final i32, for every initial budget.
+    let count = i64::try_from(count).unwrap_or(i64::MAX);
+    let remaining = i64::from(buffer.max_ops).saturating_sub(count);
+    buffer.max_ops = remaining.max(i64::from(i32::MIN)) as i32;
+    buffer.successful &= buffer.max_ops >= 0;
+}
+
 // In harfbuzz, skipping iterator works quite differently than it works here. In harfbuzz,
 // hb_ot_apply_context contains a skipping iterator that itself contains references to font
 // and buffer, meaning that we multiple borrows issue. Due to ownership rules in Rust,
@@ -436,13 +458,11 @@ where
         self.buf_idx
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn next(&mut self, unsafe_to: Option<&mut usize>) -> bool {
-        let stop = self.buf_len.saturating_sub(1);
-
-        while self.buf_idx < stop {
+        if self.buf_idx < self.buf_len.saturating_sub(1) {
+            let start = self.buf_idx;
             self.buf_idx += 1;
-
             match self.match_at(self.buf_idx) {
                 MatchResult::Match => {
                     self.advance_glyph_data();
@@ -454,47 +474,52 @@ where
                     }
                     return false;
                 }
-                // Only skipping charges, so a first-try match does no extra
-                // work. The decrement is branchless and never early-returns, so
-                // `unsafe_to` is always set by the loop's normal exit; the
-                // callers that loop stop repeated walks once `successful` clears.
-                MatchResult::Skip => {
-                    self.buffer.spend_ops(1);
-                    continue;
-                }
+                MatchResult::Skip => return self.next_slow(start, unsafe_to),
             }
         }
-
         if let Some(unsafe_to) = unsafe_to {
             *unsafe_to = self.buf_idx + 1;
         }
-
         false
     }
 
-    #[inline]
+    // Entered after the first skip. Finish the walk before charging, as the
+    // callers stop repeated walks once successful clears. Keep budget writes
+    // out of the matching loop and the common first-candidate path.
+    #[inline(never)]
+    fn next_slow(&mut self, start: usize, unsafe_to: Option<&mut usize>) -> bool {
+        let stop = self.buf_len.saturating_sub(1);
+        while self.buf_idx < stop {
+            self.buf_idx += 1;
+            match self.match_at(self.buf_idx) {
+                MatchResult::Match => {
+                    spend_skip_ops(self.buffer, self.buf_idx - start - 1);
+                    self.advance_glyph_data();
+                    return true;
+                }
+                MatchResult::NotMatch => {
+                    spend_skip_ops(self.buffer, self.buf_idx - start - 1);
+                    if let Some(unsafe_to) = unsafe_to {
+                        *unsafe_to = self.buf_idx + 1;
+                    }
+                    return false;
+                }
+                MatchResult::Skip => continue,
+            }
+        }
+        spend_skip_ops(self.buffer, self.buf_idx - start);
+        if let Some(unsafe_to) = unsafe_to {
+            *unsafe_to = self.buf_idx + 1;
+        }
+        false
+    }
+
+    #[inline(always)]
     pub fn prev(&mut self, unsafe_from: Option<&mut usize>) -> bool {
-        let stop: usize = 0;
-
-        while self.buf_idx > stop {
+        if self.buf_idx > 0 {
+            let start = self.buf_idx;
             self.buf_idx -= 1;
-
-            // A position outside the output ends the search. The output slice
-            // is re-borrowed each step so the skip charge below can touch the
-            // buffer; re-fetching it is a cheap slice, not a copy.
-            let result = match self.buffer.out_info_mut().get_mut(self.buf_idx) {
-                Some(info) => match_info(
-                    self.matcher,
-                    info,
-                    self.ot,
-                    self.lookup_props,
-                    self.glyph_data,
-                    self.match_func.as_ref(),
-                    self.syllable,
-                ),
-                None => MatchResult::NotMatch,
-            };
-            match result {
+            match self.match_back_at(self.buf_idx) {
                 MatchResult::Match => {
                     self.advance_glyph_data();
                     return true;
@@ -505,19 +530,57 @@ where
                     }
                     return false;
                 }
-                // Only skipping charges, as in next().
-                MatchResult::Skip => {
-                    self.buffer.spend_ops(1);
-                    continue;
-                }
+                MatchResult::Skip => return self.prev_slow(start, unsafe_from),
             }
         }
-
         if let Some(unsafe_from) = unsafe_from {
             *unsafe_from = 0;
         }
-
         false
+    }
+
+    #[inline(never)]
+    fn prev_slow(&mut self, start: usize, unsafe_from: Option<&mut usize>) -> bool {
+        while self.buf_idx > 0 {
+            self.buf_idx -= 1;
+            match self.match_back_at(self.buf_idx) {
+                MatchResult::Match => {
+                    spend_skip_ops(self.buffer, start - self.buf_idx - 1);
+                    self.advance_glyph_data();
+                    return true;
+                }
+                MatchResult::NotMatch => {
+                    spend_skip_ops(self.buffer, start - self.buf_idx - 1);
+                    if let Some(unsafe_from) = unsafe_from {
+                        *unsafe_from = self.buf_idx.max(1) - 1;
+                    }
+                    return false;
+                }
+                MatchResult::Skip => continue,
+            }
+        }
+        spend_skip_ops(self.buffer, start - self.buf_idx);
+        if let Some(unsafe_from) = unsafe_from {
+            *unsafe_from = 0;
+        }
+        false
+    }
+
+    #[inline(always)]
+    fn match_back_at(&mut self, idx: usize) -> MatchResult {
+        // A position outside the output ends the search without charging it.
+        match self.buffer.out_info_mut().get_mut(idx) {
+            Some(info) => match_info(
+                self.matcher,
+                info,
+                self.ot,
+                self.lookup_props,
+                self.glyph_data,
+                self.match_func.as_ref(),
+                self.syllable,
+            ),
+            None => MatchResult::NotMatch,
+        }
     }
 
     pub fn reset(&mut self, start_index: usize) -> Option<()> {
@@ -1170,4 +1233,138 @@ pub fn ligate_input(
     }
 
     Some(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aat::EMPTY_AAT_DATA;
+    use crate::ot::EMPTY_OT_DATA;
+    use alloc::vec;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn skipped_run_charges_do_not_clamp_the_count() {
+        let limit = i32::MAX as usize;
+        for count in [1, limit, limit + 1, 2 * limit + 1, usize::MAX] {
+            for budget in [i32::MAX, 0, -1, i32::MIN + 1, i32::MIN] {
+                for successful in [false, true] {
+                    let mut buffer = Buffer::new();
+                    buffer.max_ops = budget;
+                    buffer.successful = successful;
+                    spend_skip_ops(&mut buffer, count);
+                    let expected =
+                        (i128::from(budget) - count as i128).max(i128::from(i32::MIN)) as i32;
+                    assert_eq!(buffer.max_ops, expected);
+                    assert_eq!(buffer.successful, successful && expected >= 0);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn skipping_iterator_preserves_budget_and_unsafe_endpoints() {
+        // 2 is an ignorable that fails the predicate; 1 matches and 3 is a
+        // visible nonmatch. Try direct matches, skipped runs and both ends.
+        for reverse in [false, true] {
+            for skips in [0, 1, 3] {
+                for terminal in [Some(1), Some(3), None] {
+                    for budget in [0, skips, skips - 1, i32::MIN + 1] {
+                        for successful in [false, true] {
+                            let mut glyphs: Vec<u32> = vec![0];
+                            glyphs.extend(core::iter::repeat_n(2, skips as usize));
+                            glyphs.extend(terminal);
+                            if terminal.is_some() {
+                                // Leave unvisited glyphs beyond the result so the
+                                // unsafe endpoint need not be a buffer boundary.
+                                glyphs.extend([3, 3]);
+                            }
+                            if reverse {
+                                glyphs.reverse();
+                            }
+                            let mut buffer = Buffer::new();
+                            assert!(buffer.set_length(glyphs.len()));
+                            for (info, glyph) in buffer.info.iter_mut().zip(glyphs) {
+                                info.glyph_id = glyph;
+                                info.mask = 1;
+                                if glyph == 2 {
+                                    info._set_default_ignorable();
+                                }
+                            }
+                            buffer.max_ops = budget;
+                            buffer.successful = successful;
+                            if reverse {
+                                buffer.have_output = true;
+                                buffer.out_len = buffer.len;
+                            }
+                            let layout = crate::LayoutData {
+                                ot: &EMPTY_OT_DATA,
+                                aat: &EMPTY_AAT_DATA,
+                                units_per_em: 1000,
+                                apply_trak: false,
+                            };
+                            #[cfg(feature = "tracing")]
+                            let font = crate::Font::new(
+                                include_bytes!(
+                                    "../../tests/fonts/text-rendering-tests/TestMORXOne.ttf"
+                                )
+                                .to_vec(),
+                                0,
+                            )
+                            .unwrap();
+                            #[cfg(feature = "tracing")]
+                            let shaper_font = crate::ShaperFont::new(&font);
+                            let mut ctx = ApplyContext::new(
+                                LayoutTableKind::Gsub,
+                                layout,
+                                Scale::default(),
+                                &mut buffer,
+                                #[cfg(feature = "tracing")]
+                                &shaper_font,
+                            );
+                            ctx.matcher.mask = 1;
+                            let mut iter = SkippingIterator::with_match_fn(
+                                &mut ctx,
+                                false,
+                                Some(|info: &mut GlyphInfo, _| info.glyph_id == 1),
+                            );
+                            iter.buf_idx = if reverse { iter.buf_len - 1 } else { 0 };
+                            iter.glyph_data = 9;
+                            let mut unsafe_end = usize::MAX;
+                            let matched = if reverse {
+                                iter.prev(Some(&mut unsafe_end))
+                            } else {
+                                iter.next(Some(&mut unsafe_end))
+                            };
+                            assert_eq!(matched, terminal == Some(1));
+                            assert_eq!(iter.glyph_data, if matched { 10 } else { 9 });
+                            let walked = skips as usize + usize::from(terminal.is_some());
+                            let expected_index = if reverse {
+                                iter.buf_len - 1 - walked
+                            } else {
+                                walked
+                            };
+                            assert_eq!(iter.buf_idx, expected_index);
+                            assert_eq!(
+                                unsafe_end,
+                                if matched {
+                                    usize::MAX
+                                } else if reverse {
+                                    expected_index.max(1) - 1
+                                } else {
+                                    expected_index + 1
+                                }
+                            );
+                            let remaining = budget.saturating_sub(skips);
+                            assert_eq!(iter.buffer.max_ops, remaining);
+                            assert_eq!(
+                                iter.buffer.successful,
+                                successful && (skips == 0 || remaining >= 0)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
