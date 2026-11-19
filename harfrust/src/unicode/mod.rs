@@ -155,6 +155,32 @@ impl GeneralCategory {
 }
 
 impl GeneralCategory {
+    // ASCII categories are fixed. Build the table at compile time so both
+    // Unicode backends can resolve them with one byte load.
+    pub(crate) const ASCII: [Self; 128] = {
+        let mut table = [Self::OTHER_PUNCTUATION; 128];
+        let mut i = 0;
+        while i < table.len() {
+            table[i] = match i as u8 {
+                0..=31 | 127 => Self::CONTROL,
+                b' ' => Self::SPACE_SEPARATOR,
+                b'0'..=b'9' => Self::DECIMAL_NUMBER,
+                b'A'..=b'Z' => Self::UPPERCASE_LETTER,
+                b'a'..=b'z' => Self::LOWERCASE_LETTER,
+                b'(' | b'[' | b'{' => Self::OPEN_PUNCTUATION,
+                b')' | b']' | b'}' => Self::CLOSE_PUNCTUATION,
+                b'$' => Self::CURRENCY_SYMBOL,
+                b'+' | b'<' | b'=' | b'>' | b'|' | b'~' => Self::MATH_SYMBOL,
+                b'^' | 0x60 => Self::MODIFIER_SYMBOL,
+                b'_' => Self::CONNECT_PUNCTUATION,
+                b'-' => Self::DASH_PUNCTUATION,
+                _ => Self::OTHER_PUNCTUATION,
+            };
+            i += 1;
+        }
+        table
+    };
+
     pub fn is_mark(&self) -> bool {
         matches!(
             *self,
