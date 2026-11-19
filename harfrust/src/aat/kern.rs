@@ -211,15 +211,23 @@ fn machine_kern<F>(
             continue;
         }
 
-        iter.reset_fast(i);
-
-        let mut unsafe_to = 0;
-        if !iter.next(Some(&mut unsafe_to)) {
-            i = unsafe_to;
-            continue;
-        }
-
-        let j = iter.index();
+        // With IgnoreMarks and no match function, an enabled ordinary glyph
+        // is an immediate match. Let the iterator handle all other cases.
+        let next = i + 1;
+        let j = if next < iter.buffer.len
+            && iter.buffer.info.get(next).is_some_and(|info| {
+                info.mask & kern_mask != 0 && !info.is_mark() && !info.is_default_ignorable()
+            }) {
+            next
+        } else {
+            iter.reset_fast(i);
+            let mut unsafe_to = 0;
+            if !iter.next(Some(&mut unsafe_to)) {
+                i = unsafe_to;
+                continue;
+            }
+            iter.index()
+        };
 
         let info = &iter.buffer.info;
         let (Some(first), Some(second)) = (info.get(i), info.get(j)) else {
