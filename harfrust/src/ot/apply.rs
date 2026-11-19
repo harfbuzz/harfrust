@@ -607,7 +607,7 @@ where
         self.matcher.may_skip(info, self.ot, self.lookup_props)
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn match_at(&mut self, idx: usize) -> MatchResult {
         // A position outside the buffer never matches.
         let Some(info) = self.buffer.info.get_mut(idx).likely() else {
