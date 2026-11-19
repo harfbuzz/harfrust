@@ -50,8 +50,7 @@ For comparisons through both libraries' C APIs using the same C++ harness, use
 [benchmark-harf](https://github.com/harfbuzz/benchmark-harf). See
 [HARFBUZZ.md](./HARFBUZZ.md#comparing-the-c-apis-with-benchmark-harf) for build,
 measurement, and correctness checks. `cargo bench` also runs HarfRust's Rust
-benchmark suite against HarfBuzz bindings. The historical performance
-[spreadsheet][3] records earlier comparisons with their own configurations.
+benchmark suite against HarfBuzz bindings.
 
 
 ## Tracing shaping
@@ -155,4 +154,3 @@ HarfBuzz is [licensed](https://github.com/harfbuzz/harfbuzz/blob/main/COPYING) u
 
 [1]: https://docs.google.com/document/d/1_VgObf6Je0J8byMLsi7HCQHnKo2emGnx_ib_sHo-bt4/preview
 [2]: https://docs.google.com/document/d/1aH_waagdEM5UhslQxCeFEb82ECBhPlZjy5_MwLNLBYo/preview
-[3]: https://docs.google.com/spreadsheets/d/1lyPPZHXIF8gE0Tpx7_IscwhwaZa4KOpdt7vnV0jQT9o/preview
