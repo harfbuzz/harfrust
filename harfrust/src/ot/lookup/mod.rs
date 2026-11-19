@@ -636,7 +636,7 @@ impl<'a, const W: usize> Values<'a, W> {
         self.get(0)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = u32> + '_ {
         self.values.iter().map(be_value)
     }
 }

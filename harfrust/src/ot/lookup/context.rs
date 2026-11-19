@@ -588,7 +588,7 @@ impl<'a> ChainContext3<'a> {
         let mut match_end = 0;
         let input_matches = match_input(
             ctx,
-            self.inputs.len() as u16,
+            self.inputs.indices(),
             |info, index| covered_at(&self.inputs, index, info),
             &mut match_end,
             None,
@@ -610,7 +610,7 @@ impl<'a> ChainContext3<'a> {
         if !(input_matches
             && match_lookahead(
                 ctx,
-                self.lookahead.len() as u16,
+                self.lookahead.indices(),
                 |info, index| covered_at(&self.lookahead, index, info),
                 match_end,
                 &mut end_index,
@@ -623,7 +623,7 @@ impl<'a> ChainContext3<'a> {
         let mut start_index = ctx.buffer.out_len;
         if !match_backtrack(
             ctx,
-            self.backtrack.len() as u16,
+            self.backtrack.indices(),
             |info, index| covered_at(&self.backtrack, index, info),
             &mut start_index,
         ) {
@@ -826,8 +826,8 @@ impl<'a, const W: usize> ParsedRule<'a, W> {
         let mut match_end = 0;
         if !match_input(
             ctx,
-            self.input.len() as u16,
-            |info, index| sequence_matches(&self.input, index, info, &matchers.input),
+            self.input.iter(),
+            &matchers.input,
             &mut match_end,
             None,
         )? {
@@ -846,8 +846,8 @@ impl<'a, const W: usize> ParsedRule<'a, W> {
         end_index = match_end;
         if !match_lookahead(
             ctx,
-            self.lookahead.len() as u16,
-            |info, index| sequence_matches(&self.lookahead, index, info, &matchers.lookahead),
+            self.lookahead.iter(),
+            &matchers.lookahead,
             match_end,
             &mut end_index,
         ) {
@@ -858,8 +858,8 @@ impl<'a, const W: usize> ParsedRule<'a, W> {
         let mut start_index = ctx.buffer.out_len;
         if !match_backtrack(
             ctx,
-            self.backtrack.len() as u16,
-            |info, index| sequence_matches(&self.backtrack, index, info, &matchers.backtrack),
+            self.backtrack.iter(),
+            &matchers.backtrack,
             &mut start_index,
         ) {
             ctx.buffer
@@ -871,18 +871,6 @@ impl<'a, const W: usize> ParsedRule<'a, W> {
         apply_lookup(ctx, self.input.len(), match_end, self.records);
         Some(())
     }
-}
-
-/// Whether the glyph matches value `index` of `sequence`.
-fn sequence_matches<const W: usize>(
-    sequence: &Values<W>,
-    index: u32,
-    info: &mut GlyphInfo,
-    matches: &impl Fn(&mut GlyphInfo, u32) -> bool,
-) -> bool {
-    sequence
-        .get(index as usize)
-        .is_some_and(|value| matches(info, value))
 }
 
 /// How a chain rule matches each of its three sequences.
@@ -1008,7 +996,6 @@ fn prematch(
     if iter.reset(iter.buffer.idx).is_none() {
         iter.buffer.index_failed();
     }
-    iter.set_glyph_data(0);
     let mut unsafe_to1 = 0;
     if !iter.next(Some(&mut unsafe_to1)) {
         return Some(Prematch::End {

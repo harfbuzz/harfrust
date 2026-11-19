@@ -555,17 +555,12 @@ fn apply_ligature<const W: usize>(ctx: &mut ApplyContext, ligature: &Ligature<W>
         );
         return Some(());
     }
-    let matches = |info: &mut GlyphInfo, index: u32| {
-        components
-            .get(index as usize)
-            .is_some_and(|component| match_glyph(info, component))
-    };
     let mut match_end = 0;
     let mut total_component_count = 0;
     if !match_input(
         ctx,
-        components.len() as u16,
-        matches,
+        components.iter(),
+        match_glyph,
         &mut match_end,
         Some(&mut total_component_count),
     )? {
@@ -664,12 +659,12 @@ impl<'a> ReverseChainSubst1<'a> {
         let mut end_index = 0;
         if match_backtrack(
             ctx,
-            self.backtrack.len() as u16,
+            self.backtrack.indices(),
             |info, index| covered_at(&self.backtrack, index, info),
             &mut start_index,
         ) && match_lookahead(
             ctx,
-            self.lookahead.len() as u16,
+            self.lookahead.indices(),
             |info, index| covered_at(&self.lookahead, index, info),
             ctx.buffer.idx + 1,
             &mut end_index,
