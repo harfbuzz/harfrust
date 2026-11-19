@@ -1116,15 +1116,19 @@ impl Buffer {
 }
 
 impl Buffer {
-    pub(crate) const MAX_LEN_FACTOR: usize = 256;
+    pub(crate) const MAX_LEN_FACTOR: usize = 512;
     pub(crate) const MAX_LEN_MIN: usize = 65536;
     // Shaping more than a billion chars? Let us know!
     pub(crate) const MAX_LEN_DEFAULT: usize = 0x3FFF_FFFF;
 
-    pub(crate) const MAX_OPS_FACTOR: i32 = 4096;
-    pub(crate) const MAX_OPS_MIN: i32 = 65536;
+    // Duployan fonts spend up to ~4.3K operations per input character on
+    // words and sentences. Allow over ten times that.
+    pub(crate) const MAX_OPS_FACTOR: i32 = 65536;
+    // Short Duployan inputs spend up to ~37K operations before the linear
+    // allowance takes over.
+    pub(crate) const MAX_OPS_MIN: i32 = 524_288;
     // Shaping more than a billion operations? Let us know!
-    pub(crate) const MAX_OPS_DEFAULT: i32 = 0x1FFF_FFFF;
+    pub(crate) const MAX_OPS_DEFAULT: i32 = 0x3FFF_FFFF;
 
     #[inline]
     pub(crate) fn allocate_var(&mut self, shape: buffer_var_shape) {
@@ -2389,11 +2393,9 @@ impl Buffer {
             self.max_len = len.max(Buffer::MAX_LEN_MIN);
         }
 
-        if let Ok(len) = i32::try_from(self.len) {
-            if let Some(ops) = len.checked_mul(Buffer::MAX_OPS_FACTOR) {
-                self.max_ops = ops.max(Buffer::MAX_OPS_MIN);
-            }
-        }
+        // The product can exceed 32 bits; clamp it before narrowing.
+        let ops = (self.len as u64).saturating_mul(Buffer::MAX_OPS_FACTOR as u64);
+        self.max_ops = ops.clamp(Buffer::MAX_OPS_MIN as u64, Buffer::MAX_OPS_DEFAULT as u64) as i32;
     }
 
     // Called around shape()
@@ -2945,6 +2947,16 @@ mod tests {
 
         assert_eq!(buffer.next_syllable(0), MAX_SYLLABLE_LENGTH);
         assert_eq!(buffer.next_syllable(MAX_SYLLABLE_LENGTH), buffer.len);
+    }
+
+    #[test]
+    fn enter_caps_the_work_budget_for_long_inputs() {
+        let mut buffer = Buffer::new();
+        // At this length the uncapped allowance is 2^32.
+        assert!(buffer.set_length(1 << 16));
+        buffer.max_ops = 0;
+        buffer.enter();
+        assert_eq!(buffer.max_ops, Buffer::MAX_OPS_DEFAULT);
     }
 
     #[test]

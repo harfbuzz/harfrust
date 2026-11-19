@@ -1599,9 +1599,9 @@ fn aliased_reverse_backtrack(subtable_count: u16, backtrack: u16) -> Vec<u8> {
 
 /// Builds `lookup_data` as a GSUB lookup and applies it to `glyphs` (each made
 /// default-ignorable, so the skipping iterator skips rather than stops) through
-/// the production apply_string() path, with a realistic `Buffer::enter()`
-/// allowance. Returns the buffer for `max_ops`/`successful` inspection.
-fn apply_string_ignorables(lookup_data: &[u8], glyphs: &[u32]) -> Buffer {
+/// the production apply_string() path, with an allowance of `max_ops`. Returns
+/// the buffer for `max_ops`/`successful` inspection.
+fn apply_string_ignorables(lookup_data: &[u8], glyphs: &[u32], max_ops: i32) -> Buffer {
     let lookup = build_lookup_at(
         FontData::new(lookup_data),
         0,
@@ -1625,6 +1625,7 @@ fn apply_string_ignorables(lookup_data: &[u8], glyphs: &[u32]) -> Buffer {
         info._set_default_ignorable();
     }
     buffer.enter();
+    buffer.max_ops = max_ops;
     #[cfg(feature = "tracing")]
     let font = Font::new(
         include_bytes!("../../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
@@ -1647,11 +1648,12 @@ fn apply_string_ignorables(lookup_data: &[u8], glyphs: &[u32]) -> Buffer {
 
 #[test]
 fn skip_walk_exhaustion_stops_forward_matching() {
-    // 256 aliased ligatures, each walking 64 default-ignorables per position,
-    // would spend ~500k ops; the allowance is 65536. The skip charge must stop
-    // the retries, not merely decrement past zero.
+    // 256 aliased ligatures, each walking up to 63 default-ignorables per
+    // position, skip ~500k glyphs. Runs of 32 or more cost a unit each, ~8k in
+    // all; the allowance is 4096. The skip charge must stop the retries, not
+    // merely decrement past zero.
     let data = aliased_skip_ligature(256, 2);
-    let buffer = apply_string_ignorables(&data, &[1; 64]);
+    let buffer = apply_string_ignorables(&data, &[1; 64], 4096);
     assert!(!buffer.successful, "buffer should be marked unsuccessful");
     assert!(buffer.max_ops < 0, "budget should be spent");
     assert!(
@@ -1665,7 +1667,7 @@ fn skip_walk_exhaustion_stops_forward_matching() {
 fn skip_walk_exhaustion_stops_reverse_matching() {
     // 256 aliased reverse subtables each walk the backtrack for an absent glyph.
     let data = aliased_reverse_backtrack(256, 2);
-    let buffer = apply_string_ignorables(&data, &[1; 64]);
+    let buffer = apply_string_ignorables(&data, &[1; 64], 4096);
     assert!(!buffer.successful, "buffer should be marked unsuccessful");
     assert!(buffer.max_ops < 0, "budget should be spent");
     assert!(
@@ -1680,7 +1682,7 @@ fn skip_walk_exhaustion_stops_reverse_matching() {
 /// ligature-base walk in `match_input` scans the whole prefix for each
 /// candidate. The two input glyphs belong to different components, so every
 /// candidate walks the prefix and then rejects the match.
-fn apply_string_ligbase(lookup_data: &[u8], prefix: usize) -> Buffer {
+fn apply_string_ligbase(lookup_data: &[u8], prefix: usize, max_ops: i32) -> Buffer {
     let lookup = build_lookup_at(
         FontData::new(lookup_data),
         0,
@@ -1712,6 +1714,7 @@ fn apply_string_ligbase(lookup_data: &[u8], prefix: usize) -> Buffer {
         info.set_lig_props_for_mark(1, comp);
     }
     buffer.enter();
+    buffer.max_ops = max_ops;
     #[cfg(feature = "tracing")]
     let font = Font::new(
         include_bytes!("../../../tests/fonts/text-rendering-tests/TestMORXOne.ttf").to_vec(),
@@ -1737,7 +1740,7 @@ fn ligature_base_walk_exhaustion_stops_candidate_retries() {
     // 8192 aliased ligatures each re-scan the 32-glyph prefix, ~262k ops; the
     // allowance is ~139k. The ligature-base charge must stop the retries.
     let data = aliased_ligature(8192, 10, 11);
-    let buffer = apply_string_ligbase(&data, 32);
+    let buffer = apply_string_ligbase(&data, 32, 34 * 4096);
     assert!(!buffer.successful, "buffer should be marked unsuccessful");
     assert!(buffer.max_ops < 0, "budget should be spent");
     assert!(
@@ -1773,7 +1776,7 @@ fn subtable_retry_stops_at_shared_guard() {
     // lookahead for the absent glyph 2. No per-rule guard covers this path, so
     // only the shared subtable loop bounds the repetition.
     let data = aliased_subtables(6, 16384, &chain_context3_subtable(2));
-    let buffer = apply_string_ignorables(&data, &[1; 513]);
+    let buffer = apply_string_ignorables(&data, &[1; 513], 513 * 4096);
     assert!(!buffer.successful, "buffer should be marked unsuccessful");
     assert!(
         buffer.max_ops < 0 && buffer.max_ops > -4096,

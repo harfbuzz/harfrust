@@ -401,9 +401,9 @@ fn ka_expanding_font() -> Vec<u8> {
         0, 2, 0, 0, 0, 1, 0, 8, // multiple substitution, one subtable
         0, 1, 0, 8, 0, 1, 0, 14, // format 1, coverage, one sequence
         0, 1, 0, 1, 0, 2, // coverage format 1: glyph 2
-        1, 1, // sequence: 257 glyphs
+        2, 1, // sequence: 513 glyphs
     ];
-    gsub.extend([0, 2].repeat(257));
+    gsub.extend([0, 2].repeat(513));
 
     sfnt(&[
         (b"GSUB", gsub),
@@ -421,10 +421,10 @@ fn dotted_circle_insertion_stops_when_the_buffer_is_full() {
     let instance = font.instance_builder().build();
     let shaping_font = ShaperFont::new(&instance);
 
-    // 256 characters allow 65536 glyphs; `ccmp` produces 1 + 255 * 257 of
+    // 512 characters allow 262144 glyphs; `ccmp` produces 1 + 511 * 513 of
     // them, leaving no room for the dotted circle the orphan vowel needs.
     let mut text = String::from("\u{093F}");
-    text.extend(std::iter::repeat_n('\u{0915}', 255));
+    text.extend(std::iter::repeat_n('\u{0915}', 511));
 
     let mut buffer = Buffer::new();
     buffer.push_str(&text);
@@ -438,7 +438,7 @@ fn dotted_circle_insertion_stops_when_the_buffer_is_full() {
     buffer.guess_segment_properties();
     shape(&shaping_font, &mut buffer, ShapeOptions::new()).unwrap();
     assert!(buffer.allocation_successful());
-    assert_eq!(buffer.len(), 1 + 254 * 257 + 1);
+    assert_eq!(buffer.len(), 1 + 510 * 513 + 1);
     assert_eq!(buffer.glyph_infos()[1].glyph_id, 3);
 }
 
@@ -687,14 +687,36 @@ fn shape_with_gsub(gsub: Vec<u8>) -> Buffer {
     buffer
 }
 
+/// The `dist` lookups of this reduced Duployan font skip long runs of glyphs.
+/// Charging each skipped glyph a full operation exhausted the limit, even for
+/// this short sentence.
+#[test]
+fn complex_font_stays_within_the_operation_limit() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fonts/rb_custom/Duployan-Regular.dist.otf");
+    let font = Font::new(fs::read(path).expect("failed to read test font"), 0)
+        .expect("failed to parse test font");
+    let shaper = ShaperFont::new(&font);
+
+    let mut buffer = Buffer::new();
+    buffer.push_str(
+        "\u{1BC47}\u{1BC23} \u{1BC02}\u{1BC46} \
+         \u{1BC06}\u{1BC44}\u{1BC09}\u{1BC05}\u{1BC0B}\u{1BC41}\u{1BC04}\u{1BC03}",
+    );
+    buffer.guess_segment_properties();
+    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+    assert!(buffer.allocation_successful());
+    assert_eq!(buffer.len(), 985);
+}
+
 /// A pass of a lookup over the buffer is charged to the operation limit even
 /// if it applies nothing, so a feature listing such a lookup many times
 /// cannot make shaping take time that the limit never sees.
 #[test]
 fn lookup_passes_that_apply_nothing_are_charged_to_the_operation_limit() {
     // Two expansions of one character make 65025 glyphs under an operation
-    // limit of 65536, and each pass of a no-op lookup is charged for them.
-    let buffer = shape_with_gsub(gsub_with_no_op_lookups(32, 63));
+    // limit of 524288, and each pass of a no-op lookup is charged for them.
+    let buffer = shape_with_gsub(gsub_with_no_op_lookups(256, 63));
     assert!(!buffer.allocation_successful());
 
     // Without the no-op lookups the expansions alone stay within the limit.

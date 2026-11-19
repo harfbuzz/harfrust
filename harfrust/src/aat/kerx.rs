@@ -997,9 +997,9 @@ mod tests {
 
         for terminated in [false, true] {
             let mut kerx = original[..values_offset].to_vec();
-            // One glyph has a budget of 65536 operations. Reusing its history
+            // One glyph has a budget of 524288 operations. Reusing its history
             // must not make a longer action list exempt from that budget.
-            for _ in 0..65537 {
+            for _ in 0..524_289 {
                 kerx.extend_from_slice(&1i16.to_be_bytes());
             }
             if terminated {
