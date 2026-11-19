@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Stop valid complex fonts, such as Duployan ones, from exhausting the shaping
   work budget: skipped glyphs are charged 1/32 of an operation, and the
   per-character work and length allowances are larger, matching HarfBuzz.
+- Round scaled glyph extents outward on both axes, also when a negative scale
+  reverses an axis, matching HarfBuzz. The vertical bearing was rounded inward
+  before.
 
 ## [0.16.0] - 2026-11-11
 

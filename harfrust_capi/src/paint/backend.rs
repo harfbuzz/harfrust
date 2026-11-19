@@ -565,11 +565,15 @@ pub(super) unsafe fn paint(
         let by = ot_round(bitmap.bearing_y + inner * my) as f32;
         let w = ot_round(bitmap.width as f32 * mx) as f32;
         let h = ot_round(-(bitmap.height as f32 * my)) as f32;
+        // Round outward even when scaling reverses an axis.
+        let (x1, y1, x2, y2) = (bx * sx, by * sy, (bx + w) * sx, (by + h) * sy);
+        let x_forward = x1 <= x2;
+        let y_forward = y1 >= y2;
         let mut extents = hr_glyph_extents_t {
-            x_bearing: (bx * sx).floor() as i32,
-            y_bearing: (by * sy).floor() as i32,
-            width: ((bx + w) * sx).ceil() as i32,
-            height: ((by + h) * sy).ceil() as i32,
+            x_bearing: if x_forward { x1.floor() } else { x1.ceil() } as i32,
+            y_bearing: if y_forward { y1.ceil() } else { y1.floor() } as i32,
+            width: if x_forward { x2.ceil() } else { x2.floor() } as i32,
+            height: if y_forward { y2.floor() } else { y2.ceil() } as i32,
         };
         extents.width = extents.width.saturating_sub(extents.x_bearing);
         extents.height = extents.height.saturating_sub(extents.y_bearing);
