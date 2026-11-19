@@ -74,12 +74,10 @@ impl PlanCache {
             let tables = font.tables();
             tables
                 .gsub()
-                .ok()
-                .is_some_and(|table| table.feature_variations().is_some())
+                .is_ok_and(|table| table.feature_variations().is_some())
                 || tables
                     .gpos()
-                    .ok()
-                    .is_some_and(|table| table.feature_variations().is_some())
+                    .is_ok_and(|table| table.feature_variations().is_some())
         })
     }
 

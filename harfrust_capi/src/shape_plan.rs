@@ -642,7 +642,7 @@ mod tests {
                     }
                 );
                 let default = instance_for(&*face, &[], true).unwrap();
-                assert!(default.normalized_coords().is_empty());
+                assert_eq!(default.normalized_coords(), []);
                 let selection = default.feature_variations();
                 assert_eq!(
                     selection.gsub.is_some() || selection.gpos.is_some(),
