@@ -258,6 +258,14 @@ fn walk_sharing_second_glyph(lookup: &CachedLookup, ctx: &mut ApplyContext, _: b
     None
 }
 
+/// First-input membership needs no coverage index.
+type BinaryCache = crate::cache::Cache<14, 1, 256, 8>;
+
+enum CoverageCache {
+    Index(Box<MappingCache>),
+    Binary(Box<BinaryCache>),
+}
+
 /// A parsed subtable and the functions that apply it.
 pub(crate) struct CachedSubtable<'a> {
     kind: CachedSubtableKind<'a>,
@@ -265,7 +273,7 @@ pub(crate) struct CachedSubtable<'a> {
     digest: SetDigest,
     /// The coverage of the glyph that a match starts at.
     coverage: Coverage<'a>,
-    coverage_cache: Option<Box<MappingCache>>,
+    coverage_cache: Option<CoverageCache>,
     /// How `kind` applies.
     fns: &'static KindFns,
     /// `fns.apply_sharing`, kept here for the pair walk.
@@ -276,13 +284,18 @@ impl CachedSubtable<'_> {
     /// The coverage index of the glyph a match would start at.
     #[inline(always)]
     fn coverage_index(&self, glyph: u32) -> Option<u32> {
-        let Some(cache) = &self.coverage_cache else {
-            return self.coverage.get(glyph);
-        };
-        match cache.get(glyph) {
-            Some(MappingCache::MAX_VALUE) => None,
-            Some(index) => Some(index),
-            None => self.coverage_index_uncached(glyph, cache),
+        match &self.coverage_cache {
+            None => self.coverage.get(glyph),
+            Some(CoverageCache::Index(cache)) => match cache.get(glyph) {
+                Some(MappingCache::MAX_VALUE) => None,
+                Some(index) => Some(index),
+                None => self.coverage_index_uncached(glyph, cache),
+            },
+            Some(CoverageCache::Binary(cache)) => match cache.get(glyph) {
+                Some(0) => Some(0),
+                Some(_) => None,
+                None => self.coverage_membership_uncached(glyph, cache),
+            },
         }
     }
 
@@ -291,6 +304,14 @@ impl CachedSubtable<'_> {
     #[inline(never)]
     fn coverage_index_uncached(&self, glyph: u32, cache: &MappingCache) -> Option<u32> {
         coverage_index_cached(|gid| self.coverage.get(gid), glyph.into(), cache)
+    }
+
+    #[inline(never)]
+    fn coverage_membership_uncached(&self, glyph: u32, cache: &BinaryCache) -> Option<u32> {
+        let covered = self.coverage.covers(glyph);
+        cache.set(glyph, u32::from(!covered));
+        // Only chained format 3 uses this cache; it ignores the index.
+        covered.then_some(0)
     }
 }
 
@@ -461,6 +482,10 @@ impl CachedSubtableKind<'_> {
 trait SubtableDigests<'a> {
     /// Whether looking up the first glyph's coverage gains from a cache.
     const CACHES_COVERAGE: bool = false;
+
+    fn caches_coverage_membership(&self) -> bool {
+        false
+    }
 
     /// The glyphs that may follow the first one in a match.
     fn digest_second(&self, _budget: &Budget) -> Result<SetDigest, Exhausted> {

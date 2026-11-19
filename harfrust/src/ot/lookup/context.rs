@@ -648,6 +648,10 @@ impl<'a> ChainContext3<'a> {
 }
 
 impl<'a> SubtableDigests<'a> for ChainContext3<'a> {
+    fn caches_coverage_membership(&self) -> bool {
+        self.chained
+    }
+
     fn digest_second(&self, budget: &Budget) -> Result<SetDigest, Exhausted> {
         if self.inputs.is_empty() {
             self.lookahead.get(0).digest(budget)

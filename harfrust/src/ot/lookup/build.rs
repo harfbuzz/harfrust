@@ -2,8 +2,8 @@
 
 use super::coverage::Coverage;
 use super::{
-    context, gpos, gsub, CachedLookup, CachedSubtable, CachedSubtableKind, IntoKind, KindFns,
-    SubtableDigests,
+    context, gpos, gsub, BinaryCache, CachedLookup, CachedSubtable, CachedSubtableKind,
+    CoverageCache, IntoKind, KindFns, SubtableDigests,
 };
 use crate::budget::{Budget, Exhausted};
 use crate::ot::apply::MappingCache;
@@ -397,7 +397,11 @@ impl<'a> Source<'a, '_> {
         let data = data.ok_or(BuildError::Invalid)?;
         let digest_second = data.digest_second(self.budget)?;
         let cache_cost = data.cache_cost();
-        let coverage_cache = self.coverage_cache(&coverage, T::CACHES_COVERAGE)?;
+        let coverage_cache = self.coverage_cache(
+            &coverage,
+            T::CACHES_COVERAGE,
+            data.caches_coverage_membership(),
+        )?;
         let kind = data.into_kind(self.budget)?;
         self.assemble(
             kind,
@@ -416,12 +420,21 @@ impl<'a> Source<'a, '_> {
         &self,
         coverage: &Coverage,
         caches_coverage: bool,
-    ) -> Result<Option<Box<MappingCache>>, Exhausted> {
-        if !(self.with_caches && caches_coverage && coverage.cost() >= MIN_CACHED_COVERAGE_COST) {
+        membership: bool,
+    ) -> Result<Option<CoverageCache>, Exhausted> {
+        if !self.with_caches {
+            return Ok(None);
+        }
+        // Three cost bits means at least four glyph or range records.
+        if membership && coverage.cost() >= 3 {
+            self.budget.alloc::<BinaryCache>(1)?;
+            return Ok(Some(CoverageCache::Binary(Box::new(BinaryCache::new()))));
+        }
+        if !(caches_coverage && coverage.cost() >= MIN_CACHED_COVERAGE_COST) {
             return Ok(None);
         }
         self.budget.alloc::<MappingCache>(1)?;
-        Ok(Some(Box::new(MappingCache::new())))
+        Ok(Some(CoverageCache::Index(Box::new(MappingCache::new()))))
     }
 
     /// Puts a built subtable together with its coverage.
@@ -430,7 +443,7 @@ impl<'a> Source<'a, '_> {
         &self,
         kind: CachedSubtableKind<'a>,
         coverage: Coverage<'a>,
-        coverage_cache: Option<Box<MappingCache>>,
+        coverage_cache: Option<CoverageCache>,
         fns: &'static KindFns,
         digest_second: SetDigest,
         cache_cost: u32,
@@ -930,5 +943,105 @@ mod tests {
         )
         .unwrap();
         assert!(lookup.subtables.is_empty());
+    }
+    fn first_coverage_lookup(
+        is_subst: bool,
+        chained: bool,
+        subtable_count: u16,
+        coverage: &[u16],
+    ) -> Vec<u8> {
+        let kind = match (is_subst, chained) {
+            (true, true) => 6,
+            (true, false) => 5,
+            (false, true) => 8,
+            (false, false) => 7,
+        };
+        let offset = 6 + 2 * subtable_count;
+        let mut words = alloc::vec![kind, 0, subtable_count];
+        words.resize(3 + usize::from(subtable_count), offset);
+        if chained {
+            // No backtrack/lookahead, one input, no actions.
+            words.extend_from_slice(&[3, 0, 1, 12, 0, 0]);
+        } else {
+            words.extend_from_slice(&[3, 1, 0, 8]);
+        }
+        words.extend_from_slice(coverage);
+        words.into_iter().flat_map(u16::to_be_bytes).collect()
+    }
+
+    #[test]
+    fn coverage_cache_only_chains_with_four_records_in_first_eight_positions() {
+        for is_subst in [false, true] {
+            for chained in [false, true] {
+                for records in [3u16, 4] {
+                    for ranges in [false, true] {
+                        let mut coverage = alloc::vec![if ranges { 2 } else { 1 }, records];
+                        for index in 0..records {
+                            if ranges {
+                                // Three large ranges still get no cache: record
+                                // count, not covered glyph population, matters.
+                                coverage.extend_from_slice(&[
+                                    index * 100,
+                                    index * 100 + 9,
+                                    index * 10,
+                                ]);
+                            } else {
+                                coverage.push(index + 1);
+                            }
+                        }
+                        let bytes = first_coverage_lookup(is_subst, chained, 9, &coverage);
+                        let lookup = build_lookup_at(
+                            FontData::new(&bytes),
+                            0,
+                            is_subst,
+                            &Budget::for_table_bytes(bytes.len()),
+                        )
+                        .unwrap();
+                        assert_eq!(lookup.subtables.len(), 9);
+                        for (position, subtable) in lookup.subtables.iter().enumerate() {
+                            assert_eq!(
+                                subtable.coverage_cache.is_some(),
+                                chained && records >= 4 && position < 8
+                            );
+                            assert_eq!(
+                                matches!(subtable.coverage_cache, Some(CoverageCache::Binary(_))),
+                                chained && records >= 4 && position < 8
+                            );
+                            let glyph = if ranges { 4 } else { u32::from(records) };
+                            let covered = subtable.coverage.get(glyph);
+                            let expected = if chained && records >= 4 && position < 8 {
+                                covered.map(|_| 0)
+                            } else {
+                                covered
+                            };
+                            assert_eq!(subtable.coverage_index(glyph), expected);
+                            assert_eq!(subtable.coverage_index(99), None);
+                        }
+                    }
+                }
+            }
+        }
+        // An invalid original position still consumes one of the eight slots.
+        let mut bytes = first_coverage_lookup(true, true, 9, &[1, 4, 1, 2, 3, 4]);
+        bytes[6..8].copy_from_slice(&0u16.to_be_bytes());
+        let lookup = build_lookup_at(
+            FontData::new(&bytes),
+            0,
+            true,
+            &Budget::for_table_bytes(bytes.len()),
+        )
+        .unwrap();
+        assert_eq!(lookup.subtables.len(), 8);
+        assert_eq!(
+            lookup
+                .subtables
+                .iter()
+                .filter(|subtable| matches!(
+                    subtable.coverage_cache,
+                    Some(CoverageCache::Binary(_))
+                ))
+                .count(),
+            7
+        );
     }
 }
