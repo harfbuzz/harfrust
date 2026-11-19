@@ -4459,6 +4459,49 @@ fn a_glyph_can_be_asked_what_a_callback_could_answer_for() {
 }
 
 #[test]
+fn scaled_glyph_extents_round_outward_on_both_axes() {
+    // Expected values come from HarfBuzz, which rounds each corner away from
+    // the box, also when a negative scale reverses an axis.
+    unsafe {
+        with_font(|face, font| {
+            let upem = hr_face_get_upem(face) as c_int;
+            let mut glyph = 0;
+            assert_ne!(
+                hr_font_get_nominal_glyph(font, 'a' as u32, ptr::addr_of_mut!(glyph)),
+                0
+            );
+            for (x_scale, y_scale, expected) in [
+                (13, 13, (0, 5, 7, -6)),
+                (-13, 13, (0, 5, -7, -6)),
+                (13, -13, (0, -5, 7, 6)),
+                (-13, -13, (0, -5, -7, 6)),
+                (0, 13, (0, 5, 0, -6)),
+                (13, 0, (0, 0, 7, 0)),
+                (0, 0, (0, 0, 0, 0)),
+            ] {
+                hr_font_set_scale(font, x_scale, y_scale);
+                let mut extents = hr_glyph_extents_t::default();
+                assert_ne!(
+                    hr_font_get_glyph_extents(font, glyph, ptr::addr_of_mut!(extents)),
+                    0
+                );
+                assert_eq!(
+                    (
+                        extents.x_bearing,
+                        extents.y_bearing,
+                        extents.width,
+                        extents.height
+                    ),
+                    expected,
+                    "scale {x_scale}x{y_scale}"
+                );
+            }
+            hr_font_set_scale(font, upem, upem);
+        });
+    }
+}
+
+#[test]
 fn advances_run_over_a_caller_s_own_layout() {
     unsafe {
         with_font(|_, font| {

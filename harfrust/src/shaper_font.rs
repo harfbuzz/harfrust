@@ -878,20 +878,35 @@ mod tests {
 
     #[test]
     fn extents_scale_from_corners_like_harfbuzz() {
-        // HarfBuzz scales corners in floating point, floors the bearings,
-        // ceils the far corners, and then derives width/height from them.
-        let scale = Scale::new(Some((1500, 1500)), 1000);
+        // HarfBuzz scales corners in floating point, rounds each of them
+        // outward, and then derives width/height from them.
         let extents = GlyphExtents {
             x_bearing: 1,
             y_bearing: 4,
             width: 3,
-            height: -2,
+            height: -3,
         };
-        let scaled = scale.scale_extents(extents);
-        assert_eq!(scaled.x_bearing, 1);
-        assert_eq!(scaled.y_bearing, 6);
-        assert_eq!(scaled.width, 5);
-        assert_eq!(scaled.height, -3);
+        for (x_scale, y_scale, expected) in [
+            (1500, 1500, (1, 6, 5, -5)),
+            (-1500, 1500, (-1, 6, -5, -5)),
+            (1500, -1500, (1, -6, 5, 5)),
+            (-1500, -1500, (-1, -6, -5, 5)),
+            (0, 1500, (0, 6, 0, -5)),
+            (1500, 0, (1, 0, 5, 0)),
+            (0, 0, (0, 0, 0, 0)),
+        ] {
+            let scaled = Scale::new(Some((x_scale, y_scale)), 1000).scale_extents(extents);
+            assert_eq!(
+                (
+                    scaled.x_bearing,
+                    scaled.y_bearing,
+                    scaled.width,
+                    scaled.height
+                ),
+                expected,
+                "scale {x_scale}x{y_scale}"
+            );
+        }
     }
 
     #[test]

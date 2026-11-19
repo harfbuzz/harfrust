@@ -106,22 +106,32 @@ impl Scale {
 
     /// Scales glyph extents using HarfBuzz's corner rounding.
     ///
-    /// Floors the near corners and ceils the far corners before calculating
-    /// width and height.
+    /// Rounds each corner outward, also when a scale reverses its axis,
+    /// before calculating width and height.
     pub fn scale_extents(&self, mut extents: GlyphExtents) -> GlyphExtents {
         let x1 = extents.x_bearing as f32 * self.x_multf;
         let y1 = extents.y_bearing as f32 * self.y_multf;
         let x2 = (i64::from(extents.x_bearing) + i64::from(extents.width)) as f32 * self.x_multf;
         let y2 = (i64::from(extents.y_bearing) + i64::from(extents.height)) as f32 * self.y_multf;
-        let rx1 = x1.floor();
-        let ry1 = y1.floor();
-        let rx2 = x2.ceil();
-        let ry2 = y2.ceil();
+        let (rx1, ry1, rx2, ry2) = Self::round_outward(x1, y1, x2, y2);
         extents.x_bearing = rx1 as i32;
         extents.y_bearing = ry1 as i32;
-        extents.width = (f64::from(rx2) - f64::from(rx1)) as i32;
-        extents.height = (f64::from(ry2) - f64::from(ry1)) as i32;
+        extents.width = (f64::from(rx2) - f64::from(extents.x_bearing)) as i32;
+        extents.height = (f64::from(ry2) - f64::from(extents.y_bearing)) as i32;
         extents
+    }
+
+    /// Rounds the origin corner `(x1, y1)` and the opposite corner
+    /// `(x2, y2)` of a y-up box away from each other.
+    fn round_outward(x1: f32, y1: f32, x2: f32, y2: f32) -> (f32, f32, f32, f32) {
+        let x_forward = x1 <= x2;
+        let y_forward = y1 >= y2;
+        (
+            if x_forward { x1.floor() } else { x1.ceil() },
+            if y_forward { y1.ceil() } else { y1.floor() },
+            if x_forward { x2.ceil() } else { x2.floor() },
+            if y_forward { y2.floor() } else { y2.ceil() },
+        )
     }
 
     #[inline(always)]
@@ -188,15 +198,20 @@ impl read_fonts::model::metrics::Scale for Scale {
         &self,
         extents: read_fonts::model::metrics::GlyphExtents<F48Dot16>,
     ) -> read_fonts::model::metrics::GlyphExtents<i32> {
-        let left = (extents.x_bearing.to_f32() * self.x_multf).floor();
-        let top = (extents.y_bearing.to_f32() * self.y_multf).floor();
-        let right = ((extents.x_bearing + extents.width).to_f32() * self.x_multf).ceil();
-        let bottom = ((extents.y_bearing - extents.height).to_f32() * self.y_multf).ceil();
+        // HarfBuzz rounds the corners to whole font units before scaling.
+        let (left, top, right, bottom) = Self::round_outward(
+            extents.x_bearing.to_f32().round() * self.x_multf,
+            extents.y_bearing.to_f32().round() * self.y_multf,
+            (extents.x_bearing + extents.width).to_f32().round() * self.x_multf,
+            (extents.y_bearing - extents.height).to_f32().round() * self.y_multf,
+        );
+        let x_bearing = left as i32;
+        let y_bearing = top as i32;
         read_fonts::model::metrics::GlyphExtents {
-            x_bearing: left as i32,
-            y_bearing: top as i32,
-            width: (f64::from(right) - f64::from(left)) as i32,
-            height: (f64::from(top) - f64::from(bottom)) as i32,
+            x_bearing,
+            y_bearing,
+            width: (f64::from(right) - f64::from(x_bearing)) as i32,
+            height: (f64::from(y_bearing) - f64::from(bottom)) as i32,
         }
     }
 
