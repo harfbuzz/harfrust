@@ -428,6 +428,7 @@ fn append_utf8(buffer: &mut Buffer, text: &str, cluster_offset: c_uint) {
 
 // Decode just one codepoint at a time so context past HarfBuzz's five-codepoint
 // limit is never scanned. Like hb_utf8_t::next, consume one byte per error.
+#[inline]
 fn next_utf8(bytes: &[u8], index: &mut usize) -> u32 {
     let first = bytes[*index];
     *index += 1;
@@ -435,6 +436,10 @@ fn next_utf8(bytes: &[u8], index: &mut usize) -> u32 {
         return first.into();
     }
 
+    next_utf8_multibyte(bytes, index, first)
+}
+
+fn next_utf8_multibyte(bytes: &[u8], index: &mut usize, first: u8) -> u32 {
     let continuation = |byte: u8| (byte & 0xC0) == 0x80;
     if (0xC2..=0xDF).contains(&first) {
         if *index < bytes.len() && continuation(bytes[*index]) {
@@ -646,14 +651,10 @@ pub unsafe extern "C" fn hr_buffer_add_latin1(
         *slot = u32::from(byte);
     }
     buffer.buffer.set_post_context_codepoints(&post[..len]);
-    let capacity = buffer.buffer.len().saturating_add(end - start);
-    if !buffer.buffer.reserve(capacity) {
-        return;
-    }
-    for (index, &byte) in bytes[start..end].iter().enumerate() {
+    if start < end {
         buffer
             .buffer
-            .push(u32::from(byte), (start + index) as c_uint);
+            .push_latin1(&bytes[start..end], start as c_uint);
     }
 }
 
@@ -699,15 +700,11 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     // earlier call cannot outlive the text it followed. An item running to
     // the end of the text has nothing after it, and says so.
     set_post_context_utf8(&mut buffer.buffer, &bytes[end..]);
-    // Cluster values are offsets into the whole text, not into the item.
-    //
-    // Well-formed text is the overwhelmingly common case, and validating it
-    // outright is faster than the lossy decoder, which walks the bytes once to
-    // find the ill-formed sequences and then again to yield the characters.
     let item = &bytes[start..end];
-    if let Ok(text) = core::str::from_utf8(item) {
-        // Well-formed text, which is the whole point: this is the hottest
-        // call in the API and it should not allocate.
+    if item.is_ascii() {
+        // Each byte is one codepoint and one cluster.
+        buffer.buffer.push_latin1(item, start as c_uint);
+    } else if let Ok(text) = core::str::from_utf8(item) {
         append_utf8(&mut buffer.buffer, text, start as c_uint);
     } else {
         // Ill-formed text goes one codepoint at a time, so that each bad
@@ -1663,6 +1660,25 @@ mod tests {
     use super::*;
 
     const REPLACEMENT: u32 = char::REPLACEMENT_CHARACTER as u32;
+
+    #[test]
+    fn ascii_item_uses_absolute_clusters_and_utf8_context() {
+        let text = "€abc𐍈";
+        let buffer = hr_buffer_create();
+        unsafe {
+            hr_buffer_add_utf8(buffer, text.as_ptr().cast(), text.len() as c_int, 3, 3);
+            let contents = &(*buffer).buffer;
+            assert_eq!(contents.pre_context_codepoints(), &['€' as u32]);
+            assert_eq!(contents.post_context_codepoints(), &['𐍈' as u32]);
+            let infos = contents.glyph_infos();
+            assert_eq!(infos.len(), 3);
+            for (i, info) in infos.iter().enumerate() {
+                assert_eq!(info.glyph_id, u32::from(b'a') + i as u32);
+                assert_eq!(info.cluster, 3 + i as u32);
+            }
+            hr_buffer_destroy(buffer);
+        }
+    }
 
     #[test]
     fn decodes_bounded_utf8_context() {
