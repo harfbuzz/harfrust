@@ -404,10 +404,12 @@ impl GlyphInfo {
 
     pub(crate) fn init_unicode_props(&mut self, scratch_flags: &mut ScratchFlags) {
         let u = self.as_codepoint();
-        let gc = u.general_category();
-        let mut props = gc.0 as u16;
-
-        if u >= 0x80 {
+        let mut props;
+        if let Some(gc) = crate::unicode::GeneralCategory::ASCII.get(u as usize) {
+            props = u16::from(gc.0);
+        } else {
+            let gc = u.general_category();
+            props = u16::from(gc.0);
             if u.is_default_ignorable() {
                 props |= UnicodeProps::IGNORABLE.bits();
                 *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES;
@@ -2831,6 +2833,23 @@ pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ascii_props_match_the_unicode_backend() {
+        for glyph_id in 0..128 {
+            let mut info = GlyphInfo {
+                glyph_id,
+                ..GlyphInfo::default()
+            };
+            let mut flags = 0;
+            info.init_unicode_props(&mut flags);
+            assert_eq!(
+                info.unicode_props(),
+                u16::from(glyph_id.general_category().0)
+            );
+            assert_eq!(flags, 0);
+        }
+    }
 
     #[test]
     fn flag_ranges_follow_cluster_monotonicity() {
