@@ -743,6 +743,40 @@ impl Buffer {
         self.push_code_units(bytes, cluster_offset);
     }
 
+    /// Appends UTF-16 with clusters numbered from `cluster_offset` in code units.
+    /// Each unpaired surrogate is replaced with U+FFFD.
+    pub fn push_utf16(&mut self, units: &[u16], cluster_offset: u32) {
+        if units.is_empty() {
+            return;
+        }
+        if units.iter().all(|unit| !(0xD800..=0xDFFF).contains(unit)) {
+            self.push_code_units(units, cluster_offset);
+            return;
+        }
+        let end = self.len.saturating_add(units.len());
+        if !self.ensure(end) {
+            return;
+        }
+        self.content_type = Some(ContentType::Unicode);
+        let Some(slots) = self.info.get_mut(self.len..end) else {
+            return;
+        };
+        let mut cluster = cluster_offset;
+        for (slot, decoded) in slots
+            .iter_mut()
+            .zip(char::decode_utf16(units.iter().copied()))
+        {
+            let ch = decoded.unwrap_or(char::REPLACEMENT_CHARACTER);
+            *slot = GlyphInfo {
+                glyph_id: ch as u32,
+                cluster,
+                ..GlyphInfo::default()
+            };
+            self.len += 1;
+            cluster = cluster.wrapping_add(ch.len_utf16() as u32);
+        }
+    }
+
     /// Appends codepoints with cluster values starting at zero.
     ///
     /// Cluster indices restart at zero on each call.
