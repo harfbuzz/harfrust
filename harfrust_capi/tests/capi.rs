@@ -3596,6 +3596,68 @@ fn cached_plans_are_reused_and_agree() {
 }
 
 #[test]
+fn cached_coordinate_plans_without_layout_variations_use_current_font_metrics() {
+    unsafe {
+        with_named_font("../in-house/NotoSans-VF.abc.ttf", |face, font| {
+            let props = latin_props();
+            let mut outputs = Vec::new();
+            for coords in [[0, 0, 0], [8192, 0, 0], [-8192, 0, 0], [8192, 0, 0]] {
+                hr_font_set_var_coords_normalized(font, coords.as_ptr(), coords.len() as c_uint);
+                let cached = hr_shape_plan_create_cached2(
+                    face,
+                    &raw const props,
+                    ptr::null(),
+                    0,
+                    coords.as_ptr(),
+                    coords.len() as c_uint,
+                    ptr::null(),
+                );
+                let uncached = hr_shape_plan_create2(
+                    face,
+                    &raw const props,
+                    ptr::null(),
+                    0,
+                    coords.as_ptr(),
+                    coords.len() as c_uint,
+                    ptr::null(),
+                );
+                let shape_through = |plan| {
+                    let buffer = buffer_with_text(TEXT);
+                    assert_ne!(hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0), 0);
+                    let mut len = 0;
+                    let infos = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+                    let positions = hr_buffer_get_glyph_positions(buffer, ptr::null_mut());
+                    let output: Vec<_> = (0..len as usize)
+                        .map(|i| {
+                            let info = &*infos.add(i);
+                            let pos = &*positions.add(i);
+                            (
+                                info.codepoint,
+                                info.cluster,
+                                hr_glyph_info_get_glyph_flags(info),
+                                pos.x_advance,
+                                pos.y_advance,
+                                pos.x_offset,
+                                pos.y_offset,
+                            )
+                        })
+                        .collect();
+                    hr_buffer_destroy(buffer);
+                    output
+                };
+                let output = shape_through(cached);
+                assert_eq!(output, shape_through(uncached));
+                outputs.push(output);
+                hr_shape_plan_destroy(cached);
+                hr_shape_plan_destroy(uncached);
+            }
+            assert_ne!(outputs[0], outputs[1]);
+            assert_eq!(outputs[1], outputs[3]);
+        });
+    }
+}
+
+#[test]
 fn a_plan_reports_the_properties_it_was_built_for() {
     unsafe {
         with_font(|face, _| {

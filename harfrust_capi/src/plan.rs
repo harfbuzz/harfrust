@@ -24,6 +24,7 @@ use std::sync::{Arc, OnceLock};
 
 use harfrust::font::Font;
 use harfrust::{Direction, Feature, Language, Script, ShapePlan, ShapePlanKey};
+use read_fonts::TableProvider;
 
 /// A face's cache of shape plans.
 ///
@@ -36,6 +37,9 @@ use harfrust::{Direction, Feature, Language, Script, ShapePlan, ShapePlanKey};
 #[derive(Default)]
 pub(crate) struct PlanCache {
     head: OnceLock<Box<Node>>,
+    /// Table presence is fixed for the face, like its plans: callback results
+    /// are cached. No varied instance is needed without layout variations.
+    has_layout_variations: OnceLock<bool>,
 }
 
 impl Drop for PlanCache {
@@ -65,6 +69,18 @@ struct Node {
 }
 
 impl PlanCache {
+    pub(crate) fn has_layout_variations(&self, font: &Font) -> bool {
+        *self.has_layout_variations.get_or_init(|| {
+            let tables = font.tables();
+            tables
+                .gsub()
+                .is_ok_and(|table| table.feature_variations().is_some())
+                || tables
+                    .gpos()
+                    .is_ok_and(|table| table.feature_variations().is_some())
+        })
+    }
+
     /// Returns a plan for the given properties, building one if the cache does
     /// not already hold a match.
     pub(crate) fn get(
