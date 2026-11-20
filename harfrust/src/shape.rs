@@ -6,7 +6,8 @@
 /// # Errors
 ///
 /// Returns an error if the buffer cannot be shaped with the supplied plan or
-/// lacks the properties needed to build one.
+/// lacks the properties needed to build one. If either shaping limit is set,
+/// an incomplete result returns [`ShapeError::Incomplete`].
 pub fn shape(
     font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
@@ -16,7 +17,7 @@ pub fn shape(
         return Err(ShapeError::AlreadyShaped);
     }
     if let Some(plan) = options.plan {
-        shape_with_font(plan, font, buffer, options.features, options.point_size)
+        shape_with_font(plan, font, buffer, &options)
     } else {
         if buffer.direction == Direction::Invalid {
             return Err(ShapeError::DirectionUnset);
@@ -28,7 +29,7 @@ pub fn shape(
             buffer.language.as_ref(),
             options.features,
         );
-        shape_with_font(&plan, font, buffer, options.features, options.point_size)
+        shape_with_font(&plan, font, buffer, &options)
     }
 }
 
@@ -50,8 +51,7 @@ pub(crate) fn shape_with_font(
     plan: &ShapePlan,
     font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
-    features: &[Feature],
-    point_size: Option<f32>,
+    options: &ShapeOptions<'_>,
 ) -> Result<(), ShapeError> {
     if buffer.content_type == Some(ContentType::Glyphs) {
         return Err(ShapeError::AlreadyShaped);
@@ -71,22 +71,40 @@ pub(crate) fn shape_with_font(
         });
     }
 
+    if options.max_glyphs.is_some_and(|limit| buffer.len > limit) {
+        buffer.successful = false;
+        return Err(ShapeError::Incomplete);
+    }
     buffer.enter();
+    if let Some(limit) = options.max_glyphs {
+        buffer.max_len = buffer.max_len.min(limit);
+    }
+    if let Some(limit) = options.max_operations {
+        buffer.max_ops = buffer.max_ops.min(i32::try_from(limit).unwrap_or(i32::MAX));
+    }
     if buffer.len > 0 {
         let target_direction = buffer.direction;
         OtShapeContext {
             plan,
             font,
             buffer,
-            features,
+            features: options.features,
             target_direction,
-            point_size,
+            point_size: options.point_size,
         }
         .shape_internal();
     }
+    let bounded = options.max_glyphs.is_some() || options.max_operations.is_some();
+    if bounded && buffer.max_ops < 0 {
+        buffer.successful = false;
+    }
     buffer.leave();
     buffer.content_type = Some(ContentType::Glyphs);
-    Ok(())
+    if bounded && !buffer.successful {
+        Err(ShapeError::Incomplete)
+    } else {
+        Ok(())
+    }
 }
 
 // hb_ot_shape_context_t: <https://github.com/harfbuzz/harfbuzz/blob/22ea52f42fa4fc168be91ef4e56aee3affda6e28/src/hb-ot-shape.cc#L450>

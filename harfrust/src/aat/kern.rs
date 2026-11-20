@@ -557,7 +557,10 @@ fn apply_state_machine_kerning(
         }
 
         c.buffer.max_ops -= 1;
-        if entry.has_advance() || c.buffer.max_ops <= 0 {
+        if entry.has_advance() {
+            c.buffer.next_glyph();
+        } else if c.buffer.max_ops <= 0 {
+            c.buffer.successful = false;
             c.buffer.next_glyph();
         }
     }

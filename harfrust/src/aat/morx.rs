@@ -1183,7 +1183,7 @@ impl InsertionCtx<'_> {
         if entry.payload.marked_insert_index() != 0xFFFF {
             let count = flags & Self::MARKED_INSERT_COUNT;
             ac.buffer.max_ops -= i32::from(count);
-            if ac.buffer.max_ops <= 0 {
+            if ac.buffer.max_ops < 0 {
                 return Some(());
             }
 
