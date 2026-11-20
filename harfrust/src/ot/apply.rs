@@ -674,6 +674,7 @@ pub(crate) fn apply_lookup(
         }
 
         if ctx.buffer.max_ops <= 0 {
+            ctx.buffer.successful = false;
             break;
         }
 

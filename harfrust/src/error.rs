@@ -2,13 +2,16 @@ use crate::{Direction, Script};
 
 /// The reason a call to [`shape`](crate::shape) could not produce glyphs.
 ///
-/// Each of these is a misuse of the API. Running out of room is not among
-/// them: pathological input can provoke it, so it is reported through
-/// [`Buffer::allocation_successful`](crate::Buffer::allocation_successful)
-/// rather than as a failure to shape.
+/// By default, resource exhaustion is reported through
+/// [`Buffer::allocation_successful`](crate::Buffer::allocation_successful).
+/// A call with explicit shaping limits also reports incomplete output here.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 #[non_exhaustive]
 pub enum ShapeError {
+    /// The caller requested bounded shaping and the buffer could not complete
+    /// it. Discard any output and clear the buffer before filling it again.
+    Incomplete,
+
     /// The buffer already holds the glyphs from an earlier call.
     ///
     /// To shape the same contents again, set the content type back to
@@ -44,6 +47,7 @@ pub enum ShapeError {
 impl core::fmt::Display for ShapeError {
     fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::Incomplete => fmt.write_str("bounded shaping did not complete"),
             Self::AlreadyShaped => fmt.write_str("buffer already holds shaped glyphs"),
             Self::DirectionUnset => fmt.write_str("buffer has no direction set"),
             Self::DirectionMismatch { plan, buffer } => write!(

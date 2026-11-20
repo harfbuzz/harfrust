@@ -2242,7 +2242,10 @@ impl Buffer {
     #[must_use]
     #[inline(always)]
     pub(crate) fn ensure(&mut self, size: usize) -> bool {
-        if size <= self.info.len() {
+        if size > self.max_len {
+            self.successful = false;
+            false
+        } else if size <= self.info.len() {
             true
         } else {
             self.enlarge(size)
@@ -2251,11 +2254,6 @@ impl Buffer {
 
     #[must_use]
     fn enlarge(&mut self, size: usize) -> bool {
-        if size > self.max_len {
-            self.successful = false;
-            return false;
-        }
-
         self.info.resize(size, GlyphInfo::default());
         self.pos.resize(size, GlyphPosition::default());
         true

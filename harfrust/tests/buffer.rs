@@ -345,6 +345,78 @@ fn a_matching_plan_shapes() {
 }
 
 #[test]
+fn bounded_shaping_reports_incomplete_output_and_the_buffer_can_be_reused() {
+    let font = font_instance("text-rendering-tests/NotoSansKannada-Regular.ttf");
+    let text = "ಕನ್ನಡ";
+    let mut buffer = unicode_buffer(text);
+    assert!(buffer.reserve(128));
+    let result = shape_with_instance(&font, &mut buffer, ShapeOptions::new().max_glyphs(Some(2)));
+    assert_eq!(result, Err(ShapeError::Incomplete));
+    assert!(!buffer.allocation_successful());
+
+    buffer.clear();
+    buffer.push_str(text);
+    buffer.guess_segment_properties();
+    let result = shape_with_instance(
+        &font,
+        &mut buffer,
+        ShapeOptions::new().max_operations(Some(0)),
+    );
+    assert_eq!(result, Err(ShapeError::Incomplete));
+    assert!(!buffer.allocation_successful());
+
+    buffer.clear();
+    buffer.push_str(text);
+    buffer.guess_segment_properties();
+    shape_with_instance(&font, &mut buffer, ShapeOptions::default()).unwrap();
+    assert!(buffer.allocation_successful());
+}
+
+#[test]
+fn glyph_limit_applies_to_shaping_in_a_reserved_buffer() {
+    let font = font_instance("text-rendering-tests/NotoSansKannada-Regular.ttf");
+    // Shaping an isolated vowel sign inserts a dotted circle.
+    let sign = "ಿ";
+    let mut expected = unicode_buffer(sign);
+    shape_with_instance(&font, &mut expected, ShapeOptions::default()).unwrap();
+    assert!(expected.len() > 1);
+
+    let mut buffer = unicode_buffer(sign);
+    assert!(buffer.reserve(128));
+    let result = shape_with_instance(&font, &mut buffer, ShapeOptions::new().max_glyphs(Some(1)));
+    assert_eq!(result, Err(ShapeError::Incomplete));
+}
+
+#[test]
+fn generous_limits_preserve_the_glyph_run() {
+    let positions = |buf: &Buffer| {
+        buf.glyph_positions()
+            .iter()
+            .map(|p| (p.x_advance, p.y_advance, p.x_offset, p.y_offset))
+            .collect::<Vec<_>>()
+    };
+    for (file, text) in [
+        ("rb_custom/OpenSans.subset1.ttf", TEXT),
+        ("in-house/NotoNastaliqUrdu-Regular.ttf", "سلام"),
+        ("text-rendering-tests/NotoSansKannada-Regular.ttf", "ಕನ್ನಡ"),
+    ] {
+        let font = font_instance(file);
+        let mut expected = unicode_buffer(text);
+        let mut bounded = unicode_buffer(text);
+        shape_with_instance(&font, &mut expected, ShapeOptions::default()).unwrap();
+        let options = ShapeOptions::new()
+            .max_glyphs(Some(128))
+            .max_operations(Some(u32::MAX));
+        shape_with_instance(&font, &mut bounded, options).unwrap();
+        assert_eq!(
+            ids_and_clusters(bounded.glyph_infos()),
+            ids_and_clusters(expected.glyph_infos())
+        );
+        assert_eq!(positions(&bounded), positions(&expected));
+    }
+}
+
+#[test]
 fn shape_errors_describe_themselves() {
     assert_eq!(
         ShapeError::AlreadyShaped.to_string(),
