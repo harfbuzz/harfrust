@@ -609,6 +609,7 @@ fn initial_reordering(
         category::OT_DOTTEDCIRCLE,
         Some(category::OT_Repha),
         Some(position::POS_END),
+        Some((category::OT_Ra, category::OT_H)),
     )? {
         ret = true;
     }

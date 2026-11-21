@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Match HarfBuzz in four shaping fixes made after 15.2.0: give the USE generic
+  bases U+2015, U+2022 and U+25FB..U+25FE their class; apply vertical `kern`
+  and `kerx` values in the advance direction, and apply vertical state-machine
+  kerning at all; put the dotted circle after a reph written as Ra + Halant in
+  a broken Indic cluster; and fail the buffer when an AAT state machine that
+  does not advance spends the work budget.
+
 ## [0.16.1] - 2026-11-19
 
 This release matches HarfBuzz 15.2.0,

@@ -154,6 +154,7 @@ fn reorder_khmer(plan: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffe
         category::OT_DOTTEDCIRCLE,
         Some(category::OT_Repha),
         None,
+        None,
     )? {
         ret = true;
     }

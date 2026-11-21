@@ -173,6 +173,10 @@ pub(crate) fn apply(c: &mut AatApplyContext) -> Option<()> {
             }
         }
         message!(c, "end subtable {}", message_index);
+
+        if !c.buffer.successful {
+            break;
+        }
     }
 
     if c.buffer_is_reversed {
@@ -568,8 +572,14 @@ where
             break;
         }
 
-        if entry.has_advance() || c.buffer.max_ops <= 0 {
+        if entry.has_advance() {
             c.buffer.next_glyph();
+        } else if c.buffer.max_ops <= 0 {
+            // The machine keeps not advancing, and the buffer's work budget
+            // is spent. Fail the buffer, as the OpenType lookups do when the
+            // budget runs out.
+            c.buffer.successful = false;
+            break;
         }
         c.buffer.max_ops -= 1;
     }
@@ -675,10 +685,11 @@ impl Driver1 {
                         has_gpos_attachment = true;
                     }
                 } else if glyph_mask & c.plan.kern_mask != 0 {
-                    if pos.y_offset == 0 {
-                        pos.y_advance = pos.y_advance.saturating_add(scaled_v);
-                        pos.y_offset = pos.y_offset.saturating_add(scaled_v);
-                    }
+                    // A positive value moves the glyph away from the one
+                    // before it. Vertical advances are negative, so the
+                    // value is subtracted.
+                    pos.y_advance = pos.y_advance.saturating_sub(scaled_v);
+                    pos.y_offset = pos.y_offset.saturating_sub(scaled_v);
                 }
             }
 

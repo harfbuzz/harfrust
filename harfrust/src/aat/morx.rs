@@ -321,6 +321,10 @@ fn apply_table<'a>(
             None => {}
         }
         message!(c, "end chainsubtable {}", subtable_idx);
+
+        if !c.buffer.successful {
+            break;
+        }
     }
     if c.buffer_is_reversed {
         c.reverse_buffer();
@@ -716,7 +720,12 @@ where
             ac.buffer.next_glyph();
         } else {
             if ac.buffer.max_ops <= 0 {
-                ac.buffer.next_glyph();
+                // The machine keeps not advancing, and the buffer's work
+                // budget is spent. Fail the buffer, as the OpenType lookups
+                // do when the budget runs out: the caller can then tell that
+                // the text was not shaped in full, and no other subtable runs.
+                ac.buffer.successful = false;
+                break;
             }
             ac.buffer.max_ops -= 1;
         }
@@ -1779,6 +1788,64 @@ impl<'a> MorphSubtableCache<'a> {
 mod tests {
     use super::*;
     use read_fonts::{FontData, FontRead};
+
+    #[test]
+    fn non_advancing_machine_fails_the_buffer_when_the_budget_is_spent() {
+        use crate::{font::Font, shape, Buffer, ShapeOptions, ShaperFont, Tag};
+        use alloc::sync::Arc;
+        use read_fonts::{
+            model::{Blob, TableFunction},
+            FontRef, TableProvider,
+        };
+
+        // One Contextual subtable. On `a`, glyph 1, its machine replaces the
+        // glyph by itself and goes from the start state back to the start
+        // state without advancing: a loop that only the buffer's work budget
+        // ends. `b`, glyph 2, is out of the machine's classes.
+        #[rustfmt::skip]
+        let morx: Vec<u8> = vec![
+            0, 2, 0, 0,  0, 0, 0, 1, // version 2, one chain
+            0, 0, 0, 1,  0, 0, 0, 104,  0, 0, 0, 0,  0, 0, 0, 1, // default flags, length, no features, one subtable
+            0, 0, 0, 88,  0x20, 0, 0, 1,  0, 0, 0, 1, // length, Contextual in any direction, flags
+            0, 0, 0, 5,  0, 0, 0, 20,  0, 0, 0, 28,  0, 0, 0, 48, // nClasses, class, state, entry offsets
+            0, 0, 0, 64, // substitution tables at 64
+            0, 8,  0, 1,  0, 1,  0, 4, // class lookup format 8: glyph 1 is class 4
+            0, 0,  0, 0,  0, 0,  0, 0,  0, 1, // state 0: class 4 takes entry 1
+            0, 0,  0, 0,  0, 0,  0, 0,  0, 1, // state 1: class 4 takes entry 1
+            0, 0,  0x00, 0,  0xFF, 0xFF,  0xFF, 0xFF, // entry 0: to state 0
+            0, 0,  0x40, 0,  0xFF, 0xFF,  0, 0, // entry 1: to state 0, DontAdvance, substitute current by table 0
+            0, 0, 0, 4, // substitution table 0 at 4
+            0, 8,  0, 1,  0, 1,  0, 1, // lookup format 8: glyph 1 becomes glyph 1
+        ];
+
+        // Glyphs .notdef, a, b, c, d.
+        let source = FontRef::new(include_bytes!(
+            "../../tests/fonts/in-house/e671efb00d233d04699b796e0495015fa4e73335.ttf"
+        ))
+        .unwrap();
+        let tables = TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"morx") {
+                Some(Blob::from(morx.clone()))
+            } else {
+                source
+                    .data_for_tag(tag)
+                    .map(|data| Blob::from(data.as_bytes().to_vec()))
+            }
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        let shaper = ShaperFont::new(&font);
+
+        // A machine that stops advancing spends the buffer's work budget.
+        // The buffer must then report failure, as it does when OpenType
+        // lookups run the budget out, so that the caller can tell.
+        for (text, successful) in [("b", true), ("ab", false)] {
+            let mut buffer = Buffer::new();
+            buffer.push_str(text);
+            buffer.guess_segment_properties();
+            let _ = shape(&shaper, &mut buffer, ShapeOptions::new());
+            assert_eq!(buffer.successful, successful, "{text}");
+        }
+    }
 
     #[test]
     fn second_gate_skips_incomplete_rearrangements_and_preserves_output() {
