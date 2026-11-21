@@ -163,6 +163,10 @@ pub fn apply(
             _ => {}
         }
         message!(c, "end subtable {}", message_index);
+
+        if !c.buffer.successful {
+            break;
+        }
     }
     if c.buffer_is_reversed {
         c.reverse_buffer();
@@ -295,19 +299,21 @@ pub(super) fn apply_pair_kerning(
     }
     let kern1 = kern >> 1;
     let kern2 = kern - kern1;
+    // A positive value moves the glyphs apart. Vertical advances are
+    // negative, so there the value is subtracted.
     let first = pos.get_mut(i)?;
     if horizontal {
         first.x_advance = first.x_advance.saturating_add(kern1);
     } else {
-        first.y_advance = first.y_advance.saturating_add(kern1);
+        first.y_advance = first.y_advance.saturating_sub(kern1);
     }
     let second = pos.get_mut(j)?;
     if horizontal {
         second.x_advance = second.x_advance.saturating_add(kern2);
         second.x_offset = second.x_offset.saturating_add(kern2);
     } else {
-        second.y_advance = second.y_advance.saturating_add(kern2);
-        second.y_offset = second.y_offset.saturating_add(kern2);
+        second.y_advance = second.y_advance.saturating_sub(kern2);
+        second.y_offset = second.y_offset.saturating_sub(kern2);
     }
     Some(())
 }
@@ -557,8 +563,14 @@ fn apply_state_machine_kerning(
         }
 
         c.buffer.max_ops -= 1;
-        if entry.has_advance() || c.buffer.max_ops <= 0 {
+        if entry.has_advance() {
             c.buffer.next_glyph();
+        } else if c.buffer.max_ops <= 0 {
+            // The machine keeps not advancing, and the buffer's work budget
+            // is spent. Fail the buffer, as the OpenType lookups do when the
+            // budget runs out.
+            c.buffer.successful = false;
+            break;
         }
     }
     Some(())
@@ -656,10 +668,11 @@ fn state_machine_transition(
                         has_gpos_attachment = true;
                     }
                 } else if glyph_mask & kern_mask != 0 {
-                    if pos.y_offset == 0 {
-                        pos.y_advance = pos.y_advance.saturating_add(scaled_v);
-                        pos.y_offset = pos.y_offset.saturating_add(scaled_v);
-                    }
+                    // A positive value moves the glyph away from the one
+                    // before it. Vertical advances are negative, so the
+                    // value is subtracted.
+                    pos.y_advance = pos.y_advance.saturating_sub(scaled_v);
+                    pos.y_offset = pos.y_offset.saturating_sub(scaled_v);
                 }
             }
 

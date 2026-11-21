@@ -423,6 +423,7 @@ fn reorder_use(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer) ->
         category::B,
         Some(category::R),
         None,
+        None,
     )? {
         ret = true;
     }

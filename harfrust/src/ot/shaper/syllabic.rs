@@ -12,6 +12,7 @@ pub fn insert_dotted_circles(
     dottedcircle_category: u8,
     repha_category: Option<u8>,
     dottedcircle_position: Option<u8>,
+    ra_halant_categories: Option<(u8, u8)>,
 ) -> Option<bool> {
     if buffer
         .flags
@@ -71,6 +72,19 @@ pub fn insert_dotted_circles(
                     && last_syllable == buffer.cur(0)?.syllable()
                     && buffer.cur(0)?.ot_shaper_var_u8_category() == repha_category
                 {
+                    buffer.next_glyph();
+                }
+            }
+            // Likewise after a reph written as Ra + Halant. A broken
+            // syllable has no base, so a Ra at its start can only be that.
+            if let Some((ra_category, halant_category)) = ra_halant_categories {
+                if buffer.idx + 1 < buffer.len
+                    && buffer.successful
+                    && buffer.cur(0)?.ot_shaper_var_u8_category() == ra_category
+                    && last_syllable == buffer.cur(1)?.syllable()
+                    && buffer.cur(1)?.ot_shaper_var_u8_category() == halant_category
+                {
+                    buffer.next_glyph();
                     buffer.next_glyph();
                 }
             }

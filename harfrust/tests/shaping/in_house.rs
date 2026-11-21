@@ -53345,6 +53345,18 @@ fn hyphens_002() {
 }
 
 #[test]
+fn indic_broken_cluster_reph_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/40974b46edb7b503175a747a2c385ccd443c63f1.ttf",
+            "\u{0930}\u{094D}\u{093F}",
+            "--language=hi",
+        ),
+        "[iMatra-deva=0+259|dottedCircle=0+510|reph-deva=0@6,0+0]"
+    );
+}
+
+#[test]
 fn indic_consonant_with_stacker_001() {
     assert_eq!(
         shape(
@@ -55569,7 +55581,7 @@ fn kern_vertical_003() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb  --features=vkrn=1",
         ),
-        "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1150|c=2@-250,-950+0,-1100|d=3@-250,-850+0,-1000]"
+        "[a=0@-250,-850+0,-950|b=1@-250,-800+0,-850|c=2@-250,-750+0,-900|d=3@-250,-850+0,-1000]"
     );
 }
 
@@ -55581,7 +55593,7 @@ fn kern_vertical_004() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb  --features=vkrn[0:2]",
         ),
-        "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1050|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
+        "[a=0@-250,-850+0,-950|b=1@-250,-800+0,-950|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
 }
 
@@ -55617,7 +55629,7 @@ fn kern_vertical_007() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=1",
         ),
-        "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2300|c=2@-500,-1900+0,-2200|d=3@-500,-1700+0,-2000]"
+        "[a=0@-500,-1700+0,-1900|b=1@-500,-1600+0,-1700|c=2@-500,-1500+0,-1800|d=3@-500,-1700+0,-2000]"
     );
 }
 
@@ -55629,7 +55641,7 @@ fn kern_vertical_008() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn[0:2]",
         ),
-        "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2100|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
+        "[a=0@-500,-1700+0,-1900|b=1@-500,-1600+0,-1900|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
 }
 
@@ -55665,7 +55677,7 @@ fn kern_vertical_011() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb  --features=vkrn=1",
         ),
-        "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1150|c=2@-250,-950+0,-1100|d=3@-250,-850+0,-1000]"
+        "[a=0@-250,-850+0,-950|b=1@-250,-800+0,-850|c=2@-250,-750+0,-900|d=3@-250,-850+0,-1000]"
     );
 }
 
@@ -55677,7 +55689,7 @@ fn kern_vertical_012() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb  --features=vkrn[0:2]",
         ),
-        "[a=0@-250,-850+0,-1050|b=1@-250,-900+0,-1050|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
+        "[a=0@-250,-850+0,-950|b=1@-250,-800+0,-950|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
     );
 }
 
@@ -55713,7 +55725,7 @@ fn kern_vertical_015() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=1",
         ),
-        "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2300|c=2@-500,-1900+0,-2200|d=3@-500,-1700+0,-2000]"
+        "[a=0@-500,-1700+0,-1900|b=1@-500,-1600+0,-1700|c=2@-500,-1500+0,-1800|d=3@-500,-1700+0,-2000]"
     );
 }
 
@@ -55725,7 +55737,103 @@ fn kern_vertical_016() {
             "\u{0061}\u{0062}\u{0063}\u{0064}",
             "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn[0:2]",
         ),
-        "[a=0@-500,-1700+0,-2100|b=1@-500,-1800+0,-2100|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
+        "[a=0@-500,-1700+0,-1900|b=1@-500,-1600+0,-1900|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
+    );
+}
+
+#[test]
+fn kern_vertical_017() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb",
+        ),
+        "[a=0@-250,-850+0,-1000|b=1@-250,-850+0,-1000|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
+    );
+}
+
+#[test]
+fn kern_vertical_018() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb  --features=vkrn=0",
+        ),
+        "[a=0@-250,-850+0,-1000|b=1@-250,-850+0,-1000|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
+    );
+}
+
+#[test]
+fn kern_vertical_019() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb  --features=vkrn=1",
+        ),
+        "[a=0@-250,-850+0,-1000|b=1@-250,-750+0,-900|c=2@-250,-650+0,-800|d=3@-250,-850+0,-1000]"
+    );
+}
+
+#[test]
+fn kern_vertical_020() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb  --features=vkrn[0:2]",
+        ),
+        "[a=0@-250,-850+0,-1000|b=1@-250,-750+0,-900|c=2@-250,-850+0,-1000|d=3@-250,-850+0,-1000]"
+    );
+}
+
+#[test]
+fn kern_vertical_021() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb --font-size=2000",
+        ),
+        "[a=0@-500,-1700+0,-2000|b=1@-500,-1700+0,-2000|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
+    );
+}
+
+#[test]
+fn kern_vertical_022() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=0",
+        ),
+        "[a=0@-500,-1700+0,-2000|b=1@-500,-1700+0,-2000|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
+    );
+}
+
+#[test]
+fn kern_vertical_023() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn=1",
+        ),
+        "[a=0@-500,-1700+0,-2000|b=1@-500,-1500+0,-1800|c=2@-500,-1300+0,-1600|d=3@-500,-1700+0,-2000]"
+    );
+}
+
+#[test]
+fn kern_vertical_024() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/5f3843826d8f616488c20235af056af189c6e9a3.ttf",
+            "\u{0061}\u{0062}\u{0063}\u{0064}",
+            "--font-funcs=ot --direction=ttb --font-size=2000 --features=vkrn[0:2]",
+        ),
+        "[a=0@-500,-1700+0,-2000|b=1@-500,-1500+0,-1800|c=2@-500,-1700+0,-2000|d=3@-500,-1700+0,-2000]"
     );
 }
 
@@ -62137,6 +62245,90 @@ fn unsafe_to_concat_004() {
             "--features=chne --no-glyph-names --no-positions --no-clusters --show-flags --unsafe-to-concat",
         ),
         "[1#2]"
+    );
+}
+
+#[test]
+fn use_generic_bases_001() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{2015}\u{11D31}",
+            "--no-positions",
+        ),
+        "[.notdef=0|MatraAaRepha.MGondi=0]"
+    );
+}
+
+#[test]
+fn use_generic_bases_002() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{2022}\u{11D31}",
+            "--no-positions",
+        ),
+        "[.notdef=0|MatraAaRepha.MGondi=0]"
+    );
+}
+
+#[test]
+fn use_generic_bases_003() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{25FB}\u{11D31}",
+            "--no-positions",
+        ),
+        "[.notdef=0|MatraAaRepha.MGondi=0]"
+    );
+}
+
+#[test]
+fn use_generic_bases_004() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{25FC}\u{11D31}",
+            "--no-positions",
+        ),
+        "[.notdef=0|MatraAaRepha.MGondi=0]"
+    );
+}
+
+#[test]
+fn use_generic_bases_005() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{25FD}\u{11D31}",
+            "--no-positions",
+        ),
+        "[.notdef=0|MatraAaRepha.MGondi=0]"
+    );
+}
+
+#[test]
+fn use_generic_bases_006() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{25FE}\u{11D31}",
+            "--no-positions",
+        ),
+        "[.notdef=0|MatraAaRepha.MGondi=0]"
+    );
+}
+
+#[test]
+fn use_generic_bases_007() {
+    assert_eq!(
+        shape(
+            "tests/fonts/in-house/e8ab562f44ca0ab7cb4fd758c0dceaae33fc6869.ttf",
+            "\u{11D46}\u{25CC}\u{11D31}",
+            "--no-positions",
+        ),
+        "[uni25CC=0|MatraAaRepha.MGondi=0]"
     );
 }
 

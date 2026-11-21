@@ -147,6 +147,7 @@ fn reorder_myanmar(_: &ShapePlan, font: &ShaperFont<'_, '_>, buffer: &mut Buffer
         category::OT_DOTTEDCIRCLE,
         None,
         None,
+        None,
     )? {
         ret = true;
     }
