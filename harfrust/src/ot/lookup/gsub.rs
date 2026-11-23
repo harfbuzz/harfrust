@@ -16,7 +16,7 @@ use crate::ot::layout::MAX_NESTING_LEVEL;
 use crate::ot::map::OtMap;
 use crate::set_digest::SetDigest;
 #[cfg(feature = "tracing")]
-use alloc::string::String;
+use core::fmt;
 use read_fonts::tables::gsub::{
     AlternateSubstFormat1, AlternateSubstFormat2, LigatureSubstFormat1, LigatureSubstFormat2,
     MultipleSubstFormat1, MultipleSubstFormat2, ReverseChainSingleSubstFormat1,
@@ -25,6 +25,23 @@ use read_fonts::tables::gsub::{
 };
 use read_fonts::types::GlyphId;
 use read_fonts::FontData;
+
+#[cfg(feature = "tracing")]
+struct GlyphIndices<I>(I);
+
+#[cfg(feature = "tracing")]
+impl<I: Iterator<Item = usize> + Clone> fmt::Display for GlyphIndices<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut indices = self.0.clone();
+        if let Some(first) = indices.next() {
+            write!(f, "{first}")?;
+            for index in indices {
+                write!(f, ",{index}")?;
+            }
+        }
+        Ok(())
+    }
+}
 
 /// The width of a glyph ID in the original formats.
 const NARROW: usize = 2;
@@ -199,15 +216,11 @@ impl<'a> MultipleSubst1<'a> {
                 if ctx.buffer.messaging() && ctx.buffer.successful {
                     let count = substitutes.len();
                     let end = ctx.buffer.message_idx();
-                    let mut msg = String::from("multiplied glyphs at ");
-                    for i in (end - count)..end {
-                        if i > (end - count) {
-                            msg.push(',');
-                        }
-                        use core::fmt::Write;
-                        let _ = write!(msg, "{i}");
-                    }
-                    ctx.buffer.message(ctx.font, &msg);
+                    message!(
+                        ctx,
+                        "multiplied glyphs at {}",
+                        GlyphIndices(end - count..end)
+                    );
                 }
             }
         }
@@ -573,16 +586,11 @@ fn apply_ligature<const W: usize>(ctx: &mut ApplyContext, ligature: &Ligature<W>
     #[cfg(feature = "tracing")]
     if ctx.buffer.messaging() {
         pos = ctx.buffer.message_idx();
-        let mut msg = String::from("ligating glyphs at ");
-        for i in 0..components.len() + 1 {
-            let index = ctx.match_positions[i] as usize - ctx.buffer.idx + pos;
-            if i > 0 {
-                msg.push(',');
-            }
-            use core::fmt::Write;
-            let _ = write!(msg, "{index}");
-        }
-        ctx.buffer.message(ctx.font, &msg);
+        let idx = ctx.buffer.idx;
+        let indices = ctx.match_positions[..components.len() + 1]
+            .iter()
+            .map(|&index| index as usize - idx + pos);
+        message!(ctx, "ligating glyphs at {}", GlyphIndices(indices));
     }
     ligate_input(
         ctx,
