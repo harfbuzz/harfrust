@@ -537,7 +537,7 @@ pub struct Buffer {
     /// Maximum allowed operations.
     pub(crate) max_ops: i32,
     #[cfg(feature = "tracing")]
-    message_function: Option<Box<MessageFunction>>,
+    message_callback: Option<Box<MessageCallback>>,
     // This is `Some` while a message callback runs and substitution keeps
     // separate input/output cursors. `len` and `glyph_infos` then give the
     // emitted prefix followed by the remaining input. The first call of
@@ -578,7 +578,7 @@ impl Buffer {
             digest: SetDigest::new(),
             glyph_set: U32Set::default(),
             #[cfg(feature = "tracing")]
-            message_function: None,
+            message_callback: None,
             #[cfg(feature = "tracing")]
             message_info: None,
         }
@@ -615,7 +615,7 @@ impl Buffer {
         self.max_len = Self::MAX_LEN_DEFAULT;
         self.max_ops = Self::MAX_OPS_DEFAULT;
         self.allocated_var_bits = 0;
-        // `message` empties this after the callback returns. A callback that
+        // `send_message` empties this after the callback returns. A callback that
         // panics does not return.
         #[cfg(feature = "tracing")]
         {
@@ -2535,31 +2535,42 @@ impl Buffer {
     /// Requires the `tracing` feature, which also works without `std`.
     #[cfg(feature = "tracing")]
     pub fn set_message_function(&mut self, function: Option<Box<MessageFunction>>) {
-        self.message_function = function;
+        self.message_callback = function.map(|function| {
+            Box::new(MessageCallback {
+                function,
+                bytes: [0; MAX_MESSAGE_LEN],
+                len: 0,
+            })
+        });
     }
 
     #[cfg(feature = "tracing")]
-    pub(crate) fn message(&mut self, font: &crate::ShaperFont<'_, '_>, msg: &str) -> bool {
-        // HarfBuzz formats into a 100-byte C string, including its terminator.
-        let mut end = msg.find('\0').unwrap_or(msg.len()).min(99);
-        while !msg.is_char_boundary(end) {
-            end -= 1;
+    pub(crate) fn take_message_callback(&mut self) -> Option<Box<MessageCallback>> {
+        // Keep the common path without a callback read-only.
+        self.message_callback.as_ref()?;
+        self.message_callback.take()
+    }
+
+    #[cfg(feature = "tracing")]
+    pub(crate) fn send_message(
+        &mut self,
+        font: &crate::ShaperFont<'_, '_>,
+        mut callback: Box<MessageCallback>,
+    ) -> bool {
+        // Substitution keeps separate input/output cursors. Present the
+        // emitted prefix followed by the remaining input without syncing
+        // the live buffer, which could change its allocation-limit behavior.
+        if self.have_output && (self.have_separate_output || self.out_len != self.idx) {
+            self.message_info = Some(crate::once::Once::new());
         }
-        let msg = &msg[..end];
-        if let Some(mut function) = self.message_function.take() {
-            // Substitution keeps separate input/output cursors. Present the
-            // emitted prefix followed by the remaining input without syncing
-            // the live buffer, which could change its allocation-limit behavior.
-            if self.have_output && (self.have_separate_output || self.out_len != self.idx) {
-                self.message_info = Some(crate::once::Once::new());
-            }
-            let ret = function(self, font, msg);
-            self.message_info = None;
-            self.message_function = Some(function);
-            ret
-        } else {
-            true
-        }
+        // The writer copies only whole characters.
+        let bytes = &callback.bytes[..callback.len];
+        let text = core::str::from_utf8(bytes).unwrap_or_default();
+        let text = text.split('\0').next().unwrap_or_default();
+        let ret = (callback.function)(self, font, text);
+        self.message_info = None;
+        self.message_callback = Some(callback);
+        ret
     }
 
     // The cursor position in the logical buffer shown to message callbacks.
@@ -2575,7 +2586,7 @@ impl Buffer {
     #[cfg(feature = "tracing")]
     #[inline]
     pub(crate) fn messaging(&self) -> bool {
-        self.message_function.is_some()
+        self.message_callback.is_some()
     }
 
     pub(crate) fn serialize_impl(
@@ -2686,32 +2697,28 @@ impl core::fmt::Debug for Buffer {
     }
 }
 
-// The text of a message. HarfBuzz formats a message into a C string of 100
-// bytes, with its terminator. The writer cuts the text after 99 bytes, at a
-// character boundary.
+// HarfBuzz uses a 1024-byte buffer, including the terminating NUL.
 #[cfg(feature = "tracing")]
-pub(crate) struct MessageText {
-    bytes: [u8; 99],
+const MAX_MESSAGE_LEN: usize = 1024 - 1;
+
+#[cfg(feature = "tracing")]
+pub(crate) struct MessageCallback {
+    function: Box<MessageFunction>,
+    // Reuse the storage across messages. Only the prefix up to len is read.
+    bytes: [u8; MAX_MESSAGE_LEN],
     len: usize,
 }
 
 #[cfg(feature = "tracing")]
-impl MessageText {
-    pub(crate) fn new() -> Self {
-        MessageText {
-            bytes: [0; 99],
-            len: 0,
-        }
-    }
-
-    pub(crate) fn as_str(&self) -> &str {
-        // The writer copies only whole characters.
-        core::str::from_utf8(&self.bytes[..self.len]).unwrap_or_default()
+impl MessageCallback {
+    pub(crate) fn format(&mut self, args: core::fmt::Arguments<'_>) {
+        self.len = 0;
+        let _ = core::fmt::Write::write_fmt(self, args);
     }
 }
 
 #[cfg(feature = "tracing")]
-impl core::fmt::Write for MessageText {
+impl core::fmt::Write for MessageCallback {
     fn write_str(&mut self, text: &str) -> core::fmt::Result {
         let mut end = text.len().min(self.bytes.len() - self.len);
         while !text.is_char_boundary(end) {
@@ -2735,10 +2742,9 @@ macro_rules! buffer_message {
     ($buffer:expr, $font:expr, $($arg:tt)*) => {{
         #[cfg(feature = "tracing")]
         {
-            if $buffer.messaging() {
-                let mut msg = crate::buffer::MessageText::new();
-                let _ = core::fmt::Write::write_fmt(&mut msg, format_args!($($arg)*));
-                $buffer.message($font, msg.as_str())
+            if let Some(mut callback) = $buffer.take_message_callback() {
+                callback.format(format_args!($($arg)*));
+                $buffer.send_message($font, callback)
             } else {
                 true
             }
@@ -2919,6 +2925,28 @@ pub const HB_BUFFER_SCRATCH_FLAG_SHAPER0: u32 = 0x0100_0000;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "tracing")]
+    #[test]
+    fn trace_message_length_and_reuse() {
+        let font = crate::Font::new(
+            include_bytes!("../benches/fonts/Roboto-Regular.ttf").to_vec(),
+            0,
+        )
+        .unwrap();
+        let shaper = crate::ShaperFont::new(&font);
+        let mut buffer = Buffer::new();
+        let mut expected = ["x".repeat(1023), "x".repeat(1022), String::from("ok")].into_iter();
+        buffer.set_message_function(Some(Box::new(move |_, _, text| {
+            assert_eq!(text, expected.next().unwrap());
+            false
+        })));
+
+        let prefix = "x".repeat(1022);
+        assert!(!buffer_message!(buffer, &shaper, "{prefix}xy"));
+        assert!(!buffer_message!(buffer, &shaper, "{prefix}éz"));
+        assert!(!buffer_message!(buffer, &shaper, "ok\0hidden"));
+    }
 
     #[test]
     fn ascii_props_match_the_unicode_backend() {
