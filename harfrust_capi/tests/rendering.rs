@@ -466,9 +466,20 @@ mod painting {
                 total
             );
             assert_eq!(count, total);
+            // Past the end there is nothing to write, which the count says.
             count = 99;
-            hr_color_line_get_color_stops(line, total + 1, &raw mut count, ptr::null_mut());
+            hr_color_line_get_color_stops(line, total + 1, &raw mut count, stops.as_mut_ptr());
             assert_eq!(count, 0);
+            // Without an array the count is not a capacity. It is left as it
+            // was, and may be one the caller never set.
+            count = 99;
+            hr_color_line_get_color_stops(line, 0, &raw mut count, ptr::null_mut());
+            assert_eq!(count, 99);
+            let mut unset = core::mem::MaybeUninit::<core::ffi::c_uint>::uninit();
+            assert_eq!(
+                hr_color_line_get_color_stops(line, 0, unset.as_mut_ptr(), ptr::null_mut()),
+                total
+            );
             let extend = hr_color_line_get_extend(line);
             if state(data).strict {
                 assert_eq!(extend, HR_PAINT_EXTEND_PAD);
@@ -589,6 +600,58 @@ mod painting {
             hr_paint_funcs_set_sweep_gradient_func(f, Some(sweep), ptr::null_mut(), None);
             hr_paint_funcs_set_image_func(f, Some(image), ptr::null_mut(), None);
             f
+        }
+    }
+
+    #[test]
+    fn a_color_line_asked_only_for_its_total_keeps_the_count() {
+        // Without an array the count is not a capacity, and is left as it
+        // was: by a line with nothing in it, and by one whose callback would
+        // have written to it.
+        unsafe extern "C" fn three_stops(
+            _line: *mut hr_color_line_t,
+            _data: *mut c_void,
+            _start: core::ffi::c_uint,
+            count: *mut core::ffi::c_uint,
+            _stops: *mut hr_color_stop_t,
+            _user_data: *mut c_void,
+        ) -> core::ffi::c_uint {
+            if !count.is_null() {
+                unsafe { count.write(0) };
+            }
+            3
+        }
+        unsafe {
+            let mut stops = [hr_color_stop_t::default(); 1];
+            let mut empty = core::mem::zeroed::<hr_color_line_t>();
+            for line in [ptr::null_mut(), &raw mut empty] {
+                let mut count = 37;
+                assert_eq!(
+                    hr_color_line_get_color_stops(line, 0, &raw mut count, ptr::null_mut()),
+                    0
+                );
+                assert_eq!(count, 37);
+                // Given an array, it says that nothing was written to it.
+                assert_eq!(
+                    hr_color_line_get_color_stops(line, 0, &raw mut count, stops.as_mut_ptr()),
+                    0
+                );
+                assert_eq!(count, 0);
+            }
+
+            let mut line = core::mem::zeroed::<hr_color_line_t>();
+            line.get_color_stops = Some(three_stops);
+            let mut count = 37;
+            assert_eq!(
+                hr_color_line_get_color_stops(&raw mut line, 0, &raw mut count, ptr::null_mut()),
+                3
+            );
+            assert_eq!(count, 37);
+            assert_eq!(
+                hr_color_line_get_color_stops(&raw mut line, 0, &raw mut count, stops.as_mut_ptr()),
+                3
+            );
+            assert_eq!(count, 0);
         }
     }
 

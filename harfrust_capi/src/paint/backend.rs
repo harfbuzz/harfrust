@@ -129,7 +129,13 @@ struct ColorLineData<'a> {
     color_stops: &'a [ColorStop],
     extend: Extend,
 }
-extern "C" fn skrifa_get_color_stops(
+/// # Safety
+///
+/// `color_line_data` must point to the live `ColorLineData` this was
+/// installed with. `count_out` must be null or writable. When
+/// `color_stops_out` is non-null, `count_out` must be null or hold the
+/// number of stops `color_stops_out` is writable for.
+unsafe extern "C" fn skrifa_get_color_stops(
     _color_line: *mut hr_color_line_t,
     color_line_data: *mut ::std::os::raw::c_void,
     start: ::std::os::raw::c_uint,
@@ -137,23 +143,26 @@ extern "C" fn skrifa_get_color_stops(
     color_stops_out: *mut hr_color_stop_t,
     _user_data: *mut ::std::os::raw::c_void,
 ) -> ::std::os::raw::c_uint {
+    // SAFETY: `make_color_line` installs this function together with a
+    // pointer to a `ColorLineData` that lives for the paint callback the
+    // color line is handed to, which is the only time it may be called.
     let color_line_data = unsafe { &*(color_line_data as *const ColorLineData) };
     let color_stops = &color_line_data.color_stops;
-    if count_out.is_null() {
-        return color_stops.len() as u32;
-    }
-    let available = color_stops.len().saturating_sub(start as usize);
-    let count = (unsafe { *count_out } as usize).min(available);
-    unsafe { *count_out = count as u32 };
-    if !color_stops_out.is_null() {
-        for (i, stop) in color_stops
-            .iter()
-            .skip(start as usize)
-            .take(count)
-            .enumerate()
-        {
+    // The count is a capacity only when there is an array for it to
+    // describe. Without one the caller is asking how many stops there are
+    // and need not have set it, so it is neither read nor written, as in
+    // HarfBuzz.
+    if !count_out.is_null() && !color_stops_out.is_null() {
+        // SAFETY: `count_out` is non-null, and with an array to go with it
+        // the caller has set it to that array's capacity.
+        let capacity = unsafe { *count_out } as usize;
+        let mut written = 0;
+        for stop in color_stops.iter().skip(start as usize).take(capacity) {
+            // SAFETY: `written < capacity`, so this slot is inside the
+            // array the caller says is writable for `capacity` stops. A
+            // stop is plain data, so writing over one drops nothing.
             unsafe {
-                color_stops_out.add(i).write(hr_color_stop_t {
+                color_stops_out.add(written).write(hr_color_stop_t {
                     offset: stop.offset,
                     color: color_line_data
                         .painter
@@ -161,15 +170,23 @@ extern "C" fn skrifa_get_color_stops(
                     is_foreground: i32::from(stop.palette_index == 0xFFFF),
                 });
             };
+            written += 1;
         }
+        // SAFETY: `count_out` is non-null and writable.
+        unsafe { *count_out = written as u32 };
     }
     color_stops.len() as u32
 }
-extern "C" fn skrifa_get_extend(
+/// # Safety
+///
+/// `color_line_data` must point to the live `ColorLineData` this was
+/// installed with.
+unsafe extern "C" fn skrifa_get_extend(
     _color_line: *mut hr_color_line_t,
     color_line_data: *mut ::std::os::raw::c_void,
     _user_data: *mut ::std::os::raw::c_void,
 ) -> hr_paint_extend_t {
+    // SAFETY: as in `skrifa_get_color_stops`.
     let color_line_data = unsafe { &*(color_line_data as *const ColorLineData) };
     color_line_data.extend as hr_paint_extend_t // They are the same
 }
