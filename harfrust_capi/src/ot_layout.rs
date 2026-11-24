@@ -25,9 +25,18 @@ use crate::common::{
     hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, ot_round,
     script_to_rust, tag_from_rust, tag_to_rust, write_out, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
 };
+use crate::common::{
+    HR_SCRIPT_BENGALI, HR_SCRIPT_DEVANAGARI, HR_SCRIPT_DOGRA, HR_SCRIPT_GUJARATI,
+    HR_SCRIPT_GUNJALA_GONDI, HR_SCRIPT_GURMUKHI, HR_SCRIPT_LIMBU, HR_SCRIPT_MARCHEN,
+    HR_SCRIPT_MEETEI_MAYEK, HR_SCRIPT_MODI, HR_SCRIPT_NANDINAGARI, HR_SCRIPT_NEWA,
+    HR_SCRIPT_PHAGS_PA, HR_SCRIPT_SHARADA, HR_SCRIPT_SIDDHAM, HR_SCRIPT_SOYOMBO,
+    HR_SCRIPT_SYLOTI_NAGRI, HR_SCRIPT_TAKRI, HR_SCRIPT_TIBETAN, HR_SCRIPT_TIRHUTA,
+    HR_SCRIPT_ZANABAZAR_SQUARE,
+};
 use crate::face::hr_face_t;
 use crate::font::{hr_font_get_glyph_extents, hr_font_get_nominal_glyph, hr_font_t};
 use crate::object;
+use crate::ot_tag::script_from_ot_tag;
 use crate::set::hr_set_t;
 
 /// The OpenType substitution table tag.
@@ -1303,12 +1312,32 @@ unsafe fn baseline_with_fallback(
             ((i64::from(top) + i64::from(bottom)) / 2) as i32
         }
         HR_OT_LAYOUT_BASELINE_TAG_HANGING => {
-            let ch = match script_tag.to_be_bytes() {
-                [b'B', b'e', b'n', b'g'] => 0x0995,
-                [b'D', b'e', b'v', b'a'] => 0x0915,
-                [b'G', b'u', b'j', b'r'] => 0x0a95,
-                [b'G', b'u', b'r', b'u'] => 0x0a15,
-                [b'T', b'i', b'b', b't'] => 0x0f40,
+            // The top of a letter of the script stands in for its hanging
+            // baseline. The list is HarfBuzz's, and matches the scripts
+            // `hr_ot_layout_get_horizontal_baseline_tag_for_script` gives a
+            // hanging baseline.
+            let ch = match script_from_ot_tag(script_tag) {
+                HR_SCRIPT_BENGALI => 0x0995,
+                HR_SCRIPT_DEVANAGARI => 0x0915,
+                HR_SCRIPT_GUJARATI => 0x0a95,
+                HR_SCRIPT_GURMUKHI => 0x0a15,
+                HR_SCRIPT_TIBETAN => 0x0f40,
+                HR_SCRIPT_LIMBU => 0x1901,
+                HR_SCRIPT_SYLOTI_NAGRI => 0xa807,
+                HR_SCRIPT_PHAGS_PA => 0xa840,
+                HR_SCRIPT_MEETEI_MAYEK => 0xabc0,
+                HR_SCRIPT_SHARADA => 0x11191,
+                HR_SCRIPT_TAKRI => 0x1168c,
+                HR_SCRIPT_MODI => 0x1160e,
+                HR_SCRIPT_SIDDHAM => 0x11590,
+                HR_SCRIPT_TIRHUTA => 0x1148f,
+                HR_SCRIPT_MARCHEN => 0x11c72,
+                HR_SCRIPT_NEWA => 0x1140e,
+                HR_SCRIPT_SOYOMBO => 0x11a5c,
+                HR_SCRIPT_ZANABAZAR_SQUARE => 0x11a0b,
+                HR_SCRIPT_DOGRA => 0x1180a,
+                HR_SCRIPT_GUNJALA_GONDI => 0x11d6c,
+                HR_SCRIPT_NANDINAGARI => 0x119b0,
                 _ => 0,
             };
             if horizontal && ch != 0 {
@@ -1316,7 +1345,8 @@ unsafe fn baseline_with_fallback(
                     return extents.y_bearing;
                 }
             }
-            span.saturating_mul(6) / 10
+            // Six tenths of the em. Wide enough not to overflow at any scale.
+            (i64::from(span) * 6 / 10) as i32
         }
         _ => 0,
     }
@@ -1360,13 +1390,10 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback2(
         return;
     }
     let state = unsafe { object::or_empty(font.cast_const()) };
-    let selected = selected_base_script(state, direction, script);
-    if let Some(value) = baseline(state, baseline_tag, direction, tag_from_rust(selected)) {
-        // SAFETY: `coord` is writable by this function's contract.
-        unsafe { write_out(coord, value) };
-        return;
-    }
-    let value = unsafe { baseline_with_fallback(font, baseline_tag, direction, script) };
+    // From here on the script is an OpenType tag, the one `BASE` is asked
+    // for, as it is for `hr_ot_layout_get_baseline_with_fallback`.
+    let selected = tag_from_rust(selected_base_script(state, direction, script));
+    let value = unsafe { baseline_with_fallback(font, baseline_tag, direction, selected) };
     // SAFETY: `coord` is writable by this function's contract.
     unsafe { write_out(coord, value) };
 }
