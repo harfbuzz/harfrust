@@ -3215,7 +3215,8 @@ void hr_buffer_get_segment_properties(struct hr_buffer_t *buffer,
  * # Safety
  *
  * `buffer` must be `NULL` or a live buffer, and `props` must be `NULL` or
- * readable.
+ * readable. The language in `props` must be `NULL` or an interned language
+ * returned by this API.
  */
 void hr_buffer_set_segment_properties(struct hr_buffer_t *buffer,
                                       const struct hr_segment_properties_t *props);
@@ -5495,7 +5496,8 @@ void hr_segment_properties_overlay(struct hr_segment_properties_t *p,
  * `face` must be `NULL` or a live face, `props` must be `NULL` or readable,
  * `user_features` must point to `num_user_features` readable entries, and
  * `shaper_list` must be `NULL` or a `NULL`-terminated array of NUL-terminated
- * strings.
+ * strings. The language in `props` must be `NULL` or an interned language
+ * returned by this API.
  */
 struct hr_shape_plan_t *hr_shape_plan_create(struct hr_face_t *face,
                                              const struct hr_segment_properties_t *props,

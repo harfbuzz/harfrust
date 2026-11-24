@@ -664,6 +664,8 @@ pub(crate) struct FontFuncsAdapter<'a> {
     /// The C API does not support callbacks mutating or freeing their font, so
     /// the font itself keeps these values alive for the duration of shaping.
     state: &'a hr_font_t,
+    // Safety invariant: the live pointer this API returned for the font
+    // `state` borrows, or `NULL` if that is the empty font.
     font: *mut hr_font_t,
 }
 
@@ -706,6 +708,12 @@ macro_rules! resolve {
     ($adapter:expr, $field:ident) => {{
         // Reborrowed, so that a caller holding `&mut self` keeps it.
         let adapter: &FontFuncsAdapter<'_> = &*$adapter;
+        // `font` is the pointer for `state` all the way up: the adapter's
+        // invariant has it so to begin with, and each step takes a font's
+        // `parent` with a borrow of it. So a callback found on `state` is
+        // handed the font it was installed on. The one `NULL` the invariant
+        // allows goes with the empty font, which carries no callbacks and
+        // has no parent, so it is handed to nothing.
         let mut font = adapter.font;
         let mut state: &hr_font_t = adapter.state;
         loop {
@@ -759,7 +767,12 @@ fn rescale(value: i32, from: i32, into: i32) -> i32 {
 }
 
 impl<'a> FontFuncsAdapter<'a> {
-    pub(crate) fn new(font: *mut hr_font_t, state: &'a hr_font_t) -> Self {
+    /// # Safety
+    ///
+    /// `font` and `state` must be the same font: `font` a live pointer
+    /// returned by this API, and `state` a borrow of what it points to. When
+    /// `state` is the empty font, `font` may be `NULL` instead.
+    pub(crate) unsafe fn new(font: *mut hr_font_t, state: &'a hr_font_t) -> Self {
         Self { state, font }
     }
 
@@ -775,6 +788,7 @@ impl<'a> FontFuncsAdapter<'a> {
     }
 
     fn nearest_funcs(&self, answers: impl Fn(&hr_font_funcs_t) -> bool) -> NominalFuncs<'_> {
+        // As in `resolve!`, `font` is the pointer for `state` all the way up.
         let mut font = self.font;
         let mut state = self.state;
         loop {

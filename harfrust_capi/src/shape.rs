@@ -51,12 +51,21 @@ pub(crate) unsafe fn collect_features(
 ///
 /// `font` is the pointer the font callbacks are handed; `font_ref` is that same
 /// font, borrowed.
-pub(crate) fn shape_with_plan(
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font, and until this returns it must stay
+/// live and must not be modified.
+pub(crate) unsafe fn shape_with_plan(
     font: *mut hr_font_t,
     buffer_ref: &mut hr_buffer_t,
     features: &[Feature],
     plan: &harfrust::ShapePlan,
 ) -> hr_bool_t {
+    // SAFETY: the borrow needs `font` to be `NULL` or a font that stays
+    // allocated and unwritten while it is used, which is no longer than this
+    // call. The contract above has `font` `NULL` or live and unmodified for
+    // all of it.
     let Some(font_ref) = (unsafe { font.as_ref() }) else {
         return false.into();
     };
@@ -67,7 +76,10 @@ pub(crate) fn shape_with_plan(
         return false.into();
     };
     let has_funcs = font_ref.has_callbacks();
-    let adapter = FontFuncsAdapter::new(font, font_ref);
+    // SAFETY: the adapter takes a live font's pointer with a borrow of that
+    // font. `font_ref` was borrowed from `font` above, where it was not
+    // `NULL`, and the contract above has `font` live.
+    let adapter = unsafe { FontFuncsAdapter::new(font, font_ref) };
 
     guard(&mut buffer_ref.buffer, |buffer| {
         // The prepared view already has this font's scale. Only callbacks
@@ -181,7 +193,10 @@ pub unsafe extern "C" fn hr_shape_full(
     // The plan cache lives on the face, which outlives the font.
     let face = font_ref.face();
     let has_funcs = font_ref.has_callbacks();
-    let adapter = FontFuncsAdapter::new(font, font_ref);
+    // SAFETY: the adapter takes a live font's pointer with a borrow of that
+    // font. `font_ref` was borrowed from `font` above, where it was not
+    // `NULL`, and this function's contract has `font` live.
+    let adapter = unsafe { FontFuncsAdapter::new(font, font_ref) };
 
     let outcome = guard(&mut buffer_ref.buffer, |buffer| {
         // Building a plan requires a direction; HarfBuzz tolerates an unset one,

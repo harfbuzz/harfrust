@@ -239,7 +239,10 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_top_accent_attachment(
         .and_then(|info| info.math_top_accent_attachment()?.ok())
         .and_then(|info| info.attachment_for_ppem(GlyphId::new(glyph), ppem(state, true)));
     value.map_or_else(
-        || state.glyph_h_advance(font, glyph) / 2,
+        // SAFETY: `state` is `font` through `or_empty`: the font it points
+        // to, live by this function's contract, or the empty font if it is
+        // null. `glyph_h_advance` takes either pair.
+        || unsafe { state.glyph_h_advance(font, glyph) } / 2,
         |value| position(state, value, true),
     )
 }

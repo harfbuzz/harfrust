@@ -13,7 +13,7 @@ use read_fonts::TableProvider;
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_direction_t, hr_position_t, hr_variation_t};
 use crate::common::{hr_glyph_extents_t, ot_round};
 use crate::face::hr_face_t;
-use crate::font_funcs::{hr_font_funcs_t, Answer};
+use crate::font_funcs::{hr_font_funcs_t, Answer, FontFuncsAdapter};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// The `font_data` a caller attached along with a set of callbacks.
@@ -224,28 +224,54 @@ impl hr_font_t {
     }
 
     /// How far a glyph advances, through whichever callback answers.
-    pub(crate) fn glyph_h_advance(&self, font: *mut hr_font_t, glyph: hr_codepoint_t) -> i32 {
-        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_h_advance(glyph) {
+    ///
+    /// # Safety
+    ///
+    /// As [`FontFuncsAdapter::new`], with `self` for its `state`.
+    pub(crate) unsafe fn glyph_h_advance(
+        &self,
+        font: *mut hr_font_t,
+        glyph: hr_codepoint_t,
+    ) -> i32 {
+        // SAFETY: the adapter's contract is this function's own, for the
+        // same pair.
+        match unsafe { FontFuncsAdapter::new(font, self) }.call_h_advance(glyph) {
             Answer::Builtin => self.builtin_h_advance(glyph),
             Answer::Value(advance) => advance,
         }
     }
 
     /// As [`hr_font_t::glyph_h_advance`], downwards.
-    pub(crate) fn glyph_v_advance(&self, font: *mut hr_font_t, glyph: hr_codepoint_t) -> i32 {
-        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_v_advance(glyph) {
+    ///
+    /// # Safety
+    ///
+    /// As [`FontFuncsAdapter::new`], with `self` for its `state`.
+    pub(crate) unsafe fn glyph_v_advance(
+        &self,
+        font: *mut hr_font_t,
+        glyph: hr_codepoint_t,
+    ) -> i32 {
+        // SAFETY: the adapter's contract is this function's own, for the
+        // same pair.
+        match unsafe { FontFuncsAdapter::new(font, self) }.call_v_advance(glyph) {
             Answer::Builtin => self.builtin_v_advance(glyph),
             Answer::Value(advance) => advance,
         }
     }
 
     /// Where a glyph hangs from, through whichever callback answers.
-    pub(crate) fn glyph_v_origin(
+    ///
+    /// # Safety
+    ///
+    /// As [`FontFuncsAdapter::new`], with `self` for its `state`.
+    pub(crate) unsafe fn glyph_v_origin(
         &self,
         font: *mut hr_font_t,
         glyph: hr_codepoint_t,
     ) -> Option<(i32, i32)> {
-        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_v_origin(glyph) {
+        // SAFETY: the adapter's contract is this function's own, for the
+        // same pair.
+        match unsafe { FontFuncsAdapter::new(font, self) }.call_v_origin(glyph) {
             Answer::Builtin => self.builtin_v_origin(glyph),
             Answer::Value(origin) => origin,
         }
@@ -261,12 +287,18 @@ impl hr_font_t {
 
     /// A glyph's extents, from whichever callback answers, or from the font's
     /// own tables when none is installed. `None` when nothing can say.
-    pub(crate) fn glyph_extents(
+    ///
+    /// # Safety
+    ///
+    /// As [`FontFuncsAdapter::new`], with `self` for its `state`.
+    pub(crate) unsafe fn glyph_extents(
         &self,
         font: *mut hr_font_t,
         glyph: hr_codepoint_t,
     ) -> Option<hr_glyph_extents_t> {
-        match crate::font_funcs::FontFuncsAdapter::new(font, self).call_extents(glyph)? {
+        // SAFETY: the adapter's contract is this function's own, for the
+        // same pair.
+        match unsafe { FontFuncsAdapter::new(font, self) }.call_extents(glyph)? {
             Answer::Builtin => self.builtin_extents(glyph),
             Answer::Value(extents) => Some(extents),
         }
@@ -887,15 +919,17 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     if let Some(out) = unsafe { glyph.as_mut() } {
         *out = 0;
     }
-    let found =
-        match crate::font_funcs::FontFuncsAdapter::new(font, state).call_nominal_glyph(unicode) {
-            // Callbacks are installed somewhere in the chain, and none of them
-            // answer for this.
-            None => None,
-            Some(Answer::Value(glyph)) => Some(glyph),
-            // Nobody carries callbacks, so the font's own tables answer.
-            Some(Answer::Builtin) => state.builtin_nominal_glyph(unicode),
-        };
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    let found = match unsafe { FontFuncsAdapter::new(font, state) }.call_nominal_glyph(unicode) {
+        // Callbacks are installed somewhere in the chain, and none of them
+        // answer for this.
+        None => None,
+        Some(Answer::Value(glyph)) => Some(glyph),
+        // Nobody carries callbacks, so the font's own tables answer.
+        Some(Answer::Builtin) => state.builtin_nominal_glyph(unicode),
+    };
     let Some(found) = found else {
         return false.into();
     };
@@ -926,8 +960,12 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyphs(
         return 0;
     }
     let state = unsafe { object::or_empty(font.cast_const()) };
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    let adapter = unsafe { FontFuncsAdapter::new(font, state) };
     unsafe {
-        crate::font_funcs::FontFuncsAdapter::new(font, state).call_nominal_glyphs(
+        adapter.call_nominal_glyphs(
             count,
             first_unicode,
             unicode_stride,
@@ -960,7 +998,10 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
     if let Some(out) = unsafe { glyph.as_mut() } {
         *out = 0;
     }
-    let found = match crate::font_funcs::FontFuncsAdapter::new(font, state)
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    let found = match unsafe { FontFuncsAdapter::new(font, state) }
         .call_variation_glyph(unicode, variation_selector)
     {
         None => None,
@@ -1021,7 +1062,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_advance(
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
-    state.glyph_h_advance(font, glyph)
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // `glyph_h_advance` takes either pair.
+    unsafe { state.glyph_h_advance(font, glyph) }
 }
 
 /// As [`hr_font_get_glyph_h_advance`], for text running vertically.
@@ -1035,7 +1079,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_advance(
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
-    state.glyph_v_advance(font, glyph)
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // `glyph_v_advance` takes either pair.
+    unsafe { state.glyph_v_advance(font, glyph) }
 }
 
 /// Fills in horizontal advances for a run of glyphs.
@@ -1118,9 +1165,13 @@ unsafe fn advances(
         return;
     }
     let state = unsafe { object::or_empty(font.cast_const()) };
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    let adapter = unsafe { FontFuncsAdapter::new(font, state) };
     if horizontal
         && unsafe {
-            crate::font_funcs::FontFuncsAdapter::new(font, state).call_h_advances(
+            adapter.call_h_advances(
                 count,
                 first_glyph,
                 glyph_stride,
@@ -1147,10 +1198,11 @@ unsafe fn advances(
                 .byte_add(i * glyph_stride as usize)
                 .read_unaligned()
         };
+        // SAFETY: both take the pair the adapter above was given.
         let value = if horizontal {
-            state.glyph_h_advance(font, id)
+            unsafe { state.glyph_h_advance(font, id) }
         } else {
-            state.glyph_v_advance(font, id)
+            unsafe { state.glyph_v_advance(font, id) }
         };
         // SAFETY: as above for the advances, which the caller guarantees are
         // `advance_stride` bytes apart and writable. An advance is a plain
@@ -1180,7 +1232,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
     y: *mut hr_position_t,
 ) -> hr_bool_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
-    let origin = crate::font_funcs::FontFuncsAdapter::new(font, state).call_h_origin(glyph);
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    let origin = unsafe { FontFuncsAdapter::new(font, state) }.call_h_origin(glyph);
     if let Some(out) = unsafe { x.as_mut() } {
         *out = origin.map_or(0, |origin| origin.0);
     }
@@ -1202,11 +1257,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_kerning(
     second_glyph: hr_codepoint_t,
 ) -> hr_position_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
-    crate::font_funcs::FontFuncsAdapter::new(font, state).call_kerning(
-        first_glyph,
-        second_glyph,
-        false,
-    )
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    unsafe { FontFuncsAdapter::new(font, state) }.call_kerning(first_glyph, second_glyph, false)
 }
 
 /// Returns the vertical kerning supplied by font callbacks, or zero.
@@ -1221,11 +1275,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_kerning(
     second_glyph: hr_codepoint_t,
 ) -> hr_position_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
-    crate::font_funcs::FontFuncsAdapter::new(font, state).call_kerning(
-        first_glyph,
-        second_glyph,
-        true,
-    )
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // The adapter takes either pair.
+    unsafe { FontFuncsAdapter::new(font, state) }.call_kerning(first_glyph, second_glyph, true)
 }
 
 /// Where a glyph hangs from when text runs vertically, returning false when
@@ -1255,7 +1308,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_origin(
     if let Some(out) = unsafe { y.as_mut() } {
         *out = 0;
     }
-    let Some((origin_x, origin_y)) = state.glyph_v_origin(font, glyph) else {
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // `glyph_v_origin` takes either pair.
+    let Some((origin_x, origin_y)) = (unsafe { state.glyph_v_origin(font, glyph) }) else {
         return false.into();
     };
     if let Some(out) = unsafe { x.as_mut() } {
@@ -1288,7 +1344,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_extents(
     if let Some(out) = unsafe { extents.as_mut() } {
         *out = hr_glyph_extents_t::default();
     }
-    let Some(found) = state.glyph_extents(font, glyph) else {
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // `glyph_extents` takes either pair.
+    let Some(found) = (unsafe { state.glyph_extents(font, glyph) }) else {
         return false.into();
     };
     if let Some(out) = unsafe { extents.as_mut() } {
@@ -1313,10 +1372,13 @@ pub unsafe extern "C" fn hr_font_get_glyph_advance_for_direction(
     y: *mut hr_position_t,
 ) {
     let state = unsafe { object::or_empty(font.cast_const()) };
+    // SAFETY: `state` is `font` through `or_empty`: the font it points to,
+    // live by this function's contract, or the empty font if it is `NULL`.
+    // `glyph_h_advance` and `glyph_v_advance` take either pair.
     let (dx, dy) = if crate::common::hr_direction_is_horizontal(direction) != 0 {
-        (state.glyph_h_advance(font, glyph), 0)
+        (unsafe { state.glyph_h_advance(font, glyph) }, 0)
     } else {
-        (0, state.glyph_v_advance(font, glyph))
+        (0, unsafe { state.glyph_v_advance(font, glyph) })
     };
     if let Some(out) = unsafe { x.as_mut() } {
         *out = dx;
@@ -1368,16 +1430,22 @@ unsafe fn origin_for_direction(
 ) -> (hr_position_t, hr_position_t) {
     let state = unsafe { object::or_empty(font.cast_const()) };
     if crate::common::hr_direction_is_horizontal(direction) != 0 {
-        return crate::font_funcs::FontFuncsAdapter::new(font, state)
+        // SAFETY: `state` is `font` through `or_empty`: the font it points
+        // to, live by this function's contract, or the empty font if it is
+        // `NULL`. The adapter takes either pair.
+        return unsafe { FontFuncsAdapter::new(font, state) }
             .call_h_origin(glyph)
             .unwrap_or((0, 0));
     }
-    if let Some(origin) = state.glyph_v_origin(font, glyph) {
+    // SAFETY: `glyph_v_origin` takes the same pairs, and this is the pair
+    // described above.
+    if let Some(origin) = unsafe { state.glyph_v_origin(font, glyph) } {
         return origin;
     }
     // Nothing says where it hangs from vertically, so HarfBuzz guesses from
     // the horizontal origin: the middle of the advance, at the ascender.
-    let x = state.glyph_h_advance(font, glyph) / 2;
+    // SAFETY: as for `glyph_v_origin` above.
+    let x = unsafe { state.glyph_h_advance(font, glyph) } / 2;
     let y = state
         .instance()
         .and_then(|instance| instance.metrics().hhea_line)
