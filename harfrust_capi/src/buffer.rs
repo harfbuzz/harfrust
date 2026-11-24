@@ -1177,13 +1177,18 @@ pub unsafe extern "C" fn hr_buffer_set_length(
 
 /// Returns a buffer's items, writing their count to `length`.
 ///
-/// Before shaping, each item's `codepoint` holds an input character. The
-/// pointer stays valid until the buffer's contents change.
+/// Before shaping, each item's `codepoint` holds an input character.
+///
+/// The pointer stays valid until the buffer's contents change, as in
+/// HarfBuzz. Asking for it again, or for the positions, leaves it valid, and
+/// so does any call that only reads the buffer. The one call that changes
+/// nothing and still invalidates it is [`hr_buffer_pre_allocate`], which can
+/// move the items to make room for more: ask again after it.
 ///
 /// # Safety
 ///
-/// `buffer` must be `NULL` or a live buffer, and `length` must be `NULL` or
-/// writable.
+/// `buffer` must be `NULL` or a live buffer. `length` must be `NULL` or point
+/// to an `unsigned int` that can be written; it need not hold a value yet.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_glyph_infos(
     buffer: *mut hr_buffer_t,
@@ -1192,28 +1197,52 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_infos(
     // The pointer handed out is writable, which the immortal empty buffer,
     // shared by every thread, must never be. It has no items to give anyway.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
-        if let Some(out) = unsafe { length.as_mut() } {
-            *out = 0;
+        if !length.is_null() {
+            // SAFETY: `write` needs `length` valid for writes and properly
+            // aligned. It is not null here, so by this function's contract it
+            // points to an `unsigned int`, which `c_uint` is, that can be
+            // written. `write` neither reads nor drops what was there, which
+            // need not be a value, and leaves the count of zero in its place.
+            unsafe { length.write(0) };
         }
         return core::ptr::null_mut();
     };
-    let infos = buffer.buffer.glyph_infos_mut();
-    if let Some(out) = unsafe { length.as_mut() } {
-        *out = infos.len() as c_uint;
+    // The raw view, not a slice: a pointer taken from a slice is good only
+    // until the items are next borrowed, which a second call here would do.
+    // This one is the vector's own, and `Vec` documents that taking it again
+    // leaves it valid.
+    //
+    // The caller is promised more, as HarfBuzz promises it: that the pointer
+    // also outlasts a call that reads the items through a slice, as
+    // serializing does. That rests on Rust's aliasing rules and not on
+    // anything `Vec` says. Such a borrow ends with the call that made it,
+    // and this pointer was never derived from one. The tests hold pointers
+    // across those calls, for Miri to say if that ever stops being so.
+    let (infos, len) = buffer.buffer.glyph_infos_raw();
+    if !length.is_null() {
+        // SAFETY: `write` needs `length` valid for writes and properly
+        // aligned. It is not null here, so by this function's contract it
+        // points to an `unsigned int`, which `c_uint` is, that can be
+        // written. `write` neither reads nor drops what was there, which
+        // need not be a value, and leaves the count in its place.
+        unsafe { length.write(len as c_uint) };
     }
     // The layouts are asserted to match above.
-    infos.as_mut_ptr().cast::<hr_glyph_info_t>()
+    infos.cast::<hr_glyph_info_t>()
 }
 
 /// Returns a buffer's glyph positions, writing their count to `length`.
 ///
 /// Positions are allocated and zeroed on demand if the buffer has not been
-/// shaped. The pointer stays valid until the buffer's contents change.
+/// shaped.
+///
+/// The pointer stays valid on the same terms as the one
+/// [`hr_buffer_get_glyph_infos`] returns.
 ///
 /// # Safety
 ///
-/// `buffer` must be `NULL` or a live buffer, and `length` must be `NULL` or
-/// writable.
+/// `buffer` must be `NULL` or a live buffer. `length` must be `NULL` or point
+/// to an `unsigned int` that can be written; it need not hold a value yet.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
     buffer: *mut hr_buffer_t,
@@ -1222,16 +1251,27 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
     // Allocating positions on demand writes to the buffer, which the immortal
     // empty one, shared by every thread, must never see. It has none to give.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
-        if let Some(out) = unsafe { length.as_mut() } {
-            *out = 0;
+        if !length.is_null() {
+            // SAFETY: `write` needs `length` valid for writes and properly
+            // aligned. It is not null here, so by this function's contract it
+            // points to an `unsigned int`, which `c_uint` is, that can be
+            // written. `write` neither reads nor drops what was there, which
+            // need not be a value, and leaves the count of zero in its place.
+            unsafe { length.write(0) };
         }
         return core::ptr::null_mut();
     };
-    let positions = buffer.buffer.glyph_positions_mut();
-    if let Some(out) = unsafe { length.as_mut() } {
-        *out = positions.len() as c_uint;
+    // The raw view, not a slice, for the same reason as the items above.
+    let (positions, len) = buffer.buffer.glyph_positions_raw();
+    if !length.is_null() {
+        // SAFETY: `write` needs `length` valid for writes and properly
+        // aligned. It is not null here, so by this function's contract it
+        // points to an `unsigned int`, which `c_uint` is, that can be
+        // written. `write` neither reads nor drops what was there, which
+        // need not be a value, and leaves the count in its place.
+        unsafe { length.write(len as c_uint) };
     }
-    positions.as_mut_ptr().cast::<hr_glyph_position_t>()
+    positions.cast::<hr_glyph_position_t>()
 }
 
 /// Returns whether a buffer has glyph positions, which is true after shaping.
@@ -1241,11 +1281,11 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_has_positions(buffer: *mut hr_buffer_t) -> hr_bool_t {
-    (!unsafe { object::or_empty(buffer.cast_const()) }
-        .buffer
-        .glyph_positions()
-        .is_empty())
-    .into()
+    let buffer = &unsafe { object::or_empty(buffer.cast_const()) }.buffer;
+    // Asked of the buffer and not of the positions: looking at those would
+    // borrow them, and a caller holding a pointer to them is told that this
+    // call leaves it valid. A buffer with no items has no positions either.
+    (buffer.has_positions() && !buffer.is_empty()).into()
 }
 
 /// Returns the flags shaping attached to one item.

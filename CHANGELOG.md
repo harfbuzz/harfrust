@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add `Buffer::glyph_infos_raw` and `Buffer::glyph_positions_raw`, raw views
+  of a buffer's items and positions. Calling them again leaves an earlier
+  pointer valid; borrowing the items or reallocating the buffer, which
+  `Buffer::reserve` can do, may not.
+- Add `Buffer::has_positions`, which says whether a buffer has glyph
+  positions without borrowing them.
+
 ### Fixed
 
 - Match HarfBuzz in four shaping fixes made after 15.2.0: give the USE generic

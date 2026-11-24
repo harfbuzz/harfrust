@@ -1067,6 +1067,47 @@ impl Buffer {
         self.info.get_mut(..self.len).unwrap_or_default()
     }
 
+    /// Returns a raw C-style view over the buffer contents: a pointer to the
+    /// first item, and the number of items.
+    ///
+    /// The pointer is the one [`Vec::as_mut_ptr`] returns for the buffer's
+    /// storage, and is valid on that method's terms. Calling this method or
+    /// [`glyph_positions_raw`](Self::glyph_positions_raw) again leaves an
+    /// earlier pointer valid. Anything that borrows the items may invalidate
+    /// it: the slice accessors do that, and so does every method that reads
+    /// or changes the items. Reallocating the storage invalidates it, which
+    /// adding items can do, and which [`reserve`](Self::reserve) can do with
+    /// the contents left as they are. Take the pointer again after any of
+    /// these. With no items there is nothing for it to point to, and it must
+    /// not be read or written through.
+    #[inline]
+    pub fn glyph_infos_raw(&mut self) -> (*mut GlyphInfo, usize) {
+        debug_assert!(self.len <= self.info.len());
+        // As the slice accessors have it: no items if `len` is out of range.
+        let len = if self.len <= self.info.len() {
+            self.len
+        } else {
+            0
+        };
+        // `Vec::as_mut_ptr` gives the vector's own pointer and, as it
+        // documents, borrows none of the items to do so. A slice's pointer
+        // would be tied to the borrow the slice came from.
+        (self.info.as_mut_ptr(), len)
+    }
+
+    /// Returns `true` if the buffer has glyph positions.
+    ///
+    /// Shaping gives a buffer its positions, as do
+    /// [`glyph_positions_mut`](Self::glyph_positions_mut) and
+    /// [`glyph_positions_raw`](Self::glyph_positions_raw), and clearing it
+    /// takes them away. Unlike asking
+    /// [`glyph_positions`](Self::glyph_positions) whether it is empty, this
+    /// does not borrow the positions.
+    #[inline]
+    pub fn has_positions(&self) -> bool {
+        self.have_positions
+    }
+
     /// Returns the glyph positions.
     ///
     /// Returns an empty slice if the buffer has not been shaped and has no
@@ -1089,6 +1130,30 @@ impl Buffer {
             self.clear_positions();
         }
         self.pos.get_mut(..self.len).unwrap_or_default()
+    }
+
+    /// Returns a raw C-style view over the glyph positions: a pointer to the
+    /// first position, and the number of positions.
+    ///
+    /// Positions are allocated and zeroed first if the buffer does not have
+    /// them yet, as [`glyph_positions_mut`](Self::glyph_positions_mut) does.
+    /// The pointer is valid on the same terms as the one
+    /// [`glyph_infos_raw`](Self::glyph_infos_raw) returns, and is to be taken
+    /// again after the same things.
+    #[inline]
+    pub fn glyph_positions_raw(&mut self) -> (*mut GlyphPosition, usize) {
+        if !self.have_positions {
+            self.clear_positions();
+        }
+        // As the slice accessors have it: none if `len` is out of range.
+        let len = if self.len <= self.pos.len() {
+            self.len
+        } else {
+            0
+        };
+        // The vector's own pointer, as in `glyph_infos_raw`. Positions the
+        // buffer already has are not borrowed on the way to it.
+        (self.pos.as_mut_ptr(), len)
     }
 
     /// Reverses the buffer contents.
@@ -3137,6 +3202,38 @@ mod tests {
         buffer.reset_clusters();
         assert_eq!(buffer.info[2].cluster, 9);
         assert_eq!(buffer.info[3].cluster, 9);
+    }
+
+    #[test]
+    fn raw_views_cover_the_live_items() {
+        let mut buffer = Buffer::new();
+        buffer.push_str("abcd");
+        assert!(buffer.set_length(3));
+
+        let (infos, len) = buffer.glyph_infos_raw();
+        assert_eq!(len, 3);
+        assert_eq!(infos, buffer.glyph_infos_mut().as_mut_ptr());
+
+        // Positions are allocated by the first call, zeroed, and left as
+        // they are by the next.
+        buffer.pos[0].x_advance = 7;
+        assert!(!buffer.has_positions());
+        let (positions, len) = buffer.glyph_positions_raw();
+        assert!(buffer.has_positions());
+        assert_eq!(len, 3);
+        assert_eq!(buffer.glyph_positions()[0].x_advance, 0);
+        buffer.glyph_positions_mut()[0].x_advance = 7;
+        assert_eq!(buffer.glyph_positions_raw(), (positions, 3));
+        assert_eq!(buffer.glyph_positions()[0].x_advance, 7);
+
+        // Reserving leaves the items as they are, wherever it puts them.
+        assert!(buffer.reserve(1000));
+        assert_eq!(buffer.glyph_infos_raw().1, 3);
+        assert_eq!(buffer.glyph_positions_raw().1, 3);
+        assert_eq!(buffer.glyph_positions()[0].x_advance, 7);
+
+        buffer.clear();
+        assert!(!buffer.has_positions());
     }
 
     #[test]
