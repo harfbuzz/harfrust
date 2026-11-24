@@ -3,6 +3,10 @@
 /// A supplied plan must match the buffer's direction and script. On success,
 /// the buffer contains glyphs.
 ///
+/// When the `wasm` feature is enabled and no plan is supplied, a font with a
+/// `Wasm` table is shaped by its embedded WebAssembly module. Supplying a plan
+/// selects the OpenType shaper instead.
+///
 /// # Errors
 ///
 /// Returns an error if the buffer cannot be shaped with the supplied plan or
@@ -20,6 +24,10 @@ pub fn shape(
     } else {
         if buffer.direction == Direction::Invalid {
             return Err(ShapeError::DirectionUnset);
+        }
+        #[cfg(feature = "wasm")]
+        if let Some(result) = crate::wasm::shape(font, buffer, &options) {
+            return result;
         }
         let plan = ShapePlan::from_layout(
             font.layout(),
