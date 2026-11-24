@@ -906,6 +906,114 @@ fn baseline_fallback_and_script_defaults() {
     }
 }
 
+/// Finds a glyph for the letter Ka of Devanagari and of Limbu, the characters
+/// whose tops stand in for those scripts' hanging baselines, and for nothing
+/// else.
+unsafe extern "C" fn only_the_two_ka_letters(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    unicode: hr_codepoint_t,
+    glyph: *mut hr_codepoint_t,
+    _user_data: *mut c_void,
+) -> hr_bool_t {
+    let found = match unicode {
+        0x0915 => 5,
+        0x1901 => 6,
+        _ => return 0,
+    };
+    unsafe { *glyph = found };
+    1
+}
+
+unsafe extern "C" fn top_at_a_hundred_times_the_glyph(
+    _font: *mut hr_font_t,
+    _font_data: *mut c_void,
+    glyph: hr_codepoint_t,
+    extents: *mut hr_glyph_extents_t,
+    _user_data: *mut c_void,
+) -> hr_bool_t {
+    unsafe {
+        *extents = hr_glyph_extents_t {
+            x_bearing: 0,
+            y_bearing: glyph as i32 * 100,
+            width: 10,
+            height: -10,
+        };
+    }
+    1
+}
+
+#[test]
+fn the_hanging_baseline_fallback_knows_a_script_by_its_opentype_tag() {
+    unsafe {
+        with_font(|_face, font| {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(only_the_two_ka_letters),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_funcs_set_glyph_extents_func(
+                ffuncs,
+                Some(top_at_a_hundred_times_the_glyph),
+                ptr::null_mut(),
+                None,
+            );
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            hr_font_funcs_destroy(ffuncs);
+
+            let (mut x_scale, mut y_scale) = (0, 0);
+            hr_font_get_scale(font, &raw mut x_scale, &raw mut y_scale);
+
+            let by_tag = |tag: &[u8; 4], direction| {
+                let mut coord = -1;
+                hr_ot_layout_get_baseline_with_fallback(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_HANGING,
+                    direction,
+                    u32::from_be_bytes(*tag),
+                    0,
+                    &raw mut coord,
+                );
+                coord
+            };
+            let by_script = |script, direction| {
+                let mut coord = -1;
+                hr_ot_layout_get_baseline_with_fallback2(
+                    font,
+                    HR_OT_LAYOUT_BASELINE_TAG_HANGING,
+                    direction,
+                    script,
+                    ptr::null(),
+                    &raw mut coord,
+                );
+                coord
+            };
+
+            // The font has no BASE table, so the hanging baseline is the top
+            // of the script's reference glyph. The script arrives as an
+            // OpenType tag, in any of its generations, as HarfBuzz takes it.
+            for tag in [b"deva", b"dev2", b"dev3"] {
+                assert_eq!(by_tag(tag, HR_DIRECTION_LTR), 500, "{tag:?}");
+            }
+            assert_eq!(by_script(HR_SCRIPT_DEVANAGARI, HR_DIRECTION_LTR), 500);
+            // A script HarfBuzz has a reference character for beyond the
+            // first five.
+            assert_eq!(by_tag(b"limb", HR_DIRECTION_LTR), 600);
+            assert_eq!(by_script(HR_SCRIPT_LIMBU, HR_DIRECTION_LTR), 600);
+
+            // No reference character, or no glyph for it, or vertical text:
+            // six tenths of the em.
+            let no_glyph = y_scale * 6 / 10;
+            assert_eq!(by_tag(b"latn", HR_DIRECTION_LTR), no_glyph);
+            assert_eq!(by_tag(b"bng2", HR_DIRECTION_LTR), no_glyph);
+            assert_eq!(by_script(HR_SCRIPT_BENGALI, HR_DIRECTION_LTR), no_glyph);
+            assert_eq!(by_tag(b"dev2", HR_DIRECTION_TTB), x_scale * 6 / 10);
+        });
+    }
+}
+
 #[test]
 fn base_baseline2_selects_indic_opentype_script_tag() {
     unsafe {
