@@ -11,6 +11,7 @@ use crate::buffer::{hr_buffer_t, CStrArray};
 use crate::common::{hr_bool_t, hr_feature_t, write_out};
 use crate::font::hr_font_t;
 use crate::font_funcs::FontFuncsAdapter;
+use crate::object;
 
 /// Runs `f` over `buffer`, catching any panic rather than letting it unwind
 /// out of an `extern "C"` function, which would abort the process. Returns
@@ -137,7 +138,8 @@ pub unsafe extern "C" fn hr_shape(
 /// `NULL` asks for no particular shaper and always succeeds.
 ///
 /// Returns false only when no shaper could be run: `shaper_list` names none
-/// that this library provides, or there is nothing to shape with. Shaping
+/// that this library provides, there is nothing to shape with, or the buffer
+/// cannot be changed because its last reference is being released. Shaping
 /// itself never fails the call, which is what HarfBuzz does -- its
 /// `hb_shape_full` reports failure only when it cannot find or instantiate a
 /// shaper, and every shaper it does run returns true whatever became of the
@@ -172,14 +174,32 @@ pub unsafe extern "C" fn hr_shape_full(
     num_features: c_uint,
     shaper_list: *const *const c_char,
 ) -> hr_bool_t {
-    let Some(buffer_ref) = (unsafe { buffer.as_mut() }) else {
-        return false.into();
-    };
     // Nothing to shape is nothing to fail at, whatever else was asked for:
     // HarfBuzz answers an empty buffer before it looks at anything else.
-    if buffer_ref.buffer.is_empty() {
-        return true.into();
+    //
+    // This looks at the buffer without taking it exclusively. The immortal
+    // empty buffer is one object shared by every thread, and any number of
+    // them may be here with it at once.
+    //
+    // SAFETY: `as_ref` needs `buffer` to be null, or aligned and pointing to
+    // a live `hr_buffer_t` that nothing writes while the reference is used.
+    // The caller passes null or a live buffer, and a buffer that is being
+    // changed belongs to the one thread changing it. The reference is used
+    // for this one read and not kept.
+    match unsafe { buffer.as_ref() } {
+        None => return false.into(),
+        Some(buffer) if buffer.buffer.is_empty() => return true.into(),
+        Some(_) => {}
     }
+    // SAFETY: `as_mutable` needs `buffer` to be null or live, which the
+    // caller gives, and the reference it returns not to be aliased. It
+    // refuses the two buffers something else can still be looking at: the
+    // immortal empty one, and one whose last reference is being released
+    // while its user data destructors run. Any other buffer is this
+    // caller's alone for the call, and the shared reference above is gone.
+    let Some(buffer_ref) = (unsafe { object::as_mutable(buffer) }) else {
+        return false.into();
+    };
     if !unsafe { shaper_list_allows_ot(shaper_list) } {
         return false.into();
     }

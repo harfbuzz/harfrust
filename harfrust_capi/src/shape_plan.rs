@@ -512,8 +512,9 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 
 /// Shapes a buffer using a plan that was built beforehand.
 ///
-/// Returns false without shaping if the plan is the empty one, or if `font` or
-/// `buffer` is `NULL`. An empty buffer returns true, having nothing to do.
+/// Returns false without shaping if the plan is the empty one, if `font` or
+/// `buffer` is `NULL`, or if the buffer's last reference is being released.
+/// An empty buffer returns true, having nothing to do.
 /// If the shaper panics, this returns false and clears the buffer, as
 /// `hr_shape_full` does, and like it only where panics unwind.
 ///
@@ -570,7 +571,14 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     // Take a share of the plan, so that a callback destroying it during
     // shaping cannot pull it out from under the call.
     let plan = Arc::clone(plan);
-    let Some(buffer_ref) = (unsafe { buffer.as_mut() }) else {
+    // SAFETY: `as_mutable` needs `buffer` to be null or live, which the
+    // caller gives, and the reference it returns not to be aliased. It
+    // refuses a buffer whose last reference is being released while its
+    // user data destructors run, and the immortal empty buffer, which the
+    // test at the top has already answered for. Any other buffer is this
+    // caller's alone for the call, and the shared reference taken for that
+    // test is gone.
+    let Some(buffer_ref) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
     // An empty buffer needs no work, and matches nothing either way.
