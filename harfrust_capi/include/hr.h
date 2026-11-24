@@ -4985,6 +4985,11 @@ hr_position_t hr_ot_math_get_glyph_kerning(struct hr_font_t *font,
 
 /**
  * Returns paginated raw MATH kern entries and their total count.
+ *
+ * When both output pointers are non-null, `entries_count` gives capacity on
+ * entry and the number written on return. A null array leaves the count
+ * unchanged and unread, unless the glyph has no such kern table, which
+ * clears it.
  * # Safety
  * `font` must be null or live; `entries_count` must be null or writable;
  * `kern_entries` must hold its input capacity when non-null.
@@ -4998,6 +5003,10 @@ unsigned int hr_ot_math_get_glyph_kernings(struct hr_font_t *font,
 
 /**
  * Returns paginated MATH size variants and their total count.
+ *
+ * When both output pointers are non-null, `variants_count` gives capacity on
+ * entry and the number written on return. A null array leaves the count
+ * unchanged and unread.
  * # Safety
  * `font` must be null or live; `variants_count` must be null or writable;
  * `variants` must hold its input capacity when non-null.
@@ -5019,6 +5028,10 @@ hr_position_t hr_ot_math_get_min_connector_overlap(struct hr_font_t *font,
 
 /**
  * Returns paginated MATH assembly parts and their total count.
+ *
+ * When both output pointers are non-null, `parts_count` gives capacity on
+ * entry and the number written on return. A null array leaves the count
+ * unchanged and unread.
  * # Safety
  * `font` must be null or live; `parts_count` and `italics_correction` must be
  * null or writable; `parts` must hold the input capacity when non-null.

@@ -494,7 +494,10 @@ fn math_queries_without_table_return_empty_values() {
             );
             assert_eq!(hr_ot_math_get_glyph_italics_correction(font, 1), 0);
             assert_eq!(hr_ot_math_is_glyph_extended_shape(face, 1), 0);
-            let mut count = 2;
+            // Asked only how many there are, each getter answers none. What
+            // becomes of the count is HarfBuzz's: variants and assembly leave
+            // it alone without an array, and kernings clears it.
+            let mut count = 37;
             assert_eq!(
                 hr_ot_math_get_glyph_variants(
                     font,
@@ -506,7 +509,171 @@ fn math_queries_without_table_return_empty_values() {
                 ),
                 0
             );
+            assert_eq!(count, 37);
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut(),
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!(count, 37);
+            assert_eq!(
+                hr_ot_math_get_glyph_kernings(
+                    font,
+                    1,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut()
+                ),
+                0
+            );
             assert_eq!(count, 0);
+
+            // With an array, all three report that nothing was written.
+            let mut variants = [hr_ot_math_glyph_variant_t::default(); 1];
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    variants.as_mut_ptr()
+                ),
+                0
+            );
+            assert_eq!(count, 0);
+            let mut parts = [hr_ot_math_glyph_part_t::default(); 1];
+            count = 1;
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    parts.as_mut_ptr(),
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!(count, 0);
+        });
+    }
+}
+
+#[test]
+fn math_count_only_queries_do_not_read_the_count() {
+    // Without an array the count is not a capacity, so a caller asking only
+    // for the total may pass one it has not set.
+    unsafe {
+        let path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/MathQuery.ttf");
+        with_font_file(&path, |_, font| {
+            let mut count = core::mem::MaybeUninit::<c_uint>::uninit();
+            assert_eq!(
+                hr_ot_math_get_glyph_kernings(
+                    font,
+                    1,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    0,
+                    count.as_mut_ptr(),
+                    ptr::null_mut()
+                ),
+                2
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    count.as_mut_ptr(),
+                    ptr::null_mut()
+                ),
+                1
+            );
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_TTB,
+                    0,
+                    count.as_mut_ptr(),
+                    ptr::null_mut(),
+                    ptr::null_mut()
+                ),
+                1
+            );
+
+            // The italics correction only returns a value, so it too may
+            // be storage that was never set.
+            let mut correction = core::mem::MaybeUninit::<hr_position_t>::uninit();
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_TTB,
+                    0,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    correction.as_mut_ptr()
+                ),
+                1
+            );
+            assert_eq!(correction.assume_init(), 70);
+
+            // A glyph with no kern table has its count cleared even without
+            // an array, as in HarfBuzz. That is a write and still not a read.
+            assert_eq!(
+                hr_ot_math_get_glyph_kernings(
+                    font,
+                    0,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    0,
+                    count.as_mut_ptr(),
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!(count.assume_init(), 0);
+
+            // The other two leave the count alone for a glyph with nothing
+            // to report, as they do for one with something.
+            let mut count = 37;
+            assert_eq!(
+                hr_ot_math_get_glyph_variants(
+                    font,
+                    0,
+                    HR_DIRECTION_LTR,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!(count, 37);
+            assert_eq!(
+                hr_ot_math_get_glyph_assembly(
+                    font,
+                    0,
+                    HR_DIRECTION_TTB,
+                    0,
+                    &raw mut count,
+                    ptr::null_mut(),
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!(count, 37);
         });
     }
 }
