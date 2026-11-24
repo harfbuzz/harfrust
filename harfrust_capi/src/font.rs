@@ -1131,23 +1131,35 @@ unsafe fn advances(
     {
         return;
     }
-    let mut glyph = first_glyph.cast::<u8>();
-    let mut advance = first_advance.cast::<u8>();
-    for _ in 0..count {
+    // Each entry is reached from the first rather than from the one before
+    // it. A run ends where its last entry does, so stepping a stride on from
+    // that entry would leave the run whenever the stride is wider than the
+    // entry, which is not allowed even of a pointer that is never read.
+    for i in 0..count as usize {
         // A stride can land anywhere, so nothing here assumes alignment.
-        // SAFETY: the caller guarantees `count` glyphs a stride apart.
-        let id = unsafe { glyph.cast::<hr_codepoint_t>().read_unaligned() };
+        // SAFETY: `byte_add` needs the offset to stay inside the allocation
+        // `first_glyph` points into, and `read_unaligned` needs a readable,
+        // initialized glyph there. The caller guarantees `count` glyphs
+        // `glyph_stride` bytes apart, and `i < count`, so entry `i` starts
+        // `i * glyph_stride` bytes into that run.
+        let id = unsafe {
+            first_glyph
+                .byte_add(i * glyph_stride as usize)
+                .read_unaligned()
+        };
         let value = if horizontal {
             state.glyph_h_advance(font, id)
         } else {
             state.glyph_v_advance(font, id)
         };
-        // SAFETY: as above, and the advances are writable.
-        unsafe { advance.cast::<hr_position_t>().write_unaligned(value) };
-        // SAFETY: a stride past the end is only formed, never read, on the
-        // last turn, and the caller's run is that long.
-        glyph = unsafe { glyph.add(glyph_stride as usize) };
-        advance = unsafe { advance.add(advance_stride as usize) };
+        // SAFETY: as above for the advances, which the caller guarantees are
+        // `advance_stride` bytes apart and writable. An advance is a plain
+        // integer, so overwriting one drops nothing.
+        unsafe {
+            first_advance
+                .byte_add(i * advance_stride as usize)
+                .write_unaligned(value);
+        };
     }
 }
 

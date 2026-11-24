@@ -2906,6 +2906,46 @@ fn added_font_callbacks_delegate_and_scale_through_subfonts() {
 }
 
 #[test]
+fn strided_advances_stay_inside_runs_that_end_at_their_last_entry() {
+    // One glyph and one advance, each a lone integer, walked with a stride
+    // wider than an entry. Each run ends where its only entry does, so the
+    // walk has nowhere to step to after it.
+    unsafe {
+        with_font(|_, font| {
+            let glyph: hr_codepoint_t = 1;
+            let mut advance: hr_position_t = 0;
+            hr_font_get_glyph_h_advances(font, 1, &raw const glyph, 16, &raw mut advance, 16);
+            assert_eq!(advance, hr_font_get_glyph_h_advance(font, glyph));
+            advance = 0;
+            hr_font_get_glyph_v_advances(font, 1, &raw const glyph, 16, &raw mut advance, 16);
+            assert_eq!(advance, hr_font_get_glyph_v_advance(font, glyph));
+
+            // A batch callback on a parent at another scale has its answers
+            // rescaled in place, which walks the advances a second time.
+            let funcs = hr_font_funcs_create();
+            let mut calls = 0u32;
+            hr_font_funcs_set_glyph_h_advances_func(
+                funcs,
+                Some(batch_advances),
+                (&raw mut calls).cast(),
+                None,
+            );
+            hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
+            hr_font_set_scale(font, 1000, 1000);
+            let child = hr_font_create_sub_font(font);
+            hr_font_set_scale(child, 2000, 2000);
+            advance = 0;
+            hr_font_get_glyph_h_advances(child, 1, &raw const glyph, 16, &raw mut advance, 16);
+            assert_eq!(advance, 1400);
+            assert_eq!(calls, 1);
+
+            hr_font_destroy(child);
+            hr_font_funcs_destroy(funcs);
+        });
+    }
+}
+
+#[test]
 fn face_count_reads_single_fonts_and_collections() {
     unsafe {
         let single = std::fs::read(font_path(PLAIN_FONT)).unwrap();
