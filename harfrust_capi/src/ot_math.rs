@@ -299,7 +299,34 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
     })
 }
 
+/// The room in a caller's output array: the count it passed alongside, or
+/// none when it passed no array.
+///
+/// Without an array the count is not a capacity. The caller is asking how
+/// many entries there are and need not have set it, so it is not read, as in
+/// HarfBuzz.
+///
+/// # Safety
+///
+/// `count` must be null or point to a `c_uint`. If `array` is non-null, that
+/// `c_uint` must be initialized.
+unsafe fn capacity<T>(count: *const c_uint, array: *const T) -> usize {
+    if array.is_null() {
+        return 0;
+    }
+    // SAFETY: `as_ref` needs `count` null, or aligned and pointing to an
+    // initialized `c_uint` nothing writes during this call. The caller
+    // gives the first, and with `array` non-null, as checked above, the
+    // second.
+    unsafe { count.as_ref() }.copied().unwrap_or(0) as usize
+}
+
 /// Returns paginated raw MATH kern entries and their total count.
+///
+/// When both output pointers are non-null, `entries_count` gives capacity on
+/// entry and the number written on return. A null array leaves the count
+/// unchanged and unread, unless the glyph has no such kern table, which
+/// clears it.
 /// # Safety
 /// `font` must be null or live; `entries_count` must be null or writable;
 /// `kern_entries` must hold its input capacity when non-null.
@@ -312,7 +339,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
     entries_count: *mut c_uint,
     kern_entries: *mut hr_ot_math_kern_entry_t,
 ) -> c_uint {
-    let capacity = unsafe { entries_count.as_ref() }.copied().unwrap_or(0) as usize;
+    let capacity = unsafe { capacity(entries_count, kern_entries) };
     let state = unsafe { object::or_empty(font.cast_const()) };
     let table = corner(kern).and_then(|corner| {
         font_math(state)
@@ -350,15 +377,23 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
             }
         }
     }
-    if !kern_entries.is_null() || !found {
-        if let Some(count) = unsafe { entries_count.as_mut() } {
-            *count = written as c_uint;
-        }
+    // HarfBuzz clears the count for a glyph with no such kern table whether
+    // or not there is an array, which it does for neither of the other two
+    // getters.
+    if (!kern_entries.is_null() || !found) && !entries_count.is_null() {
+        // SAFETY: `entries_count` is non-null and, by this function's
+        // contract, writable. It is written through the pointer and not a
+        // reference, because without an array it may never have been set.
+        unsafe { entries_count.write(written as c_uint) };
     }
     total
 }
 
 /// Returns paginated MATH size variants and their total count.
+///
+/// When both output pointers are non-null, `variants_count` gives capacity on
+/// entry and the number written on return. A null array leaves the count
+/// unchanged and unread.
 /// # Safety
 /// `font` must be null or live; `variants_count` must be null or writable;
 /// `variants` must hold its input capacity when non-null.
@@ -371,12 +406,11 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
     variants_count: *mut c_uint,
     variants: *mut hr_ot_math_glyph_variant_t,
 ) -> c_uint {
-    let capacity = unsafe { variants_count.as_ref() }.copied().unwrap_or(0) as usize;
+    let capacity = unsafe { capacity(variants_count, variants) };
     let state = unsafe { object::or_empty(font.cast_const()) };
     let construction = font_math(state)
         .and_then(|math| math.math_variants().ok())
         .and_then(|table| table.glyph_construction(GlyphId::new(glyph), axis(direction)));
-    let found = construction.is_some();
     let mut written = 0;
     let mut total = 0;
     if let Some(construction) = construction {
@@ -398,10 +432,10 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
             }
         }
     }
-    if !variants.is_null() || !found {
-        if let Some(count) = unsafe { variants_count.as_mut() } {
-            *count = written as c_uint;
-        }
+    if !variants.is_null() && !variants_count.is_null() {
+        // SAFETY: `variants_count` is non-null and, by this function's
+        // contract, writable.
+        unsafe { variants_count.write(written as c_uint) };
     }
     total
 }
@@ -427,6 +461,10 @@ pub unsafe extern "C" fn hr_ot_math_get_min_connector_overlap(
 }
 
 /// Returns paginated MATH assembly parts and their total count.
+///
+/// When both output pointers are non-null, `parts_count` gives capacity on
+/// entry and the number written on return. A null array leaves the count
+/// unchanged and unread.
 /// # Safety
 /// `font` must be null or live; `parts_count` and `italics_correction` must be
 /// null or writable; `parts` must hold the input capacity when non-null.
@@ -440,13 +478,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
     parts: *mut hr_ot_math_glyph_part_t,
     italics_correction: *mut hr_position_t,
 ) -> c_uint {
-    let capacity = unsafe { parts_count.as_ref() }.copied().unwrap_or(0) as usize;
+    let capacity = unsafe { capacity(parts_count, parts) };
     let state = unsafe { object::or_empty(font.cast_const()) };
     let assembly = font_math(state)
         .and_then(|math| math.math_variants().ok())
         .and_then(|table| table.glyph_construction(GlyphId::new(glyph), axis(direction)))
         .and_then(|construction| construction.glyph_assembly()?.ok());
-    let found = assembly.is_some();
     let mut written = 0;
     let mut total = 0;
     let mut correction = 0;
@@ -482,13 +519,17 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
             }
         }
     }
-    if !parts.is_null() || !found {
-        if let Some(count) = unsafe { parts_count.as_mut() } {
-            *count = written as c_uint;
-        }
+    if !parts.is_null() && !parts_count.is_null() {
+        // SAFETY: `parts_count` is non-null and, by this function's
+        // contract, writable.
+        unsafe { parts_count.write(written as c_uint) };
     }
-    if let Some(out) = unsafe { italics_correction.as_mut() } {
-        *out = correction;
+    if !italics_correction.is_null() {
+        // SAFETY: `italics_correction` is non-null and, by this function's
+        // contract, writable. It only returns a value, so it is written
+        // through the pointer and not a reference: the caller need not have
+        // set it.
+        unsafe { italics_correction.write(correction) };
     }
     total
 }
