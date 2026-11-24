@@ -492,8 +492,13 @@ fn decode_pre_context_utf8(bytes: &[u8], codepoints: &mut [u32; MAX_CONTEXT_CODE
         }
 
         let mut next = start;
-        let codepoint = next_utf8(&bytes[..end], &mut next);
+        let mut codepoint = next_utf8(&bytes[..end], &mut next);
         if next != end {
+            // What was walked back over is not one character ending here:
+            // one was decoded, but it stops short. The last byte is then
+            // ill formed on its own, and is all this step takes, as in
+            // HarfBuzz.
+            codepoint = char::REPLACEMENT_CHARACTER.into();
             start = end - 1;
         }
         codepoints[len] = codepoint;
@@ -1724,6 +1729,21 @@ mod tests {
                 'a' as u32,
             ]
         );
+    }
+
+    #[test]
+    fn replaces_a_context_byte_left_over_after_a_character() {
+        // Walking back from a stray continuation byte reaches the character
+        // before it, which decodes but does not reach the byte. The byte is
+        // then replaced on its own, and the character is found by the next
+        // step back.
+        let mut codepoints = [0; MAX_CONTEXT_CODEPOINTS];
+
+        let len = decode_pre_context_utf8(&[b'a', 0x80], &mut codepoints);
+        assert_eq!(&codepoints[..len], &[REPLACEMENT, 'a' as u32]);
+
+        let len = decode_pre_context_utf8(&[0xC3, 0xA9, 0x80], &mut codepoints);
+        assert_eq!(&codepoints[..len], &[REPLACEMENT, 'é' as u32]);
     }
 
     #[test]
