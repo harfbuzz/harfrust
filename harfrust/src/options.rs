@@ -4,7 +4,7 @@ use crate::{Feature, ShapePlan};
 ///
 /// By default, shaping creates a plan, applies the font's default features,
 /// and has no point size for the `trak` table.
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 pub struct ShapeOptions<'a> {
     pub(crate) plan: Option<&'a ShapePlan>,
     pub(crate) point_size: Option<f32>,
