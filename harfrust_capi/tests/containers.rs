@@ -170,7 +170,10 @@ fn set_iteration_does_not_rescan_the_preceding_runs() {
     // Every iteration call used to scan the ranges from the first page, so
     // walking a set of many separate runs was quadratic: the inverted walks
     // below took tens of seconds on a debug build.
-    const LIMIT: u32 = 1 << 15;
+    //
+    // Miri has nothing to say about speed, and takes over twenty minutes
+    // with this many runs. It walks a few dozen, the same five ways.
+    const LIMIT: u32 = if cfg!(miri) { 1 << 6 } else { 1 << 15 };
     unsafe {
         for inverted in [false, true] {
             let set = hr_set_create();
@@ -509,7 +512,12 @@ fn container_user_data_and_reference_lifetimes() {
     unsafe {
         let key = hr_user_data_key_t { unused: 0 };
         let mut destroyed = 0u32;
-        let data = ptr::from_mut(&mut destroyed).cast();
+        // The set and the map keep this one pointer to the count until they
+        // are destroyed, and count through it then, so the count is read
+        // through it as well. Using the variable itself in between could
+        // take the pointer's access away.
+        let destroyed = &raw mut destroyed;
+        let data = destroyed.cast();
         let set = hr_set_create();
         let map = hr_map_create();
         assert_eq!(
@@ -556,18 +564,26 @@ fn container_user_data_and_reference_lifetimes() {
         assert_eq!(hr_map_reference(map), map);
         hr_set_destroy(set);
         hr_map_destroy(map);
-        assert_eq!(destroyed, 0);
+        assert_eq!(*destroyed, 0);
         hr_set_destroy(set);
-        assert_eq!(destroyed, 1);
+        assert_eq!(*destroyed, 1);
         hr_map_destroy(map);
-        assert_eq!(destroyed, 2);
+        assert_eq!(*destroyed, 2);
     }
 }
 
 #[test]
 fn set_range_iteration_can_delete_ranges_as_it_walks() {
+    // Miri has nothing to say about speed, and takes over twenty minutes
+    // with this many ranges. It walks a few of each width, in the same eight
+    // ways, the wide ones still running from one page into the next.
+    let sizes = if cfg!(miri) {
+        [(1, 8), (65, 8)]
+    } else {
+        [(1, 16000), (65, 1024)]
+    };
     unsafe {
-        for (width, count) in [(1, 16000), (65, 1024)] {
+        for (width, count) in sizes {
             let stride = width + 1;
             for inverted in [false, true] {
                 for backwards in [false, true] {
@@ -618,6 +634,7 @@ fn set_range_iteration_can_delete_ranges_as_it_walks() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "takes Miri minutes over calls another test also makes")]
 fn indexed_set_mutations_match_intset_in_all_inversion_combinations() {
     use read_fonts::collections::IntSet;
 

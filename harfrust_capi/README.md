@@ -280,8 +280,9 @@ Reference counts are atomic, the user data on every object is behind a lock,
 and the per-face plan cache and the caches HarfRust fills in while shaping --
 lazily loaded tables, glyph lookups, layout lookups -- are atomics and
 one-shot cells. There are tests that shape through one shared face, and
-through one shared font, from several threads; they run under Miri's data race
-detector across a spread of thread interleavings.
+through one shared font, from several threads. CI runs them under Miri, whose
+data race detector watches them over sixteen runs that each schedule those
+threads differently; how to do the same is at the end of this section.
 
 What is not shared is anything being written:
 
@@ -306,6 +307,25 @@ safe to use and to release from any thread that uses the object.
 A callback may query the object it is handed, as a font callback reads the
 scale and variation settings of its font. It must not modify that object, nor
 free it, and a font callback must not touch the buffer being shaped.
+
+The `miri` job in `.github/workflows/main.yml` runs this crate's tests under
+Miri. To do the same, with the latest nightly or with the dated one that job
+pins:
+
+```sh
+rustup toolchain install nightly --component miri
+MIRIFLAGS=-Zmiri-disable-isolation \
+  cargo +nightly miri test -p harfrust_capi --features subset,paint --lib
+```
+
+The tests read font files, which Miri allows only with its isolation off. Add
+`-Zmiri-tree-borrows` to `MIRIFLAGS` to check against the other of its two
+aliasing models. Add `-Zmiri-many-seeds=0..16`, and `several_threads` after
+`--lib` to pick the tests that share objects between threads, to run those
+sixteen times with the threads scheduled differently each time. A test that
+Miri cannot run, or would take too long over, is marked
+`#[cfg_attr(miri, ignore)]` with the reason, and some run a smaller case
+under it.
 
 ## License
 

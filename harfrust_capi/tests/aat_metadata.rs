@@ -213,8 +213,12 @@ fn setting_arrays_that_alias_out_of_proportion_drop_the_table() {
         }
         data
     };
+    // Miri has nothing to say about what a table costs to read, and takes
+    // half a minute over two thousand features. A tenth as many still claim
+    // three times what the table is allowed.
+    let many = if cfg!(miri) { 200 } else { 2000 };
     unsafe {
-        for (features, listed, selectors) in [(10, 10, 30), (2000, 0, 0)] {
+        for (features, listed, selectors) in [(10, 10, 30), (many, 0, 0)] {
             let face = TableFace::new(vec![(u32::from_be_bytes(*b"feat"), aliased(features))]);
             let mut count = 0;
             assert_eq!(

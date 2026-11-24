@@ -1444,6 +1444,7 @@ mod budget_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "only counts collection steps, slowly under Miri")]
     fn null_contextual_rule_sets_consume_collection_work() {
         for lookup_type in [5, 6] {
             for format in [1, 2] {
@@ -1492,6 +1493,7 @@ mod budget_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "only counts collection steps, slowly under Miri")]
     fn reversed_coverage_ranges_consume_collection_work() {
         let none = SetTarget::none();
         for format in [2, 4] {
@@ -1531,6 +1533,7 @@ mod budget_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "only counts collection steps, slowly under Miri")]
     fn reversed_class_ranges_and_overflowed_glyphs_consume_collection_work() {
         let mut overflowed = vec![0, 3, 0xFF, 0xFF, 0xFF, 0, 3, 0xE8];
         for _ in 0..1000 {
@@ -1568,6 +1571,7 @@ mod budget_tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "only counts collection steps, slowly under Miri")]
     fn unreadable_extension_headers_consume_collection_work() {
         let count = 1000u16;
         for positioning in [false, true] {

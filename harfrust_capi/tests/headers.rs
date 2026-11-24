@@ -9,6 +9,7 @@ const HR_HB_H: &str = concat!(
 );
 
 #[test]
+#[cfg_attr(miri, ignore = "only reads the committed headers, minutes under Miri")]
 fn shape_list_shapers_matches_harfbuzz_signature() {
     assert!(HR_H.contains("const char **hr_shape_list_shapers(void);"));
 }
@@ -88,6 +89,7 @@ const HARFRUST_ONLY: &[&str] = &[
 ];
 
 #[test]
+#[cfg_attr(miri, ignore = "only reads the committed headers, minutes under Miri")]
 fn the_compatibility_header_covers_every_name() {
     let missing: Vec<String> = declared_names(HR_H)
         .into_iter()
@@ -116,6 +118,7 @@ fn the_compatibility_header_covers_every_name() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "only reads the committed headers, minutes under Miri")]
 fn optional_rendering_headers_cover_their_declarations() {
     for (native, compatibility) in [
         (
@@ -144,6 +147,7 @@ fn optional_rendering_headers_cover_their_declarations() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "only reads the committed headers, minutes under Miri")]
 fn the_compatibility_header_maps_nothing_that_does_not_exist() {
     let declared = declared_names(HR_H);
     let stray: Vec<&str> = HR_HB_H
@@ -163,6 +167,7 @@ fn the_compatibility_header_maps_nothing_that_does_not_exist() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "only reads the committed headers, minutes under Miri")]
 fn the_compatibility_header_maps_the_names_callers_reach_for_first() {
     // A spot check, so that a wholesale failure of the generator is obvious
     // rather than showing up only as an empty diff.

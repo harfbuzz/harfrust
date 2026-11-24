@@ -152,3 +152,57 @@ jobs:
 
       - name: cargo build harfrust
         run: cargo build -p harfrust --target thumbv7em-none-eabihf --no-default-features --features=${{ matrix.features }}
+
+  # The C API is unsafe code throughout, so its tests also run under Miri,
+  # which checks what a native run cannot: that every pointer is still good
+  # for the access made through it, that nothing is leaked, and that threads
+  # do not race. It checks against one aliasing model at a time, and the two
+  # disagree in places, so each gets a run of the whole suite.
+  miri:
+    name: Miri on the C API (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    # Miri runs these tests a thousand times slower than they run natively, or
+    # worse, so one that is new and heavy can take hours. That should fail the
+    # job, for the test to be shrunk or ignored under Miri, before it holds a
+    # runner that long.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Stacked Borrows
+            flags: ""
+            tests: ""
+          - name: Tree Borrows
+            flags: -Zmiri-tree-borrows
+            tests: ""
+          # One run takes the threads of a test through one schedule. This
+          # takes the tests that share objects between threads through
+          # sixteen, for the data race detector to watch.
+          - name: thread interleavings
+            flags: -Zmiri-many-seeds=0..16
+            tests: several_threads
+    env:
+      # Miri is only in nightly toolchains, and not in every one, so the date
+      # is pinned. To bump it, pick a date on which
+      # https://rust-lang.github.io/rustup-components-history/ lists `miri`
+      # for x86_64-unknown-linux-gnu, and be ready to look into what the
+      # newer Miri reports that this one let pass.
+      MIRI_NIGHTLY: nightly-2026-11-23
+      # The tests read font files, which Miri does not let a program do
+      # unless its isolation from the host is turned off.
+      MIRIFLAGS: -Zmiri-disable-isolation ${{ matrix.flags }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install nightly with Miri
+        run: |
+          rustup toolchain install "$MIRI_NIGHTLY" --profile minimal --component miri --component rust-src
+          rustup override set "$MIRI_NIGHTLY"
+          cargo miri setup
+
+      # One process, which Miri ends at the first error it finds. The tests
+      # it cannot run, or would take too long over, are marked
+      # `#[cfg_attr(miri, ignore)]` where they are defined.
+      - name: Run the C API tests under Miri
+        run: cargo miri test -p harfrust_capi --features subset,paint --lib ${{ matrix.tests }}

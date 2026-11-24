@@ -683,6 +683,7 @@ fn math_count_only_queries_do_not_read_the_count() {
 /// the records. Picking a kern, or paging to the last entry, must not read
 /// all of them.
 #[test]
+#[cfg_attr(miri, ignore = "bounds wall-clock time, which Miri cannot meet")]
 fn math_kerning_searches_a_full_kern_table() {
     let mut math = vec![
         0, 1, 0, 0, 0, 0, 0, 10, 0, 0, // MATH: only MathGlyphInfo
@@ -1285,6 +1286,7 @@ fn record_tag(i: usize) -> hr_tag_t {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "bounds wall-clock time, which Miri cannot meet")]
 fn walking_every_table_of_a_face_stays_linear() {
     // The most records a directory can hold. Fetching each table once must
     // not read the whole directory again per call.
@@ -2819,6 +2821,7 @@ fn shaping_the_same_text_again_means_refilling_the_buffer() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "runs a child process, which Miri cannot do")]
 fn shaping_an_already_shaped_buffer_aborts() {
     // Shaping glyphs as though they were text is a misuse of the API, which
     // HarfBuzz asserts on. `hr_shape` returns nothing, so it could not report
@@ -3484,11 +3487,13 @@ fn the_built_in_callbacks_can_be_asked_for_again() {
         let drops = AtomicUsize::new(0);
         let user_data: *mut c_void = ptr::from_ref(&drops).cast_mut().cast();
         with_font(|_, font| {
-            let builtin = glyph_ids({
+            let builtin = {
                 let buffer = buffer_with_text(TEXT);
                 hr_shape(font, buffer, ptr::null(), 0);
-                buffer
-            });
+                let ids = glyph_ids(buffer);
+                hr_buffer_destroy(buffer);
+                ids
+            };
             assert!(builtin.iter().all(|&id| id != 0));
 
             let ffuncs = hr_font_funcs_create();
@@ -3679,7 +3684,7 @@ static OTHER_KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
 fn user_data_is_keyed_by_address() {
     unsafe {
         let buffer = hr_buffer_create();
-        let value = 42usize as *mut c_void;
+        let value = ptr::without_provenance_mut::<c_void>(42);
         assert_ne!(
             hr_buffer_set_user_data(buffer, &raw const KEY, value, None, 1),
             0
@@ -4088,7 +4093,12 @@ fn interning_many_languages_stays_cheap() {
     // Content chooses the languages, so the table can grow as large as it
     // likes; finding one must not mean comparing it with every other. Walking
     // the table made this many take seconds, and keying it makes it instant.
-    let names: Vec<_> = (0..20_000u32)
+    //
+    // Miri has nothing to say about speed, and takes over twenty minutes
+    // with this many. A few dozen still have the table grow around the
+    // languages already handed out, which is what it can check.
+    let count = if cfg!(miri) { 64 } else { 20_000u32 };
+    let names: Vec<_> = (0..count)
         .map(|i| std::ffi::CString::new(format!("x-{i:x}")).unwrap())
         .collect();
     unsafe {
@@ -4527,6 +4537,7 @@ fn aborts(case: &str) -> bool {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "runs a child process, which Miri cannot do")]
 fn a_plan_that_does_not_apply_aborts() {
     // Matching HarfBuzz, where these are assertions rather than errors.
     assert!(aborts("props"), "mismatched segment properties must abort");
@@ -5463,10 +5474,14 @@ fn advances_run_over_a_caller_s_own_layout() {
                 );
             }
             let mut advances = [0i32; 2];
+            // The run is read a stride at a time from its first glyph, so
+            // that pointer has to be good for the whole array: one taken
+            // from `slots[0].glyph` would be good for that field alone.
+            let first = slots.as_ptr();
             hr_font_get_glyph_h_advances(
                 font,
                 2,
-                ptr::addr_of!(slots[0].glyph),
+                &raw const (*first).glyph,
                 size_of::<Slot>() as c_uint,
                 advances.as_mut_ptr(),
                 size_of::<i32>() as c_uint,
@@ -5831,6 +5846,7 @@ fn aliased_pair_pos_gpos(n: u16) -> Vec<u8> {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "walks eight million layout steps, too slow under Miri")]
 fn aliased_offsets_fall_back_to_all_glyphs() {
     assert_eq!(
         collect_lookup_0(b"GSUB", aliased_ligature_gsub(1)),
@@ -5853,6 +5869,7 @@ fn aliased_offsets_fall_back_to_all_glyphs() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "follows forty million components, too slow under Miri")]
 fn repeated_collections_each_get_an_allowance() {
     // One call follows about 30^4 components, within an allowance of 4M steps.
     // As in HarfBuzz, whose sanitizer bounds the table once, each call gets
@@ -5976,6 +5993,7 @@ fn cff_with_padded_top_dict(padding: usize) -> Vec<u8> {
 /// one glyph's name rereads the whole CFF Top DICT. Looking a name up must
 /// not pay one for each of the other.
 #[test]
+#[cfg_attr(miri, ignore = "bounds wall-clock time, which Miri cannot meet")]
 fn a_name_is_looked_up_without_asking_every_claimed_glyph_for_its_own() {
     let data = sfnt(&[
         (b"CFF ", cff_with_padded_top_dict(2000)),
@@ -6045,7 +6063,11 @@ fn unicode_collection_steps_over_overlapping_format13_groups() {
     ]);
     let full = [(0, 0x0010_FFFF, 1); 1000];
     let full = sfnt(&[(b"cmap", format13_cmap(&full)), (b"maxp", maxp(2, false))]);
-    for (data, population) in [(partial, 0x7A - 0x41 + 1), (full, 0x0011_0000)] {
+    let fonts = [(partial, 0x7A - 0x41 + 1), (full, 0x0011_0000)];
+    // Miri has nothing to say about cost, and takes half a minute to fill a
+    // set with all of Unicode, so it collects the first font only.
+    let collected = if cfg!(miri) { 1 } else { fonts.len() };
+    for (data, population) in fonts.into_iter().take(collected) {
         unsafe {
             let blob = blob_over(&data);
             let face = hr_face_create(blob, 0);
@@ -6199,8 +6221,12 @@ fn wide_single_substitution_with_explicit_outputs_needs_no_metrics() {
 fn inverted_set_iteration_seeks_past_a_long_excluded_prefix() {
     // Previously every next() rebuilt the first range by scanning all the
     // excluded pages before PREFIX, even though each answer is nearby.
-    const PREFIX: u32 = 1 << 22;
-    const COUNT: usize = 4096;
+    //
+    // Miri has nothing to say about speed, and takes minutes over a prefix
+    // this long and this many members. It gets a prefix of many pages still,
+    // and members enough to run from one page into the next.
+    const PREFIX: u32 = if cfg!(miri) { 1 << 16 } else { 1 << 22 };
+    const COUNT: usize = if cfg!(miri) { 32 } else { 4096 };
     for stride in [2, 32] {
         unsafe {
             let set = hr_set_create();
@@ -6233,7 +6259,10 @@ fn inverted_set_iteration_seeks_past_a_long_excluded_prefix() {
 
 #[test]
 fn inverted_set_seeks_across_long_gaps_and_invalidates_cached_ranges() {
-    const END: u32 = 1 << 24;
+    // Miri has nothing to say about speed, and takes minutes over a gap this
+    // long. A shorter one still runs over many pages, and the cached ranges
+    // are invalidated the same way.
+    const END: u32 = if cfg!(miri) { 1 << 16 } else { 1 << 24 };
     unsafe {
         let set = hr_set_create();
         hr_set_invert(set);
