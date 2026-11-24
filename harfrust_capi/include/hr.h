@@ -3471,7 +3471,8 @@ hr_bool_t hr_language_matches(hr_language_t language, hr_language_t specific);
  * Parses a feature from its string form, such as `kern`, `-liga` or
  * `aalt[3:5]=2`.
  *
- * Returns false, leaving `feature` untouched, if the string does not parse.
+ * Returns false, and zeroes `feature`, if the string does not parse, as
+ * HarfBuzz does.
  *
  * # Safety
  *
@@ -3492,7 +3493,8 @@ void hr_feature_to_string(const struct hr_feature_t *feature, char *buf, unsigne
 /**
  * Parses a variation from its string form, such as `wght=700`.
  *
- * Returns false, leaving `variation` untouched, if the string does not parse.
+ * Returns false, and zeroes `variation`, if the string does not parse, as
+ * HarfBuzz does.
  *
  * # Safety
  *

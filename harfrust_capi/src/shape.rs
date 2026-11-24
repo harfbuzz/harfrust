@@ -55,8 +55,7 @@ pub(crate) unsafe fn collect_features(
 
 /// Shapes a buffer with a plan the caller has already chosen.
 ///
-/// `font` is the pointer the font callbacks are handed; `font_ref` is that same
-/// font, borrowed.
+/// `font` is the pointer the font callbacks are handed.
 ///
 /// # Safety
 ///
