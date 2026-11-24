@@ -1092,6 +1092,11 @@ pub struct hr_color_line_t {
     reserved: [*mut c_void; 8],
 }
 /// Returns the total number of stops and copies a paginated slice if requested.
+///
+/// When both output pointers are non-null, `count` gives capacity on entry
+/// and the number written on return. A null array leaves the count unchanged
+/// and unread, whichever callback the line carries. A null color line, or one
+/// with no callback, has no stops.
 #[no_mangle]
 pub unsafe extern "C" fn hr_color_line_get_color_stops(
     line: *mut hr_color_line_t,
@@ -1099,28 +1104,37 @@ pub unsafe extern "C" fn hr_color_line_get_color_stops(
     count: *mut c_uint,
     stops: *mut hr_color_stop_t,
 ) -> c_uint {
-    let Some(l) = (unsafe { line.as_ref() }) else {
-        if !count.is_null() {
-            unsafe { *count = 0 }
-        }
-        return 0;
-    };
-    if let Some(call) = l.get_color_stops {
-        unsafe {
-            call(
-                line,
-                l.data,
-                start,
-                count,
-                stops,
-                l.get_color_stops_user_data,
-            )
-        }
+    // Without an array the count is not a capacity. It is kept from the
+    // callback, which may be the caller's own, so that nothing reads or
+    // writes it.
+    let count = if stops.is_null() {
+        core::ptr::null_mut()
     } else {
+        count
+    };
+    let nothing = || {
         if !count.is_null() {
-            unsafe { *count = 0 }
+            // SAFETY: `count` is non-null, and writable by this function's
+            // contract.
+            unsafe { count.write(0) };
         }
         0
+    };
+    let Some(l) = (unsafe { line.as_ref() }) else {
+        return nothing();
+    };
+    let Some(call) = l.get_color_stops else {
+        return nothing();
+    };
+    unsafe {
+        call(
+            line,
+            l.data,
+            start,
+            count,
+            stops,
+            l.get_color_stops_user_data,
+        )
     }
 }
 /// Returns the extend mode, or PAD when absent.
