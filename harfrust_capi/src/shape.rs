@@ -60,7 +60,10 @@ pub(crate) fn shape_with_plan(
     let Some(font_ref) = (unsafe { font.as_ref() }) else {
         return false.into();
     };
-    let Some(shaper) = font_ref.shaper() else {
+    // SAFETY: the view, and the clone made of it below when there are
+    // callbacks to attach, are locals of this call, and `font_ref` is
+    // borrowed for all of it.
+    let Some(shaper) = (unsafe { font_ref.shaper() }) else {
         return false.into();
     };
     let has_funcs = font_ref.has_callbacks();
@@ -169,7 +172,10 @@ pub unsafe extern "C" fn hr_shape_full(
     let Some(instance) = font_ref.instance() else {
         return false.into();
     };
-    let Some(shaper) = font_ref.shaper() else {
+    // SAFETY: the view, and the clone made of it below when there are
+    // callbacks to attach, are locals of this call, and `font_ref` is
+    // borrowed for all of it.
+    let Some(shaper) = (unsafe { font_ref.shaper() }) else {
         return false.into();
     };
     // The plan cache lives on the face, which outlives the font.

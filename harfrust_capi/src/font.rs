@@ -45,30 +45,59 @@ impl Drop for FontData {
 /// font view first. The explicit `Drop` preserves that invariant if the fields
 /// are ever reordered.
 struct PreparedFont {
+    // Safety invariant: when `Some`, this borrows only from the `Font` that
+    // `instance` owns, and that `Font` is neither mutated nor released until
+    // this is `None` again.
     shaper: Option<ShaperFont<'static, 'static>>,
-    instance: Box<Font>,
+    /// Never cloned: the `Arc` is here for what it does not claim. A `Box`
+    /// asserts unique access to its allocation each time it is moved or
+    /// reached through `&mut`, which would invalidate the borrows `shaper`
+    /// holds whenever this struct is moved into place or mutated. An `Arc`
+    /// only ever shares its contents.
+    instance: Arc<Font>,
 }
 
 impl PreparedFont {
     fn new(instance: Font) -> Self {
-        let instance = Box::new(instance);
-        let shaper = ShaperFont::new(&instance);
-        // SAFETY: the prepared font borrows the allocation owned by `instance`,
-        // which is stable across moving the Box. `Drop` clears the borrow
-        // before that allocation is released.
-        let shaper = Some(unsafe {
-            core::mem::transmute::<ShaperFont<'_, '_>, ShaperFont<'static, 'static>>(shaper)
-        });
+        let instance = Arc::new(instance);
+        // SAFETY: dereferencing a raw pointer to make a reference needs it
+        // non-null, aligned, and pointing to an initialized `Font` that stays
+        // live and unmutated for as long as the reference is used.
+        // - `Arc::as_ptr` points to the `Font` inside the `Arc`'s allocation,
+        //   and is valid while a strong reference exists.
+        // - `instance` is the only strong reference. It is stored next to
+        //   `shaper` below and nothing clones or replaces it, so it is
+        //   released only when this `PreparedFont` is dropped, after `Drop`
+        //   has cleared `shaper`.
+        // - Nothing mutates the `Font` in the meantime: an `Arc` gives out
+        //   shared access only, and `Arc::get_mut` is never called.
+        // The `'static` lifetime overstates this: the reference is good for
+        // the life of this `PreparedFont`, which is as long as `shaper` is
+        // kept. Nothing safe hands the view out. `shaper()` is unsafe, so
+        // that whoever takes the view answers for keeping it, and any clone
+        // of it, within a borrow of this `PreparedFont`.
+        let font: &'static Font = unsafe { &*Arc::as_ptr(&instance) };
+        let shaper = Some(ShaperFont::new(font));
         Self { shaper, instance }
     }
 
-    fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
+    /// The prepared view.
+    ///
+    /// # Safety
+    ///
+    /// The view's `'static` lifetimes are not real: it borrows the `Font` this
+    /// `PreparedFont` owns. The view, any clone of it, and anything borrowed
+    /// through either must not be used after the borrow of `self` this was
+    /// called with ends.
+    unsafe fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
         self.shaper.as_ref()
     }
 }
 
 impl Drop for PreparedFont {
     fn drop(&mut self) {
+        // Upholds the invariant on `shaper`: the borrow goes before the
+        // fields are dropped, and with them the `Font` it points into.
         self.shaper = None;
     }
 }
@@ -127,9 +156,9 @@ impl hr_font_t {
     /// encoding's private-use pages -- so that a glyph shaping can find is one
     /// this reports.
     pub(crate) fn builtin_nominal_glyph(&self, unicode: u32) -> Option<hr_codepoint_t> {
-        self.prepared
-            .as_ref()?
-            .shaper()?
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        unsafe { self.shaper() }?
             .default_nominal_glyph(unicode)
             .map(|glyph| glyph.to_u32())
     }
@@ -140,18 +169,19 @@ impl hr_font_t {
         unicode: u32,
         variation_selector: u32,
     ) -> Option<hr_codepoint_t> {
-        self.prepared
-            .as_ref()?
-            .shaper()?
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        unsafe { self.shaper() }?
             .default_variation_glyph(unicode, variation_selector)
             .map(|glyph| glyph.to_u32())
     }
 
     /// What the font's own tables say a glyph's extents are.
     pub(crate) fn builtin_extents(&self, glyph: hr_codepoint_t) -> Option<hr_glyph_extents_t> {
-        let extents = self
-            .builtin_shaping_font()?
-            .default_glyph_extents(harfrust::GlyphId::from(glyph))?;
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        let extents =
+            unsafe { self.shaper() }?.default_glyph_extents(harfrust::GlyphId::from(glyph))?;
         Some(hr_glyph_extents_t {
             x_bearing: extents.x_bearing,
             y_bearing: extents.y_bearing,
@@ -166,13 +196,11 @@ impl hr_font_t {
         unsafe { self.face.as_ref() }.map_or(1000, |face| face.upem() as c_int)
     }
 
-    fn builtin_shaping_font(&self) -> Option<&ShaperFont<'static, 'static>> {
-        self.shaper()
-    }
-
     /// How far the font's own tables advance a glyph, in reported units.
     pub(crate) fn builtin_h_advance(&self, glyph: hr_codepoint_t) -> i32 {
-        let Some(font) = self.builtin_shaping_font() else {
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        let Some(font) = (unsafe { self.shaper() }) else {
             return 0;
         };
         font.default_glyph_h_advance(harfrust::GlyphId::from(glyph))
@@ -180,7 +208,9 @@ impl hr_font_t {
 
     /// As [`hr_font_t::builtin_h_advance`], downwards.
     pub(crate) fn builtin_v_advance(&self, glyph: hr_codepoint_t) -> i32 {
-        let Some(font) = self.builtin_shaping_font() else {
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        let Some(font) = (unsafe { self.shaper() }) else {
             return 0;
         };
         font.default_glyph_v_advance(harfrust::GlyphId::from(glyph))
@@ -188,10 +218,9 @@ impl hr_font_t {
 
     /// Where the font's own tables hang a glyph from, in reported units.
     pub(crate) fn builtin_v_origin(&self, glyph: hr_codepoint_t) -> Option<(i32, i32)> {
-        Some(
-            self.builtin_shaping_font()?
-                .default_glyph_v_origin(harfrust::GlyphId::from(glyph)),
-        )
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        Some(unsafe { self.shaper() }?.default_glyph_v_origin(harfrust::GlyphId::from(glyph)))
     }
 
     /// How far a glyph advances, through whichever callback answers.
@@ -224,7 +253,9 @@ impl hr_font_t {
 
     /// The name the face gives a glyph, if it names it at all.
     pub(crate) fn glyph_name(&self, glyph: hr_codepoint_t) -> Option<GlyphName> {
-        let shaper = self.prepared.as_ref()?.shaper()?;
+        // SAFETY: the view is used for this one lookup, while `self` is
+        // borrowed, and what comes back borrows nothing from it.
+        let shaper = unsafe { self.shaper() }?;
         shaper.glyph_name(glyph.into())
     }
 
@@ -256,8 +287,19 @@ impl hr_font_t {
         self.prepared.as_ref().map(|prepared| &*prepared.instance)
     }
 
-    pub(crate) fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
-        self.prepared.as_ref().and_then(PreparedFont::shaper)
+    /// The view of this font that shaping and the built-in callbacks use.
+    ///
+    /// # Safety
+    ///
+    /// The view's `'static` lifetimes are not real: it borrows from this
+    /// font. The view, any clone of it, and anything borrowed through either
+    /// must not be used after the borrow of `self` this was called with ends.
+    pub(crate) unsafe fn shaper(&self) -> Option<&ShaperFont<'static, 'static>> {
+        let prepared = self.prepared.as_ref()?;
+        // SAFETY: `prepared` is borrowed from `self` for as long as `self` is
+        // here, and this function's caller keeps what it is given within
+        // that.
+        unsafe { prepared.shaper() }
     }
 
     /// Rebuilds the font instance after a change to variation settings, and
@@ -1674,7 +1716,7 @@ mod tests {
 
     #[test]
     fn isolated_font_data_destroy_can_query_the_font() {
-        // Avoid PreparedFont's separate self-borrow so default Miri isolates
+        // A font with no prepared view, so that this exercises nothing but
         // callback aliasing during font destruction.
         let font = object::create(hr_font_t {
             header: ObjectHeader::new(),
