@@ -5378,7 +5378,8 @@ void hr_shape(struct hr_font_t *font,
  * `NULL` asks for no particular shaper and always succeeds.
  *
  * Returns false only when no shaper could be run: `shaper_list` names none
- * that this library provides, or there is nothing to shape with. Shaping
+ * that this library provides, there is nothing to shape with, or the buffer
+ * cannot be changed because its last reference is being released. Shaping
  * itself never fails the call, which is what HarfBuzz does -- its
  * `hb_shape_full` reports failure only when it cannot find or instantiate a
  * shaper, and every shaper it does run returns true whatever became of the
@@ -5632,8 +5633,9 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
 /**
  * Shapes a buffer using a plan that was built beforehand.
  *
- * Returns false without shaping if the plan is the empty one, or if `font` or
- * `buffer` is `NULL`. An empty buffer returns true, having nothing to do.
+ * Returns false without shaping if the plan is the empty one, if `font` or
+ * `buffer` is `NULL`, or if the buffer's last reference is being released.
+ * An empty buffer returns true, having nothing to do.
  * If the shaper panics, this returns false and clears the buffer, as
  * `hr_shape_full` does, and like it only where panics unwind.
  *

@@ -3454,6 +3454,117 @@ fn the_empty_buffer_is_not_written_by_the_glyph_getters() {
     }
 }
 
+#[test]
+fn shaping_the_empty_buffer_only_looks_at_it() {
+    // The empty buffer is one object shared by every thread. Shaping it has
+    // nothing to do, and has to find that out without taking the buffer
+    // exclusively, because any number of threads may be asking at once.
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            std::thread::spawn(|| unsafe {
+                let empty = hr_buffer_get_empty();
+                // Nothing to shape is answered before the font is looked at.
+                assert_ne!(
+                    hr_shape_full(ptr::null_mut(), empty, ptr::null(), 0, ptr::null()),
+                    0
+                );
+                hr_shape(ptr::null_mut(), empty, ptr::null(), 0);
+                assert_ne!(
+                    hr_shape_plan_execute(
+                        hr_shape_plan_get_empty(),
+                        ptr::null_mut(),
+                        empty,
+                        ptr::null(),
+                        0
+                    ),
+                    0
+                );
+                assert_eq!(hr_buffer_get_length(empty), 0);
+            })
+        })
+        .collect();
+
+    for thread in threads {
+        thread.join().expect("thread panicked");
+    }
+}
+
+#[test]
+fn a_buffer_being_destroyed_refuses_to_be_shaped() {
+    // A user data destructor runs while the buffer's last reference is being
+    // released, and may still look at the buffer. Shaping would need the
+    // buffer exclusively, which one on its way out no longer gives, as it
+    // does not for any other change. Taking a reference to it for the
+    // length of the call, as a scoped handle would, does not bring it back.
+    struct Dying {
+        font: *mut hr_font_t,
+        // Null to shape without a plan.
+        plan: *mut hr_shape_plan_t,
+        buffer: *mut hr_buffer_t,
+        // Whether to hold a reference of the destructor's own while shaping.
+        held: bool,
+        shaped: core::cell::Cell<Option<hr_bool_t>>,
+        content: core::cell::Cell<hr_buffer_content_type_t>,
+    }
+
+    unsafe extern "C" fn shape_on_the_way_out(data: *mut c_void) {
+        unsafe {
+            let dying = &*data.cast::<Dying>();
+            if dying.held {
+                hr_buffer_reference(dying.buffer);
+            }
+            let shaped = if dying.plan.is_null() {
+                hr_shape_full(dying.font, dying.buffer, ptr::null(), 0, ptr::null())
+            } else {
+                hr_shape_plan_execute(dying.plan, dying.font, dying.buffer, ptr::null(), 0)
+            };
+            if dying.held {
+                hr_buffer_destroy(dying.buffer);
+            }
+            dying.shaped.set(Some(shaped));
+            dying.content.set(hr_buffer_get_content_type(dying.buffer));
+        }
+    }
+
+    unsafe {
+        with_font(|face, font| {
+            let props = latin_props();
+            let plan =
+                hr_shape_plan_create(face, ptr::from_ref(&props), ptr::null(), 0, ptr::null());
+            for (plan, held) in [
+                (ptr::null_mut(), false),
+                (plan, false),
+                (ptr::null_mut(), true),
+                (plan, true),
+            ] {
+                let buffer = buffer_with_text(TEXT);
+                let dying = Dying {
+                    font,
+                    plan,
+                    buffer,
+                    held,
+                    shaped: core::cell::Cell::new(None),
+                    content: core::cell::Cell::new(HR_BUFFER_CONTENT_TYPE_INVALID),
+                };
+                assert_ne!(
+                    hr_buffer_set_user_data(
+                        buffer,
+                        &raw const KEY,
+                        ptr::from_ref(&dying).cast_mut().cast(),
+                        Some(shape_on_the_way_out),
+                        1
+                    ),
+                    0
+                );
+                hr_buffer_destroy(buffer);
+                assert_eq!(dying.shaped.get(), Some(0));
+                assert_eq!(dying.content.get(), HR_BUFFER_CONTENT_TYPE_UNICODE);
+            }
+            hr_shape_plan_destroy(plan);
+        });
+    }
+}
+
 // --------------------------------------------------------------- common ----
 
 #[test]
