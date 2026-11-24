@@ -710,7 +710,7 @@ fn intern_language(lang: &Language) -> hr_language_t {
 
 /// # Safety
 ///
-/// `language` must be `NULL` or a value returned by `hr_language_from_string`.
+/// `language` must be `NULL` or an interned language returned by this API.
 pub(crate) unsafe fn language_to_rust(language: hr_language_t) -> Option<Language> {
     unsafe { language.as_ref() }.map(|entry| entry.lang.clone())
 }

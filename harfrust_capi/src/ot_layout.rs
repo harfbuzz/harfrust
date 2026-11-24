@@ -261,16 +261,47 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_lookup_count(
 }
 
 #[derive(Clone, Copy)]
-struct SetTarget(*mut hr_set_t);
+struct SetTarget(
+    // Safety invariant: `NULL`, or a live set. If the set is not marked
+    // immutable and its reference count is above zero, nothing else holds a
+    // reference to it while a method of this type runs.
+    *mut hr_set_t,
+);
 
 impl SetTarget {
+    /// A target that collects nothing.
+    fn none() -> Self {
+        // `NULL` always satisfies the invariant.
+        Self(core::ptr::null_mut())
+    }
+
+    /// # Safety
+    ///
+    /// `set` must be `NULL` or a live set, and must stay live for as long as
+    /// the target or a copy of it is used.
+    ///
+    /// If the set accepts changes, nothing else may hold a reference to it
+    /// while a method of either runs. A set that does not may be shared:
+    /// one marked immutable or whose reference count is not above zero,
+    /// which is the empty set, and any set releasing its last reference.
+    unsafe fn new(set: *mut hr_set_t) -> Self {
+        Self(set)
+    }
+
     fn add(self, glyph: u32) {
+        // SAFETY: `as_mutable` takes `NULL` or a live set, which the
+        // invariant gives it, and what it returns must not be aliased. It
+        // returns `None`, before making any exclusive reference, for a set
+        // marked immutable or whose reference count is not above zero. For
+        // any other set the invariant leaves no reference but this one,
+        // which ends with the call.
         if let Some(set) = unsafe { object::as_mutable(self.0) } {
             set.add(glyph);
         }
     }
 
     fn include_all_glyphs(self) {
+        // SAFETY: as in `add`.
         if let Some(set) = unsafe { object::as_mutable(self.0) } {
             // An inverted empty set represents a conservative superset in
             // constant space, including IDs not backed by MAXP or metrics.
@@ -436,9 +467,9 @@ fn collect_nested_substitutions(
         if !collect_substitution(
             nested,
             lookup_list,
-            SetTarget(core::ptr::null_mut()),
-            SetTarget(core::ptr::null_mut()),
-            SetTarget(core::ptr::null_mut()),
+            SetTarget::none(),
+            SetTarget::none(),
+            SetTarget::none(),
             output,
             budget,
             nested_seen,
@@ -925,10 +956,21 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
     let face = unsafe { object::or_empty(face.cast_const()) };
     let Some(font) = face.font() else { return };
     // Each insertion borrows its destination separately, so output pointers may alias.
-    let before = SetTarget(glyphs_before);
-    let input = SetTarget(glyphs_input);
-    let after = SetTarget(glyphs_after);
-    let output = SetTarget(glyphs_output);
+    // SAFETY: by this function's contract each pointer is `NULL` or a live
+    // set, and stays so for this call, which is all the targets are used
+    // for. A set that accepts changes is modified here, and a set must not
+    // be modified while another thread accesses it, so nothing elsewhere
+    // holds a reference to it; nothing in this call takes one but the
+    // targets' own methods, one call at a time. A set that accepts none,
+    // like the empty set, may be in use anywhere, which the targets allow.
+    let (before, input, after, output) = unsafe {
+        (
+            SetTarget::new(glyphs_before),
+            SetTarget::new(glyphs_input),
+            SetTarget::new(glyphs_after),
+            SetTarget::new(glyphs_output),
+        )
+    };
     let complete = match table_tag {
         GSUB_TAG => font.tables().gsub().ok().and_then(|table| {
             let list = table.lookup_list().ok()?;
@@ -1382,7 +1424,7 @@ mod budget_tests {
             limit,
             spent: &spent,
         };
-        let none = SetTarget(core::ptr::null_mut());
+        let none = SetTarget::none();
         let result = collect_substitution(
             lookup_list.lookups().get(0).unwrap(),
             &lookup_list,
@@ -1447,7 +1489,7 @@ mod budget_tests {
 
     #[test]
     fn reversed_coverage_ranges_consume_collection_work() {
-        let none = SetTarget(core::ptr::null_mut());
+        let none = SetTarget::none();
         for format in [2, 4] {
             let data = reversed_ranges(format, false);
             let coverage = CoverageTable::read(FontData::new(&data)).unwrap();
@@ -1490,7 +1532,7 @@ mod budget_tests {
         for _ in 0..1000 {
             overflowed.extend([0, 0, 1]);
         }
-        let none = SetTarget(core::ptr::null_mut());
+        let none = SetTarget::none();
         for data in [
             reversed_ranges(2, true),
             reversed_ranges(4, true),
@@ -1541,8 +1583,7 @@ mod budget_tests {
                         limit,
                         spent: &spent,
                     };
-                    let result =
-                        collect_positioning(lookup, SetTarget(core::ptr::null_mut()), &budget);
+                    let result = collect_positioning(lookup, SetTarget::none(), &budget);
                     (result, spent.get())
                 } else {
                     let mut list = vec![0, 1, 0, 4];

@@ -165,18 +165,52 @@ pub(crate) unsafe fn reject_data(data: *mut c_void, destroy: hr_destroy_func_t) 
 // A parent callback draws in the parent's scale. Forward each segment at the
 // child's scale, retaining correct path state at the public callback boundary.
 pub(crate) struct Pen {
-    pub(crate) funcs: *mut hr_draw_funcs_t,
-    pub(crate) data: *mut c_void,
-    pub(crate) state: hr_draw_state_t,
-    pub(crate) x: f32,
-    pub(crate) y: f32,
-    pub(crate) start: Option<(f32, f32)>,
-    pub(crate) current: (f32, f32),
+    // Safety invariant: for as long as the pen exists, `funcs` is `NULL` or
+    // live and unmodified, and `data` is draw data its callbacks may be
+    // called with.
+    funcs: *mut hr_draw_funcs_t,
+    data: *mut c_void,
+    state: hr_draw_state_t,
+    x: f32,
+    y: f32,
+    start: Option<(f32, f32)>,
+    current: (f32, f32),
+}
+impl Pen {
+    /// Makes a pen that draws to `funcs`, scaling horizontal coordinates by
+    /// `x` and vertical ones by `y`.
+    ///
+    /// # Safety
+    ///
+    /// Until the pen is dropped, `funcs` must be `NULL` or live and must not
+    /// be modified, and `data` must be draw data its callbacks may be called
+    /// with.
+    pub(crate) unsafe fn new(
+        funcs: *mut hr_draw_funcs_t,
+        data: *mut c_void,
+        x: f32,
+        y: f32,
+    ) -> Self {
+        Self {
+            funcs,
+            data,
+            state: hr_draw_state_t::default(),
+            x,
+            y,
+            start: None,
+            current: (0.0, 0.0),
+        }
+    }
 }
 impl skrifa::outline::OutlinePen for Pen {
     fn move_to(&mut self, x: f32, y: f32) {
         self.close();
         self.current = (x, y);
+        // SAFETY: `hr_draw_move_to` takes `NULL` or live callbacks that stay
+        // unmodified while it runs, draw data to call them with, and a state
+        // it may read and write. The invariant on `funcs` and `data` gives
+        // the first two, and the state is the pen's own, borrowed exclusively
+        // here.
         unsafe {
             hr_draw_move_to(
                 self.funcs,
@@ -190,6 +224,7 @@ impl skrifa::outline::OutlinePen for Pen {
     fn line_to(&mut self, x: f32, y: f32) {
         self.start.get_or_insert(self.current);
         self.current = (x, y);
+        // SAFETY: as in `move_to`.
         unsafe {
             hr_draw_line_to(
                 self.funcs,
@@ -203,6 +238,7 @@ impl skrifa::outline::OutlinePen for Pen {
     fn quad_to(&mut self, a: f32, b: f32, x: f32, y: f32) {
         self.start.get_or_insert(self.current);
         self.current = (x, y);
+        // SAFETY: as in `move_to`.
         unsafe {
             hr_draw_quadratic_to(
                 self.funcs,
@@ -218,6 +254,7 @@ impl skrifa::outline::OutlinePen for Pen {
     fn curve_to(&mut self, a: f32, b: f32, c: f32, d: f32, x: f32, y: f32) {
         self.start.get_or_insert(self.current);
         self.current = (x, y);
+        // SAFETY: as in `move_to`.
         unsafe {
             hr_draw_cubic_to(
                 self.funcs,
@@ -236,6 +273,7 @@ impl skrifa::outline::OutlinePen for Pen {
     fn close(&mut self) {
         if let Some((x, y)) = self.start.take() {
             if self.current != (x, y) {
+                // SAFETY: as in `move_to`.
                 unsafe {
                     hr_draw_line_to(
                         self.funcs,
@@ -247,6 +285,7 @@ impl skrifa::outline::OutlinePen for Pen {
                 }
             }
         }
+        // SAFETY: as in `move_to`.
         unsafe { hr_draw_close_path(self.funcs, self.data, &raw mut self.state) }
     }
 }

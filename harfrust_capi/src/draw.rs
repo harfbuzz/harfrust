@@ -577,15 +577,13 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
         coords.as_slice(),
     )
     .with_path_style(skrifa::outline::pen::PathStyle::HarfBuzz);
-    let mut pen = crate::rendering::Pen {
-        funcs,
-        data: draw_data,
-        state: hr_draw_state_t::default(),
-        start: None,
-        current: (0.0, 0.0),
-        x,
-        y,
-    };
+    // SAFETY: until it is dropped, which is when this returns, the pen needs
+    // `funcs` to be `NULL` or live and unmodified, and `draw_data` to be what
+    // its callbacks are called with. This function's contract has `funcs`
+    // `NULL` or live and left alone by callbacks for the call, changing it
+    // from elsewhere needs exclusive access, and `draw_data` is what the
+    // caller gave to go with it.
+    let mut pen = unsafe { crate::rendering::Pen::new(funcs, draw_data, x, y) };
     i32::from(outline.draw(settings, &mut pen).is_ok())
 }
 /// Compatibility entry point ignoring the success result.
@@ -599,6 +597,9 @@ pub unsafe extern "C" fn hr_font_draw_glyph(
     unsafe { hr_font_draw_glyph_or_fail(font, glyph, funcs, draw_data) };
 }
 
+/// # Safety
+///
+/// As [`hr_font_draw_glyph_or_fail`], and `parent` must be `NULL` or live.
 unsafe fn parent_draw(
     font: *mut hr_font_t,
     parent: *mut hr_font_t,
@@ -687,14 +688,17 @@ unsafe fn parent_draw(
     }
     let (sx, sy) = unsafe { crate::rendering::scale(font) };
     let (px, py) = unsafe { crate::rendering::scale(parent) };
-    let mut pen = Pen {
-        funcs,
-        data,
-        state: hr_draw_state_t::default(),
-        start: None,
-        current: (0.0, 0.0),
-        x: if px == 0.0 { 0.0 } else { sx / px },
-        y: if py == 0.0 { 0.0 } else { sy / py },
+    // SAFETY: until it is dropped, which is when this returns, the pen needs
+    // `funcs` to be `NULL` or live and unmodified, and `data` to be what its
+    // callbacks are called with. This function's contract has both so for
+    // the call.
+    let mut pen = unsafe {
+        Pen::new(
+            funcs,
+            data,
+            if px == 0.0 { 0.0 } else { sx / px },
+            if py == 0.0 { 0.0 } else { sy / py },
+        )
     };
     // Stream each segment through the pen as the parent emits it: an outline
     // can be far longer than the font that produced it, so it is never held.

@@ -1352,7 +1352,8 @@ pub unsafe extern "C" fn hr_buffer_get_segment_properties(
 /// # Safety
 ///
 /// `buffer` must be `NULL` or a live buffer, and `props` must be `NULL` or
-/// readable.
+/// readable. The language in `props` must be `NULL` or an interned language
+/// returned by this API.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_set_segment_properties(
     buffer: *mut hr_buffer_t,
@@ -1366,7 +1367,10 @@ pub unsafe extern "C" fn hr_buffer_set_segment_properties(
     // Every property is assigned, including the absent ones: this overwrites
     // what the buffer held rather than filling in around it, so that a reused
     // buffer cannot keep a script or language from its last life.
-    let (direction, script, language) = props.to_rust();
+    // SAFETY: `to_rust` needs the language in `props` to be `NULL` or an
+    // interned language returned by this API, which this function's contract
+    // requires of it.
+    let (direction, script, language) = unsafe { props.to_rust() };
     buffer.buffer.set_direction(direction);
     buffer.buffer.set_script(script);
     buffer.buffer.set_language(language);
@@ -1610,7 +1614,10 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
         chunk.push_str(item);
         // Last in an item, after everything the serializer writes.
         if wants_extents {
-            if let Some(extents) = font.glyph_extents(font_ptr, info.glyph_id) {
+            // SAFETY: `font` is `font_ptr` through `or_empty`: the font it
+            // points to, live by this function's contract, or the empty font
+            // if it is `NULL`. `glyph_extents` takes either pair.
+            if let Some(extents) = unsafe { font.glyph_extents(font_ptr, info.glyph_id) } {
                 use core::fmt::Write;
                 let _ = write!(
                     chunk,

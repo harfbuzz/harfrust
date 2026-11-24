@@ -46,12 +46,17 @@ pub struct hr_segment_properties_t {
 }
 
 impl hr_segment_properties_t {
-    pub(crate) fn to_rust(self) -> (Direction, Option<Script>, Option<Language>) {
+    /// # Safety
+    ///
+    /// The `language` field must be `NULL` or an interned language returned by
+    /// this API.
+    pub(crate) unsafe fn to_rust(self) -> (Direction, Option<Script>, Option<Language>) {
         (
             direction_to_rust(self.direction),
             script_to_rust(self.script),
-            // SAFETY: documented as `NULL` or a value from
-            // `hr_language_from_string`, which is interned for the process.
+            // SAFETY: `language_to_rust` takes `NULL` or an interned language
+            // returned by this API, which is what the contract above requires
+            // the field to be.
             unsafe { language_to_rust(self.language) },
         )
     }
@@ -224,7 +229,11 @@ unsafe fn create_plan(
     else {
         return hr_shape_plan_t::empty();
     };
-    let (direction, script, language) = props.to_rust();
+    // SAFETY: `to_rust` needs the language in `props` to be `NULL` or an
+    // interned language returned by this API. This function's contract is
+    // `hr_shape_plan_create2`'s, and so `hr_shape_plan_create`'s, which
+    // requires exactly that.
+    let (direction, script, language) = unsafe { props.to_rust() };
     // Compiling a plan requires a direction; HarfBuzz's own planner assumes one
     // too, so refuse rather than guess on the caller's behalf.
     if direction == Direction::Invalid {
@@ -268,7 +277,8 @@ unsafe fn create_plan(
 /// `face` must be `NULL` or a live face, `props` must be `NULL` or readable,
 /// `user_features` must point to `num_user_features` readable entries, and
 /// `shaper_list` must be `NULL` or a `NULL`-terminated array of NUL-terminated
-/// strings.
+/// strings. The language in `props` must be `NULL` or an interned language
+/// returned by this API.
 #[no_mangle]
 pub unsafe extern "C" fn hr_shape_plan_create(
     face: *mut hr_face_t,
@@ -576,7 +586,12 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     );
 
     let features = unsafe { collect_features(features, num_features) };
-    crate::shape::shape_with_plan(font, buffer_ref, &features, &plan)
+    // SAFETY: `shape_with_plan` needs `font` to be `NULL` or a live font that
+    // stays live and unmodified until it returns. This function's contract
+    // has it `NULL` or live, and nothing above releases or writes to it. A
+    // font being shaped with must not be modified or freed, by its callbacks
+    // or from another thread, so it stays as it is until shaping is done.
+    unsafe { crate::shape::shape_with_plan(font, buffer_ref, &features, &plan) }
 }
 
 /// Returns whether a buffer carries the properties a plan was built for.
