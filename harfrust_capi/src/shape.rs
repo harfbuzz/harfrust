@@ -458,6 +458,7 @@ mod tests {
 
     /// The header is generated and committed, so it can fall behind the crate.
     #[test]
+    #[cfg_attr(miri, ignore = "only reads the committed header, minutes under Miri")]
     fn generated_header_matches_the_crate_version() {
         let header = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/include/hr.h"))
             .expect("include/hr.h should be committed alongside the crate");

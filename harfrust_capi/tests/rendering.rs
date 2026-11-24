@@ -92,27 +92,26 @@ fn draw_state_quadratic_fallback_and_contour_closure() {
     unsafe {
         let funcs = draw_funcs();
         let mut drawing = Drawing::default();
-        let data = ptr::from_mut(&mut drawing).cast();
+        // The callbacks write through this one pointer on every call below,
+        // so what they recorded is read back through it as well. Using the
+        // variable itself in between could take the pointer's access away.
+        let drawing = &raw mut drawing;
+        let drawn = || &(*drawing).0;
+        let data = drawing.cast();
         let mut state = hr_draw_state_t::default();
         hr_draw_move_to(funcs, data, &raw mut state, 3.0, 6.0);
-        assert!(drawing.0.is_empty());
+        assert!(drawn().is_empty());
         hr_draw_quadratic_to(funcs, data, &raw mut state, 9.0, 12.0, 15.0, 18.0);
-        assert_eq!(drawing.0[0].2.path_open, 0);
-        assert_eq!(drawing.0[1].1, [7.0, 10.0, 11.0, 14.0, 15.0, 18.0]);
-        assert_eq!(
-            (drawing.0[1].2.current_x, drawing.0[1].2.current_y),
-            (3.0, 6.0)
-        );
+        assert_eq!(drawn()[0].2.path_open, 0);
+        assert_eq!(drawn()[1].1, [7.0, 10.0, 11.0, 14.0, 15.0, 18.0]);
+        assert_eq!((drawn()[1].2.current_x, drawn()[1].2.current_y), (3.0, 6.0));
         hr_draw_close_path(funcs, data, &raw mut state);
-        assert_eq!(drawing.0[2].1, [3.0, 6.0]);
-        assert_eq!(
-            (drawing.0[3].2.current_x, drawing.0[3].2.current_y),
-            (3.0, 6.0)
-        );
+        assert_eq!(drawn()[2].1, [3.0, 6.0]);
+        assert_eq!((drawn()[3].2.current_x, drawn()[3].2.current_y), (3.0, 6.0));
         assert_eq!(state.path_open, 0);
         assert_eq!(state.current_x, 0.0);
         hr_draw_close_path(funcs, data, &raw mut state);
-        assert_eq!(drawing.0.len(), 4);
+        assert_eq!(drawn().len(), 4);
         hr_draw_funcs_destroy(funcs);
     }
 }
@@ -204,13 +203,18 @@ fn outlines_are_built_once_per_face() {
         assert!(face.render_data.get().is_none());
         let funcs = draw_funcs();
         let mut drawing = Drawing::default();
-        let data = ptr::from_mut(&mut drawing).cast();
+        // Both draws write through this one pointer, so the segments are
+        // counted through it too. Using the variable itself in between could
+        // take the pointer's access away.
+        let drawing = &raw mut drawing;
+        let drawn = || &(*drawing).0;
+        let data = drawing.cast();
         assert_eq!(hr_font_draw_glyph_or_fail(font, 1, funcs, data), 1);
         let first = rendering::outlines(face).map(ptr::from_ref);
         assert!(first.is_some());
-        let segments = drawing.0.len();
+        let segments = drawn().len();
         assert_eq!(hr_font_draw_glyph_or_fail(font, 1, funcs, data), 1);
-        assert_eq!(drawing.0.len(), 2 * segments);
+        assert_eq!(drawn().len(), 2 * segments);
         // The second draw reused the collection instead of parsing the font
         // tables again; for a CFF font that walk covers the whole Top DICT.
         assert_eq!(rendering::outlines(face).map(ptr::from_ref), first);
@@ -419,10 +423,16 @@ fn sub_font_draw_streams_segments() {
         let font = font();
         let callbacks = hr_font_funcs_create();
         let mut streamed = Streamed::default();
+        // The parent's callback and the caller's line callback take turns
+        // at the counts while the glyph is drawn, so both are handed this
+        // one pointer, and the test reads through it too. A second pointer
+        // made by borrowing the variable again would take the first one's
+        // access away.
+        let streamed = &raw mut streamed;
         hr_font_funcs_set_draw_glyph_or_fail_func(
             callbacks,
             Some(custom_draw_observing_delivery),
-            ptr::from_mut(&mut streamed).cast(),
+            streamed.cast(),
             None,
         );
         hr_font_set_funcs(font, callbacks, ptr::null_mut(), None);
@@ -431,10 +441,10 @@ fn sub_font_draw_streams_segments() {
         let funcs = hr_draw_funcs_create();
         hr_draw_funcs_set_line_to_func(funcs, Some(count_line), ptr::null_mut(), None);
         assert_eq!(
-            hr_font_draw_glyph_or_fail(child, 1, funcs, ptr::from_mut(&mut streamed).cast()),
+            hr_font_draw_glyph_or_fail(child, 1, funcs, streamed.cast()),
             1
         );
-        assert_eq!(streamed.during_draw, 1);
+        assert_eq!((*streamed).during_draw, 1);
         hr_draw_funcs_destroy(funcs);
         hr_font_destroy(child);
         hr_font_destroy(font);
@@ -742,35 +752,39 @@ mod painting {
                 strict: true,
                 ..Paint::default()
             };
-            let data = ptr::from_mut(&mut s).cast();
+            // The callbacks reach the state through this one pointer on
+            // every call below, so it is looked at and reset through the
+            // same pointer in between, the way they do it. Using the
+            // variable itself could take the pointer's access away.
+            let data = (&raw mut s).cast();
             assert_eq!(
                 hr_font_paint_glyph_or_fail(font, 2, funcs, data, 0, 0xaabb_ccff),
                 1
             );
-            assert_eq!(s.colors, [(0, 0x0000_ffff), (1, 0xaabb_ccff)]);
-            s.colors.clear();
+            assert_eq!(state(data).colors, [(0, 0x0000_ffff), (1, 0xaabb_ccff)]);
+            state(data).colors.clear();
             assert_eq!(
                 hr_font_paint_glyph_or_fail(font, 2, funcs, data, 1, 0xaabb_ccff),
                 1
             );
-            assert_eq!(s.colors[0], (0, 0xff00_0080));
-            s.custom = true;
-            s.colors.clear();
+            assert_eq!(state(data).colors[0], (0, 0xff00_0080));
+            state(data).custom = true;
+            state(data).colors.clear();
             assert_eq!(
                 hr_font_paint_glyph_or_fail(font, 2, funcs, data, 99, 0xaabb_ccff),
                 1
             );
-            assert_eq!(s.colors[0], (0, 0x00ff_00ff));
+            assert_eq!(state(data).colors[0], (0, 0x00ff_00ff));
             hr_font_set_scale(font, 2000, -500);
             for glyph in [3, 7, 8] {
                 assert_eq!(
                     hr_font_paint_glyph_or_fail(font, glyph, funcs, data, 0, 0xaabb_ccff),
                     1
                 );
-                assert_eq!(s.scopes, [] as [u8; 0]);
+                assert_eq!(state(data).scopes, [] as [u8; 0]);
             }
-            assert_eq!(s.gradients, [0, 1, 2]);
-            for stops in s.stops.chunks_exact(2) {
+            assert_eq!(state(data).gradients, [0, 1, 2]);
+            for stops in state(data).stops.chunks_exact(2) {
                 assert_eq!(stops.iter().filter(|s| s.is_foreground != 0).count(), 1);
                 for stop in stops {
                     assert_eq!(
@@ -784,12 +798,12 @@ mod painting {
                 }
             }
             assert_eq!(hr_font_paint_glyph_or_fail(font, 4, funcs, data, 0, 0), 0);
-            assert_eq!(s.scopes, [] as [u8; 0]);
+            assert_eq!(state(data).scopes, [] as [u8; 0]);
             assert_eq!(
                 hr_font_paint_glyph_or_fail(font, u32::MAX, funcs, data, 0, 0),
                 0
             );
-            assert_eq!(s.scopes, [] as [u8; 0]);
+            assert_eq!(state(data).scopes, [] as [u8; 0]);
             hr_paint_funcs_destroy(funcs);
             hr_font_destroy(font);
         }
@@ -836,7 +850,12 @@ mod painting {
             let font = font();
             let callbacks = hr_font_funcs_create();
             let mut drops = 0u32;
-            let user = ptr::from_mut(&mut drops).cast();
+            // Every setter below is handed this one pointer to the count,
+            // and the releases come through it for as long as any of the
+            // objects lives, so the count is read through it as well. Using
+            // the variable itself could take the pointer's access away.
+            let drops = &raw mut drops;
+            let user = drops.cast();
             hr_font_funcs_set_paint_glyph_or_fail_func(
                 callbacks,
                 Some(custom_font_paint),
@@ -848,38 +867,39 @@ mod painting {
             hr_font_set_scale(child, 2000, -500);
             let funcs = funcs();
             let mut s = Paint::default();
-            let data = ptr::from_mut(&mut s).cast();
+            // The same goes for what the paint callbacks record.
+            let data = (&raw mut s).cast();
             assert_eq!(
                 hr_font_paint_glyph_or_fail(child, 1, funcs, data, 2, 0x1234_5678),
                 0
             );
-            assert_eq!(s.colors, [(1, 0x1234_5678)]);
-            assert_eq!(s.transforms, [(2.0, -0.5)]);
-            assert_eq!(s.scopes, [] as [u8; 0]);
+            assert_eq!(state(data).colors, [(1, 0x1234_5678)]);
+            assert_eq!(state(data).transforms, [(2.0, -0.5)]);
+            assert_eq!(state(data).scopes, [] as [u8; 0]);
             hr_font_funcs_set_paint_glyph_func(
                 callbacks,
                 Some(legacy_font_paint),
                 user,
                 Some(count_drop),
             );
-            assert_eq!(drops, 1);
+            assert_eq!(*drops, 1);
             assert_eq!(hr_font_paint_glyph_or_fail(child, 1, funcs, data, 2, 0), 1);
             hr_font_funcs_make_immutable(callbacks);
             hr_font_funcs_set_paint_glyph_or_fail_func(callbacks, None, user, Some(count_drop));
-            assert_eq!(drops, 2);
+            assert_eq!(*drops, 2);
             hr_font_funcs_destroy(callbacks);
             hr_font_destroy(child);
             hr_font_destroy(font);
-            assert_eq!(drops, 3);
+            assert_eq!(*drops, 3);
             hr_paint_funcs_set_color_func(funcs, Some(color), user, Some(count_drop));
             let retained = hr_paint_funcs_reference(funcs);
             hr_paint_funcs_destroy(funcs);
-            assert_eq!(drops, 3);
+            assert_eq!(*drops, 3);
             hr_paint_funcs_make_immutable(retained);
             hr_paint_funcs_set_color_func(retained, None, user, Some(count_drop));
-            assert_eq!(drops, 4);
+            assert_eq!(*drops, 4);
             hr_paint_funcs_destroy(retained);
-            assert_eq!(drops, 5);
+            assert_eq!(*drops, 5);
         }
     }
 
@@ -961,8 +981,19 @@ mod painting {
             let face = hr_face_create(blob, 0);
             let font = hr_font_create(face);
             let funcs = funcs();
+            let (glyphs, paintable) = if cfg!(miri) {
+                // Miri takes a minute or more over the whole corpus, and
+                // learns little from one glyph that it did not from the
+                // last of its kind. It paints a stretch that has each kind
+                // of gradient, composites, both cycles and the glyph with
+                // the most transforms, where 21 glyphs paint.
+                (150..185, 21)
+            } else {
+                // 200 COLRv1 entries include two intentional cycles; one COLRv0 glyph succeeds.
+                (0..hr_face_get_glyph_count(face), 199)
+            };
             let mut painted = 0;
-            for glyph in 0..hr_face_get_glyph_count(face) {
+            for glyph in glyphs {
                 let mut s = Paint::default();
                 painted += hr_font_paint_glyph_or_fail(
                     font,
@@ -974,8 +1005,7 @@ mod painting {
                 );
                 assert!(s.scopes.is_empty(), "glyph {glyph}");
             }
-            // 200 COLRv1 entries include two intentional cycles; one COLRv0 glyph succeeds.
-            assert_eq!(painted, 199);
+            assert_eq!(painted, paintable);
             hr_paint_funcs_destroy(funcs);
             hr_font_destroy(font);
             hr_face_destroy(face);
@@ -1028,9 +1058,19 @@ mod painting {
                 ptr::null_mut(),
                 None,
             );
+            let (glyphs, paintable) = if cfg!(miri) {
+                // Each of the two glyphs that refer to each other uses up
+                // the callback's whole allowance of nested paints, and the
+                // pair takes Miri a minute or more. It paints a stretch
+                // before them, where six glyphs paint and all six have
+                // sub-glyphs to hand to the callback.
+                (156..167, 6)
+            } else {
+                (0..hr_face_get_glyph_count(face), 199)
+            };
             let mut painted = 0;
             let mut color_glyphs = 0;
-            for glyph in 0..hr_face_get_glyph_count(face) {
+            for glyph in glyphs {
                 let mut s = Paint::default();
                 painted += hr_font_paint_glyph_or_fail(
                     font,
@@ -1045,7 +1085,7 @@ mod painting {
                 assert!(s.color_glyphs <= 256, "glyph {glyph}");
                 color_glyphs += s.color_glyphs;
             }
-            assert_eq!(painted, 199);
+            assert_eq!(painted, paintable);
             assert!(color_glyphs > 0);
             hr_paint_funcs_destroy(funcs);
             hr_font_destroy(font);

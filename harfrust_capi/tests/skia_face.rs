@@ -184,6 +184,7 @@ fn unicode_collection_adds_coverage_without_clearing_the_set() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore = "fills a set with all of Unicode, too slow under Miri")]
 fn unicode_collection_covers_constant_format13_ranges() {
     unsafe {
         let data = include_bytes!("../../harfrust/tests/fonts/in-house/AdobeBlank2.ttf");
