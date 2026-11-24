@@ -130,13 +130,25 @@ impl AsRef<[u8]> for SharedSub {
 pub struct hr_blob_t {
     header: ObjectHeader,
     pub(crate) blob: Blob,
+    /// Where a blob with no data says its data is: nowhere, unless it was
+    /// made over a buffer of no length that the caller supplied, which is
+    /// still at the address the caller gave. It is only ever handed back,
+    /// never read through, so it is kept as an address.
+    empty_at: usize,
 }
 
 impl hr_blob_t {
     pub(crate) fn new(blob: Blob) -> *mut Self {
+        Self::new_at(blob, core::ptr::null())
+    }
+
+    /// As [`hr_blob_t::new`], for a blob that reports `empty_at` as its data
+    /// when it has none.
+    fn new_at(blob: Blob, empty_at: *const c_char) -> *mut Self {
         object::create(hr_blob_t {
             header: ObjectHeader::new(),
             blob,
+            empty_at: empty_at.addr(),
         })
     }
 
@@ -214,6 +226,7 @@ impl Object for hr_blob_t {
                 Empty::new(hr_blob_t {
                     header: ObjectHeader::immortal(),
                     blob: Blob::Static(&[]),
+                    empty_at: 0,
                 })
             })
             .get()
@@ -272,8 +285,15 @@ pub unsafe extern "C" fn hr_blob_create_or_fail(
     destroy: hr_destroy_func_t,
 ) -> *mut hr_blob_t {
     let blob = unsafe { blob_from_raw(data, length, mode, user_data, destroy) };
+    // A blob of nothing made over the caller's own memory still says where
+    // that memory is, as in HarfBuzz. A copy of nothing is nowhere.
+    let empty_at = if length == 0 && mode != HR_MEMORY_MODE_DUPLICATE {
+        data
+    } else {
+        core::ptr::null()
+    };
     match blob {
-        Some(blob) => hr_blob_t::new(blob),
+        Some(blob) => hr_blob_t::new_at(blob, empty_at),
         None => core::ptr::null_mut(),
     }
 }
@@ -494,6 +514,10 @@ pub unsafe extern "C" fn hr_blob_get_length(blob: *mut hr_blob_t) -> c_uint {
 
 /// Returns a blob's data, writing its length to `length` when non-`NULL`.
 ///
+/// A blob with no data returns `NULL`, as in HarfBuzz. The exception, also
+/// as in HarfBuzz, is one that [`hr_blob_create_or_fail`] made over a buffer
+/// of no length without copying it, which returns the address it was given.
+///
 /// # Safety
 ///
 /// `blob` must be `NULL` or a live blob, and `length` must be `NULL` or
@@ -503,9 +527,19 @@ pub unsafe extern "C" fn hr_blob_get_data(
     blob: *mut hr_blob_t,
     length: *mut c_uint,
 ) -> *const c_char {
-    let bytes = unsafe { object::or_empty(blob.cast_const()) }.bytes();
-    if let Some(length) = unsafe { length.as_mut() } {
-        *length = bytes.len() as c_uint;
+    let blob = unsafe { object::or_empty(blob.cast_const()) };
+    let bytes = blob.bytes();
+    if !length.is_null() {
+        // SAFETY: `length` is non-null and, by this function's contract,
+        // writable. It only returns a value, so it is written through the
+        // pointer and not a reference: the caller need not have set it.
+        unsafe { length.write(bytes.len() as c_uint) };
+    }
+    // An empty slice still has an address, one that points at nothing. A
+    // caller that tests the pointer and not the length would read from it,
+    // so what is returned is the address the blob was made at, if any.
+    if bytes.is_empty() {
+        return core::ptr::without_provenance(blob.empty_at);
     }
     bytes.as_ptr().cast::<c_char>()
 }

@@ -2767,6 +2767,10 @@ unsigned int hr_blob_get_length(struct hr_blob_t *blob);
 /**
  * Returns a blob's data, writing its length to `length` when non-`NULL`.
  *
+ * A blob with no data returns `NULL`, as in HarfBuzz. The exception, also
+ * as in HarfBuzz, is one that [`hr_blob_create_or_fail`] made over a buffer
+ * of no length without copying it, which returns the address it was given.
+ *
  * # Safety
  *
  * `blob` must be `NULL` or a live blob, and `length` must be `NULL` or
@@ -3928,7 +3932,8 @@ void hr_font_set_var_coords_normalized(struct hr_font_t *font,
  * Returns a font's normalized coordinates, writing their count to `length`.
  *
  * The returned pointer stays valid until the font's variation settings change
- * or the font is freed.
+ * or the font is freed. A font with no coordinates returns `NULL`, as in
+ * HarfBuzz.
  *
  * # Safety
  *
