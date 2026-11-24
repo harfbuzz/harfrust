@@ -3,7 +3,7 @@
 #![allow(clippy::cast_precision_loss)]
 use crate::color::hr_color_t;
 use crate::draw::hr_draw_funcs_t;
-use crate::font_funcs::{callback_taking, Callback};
+use crate::font_funcs::{set_callback, Callback};
 use crate::object::{self, Empty, Object, ObjectHeader};
 use crate::{hr_blob_t, hr_glyph_extents_t, hr_tag_t};
 use crate::{hr_bool_t, hr_codepoint_t, hr_destroy_func_t, hr_font_t, hr_user_data_key_t};
@@ -307,17 +307,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_transform_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_transform,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_transform, new)
+        });
+    }
 }
 /// Dispatches push transform; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -359,17 +353,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_transform_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.pop_transform,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.pop_transform, new)
+        });
+    }
 }
 /// Dispatches pop transform; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -393,17 +381,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.color_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.color_glyph, new)
+        });
+    }
 }
 /// Dispatches color glyph; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -430,17 +412,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_clip_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_clip_glyph, new)
+        });
+    }
 }
 /// Dispatches push clip glyph; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -466,17 +442,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_rectangle_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_clip_rectangle,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_clip_rectangle, new)
+        });
+    }
 }
 /// Dispatches push clip rectangle; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -514,17 +484,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_path_start_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_clip_path_start,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_clip_path_start, new)
+        });
+    }
 }
 /// Dispatches push clip path start; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -550,17 +514,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_path_end_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_clip_path_end,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_clip_path_end, new)
+        });
+    }
 }
 /// Dispatches push clip path end; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -584,17 +542,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_clip_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.pop_clip,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.pop_clip, new)
+        });
+    }
 }
 /// Dispatches pop clip; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -615,14 +567,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(&mut state.color, callback_taking(func, user_data, destroy));
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.color, new)
+        });
+    }
 }
 /// Dispatches color; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -648,17 +597,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_fill_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.fill_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.fill_glyph, new)
+        });
+    }
 }
 /// Dispatches fill glyph; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -701,14 +644,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_image_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(&mut state.image, callback_taking(func, user_data, destroy));
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.image, new)
+        });
+    }
 }
 /// Dispatches image; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -751,17 +691,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_linear_gradient_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.linear_gradient,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.linear_gradient, new)
+        });
+    }
 }
 /// Dispatches linear gradient; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -805,17 +739,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_radial_gradient_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.radial_gradient,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.radial_gradient, new)
+        });
+    }
 }
 /// Dispatches radial gradient; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -859,17 +787,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_sweep_gradient_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.sweep_gradient,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.sweep_gradient, new)
+        });
+    }
 }
 /// Dispatches sweep gradient; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -909,17 +831,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_group_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_group,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_group, new)
+        });
+    }
 }
 /// Dispatches push group; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -943,17 +859,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_group_for_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.push_group_for,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.push_group_for, new)
+        });
+    }
 }
 /// Dispatches push group for; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -979,17 +889,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_group_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.pop_group,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.pop_group, new)
+        });
+    }
 }
 /// Dispatches pop group; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -1014,17 +918,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_custom_palette_color_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.custom_palette_color,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.custom_palette_color, new)
+        });
+    }
 }
 /// Dispatches custom palette color; omitted callbacks use the HarfBuzz default.
 #[no_mangle]
@@ -1243,17 +1141,12 @@ pub unsafe extern "C" fn hr_font_funcs_set_paint_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(ffuncs) }) else {
-        unsafe { crate::rendering::reject_data(user_data, destroy) };
-        return;
-    };
-    let old = core::mem::replace(
-        &mut state.paint_glyph_legacy,
-        callback_taking(func, user_data, destroy),
-    );
-    let other = state.paint_glyph.take();
-    drop(old);
-    drop(other);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |state, new| {
+            let old = core::mem::replace(&mut state.paint_glyph_legacy, new);
+            (old, state.paint_glyph.take())
+        });
+    }
 }
 /// Registers custom painting returning success.
 #[no_mangle]
@@ -1263,17 +1156,12 @@ pub unsafe extern "C" fn hr_font_funcs_set_paint_glyph_or_fail_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(ffuncs) }) else {
-        unsafe { crate::rendering::reject_data(user_data, destroy) };
-        return;
-    };
-    let old = core::mem::replace(
-        &mut state.paint_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    let other = state.paint_glyph_legacy.take();
-    drop(old);
-    drop(other);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |state, new| {
+            let old = core::mem::replace(&mut state.paint_glyph, new);
+            (old, state.paint_glyph_legacy.take())
+        });
+    }
 }
 /// Paints COLRv0/v1, SVG, CBDT or sbix through client callbacks.
 /// Returns false on malformed data, unsupported images, or paint failure.

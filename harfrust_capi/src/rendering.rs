@@ -156,12 +156,6 @@ pub(crate) unsafe fn scale(font: *mut hr_font_t) -> (f32, f32) {
     (x as f32 / upem, y as f32 / upem)
 }
 
-pub(crate) unsafe fn reject_data(data: *mut c_void, destroy: hr_destroy_func_t) {
-    if let Some(destroy) = destroy {
-        unsafe { destroy(data) }
-    }
-}
-
 // A parent callback draws in the parent's scale. Forward each segment at the
 // child's scale, retaining correct path state at the public callback boundary.
 pub(crate) struct Pen {

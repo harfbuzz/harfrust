@@ -1,7 +1,7 @@
 //! Draw callbacks with HarfBuzz-compatible ownership and dispatch.
 // The C drawing/painting ABI uses f32 coordinates, including integer font scales.
 #![allow(clippy::cast_precision_loss)]
-use crate::font_funcs::{callback_taking, Callback};
+use crate::font_funcs::{set_callback, Callback};
 use crate::object::{self, Empty, Object, ObjectHeader};
 use crate::{hr_bool_t, hr_codepoint_t, hr_destroy_func_t, hr_font_t, hr_user_data_key_t};
 use core::ffi::c_void;
@@ -156,17 +156,11 @@ pub unsafe extern "C" fn hr_draw_funcs_set_move_to_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.move_to,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.move_to, new)
+        });
+    }
 }
 /// Registers line to. Takes ownership of data, including when clearing or rejected.
 /// Mutation requires exclusive access; funcs must be NULL or live.
@@ -177,17 +171,11 @@ pub unsafe extern "C" fn hr_draw_funcs_set_line_to_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.line_to,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.line_to, new)
+        });
+    }
 }
 /// Registers quadratic to. Takes ownership of data, including when clearing or rejected.
 /// Mutation requires exclusive access; funcs must be NULL or live.
@@ -198,17 +186,11 @@ pub unsafe extern "C" fn hr_draw_funcs_set_quadratic_to_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.quadratic_to,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.quadratic_to, new)
+        });
+    }
 }
 /// Registers cubic to. Takes ownership of data, including when clearing or rejected.
 /// Mutation requires exclusive access; funcs must be NULL or live.
@@ -219,17 +201,11 @@ pub unsafe extern "C" fn hr_draw_funcs_set_cubic_to_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.cubic_to,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.cubic_to, new)
+        });
+    }
 }
 /// Registers close path. Takes ownership of data, including when clearing or rejected.
 /// Mutation requires exclusive access; funcs must be NULL or live.
@@ -240,17 +216,11 @@ pub unsafe extern "C" fn hr_draw_funcs_set_close_path_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(funcs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) }
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut state.close_path,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(funcs, func, user_data, destroy, |state, new| {
+            core::mem::replace(&mut state.close_path, new)
+        });
+    }
 }
 
 /// Drawing state. Its layout matches HarfBuzz, including private reserved words.
@@ -481,17 +451,12 @@ pub unsafe extern "C" fn hr_font_funcs_set_draw_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(ffuncs) }) else {
-        unsafe { crate::rendering::reject_data(user_data, destroy) };
-        return;
-    };
-    let old = core::mem::replace(
-        &mut state.draw_glyph_legacy,
-        callback_taking(func, user_data, destroy),
-    );
-    let other = state.draw_glyph.take();
-    drop(old);
-    drop(other);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |state, new| {
+            let old = core::mem::replace(&mut state.draw_glyph_legacy, new);
+            (old, state.draw_glyph.take())
+        });
+    }
 }
 /// Sets a custom outline callback returning success.
 #[no_mangle]
@@ -501,17 +466,12 @@ pub unsafe extern "C" fn hr_font_funcs_set_draw_glyph_or_fail_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(state) = (unsafe { object::as_mutable(ffuncs) }) else {
-        unsafe { crate::rendering::reject_data(user_data, destroy) };
-        return;
-    };
-    let old = core::mem::replace(
-        &mut state.draw_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    let other = state.draw_glyph_legacy.take();
-    drop(old);
-    drop(other);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |state, new| {
+            let old = core::mem::replace(&mut state.draw_glyph, new);
+            (old, state.draw_glyph_legacy.take())
+        });
+    }
 }
 /// Draws an unhinted glyph using Skrifa, or the installed font callback.
 /// Supported outlines are glyf, CFF, CFF2, and VARC. Returns false on invalid input.

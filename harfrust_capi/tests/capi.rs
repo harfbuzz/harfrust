@@ -4904,6 +4904,198 @@ fn a_destructor_may_set_the_callback_it_is_released_from() {
     );
 }
 
+/// What `reenter_funcs_on_release` is handed: the funcs to come back into,
+/// and how often it and the callback it installs have been released.
+struct SetterReentry {
+    ffuncs: *mut hr_font_funcs_t,
+    released: AtomicUsize,
+    nested_released: AtomicUsize,
+}
+
+unsafe extern "C" fn reenter_funcs_on_release(user_data: *mut c_void) {
+    let state = unsafe { &*user_data.cast::<SetterReentry>() };
+    state.released.fetch_add(1, Ordering::SeqCst);
+    unsafe {
+        hr_font_funcs_is_immutable(state.ffuncs);
+        hr_font_funcs_get_user_data(state.ffuncs, &raw const KEY);
+        // The callback being cleared, and one that is not.
+        hr_font_funcs_set_nominal_glyph_func(
+            state.ffuncs,
+            Some(always_glyph_777),
+            ptr::from_ref(&state.nested_released).cast_mut().cast(),
+            Some(count_drop),
+        );
+        hr_font_funcs_set_glyph_h_advance_func(state.ffuncs, None, ptr::null_mut(), None);
+    }
+}
+
+#[test]
+fn a_destructor_run_by_a_setter_may_come_back_into_the_funcs() {
+    // Clearing a callback releases the data handed over with the call from
+    // inside the setter, as HarfBuzz does. The destructor is the caller's
+    // code and may query the funcs or set callbacks on it, so the setter
+    // must not be in the middle of writing to the funcs while it runs.
+    let state = SetterReentry {
+        ffuncs: hr_font_funcs_create(),
+        released: AtomicUsize::new(0),
+        nested_released: AtomicUsize::new(0),
+    };
+    unsafe {
+        hr_font_funcs_set_nominal_glyph_func(
+            state.ffuncs,
+            None,
+            ptr::from_ref(&state).cast_mut().cast(),
+            Some(reenter_funcs_on_release),
+        );
+        assert_eq!(state.released.load(Ordering::SeqCst), 1);
+        // The clear lands once the destructor has run, so it displaces the
+        // callback the destructor installed, as it does in HarfBuzz.
+        assert_eq!(state.nested_released.load(Ordering::SeqCst), 1);
+        hr_font_funcs_destroy(state.ffuncs);
+    }
+    assert_eq!(state.released.load(Ordering::SeqCst), 1);
+    assert_eq!(state.nested_released.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_setter_releases_its_user_data_exactly_once() {
+    // A setter owns the data it is handed whether the funcs keeps the
+    // callback, has it cleared, or refuses the change. It is released at
+    // once unless the callback was kept, and with the funcs if it was.
+    let as_data = |drops: &AtomicUsize| ptr::from_ref(drops).cast_mut().cast::<c_void>();
+    let funcs: [hr_font_get_nominal_glyph_func_t; 2] = [None, Some(always_glyph_777)];
+    for func in funcs {
+        for immutable in [false, true] {
+            let case = format!("callback: {}, immutable: {immutable}", func.is_some());
+            let previous = AtomicUsize::new(0);
+            let drops = AtomicUsize::new(0);
+            unsafe {
+                let ffuncs = hr_font_funcs_create();
+                hr_font_funcs_set_nominal_glyph_func(
+                    ffuncs,
+                    Some(always_glyph_777),
+                    as_data(&previous),
+                    Some(count_drop),
+                );
+                if immutable {
+                    hr_font_funcs_make_immutable(ffuncs);
+                }
+                hr_font_funcs_set_nominal_glyph_func(
+                    ffuncs,
+                    func,
+                    as_data(&drops),
+                    Some(count_drop),
+                );
+                let kept = func.is_some() && !immutable;
+                assert_eq!(drops.load(Ordering::SeqCst), usize::from(!kept), "{case}");
+                // The callback that was there goes only when the change is
+                // accepted.
+                assert_eq!(
+                    previous.load(Ordering::SeqCst),
+                    usize::from(!immutable),
+                    "{case}"
+                );
+                hr_font_funcs_destroy(ffuncs);
+            }
+            assert_eq!(drops.load(Ordering::SeqCst), 1, "{case}");
+            assert_eq!(previous.load(Ordering::SeqCst), 1, "{case}");
+        }
+
+        // No funcs at all refuses the change the same way.
+        let drops = AtomicUsize::new(0);
+        unsafe {
+            hr_font_funcs_set_nominal_glyph_func(
+                ptr::null_mut(),
+                func,
+                as_data(&drops),
+                Some(count_drop),
+            );
+        }
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+    }
+}
+
+/// What `freeze_funcs_on_release` is handed: the funcs to make immutable,
+/// and how often it has run.
+struct FreezingClear {
+    ffuncs: *mut hr_font_funcs_t,
+    released: AtomicUsize,
+}
+
+unsafe extern "C" fn freeze_funcs_on_release(user_data: *mut c_void) {
+    let state = unsafe { &*user_data.cast::<FreezingClear>() };
+    state.released.fetch_add(1, Ordering::SeqCst);
+    unsafe { hr_font_funcs_make_immutable(state.ffuncs) };
+}
+
+/// Installs `always_glyph_777` with `installed` as its data, then clears it
+/// with data whose destructor makes the funcs immutable.
+unsafe fn clear_with_a_freezing_destructor(state: &FreezingClear, installed: &AtomicUsize) {
+    unsafe {
+        hr_font_funcs_set_nominal_glyph_func(
+            state.ffuncs,
+            Some(always_glyph_777),
+            ptr::from_ref(installed).cast_mut().cast(),
+            Some(count_drop),
+        );
+        hr_font_funcs_set_nominal_glyph_func(
+            state.ffuncs,
+            None,
+            ptr::from_ref(state).cast_mut().cast(),
+            Some(freeze_funcs_on_release),
+        );
+    }
+}
+
+#[test]
+fn a_clear_whose_destructor_freezes_the_funcs_still_lands() {
+    // Whether the funcs takes changes is decided when the setter is entered,
+    // as in HarfBuzz. A destructor that makes the funcs immutable while the
+    // clear is under way does not stop it: the callback that was set goes,
+    // and its data with it.
+    let installed = AtomicUsize::new(0);
+    let state = FreezingClear {
+        ffuncs: hr_font_funcs_create(),
+        released: AtomicUsize::new(0),
+    };
+    unsafe {
+        clear_with_a_freezing_destructor(&state, &installed);
+        assert_eq!(state.released.load(Ordering::SeqCst), 1);
+        assert_ne!(hr_font_funcs_is_immutable(state.ffuncs), 0);
+        assert_eq!(installed.load(Ordering::SeqCst), 1);
+        hr_font_funcs_destroy(state.ffuncs);
+    }
+    assert_eq!(state.released.load(Ordering::SeqCst), 1);
+    assert_eq!(installed.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn a_callback_cleared_while_its_funcs_was_frozen_no_longer_answers() {
+    let installed = AtomicUsize::new(0);
+    let state = FreezingClear {
+        ffuncs: hr_font_funcs_create(),
+        released: AtomicUsize::new(0),
+    };
+    unsafe {
+        clear_with_a_freezing_destructor(&state, &installed);
+        assert_eq!(installed.load(Ordering::SeqCst), 1);
+        with_font(|_, font| {
+            hr_font_set_funcs(font, state.ffuncs, ptr::null_mut(), None);
+            // The font now holds the only reference to the funcs.
+            hr_font_funcs_destroy(state.ffuncs);
+            // With the callback gone and no parent to ask, nothing answers.
+            let mut glyph: hr_codepoint_t = 7;
+            assert_eq!(
+                hr_font_get_nominal_glyph(font, u32::from(b'a'), &raw mut glyph),
+                0
+            );
+            assert_ne!(glyph, 777);
+        });
+    }
+    assert_eq!(installed.load(Ordering::SeqCst), 1);
+    assert_eq!(state.released.load(Ordering::SeqCst), 1);
+}
+
 #[test]
 fn a_plan_runs_whatever_variation_the_font_is_at() {
     unsafe {
