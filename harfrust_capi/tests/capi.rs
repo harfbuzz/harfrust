@@ -3378,6 +3378,41 @@ fn user_data_is_keyed_by_address() {
 }
 
 #[test]
+fn a_destroy_callback_may_take_and_release_a_reference() {
+    // A user data destructor runs while the object's last reference is being
+    // released, and may still use the object. One that takes a reference of
+    // its own and gives it back, as a scoped handle would, must not release
+    // the object a second time.
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    unsafe extern "C" fn borrow_briefly(data: *mut c_void) {
+        CALLS.fetch_add(1, Ordering::Relaxed);
+        let buffer = data.cast::<hr_buffer_t>();
+        unsafe {
+            assert_eq!(hr_buffer_reference(buffer), buffer);
+            assert_eq!(hr_buffer_get_length(buffer), 3);
+            hr_buffer_destroy(buffer);
+            // A dying buffer stays closed to changes however it is counted.
+            assert_eq!(hr_buffer_set_length(buffer, 0), 0);
+        }
+    }
+    unsafe {
+        let buffer = buffer_with_text(TEXT);
+        assert_ne!(
+            hr_buffer_set_user_data(
+                buffer,
+                &raw const KEY,
+                buffer.cast(),
+                Some(borrow_briefly),
+                1
+            ),
+            0
+        );
+        hr_buffer_destroy(buffer);
+    }
+    assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn immortal_objects_reject_user_data() {
     unsafe {
         let empty = hr_buffer_get_empty();

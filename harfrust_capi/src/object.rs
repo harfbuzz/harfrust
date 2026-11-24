@@ -18,6 +18,16 @@ use std::sync::{PoisonError, RwLock};
 /// Reference count of an immortal (inert) object.
 const IMMORTAL: i64 = -1;
 
+/// Reference count of an object whose last reference has been released, for
+/// as long as its destroy callbacks run.
+///
+/// Those callbacks may still use the object, and one that takes a reference
+/// of its own and gives it back would otherwise walk the count from zero to
+/// one and back, releasing the object a second time. Parked this far below
+/// zero, no number of references a callback could take brings the count back
+/// to one, or to [`IMMORTAL`]. HarfBuzz parks its count the same way.
+const DYING: i64 = i64::MIN / 2;
+
 /// Callback invoked to release a `user_data` value.
 pub type hr_destroy_func_t = Option<unsafe extern "C" fn(user_data: *mut c_void)>;
 
@@ -162,6 +172,8 @@ impl<T> Empty<T> {
 /// Increments the reference count and returns the object.
 ///
 /// Returns `NULL` for a `NULL` argument, and is a no-op for immortal objects.
+/// An object releasing its last reference is counted like any other, but no
+/// reference taken then keeps it alive.
 ///
 /// # Safety
 ///
@@ -198,6 +210,9 @@ pub unsafe fn destroy<T: Object>(ptr: *mut T) {
     if header.ref_count.fetch_sub(1, Ordering::AcqRel) != 1 {
         return;
     }
+    // Nothing else holds a reference, so nothing else reads the count from
+    // here on but the callbacks below, on this thread.
+    header.ref_count.store(DYING, Ordering::Relaxed);
     // Last reference. As in HarfBuzz, the destroy callback of every attached
     // user data item runs first, while the object still holds everything it
     // owns: a callback on a font may look at the font's face. Only then is
