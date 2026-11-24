@@ -13,7 +13,7 @@ use read_fonts::{
 };
 
 use crate::blob::hr_blob_t;
-use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust};
+use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust, write_out};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 use crate::plan::PlanCache;
 use crate::set::hr_set_t;
@@ -576,9 +576,8 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
         }
         return tags.len() as c_uint;
     }
-    if let Some(count) = unsafe { table_count.as_mut() } {
-        *count = 0;
-    }
+    // SAFETY: `table_count` is `NULL` or writable by this function's contract.
+    unsafe { write_out(table_count, 0) };
     0
 }
 

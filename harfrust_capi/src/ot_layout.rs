@@ -23,7 +23,7 @@ use read_fonts::{ReadError, TableProvider};
 use crate::common::hr_glyph_extents_t;
 use crate::common::{
     hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, ot_round,
-    script_to_rust, tag_from_rust, tag_to_rust, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
+    script_to_rust, tag_from_rust, tag_to_rust, write_out, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
 };
 use crate::face::hr_face_t;
 use crate::font::{hr_font_get_glyph_extents, hr_font_get_nominal_glyph, hr_font_t};
@@ -108,12 +108,11 @@ pub unsafe extern "C" fn hr_ot_layout_table_select_script(
                 .map(|index| (index as c_uint, tag, requested))
         });
     let (index, tag, requested) = selected.unwrap_or((HR_OT_LAYOUT_NO_SCRIPT_INDEX, 0, false));
-    if let Some(output) = unsafe { script_index.as_mut() } {
-        *output = index;
-    }
-    if let Some(output) = unsafe { chosen_script.as_mut() } {
-        *output = tag;
-    }
+    // SAFETY: `script_index` is `NULL` or writable by this function's contract.
+    unsafe { write_out(script_index, index) };
+    // SAFETY: `chosen_script` is `NULL` or writable by this function's
+    // contract.
+    unsafe { write_out(chosen_script, tag) };
     requested.into()
 }
 
@@ -202,9 +201,10 @@ pub unsafe extern "C" fn hr_ot_layout_language_find_feature(
             (tag == feature_tag).then_some(index as c_uint)
         })
     })();
-    if let Some(output) = unsafe { feature_index.as_mut() } {
-        *output = found.unwrap_or(HR_OT_LAYOUT_NO_FEATURE_INDEX);
-    }
+    let index = found.unwrap_or(HR_OT_LAYOUT_NO_FEATURE_INDEX);
+    // SAFETY: `feature_index` is `NULL` or writable by this function's
+    // contract.
+    unsafe { write_out(feature_index, index) };
     found.is_some().into()
 }
 
@@ -1102,9 +1102,8 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline(
     let Some(value) = baseline(font, baseline_tag, direction, script_tag) else {
         return 0;
     };
-    if let Some(coord) = unsafe { coord.as_mut() } {
-        *coord = value;
-    }
+    // SAFETY: `coord` is `NULL` or writable by this function's contract.
+    unsafe { write_out(coord, value) };
     1
 }
 
@@ -1148,9 +1147,8 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline2(
     let state = unsafe { object::or_empty(font.cast_const()) };
     let selected = selected_base_script(state, direction, script);
     if let Some(value) = baseline(state, baseline_tag, direction, tag_from_rust(selected)) {
-        if let Some(coord) = unsafe { coord.as_mut() } {
-            *coord = value;
-        }
+        // SAFETY: `coord` is `NULL` or writable by this function's contract.
+        unsafe { write_out(coord, value) };
         1
     } else {
         0
@@ -1337,9 +1335,12 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback(
     _language_tag: hr_tag_t,
     coord: *mut hr_position_t,
 ) {
-    if let Some(coord) = unsafe { coord.as_mut() } {
-        *coord = unsafe { baseline_with_fallback(font, baseline_tag, direction, script_tag) };
+    if coord.is_null() {
+        return;
     }
+    let value = unsafe { baseline_with_fallback(font, baseline_tag, direction, script_tag) };
+    // SAFETY: `coord` is writable by this function's contract.
+    unsafe { write_out(coord, value) };
 }
 
 /// Reads or synthesizes a baseline using a Unicode script.
@@ -1355,16 +1356,19 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback2(
     _language: hr_language_t,
     coord: *mut hr_position_t,
 ) {
-    let Some(coord) = (unsafe { coord.as_mut() }) else {
+    if coord.is_null() {
         return;
-    };
+    }
     let state = unsafe { object::or_empty(font.cast_const()) };
     let selected = selected_base_script(state, direction, script);
     if let Some(value) = baseline(state, baseline_tag, direction, tag_from_rust(selected)) {
-        *coord = value;
+        // SAFETY: `coord` is writable by this function's contract.
+        unsafe { write_out(coord, value) };
         return;
     }
-    *coord = unsafe { baseline_with_fallback(font, baseline_tag, direction, script) };
+    let value = unsafe { baseline_with_fallback(font, baseline_tag, direction, script) };
+    // SAFETY: `coord` is writable by this function's contract.
+    unsafe { write_out(coord, value) };
 }
 
 #[cfg(test)]

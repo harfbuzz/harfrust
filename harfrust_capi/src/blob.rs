@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock};
 
 use harfrust::font::Blob;
 
-use crate::common::hr_bool_t;
+use crate::common::{hr_bool_t, write_out};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// How a blob relates to the memory it was created over.
@@ -68,7 +68,8 @@ struct BlobRef(*mut hr_blob_t);
 // SAFETY: this owns one of the blob's references, so the blob stays live for
 // as long as this does, and a live blob may be shared between threads: its
 // reference count is atomic, its storage is never written, and callers are
-// required to make their user data safe to release from any thread.
+// required to make their user data safe to use and to release from any
+// thread that uses the blob, which the README documents under "Threading".
 unsafe impl Send for BlobRef {}
 unsafe impl Sync for BlobRef {}
 
@@ -523,8 +524,7 @@ pub unsafe extern "C" fn hr_blob_get_data_writable(
     _blob: *mut hr_blob_t,
     length: *mut c_uint,
 ) -> *mut c_char {
-    if let Some(length) = unsafe { length.as_mut() } {
-        *length = 0;
-    }
+    // SAFETY: `length` is `NULL` or writable by this function's contract.
+    unsafe { write_out(length, 0) };
     core::ptr::null_mut()
 }

@@ -184,8 +184,10 @@ pub struct hr_font_funcs_t {
     pub(crate) paint_glyph_legacy: Option<Callback<crate::paint::hr_font_paint_glyph_func_t>>,
 }
 
-// SAFETY: `hr_font_set_funcs` documents that callbacks and their user data
-// must be safe to use from any thread.
+// SAFETY: each callback's `user_data` is opaque to us; it is only handed to
+// that callback and, when the callback is dropped, to its destroy function.
+// Callers are required to make both safe from any thread that uses the funcs
+// object, which the README documents under "Threading".
 unsafe impl Send for hr_font_funcs_t {}
 unsafe impl Sync for hr_font_funcs_t {}
 

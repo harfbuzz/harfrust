@@ -1,7 +1,7 @@
 //! OpenType CPAL palette queries.
 
 use crate::color::hr_color_t;
-use crate::common::hr_bool_t;
+use crate::common::{hr_bool_t, write_out};
 use crate::face::hr_face_t;
 use crate::object;
 use core::ffi::c_uint;
@@ -86,9 +86,9 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
         Some((entries as c_uint, &records[start..end]))
     });
     let Some((total, records)) = palette else {
-        if let Some(count) = unsafe { color_count.as_mut() } {
-            *count = 0;
-        }
+        // SAFETY: `color_count` is `NULL` or writable by this function's
+        // contract.
+        unsafe { write_out(color_count, 0) };
         return 0;
     };
     if !colors.is_null() {

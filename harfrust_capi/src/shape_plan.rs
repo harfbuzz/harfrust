@@ -18,7 +18,7 @@ use harfrust::{Direction, Language, Script, ShapePlan};
 use crate::buffer::hr_buffer_t;
 use crate::common::{
     direction_from_rust, direction_to_rust, hr_bool_t, hr_direction_t, hr_feature_t, hr_language_t,
-    hr_script_t, language_from_rust, language_to_rust, script_from_rust, script_to_rust,
+    hr_script_t, language_from_rust, language_to_rust, script_from_rust, script_to_rust, write_out,
     HR_DIRECTION_INVALID,
 };
 use crate::face::hr_face_t;
@@ -481,21 +481,23 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
     shape_plan: *mut hr_shape_plan_t,
     props: *mut hr_segment_properties_t,
 ) {
-    let Some(out) = (unsafe { props.as_mut() }) else {
+    if props.is_null() {
         return;
-    };
+    }
     let plan = unsafe { object::or_empty(shape_plan.cast_const()) };
     let Some(inner) = plan.plan.as_ref() else {
-        *out = hr_segment_properties_t {
+        let unset = hr_segment_properties_t {
             direction: HR_DIRECTION_INVALID,
             script: crate::common::HR_SCRIPT_INVALID,
             language: core::ptr::null(),
             reserved1: core::ptr::null_mut(),
             reserved2: core::ptr::null_mut(),
         };
+        // SAFETY: `props` is `NULL` or writable by this function's contract.
+        unsafe { write_out(props, unset) };
         return;
     };
-    *out = hr_segment_properties_t {
+    let value = hr_segment_properties_t {
         direction: direction_from_rust(inner.direction()),
         script: inner
             .script()
@@ -504,6 +506,8 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
         reserved1: core::ptr::null_mut(),
         reserved2: core::ptr::null_mut(),
     };
+    // SAFETY: `props` is `NULL` or writable by this function's contract.
+    unsafe { write_out(props, value) };
 }
 
 /// Shapes a buffer using a plan that was built beforehand.
@@ -511,7 +515,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 /// Returns false without shaping if the plan is the empty one, or if `font` or
 /// `buffer` is `NULL`. An empty buffer returns true, having nothing to do.
 /// If the shaper panics, this returns false and clears the buffer, as
-/// `hr_shape_full` does.
+/// `hr_shape_full` does, and like it only where panics unwind.
 ///
 /// # Aborts
 ///

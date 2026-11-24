@@ -38,9 +38,10 @@ struct UserDataItem {
 }
 
 // SAFETY: the pointers are opaque to us; we only ever compare `key` by address
-// and hand `data` back to the callbacks the caller supplied. Callers are
-// required to make their user data safe to release from any thread, which is
-// documented on `hr_*_set_user_data`.
+// and hand `data` back to the caller, and to the destroy callback it supplied.
+// Callers are required to make their user data safe to use and to release
+// from any thread that uses the object, which the README documents under
+// "Threading".
 unsafe impl Send for UserDataItem {}
 unsafe impl Sync for UserDataItem {}
 
@@ -137,9 +138,12 @@ pub fn create<T: Object>(value: T) -> *mut T {
 /// provenance needed to dereference it survives.
 pub struct Empty<T>(*mut T);
 
-// SAFETY: the pointee is leaked and lives as long as the process. Immortal
-// objects reject user data and are permanently immutable, so nothing a caller
-// can reach through one is written after it is built.
+// SAFETY: the pointee is leaked and lives as long as the process, and every
+// thread is handed the same pointer to it. Everything reachable through a
+// shared reference to an immortal object is safe to use from several threads
+// at once, including what is filled in on first use, which sits behind a
+// `OnceLock`. An exclusive reference to one must never be formed, and
+// `as_mutable` refuses immortal objects so that no setter forms one.
 unsafe impl<T> Send for Empty<T> {}
 unsafe impl<T> Sync for Empty<T> {}
 

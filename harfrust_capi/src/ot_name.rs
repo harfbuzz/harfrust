@@ -1,6 +1,6 @@
 //! OpenType localized-name retrieval.
 use crate::blob::hr_blob_destroy;
-use crate::common::{hr_language_t, language_ref};
+use crate::common::{hr_language_t, language_ref, write_out};
 use crate::face::{hr_face_reference_table, hr_face_t};
 use crate::object;
 use core::ffi::c_uint;
@@ -198,8 +198,7 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
     if capacity != 0 {
         unsafe { text.add(written).write(0) };
     }
-    if let Some(count) = unsafe { text_size.as_mut() } {
-        *count = written as c_uint;
-    }
+    // SAFETY: `text_size` is `NULL` or writable by this function's contract.
+    unsafe { write_out(text_size, written as c_uint) };
     total
 }

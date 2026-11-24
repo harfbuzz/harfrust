@@ -213,7 +213,11 @@ hr_subset_flags_t hr_subset_input_get_flags(const struct hr_subset_input_t *inpu
  *
  * Returns `NULL` for invalid input, unsupported flags or outline formats,
  * missing table enumeration, or skera failure. The original face and input
- * are unchanged. Rust panics in the subsetter are contained at this boundary.
+ * are unchanged.
+ *
+ * A panic in skera also returns `NULL`, where panics unwind, which is Cargo's
+ * default. That does not cover reading the result back as a face, nor a
+ * library built with `panic=abort`: a panic there aborts the process.
  *
  * # Safety
  * `face` and `input` must be `NULL` or live. Neither the input nor its sets

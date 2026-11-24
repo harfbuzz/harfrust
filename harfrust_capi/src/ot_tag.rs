@@ -40,10 +40,15 @@ pub unsafe extern "C" fn hr_ot_tags_from_script_and_language(
 /// Matches HarfBuzz's in/out count behavior: a missing or zero-capacity
 /// output leaves the count untouched.
 unsafe fn write_tags(tags: &[Tag], count: *mut c_uint, output: *mut hr_tag_t) {
+    // The array is looked at first. A count that comes without one is left
+    // alone and need not have been set, so no reference is made to it.
+    if output.is_null() {
+        return;
+    }
     let Some(count) = (unsafe { count.as_mut() }) else {
         return;
     };
-    if output.is_null() || *count == 0 {
+    if *count == 0 {
         return;
     }
     let written = (*count as usize).min(tags.len());

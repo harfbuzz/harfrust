@@ -11,22 +11,25 @@ use harfrust::{
 use read_fonts::TableProvider;
 
 use crate::common::{hr_bool_t, hr_codepoint_t, hr_direction_t, hr_position_t, hr_variation_t};
-use crate::common::{hr_glyph_extents_t, ot_round};
+use crate::common::{hr_glyph_extents_t, ot_round, write_out};
 use crate::face::hr_face_t;
 use crate::font_funcs::{hr_font_funcs_t, Answer, FontFuncsAdapter};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 
 /// The `font_data` a caller attached along with a set of callbacks.
 ///
-/// Reference counted so detaching it and releasing its ownership are separate
-/// operations. Sub-fonts inherit it through their reference to the parent font.
+/// The font it was given to is its only owner: the `Arc` it is kept in is
+/// never cloned, so dropping it there runs `destroy`. A sub-font carries none
+/// of its own, and its parent's callbacks are handed the parent's.
 pub(crate) struct FontData {
     pub(crate) data: *mut c_void,
     destroy: hr_destroy_func_t,
 }
 
-// SAFETY: `hr_font_set_funcs` documents that the callbacks and their data must
-// be safe to use, and to release, from any thread.
+// SAFETY: `data` is opaque to us; it is only handed to the caller's callbacks
+// and, when this is dropped, to `destroy`. Callers are required to make both
+// safe from any thread that uses the font, which the README documents under
+// "Threading".
 unsafe impl Send for FontData {}
 unsafe impl Sync for FontData {}
 
@@ -635,12 +638,10 @@ pub unsafe extern "C" fn hr_font_get_scale(
     y_scale: *mut c_int,
 ) {
     let font = unsafe { object::or_empty(font.cast_const()) };
-    if let Some(out) = unsafe { x_scale.as_mut() } {
-        *out = font.x_scale;
-    }
-    if let Some(out) = unsafe { y_scale.as_mut() } {
-        *out = font.y_scale;
-    }
+    // SAFETY: `x_scale` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x_scale, font.x_scale) };
+    // SAFETY: `y_scale` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y_scale, font.y_scale) };
 }
 
 /// Sets a font's horizontal and vertical pixels per em. Zero leaves an axis
@@ -667,12 +668,10 @@ pub unsafe extern "C" fn hr_font_get_ppem(
     y_ppem: *mut c_uint,
 ) {
     let font = unsafe { object::or_empty(font.cast_const()) };
-    if let Some(out) = unsafe { x_ppem.as_mut() } {
-        *out = font.x_ppem;
-    }
-    if let Some(out) = unsafe { y_ppem.as_mut() } {
-        *out = font.y_ppem;
-    }
+    // SAFETY: `x_ppem` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x_ppem, font.x_ppem) };
+    // SAFETY: `y_ppem` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y_ppem, font.y_ppem) };
 }
 
 /// Sets a font's point size, used when applying the `trak` table.
@@ -857,9 +856,9 @@ pub unsafe extern "C" fn hr_font_set_funcs(
         ffuncs
     };
     font.funcs = unsafe { object::reference(ffuncs) };
-    // Dropping the old data runs its destroy callback, unless a sub-font still
-    // holds a reference to it. That happens before the callbacks it was given
-    // with are released, as in HarfBuzz.
+    // Dropping the old data runs its destroy callback: this font held the only
+    // reference to it. That happens before the callbacks it was given with
+    // are released, as in HarfBuzz.
     let previous_data = font.font_data.replace(Arc::new(FontData {
         data: font_data,
         destroy,
@@ -916,9 +915,8 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     // The glyph is reported as not found before anything is asked, so a
     // caller that ignores the return value reads 0 rather than whatever it
     // happened to pass in. HarfBuzz writes it the same way.
-    if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = 0;
-    }
+    // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+    unsafe { write_out(glyph, 0) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
     // The adapter takes either pair.
@@ -933,9 +931,8 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     let Some(found) = found else {
         return false.into();
     };
-    if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = found;
-    }
+    // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+    unsafe { write_out(glyph, found) };
     true.into()
 }
 
@@ -995,9 +992,8 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
 ) -> hr_bool_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
     // As in `hr_font_get_nominal_glyph`, not found until it is.
-    if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = 0;
-    }
+    // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+    unsafe { write_out(glyph, 0) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
     // The adapter takes either pair.
@@ -1011,9 +1007,8 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
     let Some(found) = found else {
         return false.into();
     };
-    if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = found;
-    }
+    // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+    unsafe { write_out(glyph, found) };
     true.into()
 }
 
@@ -1236,12 +1231,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
     // live by this function's contract, or the empty font if it is `NULL`.
     // The adapter takes either pair.
     let origin = unsafe { FontFuncsAdapter::new(font, state) }.call_h_origin(glyph);
-    if let Some(out) = unsafe { x.as_mut() } {
-        *out = origin.map_or(0, |origin| origin.0);
-    }
-    if let Some(out) = unsafe { y.as_mut() } {
-        *out = origin.map_or(0, |origin| origin.1);
-    }
+    // SAFETY: `x` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x, origin.map_or(0, |origin| origin.0)) };
+    // SAFETY: `y` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y, origin.map_or(0, |origin| origin.1)) };
     origin.is_some().into()
 }
 
@@ -1302,24 +1295,20 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_origin(
     let state = unsafe { object::or_empty(font.cast_const()) };
     // Nowhere until somewhere, so a caller ignoring the return value reads
     // zeroes rather than whatever it passed in.
-    if let Some(out) = unsafe { x.as_mut() } {
-        *out = 0;
-    }
-    if let Some(out) = unsafe { y.as_mut() } {
-        *out = 0;
-    }
+    // SAFETY: `x` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x, 0) };
+    // SAFETY: `y` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y, 0) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
     // `glyph_v_origin` takes either pair.
     let Some((origin_x, origin_y)) = (unsafe { state.glyph_v_origin(font, glyph) }) else {
         return false.into();
     };
-    if let Some(out) = unsafe { x.as_mut() } {
-        *out = origin_x;
-    }
-    if let Some(out) = unsafe { y.as_mut() } {
-        *out = origin_y;
-    }
+    // SAFETY: `x` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x, origin_x) };
+    // SAFETY: `y` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y, origin_y) };
     true.into()
 }
 
@@ -1341,18 +1330,16 @@ pub unsafe extern "C" fn hr_font_get_glyph_extents(
 ) -> hr_bool_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
     // Nothing until something, as above.
-    if let Some(out) = unsafe { extents.as_mut() } {
-        *out = hr_glyph_extents_t::default();
-    }
+    // SAFETY: `extents` is `NULL` or writable by this function's contract.
+    unsafe { write_out(extents, hr_glyph_extents_t::default()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
     // `glyph_extents` takes either pair.
     let Some(found) = (unsafe { state.glyph_extents(font, glyph) }) else {
         return false.into();
     };
-    if let Some(out) = unsafe { extents.as_mut() } {
-        *out = found;
-    }
+    // SAFETY: `extents` is `NULL` or writable by this function's contract.
+    unsafe { write_out(extents, found) };
     true.into()
 }
 
@@ -1380,12 +1367,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_advance_for_direction(
     } else {
         (0, unsafe { state.glyph_v_advance(font, glyph) })
     };
-    if let Some(out) = unsafe { x.as_mut() } {
-        *out = dx;
-    }
-    if let Some(out) = unsafe { y.as_mut() } {
-        *out = dy;
-    }
+    // SAFETY: `x` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x, dx) };
+    // SAFETY: `y` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y, dy) };
 }
 
 /// As [`hr_font_get_glyph_advance_for_direction`], for a run of glyphs.
@@ -1474,12 +1459,10 @@ pub unsafe extern "C" fn hr_font_get_glyph_origin_for_direction(
     y: *mut hr_position_t,
 ) {
     let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
-    if let Some(out) = unsafe { x.as_mut() } {
-        *out = origin_x;
-    }
-    if let Some(out) = unsafe { y.as_mut() } {
-        *out = origin_y;
-    }
+    // SAFETY: `x` is `NULL` or writable by this function's contract.
+    unsafe { write_out(x, origin_x) };
+    // SAFETY: `y` is `NULL` or writable by this function's contract.
+    unsafe { write_out(y, origin_y) };
 }
 
 /// Moves a point from the glyph's own origin to the direction's origin.
@@ -1541,16 +1524,27 @@ pub unsafe extern "C" fn hr_font_get_glyph_extents_for_origin(
     direction: hr_direction_t,
     extents: *mut hr_glyph_extents_t,
 ) -> hr_bool_t {
-    // SAFETY: the caller's guarantees carry through.
-    let found = unsafe { hr_font_get_glyph_extents(font, glyph, extents) };
-    if found == 0 {
-        return found;
+    // The extents are asked for into a local, so that what is adjusted below
+    // is never read back out of the caller's storage. That storage is still
+    // written whenever `hr_font_get_glyph_extents` would write it: with
+    // nothing before the font is asked, and with the font's answer before
+    // the origin is.
+    let mut found = hr_glyph_extents_t::default();
+    // SAFETY: `extents` is `NULL` or writable by this function's contract.
+    unsafe { write_out(extents, found) };
+    // SAFETY: `font` carries through from the caller, and `found` is a local
+    // of this function.
+    let known = unsafe { hr_font_get_glyph_extents(font, glyph, &raw mut found) };
+    if known == 0 {
+        return known;
     }
+    // SAFETY: `extents` is `NULL` or writable by this function's contract.
+    unsafe { write_out(extents, found) };
     let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
-    if let Some(out) = unsafe { extents.as_mut() } {
-        out.x_bearing = out.x_bearing.saturating_sub(origin_x);
-        out.y_bearing = out.y_bearing.saturating_sub(origin_y);
-    }
+    found.x_bearing = found.x_bearing.saturating_sub(origin_x);
+    found.y_bearing = found.y_bearing.saturating_sub(origin_y);
+    // SAFETY: `extents` is `NULL` or writable by this function's contract.
+    unsafe { write_out(extents, found) };
     true.into()
 }
 
@@ -1585,9 +1579,9 @@ pub unsafe extern "C" fn hr_font_get_glyph_name(
 ) -> hr_bool_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
     if size != 0 {
-        if let Some(out) = unsafe { name.as_mut() } {
-            *out = 0;
-        }
+        // SAFETY: `name` is `NULL` or writable for `size` bytes, which is at
+        // least this one, by this function's contract.
+        unsafe { write_out(name, 0) };
     }
     let Some(found) = state.glyph_name(glyph) else {
         return false.into();
@@ -1617,9 +1611,8 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
     let state = unsafe { object::or_empty(font.cast_const()) };
-    if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = 0;
-    }
+    // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+    unsafe { write_out(glyph, 0) };
     let Some(wanted) = (unsafe { crate::common::str_from_raw(name, len) }) else {
         return false.into();
     };
@@ -1642,9 +1635,8 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     let Some(found) = found else {
         return false.into();
     };
-    if let Some(out) = unsafe { glyph.as_mut() } {
-        *out = found;
-    }
+    // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+    unsafe { write_out(glyph, found) };
     true.into()
 }
 
@@ -1698,9 +1690,8 @@ pub unsafe extern "C" fn hr_font_glyph_from_string(
         .ok()
         .or_else(|| text.strip_prefix("gid")?.parse::<hr_codepoint_t>().ok());
     if let Some(found) = parsed {
-        if let Some(out) = unsafe { glyph.as_mut() } {
-            *out = found;
-        }
+        // SAFETY: `glyph` is `NULL` or writable by this function's contract.
+        unsafe { write_out(glyph, found) };
         return true.into();
     }
     // `uniXXXX` names a character, and the font says which glyph that is.

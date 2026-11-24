@@ -1108,6 +1108,122 @@ fn null_and_empty_faces_are_safe() {
 
 // ---------------------------------------------------------------- fonts ----
 
+/// A parameter that only returns a value is written without being read, so
+/// its storage need not hold anything on the way in. Every output here is
+/// handed storage that holds nothing, which Miri would refuse to read back
+/// had a call left any of it that way.
+#[test]
+fn outputs_need_not_be_set_before_the_call() {
+    use core::mem::MaybeUninit;
+
+    unsafe {
+        with_font(|face, font| {
+            // A pair of scalars.
+            hr_font_set_scale(font, 1000, 2000);
+            let mut x = MaybeUninit::<c_int>::uninit();
+            let mut y = MaybeUninit::<c_int>::uninit();
+            hr_font_get_scale(font, x.as_mut_ptr(), y.as_mut_ptr());
+            assert_eq!((x.assume_init(), y.assume_init()), (1000, 2000));
+
+            // One scalar, written before the font is asked and again after.
+            let mut glyph = MaybeUninit::<hr_codepoint_t>::uninit();
+            let found = hr_font_get_nominal_glyph(font, u32::from('a'), glyph.as_mut_ptr());
+            assert_ne!(found, 0);
+            let glyph = glyph.assume_init();
+            assert_ne!(glyph, 0);
+
+            // A struct, and the same struct moved to another origin, which
+            // is worked out from the first before it is written.
+            let mut plain = MaybeUninit::<hr_glyph_extents_t>::uninit();
+            assert_ne!(
+                hr_font_get_glyph_extents(font, glyph, plain.as_mut_ptr()),
+                0
+            );
+            let plain = plain.assume_init();
+            let mut origin_x = MaybeUninit::<hr_position_t>::uninit();
+            let mut origin_y = MaybeUninit::<hr_position_t>::uninit();
+            hr_font_get_glyph_origin_for_direction(
+                font,
+                glyph,
+                HR_DIRECTION_TTB,
+                origin_x.as_mut_ptr(),
+                origin_y.as_mut_ptr(),
+            );
+            let mut moved = MaybeUninit::<hr_glyph_extents_t>::uninit();
+            assert_ne!(
+                hr_font_get_glyph_extents_for_origin(
+                    font,
+                    glyph,
+                    HR_DIRECTION_TTB,
+                    moved.as_mut_ptr()
+                ),
+                0
+            );
+            assert_eq!(
+                moved.assume_init(),
+                hr_glyph_extents_t {
+                    x_bearing: plain.x_bearing - origin_x.assume_init(),
+                    y_bearing: plain.y_bearing - origin_y.assume_init(),
+                    ..plain
+                }
+            );
+
+            // A count that is a capacity when it comes with an array, and is
+            // only cleared when the face has no such palette.
+            let mut count = MaybeUninit::<c_uint>::uninit();
+            let total =
+                hr_ot_color_palette_get_colors(face, 0, 0, count.as_mut_ptr(), ptr::null_mut());
+            assert_eq!((total, count.assume_init()), (0, 0));
+
+            // A length, and the text it is the length of.
+            let buffer = glyph_buffer(&[1, 2]);
+            let mut text = [MaybeUninit::<c_char>::uninit(); 16];
+            let mut consumed = MaybeUninit::<c_uint>::uninit();
+            let items = hr_buffer_serialize_glyphs(
+                buffer,
+                0,
+                2,
+                text.as_mut_ptr().cast::<c_char>(),
+                text.len() as c_uint,
+                consumed.as_mut_ptr(),
+                font,
+                HR_BUFFER_SERIALIZE_FORMAT_TEXT,
+                HR_BUFFER_SERIALIZE_FLAG_NO_GLYPH_NAMES,
+            );
+            let written = std::ffi::CStr::from_ptr(text.as_ptr().cast::<c_char>());
+            assert_eq!((items, written.to_str().unwrap()), (2, "[1=0|2=1]"));
+            assert_eq!(consumed.assume_init() as usize, written.to_bytes().len());
+            hr_buffer_destroy(buffer);
+        });
+
+        // A struct with pointers in it, written whole.
+        let buffer = buffer_with_text(TEXT);
+        let mut props = MaybeUninit::<hr_segment_properties_t>::uninit();
+        hr_buffer_get_segment_properties(buffer, props.as_mut_ptr());
+        let props = props.assume_init();
+        assert_eq!(props.direction, HR_DIRECTION_LTR);
+        assert_eq!(props.script, HR_SCRIPT_LATIN);
+        assert_eq!(props.language, hr_buffer_get_language(buffer));
+        assert!(props.reserved1.is_null() && props.reserved2.is_null());
+        hr_buffer_destroy(buffer);
+
+        // An array, of which only as much as is reported is written.
+        let set = hr_set_create();
+        hr_set_add(set, 3);
+        hr_set_add(set, 7);
+        let mut values = [MaybeUninit::<hr_codepoint_t>::uninit(); 4];
+        let count = hr_set_next_many(
+            set,
+            HR_SET_VALUE_INVALID,
+            values.as_mut_ptr().cast::<hr_codepoint_t>(),
+            values.len() as c_uint,
+        );
+        assert_eq!(count, 2);
+        assert_eq!([values[0].assume_init(), values[1].assume_init()], [3, 7]);
+        hr_set_destroy(set);
+    }
+}
+
 #[test]
 fn font_scale_defaults_to_upem() {
     unsafe {

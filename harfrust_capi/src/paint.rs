@@ -226,7 +226,9 @@ pub struct hr_paint_funcs_t {
     pop_group: Option<Callback<hr_paint_pop_group_func_t>>,
     custom_palette_color: Option<Callback<hr_paint_custom_palette_color_func_t>>,
 }
-// SAFETY: callback registration requires thread-safe callbacks and opaque data.
+// SAFETY: callback data is opaque, and goes only to its callback and its
+// destroy function. The README's "Threading" section requires both to be safe
+// from any thread that uses the object.
 unsafe impl Send for hr_paint_funcs_t {}
 unsafe impl Sync for hr_paint_funcs_t {}
 impl Object for hr_paint_funcs_t {

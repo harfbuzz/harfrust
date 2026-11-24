@@ -1,4 +1,5 @@
 //! AAT feat-table feature and selector metadata.
+use crate::common::write_out;
 use crate::face::hr_face_t;
 use crate::object;
 use crate::ot_name::hr_ot_name_id_t;
@@ -611,9 +612,9 @@ pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
                 (index, Some(disable))
             },
         );
-    if let Some(output) = unsafe { default_index.as_mut() } {
-        *output = index;
-    }
+    // SAFETY: `default_index` is `NULL` or writable by this function's
+    // contract.
+    unsafe { write_out(default_index, index) };
     let records = feature
         .as_ref()
         .map_or(&[][..], |(_, settings)| settings.settings());
