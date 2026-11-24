@@ -21,6 +21,9 @@ impl<'a> ShapeOptions<'a> {
     ///
     /// The shape plan must be compatible with the properties of the buffer
     /// passed to shaping.
+    ///
+    /// Supplying a plan also selects the OpenType shaper, even when the font
+    /// has a `Wasm` table and the `wasm` feature is enabled.
     pub fn plan(mut self, plan: Option<&'a ShapePlan>) -> Self {
         self.plan = plan;
         self
