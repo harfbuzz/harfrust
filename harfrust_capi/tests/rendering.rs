@@ -458,6 +458,7 @@ mod painting {
         custom: bool,
         strict: bool,
         color_glyphs: u32,
+        depth: u32,
     }
     unsafe fn state<'a>(data: *mut c_void) -> &'a mut Paint {
         unsafe { &mut *data.cast() }
@@ -989,14 +990,26 @@ mod painting {
         font: *mut hr_font_t,
         _: *mut c_void,
     ) -> hr_bool_t {
+        // Each paint this starts is a traversal of its own, so nothing in
+        // the library bounds how they nest. The callback keeps count itself,
+        // and past its limits declines the glyph, which leaves it to the
+        // traversal in progress and that traversal's own cycle detection.
+        const MAX_DEPTH: u32 = 8;
+        const MAX_NESTED: u32 = 256;
         unsafe {
+            if state(data).depth >= MAX_DEPTH || state(data).color_glyphs >= MAX_NESTED {
+                return 0;
+            }
             state(data).color_glyphs += 1;
-            hr_font_paint_glyph_or_fail(font, glyph, funcs, data, 0, 0xff)
+            state(data).depth += 1;
+            let painted = hr_font_paint_glyph_or_fail(font, glyph, funcs, data, 0, 0xff);
+            state(data).depth -= 1;
+            painted
         }
     }
 
     #[test]
-    fn color_glyph_callback_painting_sub_glyphs_stays_bounded() {
+    fn a_color_glyph_callback_that_bounds_its_nesting_paints_sub_glyphs() {
         unsafe {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("../harfrust/tests/fonts/rb_custom/test_glyphs-glyf_colr_1_no_cliplist.ttf");
@@ -1005,9 +1018,10 @@ mod painting {
             let face = hr_face_create(blob, 0);
             let font = hr_font_create(face);
             let funcs = funcs();
-            // The callback paints each sub-glyph through a nested traversal, the
-            // way hb-cairo does. Glyphs 178 and 179 refer to each other, which
-            // used to recurse until the stack overflowed.
+            // The callback paints each sub-glyph through a nested traversal.
+            // Glyphs 178 and 179 refer to each other, so a callback that did
+            // not bound its own nesting would recurse until the stack
+            // overflowed.
             hr_paint_funcs_set_color_glyph_func(
                 funcs,
                 Some(paint_color_glyph),
@@ -1027,7 +1041,7 @@ mod painting {
                     0xff,
                 );
                 assert!(s.scopes.is_empty(), "glyph {glyph}");
-                // At most one callback per nested traversal the budget allows.
+                // At most as many nested traversals as the callback allows.
                 assert!(s.color_glyphs <= 256, "glyph {glyph}");
                 color_glyphs += s.color_glyphs;
             }

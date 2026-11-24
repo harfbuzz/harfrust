@@ -38,6 +38,19 @@ typedef void (*hr_paint_pop_transform_func_t)(struct hr_paint_funcs_t *funcs,
 
 /**
  * Callback for color glyph; data must be safe to use on any thread.
+ *
+ * It is offered each color glyph that another color glyph refers to, so that
+ * a client that caches rendered glyphs can supply this one from its cache.
+ * Returning false leaves the glyph to the library, which paints it as part
+ * of the traversal in progress.
+ *
+ * A callback that paints the glyph by calling `hr_font_paint_glyph` starts a
+ * new traversal that knows nothing of the one in progress: cycle detection
+ * and the limits on depth and size apply to each traversal on its own. Color
+ * glyphs can refer to each other, so such a callback must guard against
+ * cycles and limit how deeply it nests. Without that, a font can make it
+ * recurse until the stack overflows. HarfBuzz leaves this to the callback in
+ * the same way.
  */
 typedef hr_bool_t (*hr_paint_color_glyph_func_t)(struct hr_paint_funcs_t *funcs,
                                                  void *paint_data,
@@ -422,6 +435,10 @@ void hr_paint_pop_transform(struct hr_paint_funcs_t *funcs, void *paint_data);
 /**
  * Registers color glyph. Takes ownership of data, including when clearing or rejected.
  * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * A callback that paints by calling `hr_font_paint_glyph` is responsible for
+ * guarding against cycles and for limiting how deeply it nests; see
+ * `hr_paint_color_glyph_func_t`.
  */
 void hr_paint_funcs_set_color_glyph_func(struct hr_paint_funcs_t *funcs,
                                          hr_paint_color_glyph_func_t func,
