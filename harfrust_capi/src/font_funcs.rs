@@ -122,41 +122,108 @@ pub type hr_font_get_glyph_extents_func_t = Option<
 pub(crate) struct Callback<F> {
     pub(crate) func: F,
     pub(crate) user_data: *mut c_void,
+    // Safety invariant: `destroy`, if any, is safe to call once with
+    // `user_data`, on any thread.
     destroy: hr_destroy_func_t,
 }
 
 impl<F> Drop for Callback<F> {
     fn drop(&mut self) {
         if let Some(destroy) = self.destroy {
-            // SAFETY: `destroy` was supplied alongside `user_data`.
+            // SAFETY: by the invariant on `destroy`, one call with
+            // `user_data` is sound on whichever thread drops the callback,
+            // and a callback is dropped once.
             unsafe { destroy(self.user_data) };
         }
     }
 }
 
-/// Pairs a callback with the data it was given, or releases that data when
-/// there is no callback to own it.
+/// Installs a callback on a funcs object, taking ownership of `user_data`
+/// whatever becomes of the callback.
 ///
-/// Every setter takes ownership of `user_data`, including the ones clearing a
-/// callback: HarfBuzz runs the destructor either way, and a caller that had
-/// to know which calls take ownership could not free anything safely.
-pub(crate) fn callback_taking<F>(
+/// The data is released at once when there is no callback to own it or the
+/// object takes no changes, and otherwise when the callback is displaced or
+/// the object is freed. HarfBuzz runs the destructor in each of those cases,
+/// and a caller that had to know which calls take ownership could not free
+/// anything safely.
+///
+/// `store` puts the callback in its slot and returns whatever it displaced.
+///
+/// Whether the object takes changes is decided once, on entry, as in
+/// HarfBuzz. Releasing data runs the caller's destructor, which may come back
+/// into the object to query it, to set callbacks on it or to make it
+/// immutable, so none runs while the object is borrowed. The data of a
+/// missing callback is released before the borrow and whatever `store`
+/// displaced after it; an object that takes no changes is never borrowed. A
+/// destructor that makes the object immutable does not undo the decision:
+/// the callback is stored, or cleared, all the same.
+///
+/// # Safety
+///
+/// `funcs` must be `NULL` or a pointer returned by this API that stays live
+/// until this returns. Unless the object is immutable, no reference to it
+/// may be live when this is called, and nothing else may access it while
+/// `store` runs. `store` must return every callback it takes out of the
+/// object rather than drop it.
+///
+/// `destroy`, if given, must be safe to call once with `user_data`, on
+/// whichever thread releases the data and at whichever point that is: during
+/// this call when `func` is `NULL` or the object refuses the change, and
+/// otherwise when the callback is displaced or the object is freed.
+pub(crate) unsafe fn set_callback<T: Object, F, D>(
+    funcs: *mut T,
     func: Option<F>,
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
-) -> Option<Callback<Option<F>>> {
-    if func.is_none() {
+    store: impl FnOnce(&mut T, Option<Callback<Option<F>>>) -> D,
+) {
+    // Decided before any of the caller's code runs, and not again after it.
+    //
+    // SAFETY: `accepts_changes` needs `funcs` to be `NULL` or live, which
+    // this function requires.
+    let accepted = unsafe { object::accepts_changes(funcs.cast_const()) };
+    let new = if func.is_none() {
         if let Some(destroy) = destroy {
-            // SAFETY: `destroy` was supplied alongside `user_data`.
+            // SAFETY: `destroy` is the caller's function, with whatever it
+            // requires of its argument. This function requires that one call
+            // with `user_data` is sound during this call when `func` is
+            // `NULL`, which it is here. Nothing has released the data before
+            // this, and no `Callback` is built to release it again.
             unsafe { destroy(user_data) };
         }
-        return None;
+        None
+    } else {
+        // This upholds the invariant on `Callback::destroy`: this function
+        // requires that `destroy` may be called once with `user_data`
+        // wherever and on whichever thread the callback comes to be
+        // dropped, and nothing but that drop releases the data.
+        Some(Callback {
+            func,
+            user_data,
+            destroy,
+        })
+    };
+    if !accepted {
+        // Dropping the callback on the way out releases its data.
+        return;
     }
-    Some(Callback {
-        func,
-        user_data,
-        destroy,
-    })
+    let displaced = {
+        // SAFETY: making the reference needs `funcs` to be non-null, aligned
+        // and live, and nothing else to hold a reference to the object while
+        // this one is used. `accepted` says it was non-null and live on
+        // entry, and this function requires it to stay live until it
+        // returns. It took changes on entry, so this function requires that
+        // no other reference to it was live then and that nothing else
+        // accesses it while `store` runs. The destructor that may have run
+        // above has returned, and making the object immutable, if it did,
+        // hands no one a reference to it. None of the caller's destructors
+        // runs while this reference is live either: the new callback is
+        // already built, and `store` returns what it takes out, which is
+        // dropped once this block has ended the borrow.
+        let funcs = unsafe { &mut *funcs };
+        store(funcs, new)
+    };
+    drop(displaced);
 }
 
 /// A set of font callbacks.
@@ -337,17 +404,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.nominal_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.nominal_glyph, new)
+        });
+    }
 }
 
 /// Sets the callback mapping a strided batch of Unicode codepoints.
@@ -366,17 +427,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyphs_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.nominal_glyphs,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.nominal_glyphs, new)
+        });
+    }
 }
 
 /// Sets the callback mapping a Unicode scalar value and variation selector
@@ -401,17 +456,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.variation_glyph,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.variation_glyph, new)
+        });
+    }
 }
 
 /// Sets the callback returning a glyph's horizontal advance.
@@ -435,17 +484,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.h_advance,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.h_advance, new)
+        });
+    }
 }
 
 /// Installs the batched horizontal advance callback.
@@ -461,17 +504,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advances_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.h_advances,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.h_advances, new)
+        });
+    }
 }
 
 /// Installs the horizontal origin callback.
@@ -487,17 +524,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_origin_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.h_origin,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.h_origin, new)
+        });
+    }
 }
 
 /// Installs the horizontal kerning callback.
@@ -513,17 +544,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_kerning_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.h_kerning,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.h_kerning, new)
+        });
+    }
 }
 
 /// Installs the vertical kerning callback.
@@ -539,17 +564,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_kerning_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.v_kerning,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.v_kerning, new)
+        });
+    }
 }
 
 /// Sets the callback returning a glyph's vertical advance.
@@ -573,17 +592,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.v_advance,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.v_advance, new)
+        });
+    }
 }
 
 /// Sets the callback returning a glyph's vertical origin.
@@ -607,17 +620,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.v_origin,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.v_origin, new)
+        });
+    }
 }
 
 /// Sets the callback returning a glyph's ink extents.
@@ -641,17 +648,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    let Some(ffuncs) = (unsafe { object::as_mutable(ffuncs) }) else {
-        if let Some(destroy) = destroy {
-            unsafe { destroy(user_data) };
-        }
-        return;
-    };
-    let previous = core::mem::replace(
-        &mut ffuncs.extents,
-        callback_taking(func, user_data, destroy),
-    );
-    drop(previous);
+    unsafe {
+        set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
+            core::mem::replace(&mut ffuncs.extents, new)
+        });
+    }
 }
 
 /// Bridges a [`hr_font_funcs_t`] into HarfRust's [`FontFuncs`] trait for the

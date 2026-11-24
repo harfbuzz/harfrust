@@ -296,6 +296,83 @@ fn custom_draw_inherits_parent_scale_and_owns_callback_data() {
     }
 }
 
+unsafe extern "C" fn set_draw_callbacks_on_release(data: *mut c_void) {
+    let funcs = data.cast::<hr_draw_funcs_t>();
+    unsafe {
+        hr_draw_funcs_is_immutable(funcs);
+        // The callback being cleared, and one that is not.
+        hr_draw_funcs_set_move_to_func(funcs, Some(move_to), ptr::null_mut(), None);
+        hr_draw_funcs_set_line_to_func(funcs, Some(line_to), ptr::null_mut(), None);
+    }
+}
+
+#[test]
+fn a_destructor_run_by_a_draw_setter_may_come_back_into_the_funcs() {
+    unsafe {
+        let funcs = hr_draw_funcs_create();
+        // Clearing a callback releases the data handed over with the call
+        // from inside the setter, and that destructor may set callbacks.
+        hr_draw_funcs_set_move_to_func(
+            funcs,
+            None,
+            funcs.cast(),
+            Some(set_draw_callbacks_on_release),
+        );
+        let mut drawing = Drawing::default();
+        let mut state = hr_draw_state_t::default();
+        let data = ptr::from_mut(&mut drawing).cast();
+        hr_draw_move_to(funcs, data, &raw mut state, 1.0, 2.0);
+        hr_draw_line_to(funcs, data, &raw mut state, 3.0, 4.0);
+        // The clear lands once the destructor has run, so the move goes
+        // unreported and only the line arrives.
+        let kinds: Vec<u8> = drawing.0.iter().map(|segment| segment.0).collect();
+        assert_eq!(kinds, [1]);
+        hr_draw_funcs_destroy(funcs);
+    }
+}
+
+/// What a destructor coming back into a set of font callbacks is handed: the
+/// callbacks, and how often the data it installs has been released.
+struct Reentry {
+    callbacks: *mut hr_font_funcs_t,
+    nested_drops: u32,
+}
+
+unsafe extern "C" fn set_draw_glyph_or_fail_on_release(data: *mut c_void) {
+    let state = data.cast::<Reentry>();
+    unsafe {
+        hr_font_funcs_set_draw_glyph_or_fail_func(
+            (*state).callbacks,
+            Some(custom_draw),
+            (&raw mut (*state).nested_drops).cast(),
+            Some(count_drop),
+        );
+    }
+}
+
+#[test]
+fn a_destructor_run_by_a_draw_glyph_setter_may_set_the_other_form() {
+    unsafe {
+        let mut state = Reentry {
+            callbacks: hr_font_funcs_create(),
+            nested_drops: 0,
+        };
+        // Setting either form of the callback empties the other. Clearing
+        // one releases the data handed over with the call from inside the
+        // setter, and here that destructor installs the other form, which
+        // the setter goes on to empty.
+        hr_font_funcs_set_draw_glyph_func(
+            state.callbacks,
+            None,
+            ptr::from_mut(&mut state).cast(),
+            Some(set_draw_glyph_or_fail_on_release),
+        );
+        assert_eq!(state.nested_drops, 1);
+        hr_font_funcs_destroy(state.callbacks);
+        assert_eq!(state.nested_drops, 1);
+    }
+}
+
 // Lines the caller has received, and how many had arrived while the parent's
 // callback was still drawing.
 #[derive(Default)]
@@ -802,6 +879,74 @@ mod painting {
             assert_eq!(drops, 4);
             hr_paint_funcs_destroy(retained);
             assert_eq!(drops, 5);
+        }
+    }
+
+    unsafe extern "C" fn set_paint_callbacks_on_release(data: *mut c_void) {
+        let funcs = data.cast::<hr_paint_funcs_t>();
+        unsafe {
+            hr_paint_funcs_is_immutable(funcs);
+            // The callback being cleared, and one that is not.
+            hr_paint_funcs_set_color_func(funcs, Some(color), ptr::null_mut(), None);
+            hr_paint_funcs_set_push_group_func(funcs, Some(group), ptr::null_mut(), None);
+        }
+    }
+
+    #[test]
+    fn a_destructor_run_by_a_paint_setter_may_come_back_into_the_funcs() {
+        unsafe {
+            let funcs = hr_paint_funcs_create();
+            // Clearing a callback releases the data handed over with the
+            // call from inside the setter, and that destructor may set
+            // callbacks.
+            hr_paint_funcs_set_color_func(
+                funcs,
+                None,
+                funcs.cast(),
+                Some(set_paint_callbacks_on_release),
+            );
+            let mut s = Paint::default();
+            let data = ptr::from_mut(&mut s).cast();
+            hr_paint_color(funcs, data, 1, 0x1234_5678);
+            hr_paint_push_group(funcs, data);
+            // The clear lands once the destructor has run, so the color goes
+            // unreported and only the group arrives.
+            assert_eq!(s.colors, [] as [(i32, u32); 0]);
+            assert_eq!(s.scopes, [2]);
+            hr_paint_funcs_destroy(funcs);
+        }
+    }
+
+    unsafe extern "C" fn set_paint_glyph_or_fail_on_release(data: *mut c_void) {
+        let state = data.cast::<Reentry>();
+        unsafe {
+            hr_font_funcs_set_paint_glyph_or_fail_func(
+                (*state).callbacks,
+                Some(custom_font_paint),
+                (&raw mut (*state).nested_drops).cast(),
+                Some(count_drop),
+            );
+        }
+    }
+
+    #[test]
+    fn a_destructor_run_by_a_paint_glyph_setter_may_set_the_other_form() {
+        unsafe {
+            let mut state = Reentry {
+                callbacks: hr_font_funcs_create(),
+                nested_drops: 0,
+            };
+            // As for drawing: the destructor installs the form the setter
+            // goes on to empty.
+            hr_font_funcs_set_paint_glyph_func(
+                state.callbacks,
+                None,
+                ptr::from_mut(&mut state).cast(),
+                Some(set_paint_glyph_or_fail_on_release),
+            );
+            assert_eq!(state.nested_drops, 1);
+            hr_font_funcs_destroy(state.callbacks);
+            assert_eq!(state.nested_drops, 1);
         }
     }
 

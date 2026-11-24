@@ -346,6 +346,19 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
     }
 }
 
+/// Returns whether an object takes changes: it is not `NULL`, has not been
+/// marked immutable, and is not releasing its final reference.
+///
+/// # Safety
+///
+/// `ptr` must be `NULL` or a live pointer returned by this API.
+pub unsafe fn accepts_changes<T: Object>(ptr: *const T) -> bool {
+    unsafe { ptr.as_ref() }.is_some_and(|obj| {
+        let header = obj.header();
+        !header.immutable.load(Ordering::Acquire) && header.ref_count.load(Ordering::Relaxed) > 0
+    })
+}
+
 /// Returns a mutable reference to an object, or `None` when `ptr` is `NULL` or
 /// the object has been marked immutable or is releasing its final reference.
 ///
@@ -359,8 +372,7 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
 pub unsafe fn as_mutable<'a, T: Object>(ptr: *mut T) -> Option<&'a mut T> {
     // Reject shared immutable objects and finalization reentry before taking
     // an exclusive reference. Destroy callbacks may still query the object.
-    let header = unsafe { ptr.as_ref() }?.header();
-    if header.immutable.load(Ordering::Acquire) || header.ref_count.load(Ordering::Relaxed) <= 0 {
+    if !unsafe { accepts_changes(ptr.cast_const()) } {
         return None;
     }
     unsafe { ptr.as_mut() }
