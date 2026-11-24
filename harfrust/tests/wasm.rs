@@ -1,6 +1,8 @@
 //! Tests for the optional WebAssembly shaper.
 #![cfg(feature = "wasm")]
 
+use std::fmt::Write as _;
+
 use harfrust::{shape, Buffer, Direction, Feature, Font, ShapeOptions, ShaperFont};
 use read_fonts::FontRef;
 
@@ -279,4 +281,118 @@ fn wasm_shaper_host_queries() {
     let buffer = shape_text(data, "abc", &[]);
     assert_eq!(buffer.len(), 3);
     assert!(buffer.glyph_infos().iter().all(|info| info.glyph_id != 0));
+}
+
+/// A real font small enough to sit in a guest's data segment.
+const SMALL_FONT: &[u8] =
+    include_bytes!("fonts/in-house/1c2c3fc37b2d4c3cb2ef726c6cdaaabd4b7f3eb9.ttf");
+
+/// Creates a font and a face of its own and destroys them again, then maps
+/// the buffer with the font it was given.
+fn destroy_guest() -> String {
+    let data = SMALL_FONT.iter().fold(String::new(), |mut data, byte| {
+        let _ = write!(data, "\\{byte:02x}");
+        data
+    });
+    let length = SMALL_FONT.len();
+    format!(
+        r#"
+(module
+  (import "env" "buffer_copy_contents" (func $copy (param i32 i32) (result i32)))
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (import "env" "face_create" (func $face_create (param i32 i32) (result i32)))
+  (import "env" "face_destroy" (func $face_destroy (param i32)))
+  (import "env" "face_get_upem" (func $upem (param i32) (result i32)))
+  (import "env" "font_create" (func $font_create (param i32) (result i32)))
+  (import "env" "font_destroy" (func $font_destroy (param i32)))
+  (import "env" "font_get_face" (func $get_face (param i32) (result i32)))
+  (import "env" "font_get_glyph" (func $glyph (param i32 i32 i32) (result i32)))
+  (import "env" "font_get_glyph_h_advance" (func $advance (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (data (i32.const 4096) "{data}")
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (local $created i32)
+    (local $face i32)
+    (local $again i32)
+    (local $i i32)
+    (local $n i32)
+    (local $info i32)
+    (local $pos i32)
+    (local $g i32)
+    ;; A font on the face we were given, destroyed before we return.
+    (local.set $created (call $font_create (call $get_face (local.get $font))))
+    (if (i32.eqz (local.get $created)) (then (return (i32.const 0))))
+    (if (i32.eqz (call $glyph (local.get $created) (i32.const 97) (i32.const 0)))
+      (then (return (i32.const 0))))
+    (call $font_destroy (local.get $created))
+    ;; Its token names nothing now.
+    (if (call $glyph (local.get $created) (i32.const 97) (i32.const 0))
+      (then (return (i32.const 0))))
+    ;; A face of our own, from the font at 4096, and a font on it.
+    (i32.store (i32.const 3000) (i32.const {length}))
+    (i32.store (i32.const 3004) (i32.const 4096))
+    (local.set $face (call $face_create (i32.const 3000) (i32.const 0)))
+    (if (i32.eqz (local.get $face)) (then (return (i32.const 0))))
+    (if (i32.eqz (call $upem (local.get $face))) (then (return (i32.const 0))))
+    (local.set $created (call $font_create (local.get $face)))
+    (if (i32.eqz (local.get $created)) (then (return (i32.const 0))))
+    ;; The face can go first. Its token then names nothing...
+    (call $face_destroy (local.get $face))
+    (if (call $upem (local.get $face)) (then (return (i32.const 0))))
+    ;; ...and the font gives a new one for the face it still has.
+    (local.set $again (call $get_face (local.get $created)))
+    (if (i32.eqz (local.get $again)) (then (return (i32.const 0))))
+    (if (i32.eq (local.get $again) (local.get $face)) (then (return (i32.const 0))))
+    (if (i32.ne (local.get $again) (call $get_face (local.get $created)))
+      (then (return (i32.const 0))))
+    (if (i32.eqz (call $upem (local.get $again))) (then (return (i32.const 0))))
+    (call $font_destroy (local.get $created))
+    (call $face_destroy (local.get $again))
+    (if (call $upem (local.get $again)) (then (return (i32.const 0))))
+    ;; What we were given is not ours to destroy.
+    (call $font_destroy (local.get $font))
+    (call $face_destroy (call $get_face (local.get $font)))
+    (if (i32.eqz (call $upem (call $get_face (local.get $font))))
+      (then (return (i32.const 0))))
+    ;; Map the buffer with the font we were given.
+    (i32.store (i32.const 0) (i32.const 0))
+    (i32.store (i32.const 4) (i32.const 0))
+    (i32.store (i32.const 8) (i32.const 0))
+    (if (i32.eqz (call $copy (local.get $buf) (i32.const 0)))
+      (then (return (i32.const 0))))
+    (local.set $n (i32.load (i32.const 0)))
+    (block $done
+      (loop $loop
+        (br_if $done (i32.ge_u (local.get $i) (local.get $n)))
+        (local.set $info (i32.add (i32.load (i32.const 4)) (i32.mul (local.get $i) (i32.const 20))))
+        (local.set $g (call $glyph (local.get $font) (i32.load (local.get $info)) (i32.const 0)))
+        (i32.store (local.get $info) (local.get $g))
+        (local.set $pos (i32.add (i32.load (i32.const 8)) (i32.mul (local.get $i) (i32.const 20))))
+        (i32.store (local.get $pos) (call $advance (local.get $font) (local.get $g)))
+        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        (br $loop)))
+    (if (i32.eqz (call $set (local.get $buf) (i32.const 0)))
+      (then (return (i32.const 0))))
+    (i32.const 1)))
+"#
+    )
+}
+
+#[test]
+fn wasm_shaper_destroys_faces_and_fonts() {
+    let wasm = wat::parse_str(destroy_guest()).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let text = "abc";
+    // The guest returns failure, which `shape_text` unwraps, unless every
+    // step went as its comments say.
+    let buffer = shape_text(data, text, &[]);
+
+    let plain = Font::new(ROBOTO.to_vec(), 0).unwrap();
+    let shaper = ShaperFont::new(&plain);
+    assert_eq!(buffer.len(), text.len());
+    for (index, character) in text.chars().enumerate() {
+        let glyph = shaper.nominal_glyph(character as u32).unwrap();
+        assert_eq!(buffer.glyph_infos()[index].glyph_id, glyph.to_u32());
+    }
 }

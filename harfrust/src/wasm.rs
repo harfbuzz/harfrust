@@ -130,8 +130,10 @@ struct Host<'a, 'b, 'c> {
     font: &'a ShaperFont<'b, 'c>,
     buffer: &'a mut Buffer,
     point_size: Option<f32>,
-    faces: Vec<WasmFace>,
-    fonts: Vec<WasmFontEntry>,
+    /// Faces and fonts the guest created. A token is the index plus 2, and
+    /// is not used again once the guest has destroyed what it named.
+    faces: Vec<Option<WasmFace>>,
+    fonts: Vec<Option<WasmFontEntry>>,
     memory: Option<Memory>,
     /// Next address for the host-side bump allocator. Allocations live above
     /// the memory the guest has already grown, so they cannot collide with
@@ -263,7 +265,9 @@ const KNOWN_IMPORTS: &[KnownImport] = &[
     ("env", "face_create"),
     ("env", "face_copy_table"),
     ("env", "face_get_upem"),
+    ("env", "face_destroy"),
     ("env", "font_create"),
+    ("env", "font_destroy"),
     ("env", "font_get_face"),
     ("env", "font_get_scale"),
     ("env", "font_get_glyph"),
@@ -314,7 +318,9 @@ fn define_links<'a, 'b, 'c>(
     linker.func_wrap("env", "face_create", api_face_create)?;
     linker.func_wrap("env", "face_copy_table", api_face_copy_table)?;
     linker.func_wrap("env", "face_get_upem", api_face_get_upem)?;
+    linker.func_wrap("env", "face_destroy", api_face_destroy)?;
     linker.func_wrap("env", "font_create", api_font_create)?;
+    linker.func_wrap("env", "font_destroy", api_font_destroy)?;
     linker.func_wrap("env", "font_get_face", api_font_get_face)?;
     linker.func_wrap("env", "font_get_scale", api_font_get_scale)?;
     linker.func_wrap("env", "font_get_glyph", api_font_get_glyph)?;
@@ -850,21 +856,27 @@ fn direction_to_wasm(direction: Direction) -> u32 {
 // Fonts and faces
 // ---------------------------------------------------------------------------
 
-fn face_data(font: &ModelFont, faces: &[WasmFace], token: u32) -> Option<(Vec<u8>, u32)> {
+/// The index of the face or font a guest token names, among those the guest
+/// created. The root tokens have none.
+fn guest_slot(token: u32) -> Option<usize> {
+    usize::try_from(token).ok()?.checked_sub(2)
+}
+
+fn face_data(font: &ModelFont, faces: &[Option<WasmFace>], token: u32) -> Option<(Vec<u8>, u32)> {
     if token == ROOT_FACE_TOKEN {
         let (Source::Blob(blob), Kind::Sfnt(_, index)) = (font.source(), font.kind()) else {
             return None;
         };
         Some((blob.as_ref().to_vec(), index))
     } else {
-        let face = faces.get(usize::try_from(token).ok()?.checked_sub(2)?)?;
+        let face = faces.get(guest_slot(token)?)?.as_ref()?;
         Some((face.data.clone(), face.index))
     }
 }
 
 fn with_face_ref<R>(
     font: &ModelFont,
-    faces: &[WasmFace],
+    faces: &[Option<WasmFace>],
     token: u32,
     f: impl FnOnce(FontRef<'_>) -> R,
 ) -> Option<R> {
@@ -875,7 +887,7 @@ fn with_face_ref<R>(
         let font_ref = FontRef::from_index(blob, index).ok()?;
         Some(f(font_ref))
     } else {
-        let face = faces.get(usize::try_from(token).ok()?.checked_sub(2)?)?;
+        let face = faces.get(guest_slot(token)?)?.as_ref()?;
         let font_ref = FontRef::from_index(&face.data, face.index).ok()?;
         Some(f(font_ref))
     }
@@ -904,8 +916,16 @@ fn api_face_create<'a, 'b, 'c>(
         return 0;
     }
     let state = caller.data_mut();
-    state.faces.push(WasmFace { data, index });
+    state.faces.push(Some(WasmFace { data, index }));
     i32::try_from(state.faces.len() + 1).unwrap_or(0)
+}
+
+fn api_face_destroy<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_token: i32) {
+    // The root face has no slot, so it cannot be destroyed from here.
+    let state = caller.data_mut();
+    if let Some(face) = guest_slot(face_token as u32).and_then(|slot| state.faces.get_mut(slot)) {
+        *face = None;
+    }
 }
 
 fn api_face_copy_table<'a, 'b, 'c>(
@@ -984,29 +1004,52 @@ fn api_font_create<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_to
     };
     let upem = i32::from(font.units_per_em());
     let state = caller.data_mut();
-    state.fonts.push(WasmFontEntry {
+    state.fonts.push(Some(WasmFontEntry {
         face: face_token as u32,
         font,
         x_scale: upem,
         y_scale: upem,
-    });
+    }));
     i32::try_from(state.fonts.len() + 1).unwrap_or(0)
 }
 
-fn api_font_get_face<'a, 'b, 'c>(caller: Caller<'_, Host<'a, 'b, 'c>>, font_token: i32) -> i32 {
+fn api_font_destroy<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, font_token: i32) {
+    // The root font has no slot, so it cannot be destroyed from here.
+    let state = caller.data_mut();
+    if let Some(font) = guest_slot(font_token as u32).and_then(|slot| state.fonts.get_mut(slot)) {
+        *font = None;
+    }
+}
+
+fn api_font_get_face<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, font_token: i32) -> i32 {
     if font_token as u32 == ROOT_FONT_TOKEN {
         return ROOT_FACE_TOKEN as i32;
     }
-    let state = caller.data();
-    state
-        .fonts
-        .get(
-            usize::try_from(font_token as u32)
-                .ok()
-                .and_then(|t| t.checked_sub(2))
-                .unwrap_or(usize::MAX),
-        )
-        .map_or(0, |entry| entry.face as i32)
+    let state = caller.data_mut();
+    let Some(entry) = guest_slot(font_token as u32)
+        .and_then(|slot| state.fonts.get_mut(slot))
+        .and_then(Option::as_mut)
+    else {
+        return 0;
+    };
+    let face_is_live = entry.face == ROOT_FACE_TOKEN
+        || guest_slot(entry.face)
+            .and_then(|slot| state.faces.get(slot))
+            .is_some_and(Option::is_some);
+    if !face_is_live {
+        // The guest destroyed the face and kept the font. The font has its
+        // own copy of the data; give that a new token, as HarfBuzz does.
+        let (Source::Blob(blob), Kind::Sfnt(_, index)) = (entry.font.source(), entry.font.kind())
+        else {
+            return 0;
+        };
+        state.faces.push(Some(WasmFace {
+            data: blob.as_ref().to_vec(),
+            index,
+        }));
+        entry.face = u32::try_from(state.faces.len() + 1).unwrap_or(0);
+    }
+    i32::try_from(entry.face).unwrap_or(0)
 }
 
 fn font_scale(state: &Host<'_, '_, '_>, font_token: u32) -> Option<(i32, i32)> {
@@ -1015,7 +1058,8 @@ fn font_scale(state: &Host<'_, '_, '_>, font_token: u32) -> Option<(i32, i32)> {
     } else {
         state
             .fonts
-            .get(usize::try_from(font_token).ok()?.checked_sub(2)?)
+            .get(guest_slot(font_token)?)?
+            .as_ref()
             .map(|entry| (entry.x_scale, entry.y_scale))
     }
 }
@@ -1044,9 +1088,7 @@ fn with_shaper_font<R>(
     if font_token == ROOT_FONT_TOKEN {
         Some(f(state.font))
     } else {
-        let entry = state
-            .fonts
-            .get(usize::try_from(font_token).ok()?.checked_sub(2)?)?;
+        let entry = state.fonts.get(guest_slot(font_token)?)?.as_ref()?;
         let shaper = ShaperFont::new(&entry.font);
         Some(f(&shaper))
     }
@@ -1233,12 +1275,10 @@ fn api_font_set_coords<'a, 'b, 'c>(
         coords.push(F2Dot14::from_bits(value as i16));
     }
     let state = caller.data_mut();
-    let Some(entry) = state.fonts.get_mut(
-        usize::try_from(token)
-            .ok()
-            .and_then(|t| t.checked_sub(2))
-            .unwrap_or(usize::MAX),
-    ) else {
+    let Some(entry) = guest_slot(token)
+        .and_then(|slot| state.fonts.get_mut(slot))
+        .and_then(Option::as_mut)
+    else {
         return 0;
     };
     entry.font = entry
@@ -1538,12 +1578,10 @@ fn api_shape_with<'a, 'b, 'c>(
         );
         shape_with_font(&plan, root, buffer, &features, point_size)
     } else {
-        let Some(entry) = state.fonts.get(
-            usize::try_from(font_token as u32)
-                .ok()
-                .and_then(|t| t.checked_sub(2))
-                .unwrap_or(usize::MAX),
-        ) else {
+        let Some(entry) = guest_slot(font_token as u32)
+            .and_then(|slot| state.fonts.get(slot))
+            .and_then(Option::as_ref)
+        else {
             return 0;
         };
         let shaper_font = ShaperFont::new(&entry.font);
