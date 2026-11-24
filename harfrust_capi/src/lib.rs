@@ -22,6 +22,10 @@ owns; `hr_*_reference` takes another, and `hr_*_destroy` gives one back. The
 `hr_*_create` functions never return `NULL`: on failure they return an
 immortal empty object, and the `_or_fail` variants return `NULL` instead. Every
 getter also accepts `NULL`, behaving as though it were passed the empty object.
+
+A reference taken to an object from one of its own destroy callbacks, while
+its last reference is being released, does not keep it alive. It must be given
+back, along with anything that holds it, before that callback returns.
 */
 
 // The whole point of this crate is to look like C.

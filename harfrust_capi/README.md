@@ -147,6 +147,13 @@ available without enabling painting.
 Objects are reference counted. Constructors return a new reference the caller
 owns; `hr_*_reference` takes another, and `hr_*_destroy` gives one back.
 
+The exception is an object whose last reference has been released. Its
+destroy callbacks may still use it, and may take references to it, but a
+reference taken then does not keep the object alive: it is freed once those
+callbacks have run. Each such reference, and anything that holds one, must be
+given back before the callback that took it returns. This goes for every
+object type, the subset input and plan among them.
+
 `hr_*_create` never returns `NULL`: on failure it returns an immortal empty
 object, and the `_or_fail` variants return `NULL` instead. Getters accept
 `NULL` too, behaving as though passed the empty object. As in HarfBuzz this

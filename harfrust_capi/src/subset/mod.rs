@@ -86,6 +86,15 @@ const DEFAULT_NO_SUBSET_TABLES: [Tag; 5] = [
     Tag::new(b"DSIG"),
 ];
 
+/// Reference count of an input or plan whose last reference has been
+/// released, for as long as its destroy callbacks run.
+///
+/// A callback that takes a reference of its own and gives it back would
+/// otherwise walk the count from zero to one and back, releasing the object
+/// a second time. Parked this high, no number of references a callback
+/// could take and release brings the count back to one.
+const DYING: usize = usize::MAX / 2;
+
 /// Subsetting configuration, owning its glyph and Unicode sets.
 ///
 /// Mutation requires exclusive access. Returned sets are borrowed; take a
@@ -138,6 +147,10 @@ pub extern "C" fn hr_subset_input_create_or_fail() -> *mut hr_subset_input_t {
 
 /// Takes another reference to a live input. `NULL` stays `NULL`.
 ///
+/// A reference taken from one of the input's own destroy callbacks, while its
+/// last reference is being released, does not keep the input alive. It must
+/// be given back before that callback returns.
+///
 /// # Safety
 /// `input` must be `NULL` or live.
 #[no_mangle]
@@ -161,6 +174,7 @@ pub unsafe extern "C" fn hr_subset_input_destroy(input: *mut hr_subset_input_t) 
     };
     if state.references.fetch_sub(1, Ordering::Release) == 1 {
         std::sync::atomic::fence(Ordering::Acquire);
+        state.references.store(DYING, Ordering::Relaxed);
         // Callbacks may query the object. Run them while access is shared,
         // before reconstructing the Box and taking exclusive ownership.
         state.user_data.release();
@@ -535,6 +549,10 @@ pub unsafe extern "C" fn hr_subset_plan_create_or_fail(
 
 /// Takes a reference to a subset plan. `NULL` stays `NULL`.
 ///
+/// A reference taken from one of the plan's own destroy callbacks, while its
+/// last reference is being released, does not keep the plan alive. It must be
+/// given back before that callback returns.
+///
 /// # Safety
 /// `plan` must be `NULL` or live.
 #[no_mangle]
@@ -558,6 +576,7 @@ pub unsafe extern "C" fn hr_subset_plan_destroy(plan: *mut hr_subset_plan_t) {
     };
     if state.references.fetch_sub(1, Ordering::Release) == 1 {
         std::sync::atomic::fence(Ordering::Acquire);
+        state.references.store(DYING, Ordering::Relaxed);
         // Callbacks may query the object. Run them while access is shared,
         // before reconstructing the Box and taking exclusive ownership.
         state.user_data.release();
@@ -799,6 +818,36 @@ mod tests {
         assert!(state.resource_released.get());
         assert!(state.observed_empty.get());
         assert_eq!(state.accepted.get(), 0);
+    }
+
+    #[test]
+    fn an_input_destroy_callback_may_take_and_release_a_reference() {
+        // The destructor runs while the input's last reference is being
+        // released. Taking a reference there and giving it back, as a scoped
+        // handle would, must not release the input a second time.
+        unsafe extern "C" fn borrow_briefly(data: *mut c_void) {
+            let input = data.cast::<hr_subset_input_t>();
+            unsafe {
+                assert_eq!(hr_subset_input_reference(input), input);
+                assert_eq!(hr_subset_input_get_flags(input), 0);
+                hr_subset_input_destroy(input);
+            }
+        }
+        static KEY: crate::hr_user_data_key_t = crate::hr_user_data_key_t { unused: 0 };
+        let input = hr_subset_input_create_or_fail();
+        unsafe {
+            assert_ne!(
+                hr_subset_input_set_user_data(
+                    input,
+                    &raw const KEY,
+                    input.cast(),
+                    Some(borrow_briefly),
+                    1
+                ),
+                0
+            );
+            hr_subset_input_destroy(input);
+        }
     }
 
     #[test]

@@ -145,6 +145,10 @@ struct hr_subset_input_t *hr_subset_input_create_or_fail(void);
 /**
  * Takes another reference to a live input. `NULL` stays `NULL`.
  *
+ * A reference taken from one of the input's own destroy callbacks, while its
+ * last reference is being released, does not keep the input alive. It must
+ * be given back before that callback returns.
+ *
  * # Safety
  * `input` must be `NULL` or live.
  */
@@ -250,6 +254,10 @@ struct hr_subset_plan_t *hr_subset_plan_create_or_fail(hr_face_t *face,
 
 /**
  * Takes a reference to a subset plan. `NULL` stays `NULL`.
+ *
+ * A reference taken from one of the plan's own destroy callbacks, while its
+ * last reference is being released, does not keep the plan alive. It must be
+ * given back before that callback returns.
  *
  * # Safety
  * `plan` must be `NULL` or live.
