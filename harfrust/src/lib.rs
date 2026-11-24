@@ -65,6 +65,8 @@ mod tag_reverse;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
+#[cfg(feature = "wasm")]
+mod wasm;
 
 type Mask = u32;
 

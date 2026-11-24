@@ -39,6 +39,14 @@ pub enum ShapeError {
         /// The script the buffer carries.
         buffer: Script,
     },
+
+    /// The font's WebAssembly shaper did not produce glyphs.
+    ///
+    /// The font contains a `Wasm` table and the module ran, but its `shape`
+    /// export trapped or reported failure. This is only produced when the
+    /// `wasm` feature is enabled.
+    #[cfg(feature = "wasm")]
+    WasmShapingFailed,
 }
 
 impl core::fmt::Display for ShapeError {
@@ -54,6 +62,8 @@ impl core::fmt::Display for ShapeError {
                 fmt,
                 "buffer script does not match plan script: {buffer:?} != {plan:?}"
             ),
+            #[cfg(feature = "wasm")]
+            Self::WasmShapingFailed => fmt.write_str("the font's WebAssembly shaper failed"),
         }
     }
 }

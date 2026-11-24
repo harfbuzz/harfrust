@@ -638,6 +638,9 @@ pub(crate) struct LayoutCache {
     pub glyph_names: GlyphNameCache,
     /// True if the font has both `trak` and `STAT` tables.
     pub apply_trak: bool,
+    /// Compiled WebAssembly shaper module, when the font has a `Wasm` table.
+    #[cfg(feature = "wasm")]
+    pub(crate) wasm: Once<crate::wasm::WasmModuleSlot>,
 }
 
 impl LayoutCache {
@@ -653,13 +656,15 @@ impl LayoutCache {
             cmap: CharmapCache::new(),
             glyph_names: Once::new(),
             apply_trak,
+            #[cfg(feature = "wasm")]
+            wasm: Once::new(),
         }
     }
 }
 
 /// Returns cached layout data, or `None` if the read-fonts interop slot
 /// contains an unexpected type.
-fn layout_cache(font: &Font) -> Option<&LayoutCache> {
+pub(crate) fn layout_cache(font: &Font) -> Option<&LayoutCache> {
     let data = crate::font::_font_interop::_get_or_init_shaping_data(font, || {
         Box::new(LayoutCache::new(font))
     });
