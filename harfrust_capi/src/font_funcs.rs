@@ -998,17 +998,24 @@ impl<'a> FontFuncsAdapter<'a> {
             );
         };
         if state.x_scale != self.state.x_scale && state.x_scale != 0 {
-            let mut advance = first_advance.cast::<u8>();
-            for _ in 0..count {
-                let value = unsafe { advance.cast::<i32>().read_unaligned() };
+            // Reached from the first advance each time, as in
+            // `font::advances`: a stride on from the last one may leave the
+            // run.
+            for i in 0..count as usize {
+                // SAFETY: `byte_add` needs the offset to stay inside the
+                // allocation `first_advance` points into. This function's
+                // contract gives `count` advances `advance_stride` bytes
+                // apart, and `i < count`, so advance `i` starts
+                // `i * advance_stride` bytes into that run.
+                let advance = unsafe { first_advance.byte_add(i * advance_stride as usize) };
+                // SAFETY: `advance` is entry `i` of the run, readable and
+                // writable by this function's contract and at whatever
+                // alignment the stride gives it. The callback above has
+                // written every entry, which is what a batch callback is for.
                 unsafe {
-                    advance.cast::<i32>().write_unaligned(rescale(
-                        value,
-                        state.x_scale,
-                        self.state.x_scale,
-                    ));
+                    let value = advance.read_unaligned();
+                    advance.write_unaligned(rescale(value, state.x_scale, self.state.x_scale));
                 };
-                advance = unsafe { advance.add(advance_stride as usize) };
             }
         }
         true
