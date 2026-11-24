@@ -3752,6 +3752,124 @@ fn immortal_objects_reject_user_data() {
 }
 
 #[test]
+fn asking_for_glyph_infos_again_keeps_the_first_pointer() {
+    // What the getter promises: asking again leaves the pointer from the
+    // first time as usable as the one from the second.
+    unsafe {
+        let buffer = buffer_with_text(TEXT);
+        let mut len = 0;
+        let first = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+        let second = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+        assert_eq!(len as usize, TEXT.len());
+        assert_eq!(first, second);
+
+        assert_eq!((*first).codepoint, u32::from(b'a'));
+        (*first).codepoint = u32::from(b'x');
+        assert_eq!((*second).codepoint, u32::from(b'x'));
+
+        // Whichever of them was written through last.
+        let third = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+        (*first).codepoint = u32::from(b'y');
+        (*second.add(1)).codepoint = u32::from(b'z');
+        assert_eq!((*third).codepoint, u32::from(b'y'));
+        assert_eq!(
+            glyph_ids(buffer),
+            "yzc".chars().map(u32::from).collect::<Vec<_>>()
+        );
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn asking_for_glyph_positions_again_keeps_the_first_pointer() {
+    unsafe {
+        let buffer = buffer_with_text(TEXT);
+        assert_eq!(hr_buffer_has_positions(buffer), 0);
+        // The first time is what allocates the positions, zeroed. The second
+        // finds them there and leaves them, and the pointer to them, alone.
+        let mut len = 0;
+        let first = hr_buffer_get_glyph_positions(buffer, &raw mut len);
+        assert_eq!(len as usize, TEXT.len());
+        assert_eq!((*first).x_advance, 0);
+        (*first).x_advance = 5;
+        let second = hr_buffer_get_glyph_positions(buffer, &raw mut len);
+        assert_eq!(len as usize, TEXT.len());
+        assert_eq!(first, second);
+
+        assert_eq!((*first).x_advance, 5);
+        (*first).x_advance = 6;
+        assert_eq!((*second).x_advance, 6);
+
+        // Whichever of them was written through last.
+        let third = hr_buffer_get_glyph_positions(buffer, &raw mut len);
+        (*first).x_advance = 7;
+        (*second.add(1)).x_advance = 8;
+        assert_eq!(((*third).x_advance, (*third.add(1)).x_advance), (7, 8));
+        assert_eq!((*third.add(2)).x_advance, 0);
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
+fn reading_a_buffer_keeps_its_glyph_pointers() {
+    // The pointers stay valid until the buffer's contents change, as in
+    // HarfBuzz. None of the calls made here changes them, including the
+    // ones that read the items, so pointers taken before can still be
+    // written through after each returns.
+    unsafe {
+        let buffer = hr_buffer_create();
+        hr_buffer_add_utf8(buffer, c"abc".as_ptr(), -1, 0, -1);
+        let mut len = 0;
+        let infos = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+        let positions = hr_buffer_get_glyph_positions(buffer, &raw mut len);
+        (*infos).codepoint = u32::from(b'x');
+        (*positions).x_advance = 1;
+
+        // Guessing reads the text for its script.
+        hr_buffer_guess_segment_properties(buffer);
+        assert_eq!(hr_buffer_get_script(buffer), HR_SCRIPT_LATIN);
+        (*infos).codepoint = 6;
+        (*positions).x_advance = 2;
+
+        assert_ne!(hr_buffer_has_positions(buffer), 0);
+        assert_eq!(hr_buffer_get_length(buffer), len);
+        hr_buffer_set_direction(buffer, HR_DIRECTION_LTR);
+        (*infos).codepoint = 7;
+        (*positions).x_advance = 3;
+
+        let flags = HR_BUFFER_SERIALIZE_FLAG_DEFAULT;
+        let (items, text) = serialize(buffer, 0, len, ptr::null_mut(), flags);
+        assert_eq!(
+            (items, text.as_str()),
+            (3, "[gid7=0+3|gid98=1+0|gid99=2+0]")
+        );
+        (*infos).codepoint = 8;
+        (*positions).x_advance = 4;
+
+        // Being appended from is being read, too.
+        let copy = hr_buffer_create();
+        hr_buffer_append(copy, buffer, 0, len);
+        (*infos).codepoint = 9;
+        (*positions).x_advance = 5;
+
+        let (_, text) = serialize(copy, 0, len, ptr::null_mut(), flags);
+        assert_eq!(text, "[gid8=0+4|gid98=1+0|gid99=2+0]");
+        let (_, text) = serialize(buffer, 0, len, ptr::null_mut(), flags);
+        assert_eq!(text, "[gid9=0+5|gid98=1+0|gid99=2+0]");
+        hr_buffer_destroy(copy);
+
+        // Reserving room changes nothing in the buffer and can still move
+        // the items, so the pointers are asked for again after it.
+        assert_ne!(hr_buffer_pre_allocate(buffer, 1000), 0);
+        let infos = hr_buffer_get_glyph_infos(buffer, &raw mut len);
+        let positions = hr_buffer_get_glyph_positions(buffer, &raw mut len);
+        assert_eq!(len, 3);
+        assert_eq!(((*infos).codepoint, (*positions).x_advance), (9, 5));
+        hr_buffer_destroy(buffer);
+    }
+}
+
+#[test]
 fn the_empty_buffer_is_not_written_by_the_glyph_getters() {
     // The empty buffer is one object shared by every thread, so the getters
     // must neither allocate positions in it nor hand out a writable pointer

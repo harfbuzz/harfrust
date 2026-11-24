@@ -3123,13 +3123,18 @@ hr_bool_t hr_buffer_set_length(struct hr_buffer_t *buffer, unsigned int length);
 /**
  * Returns a buffer's items, writing their count to `length`.
  *
- * Before shaping, each item's `codepoint` holds an input character. The
- * pointer stays valid until the buffer's contents change.
+ * Before shaping, each item's `codepoint` holds an input character.
+ *
+ * The pointer stays valid until the buffer's contents change, as in
+ * HarfBuzz. Asking for it again, or for the positions, leaves it valid, and
+ * so does any call that only reads the buffer. The one call that changes
+ * nothing and still invalidates it is [`hr_buffer_pre_allocate`], which can
+ * move the items to make room for more: ask again after it.
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer, and `length` must be `NULL` or
- * writable.
+ * `buffer` must be `NULL` or a live buffer. `length` must be `NULL` or point
+ * to an `unsigned int` that can be written; it need not hold a value yet.
  */
 struct hr_glyph_info_t *hr_buffer_get_glyph_infos(struct hr_buffer_t *buffer, unsigned int *length);
 
@@ -3137,12 +3142,15 @@ struct hr_glyph_info_t *hr_buffer_get_glyph_infos(struct hr_buffer_t *buffer, un
  * Returns a buffer's glyph positions, writing their count to `length`.
  *
  * Positions are allocated and zeroed on demand if the buffer has not been
- * shaped. The pointer stays valid until the buffer's contents change.
+ * shaped.
+ *
+ * The pointer stays valid on the same terms as the one
+ * [`hr_buffer_get_glyph_infos`] returns.
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer, and `length` must be `NULL` or
- * writable.
+ * `buffer` must be `NULL` or a live buffer. `length` must be `NULL` or point
+ * to an `unsigned int` that can be written; it need not hold a value yet.
  */
 struct hr_glyph_position_t *hr_buffer_get_glyph_positions(struct hr_buffer_t *buffer,
                                                           unsigned int *length);
