@@ -1454,6 +1454,84 @@ fn font_maps_codepoints_to_glyphs() {
 }
 
 #[test]
+fn creating_a_font_freezes_its_face() {
+    // A font reads its face from whichever thread it is used on, so the face
+    // has to hold still once one exists. HarfBuzz freezes it at the same
+    // point, which makes a later setter a no-op and not a race.
+    unsafe {
+        let data = font_data();
+        let blob = blob_over(&data);
+        let face = hr_face_create(blob, 0);
+        hr_blob_destroy(blob);
+        assert_eq!(hr_face_is_immutable(face), 0);
+        hr_face_set_index(face, 3);
+        assert_eq!(hr_face_get_index(face), 3);
+
+        let font = hr_font_create(face);
+        assert_ne!(hr_face_is_immutable(face), 0);
+        hr_face_set_index(face, 5);
+        assert_eq!(hr_face_get_index(face), 3);
+
+        // A sub-font is over the same face, frozen already.
+        let sub = hr_font_create_sub_font(font);
+        assert_eq!(hr_font_get_face(sub), face);
+        hr_font_destroy(sub);
+        hr_font_destroy(font);
+
+        // Nothing thaws it once its fonts are gone.
+        assert_ne!(hr_face_is_immutable(face), 0);
+        hr_face_destroy(face);
+    }
+}
+
+#[test]
+fn a_table_callback_sees_its_face_frozen_while_a_font_is_made() {
+    // The face is frozen before anything is read from it on the font's
+    // behalf, so the callback asked for `head`, which the font's scale comes
+    // from, already sees it that way. HarfBuzz orders it the same.
+    struct Source {
+        backing: *mut hr_face_t,
+        frozen_at_head: core::cell::Cell<Option<hr_bool_t>>,
+    }
+
+    unsafe extern "C" fn table(
+        face: *mut hr_face_t,
+        tag: hr_tag_t,
+        user_data: *mut c_void,
+    ) -> *mut hr_blob_t {
+        unsafe {
+            let source = &*user_data.cast::<Source>();
+            if tag == u32::from_be_bytes(*b"head") && source.frozen_at_head.get().is_none() {
+                source.frozen_at_head.set(Some(hr_face_is_immutable(face)));
+            }
+            hr_face_reference_table(source.backing, tag)
+        }
+    }
+
+    unsafe {
+        let data = font_data();
+        let blob = blob_over(&data);
+        let backing = hr_face_create(blob, 0);
+        hr_blob_destroy(blob);
+        let source = Source {
+            backing,
+            frozen_at_head: core::cell::Cell::new(None),
+        };
+        let face =
+            hr_face_create_for_tables(Some(table), ptr::from_ref(&source).cast_mut().cast(), None);
+        assert_eq!(hr_face_is_immutable(face), 0);
+        assert_eq!(source.frozen_at_head.get(), None);
+
+        let font = hr_font_create(face);
+        assert_eq!(source.frozen_at_head.get(), Some(1));
+
+        hr_font_destroy(font);
+        hr_face_destroy(face);
+        hr_face_destroy(backing);
+    }
+}
+
+#[test]
 fn immutable_font_rejects_changes() {
     unsafe {
         with_font(|_, font| {

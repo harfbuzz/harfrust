@@ -405,9 +405,11 @@ impl Object for hr_font_t {
 
 /// Creates a font over a face.
 ///
-/// The font takes its own reference to the face. Its scale starts at the
-/// face's units per em, so positions come out in font units until
-/// [`hr_font_set_scale`] says otherwise.
+/// The font takes its own reference to the face, and makes the face
+/// immutable, as HarfBuzz does: a font reads its face from whichever thread
+/// it is used on, so the face has to hold still once a font exists. Its
+/// scale starts at the face's units per em, so positions come out in font
+/// units until [`hr_font_set_scale`] says otherwise.
 ///
 /// Never returns `NULL`; a face with no font data yields the empty font.
 ///
@@ -422,6 +424,14 @@ pub unsafe extern "C" fn hr_font_create(face: *mut hr_face_t) -> *mut hr_font_t 
     let Some(font) = face_ref.font() else {
         return hr_font_t::empty();
     };
+    // Frozen before anything is read from the face on the font's behalf, as
+    // in HarfBuzz, so that a table callback run from here on already sees
+    // the face it serves frozen. Only the face's own setters look at this,
+    // and from here on they have a reader to race.
+    //
+    // SAFETY: `make_immutable` needs a null or live face. `face` is non-null,
+    // as `face_ref` shows, and live by this function's contract.
+    unsafe { object::make_immutable(face) };
     let upem = font
         .tables()
         .head()

@@ -3721,9 +3721,11 @@ void hr_face_collect_unicodes(struct hr_face_t *face, struct hr_set_t *out);
 /**
  * Creates a font over a face.
  *
- * The font takes its own reference to the face. Its scale starts at the
- * face's units per em, so positions come out in font units until
- * [`hr_font_set_scale`] says otherwise.
+ * The font takes its own reference to the face, and makes the face
+ * immutable, as HarfBuzz does: a font reads its face from whichever thread
+ * it is used on, so the face has to hold still once a font exists. Its
+ * scale starts at the face's units per em, so positions come out in font
+ * units until [`hr_font_set_scale`] says otherwise.
  *
  * Never returns `NULL`; a face with no font data yields the empty font.
  *
