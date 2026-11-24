@@ -784,7 +784,8 @@ pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
 /// Returns a font's normalized coordinates, writing their count to `length`.
 ///
 /// The returned pointer stays valid until the font's variation settings change
-/// or the font is freed.
+/// or the font is freed. A font with no coordinates returns `NULL`, as in
+/// HarfBuzz.
 ///
 /// # Safety
 ///
@@ -796,8 +797,16 @@ pub unsafe extern "C" fn hr_font_get_var_coords_normalized(
     length: *mut c_uint,
 ) -> *const c_int {
     let font = unsafe { object::or_empty(font.cast_const()) };
-    if let Some(out) = unsafe { length.as_mut() } {
-        *out = font.coords.len() as c_uint;
+    if !length.is_null() {
+        // SAFETY: `length` is non-null and, by this function's contract,
+        // writable. It only returns a value, so it is written through the
+        // pointer and not a reference: the caller need not have set it.
+        unsafe { length.write(font.coords.len() as c_uint) };
+    }
+    // An empty vector still has an address, one that points at nothing. A
+    // caller that tests the pointer and not the count would read from it.
+    if font.coords.is_empty() {
+        return core::ptr::null();
     }
     font.coords.as_ptr()
 }

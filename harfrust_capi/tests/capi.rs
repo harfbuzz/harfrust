@@ -1116,6 +1116,83 @@ fn empty_blob_is_immortal_and_shared() {
 }
 
 #[test]
+fn data_that_is_not_there_is_null() {
+    // HarfBuzz gives `NULL` for a blob with no data and for a font with no
+    // coordinates, and a caller may test the pointer and not the length.
+    unsafe {
+        let mut len = 7;
+        assert!(hr_blob_get_data(hr_blob_get_empty(), &raw mut len).is_null());
+        assert_eq!(len, 0);
+        len = 7;
+        assert!(hr_blob_get_data(ptr::null_mut(), &raw mut len).is_null());
+        assert_eq!(len, 0);
+
+        let data = font_data();
+        let blob = blob_over(&data);
+        len = 0;
+        assert!(!hr_blob_get_data(blob, &raw mut len).is_null());
+        assert_eq!(len as usize, data.len());
+        let nothing = hr_blob_create_sub_blob(blob, 4, 0);
+        len = 7;
+        assert!(hr_blob_get_data(nothing, &raw mut len).is_null());
+        assert_eq!(len, 0);
+        hr_blob_destroy(nothing);
+        hr_blob_destroy(blob);
+
+        // A blob made over a buffer of no length is still at that buffer,
+        // which HarfBuzz reports as it was given.
+        let somewhere = [0u8; 1];
+        let at = somewhere.as_ptr().cast::<c_char>();
+        let explicit =
+            hr_blob_create_or_fail(at, 0, HR_MEMORY_MODE_READONLY, ptr::null_mut(), None);
+        assert!(!explicit.is_null());
+        assert_ne!(explicit, hr_blob_get_empty());
+        let mut unset = core::mem::MaybeUninit::<c_uint>::uninit();
+        assert_eq!(hr_blob_get_data(explicit, unset.as_mut_ptr()), at);
+        assert_eq!(unset.assume_init(), 0);
+        hr_blob_destroy(explicit);
+        // A copy of nothing is nowhere, and asking for a blob of nothing
+        // that may be shared gives the empty blob, which has no data.
+        let copied = hr_blob_create_or_fail(at, 0, HR_MEMORY_MODE_DUPLICATE, ptr::null_mut(), None);
+        assert!(hr_blob_get_data(copied, &raw mut len).is_null());
+        hr_blob_destroy(copied);
+        let shared = hr_blob_create(at, 0, HR_MEMORY_MODE_READONLY, ptr::null_mut(), None);
+        assert_eq!(shared, hr_blob_get_empty());
+        assert!(hr_blob_get_data(shared, &raw mut len).is_null());
+
+        with_font(|face, font| {
+            // A table the face does not have.
+            let missing = hr_face_reference_table(face, u32::from_be_bytes(*b"none"));
+            let mut len = 7;
+            assert!(hr_blob_get_data(missing, &raw mut len).is_null());
+            assert_eq!(len, 0);
+            hr_blob_destroy(missing);
+
+            // A font with no variation axes.
+            len = 7;
+            assert!(hr_font_get_var_coords_normalized(font, &raw mut len).is_null());
+            assert_eq!(len, 0);
+        });
+        len = 7;
+        assert!(hr_font_get_var_coords_normalized(ptr::null_mut(), &raw mut len).is_null());
+        assert_eq!(len, 0);
+        with_named_font(VARIABLE_FONT, |_, font| {
+            // Coordinates exist once a variation is set, and not before.
+            let mut len = 7;
+            assert!(hr_font_get_var_coords_normalized(font, &raw mut len).is_null());
+            assert_eq!(len, 0);
+            let variation = hr_variation_t {
+                tag: u32::from_be_bytes(*b"wdth"),
+                value: 75.0,
+            };
+            hr_font_set_variations(font, &raw const variation, 1);
+            assert!(!hr_font_get_var_coords_normalized(font, &raw mut len).is_null());
+            assert_ne!(len, 0);
+        });
+    }
+}
+
+#[test]
 fn sub_blob_shares_parent_storage() {
     let data = b"0123456789".to_vec();
     unsafe {
