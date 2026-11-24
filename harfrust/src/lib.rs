@@ -30,6 +30,8 @@ and call [`shape`] to replace the text with positioned glyphs.
 #![allow(clippy::wrong_self_convention)]
 #![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::manual_range_contains)]
+// The optional `wasmi` dependency pulls in a second `syn`/`synstructure`.
+#![allow(clippy::multiple_crate_versions)]
 
 extern crate alloc;
 
