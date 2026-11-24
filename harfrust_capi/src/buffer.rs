@@ -1572,7 +1572,9 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     // item is written when the whole of it fits and the count reports what
     // was written, which is what lets a caller serialize in several passes.
     let capacity = buf_size as usize;
-    let serializer_font = font.shaper().cloned();
+    // SAFETY: the clone is a local of this call, used only by the loop
+    // below, and `font` is borrowed for all of it.
+    let serializer_font = unsafe { font.shaper() }.cloned();
     let mut out = String::new();
     let mut written = 0;
     let mut single = Buffer::new();
