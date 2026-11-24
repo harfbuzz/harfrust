@@ -872,7 +872,8 @@ impl From<Feature> for hr_feature_t {
 /// Parses a feature from its string form, such as `kern`, `-liga` or
 /// `aalt[3:5]=2`.
 ///
-/// Returns false, leaving `feature` untouched, if the string does not parse.
+/// Returns false, and zeroes `feature`, if the string does not parse, as
+/// HarfBuzz does.
 ///
 /// # Safety
 ///
@@ -970,7 +971,8 @@ impl From<Variation> for hr_variation_t {
 
 /// Parses a variation from its string form, such as `wght=700`.
 ///
-/// Returns false, leaving `variation` untouched, if the string does not parse.
+/// Returns false, and zeroes `variation`, if the string does not parse, as
+/// HarfBuzz does.
 ///
 /// # Safety
 ///
