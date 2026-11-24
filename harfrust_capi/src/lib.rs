@@ -91,6 +91,32 @@ pub use shape_plan::*;
 pub use subset::*;
 pub use unicode::*;
 
+// The documentation says which objects may be used from several threads at
+// once. Every use of one goes through a raw pointer, so the compiler is never
+// asked whether that holds. This asks it, about the Rust types those objects
+// keep their contents in. It says nothing about what an object holds through
+// a raw pointer, nor about a type that is not listed here.
+const _: () = {
+    const fn shared_between_threads<T: Send + Sync>() {}
+
+    // A face and its fonts are shaped with from several threads at once.
+    shared_between_threads::<harfrust::font::Font>();
+    // The plans in a face's cache are read by every thread shaping through it.
+    shared_between_threads::<harfrust::ShapePlan>();
+    // That cache is added to by whichever of those threads misses.
+    shared_between_threads::<plan::PlanCache>();
+    // A set that nothing is modifying is read from several threads at once.
+    shared_between_threads::<SetValues>();
+    // So is a map, which keeps its entries in fields of its own.
+    shared_between_threads::<hr_map_t>();
+    // A face's outlines are built once, by whichever thread draws first.
+    #[cfg(feature = "draw")]
+    shared_between_threads::<rendering::RenderData>();
+    // A subset plan may be executed from several threads at once.
+    #[cfg(feature = "subset")]
+    shared_between_threads::<skera::Plan>();
+};
+
 #[cfg(test)]
 #[path = "../tests/capi.rs"]
 mod capi_tests;

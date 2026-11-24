@@ -8,12 +8,17 @@ use harfrust::{shape, Buffer, Direction, Feature, ShapeOptions};
 use smallvec::SmallVec;
 
 use crate::buffer::{hr_buffer_t, CStrArray};
-use crate::common::{hr_bool_t, hr_feature_t};
+use crate::common::{hr_bool_t, hr_feature_t, write_out};
 use crate::font::hr_font_t;
 use crate::font_funcs::FontFuncsAdapter;
 
 /// Runs `f` over `buffer`, catching any panic rather than letting it unwind
-/// into C, which would be undefined behaviour. Returns `None` if it panicked.
+/// out of an `extern "C"` function, which would abort the process. Returns
+/// `None` if it panicked, for the caller to report as a `false` return.
+///
+/// That only happens where panics unwind, which is Cargo's default. In a
+/// build with `panic=abort` a panic aborts where it is raised, and nothing
+/// here runs.
 ///
 /// A panic also clears the buffer. The shaper rewrites it in place, labelling
 /// it as glyphs long before it is done, so what an unwind leaves behind is
@@ -143,7 +148,9 @@ pub unsafe extern "C" fn hr_shape(
 /// bug in this library rather than a property of the input, and the buffer
 /// comes back cleared, as by `hr_buffer_clear_contents`: what the shaper
 /// left in it was neither the text nor glyphs for it, and a buffer still
-/// labelled as glyphs could not be shaped again.
+/// labelled as glyphs could not be shaped again. That is so where panics
+/// unwind, which is Cargo's default; a library built with `panic=abort`
+/// aborts the process instead.
 ///
 /// # Aborts
 ///
@@ -324,9 +331,9 @@ pub unsafe extern "C" fn hr_harfbuzz_version(
         (minor, HR_HARFBUZZ_VERSION_MINOR),
         (micro, HR_HARFBUZZ_VERSION_MICRO),
     ] {
-        if let Some(out) = unsafe { out.as_mut() } {
-            *out = value;
-        }
+        // SAFETY: each of `major`, `minor` and `micro` is `NULL` or writable
+        // by this function's contract.
+        unsafe { write_out(out, value) };
     }
 }
 
@@ -366,9 +373,9 @@ pub unsafe extern "C" fn hr_version(major: *mut c_uint, minor: *mut c_uint, micr
         parts.next().map_or(0, parse),
     ];
     for (out, value) in [major, minor, micro].into_iter().zip(values) {
-        if let Some(out) = unsafe { out.as_mut() } {
-            *out = value;
-        }
+        // SAFETY: each of `major`, `minor` and `micro` is `NULL` or writable
+        // by this function's contract.
+        unsafe { write_out(out, value) };
     }
 }
 

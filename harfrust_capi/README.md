@@ -156,6 +156,10 @@ error surfaces as an empty shaping result rather than a crash.
 Objects can carry `user_data` keyed by the address of an `hr_user_data_key_t`,
 and can be frozen with `hr_*_make_immutable`, after which setters are ignored.
 
+A parameter that only returns a value may point to uninitialised memory: it is
+only ever written. One that also carries a value in, such as the count giving
+the capacity of an array, or an iteration cursor, must be set before the call.
+
 ## What is covered
 
 Blobs, faces, fonts, font callbacks, buffers, shape plans and `hr_shape`,
@@ -253,13 +257,11 @@ The following HarfBuzz APIs are not exposed:
   `hr_shape` carries on; `hr_buffer_allocation_successful` is what reports
   the condition. `hr_shape_full` returns false only when no shaper could be
   run at all, or when the shaper panicked -- a bug in this library -- in
-  which case the buffer comes back cleared rather than half shaped.
+  which case the buffer comes back cleared rather than half shaped. A
+  library built with `panic=abort` aborts on such a panic instead.
 
 - **Only the text serialization format** is supported by
   `hr_buffer_serialize_glyphs`; asking for JSON serializes nothing.
-
-- **The plan cache is bounded** at 32 entries per face, where HarfBuzz's list
-  is unbounded.
 
 - **`hr_shape` fills in unset segment properties** rather than failing, since
   building a plan requires a direction.
@@ -267,10 +269,10 @@ The following HarfBuzz APIs are not exposed:
 ## Threading
 
 Blobs, faces and fonts may be shaped with from several threads at once.
-Reference counts are atomic, the per-face plan cache and the user data on every
-object are behind read-write locks, and the caches HarfRust fills in while
-shaping -- lazily loaded tables, glyph lookups, layout lookups -- are atomics
-and one-shot cells. There are tests that shape through one shared face, and
+Reference counts are atomic, the user data on every object is behind a lock,
+and the per-face plan cache and the caches HarfRust fills in while shaping --
+lazily loaded tables, glyph lookups, layout lookups -- are atomics and
+one-shot cells. There are tests that shape through one shared face, and
 through one shared font, from several threads; they run under Miri's data race
 detector across a spread of thread interleavings.
 
@@ -290,9 +292,13 @@ What is not shared is anything being written:
 - **The same goes for a set of callbacks.** Populate an `hr_font_funcs_t`
   before installing it, and `hr_font_funcs_make_immutable` to hold it that way.
 
-Callbacks are handed the font they were installed on so they can read its
-scale and variation settings. They must not modify it, nor free it, nor touch
-the buffer being shaped.
+What a caller attaches to an object is shared along with it. User data, font
+data and callback data, and the `destroy` functions given with them, must be
+safe to use and to release from any thread that uses the object.
+
+A callback may query the object it is handed, as a font callback reads the
+scale and variation settings of its font. It must not modify that object, nor
+free it, and a font callback must not touch the buffer being shaped.
 
 ## License
 

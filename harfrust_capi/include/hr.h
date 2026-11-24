@@ -5389,7 +5389,9 @@ void hr_shape(struct hr_font_t *font,
  * bug in this library rather than a property of the input, and the buffer
  * comes back cleared, as by `hr_buffer_clear_contents`: what the shaper
  * left in it was neither the text nor glyphs for it, and a buffer still
- * labelled as glyphs could not be shaped again.
+ * labelled as glyphs could not be shaped again. That is so where panics
+ * unwind, which is Cargo's default; a library built with `panic=abort`
+ * aborts the process instead.
  *
  * # Aborts
  *
@@ -5633,7 +5635,7 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
  * Returns false without shaping if the plan is the empty one, or if `font` or
  * `buffer` is `NULL`. An empty buffer returns true, having nothing to do.
  * If the shaper panics, this returns false and clears the buffer, as
- * `hr_shape_full` does.
+ * `hr_shape_full` does, and like it only where panics unwind.
  *
  * # Aborts
  *

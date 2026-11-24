@@ -901,15 +901,16 @@ pub unsafe extern "C" fn hr_set_next_many(
         return 0;
     }
     let set = unsafe { object::or_empty(set) };
-    let out = unsafe { core::slice::from_raw_parts_mut(out, size as usize) };
     let mut count = 0;
     let mut value = codepoint;
-    for slot in out.iter_mut() {
+    while count < size {
         value = set.next(value.wrapping_add(1));
         if value == HR_SET_VALUE_INVALID {
             break;
         }
-        *slot = value;
+        // SAFETY: `out` points to `size` writable elements by this function's
+        // contract, and `count` is short of `size`.
+        unsafe { out.add(count as usize).write(value) };
         count += 1;
     }
     count

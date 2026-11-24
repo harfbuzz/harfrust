@@ -75,7 +75,9 @@ pub struct hr_draw_funcs_t {
     cubic_to: Option<Callback<hr_draw_cubic_to_func_t>>,
     close_path: Option<Callback<hr_draw_close_path_func_t>>,
 }
-// SAFETY: callback registration requires thread-safe callbacks and opaque data.
+// SAFETY: callback data is opaque, and goes only to its callback and its
+// destroy function. The README's "Threading" section requires both to be safe
+// from any thread that uses the object.
 unsafe impl Send for hr_draw_funcs_t {}
 unsafe impl Sync for hr_draw_funcs_t {}
 impl Object for hr_draw_funcs_t {

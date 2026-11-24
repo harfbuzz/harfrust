@@ -9,7 +9,9 @@ use harfrust::{
     SerializeFlags,
 };
 
-use crate::common::{direction_from_rust, direction_to_rust, hr_direction_t, write_c_string};
+use crate::common::{
+    direction_from_rust, direction_to_rust, hr_direction_t, write_c_string, write_out,
+};
 use crate::common::{
     hr_bool_t, hr_codepoint_t, hr_language_t, hr_mask_t, hr_position_t, hr_script_t, hr_tag_t,
     language_from_rust, language_to_rust, script_from_rust, script_to_rust, HR_CODEPOINT_INVALID,
@@ -1331,11 +1333,11 @@ pub unsafe extern "C" fn hr_buffer_get_segment_properties(
     buffer: *mut hr_buffer_t,
     props: *mut crate::shape_plan::hr_segment_properties_t,
 ) {
-    let Some(out) = (unsafe { props.as_mut() }) else {
+    if props.is_null() {
         return;
-    };
+    }
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
-    *out = crate::shape_plan::hr_segment_properties_t {
+    let value = crate::shape_plan::hr_segment_properties_t {
         direction: direction_from_rust(buffer.buffer.direction()),
         script: buffer
             .buffer
@@ -1345,6 +1347,8 @@ pub unsafe extern "C" fn hr_buffer_get_segment_properties(
         reserved1: core::ptr::null_mut(),
         reserved2: core::ptr::null_mut(),
     };
+    // SAFETY: `props` is `NULL` or writable by this function's contract.
+    unsafe { write_out(props, value) };
 }
 
 /// Sets a buffer's direction, script and language at once.
@@ -1521,9 +1525,9 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     flags: hr_buffer_serialize_flags_t,
 ) -> c_uint {
     let write_consumed = |len: c_uint| {
-        if let Some(out) = unsafe { buf_consumed.as_mut() } {
-            *out = len;
-        }
+        // SAFETY: `buf_consumed` is `NULL` or writable by this function's
+        // contract.
+        unsafe { write_out(buf_consumed, len) };
     };
     write_consumed(0);
 

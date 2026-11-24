@@ -885,18 +885,16 @@ pub unsafe extern "C" fn hr_feature_from_string(
 ) -> hr_bool_t {
     // Nothing parsed is nothing described: the destination says so rather
     // than keeping whatever the caller happened to leave in it.
-    if let Some(out) = unsafe { feature.as_mut() } {
-        *out = hr_feature_t::default();
-    }
+    // SAFETY: `feature` is `NULL` or writable by this function's contract.
+    unsafe { write_out(feature, hr_feature_t::default()) };
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };
     let Ok(parsed) = Feature::from_str(s) else {
         return false.into();
     };
-    if let Some(out) = unsafe { feature.as_mut() } {
-        *out = parsed.into();
-    }
+    // SAFETY: `feature` is `NULL` or writable by this function's contract.
+    unsafe { write_out(feature, parsed.into()) };
     true.into()
 }
 
@@ -985,18 +983,16 @@ pub unsafe extern "C" fn hr_variation_from_string(
 ) -> hr_bool_t {
     // Nothing parsed is nothing described: the destination says so rather
     // than keeping whatever the caller happened to leave in it.
-    if let Some(out) = unsafe { variation.as_mut() } {
-        *out = hr_variation_t::default();
-    }
+    // SAFETY: `variation` is `NULL` or writable by this function's contract.
+    unsafe { write_out(variation, hr_variation_t::default()) };
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };
     let Ok(parsed) = Variation::parse_setting(s) else {
         return false.into();
     };
-    if let Some(out) = unsafe { variation.as_mut() } {
-        *out = parsed.into();
-    }
+    // SAFETY: `variation` is `NULL` or writable by this function's contract.
+    unsafe { write_out(variation, parsed.into()) };
     true.into()
 }
 
@@ -1035,6 +1031,28 @@ pub struct hr_glyph_extents_t {
     pub width: hr_position_t,
     /// Height of the ink box, measured downwards.
     pub height: hr_position_t,
+}
+
+/// Writes `value` to an output parameter, which a caller that does not want
+/// the value may pass as `NULL`.
+///
+/// The write goes through the pointer itself and no reference is made to the
+/// destination: a parameter that only returns a value need not have been set
+/// by the caller, and a reference to it would claim that it holds one. An
+/// exported function that says an output must be `NULL` or writable asks its
+/// caller for what this needs.
+///
+/// # Safety
+///
+/// `out` must be `NULL`, or valid for writes of a `T` and properly aligned
+/// for one. What it points to is not read, and need not be initialized.
+pub(crate) unsafe fn write_out<T: Copy>(out: *mut T, value: T) {
+    if !out.is_null() {
+        // SAFETY: `ptr::write` needs `out` valid for writes and properly
+        // aligned. It is not null, as just checked, so this function's
+        // contract gives both.
+        unsafe { out.write(value) };
+    }
 }
 
 /// Copies `s` into `buf`, truncating to `size` bytes and always writing a
