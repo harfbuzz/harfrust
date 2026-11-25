@@ -1275,9 +1275,9 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
 /// Maps a Unicode scalar value to a glyph, with or without a variation
 /// selector, returning false if the font has none.
 ///
-/// A variation selector of zero asks for the plain mapping. A selector the
-/// font has no glyph for falls back to the plain mapping, which is what
-/// HarfBuzz does.
+/// A zero selector calls [`hr_font_get_nominal_glyph`]. A nonzero selector
+/// calls [`hr_font_get_variation_glyph`], which returns false and writes
+/// glyph zero for an unsupported sequence.
 ///
 /// # Safety
 ///
@@ -1290,18 +1290,14 @@ pub unsafe extern "C" fn hr_font_get_glyph(
     variation_selector: hr_codepoint_t,
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
-    if variation_selector != 0 {
-        // SAFETY: `hr_font_get_variation_glyph` asks of `font` and `glyph`
-        // what this function's contract does: a live font, and `NULL` or
-        // writable. It takes a `NULL` font all the same, as this one does.
-        let found =
-            unsafe { hr_font_get_variation_glyph(font, unicode, variation_selector, glyph) };
-        if found != 0 {
-            return found;
+    // SAFETY: Both getters accept the same font and output pointer as this function.
+    unsafe {
+        if variation_selector == 0 {
+            hr_font_get_nominal_glyph(font, unicode, glyph)
+        } else {
+            hr_font_get_variation_glyph(font, unicode, variation_selector, glyph)
         }
     }
-    // SAFETY: as above; `hr_font_get_nominal_glyph` asks the same of both.
-    unsafe { hr_font_get_nominal_glyph(font, unicode, glyph) }
 }
 
 /// How far a glyph advances when text runs horizontally.
