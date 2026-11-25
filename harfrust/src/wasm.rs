@@ -240,6 +240,12 @@ impl<'a, 'b, 'c> Host<'a, 'b, 'c> {
     }
 }
 
+/// Runs the module for one `shape` call.
+///
+/// A fresh store, linker and instance are built here every time. Keeping one
+/// between calls, as HarfBuzz does, would let a module do its setup once in
+/// `shape_plan_create` and keep it; here the token that export returns serves
+/// this call alone. `docs/wasm-shaper.md` describes what that costs.
 fn run<'a, 'b, 'c>(
     engine: &Engine,
     module: &Module,

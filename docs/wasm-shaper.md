@@ -45,10 +45,21 @@ are not needed. `wasmi` is used with `default-features = false` and
 the build `no_std`-friendly.
 
 The module is compiled once per font and cached in the shared shaping cache
-(`LayoutCache`). A fresh `Store` and module instance are created for every
-shaping call, so guest state cannot leak between runs. Guest linear memory is
-accessed through `Memory::read`/`write`, and the host-side bump allocator places
-its allocations above the memory the guest has already grown.
+(`LayoutCache`). A fresh `Store`, linker and module instance are built for
+every shaping call, so guest state cannot leak between runs. Guest linear
+memory is accessed through `Memory::read`/`write`, and the host-side bump
+allocator places its allocations above the memory the guest has already grown.
+
+That arrangement is a first step, not the one HarfBuzz uses, and it costs what
+it reads. A module that only calls `shape_with("ot")` takes about 7 µs for a
+single character in a release build, against 2 µs for the same font shaped by
+OpenType alone, and about 19 µs if its initial memory is the 17 pages a Rust
+guest's default 1 MiB stack brings: the instance's memory is allocated, zeroed
+and filled from the module's data segments on every call, and the linker and
+its entries are built again each time. HarfBuzz keeps an instance on the face
+and reuses it, so `shape_plan_create` runs once per face and the module keeps
+its setup in what that returns. Here it runs before every `shape`, and the
+token it returns serves that call and is then dropped.
 
 Verify self-hosting with:
 
@@ -143,11 +154,13 @@ much fuel as wasm-micro-runtime counts instructions for the same module.
   `ShapeError::WasmShapingFailed`. HarfBuzz retries once before giving up.
 - A `shape_plan_create` export that traps, or whose result cannot be called,
   fails the shaping, as it does in HarfBuzz. A module without the export is
-  called with plan token 0.
+  called with plan token 0. The token is good for one call: HarfBuzz makes the
+  plan once per face and keeps the instance, while every call here makes a new
+  instance and with it a new plan.
 - `face_destroy` and `font_destroy` free a face or font the guest created,
   and its token names nothing afterwards. In HarfBuzz they also let the
   module instance be kept for the next call; HarfRust creates an instance per
-  call either way.
+  call either way, so a module cannot carry state from one call to the next.
 - `font_copy_glyph_outline` draws through read-fonts' outline support and
   ignores custom `FontFuncs` draw callbacks, which HarfRust does not have.
 - HarfBuzz gives host work an allowance of its own, the size of its
