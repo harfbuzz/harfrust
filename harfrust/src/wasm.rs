@@ -25,7 +25,9 @@ use read_fonts::model::glyph::outline::{DrawMemory, DrawOptions, PathSink};
 use read_fonts::model::{Font as ModelFont, Kind, Source};
 use read_fonts::types::{F2Dot14, GlyphId, Tag as RawTag};
 use read_fonts::{FontRef, TableProvider};
-use wasmi::{Caller, Engine, Extern, ExternType, Linker, Memory, Module, Store, Val};
+use wasmi::{
+    core::ValType, Caller, Engine, Extern, ExternType, Linker, Memory, Module, Store, Val,
+};
 
 use crate::{
     Buffer, Direction, Feature, GlyphInfo, GlyphPosition, Script, ShapeError, ShapeOptions, Shaper,
@@ -109,9 +111,32 @@ fn compile_slot(font: &ModelFont) -> WasmModuleSlot {
     config.consume_fuel(true);
     let engine = Engine::new(&config);
     match Module::new(&engine, bytes) {
-        Ok(module) => WasmModuleSlot::Compiled { engine, module },
-        Err(_) => WasmModuleSlot::Unavailable,
+        Ok(module) if can_run(&module) => WasmModuleSlot::Compiled { engine, module },
+        _ => WasmModuleSlot::Unavailable,
     }
+}
+
+/// Whether the host has everything it needs before any guest code runs.
+///
+/// The ABI calls for a `shape` export with five `i32` arguments and an `i32`
+/// result, and an exported `memory` for the buffer contents to travel
+/// through. The host also provides no imports but functions, so a module that
+/// asks for a memory, table or global is one that cannot be linked.
+///
+/// What this turns down leaves the font to the OpenType shaper without
+/// running the module at all. Everything that fails after this point has run
+/// guest code, and fails the shaping instead.
+fn can_run(module: &Module) -> bool {
+    let has_shape = matches!(
+        module.get_export("shape"),
+        Some(ExternType::Func(ty))
+            if ty.params() == [ValType::I32; 5] && ty.results() == [ValType::I32]
+    );
+    let has_memory = matches!(module.get_export("memory"), Some(ExternType::Memory(_)));
+    let linkable = module
+        .imports()
+        .all(|import| matches!(import.ty(), ExternType::Func(_)));
+    has_shape && has_memory && linkable
 }
 
 /// Shapes with the font's WebAssembly module.
@@ -243,36 +268,47 @@ fn run<'a, 'b, 'c>(
     }
     let mut linker: Linker<Host<'a, 'b, 'c>> = Linker::new(engine);
     if define_links(&mut linker, module).is_err() {
-        // The module imports something we cannot provide; use OpenType.
         return Ok(None);
     }
+    // Everything from here to `start` is the module being made, not run: a
+    // failure leaves the font to the OpenType shaper, as a module without a
+    // `shape` export or an exported memory does.
     let Ok(instance_pre) = linker.instantiate(&mut store, module) else {
         return Ok(None);
     };
+    // `start` runs the module's start function, so guest code has begun.
+    // Whatever it does, and whatever the guest does afterwards, fails the
+    // shaping rather than falling back: the buffer may already have changed.
     let Ok(instance) = instance_pre.start(&mut store) else {
-        return Ok(None);
+        return Err(ShapeError::WasmShapingFailed);
     };
 
-    let memory = instance
+    let Some(memory) = instance
         .get_export(&store, "memory")
-        .and_then(Extern::into_memory);
-    let Some(memory) = memory else {
-        // A shaper without linear memory cannot exchange buffer contents.
-        return Ok(None);
+        .and_then(Extern::into_memory)
+    else {
+        return Err(ShapeError::WasmShapingFailed);
     };
     store.data_mut().memory = Some(memory);
 
     let Ok(shape_func) = instance.get_typed_func::<(i32, i32, i32, i32, i32), i32>(&store, "shape")
     else {
-        // No shape entry point; leave the font to the OpenType shaper.
-        return Ok(None);
+        return Err(ShapeError::WasmShapingFailed);
     };
 
-    let plan_token = instance
-        .get_typed_func::<i32, i32>(&store, "shape_plan_create")
-        .ok()
-        .and_then(|func| func.call(&mut store, ROOT_FACE_TOKEN as i32).ok())
-        .unwrap_or(0);
+    // A module that exports `shape_plan_create` is called, and a failure
+    // there fails the shaping: its result is the plan its `shape` expects.
+    let plan_token = if instance.get_func(&store, "shape_plan_create").is_some() {
+        let Ok(func) = instance.get_typed_func::<i32, i32>(&store, "shape_plan_create") else {
+            return Err(ShapeError::WasmShapingFailed);
+        };
+        match func.call(&mut store, ROOT_FACE_TOKEN as i32) {
+            Ok(token) => token,
+            Err(_) => return Err(ShapeError::WasmShapingFailed),
+        }
+    } else {
+        0
+    };
 
     let mut features_ptr = 0;
     if !options.features.is_empty() {
