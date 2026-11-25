@@ -171,8 +171,9 @@ pub(crate) fn shape<'a, 'b, 'c>(
 
 /// A face created by the guest from a blob.
 struct WasmFace {
-    data: Vec<u8>,
-    index: u32,
+    /// The face's font. The fonts the guest creates from it share the data
+    /// and the parsed tables, so a copy of the font file is never made.
+    font: ModelFont,
 }
 
 /// A font created by the guest from a face.
@@ -201,7 +202,8 @@ struct Host<'a, 'b, 'c> {
     bump_end: u32,
     /// The memory the module may use, in bytes.
     max_memory: u64,
-    /// How much of it is in faces and fonts that the module created.
+    /// How much of it is in faces that the module created. Fonts share their
+    /// face's data, so they add nothing.
     object_bytes: u64,
     limits: wasmi::StoreLimits,
 }
@@ -234,11 +236,15 @@ impl<'a, 'b, 'c> Host<'a, 'b, 'c> {
         }
     }
 
-    /// Whether the module may create one more face or font, with this much
-    /// data for the host to hold.
-    fn can_create(&self, bytes: u64) -> bool {
+    /// Whether the module may create one more face or font.
+    fn can_create_object(&self) -> bool {
         self.faces.len() + self.fonts.len() < MAX_OBJECTS
-            && bytes <= self.max_memory.saturating_sub(self.object_bytes)
+    }
+
+    /// Whether the module may create one more face, with this much data for
+    /// the host to hold.
+    fn can_create(&self, bytes: u64) -> bool {
+        self.can_create_object() && bytes <= self.max_memory.saturating_sub(self.object_bytes)
     }
 }
 
@@ -1071,50 +1077,34 @@ fn guest_slot(token: u32) -> Option<usize> {
     usize::try_from(token).ok()?.checked_sub(2)
 }
 
-fn face_data(font: &ModelFont, faces: &[Option<WasmFace>], token: u32) -> Option<(Vec<u8>, u32)> {
+/// The font holding a face's data: the root's, or one the guest created.
+fn face_font<'f>(state: &'f Host<'_, '_, '_>, token: u32) -> Option<&'f ModelFont> {
     if token == ROOT_FACE_TOKEN {
-        let (Source::Blob(blob), Kind::Sfnt(_, index)) = (font.source(), font.kind()) else {
-            return None;
-        };
-        Some((blob.as_ref().to_vec(), index))
+        Some(&**state.font)
     } else {
-        let face = faces.get(guest_slot(token)?)?.as_ref()?;
-        Some((face.data.clone(), face.index))
+        state
+            .faces
+            .get(guest_slot(token)?)?
+            .as_ref()
+            .map(|face| &face.font)
     }
 }
 
-/// The size of a face's data, which `font_create` copies.
-fn face_len(font: &ModelFont, faces: &[Option<WasmFace>], token: u32) -> Option<u64> {
-    if token == ROOT_FACE_TOKEN {
-        let Source::Blob(blob) = font.source() else {
-            return None;
-        };
-        Some(blob.as_ref().len() as u64)
-    } else {
-        let face = faces
-            .get(usize::try_from(token).ok()?.checked_sub(2)?)?
-            .as_ref()?;
-        Some(face.data.len() as u64)
-    }
-}
-
+/// Runs `f` with a view of a face's raw tables.
+///
+/// The model font's own table access applies variations and does not hand out
+/// raw bytes, so reading a table for the guest starts from the blob again.
 fn with_face_ref<R>(
-    font: &ModelFont,
-    faces: &[Option<WasmFace>],
+    state: &Host<'_, '_, '_>,
     token: u32,
     f: impl FnOnce(FontRef<'_>) -> R,
 ) -> Option<R> {
-    if token == ROOT_FACE_TOKEN {
-        let (Source::Blob(blob), Kind::Sfnt(_, index)) = (font.source(), font.kind()) else {
-            return None;
-        };
-        let font_ref = FontRef::from_index(blob, index).ok()?;
-        Some(f(font_ref))
-    } else {
-        let face = faces.get(guest_slot(token)?)?.as_ref()?;
-        let font_ref = FontRef::from_index(&face.data, face.index).ok()?;
-        Some(f(font_ref))
-    }
+    let font = face_font(state, token)?;
+    let (Source::Blob(blob), Kind::Sfnt(_, index)) = (font.source(), font.kind()) else {
+        return None;
+    };
+    let font_ref = FontRef::from_index(blob, index).ok()?;
+    Some(f(font_ref))
 }
 
 fn api_face_create<'a, 'b, 'c>(
@@ -1142,11 +1132,13 @@ fn api_face_create<'a, 'b, 'c>(
         return 0;
     };
     let index = index as u32;
-    if FontRef::from_index(&data, index).is_err() {
+    // Parsing the face here means the fonts the guest makes from it share
+    // the data and the table directory.
+    let Some(font) = ModelFont::new(data, index) else {
         return 0;
-    }
+    };
     let state = caller.data_mut();
-    state.faces.push(Some(WasmFace { data, index }));
+    state.faces.push(Some(WasmFace { font }));
     state.object_bytes += u64::from(length);
     i32::try_from(state.faces.len() + 1).unwrap_or(0)
 }
@@ -1177,22 +1169,25 @@ fn api_face_copy_table<'a, 'b, 'c>(
         return 0;
     };
     let state = caller.data();
-    let table_len = with_face_ref(state.font, &state.faces, face_token as u32, |font_ref| {
-        font_ref.table_data(tag).map(|data| data.len())
+    // A table the face does not have is empty rather than missing, as
+    // `hb_face_reference_table` gives it: zero bytes fit in any array, so a
+    // module probing for an optional table sees a length of 0.
+    let table_len = with_face_ref(state, face_token as u32, |font_ref| {
+        font_ref.table_data(tag).map_or(0, |data| data.len())
     });
-    let Some(Some(table_len)) = table_len else {
+    let Some(table_len) = table_len else {
         return 0;
     };
     if !charge(&mut caller, bytes_cost(table_len as u64)) {
         return 0;
     }
     let state = caller.data();
-    let table = with_face_ref(state.font, &state.faces, face_token as u32, |font_ref| {
+    let table = with_face_ref(state, face_token as u32, |font_ref| {
         font_ref
             .table_data(tag)
-            .map(|data| data.as_bytes().to_vec())
+            .map_or_else(Vec::new, |data| data.as_bytes().to_vec())
     });
-    let Some(Some(table)) = table else {
+    let Some(table) = table else {
         return 0;
     };
     let length = u32::try_from(table.len()).unwrap_or(u32::MAX);
@@ -1220,14 +1215,10 @@ fn api_face_get_upem<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_
         return 0;
     }
     let state = caller.data();
-    let upem = with_face_ref(state.font, &state.faces, face_token as u32, |font_ref| {
-        font_ref
-            .head()
-            .ok()
-            .map(|head| u32::from(head.units_per_em()))
-    });
-    upem.flatten()
-        .and_then(|value| i32::try_from(value).ok())
+    let upem = face_font(state, face_token as u32)
+        .and_then(|face| face.tables().head().ok())
+        .map(|head| u32::from(head.units_per_em()));
+    upem.and_then(|value| i32::try_from(value).ok())
         .unwrap_or(0)
 }
 
@@ -1241,24 +1232,18 @@ fn root_scale(font: &ShaperFont<'_, '_>) -> (i32, i32) {
 }
 
 fn api_font_create<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_token: i32) -> i32 {
-    // The font gets a copy of the face's data.
-    let state = caller.data();
-    let Some(length) = face_len(state.font, &state.faces, face_token as u32) else {
-        return 0;
-    };
-    if !state.can_create(length) || !charge(&mut caller, 4096 + bytes_cost(length)) {
+    if !caller.data().can_create_object() || !charge(&mut caller, 4096) {
         return 0;
     }
     let state = caller.data();
-    let Some((data, index)) = face_data(state.font, &state.faces, face_token as u32) else {
+    let Some(face) = face_font(state, face_token as u32) else {
         return 0;
     };
-    let Some(font) = ModelFont::new(data, index) else {
-        return 0;
-    };
+    // A font at the face's default location, sharing the face's data and
+    // parsed tables rather than copying the font file.
+    let font = face.instance_builder().build();
     let upem = i32::from(font.units_per_em());
     let state = caller.data_mut();
-    state.object_bytes += length;
     state.fonts.push(Some(WasmFontEntry {
         face: face_token as u32,
         font,
@@ -1295,16 +1280,16 @@ fn api_font_get_face<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, font_
             .and_then(|slot| state.faces.get(slot))
             .is_some_and(Option::is_some);
     if !face_is_live {
-        // The guest destroyed the face and kept the font. The font has its
-        // own copy of the data; give that a new token, as HarfBuzz does.
-        let (Source::Blob(blob), Kind::Sfnt(_, index)) = (entry.font.source(), entry.font.kind())
+        // The guest destroyed the face and kept the font. The font holds the
+        // data, so give the face a new token for it, as HarfBuzz does.
+        let (Source::Blob(_), Kind::Sfnt(_, index)) = (entry.font.source(), entry.font.kind())
         else {
             return 0;
         };
-        state.faces.push(Some(WasmFace {
-            data: blob.as_ref().to_vec(),
-            index,
-        }));
+        let Some(font) = ModelFont::new(entry.font.source().clone(), index) else {
+            return 0;
+        };
+        state.faces.push(Some(WasmFace { font }));
         entry.face = u32::try_from(state.faces.len() + 1).unwrap_or(0);
     }
     i32::try_from(entry.face).unwrap_or(0)
@@ -1452,10 +1437,19 @@ fn api_font_glyph_to_string<'a, 'b, 'c>(
     let name = with_shaper_font(caller.data(), font_token as u32, |font| {
         font.glyph_name(GlyphId::new(glyph as u32))
     });
-    let Some(Some(name)) = name else {
+    let Some(name) = name else {
         return;
     };
-    let bytes = name.as_str().as_bytes();
+    // A glyph with no name is `gidN`, as `hb_font_glyph_to_string` writes it.
+    // The host always leaves a string, so a module that reads the array back
+    // gets one that ends.
+    let fallback;
+    let bytes = if let Some(name) = &name {
+        name.as_str().as_bytes()
+    } else {
+        fallback = alloc::format!("gid{}", glyph as u32);
+        fallback.as_bytes()
+    };
     let max = usize::try_from(size as u32 - 1).unwrap_or(0);
     let count = bytes.len().min(max);
     let string_ptr = string_ptr as u32;

@@ -82,7 +82,13 @@ zero-returning stubs so that modules which never call them still instantiate.
 The copy functions — `buffer_copy_contents`, `face_copy_table`,
 `font_copy_coords` and `font_copy_glyph_outline` — write back how much they
 copied. A module can pass the size of its arrays and read back what was used,
-as HarfBuzz does.
+as HarfBuzz does. A table the face does not have is copied as an empty blob,
+so a module probing for an optional table sees a length of 0 rather than a
+failure. `font_glyph_to_string` always writes a string, naming a glyph the
+font does not name `gidN`.
+
+Fonts the module creates share their face's data and parsed tables, so
+`font_create` copies nothing.
 
 ## Limits
 
@@ -97,9 +103,9 @@ and that instance gets:
   drawn plus 64 for each of its points, and 4096 for each item `shape_with`
   shapes.
 - **Memory.** 32 MiB, plus twice the size of the font, plus 128 times the
-  size of the buffer's contents. The data of the faces and fonts that the
-  module creates, which the host holds, counts against the same allowance,
-  and a module can create 256 of them.
+  size of the buffer's contents. The data of the faces that the module
+  creates, which the host holds, counts against the same allowance, and a
+  module can create 256 faces and fonts.
 - **Buffer length.** The per-text limits that HarfBuzz installs around every
   shaper: 512 items for each item the module was given, and never fewer than
   65536. `buffer_set_contents` refuses a longer buffer. `shape_with` puts the
@@ -108,9 +114,16 @@ and that instance gets:
 
 A module that runs out of fuel traps, and `shape` returns
 `ShapeError::WasmShapingFailed`. A request for more memory than the allowance
-is refused. A module that cannot be instantiated within these limits, for
-example because its start function does not return, leaves the font to the
-OpenType shaper, as any module that fails to instantiate does.
+is refused.
+
+The font falls back to the OpenType shaper only for what the host can tell
+before any guest code runs: no `Wasm` table, a table that is not a module or
+uses a feature the engine lacks, no `shape` export with the ABI's signature, no
+exported `memory`, or an import that is not a function. Those are checked once,
+when the module is compiled for the font's cache. Everything after that point —
+a start function that traps or does not return, a `shape` call that traps or
+returns zero, a `shape_plan_create` that traps — has already run guest code, so
+it fails the shaping instead of silently leaving the buffer to OpenType.
 
 The numbers are those of HarfBuzz's WebAssembly shaper (`hb-limits.hh`), with
 the fuel per item scaled by one and a half: wasmi takes 1.1 to 1.4 times as
@@ -128,6 +141,9 @@ much fuel as wasm-micro-runtime counts instructions for the same module.
   fall back to OpenType shaping.
 - If the module runs but `shape` traps or returns zero, shaping returns
   `ShapeError::WasmShapingFailed`. HarfBuzz retries once before giving up.
+- A `shape_plan_create` export that traps, or whose result cannot be called,
+  fails the shaping, as it does in HarfBuzz. A module without the export is
+  called with plan token 0.
 - `face_destroy` and `font_destroy` free a face or font the guest created,
   and its token names nothing afterwards. In HarfBuzz they also let the
   module instance be kept for the next call; HarfRust creates an instance per
@@ -156,8 +172,14 @@ font and checks:
   `ShapeError::ShaperUnavailable` when no listed shaper can shape the font,
 - face, table, glyph name, extents, variation and outline queries,
 - features passed to the module, right-to-left input, `buffer_contents_realloc`,
-  `font_set_coords` on a font the module created, and the refusals that leave a
-  font to OpenType: no `shape` export, no memory, and an empty buffer,
+  `font_set_coords` on a font the module created, the plan token its `shape`
+  is given, and the refusals that leave a font to OpenType: no `shape` export,
+  no memory, and an empty buffer,
+- the failure paths: a start function that traps, a `shape_plan_create` that
+  traps, and a start function that changes the buffer only being run when the
+  module is one that can run at all,
+- the host API's smaller promises: a missing table copied as an empty blob, a
+  glyph with no name written as `gidN`, and a font made from the root face,
 - the limits: a module that loops, one that takes memory until refused, one
   that has the host copy a table a hundred thousand times, one that creates
   fonts until refused, one that asks the buffer for more items than the call

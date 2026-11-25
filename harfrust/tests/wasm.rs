@@ -452,15 +452,15 @@ fn wasm_shaper_stops_a_module_that_does_not() {
         Err(ShapeError::WasmShapingFailed)
     ));
 
-    // A module that cannot be instantiated leaves the font to OpenType.
+    // The start function runs before `shape`, so a module that does not
+    // return from it has already run guest code and fails the shaping
+    // rather than leaving the font to OpenType.
     let wasm = wat::parse_str(START_LOOP_GUEST).unwrap();
     let data = add_table(ROBOTO, *b"Wasm", &wasm);
-    let buffer = try_shape_text(data, "abc").unwrap();
-    let plain = shape_text(ROBOTO.to_vec(), "abc", &[]);
-    assert_eq!(buffer.len(), plain.len());
-    for (ours, theirs) in buffer.glyph_infos().iter().zip(plain.glyph_infos()) {
-        assert_eq!(ours.glyph_id, theirs.glyph_id);
-    }
+    assert!(matches!(
+        try_shape_text(data, "abc"),
+        Err(ShapeError::WasmShapingFailed)
+    ));
 }
 
 /// Takes memory a mebibyte at a time until it is refused, and reports
@@ -924,17 +924,212 @@ fn wasm_shaper_sets_coords_on_created_fonts_only() {
 
 #[test]
 fn wasm_shaper_falls_back_from_a_module_it_cannot_use() {
-    // A module with no `shape` export, and one with no memory: neither can
-    // exchange buffer contents, so the font is left to OpenType.
+    // Each of these lacks something the host needs before any guest code
+    // runs, so the font is left to OpenType.
     let plain = glyph_ids(&shape_text(ROBOTO.to_vec(), "abc", &[]));
+    let shape = r#"(func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+                    (i32.const 1))"#;
     for guest in [
-        r#"(module (memory (export "memory") 1))"#,
-        r#"(module
-             (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
-               (i32.const 1)))"#,
+        // No `shape` export.
+        r#"(module (memory (export "memory") 1))"#.to_string(),
+        // No exported memory.
+        format!("(module {shape})"),
+        // A `shape` with a signature the ABI cannot call.
+        r#"(module (memory (export "memory") 1)
+             (func (export "shape") (param i32) (result i32) (i32.const 1)))"#
+            .to_string(),
+        // An import the host does not provide: it has no memories to give.
+        format!(r#"(module (import "env" "mem" (memory 1)) (memory (export "memory") 1) {shape})"#),
     ] {
-        let wasm = wat::parse_str(guest).unwrap();
+        let wasm = wat::parse_str(&guest).unwrap();
         let data = add_table(ROBOTO, *b"Wasm", &wasm);
         assert_eq!(glyph_ids(&shape_text(data, "abc", &[])), plain);
     }
+}
+
+/// Reverses the buffer and then stops by trapping.
+const START_REVERSE_TRAP_GUEST: &str = r#"
+(module
+  (import "env" "buffer_reverse" (func $reverse (param i32)))
+  (memory (export "memory") 1)
+  (func $start
+    (call $reverse (i32.const 1))
+    (unreachable))
+  (start $start)
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (i32.const 1)))
+"#;
+
+#[test]
+fn wasm_shaper_fails_when_the_start_function_traps() {
+    // The start function has run guest code by the time it traps, so the
+    // shaping fails rather than leaving the font to OpenType with a buffer
+    // the module may already have changed.
+    let wasm = wat::parse_str(START_REVERSE_TRAP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(matches!(
+        try_shape_text(data, "abc"),
+        Err(ShapeError::WasmShapingFailed)
+    ));
+}
+
+/// Reverses the buffer in its start function, and has no `shape` export.
+const START_REVERSE_NO_SHAPE_GUEST: &str = r#"
+(module
+  (import "env" "buffer_reverse" (func $reverse (param i32)))
+  (memory (export "memory") 1)
+  (func $start (call $reverse (i32.const 1)))
+  (start $start))
+"#;
+
+#[test]
+fn wasm_shaper_does_not_run_a_module_it_cannot_use() {
+    // No `shape` export, so the font is left to OpenType. That the start
+    // function never ran shows in the clusters, which would come out 2, 1, 0
+    // had it reversed the buffer first.
+    let wasm = wat::parse_str(START_REVERSE_NO_SHAPE_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let buffer = try_shape_text(data, "abc").unwrap();
+    let plain = shape_text(ROBOTO.to_vec(), "abc", &[]);
+    assert_eq!(glyph_ids(&buffer), glyph_ids(&plain));
+    let clusters: Vec<u32> = buffer
+        .glyph_infos()
+        .iter()
+        .map(|info| info.cluster)
+        .collect();
+    assert_eq!(clusters, vec![0, 1, 2]);
+}
+
+/// A module whose `shape_plan_create` traps, and whose `shape` would
+/// otherwise succeed.
+const PLAN_TRAP_GUEST: &str = r#"
+(module
+  (memory (export "memory") 1)
+  (func (export "shape_plan_create") (param i32) (result i32)
+    (unreachable))
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (i32.const 1)))
+"#;
+
+#[test]
+fn wasm_shaper_fails_when_shape_plan_create_traps() {
+    let wasm = wat::parse_str(PLAN_TRAP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(matches!(
+        try_shape_text(data, "abc"),
+        Err(ShapeError::WasmShapingFailed)
+    ));
+}
+
+/// Reports the plan token its `shape` was given.
+const PLAN_TOKEN_GUEST: &str = r#"
+(module
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape_plan_create") (param i32) (result i32)
+    (i32.const 42))
+  (func (export "shape") (param $plan i32) (param i32) (param $buf i32)
+                              (param i32) (param i32) (result i32)
+    (i32.store (i32.const 0) (i32.const 1))
+    (i32.store (i32.const 4) (i32.const 1024))
+    (i32.store (i32.const 8) (i32.const 2048))
+    (i32.store (i32.const 1024) (local.get $plan))
+    (call $set (local.get $buf) (i32.const 0))))
+"#;
+
+#[test]
+fn wasm_shaper_passes_the_plan_token_to_shape() {
+    // Without `shape_plan_create` the token is 0; with it, its result.
+    let wasm = wat::parse_str(PLAN_TOKEN_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert_eq!(glyph_ids(&shape_text(data, "a", &[])), vec![42]);
+
+    let wasm = wat::parse_str(
+        r#"
+(module
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param i32) (param $buf i32)
+                              (param i32) (param i32) (result i32)
+    (i32.store (i32.const 0) (i32.const 1))
+    (i32.store (i32.const 4) (i32.const 1024))
+    (i32.store (i32.const 8) (i32.const 2048))
+    (i32.store (i32.const 1024) (local.get $plan))
+    (call $set (local.get $buf) (i32.const 0))))
+"#,
+    )
+    .unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert_eq!(glyph_ids(&shape_text(data, "a", &[])), vec![0]);
+}
+
+/// Copies a table the font does not have, then one it has, and reports
+/// success only if the first came back empty and the second did not.
+const MISSING_TABLE_GUEST: &str = r#"
+(module
+  (import "env" "face_copy_table" (func $table (param i32 i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $f i32) (param $n i32) (result i32)
+    ;; blob_t at 0, with no room and no data pointer of its own.
+    (i32.store (i32.const 0) (i32.const 0))
+    (i32.store (i32.const 4) (i32.const 0))
+    ;; "ABCD", which the font does not have. The host may keep the null
+    ;; pointer it was given, since no bytes have to go in.
+    (if (i32.eqz (call $table (i32.const 1) (i32.const 0x41424344) (i32.const 0)))
+      (then (return (i32.const 0))))
+    (i32.store (i32.const 8) (i32.load (i32.const 0)))
+    ;; "head", which it does.
+    (i32.store (i32.const 0) (i32.const 0))
+    (i32.store (i32.const 4) (i32.const 0))
+    (if (i32.eqz (call $table (i32.const 1) (i32.const 0x68656164) (i32.const 0)))
+      (then (return (i32.const 0))))
+    (i32.and (i32.eqz (i32.load (i32.const 8)))
+             (i32.gt_u (i32.load (i32.const 0)) (i32.const 0)))))
+"#;
+
+#[test]
+fn wasm_shaper_reports_a_missing_table_as_empty() {
+    let wasm = wat::parse_str(MISSING_TABLE_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(try_shape_text(data, "abc").is_ok());
+}
+
+/// Asks for the name of a glyph no font names, in an array it has dirtied
+/// first, and reports success only if `gidN` was written and ended.
+const UNNAMED_GLYPH_GUEST: &str = r#"
+(module
+  (import "env" "font_glyph_to_string" (func $name (param i32 i32 i32 i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $f i32) (param $n i32) (result i32)
+    ;; Anything the host does not write stays 0x2a, which is neither part of
+    ;; the expected string nor a terminator.
+    (memory.fill (i32.const 1024) (i32.const 0x2a) (i32.const 64))
+    (call $name (local.get $font) (i32.const 0x00FFFFFF) (i32.const 1024) (i32.const 32))
+    ;; "gid16777215", then a terminator, read a word at a time.
+    (i32.eq (i32.load (i32.const 1024)) (i32.const 0x31646967))
+    (i32.eq (i32.load (i32.const 1028)) (i32.const 0x37373736))
+    (i32.eq (i32.load (i32.const 1032)) (i32.const 0x00353132))
+    (i32.and) (i32.and)
+    ;; An array of four leaves "gid" and a terminator.
+    (memory.fill (i32.const 2048) (i32.const 0x2a) (i32.const 4))
+    (call $name (local.get $font) (i32.const 0x00FFFFFF) (i32.const 2048) (i32.const 4))
+    (i32.and (i32.eq (i32.load (i32.const 2048)) (i32.const 0x00646967)))))
+"#;
+
+#[test]
+fn wasm_shaper_names_a_glyph_that_has_no_name() {
+    let wasm = wat::parse_str(UNNAMED_GLYPH_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(try_shape_text(data, "abc").is_ok());
+}
+
+#[test]
+fn wasm_shaper_creates_a_font_from_the_root_face() {
+    // Case 'c' of the HarfBuzz module makes a font from the root face and
+    // answers with the upem it reads from it, and whether a font made from a
+    // face whose blob is not a font could be made.
+    let buffer = shape_text(WASM_API.to_vec(), "c", &[]);
+    assert_eq!(glyph_ids(&buffer), vec![0, 2048, 0]);
 }
