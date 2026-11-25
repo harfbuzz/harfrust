@@ -310,13 +310,13 @@ fn run<'a, 'b, 'c>(
         0
     };
 
-    let mut features_ptr = 0;
+    let mut features_ptr: i32 = 0;
     if !options.features.is_empty() {
         let size = options.features.len() as u32 * FEATURE_SIZE;
         let Some(ptr) = store_alloc(&mut store, memory, size, 4) else {
             return Err(ShapeError::WasmShapingFailed);
         };
-        features_ptr = i32::try_from(ptr).unwrap_or(0);
+        features_ptr = ptr as i32;
         for (index, feature) in options.features.iter().enumerate() {
             let base = ptr + index as u32 * FEATURE_SIZE;
             let tag = u32::from_be_bytes(feature.tag.to_be_bytes());
