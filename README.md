@@ -150,6 +150,8 @@ The following HarfBuzz _studies_ are relevant to HarfRust development:
 ## License
 
 HarfRust is licensed under the **MIT** license.
+The Unicode data used to generate its tables is covered by the
+[Unicode License v3](LICENSE-UNICODE).
 
 HarfBuzz is [licensed](https://github.com/harfbuzz/harfbuzz/blob/main/COPYING) under the **Old MIT**
 
