@@ -455,6 +455,94 @@ fn sub_font_draw_streams_segments() {
 mod painting {
     use super::*;
 
+    unsafe extern "C" fn clip_path_start_that_writes_its_slot(
+        _funcs: *mut hr_paint_funcs_t,
+        _paint_data: *mut c_void,
+        draw_data: *mut *mut c_void,
+        user_data: *mut c_void,
+    ) -> *mut hr_draw_funcs_t {
+        // Without looking, as HarfBuzz's own callbacks do.
+        unsafe { *draw_data = user_data };
+        ptr::null_mut()
+    }
+
+    unsafe extern "C" fn image_that_records_its_slant(
+        _funcs: *mut hr_paint_funcs_t,
+        paint_data: *mut c_void,
+        _image: *mut hr_blob_t,
+        _width: u32,
+        _height: u32,
+        _format: hr_tag_t,
+        slant: f32,
+        _extents: *mut hr_glyph_extents_t,
+        _user_data: *mut c_void,
+    ) -> hr_bool_t {
+        unsafe { paint_data.cast::<f32>().write(slant) };
+        1
+    }
+
+    #[test]
+    fn an_image_callback_is_handed_no_slant() {
+        unsafe {
+            let funcs = hr_paint_funcs_create();
+            hr_paint_funcs_set_image_func(
+                funcs,
+                Some(image_that_records_its_slant),
+                ptr::null_mut(),
+                None,
+            );
+            // The parameter is deprecated in HarfBuzz, which passes zero on
+            // whatever it is given.
+            let mut seen = f32::NAN;
+            assert_ne!(
+                hr_paint_image(
+                    funcs,
+                    (&raw mut seen).cast(),
+                    ptr::null_mut(),
+                    1,
+                    1,
+                    0,
+                    0.25,
+                    ptr::null_mut(),
+                ),
+                0
+            );
+            assert_eq!(seen, 0.0);
+            hr_paint_funcs_destroy(funcs);
+        }
+    }
+
+    #[test]
+    fn a_clip_path_start_callback_always_has_a_slot_to_write() {
+        unsafe {
+            let funcs = hr_paint_funcs_create();
+
+            // With no callback there is no draw data, and the slot says so.
+            let mut slot: *mut c_void = ptr::dangling_mut::<u8>().cast();
+            assert!(hr_paint_push_clip_path_start(funcs, ptr::null_mut(), &raw mut slot).is_null());
+            assert!(slot.is_null());
+            assert!(
+                hr_paint_push_clip_path_start(funcs, ptr::null_mut(), ptr::null_mut()).is_null()
+            );
+
+            let mut marker = 0u8;
+            let marker = (&raw mut marker).cast::<c_void>();
+            hr_paint_funcs_set_push_clip_path_start_func(
+                funcs,
+                Some(clip_path_start_that_writes_its_slot),
+                marker,
+                None,
+            );
+            hr_paint_push_clip_path_start(funcs, ptr::null_mut(), &raw mut slot);
+            assert_eq!(slot, marker);
+            // A caller with no use for the draw data passes NULL, which
+            // HarfBuzz allows. The callback still gets a slot to write.
+            hr_paint_push_clip_path_start(funcs, ptr::null_mut(), ptr::null_mut());
+
+            hr_paint_funcs_destroy(funcs);
+        }
+    }
+
     #[derive(Default)]
     struct Paint {
         scopes: Vec<u8>,
@@ -1187,5 +1275,161 @@ mod painting {
                 }
             }
         }
+    }
+}
+
+/// Destroy functions that look back at the funcs object they are released
+/// from, which can still be asked questions while it lets go of them.
+mod destroy_functions_query_their_funcs {
+    use super::*;
+    use core::cell::Cell;
+
+    static KEY: hr_user_data_key_t = hr_user_data_key_t { unused: 0 };
+
+    /// What a destroy function is handed, and what its funcs told it.
+    struct FuncsQuery<T> {
+        funcs: *mut T,
+        calls: Cell<u32>,
+        immutable: Cell<hr_bool_t>,
+        user_data: Cell<*mut c_void>,
+        /// Counts the data of the callbacks it tried to set being released.
+        refused: Cell<u32>,
+    }
+
+    impl<T> FuncsQuery<T> {
+        fn new(funcs: *mut T) -> Self {
+            Self {
+                funcs,
+                calls: Cell::new(0),
+                immutable: Cell::new(-1),
+                user_data: Cell::new(ptr::dangling_mut()),
+                refused: Cell::new(0),
+            }
+        }
+
+        fn as_data(&self) -> *mut c_void {
+            ptr::from_ref(self).cast_mut().cast()
+        }
+
+        fn check(&self) {
+            assert_eq!(self.calls.get(), 2);
+            assert_eq!(self.immutable.get(), 0);
+            // User data goes before the callbacks do.
+            assert!(self.user_data.get().is_null());
+            // A funcs being freed takes no callback, and says so by
+            // releasing the data there and then.
+            assert_eq!(self.refused.get(), 2);
+        }
+    }
+
+    unsafe extern "C" fn query_draw_funcs(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<FuncsQuery<hr_draw_funcs_t>>() };
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state.immutable.set(hr_draw_funcs_is_immutable(state.funcs));
+            state
+                .user_data
+                .set(hr_draw_funcs_get_user_data(state.funcs, &raw const KEY));
+            // The first slot is empty by now. A callback taken into it would
+            // be left for the funcs to release as it is freed, when it can
+            // no longer be asked anything.
+            hr_draw_funcs_set_move_to_func(
+                state.funcs,
+                Some(move_to),
+                state.refused.as_ptr().cast(),
+                Some(count_drop),
+            );
+        }
+    }
+
+    #[test]
+    fn a_draw_callbacks_destroy_may_query_its_funcs() {
+        let state = FuncsQuery::new(hr_draw_funcs_create());
+        unsafe {
+            assert_ne!(
+                hr_draw_funcs_set_user_data(
+                    state.funcs,
+                    &raw const KEY,
+                    ptr::dangling_mut(),
+                    None,
+                    1
+                ),
+                0
+            );
+            // The first callback a funcs holds, and the last.
+            hr_draw_funcs_set_move_to_func(
+                state.funcs,
+                Some(move_to),
+                state.as_data(),
+                Some(query_draw_funcs),
+            );
+            hr_draw_funcs_set_close_path_func(
+                state.funcs,
+                Some(close),
+                state.as_data(),
+                Some(query_draw_funcs),
+            );
+            assert_eq!(state.calls.get(), 0);
+            hr_draw_funcs_destroy(state.funcs);
+        }
+        state.check();
+    }
+
+    #[cfg(feature = "paint")]
+    unsafe extern "C" fn paint_nothing(_: *mut hr_paint_funcs_t, _: *mut c_void, _: *mut c_void) {}
+
+    #[cfg(feature = "paint")]
+    unsafe extern "C" fn query_paint_funcs(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<FuncsQuery<hr_paint_funcs_t>>() };
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state
+                .immutable
+                .set(hr_paint_funcs_is_immutable(state.funcs));
+            state
+                .user_data
+                .set(hr_paint_funcs_get_user_data(state.funcs, &raw const KEY));
+            // As for the draw callbacks: a slot emptied before this ran.
+            hr_paint_funcs_set_pop_transform_func(
+                state.funcs,
+                Some(paint_nothing),
+                state.refused.as_ptr().cast(),
+                Some(count_drop),
+            );
+        }
+    }
+
+    #[cfg(feature = "paint")]
+    #[test]
+    fn a_paint_callbacks_destroy_may_query_its_funcs() {
+        let state = FuncsQuery::new(hr_paint_funcs_create());
+        unsafe {
+            assert_ne!(
+                hr_paint_funcs_set_user_data(
+                    state.funcs,
+                    &raw const KEY,
+                    ptr::dangling_mut(),
+                    None,
+                    1
+                ),
+                0
+            );
+            // An early callback and a late one.
+            hr_paint_funcs_set_pop_transform_func(
+                state.funcs,
+                Some(paint_nothing),
+                state.as_data(),
+                Some(query_paint_funcs),
+            );
+            hr_paint_funcs_set_push_group_func(
+                state.funcs,
+                Some(paint_nothing),
+                state.as_data(),
+                Some(query_paint_funcs),
+            );
+            assert_eq!(state.calls.get(), 0);
+            hr_paint_funcs_destroy(state.funcs);
+        }
+        state.check();
     }
 }

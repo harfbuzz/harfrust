@@ -6393,3 +6393,940 @@ fn inverted_set_seeks_across_long_gaps_and_invalidates_cached_ranges() {
         hr_set_destroy(set);
     }
 }
+
+// ---------------------------------------- what a destroy function may ask ----
+
+/// Destroy functions that look back at the object they are released from, or
+/// at the one that kept what they belong to.
+///
+/// An object lets go of the callbacks and data it holds once its last
+/// reference has gone, and can still be asked questions while it does. Most
+/// tests here hand a destroy function that object's pointer and have it ask
+/// some.
+mod destroy_functions_query_their_object {
+    use super::*;
+    use core::cell::Cell;
+
+    const HEAD: hr_tag_t = u32::from_be_bytes(*b"head");
+    static BYTES: [u8; 4] = [1, 2, 3, 4];
+
+    /// What `query_font_funcs` is handed, and what the funcs told it.
+    struct FuncsQuery {
+        ffuncs: *mut hr_font_funcs_t,
+        calls: Cell<u32>,
+        immutable: Cell<hr_bool_t>,
+        user_data: Cell<*mut c_void>,
+        /// Counts the data of the callbacks it tried to set being released.
+        refused: AtomicUsize,
+    }
+
+    unsafe extern "C" fn query_font_funcs(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<FuncsQuery>() };
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state
+                .immutable
+                .set(hr_font_funcs_is_immutable(state.ffuncs));
+            state
+                .user_data
+                .set(hr_font_funcs_get_user_data(state.ffuncs, &raw const KEY));
+            // The slot this was released from is empty by now. A callback
+            // taken into it would be left for the funcs to release as it is
+            // freed, when it can no longer be asked anything.
+            hr_font_funcs_set_nominal_glyph_func(
+                state.ffuncs,
+                Some(always_glyph_777),
+                ptr::from_ref(&state.refused).cast_mut().cast(),
+                Some(count_drop),
+            );
+        }
+    }
+
+    #[test]
+    fn a_font_callbacks_destroy_may_query_its_funcs() {
+        let state = FuncsQuery {
+            ffuncs: hr_font_funcs_create(),
+            calls: Cell::new(0),
+            immutable: Cell::new(-1),
+            user_data: Cell::new(ptr::dangling_mut()),
+            refused: AtomicUsize::new(0),
+        };
+        let data: *mut c_void = ptr::from_ref(&state).cast_mut().cast();
+        unsafe {
+            assert_ne!(
+                hr_font_funcs_set_user_data(
+                    state.ffuncs,
+                    &raw const KEY,
+                    ptr::dangling_mut(),
+                    None,
+                    1
+                ),
+                0
+            );
+            // The first callback a funcs holds, and one further along.
+            hr_font_funcs_set_nominal_glyph_func(
+                state.ffuncs,
+                Some(always_glyph_777),
+                data,
+                Some(query_font_funcs),
+            );
+            hr_font_funcs_set_glyph_h_advance_func(
+                state.ffuncs,
+                Some(fixed_advance),
+                data,
+                Some(query_font_funcs),
+            );
+            assert_eq!(state.calls.get(), 0);
+            hr_font_funcs_destroy(state.ffuncs);
+        }
+        assert_eq!(state.calls.get(), 2);
+        assert_eq!(state.immutable.get(), 0);
+        // User data goes before the callbacks do.
+        assert!(state.user_data.get().is_null());
+        // A funcs being freed takes no callback, and says so by releasing
+        // the data there and then.
+        assert_eq!(state.refused.load(Ordering::SeqCst), 2);
+    }
+
+    /// What `query_face` is handed, and what the face told it.
+    struct FaceQuery {
+        face: Cell<*mut hr_face_t>,
+        calls: Cell<u32>,
+        immutable: Cell<hr_bool_t>,
+        user_data: Cell<*mut c_void>,
+        upem: Cell<c_uint>,
+        table_length: Cell<c_uint>,
+        tag_count: Cell<c_uint>,
+        /// How often the face's table callback and its tags callback have
+        /// been asked, by anyone.
+        table_requests: Cell<u32>,
+        tag_requests: Cell<u32>,
+        /// Whether `head_once` has handed out its table.
+        handed_out: Cell<bool>,
+    }
+
+    impl FaceQuery {
+        fn new() -> Self {
+            Self {
+                face: Cell::new(ptr::null_mut()),
+                calls: Cell::new(0),
+                immutable: Cell::new(-1),
+                user_data: Cell::new(ptr::dangling_mut()),
+                upem: Cell::new(0),
+                table_length: Cell::new(c_uint::MAX),
+                tag_count: Cell::new(c_uint::MAX),
+                table_requests: Cell::new(0),
+                tag_requests: Cell::new(0),
+                handed_out: Cell::new(false),
+            }
+        }
+
+        fn as_data(&self) -> *mut c_void {
+            ptr::from_ref(self).cast_mut().cast()
+        }
+    }
+
+    unsafe extern "C" fn query_face(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<FaceQuery>() };
+        let face = state.face.get();
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state.immutable.set(hr_face_is_immutable(face));
+            state
+                .user_data
+                .set(hr_face_get_user_data(face, &raw const KEY));
+            state.upem.set(hr_face_get_upem(face));
+            let table = hr_face_reference_table(face, HEAD);
+            state.table_length.set(hr_blob_get_length(table));
+            hr_blob_destroy(table);
+            state.tag_count.set(hr_face_get_table_tags(
+                face,
+                0,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            ));
+        }
+    }
+
+    /// A table callback for a face with no tables.
+    unsafe extern "C" fn no_table(
+        _face: *mut hr_face_t,
+        _tag: hr_tag_t,
+        data: *mut c_void,
+    ) -> *mut hr_blob_t {
+        let state = unsafe { &*data.cast::<FaceQuery>() };
+        state.table_requests.set(state.table_requests.get() + 1);
+        ptr::null_mut()
+    }
+
+    /// A table callback that answers the first request for `head` with a
+    /// blob whose release asks the face questions, and nothing else.
+    unsafe extern "C" fn head_once(
+        _face: *mut hr_face_t,
+        tag: hr_tag_t,
+        data: *mut c_void,
+    ) -> *mut hr_blob_t {
+        let state = unsafe { &*data.cast::<FaceQuery>() };
+        state.table_requests.set(state.table_requests.get() + 1);
+        if tag != HEAD || state.handed_out.replace(true) {
+            return ptr::null_mut();
+        }
+        unsafe {
+            hr_blob_create(
+                BYTES.as_ptr().cast(),
+                BYTES.len() as c_uint,
+                HR_MEMORY_MODE_READONLY,
+                data,
+                Some(query_face),
+            )
+        }
+    }
+
+    /// A tags callback for a face that says it has three tables.
+    unsafe extern "C" fn three_tags(
+        _face: *const hr_face_t,
+        _start_offset: c_uint,
+        _table_count: *mut c_uint,
+        _table_tags: *mut hr_tag_t,
+        data: *mut c_void,
+    ) -> c_uint {
+        let state = unsafe { &*data.cast::<FaceQuery>() };
+        state.tag_requests.set(state.tag_requests.get() + 1);
+        3
+    }
+
+    #[test]
+    fn a_table_callbacks_destroy_may_query_its_face() {
+        let state = FaceQuery::new();
+        unsafe {
+            let face = hr_face_create_for_tables(Some(no_table), state.as_data(), Some(query_face));
+            state.face.set(face);
+            assert_ne!(
+                hr_face_set_user_data(face, &raw const KEY, ptr::dangling_mut(), None, 1),
+                0
+            );
+            hr_face_make_immutable(face);
+            assert_eq!(state.calls.get(), 0);
+            hr_face_destroy(face);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_ne!(state.immutable.get(), 0);
+        assert!(state.user_data.get().is_null());
+        assert_eq!(state.upem.get(), 1000);
+        // The face has let go of the callback by the time the callback's
+        // data is released, so asking the face for a table then does not
+        // call it with that data.
+        assert_eq!(state.table_length.get(), 0);
+        assert_eq!(state.table_requests.get(), 0);
+        assert_eq!(state.tag_count.get(), 0);
+    }
+
+    #[test]
+    fn a_tags_callbacks_destroy_may_query_its_face() {
+        let state = FaceQuery::new();
+        unsafe {
+            let face = hr_face_create_for_tables(Some(no_table), state.as_data(), None);
+            state.face.set(face);
+            hr_face_set_get_table_tags_func(
+                face,
+                Some(three_tags),
+                state.as_data(),
+                Some(query_face),
+            );
+            assert_eq!(
+                hr_face_get_table_tags(face, 0, ptr::null_mut(), ptr::null_mut()),
+                3
+            );
+            assert_eq!(state.tag_requests.get(), 1);
+            assert_eq!(state.calls.get(), 0);
+            hr_face_destroy(face);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_eq!(state.immutable.get(), 0);
+        assert_eq!(state.upem.get(), 1000);
+        assert_eq!(state.table_length.get(), 0);
+        // The same goes for the tags callback: it is not asked again once
+        // its data is being released.
+        assert_eq!(state.tag_count.get(), 0);
+        assert_eq!(state.tag_requests.get(), 1);
+        // The table callback went before it.
+        assert_eq!(state.table_requests.get(), 0);
+    }
+
+    #[test]
+    fn a_table_blobs_destroy_may_query_the_face_that_kept_it() {
+        let state = FaceQuery::new();
+        unsafe {
+            let face = hr_face_create_for_tables(Some(head_once), state.as_data(), None);
+            state.face.set(face);
+            // Reading the units per em fetches `head`, which the face keeps
+            // for as long as it lives. Four bytes are not a `head` table.
+            assert_eq!(hr_face_get_upem(face), 1000);
+            assert_eq!(state.table_requests.get(), 1);
+            assert_eq!(state.calls.get(), 0);
+            hr_face_destroy(face);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_eq!(state.immutable.get(), 0);
+        assert_eq!(state.upem.get(), 1000);
+        // The tables a face kept go before its table callback does, so the
+        // callback is still there to ask, and was asked.
+        assert_eq!(state.table_length.get(), 0);
+        assert_eq!(state.table_requests.get(), 2);
+        assert_eq!(state.tag_count.get(), 0);
+    }
+
+    #[test]
+    fn a_blobs_destroy_may_query_the_face_releasing_it() {
+        let state = FaceQuery::new();
+        let font = sfnt_with_records(1, true);
+        unsafe {
+            let blob = hr_blob_create(
+                font.as_ptr().cast(),
+                font.len() as c_uint,
+                HR_MEMORY_MODE_READONLY,
+                state.as_data(),
+                Some(query_face),
+            );
+            let face = hr_face_create(blob, 0);
+            state.face.set(face);
+            assert_ne!(face, hr_face_get_empty());
+            // The face now holds the only reference to the blob.
+            hr_blob_destroy(blob);
+            let table = hr_face_reference_table(face, record_tag(0));
+            assert_eq!(hr_blob_get_length(table), 4);
+            hr_blob_destroy(table);
+            assert_eq!(
+                hr_face_get_table_tags(face, 0, ptr::null_mut(), ptr::null_mut()),
+                1
+            );
+            assert_eq!(state.calls.get(), 0);
+            hr_face_destroy(face);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_eq!(state.immutable.get(), 0);
+        assert_eq!(state.upem.get(), 1000);
+        // The face has let go of the blob by the time the blob's data is
+        // released, and has no tables to speak of.
+        assert_eq!(state.table_length.get(), 0);
+        assert_eq!(state.tag_count.get(), 0);
+    }
+
+    /// What `query_blob` is handed, and what the blob told it.
+    struct BlobQuery {
+        blob: Cell<*mut hr_blob_t>,
+        calls: Cell<u32>,
+        immutable: Cell<hr_bool_t>,
+        user_data: Cell<*mut c_void>,
+        length: Cell<c_uint>,
+        data: Cell<*const c_char>,
+    }
+
+    impl BlobQuery {
+        fn new() -> Self {
+            Self {
+                blob: Cell::new(ptr::null_mut()),
+                calls: Cell::new(0),
+                immutable: Cell::new(-1),
+                user_data: Cell::new(ptr::dangling_mut()),
+                length: Cell::new(c_uint::MAX),
+                data: Cell::new(ptr::dangling()),
+            }
+        }
+
+        /// A blob over `BYTES` whose release asks a blob questions.
+        unsafe fn blob(&self) -> *mut hr_blob_t {
+            unsafe {
+                hr_blob_create(
+                    BYTES.as_ptr().cast(),
+                    BYTES.len() as c_uint,
+                    HR_MEMORY_MODE_READONLY,
+                    ptr::from_ref(self).cast_mut().cast(),
+                    Some(query_blob),
+                )
+            }
+        }
+    }
+
+    unsafe extern "C" fn query_blob(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<BlobQuery>() };
+        let blob = state.blob.get();
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state.immutable.set(hr_blob_is_immutable(blob));
+            state
+                .user_data
+                .set(hr_blob_get_user_data(blob, &raw const KEY));
+            let mut length = c_uint::MAX;
+            state.data.set(hr_blob_get_data(blob, &raw mut length));
+            state.length.set(length);
+        }
+    }
+
+    #[test]
+    fn a_blobs_destroy_may_query_the_blob() {
+        let state = BlobQuery::new();
+        unsafe {
+            let blob = state.blob();
+            state.blob.set(blob);
+            assert_ne!(
+                hr_blob_set_user_data(blob, &raw const KEY, ptr::dangling_mut(), None, 1),
+                0
+            );
+            hr_blob_make_immutable(blob);
+            assert_eq!(hr_blob_get_length(blob), 4);
+            assert_eq!(state.calls.get(), 0);
+            hr_blob_destroy(blob);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_ne!(state.immutable.get(), 0);
+        assert!(state.user_data.get().is_null());
+        // The data is no longer the blob's by the time it is released.
+        assert_eq!(state.length.get(), 0);
+        assert!(state.data.get().is_null());
+    }
+
+    #[test]
+    fn a_blobs_destroy_may_query_the_sub_blob_releasing_it() {
+        let state = BlobQuery::new();
+        unsafe {
+            let parent = state.blob();
+            let sub = hr_blob_create_sub_blob(parent, 1, 2);
+            state.blob.set(sub);
+            // The sub-blob now holds the only reference to its parent.
+            hr_blob_destroy(parent);
+            assert_eq!(hr_blob_get_length(sub), 2);
+            assert_eq!(state.calls.get(), 0);
+            hr_blob_destroy(sub);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_eq!(state.immutable.get(), 0);
+        assert_eq!(state.length.get(), 0);
+        assert!(state.data.get().is_null());
+    }
+
+    /// What `query_plan` is handed, and what the plan told it.
+    struct PlanQuery {
+        plan: Cell<*mut hr_shape_plan_t>,
+        calls: Cell<u32>,
+        user_data: Cell<*mut c_void>,
+        direction: Cell<hr_direction_t>,
+    }
+
+    unsafe extern "C" fn query_plan(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<PlanQuery>() };
+        let plan = state.plan.get();
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state
+                .user_data
+                .set(hr_shape_plan_get_user_data(plan, &raw const KEY));
+            let mut props = hr_segment_properties_t {
+                direction: HR_DIRECTION_INVALID,
+                script: HR_SCRIPT_INVALID,
+                language: ptr::null(),
+                reserved1: ptr::null_mut(),
+                reserved2: ptr::null_mut(),
+            };
+            hr_shape_plan_get_segment_properties(plan, &raw mut props);
+            state.direction.set(props.direction);
+        }
+    }
+
+    #[test]
+    fn a_faces_destroy_may_query_the_plan_releasing_it() {
+        let tables = FaceQuery::new();
+        let state = PlanQuery {
+            plan: Cell::new(ptr::null_mut()),
+            calls: Cell::new(0),
+            user_data: Cell::new(ptr::dangling_mut()),
+            direction: Cell::new(HR_DIRECTION_INVALID),
+        };
+        unsafe {
+            let face = hr_face_create_for_tables(Some(no_table), tables.as_data(), None);
+            let props = hr_segment_properties_t {
+                direction: HR_DIRECTION_RTL,
+                script: HR_SCRIPT_INVALID,
+                language: ptr::null(),
+                reserved1: ptr::null_mut(),
+                reserved2: ptr::null_mut(),
+            };
+            let plan = hr_shape_plan_create(face, &raw const props, ptr::null(), 0, ptr::null());
+            assert_ne!(plan, hr_shape_plan_get_empty());
+            state.plan.set(plan);
+            assert_ne!(
+                hr_shape_plan_set_user_data(plan, &raw const KEY, ptr::dangling_mut(), None, 1),
+                0
+            );
+            // Released along with the face, which only the plan holds a
+            // reference to from here on.
+            assert_ne!(
+                hr_face_set_user_data(
+                    face,
+                    &raw const KEY,
+                    ptr::from_ref(&state).cast_mut().cast(),
+                    Some(query_plan),
+                    1
+                ),
+                0
+            );
+            hr_face_destroy(face);
+            assert_eq!(state.calls.get(), 0);
+            hr_shape_plan_destroy(plan);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert!(state.user_data.get().is_null());
+        assert_eq!(state.direction.get(), HR_DIRECTION_RTL);
+    }
+
+    /// A tags callback for a face that lists nothing.
+    unsafe extern "C" fn no_tags(
+        _face: *const hr_face_t,
+        _start_offset: c_uint,
+        _table_count: *mut c_uint,
+        _table_tags: *mut hr_tag_t,
+        _data: *mut c_void,
+    ) -> c_uint {
+        0
+    }
+
+    /// What `logged_head` is handed: what to log when the table it hands out
+    /// is released, and when the callback itself is.
+    struct LoggedTables {
+        table: DestroyWitness,
+        callback: DestroyWitness,
+    }
+
+    /// A table callback whose `head` table logs its release.
+    unsafe extern "C" fn logged_head(
+        _face: *mut hr_face_t,
+        tag: hr_tag_t,
+        data: *mut c_void,
+    ) -> *mut hr_blob_t {
+        let tables = unsafe { &*data.cast::<LoggedTables>() };
+        if tag != HEAD {
+            return ptr::null_mut();
+        }
+        unsafe {
+            hr_blob_create(
+                BYTES.as_ptr().cast(),
+                BYTES.len() as c_uint,
+                HR_MEMORY_MODE_READONLY,
+                ptr::from_ref(&tables.table).cast_mut().cast(),
+                Some(log_destroy),
+            )
+        }
+    }
+
+    unsafe extern "C" fn log_table_callback(data: *mut c_void) {
+        let tables = unsafe { &*data.cast::<LoggedTables>() };
+        unsafe { log_destroy(ptr::from_ref(&tables.callback).cast_mut().cast()) };
+    }
+
+    #[test]
+    fn an_object_releases_what_it_holds_in_order() {
+        let log = Mutex::new(Vec::new());
+        let witness = |name| DestroyWitness {
+            log: &raw const log,
+            name,
+        };
+        let as_data = |witness: &DestroyWitness| ptr::from_ref(witness).cast_mut().cast::<c_void>();
+        let user_data = witness("user data");
+        let tags = witness("tags callback");
+
+        // A set of callbacks lets go of them in the order it keeps them in,
+        // whichever order they were set in.
+        let (nominal, h_advance, v_advance) = (
+            witness("nominal glyph"),
+            witness("h advance"),
+            witness("v advance"),
+        );
+        unsafe {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_glyph_v_advance_func(
+                ffuncs,
+                Some(fixed_advance),
+                as_data(&v_advance),
+                Some(log_destroy),
+            );
+            hr_font_funcs_set_glyph_h_advance_func(
+                ffuncs,
+                Some(fixed_advance),
+                as_data(&h_advance),
+                Some(log_destroy),
+            );
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(always_glyph_777),
+                as_data(&nominal),
+                Some(log_destroy),
+            );
+            assert_ne!(
+                hr_font_funcs_set_user_data(
+                    ffuncs,
+                    &raw const KEY,
+                    as_data(&user_data),
+                    Some(log_destroy),
+                    1
+                ),
+                0
+            );
+            assert_eq!(*log.lock().unwrap(), [] as [&str; 0]);
+            hr_font_funcs_destroy(ffuncs);
+        }
+        assert_eq!(
+            *log.lock().unwrap(),
+            ["user data", "nominal glyph", "h advance", "v advance"]
+        );
+        log.lock().unwrap().clear();
+
+        // A face made from table callbacks, which has kept one table: the
+        // table goes before the callback it came from.
+        let tables = LoggedTables {
+            table: witness("table"),
+            callback: witness("table callback"),
+        };
+        unsafe {
+            let face = hr_face_create_for_tables(
+                Some(logged_head),
+                ptr::from_ref(&tables).cast_mut().cast(),
+                Some(log_table_callback),
+            );
+            hr_face_set_get_table_tags_func(face, Some(no_tags), as_data(&tags), Some(log_destroy));
+            assert_ne!(
+                hr_face_set_user_data(
+                    face,
+                    &raw const KEY,
+                    as_data(&user_data),
+                    Some(log_destroy),
+                    1
+                ),
+                0
+            );
+            assert_eq!(hr_face_get_upem(face), 1000);
+            assert_eq!(*log.lock().unwrap(), [] as [&str; 0]);
+            hr_face_destroy(face);
+        }
+        assert_eq!(
+            *log.lock().unwrap(),
+            ["user data", "table", "table callback", "tags callback"]
+        );
+        log.lock().unwrap().clear();
+
+        // A face made over a blob it holds the last reference to: the blob
+        // goes where the table callback did.
+        let font = sfnt_with_records(1, true);
+        let (blob_user_data, blob_data) = (witness("blob user data"), witness("blob data"));
+        unsafe {
+            let blob = hr_blob_create(
+                font.as_ptr().cast(),
+                font.len() as c_uint,
+                HR_MEMORY_MODE_READONLY,
+                as_data(&blob_data),
+                Some(log_destroy),
+            );
+            assert_ne!(
+                hr_blob_set_user_data(
+                    blob,
+                    &raw const KEY,
+                    as_data(&blob_user_data),
+                    Some(log_destroy),
+                    1
+                ),
+                0
+            );
+            let face = hr_face_create(blob, 0);
+            hr_blob_destroy(blob);
+            hr_face_set_get_table_tags_func(face, Some(no_tags), as_data(&tags), Some(log_destroy));
+            assert_ne!(
+                hr_face_set_user_data(
+                    face,
+                    &raw const KEY,
+                    as_data(&user_data),
+                    Some(log_destroy),
+                    1
+                ),
+                0
+            );
+            assert_eq!(*log.lock().unwrap(), [] as [&str; 0]);
+            hr_face_destroy(face);
+        }
+        assert_eq!(
+            *log.lock().unwrap(),
+            ["user data", "blob user data", "blob data", "tags callback"]
+        );
+    }
+
+    /// What `query_font` is handed, and what the font told it.
+    struct FontQuery {
+        font: Cell<*mut hr_font_t>,
+        calls: Cell<u32>,
+        immutable: Cell<hr_bool_t>,
+        user_data: Cell<*mut c_void>,
+        face: Cell<*mut hr_face_t>,
+        parent: Cell<*mut hr_font_t>,
+        advance: Cell<hr_position_t>,
+        /// How often `seven_wide` has answered, for anyone, and the font
+        /// data it was last handed.
+        answers: Cell<u32>,
+        handed: Cell<*mut c_void>,
+    }
+
+    impl FontQuery {
+        fn new() -> Self {
+            Self {
+                font: Cell::new(ptr::null_mut()),
+                calls: Cell::new(0),
+                immutable: Cell::new(-1),
+                user_data: Cell::new(ptr::dangling_mut()),
+                face: Cell::new(ptr::null_mut()),
+                parent: Cell::new(ptr::null_mut()),
+                advance: Cell::new(-1),
+                answers: Cell::new(0),
+                handed: Cell::new(ptr::null_mut()),
+            }
+        }
+
+        fn as_data(&self) -> *mut c_void {
+            ptr::from_ref(self).cast_mut().cast()
+        }
+    }
+
+    unsafe extern "C" fn query_font(data: *mut c_void) {
+        let state = unsafe { &*data.cast::<FontQuery>() };
+        let font = state.font.get();
+        state.calls.set(state.calls.get() + 1);
+        unsafe {
+            state.immutable.set(hr_font_is_immutable(font));
+            state
+                .user_data
+                .set(hr_font_get_user_data(font, &raw const KEY));
+            state.face.set(hr_font_get_face(font));
+            state.parent.set(hr_font_get_parent(font));
+            state.advance.set(hr_font_get_glyph_h_advance(font, 1));
+        }
+    }
+
+    /// An advance callback that makes every glyph seven wide, and notes the
+    /// font data it is handed.
+    unsafe extern "C" fn seven_wide(
+        _font: *mut hr_font_t,
+        font_data: *mut c_void,
+        _glyph: hr_codepoint_t,
+        user_data: *mut c_void,
+    ) -> hr_position_t {
+        let state = unsafe { &*user_data.cast::<FontQuery>() };
+        state.answers.set(state.answers.get() + 1);
+        state.handed.set(font_data);
+        7
+    }
+
+    /// A font over a face with no tables, which the font holds the only
+    /// reference to, and that face.
+    unsafe fn tableless_font(tables: &FaceQuery) -> (*mut hr_font_t, *mut hr_face_t) {
+        unsafe {
+            let face = hr_face_create_for_tables(Some(no_table), tables.as_data(), None);
+            let font = hr_font_create(face);
+            assert_ne!(font, hr_font_get_empty());
+            hr_face_destroy(face);
+            (font, face)
+        }
+    }
+
+    /// A set of callbacks holding `seven_wide`, released through `destroy`.
+    unsafe fn seven_wide_funcs(
+        state: &FontQuery,
+        destroy: hr_destroy_func_t,
+    ) -> *mut hr_font_funcs_t {
+        unsafe {
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_glyph_h_advance_func(
+                ffuncs,
+                Some(seven_wide),
+                state.as_data(),
+                destroy,
+            );
+            ffuncs
+        }
+    }
+
+    #[test]
+    fn a_font_datas_destroy_finds_the_font_as_it_was() {
+        let tables = FaceQuery::new();
+        let state = FontQuery::new();
+        unsafe {
+            let (font, face) = tableless_font(&tables);
+            state.font.set(font);
+            let ffuncs = seven_wide_funcs(&state, None);
+            hr_font_set_funcs(font, ffuncs, state.as_data(), Some(query_font));
+            // The font now holds the only reference to its callbacks.
+            hr_font_funcs_destroy(ffuncs);
+            assert_ne!(
+                hr_font_set_user_data(font, &raw const KEY, ptr::dangling_mut(), None, 1),
+                0
+            );
+            assert_eq!(hr_font_get_glyph_h_advance(font, 1), 7);
+            assert_eq!(state.answers.get(), 1);
+            state.handed.set(ptr::null_mut());
+            assert_eq!(state.calls.get(), 0);
+            hr_font_destroy(font);
+            assert_eq!(state.face.get(), face);
+        }
+        assert_eq!(state.calls.get(), 1);
+        assert_eq!(state.immutable.get(), 0);
+        assert!(state.user_data.get().is_null());
+        assert_eq!(state.parent.get(), hr_font_get_empty());
+        // As in HarfBuzz, a font's data is released while the font still has
+        // its callbacks, and they are still handed that data.
+        assert_eq!(state.advance.get(), 7);
+        assert_eq!(state.answers.get(), 2);
+        assert_eq!(state.handed.get(), state.as_data());
+    }
+
+    #[test]
+    fn a_callbacks_destroy_may_query_the_font_releasing_it() {
+        let tables = FaceQuery::new();
+        let state = FontQuery::new();
+        unsafe {
+            let (font, _) = tableless_font(&tables);
+            state.font.set(font);
+            let ffuncs = seven_wide_funcs(&state, Some(query_font));
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            // The font now holds the only reference to its callbacks.
+            hr_font_funcs_destroy(ffuncs);
+            assert_eq!(hr_font_get_glyph_h_advance(font, 1), 7);
+            assert_eq!(state.calls.get(), 0);
+            hr_font_destroy(font);
+        }
+        assert_eq!(state.calls.get(), 1);
+        // The callbacks go last, from a font that has let go of everything:
+        // it has no parent, the empty face, and no callbacks to ask.
+        assert_eq!(state.parent.get(), hr_font_get_empty());
+        assert_eq!(state.face.get(), hr_face_get_empty());
+        assert_eq!(state.advance.get(), 0);
+        assert_eq!(state.answers.get(), 1);
+    }
+
+    #[test]
+    fn a_faces_destroy_may_query_the_font_releasing_it() {
+        let tables = FaceQuery::new();
+        let state = FontQuery::new();
+        unsafe {
+            let (font, face) = tableless_font(&tables);
+            state.font.set(font);
+            assert_ne!(
+                hr_face_set_user_data(face, &raw const KEY, state.as_data(), Some(query_font), 1),
+                0
+            );
+            let ffuncs = seven_wide_funcs(&state, None);
+            hr_font_set_funcs(font, ffuncs, ptr::null_mut(), None);
+            // The font now holds the only reference to its callbacks.
+            hr_font_funcs_destroy(ffuncs);
+            assert_eq!(hr_font_get_glyph_h_advance(font, 1), 7);
+            assert_eq!(state.calls.get(), 0);
+            hr_font_destroy(font);
+        }
+        assert_eq!(state.calls.get(), 1);
+        // The face goes from a font that has let go of it.
+        assert_eq!(state.face.get(), hr_face_get_empty());
+        assert_eq!(state.parent.get(), hr_font_get_empty());
+        // The font's data went before its face, so its callbacks are not
+        // asked for it any more, though they are released after.
+        assert_eq!(state.advance.get(), 0);
+        assert_eq!(state.answers.get(), 1);
+    }
+
+    #[test]
+    fn a_parents_destroy_may_query_the_sub_font_releasing_it() {
+        let tables = FaceQuery::new();
+        let state = FontQuery::new();
+        unsafe {
+            let (parent, face) = tableless_font(&tables);
+            let sub = hr_font_create_sub_font(parent);
+            state.font.set(sub);
+            assert_ne!(
+                hr_font_set_user_data(parent, &raw const KEY, state.as_data(), Some(query_font), 1),
+                0
+            );
+            // The sub-font now holds the only reference to its parent.
+            hr_font_destroy(parent);
+            assert_eq!(hr_font_get_parent(sub), parent);
+            let advance = hr_font_get_glyph_h_advance(sub, 1);
+            assert_eq!(state.calls.get(), 0);
+            hr_font_destroy(sub);
+            // The sub-font still had its face, and answered as it did.
+            assert_eq!(state.face.get(), face);
+            assert_eq!(state.advance.get(), advance);
+        }
+        assert_eq!(state.calls.get(), 1);
+        // The parent goes from a font that has let go of it.
+        assert_eq!(state.parent.get(), hr_font_get_empty());
+    }
+
+    #[test]
+    fn a_font_releases_what_it_holds_in_harfbuzzs_order() {
+        let log = Mutex::new(Vec::new());
+        let witness = |name| DestroyWitness {
+            log: &raw const log,
+            name,
+        };
+        let as_data = |witness: &DestroyWitness| ptr::from_ref(witness).cast_mut().cast::<c_void>();
+        let tables = FaceQuery::new();
+        let (user_data, font_data, on_parent, on_face, callback, funcs_user_data) = (
+            witness("user data"),
+            witness("font data"),
+            witness("parent"),
+            witness("face"),
+            witness("callback"),
+            witness("callbacks' user data"),
+        );
+        unsafe {
+            let (parent, face) = tableless_font(&tables);
+            let font = hr_font_create_sub_font(parent);
+            let ffuncs = hr_font_funcs_create();
+            hr_font_funcs_set_nominal_glyph_func(
+                ffuncs,
+                Some(always_glyph_777),
+                as_data(&callback),
+                Some(log_destroy),
+            );
+            let key = &raw const KEY;
+            let log_it = Some(log_destroy as unsafe extern "C" fn(*mut c_void));
+            assert_ne!(
+                hr_font_funcs_set_user_data(ffuncs, key, as_data(&funcs_user_data), log_it, 1),
+                0
+            );
+            assert_ne!(
+                hr_face_set_user_data(face, key, as_data(&on_face), log_it, 1),
+                0
+            );
+            assert_ne!(
+                hr_font_set_user_data(parent, key, as_data(&on_parent), log_it, 1),
+                0
+            );
+            assert_ne!(
+                hr_font_set_user_data(font, key, as_data(&user_data), log_it, 1),
+                0
+            );
+            hr_font_set_funcs(font, ffuncs, as_data(&font_data), log_it);
+            // The font now holds the only reference to each of them.
+            hr_font_funcs_destroy(ffuncs);
+            hr_font_destroy(parent);
+            assert_eq!(*log.lock().unwrap(), [] as [&str; 0]);
+            hr_font_destroy(font);
+        }
+        // HarfBuzz's order: what the font was given itself, then its parent,
+        // its face, and its callbacks.
+        assert_eq!(
+            *log.lock().unwrap(),
+            [
+                "user data",
+                "font data",
+                "parent",
+                "face",
+                "callbacks' user data",
+                "callback"
+            ]
+        );
+    }
+}

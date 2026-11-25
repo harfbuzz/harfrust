@@ -2911,7 +2911,8 @@ void hr_buffer_add(struct hr_buffer_t *buffer, hr_codepoint_t codepoint, unsigne
  * # Safety
  *
  * `buffer` must be `NULL` or a live buffer. `text` must point to
- * `text_length` readable code units, or be zero-terminated.
+ * `text_length` readable code units, or be zero-terminated when
+ * `text_length` is negative.
  */
 void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
                          const uint16_t *text,
@@ -2927,7 +2928,8 @@ void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
  * # Safety
  *
  * `buffer` must be `NULL` or a live buffer. `text` must point to
- * `text_length` readable bytes, or be zero-terminated.
+ * `text_length` readable bytes, or be zero-terminated when `text_length` is
+ * negative.
  */
 void hr_buffer_add_latin1(struct hr_buffer_t *buffer,
                           const uint8_t *text,
@@ -3063,7 +3065,7 @@ hr_script_t hr_buffer_get_script(struct hr_buffer_t *buffer);
  * # Safety
  *
  * `buffer` must be `NULL` or a live buffer, and `language` must be `NULL` or
- * a value returned by `hr_language_from_string`.
+ * an interned language returned by this API.
  */
 void hr_buffer_set_language(struct hr_buffer_t *buffer, hr_language_t language);
 
@@ -3322,6 +3324,11 @@ const char *const *hr_buffer_serialize_list_formats(void);
  *
  * `buffer` and `font` must be `NULL` or live, `buf` must point to `buf_size`
  * writable bytes, and `buf_consumed` must be `NULL` or writable.
+ *
+ * Glyph names and glyph extents are asked of `font`, which may call its
+ * callbacks. Those must not change `buffer`, as for the buffer being shaped:
+ * its glyphs are being read for as long as this runs. HarfBuzz reads them
+ * the same way.
  */
 unsigned int hr_buffer_serialize_glyphs(struct hr_buffer_t *buffer,
                                         unsigned int start,
@@ -3459,7 +3466,7 @@ hr_language_t hr_language_from_string(const char *str_, int len);
  * language is unset.
  * # Safety
  *
- * `language` must be `NULL` or a value returned by `hr_language_from_string`.
+ * `language` must be `NULL` or an interned language returned by this API.
  */
 const char *hr_language_to_string(hr_language_t language);
 
@@ -3473,8 +3480,7 @@ hr_language_t hr_language_get_default(void);
  * `specific`.
  * # Safety
  *
- * Both arguments must be `NULL` or values returned by
- * `hr_language_from_string`.
+ * Both arguments must be `NULL` or interned languages returned by this API.
  */
 hr_bool_t hr_language_matches(hr_language_t language, hr_language_t specific);
 
@@ -4906,7 +4912,8 @@ unsigned int hr_ot_layout_table_get_lookup_count(struct hr_face_t *face, hr_tag_
  * include every set value, represented by an inverted empty set.
  *
  * # Safety
- * `face` and each non-`NULL` set must be live. Output sets may be the same.
+ * `face` must be `NULL` or live, and each non-`NULL` set must be live. Output
+ * sets may be the same.
  */
 void hr_ot_layout_lookup_collect_glyphs(struct hr_face_t *face,
                                         hr_tag_t table_tag,

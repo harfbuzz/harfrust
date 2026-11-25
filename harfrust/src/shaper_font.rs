@@ -483,9 +483,11 @@ pub struct RawNominalGlyphs {
     pub codepoints: *const u32,
     /// Pointer to output glyphs (writable).
     pub glyphs: *mut u32,
-    /// Byte stride between successive codepoints.
+    /// Byte stride between successive codepoints. Positive: the size of the
+    /// record each one sits in.
     pub codepoint_stride: isize,
-    /// Byte stride between successive glyphs.
+    /// Byte stride between successive glyphs. Positive: the size of the
+    /// record each one sits in.
     pub glyph_stride: isize,
 }
 
@@ -590,9 +592,11 @@ pub struct RawAdvances {
     /// See "Metrics scaling" in the [FontFuncs] for details
     /// on what value this method should return.
     pub advances: *mut i32,
-    /// Byte stride between successive glyphs.
+    /// Byte stride between successive glyphs. Positive: the size of the
+    /// record each one sits in.
     pub gid_stride: isize,
-    /// Byte stride between successive advances.
+    /// Byte stride between successive advances. Positive: the size of the
+    /// record each one sits in.
     pub advance_stride: isize,
 }
 

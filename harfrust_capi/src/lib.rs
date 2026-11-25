@@ -32,6 +32,9 @@ back, along with anything that holds it, before that callback returns.
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(clippy::missing_safety_doc)]
+// Every `unsafe` block says why it is sound. The tests are built into this
+// crate and are not held to that.
+#![cfg_attr(not(test), warn(clippy::undocumented_unsafe_blocks))]
 
 pub mod aat_layout;
 pub mod blob;

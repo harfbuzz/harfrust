@@ -977,7 +977,8 @@ fn collect_positioning(
 /// include every set value, represented by an inverted empty set.
 ///
 /// # Safety
-/// `face` and each non-`NULL` set must be live. Output sets may be the same.
+/// `face` must be `NULL` or live, and each non-`NULL` set must be live. Output
+/// sets may be the same.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
     face: *mut hr_face_t,

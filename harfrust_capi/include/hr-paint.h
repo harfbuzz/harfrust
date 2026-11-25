@@ -714,6 +714,9 @@ void hr_paint_funcs_set_image_func(struct hr_paint_funcs_t *funcs,
 /**
  * Dispatches image; omitted callbacks use the HarfBuzz default.
  *
+ * `slant` is deprecated and ignored: the callback is handed zero, as in
+ * HarfBuzz.
+ *
  * # Safety
  *
  * `funcs` must be `NULL`, or live and unmodified until this returns, and

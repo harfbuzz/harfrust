@@ -154,6 +154,13 @@ callbacks have run. Each such reference, and anything that holds one, must be
 given back before the callback that took it returns. This goes for every
 object type, the subset input and plan among them.
 
+What a destroy callback finds is an object that can still be queried, and
+that has already let go of whatever the callback releases: user data is no
+longer there to get, a blob reads as empty while its data is released, and a
+font has the empty face while it releases its face. The one exception is a
+font's `font_data`, which the font's callbacks are still handed until its
+destroy callback returns, as in HarfBuzz.
+
 `hr_*_create` never returns `NULL`: on failure it returns an immortal empty
 object, and the `_or_fail` variants return `NULL` instead. Getters accept
 `NULL` too, behaving as though passed the empty object. As in HarfBuzz this
@@ -306,7 +313,8 @@ safe to use and to release from any thread that uses the object.
 
 A callback may query the object it is handed, as a font callback reads the
 scale and variation settings of its font. It must not modify that object, nor
-free it, and a font callback must not touch the buffer being shaped.
+free it, and a font callback must not touch the buffer being shaped or
+serialized.
 
 The `miri` job in `.github/workflows/main.yml` runs this crate's tests under
 Miri. To do the same, with the latest nightly or with the dated one that job

@@ -272,6 +272,64 @@ impl Object for hr_font_funcs_t {
         &self.header
     }
 
+    unsafe fn finalize(ptr: *mut Self) {
+        // The callbacks go here rather than when the object is dropped. A
+        // callback's destroy function is the caller's code, and may ask the
+        // funcs object it is being released from a question, through the
+        // caller's own pointer to it. Here the object is whole and nothing
+        // borrows it. Inside its drop, part of it has gone already and the
+        // rest is borrowed by the drop.
+        //
+        // Each callback is taken out of its field before it is released, so
+        // that no destroy function finds its own callback still in place.
+        // They go in the order the fields are declared, which is the order
+        // dropping the object released them in. Every callback field has to
+        // be named here: one left out is released by the drop instead.
+        //
+        // SAFETY: each line names a field through `ptr`, swaps `None` into
+        // it with `replace`, and drops what came out.
+        // - Naming a field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes each field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the object: no reference into it is in use when a field is
+        //   written.
+        // - Dropping what came out runs a destroy function, between one
+        //   `replace` and the next. It may read the object, which is sound:
+        //   `replace` has returned, and the field it emptied holds `None`.
+        //   It cannot leave the object unfit for the next line. An object
+        //   releasing its last reference takes no changes, which is what
+        //   `object::accepts_changes` reports and `set_callback` goes by,
+        //   and a reference taken to it then does not free it when it is
+        //   given back. Whatever the function borrowed ended when it
+        //   returned.
+        // Afterwards every callback field holds `None`, and stays that way
+        // for the same reason, so dropping the object runs no caller code.
+        unsafe {
+            drop((&raw mut (*ptr).nominal_glyph).replace(None));
+            drop((&raw mut (*ptr).nominal_glyphs).replace(None));
+            drop((&raw mut (*ptr).variation_glyph).replace(None));
+            drop((&raw mut (*ptr).h_advance).replace(None));
+            drop((&raw mut (*ptr).h_advances).replace(None));
+            drop((&raw mut (*ptr).v_advance).replace(None));
+            drop((&raw mut (*ptr).h_origin).replace(None));
+            drop((&raw mut (*ptr).v_origin).replace(None));
+            drop((&raw mut (*ptr).h_kerning).replace(None));
+            drop((&raw mut (*ptr).v_kerning).replace(None));
+            drop((&raw mut (*ptr).extents).replace(None));
+            #[cfg(feature = "draw")]
+            drop((&raw mut (*ptr).draw_glyph).replace(None));
+            #[cfg(feature = "draw")]
+            drop((&raw mut (*ptr).draw_glyph_legacy).replace(None));
+            #[cfg(feature = "paint")]
+            drop((&raw mut (*ptr).paint_glyph).replace(None));
+            #[cfg(feature = "paint")]
+            drop((&raw mut (*ptr).paint_glyph_legacy).replace(None));
+        }
+    }
+
     fn empty() -> *mut Self {
         EMPTY_FONT_FUNCS
             .get_or_init(|| {
@@ -728,8 +786,8 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
 ///
 /// A funcs object is authoritative: once one is installed on a font, every
 /// callback comes from it, and a callback that was never set yields the same
-/// "not available" answer HarfBuzz's nil implementation gives — no glyph, a
-/// zero advance, a zero origin, no extents. HarfRust's own table-driven
+/// "not available" answer HarfBuzz's nil implementation gives — no glyph, an
+/// advance of one em, a zero origin, no extents. HarfRust's own table-driven
 /// implementation is used only when a font has no funcs object at all.
 pub(crate) struct FontFuncsAdapter<'a> {
     /// The C API does not support callbacks mutating or freeing their font, so
@@ -1316,6 +1374,13 @@ impl FontFuncs for FontFuncsAdapter<'_> {
 
     fn nominal_glyphs(&self, _font: &ShaperFont, glyphs: NominalGlyphs<'_>) -> usize {
         let raw = glyphs.into_raw();
+        // SAFETY: `call_nominal_glyphs` needs `raw.len` codepoints to read
+        // and as many glyphs to write, at the strides given. `into_raw`
+        // describes the batch it consumed in just those terms, and the batch
+        // is borrowed for longer than this call. The strides are documented
+        // as positive and the size of one glyph record, so the casts keep
+        // them, and a count cut short by its cast only leaves entries
+        // unmapped.
         (unsafe {
             self.call_nominal_glyphs(
                 raw.len as c_uint,
@@ -1343,6 +1408,9 @@ impl FontFuncs for FontFuncsAdapter<'_> {
 
     fn glyph_h_advances(&self, font: &ShaperFont, advances: Advances<'_>) {
         let raw = advances.into_raw();
+        // SAFETY: as in `nominal_glyphs`: `into_raw` describes `raw.len`
+        // glyphs to read and as many advances to write and read back, at
+        // strides the casts keep.
         if unsafe {
             self.call_h_advances(
                 raw.len as c_uint,
@@ -1355,6 +1423,12 @@ impl FontFuncs for FontFuncsAdapter<'_> {
             return;
         }
         for index in 0..raw.len {
+            // SAFETY: `add` needs the offset to stay inside the allocation
+            // `raw.gids` points into, and `read_unaligned` needs a readable,
+            // initialized glyph there. `into_raw` gives `raw.len` glyphs
+            // `raw.gid_stride` bytes apart, a positive stride the cast
+            // keeps, and `index < raw.len`, so glyph `index` starts
+            // `index * raw.gid_stride` bytes into that run.
             let glyph = unsafe {
                 raw.gids
                     .cast::<u8>()
@@ -1363,6 +1437,9 @@ impl FontFuncs for FontFuncsAdapter<'_> {
                     .read_unaligned()
             };
             let advance = self.glyph_h_advance(font, GlyphId::from(glyph));
+            // SAFETY: as above for the advances, which `into_raw` gives
+            // `raw.advance_stride` bytes apart and writable. An advance is a
+            // plain integer, so overwriting one drops nothing.
             unsafe {
                 raw.advances
                     .cast::<u8>()
