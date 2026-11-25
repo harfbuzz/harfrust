@@ -53,12 +53,12 @@ and imports the standard HarfBuzz host functions from the `env` module:
 - buffer: `buffer_copy_contents`, `buffer_set_contents`,
   `buffer_contents_realloc`, `buffer_contents_free`, `buffer_get_direction`,
   `buffer_get_script`, `buffer_reverse`, `buffer_reverse_clusters`
-- face: `face_create`, `face_copy_table`, `face_get_upem`
-- font: `font_create`, `font_get_face`, `font_get_scale`, `font_get_glyph`,
-  `font_get_glyph_h_advance`, `font_get_glyph_v_advance`,
+- face: `face_create`, `face_copy_table`, `face_get_upem`, `face_destroy`
+- font: `font_create`, `font_destroy`, `font_get_face`, `font_get_scale`,
+  `font_get_glyph`, `font_get_glyph_h_advance`, `font_get_glyph_v_advance`,
   `font_get_glyph_extents`, `font_glyph_to_string`, `font_copy_coords`,
   `font_set_coords`, `font_copy_glyph_outline`
-- outline/blob: `glyph_outline_free`, `blob_free`
+- outline/blob/coords: `glyph_outline_free`, `blob_free`, `coords_free`
 - shaping: `shape_with` (the `ot` shaper), `feature_copy_contents`,
   `features_free`
 - debug: `debugprint` through `debugprint4`
@@ -78,6 +78,10 @@ zero-returning stubs so that modules which never call them still instantiate.
   fall back to OpenType shaping.
 - If the module runs but `shape` traps or returns zero, shaping returns
   `ShapeError::WasmShapingFailed`. HarfBuzz retries once before giving up.
+- `face_destroy` and `font_destroy` free a face or font the guest created,
+  and its token names nothing afterwards. In HarfBuzz they also let the
+  module instance be kept for the next call; HarfRust creates an instance per
+  call either way.
 - `font_copy_glyph_outline` draws through read-fonts' outline support and
   ignores custom `FontFuncs` draw callbacks, which HarfRust does not have.
 
