@@ -54,6 +54,34 @@ const LINE_TO: u32 = 1;
 const QUADRATIC_TO: u32 = 2;
 const CUBIC_TO: u32 = 3;
 
+// What a font's module may use for one `shape` call. The policy is the one in
+// HarfBuzz's WebAssembly shaper (`hb-limits.hh`), in this engine's units. A
+// call that goes over fails with `ShapeError::WasmShapingFailed`.
+
+/// Fuel for a call: this much, plus [`FUEL_PER_ITEM`] for each item in the
+/// buffer. It covers making the instance, `shape_plan_create` and `shape`,
+/// which all happen on every call here.
+const FUEL_MIN: u64 = 1 << 27;
+/// wasmi charges 1.1 to 1.4 times as much fuel as wasm-micro-runtime counts
+/// instructions for the same module, so this is HarfBuzz's 2^22 times one
+/// and a half.
+const FUEL_PER_ITEM: u64 = 3 << 21;
+
+/// Memory for a call, in bytes: this much, plus [`MEMORY_FONT_FACTOR`] times
+/// the size of the font, plus [`MEMORY_BUFFER_FACTOR`] times the size of the
+/// buffer's contents. The data of the faces and fonts a module creates, which
+/// the host holds, counts against the same allowance.
+const MEMORY_MIN: u64 = 32 << 20;
+const MEMORY_FONT_FACTOR: u64 = 2;
+const MEMORY_BUFFER_FACTOR: u64 = 128;
+
+/// Faces and fonts a module may create in a call.
+const MAX_OBJECTS: usize = 256;
+
+/// What calling a host function costs a module in fuel, before any work
+/// that grows with a size. See [`charge`].
+const CALL_COST: u64 = 64;
+
 /// A compiled module, or a marker saying the font's module cannot run.
 pub(crate) enum WasmModuleSlot {
     Compiled { engine: Engine, module: Module },
@@ -77,7 +105,10 @@ fn compile_slot(font: &ModelFont) -> WasmModuleSlot {
     let Some(bytes) = wasm_table_data(font) else {
         return WasmModuleSlot::Unavailable;
     };
-    let engine = Engine::default();
+    // Fuel is what stops a module that does not stop by itself.
+    let mut config = wasmi::Config::default();
+    config.consume_fuel(true);
+    let engine = Engine::new(&config);
     match Module::new(&engine, bytes) {
         Ok(module) => WasmModuleSlot::Compiled { engine, module },
         Err(_) => WasmModuleSlot::Unavailable,
@@ -135,14 +166,26 @@ struct Host<'a, 'b, 'c> {
     faces: Vec<Option<WasmFace>>,
     fonts: Vec<Option<WasmFontEntry>>,
     memory: Option<Memory>,
-    /// Next address for the host-side bump allocator. Allocations live above
-    /// the memory the guest has already grown, so they cannot collide with
-    /// the guest's own heap.
+    /// Next address for the host-side bump allocator. Allocations live in
+    /// pages the host adds to the end of the memory for itself, so they
+    /// cannot collide with the guest's own heap.
     bump_next: u32,
+    /// End of the pages the allocator has taken.
+    bump_end: u32,
+    /// The memory the module may use, in bytes.
+    max_memory: u64,
+    /// How much of it is in faces and fonts that the module created.
+    object_bytes: u64,
+    limits: wasmi::StoreLimits,
 }
 
 impl<'a, 'b, 'c> Host<'a, 'b, 'c> {
-    fn new(font: &'a ShaperFont<'b, 'c>, buffer: &'a mut Buffer, point_size: Option<f32>) -> Self {
+    fn new(
+        font: &'a ShaperFont<'b, 'c>,
+        buffer: &'a mut Buffer,
+        point_size: Option<f32>,
+        max_memory: u64,
+    ) -> Self {
         Self {
             font,
             buffer,
@@ -151,7 +194,24 @@ impl<'a, 'b, 'c> Host<'a, 'b, 'c> {
             fonts: Vec::new(),
             memory: None,
             bump_next: 0,
+            bump_end: 0,
+            max_memory,
+            object_bytes: 0,
+            limits: wasmi::StoreLimitsBuilder::new()
+                .memory_size(usize::try_from(max_memory).unwrap_or(usize::MAX))
+                .table_elements(1 << 16)
+                .instances(1)
+                .memories(1)
+                .tables(4)
+                .build(),
         }
+    }
+
+    /// Whether the module may create one more face or font, with this much
+    /// data for the host to hold.
+    fn can_create(&self, bytes: u64) -> bool {
+        self.faces.len() + self.fonts.len() < MAX_OBJECTS
+            && bytes <= self.max_memory.saturating_sub(self.object_bytes)
     }
 }
 
@@ -162,8 +222,23 @@ fn run<'a, 'b, 'c>(
     buffer: &'a mut Buffer,
     options: &ShapeOptions<'_>,
 ) -> Result<Option<()>, ShapeError> {
-    let host = Host::new(font, buffer, options.point_size);
+    let items = buffer.len as u64;
+    let max_memory = MEMORY_MIN
+        .saturating_add(MEMORY_FONT_FACTOR.saturating_mul(font_data_len(font)))
+        .saturating_add(
+            MEMORY_BUFFER_FACTOR
+                .saturating_mul(u64::from(GLYPH_INFO_SIZE + GLYPH_POSITION_SIZE))
+                .saturating_mul(items),
+        );
+    let fuel = FUEL_MIN.saturating_add(FUEL_PER_ITEM.saturating_mul(items));
+
+    let host = Host::new(font, buffer, options.point_size, max_memory);
     let mut store = Store::new(engine, host);
+    store.limiter(|host| &mut host.limits);
+    // The start function, if there is one, runs on this fuel too.
+    if store.set_fuel(fuel).is_err() {
+        return Ok(None);
+    }
     let mut linker: Linker<Host<'a, 'b, 'c>> = Linker::new(engine);
     if define_links(&mut linker, module).is_err() {
         // The module imports something we cannot provide; use OpenType.
@@ -485,19 +560,88 @@ fn align_up(value: u32, align: u32) -> Option<u32> {
         .map(|value| value & !(align - 1))
 }
 
+/// The size of the font's data.
+fn font_data_len(font: &ModelFont) -> u64 {
+    match font.source() {
+        Source::Blob(blob) => blob.as_ref().len() as u64,
+        Source::TableFunction(_) => 0,
+    }
+}
+
+/// Takes `cost` fuel from the module. Returns false if it has less: the
+/// module is then left with none, and stops at its next block.
+fn spend<T>(caller: &mut Caller<'_, T>, cost: u64) -> bool {
+    match caller.get_fuel() {
+        Ok(fuel) if fuel >= cost => caller.set_fuel(fuel - cost).is_ok(),
+        _ => {
+            let _ = caller.set_fuel(0);
+            false
+        }
+    }
+}
+
+/// Charges the module for a call into the host: [`CALL_COST`], and `cost` for
+/// work that grows with a size.
+///
+/// The fuel wasmi counts is for the module's own instructions. Without this a
+/// module could keep the host busy, copying a table again and again, for as
+/// long as it liked on very little fuel. The amounts need not be exact, only
+/// not so low that host work is the cheap way to spend time.
+fn charge<T>(caller: &mut Caller<'_, T>, cost: u64) -> bool {
+    spend(caller, CALL_COST.saturating_add(cost))
+}
+
+/// What copying this many bytes costs.
+fn bytes_cost(bytes: u64) -> u64 {
+    bytes / 8
+}
+
+/// Allocates from the guest memory for the host.
+///
+/// The host adds pages to the end of the memory and hands them out in order.
+/// Nothing is freed; the memory goes with the instance at the end of the
+/// call.
+fn bump_alloc<'a, 'b: 'a, 'c: 'a>(
+    mut ctx: impl wasmi::AsContextMut<Data = Host<'a, 'b, 'c>>,
+    memory: Memory,
+    size: u32,
+    align: u32,
+) -> Option<u32> {
+    let size = size.max(1);
+
+    // What is left of the pages taken before.
+    let (next, end) = {
+        let ctx = ctx.as_context();
+        let host = ctx.data();
+        (host.bump_next, host.bump_end)
+    };
+    if let Some(start) = align_up(next, align) {
+        if let Some(stop) = start.checked_add(size) {
+            if stop <= end {
+                ctx.as_context_mut().data_mut().bump_next = stop;
+                return Some(start);
+            }
+        }
+    }
+
+    // New pages. The memory's size is a whole number of them, which is
+    // aligned enough for anything.
+    let start = u32::try_from(memory.data_size(&ctx)).ok()?;
+    let pages = size.div_ceil(65536);
+    let stop = start.checked_add(size)?;
+    let end = start.checked_add(pages.checked_mul(65536)?)?;
+    memory.grow(&mut ctx, u64::from(pages)).ok()?;
+    let mut ctx = ctx.as_context_mut();
+    let host = ctx.data_mut();
+    host.bump_next = stop;
+    host.bump_end = end;
+    Some(start)
+}
+
 /// Allocates from the guest memory used by a host function.
 fn host_alloc(caller: &mut Caller<'_, Host<'_, '_, '_>>, size: u32, align: u32) -> Option<u32> {
     let memory = caller.data().memory?;
-    let current = u32::try_from(memory.data_size(&*caller)).ok()?;
-    let mut next = caller.data().bump_next.max(current);
-    next = align_up(next, align)?;
-    let end = next.checked_add(size.max(1))?;
-    let pages = end.saturating_sub(current).div_ceil(65536);
-    if pages > 0 {
-        memory.grow(&mut *caller, u64::from(pages)).ok()?;
-    }
-    caller.data_mut().bump_next = end;
-    Some(next)
+    bump_alloc(caller, memory, size, align)
 }
 
 /// Allocates from the guest memory outside a host function.
@@ -507,16 +651,7 @@ fn store_alloc(
     size: u32,
     align: u32,
 ) -> Option<u32> {
-    let current = u32::try_from(memory.data_size(&*store)).ok()?;
-    let mut next = store.data().bump_next.max(current);
-    next = align_up(next, align)?;
-    let end = next.checked_add(size.max(1))?;
-    let pages = end.saturating_sub(current).div_ceil(65536);
-    if pages > 0 {
-        memory.grow(&mut *store, u64::from(pages)).ok()?;
-    }
-    store.data_mut().bump_next = end;
-    Some(next)
+    bump_alloc(store, memory, size, align)
 }
 
 fn bytes_for(count: u32, item_size: u32) -> Option<u32> {
@@ -551,6 +686,12 @@ fn api_buffer_copy_contents<'a, 'b, 'c>(
         state.buffer.clear_positions();
     }
     let length = u32::try_from(state.buffer.len).unwrap_or(u32::MAX);
+    if !charge(
+        &mut caller,
+        bytes_cost(u64::from(length) * u64::from(GLYPH_INFO_SIZE + GLYPH_POSITION_SIZE)),
+    ) {
+        return 0;
+    }
 
     let (info_ptr, pos_ptr) = if length <= capacity {
         let Some(info_ptr) = read_u32(&caller, memory, contents_ptr + 4) else {
@@ -644,6 +785,12 @@ fn api_buffer_set_contents<'a, 'b, 'c>(
         return 0;
     };
     if length > 0 && (info_ptr == 0 || pos_ptr == 0) {
+        return 0;
+    }
+    if !charge(
+        &mut caller,
+        bytes_cost(u64::from(length) * u64::from(GLYPH_INFO_SIZE + GLYPH_POSITION_SIZE)),
+    ) {
         return 0;
     }
     let Some(infos) = read_infos(&caller, memory, info_ptr, length) else {
@@ -762,6 +909,9 @@ fn api_buffer_contents_realloc<'a, 'b, 'c>(
     let Some(bytes) = bytes_for(size, GLYPH_INFO_SIZE) else {
         return 0;
     };
+    if !charge(&mut caller, bytes_cost(u64::from(bytes) * 2)) {
+        return 0;
+    }
     let Some(new_info) = host_alloc(&mut caller, bytes, 4) else {
         return 0;
     };
@@ -798,6 +948,9 @@ fn api_buffer_contents_free<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 0) {
+        return;
+    }
     let contents_ptr = contents_ptr as u32;
     for offset in [0, 4, 8] {
         let _ = write_u32(&mut caller, memory, contents_ptr + offset, 0);
@@ -805,20 +958,20 @@ fn api_buffer_contents_free<'a, 'b, 'c>(
 }
 
 fn api_buffer_get_direction<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     buffer_token: i32,
 ) -> i32 {
-    if buffer_token as u32 != BUFFER_TOKEN {
+    if buffer_token as u32 != BUFFER_TOKEN || !charge(&mut caller, 0) {
         return DIRECTION_INVALID as i32;
     }
     direction_to_wasm(caller.data().buffer.direction) as i32
 }
 
 fn api_buffer_get_script<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     buffer_token: i32,
 ) -> i32 {
-    if buffer_token as u32 != BUFFER_TOKEN {
+    if buffer_token as u32 != BUFFER_TOKEN || !charge(&mut caller, 0) {
         return 0;
     }
     let Some(script) = caller.data().buffer.script else {
@@ -831,6 +984,10 @@ fn api_buffer_reverse<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, buff
     if buffer_token as u32 != BUFFER_TOKEN {
         return;
     }
+    let items = caller.data().buffer.len as u64;
+    if !charge(&mut caller, items) {
+        return;
+    }
     caller.data_mut().buffer.reverse();
 }
 
@@ -839,6 +996,10 @@ fn api_buffer_reverse_clusters<'a, 'b, 'c>(
     buffer_token: i32,
 ) {
     if buffer_token as u32 != BUFFER_TOKEN {
+        return;
+    }
+    let items = caller.data().buffer.len as u64;
+    if !charge(&mut caller, items) {
         return;
     }
     caller.data_mut().buffer.reverse_clusters();
@@ -876,6 +1037,21 @@ fn face_data(font: &ModelFont, faces: &[Option<WasmFace>], token: u32) -> Option
     }
 }
 
+/// The size of a face's data, which `font_create` copies.
+fn face_len(font: &ModelFont, faces: &[Option<WasmFace>], token: u32) -> Option<u64> {
+    if token == ROOT_FACE_TOKEN {
+        let Source::Blob(blob) = font.source() else {
+            return None;
+        };
+        Some(blob.as_ref().len() as u64)
+    } else {
+        let face = faces
+            .get(usize::try_from(token).ok()?.checked_sub(2)?)?
+            .as_ref()?;
+        Some(face.data.len() as u64)
+    }
+}
+
 fn with_face_ref<R>(
     font: &ModelFont,
     faces: &[Option<WasmFace>],
@@ -910,6 +1086,12 @@ fn api_face_create<'a, 'b, 'c>(
     let Some(data_ptr) = read_u32(&caller, memory, blob_ptr + 4) else {
         return 0;
     };
+    // The host keeps a copy of the data, outside the module's memory.
+    if !caller.data().can_create(u64::from(length))
+        || !charge(&mut caller, 4096 + bytes_cost(u64::from(length)))
+    {
+        return 0;
+    }
     let Some(data) = read_bytes(&caller, memory, data_ptr, length) else {
         return 0;
     };
@@ -919,6 +1101,7 @@ fn api_face_create<'a, 'b, 'c>(
     }
     let state = caller.data_mut();
     state.faces.push(Some(WasmFace { data, index }));
+    state.object_bytes += u64::from(length);
     i32::try_from(state.faces.len() + 1).unwrap_or(0)
 }
 
@@ -948,6 +1131,16 @@ fn api_face_copy_table<'a, 'b, 'c>(
         return 0;
     };
     let state = caller.data();
+    let table_len = with_face_ref(state.font, &state.faces, face_token as u32, |font_ref| {
+        font_ref.table_data(tag).map(|data| data.len())
+    });
+    let Some(Some(table_len)) = table_len else {
+        return 0;
+    };
+    if !charge(&mut caller, bytes_cost(table_len as u64)) {
+        return 0;
+    }
+    let state = caller.data();
     let table = with_face_ref(state.font, &state.faces, face_token as u32, |font_ref| {
         font_ref
             .table_data(tag)
@@ -974,7 +1167,10 @@ fn api_face_copy_table<'a, 'b, 'c>(
     1
 }
 
-fn api_face_get_upem<'a, 'b, 'c>(caller: Caller<'_, Host<'a, 'b, 'c>>, face_token: i32) -> i32 {
+fn api_face_get_upem<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_token: i32) -> i32 {
+    if !charge(&mut caller, 0) {
+        return 0;
+    }
     let state = caller.data();
     let upem = with_face_ref(state.font, &state.faces, face_token as u32, |font_ref| {
         font_ref
@@ -997,6 +1193,14 @@ fn root_scale(font: &ShaperFont<'_, '_>) -> (i32, i32) {
 }
 
 fn api_font_create<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_token: i32) -> i32 {
+    // The font gets a copy of the face's data.
+    let state = caller.data();
+    let Some(length) = face_len(state.font, &state.faces, face_token as u32) else {
+        return 0;
+    };
+    if !state.can_create(length) || !charge(&mut caller, 4096 + bytes_cost(length)) {
+        return 0;
+    }
     let state = caller.data();
     let Some((data, index)) = face_data(state.font, &state.faces, face_token as u32) else {
         return 0;
@@ -1006,6 +1210,7 @@ fn api_font_create<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, face_to
     };
     let upem = i32::from(font.units_per_em());
     let state = caller.data_mut();
+    state.object_bytes += length;
     state.fonts.push(Some(WasmFontEntry {
         face: face_token as u32,
         font,
@@ -1024,6 +1229,9 @@ fn api_font_destroy<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, font_t
 }
 
 fn api_font_get_face<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, font_token: i32) -> i32 {
+    if !charge(&mut caller, 0) {
+        return 0;
+    }
     if font_token as u32 == ROOT_FONT_TOKEN {
         return ROOT_FACE_TOKEN as i32;
     }
@@ -1075,6 +1283,9 @@ fn api_font_get_scale<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 0) {
+        return;
+    }
     let Some((x_scale, y_scale)) = font_scale(caller.data(), font_token as u32) else {
         return;
     };
@@ -1097,11 +1308,14 @@ fn with_shaper_font<R>(
 }
 
 fn api_font_get_glyph<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     font_token: i32,
     codepoint: i32,
     variation_selector: i32,
 ) -> i32 {
+    if !charge(&mut caller, 0) {
+        return 0;
+    }
     let state = caller.data();
     let glyph = with_shaper_font(state, font_token as u32, |font| {
         let codepoint = codepoint as u32;
@@ -1120,10 +1334,14 @@ fn api_font_get_glyph<'a, 'b, 'c>(
 }
 
 fn api_font_get_glyph_h_advance<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     font_token: i32,
     glyph: i32,
 ) -> i32 {
+    // May take the variations of the whole glyph.
+    if !charge(&mut caller, 1024) {
+        return 0;
+    }
     with_shaper_font(caller.data(), font_token as u32, |font| {
         font.glyph_h_advance(GlyphId::new(glyph as u32))
     })
@@ -1131,10 +1349,13 @@ fn api_font_get_glyph_h_advance<'a, 'b, 'c>(
 }
 
 fn api_font_get_glyph_v_advance<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     font_token: i32,
     glyph: i32,
 ) -> i32 {
+    if !charge(&mut caller, 1024) {
+        return 0;
+    }
     with_shaper_font(caller.data(), font_token as u32, |font| {
         font.glyph_v_advance(GlyphId::new(glyph as u32))
     })
@@ -1150,6 +1371,10 @@ fn api_font_get_glyph_extents<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return 0;
     };
+    // May draw the glyph.
+    if !charge(&mut caller, 4096) {
+        return 0;
+    }
     let extents = with_shaper_font(caller.data(), font_token as u32, |font| {
         font.glyph_extents(GlyphId::new(glyph as u32))
     });
@@ -1174,7 +1399,7 @@ fn api_font_glyph_to_string<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return;
     };
-    if size <= 0 {
+    if size <= 0 || !charge(&mut caller, 256) {
         return;
     }
     let name = with_shaper_font(caller.data(), font_token as u32, |font| {
@@ -1224,6 +1449,9 @@ fn api_font_copy_coords<'a, 'b, 'c>(
     })
     .unwrap_or_default();
     let length = u32::try_from(coords.len()).unwrap_or(u32::MAX);
+    if !charge(&mut caller, u64::from(length)) {
+        return 0;
+    }
     if length <= capacity {
         if length > 0 && data_ptr == 0 {
             return 0;
@@ -1276,6 +1504,10 @@ fn api_font_set_coords<'a, 'b, 'c>(
         return 0;
     };
     if end > memory.data_size(&caller) {
+        return 0;
+    }
+    // Makes a new instance of the font.
+    if !charge(&mut caller, 4096 + u64::from(length)) {
         return 0;
     }
     let mut coords = Vec::with_capacity(usize::try_from(length).unwrap_or(0));
@@ -1386,6 +1618,9 @@ fn api_font_copy_glyph_outline<'a, 'b, 'c>(
     let Some(contours_ptr) = read_u32(&caller, memory, outline_ptr + 12) else {
         return 0;
     };
+    if !charge(&mut caller, 4096) {
+        return 0;
+    }
 
     let recorded = with_shaper_font(caller.data(), font_token as u32, |font| {
         let scale = font.scale();
@@ -1405,6 +1640,10 @@ fn api_font_copy_glyph_outline<'a, 'b, 'c>(
 
     let length = u32::try_from(points.len()).unwrap_or(u32::MAX);
     let contour_length = u32::try_from(contours.len()).unwrap_or(u32::MAX);
+    // What it took to draw is known only now.
+    if !spend(&mut caller, u64::from(length) * 64) {
+        return 0;
+    }
     let (points_ptr, contours_ptr) =
         if length <= capacity && contour_length <= contour_capacity && points_ptr != 0 {
             (points_ptr, contours_ptr)
@@ -1453,6 +1692,9 @@ fn api_glyph_outline_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, 
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 0) {
+        return;
+    }
     for offset in [0, 4, 8, 12] {
         let _ = write_u32(&mut caller, memory, outline_ptr as u32 + offset, 0);
     }
@@ -1462,6 +1704,9 @@ fn api_blob_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, blob_ptr:
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 0) {
+        return;
+    }
     for offset in [0, 4] {
         let _ = write_u32(&mut caller, memory, blob_ptr as u32 + offset, 0);
     }
@@ -1524,6 +1769,9 @@ fn api_feature_copy_contents<'a, 'b, 'c>(
     let Some(bytes) = bytes_for(count, FEATURE_SIZE) else {
         return 0;
     };
+    if !charge(&mut caller, bytes_cost(u64::from(bytes))) {
+        return 0;
+    }
     let Some(data) = read_bytes(&caller, memory, features_ptr as u32, bytes) else {
         return 0;
     };
@@ -1542,6 +1790,9 @@ fn api_features_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, featu
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 0) {
+        return;
+    }
     for offset in [0, 4] {
         let _ = write_u32(&mut caller, memory, features_ptr as u32 + offset, 0);
     }
@@ -1571,6 +1822,11 @@ fn api_shape_with<'a, 'b, 'c>(
     else {
         return 0;
     };
+    // Shaping takes time by the item.
+    let items = caller.data().buffer.len as u64;
+    if !charge(&mut caller, 4096 + items.saturating_mul(4096)) {
+        return 0;
+    }
 
     let state = caller.data_mut();
     let root = state.font;
@@ -1622,9 +1878,12 @@ const RTL_SCRIPTS: &[&[u8; 4]] = &[
 const NEUTRAL_SCRIPTS: &[&[u8; 4]] = &[b"Hung", b"Ital", b"Runr", b"Tfng"];
 
 fn api_script_get_horizontal_direction<'a, 'b, 'c>(
-    _caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     script: i32,
 ) -> i32 {
+    if !charge(&mut caller, 0) {
+        return DIRECTION_INVALID as i32;
+    }
     let tag = (script as u32).to_be_bytes();
     if RTL_SCRIPTS.iter().any(|candidate| **candidate == tag) {
         DIRECTION_RTL as i32
@@ -1657,22 +1916,28 @@ fn debug_message<T>(caller: &Caller<'_, T>, memory: Memory, ptr: u32, args: &[i3
     }
 }
 
-fn api_debugprint<'a, 'b, 'c>(caller: Caller<'_, Host<'a, 'b, 'c>>, ptr: i32) {
+fn api_debugprint<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, ptr: i32) {
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 1024) {
+        return;
+    }
     debug_message(&caller, memory, ptr as u32, &[]);
 }
 
-fn api_debugprint1<'a, 'b, 'c>(caller: Caller<'_, Host<'a, 'b, 'c>>, ptr: i32, arg1: i32) {
+fn api_debugprint1<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, ptr: i32, arg1: i32) {
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 1024) {
+        return;
+    }
     debug_message(&caller, memory, ptr as u32, &[arg1]);
 }
 
 fn api_debugprint2<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     ptr: i32,
     arg1: i32,
     arg2: i32,
@@ -1680,11 +1945,14 @@ fn api_debugprint2<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 1024) {
+        return;
+    }
     debug_message(&caller, memory, ptr as u32, &[arg1, arg2]);
 }
 
 fn api_debugprint3<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     ptr: i32,
     arg1: i32,
     arg2: i32,
@@ -1693,11 +1961,14 @@ fn api_debugprint3<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 1024) {
+        return;
+    }
     debug_message(&caller, memory, ptr as u32, &[arg1, arg2, arg3]);
 }
 
 fn api_debugprint4<'a, 'b, 'c>(
-    caller: Caller<'_, Host<'a, 'b, 'c>>,
+    mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     ptr: i32,
     arg1: i32,
     arg2: i32,
@@ -1707,5 +1978,8 @@ fn api_debugprint4<'a, 'b, 'c>(
     let Some(memory) = caller.data().memory else {
         return;
     };
+    if !charge(&mut caller, 1024) {
+        return;
+    }
     debug_message(&caller, memory, ptr as u32, &[arg1, arg2, arg3, arg4]);
 }

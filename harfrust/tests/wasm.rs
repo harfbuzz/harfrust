@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use harfrust::{shape, Buffer, Direction, Feature, Font, ShapeOptions, ShaperFont};
+use harfrust::{shape, Buffer, Direction, Feature, Font, ShapeError, ShapeOptions, ShaperFont};
 use read_fonts::FontRef;
 
 const ROBOTO: &[u8] = include_bytes!("../benches/fonts/Roboto-Regular.ttf");
@@ -402,4 +402,129 @@ fn wasm_shaper_destroys_faces_and_fonts() {
         let glyph = shaper.nominal_glyph(character as u32).unwrap();
         assert_eq!(buffer.glyph_infos()[index].glyph_id, glyph.to_u32());
     }
+}
+fn try_shape_text(font_data: Vec<u8>, text: &str) -> Result<Buffer, ShapeError> {
+    let font = Font::new(font_data, 0).unwrap();
+    let shaper = ShaperFont::new(&font);
+    let mut buffer = Buffer::new();
+    buffer.push_str(text);
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.guess_segment_properties();
+    shape(&shaper, &mut buffer, ShapeOptions::new())?;
+    Ok(buffer)
+}
+
+/// Never returns.
+const LOOP_GUEST: &str = r#"
+(module
+  (memory (export "memory") 1)
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (loop $forever (br $forever))
+    (i32.const 1)))
+"#;
+
+/// Never gets as far as `shape`.
+const START_LOOP_GUEST: &str = r#"
+(module
+  (memory (export "memory") 1)
+  (func $spin (loop $forever (br $forever)))
+  (start $spin)
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (i32.const 1)))
+"#;
+
+#[test]
+fn wasm_shaper_stops_a_module_that_does_not() {
+    let wasm = wat::parse_str(LOOP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(matches!(
+        try_shape_text(data, "abc"),
+        Err(ShapeError::WasmShapingFailed)
+    ));
+
+    // A module that cannot be instantiated leaves the font to OpenType.
+    let wasm = wat::parse_str(START_LOOP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let buffer = try_shape_text(data, "abc").unwrap();
+    let plain = shape_text(ROBOTO.to_vec(), "abc", &[]);
+    assert_eq!(buffer.len(), plain.len());
+    for (ours, theirs) in buffer.glyph_infos().iter().zip(plain.glyph_infos()) {
+        assert_eq!(ours.glyph_id, theirs.glyph_id);
+    }
+}
+
+/// Takes memory a mebibyte at a time until it is refused, and reports
+/// success if that happened within the first 64.
+const GROW_GUEST: &str = r#"
+(module
+  (memory (export "memory") 1)
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (local $count i32)
+    (block $done
+      (loop $loop
+        (br_if $done (i32.eq (memory.grow (i32.const 16)) (i32.const -1)))
+        (local.set $count (i32.add (local.get $count) (i32.const 1)))
+        (br_if $loop (i32.lt_u (local.get $count) (i32.const 4096)))))
+    (i32.and (i32.gt_u (local.get $count) (i32.const 0))
+             (i32.lt_u (local.get $count) (i32.const 64)))))
+"#;
+
+#[test]
+fn wasm_shaper_limits_memory() {
+    let wasm = wat::parse_str(GROW_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(try_shape_text(data, "abc").is_ok());
+}
+
+/// Few instructions of its own, and a lot of work for the host: copies the
+/// `glyf` table a hundred thousand times.
+const HOST_WORK_GUEST: &str = r#"
+(module
+  (import "env" "face_copy_table" (func $copy (param i32 i32 i32) (result i32)))
+  (memory (export "memory") 16)
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (local $i i32)
+    (loop $loop
+      ;; A blob of a megabyte at address 1024.
+      (i32.store (i32.const 0) (i32.const 1000000))
+      (i32.store (i32.const 4) (i32.const 1024))
+      (drop (call $copy (i32.const 1) (i32.const 0x676c7966) (i32.const 0)))
+      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+      (br_if $loop (i32.lt_u (local.get $i) (i32.const 100000))))
+    (i32.const 1)))
+"#;
+
+#[test]
+fn wasm_shaper_charges_for_host_work() {
+    let wasm = wat::parse_str(HOST_WORK_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(matches!(
+        try_shape_text(data, "abc"),
+        Err(ShapeError::WasmShapingFailed)
+    ));
+}
+
+/// Creates fonts until it is refused, and reports success if that happened
+/// within the first 300.
+const CREATE_GUEST: &str = r#"
+(module
+  (import "env" "font_create" (func $font_create (param i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+    (local $i i32)
+    (local $count i32)
+    (loop $loop
+      (if (call $font_create (i32.const 1))
+        (then (local.set $count (i32.add (local.get $count) (i32.const 1)))))
+      (local.set $i (i32.add (local.get $i) (i32.const 1)))
+      (br_if $loop (i32.lt_u (local.get $i) (i32.const 1000))))
+    (i32.and (i32.gt_u (local.get $count) (i32.const 0))
+             (i32.lt_u (local.get $count) (i32.const 300)))))
+"#;
+
+#[test]
+fn wasm_shaper_limits_created_objects() {
+    let wasm = wat::parse_str(CREATE_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(try_shape_text(data, "abc").is_ok());
 }

@@ -66,6 +66,33 @@ and imports the standard HarfBuzz host functions from the `env` module:
 Unknown function imports (for example wasm-bindgen helpers) are bound to
 zero-returning stubs so that modules which never call them still instantiate.
 
+## Limits
+
+A font's module is not trusted. Each `shape` call makes a new instance of it,
+and that instance gets:
+
+- **Fuel.** 2^27, plus 3 × 2^21 for each item in the buffer. wasmi takes one
+  unit for each of its instructions, and one for every 64 bytes that growing
+  or copying memory touches. Host functions charge the same account for the
+  work they do for the module: 64 for the call, and more where the work grows
+  with a size, such as one for every eight bytes copied, 4096 for a glyph
+  drawn plus 64 for each of its points, and 4096 for each item `shape_with`
+  shapes.
+- **Memory.** 32 MiB, plus twice the size of the font, plus 128 times the
+  size of the buffer's contents. The data of the faces and fonts that the
+  module creates, which the host holds, counts against the same allowance,
+  and a module can create 256 of them.
+
+A module that runs out of fuel traps, and `shape` returns
+`ShapeError::WasmShapingFailed`. A request for more memory than the allowance
+is refused. A module that cannot be instantiated within these limits, for
+example because its start function does not return, leaves the font to the
+OpenType shaper, as any module that fails to instantiate does.
+
+The numbers are those of HarfBuzz's WebAssembly shaper (`hb-limits.hh`), with
+the fuel per item scaled by one and a half: wasmi takes 1.1 to 1.4 times as
+much fuel as wasm-micro-runtime counts instructions for the same module.
+
 ## Differences from the HarfBuzz host
 
 - `font_set_coords` works for fonts created by the guest. The root font is
@@ -84,6 +111,15 @@ zero-returning stubs so that modules which never call them still instantiate.
   call either way.
 - `font_copy_glyph_outline` draws through read-fonts' outline support and
   ignores custom `FontFuncs` draw callbacks, which HarfRust does not have.
+- HarfBuzz gives host work an allowance of its own, the size of its
+  instruction limit; here it comes out of the same fuel. HarfBuzz cannot give
+  a call more than 2^31 instructions, which its runtime counts in an `int`;
+  there is no such ceiling here.
+- HarfBuzz does not run a module that imports functions other than the host
+  API, has a start function, or exports an allocator, because its runtime
+  would run code for such a module that cannot be limited. None of that
+  applies here: unknown imports get stubs, the start function runs on the
+  call's fuel, and the host never runs the module's allocator.
 
 ## Testing
 
@@ -93,6 +129,9 @@ font and checks:
 - codepoint-to-glyph mapping and default advances,
 - `shape_with("ot")` followed by buffer post-processing,
 - face, table, glyph name, extents, variation and outline queries.
+- the limits: a module that loops, one that takes memory until refused, one
+  that has the host copy a table a hundred thousand times, and one that
+  creates fonts until refused.
 
 The same host was also exercised with a real `wasm-bindgen` guest built from
 HarfBuzz's `harfbuzz-wasm` crate.
