@@ -1132,6 +1132,198 @@ pub(crate) unsafe fn write_out<T: Copy>(out: *mut T, value: T) {
     }
 }
 
+/// The page of an array that a getter fills for its caller, and the count
+/// that comes with the array.
+///
+/// The count is the array's capacity on entry and the number of items
+/// written on return, while the getter itself returns the total there is to
+/// fetch. Every such pair goes through this type, so that one rule holds for
+/// them all. It is the rule the README gives:
+///
+/// | `count`  | `array`  | What happens                                     |
+/// |----------|----------|--------------------------------------------------|
+/// | null     | any      | Nothing is read or written through `count`. No items are written. |
+/// | non-null | null     | `count` is not read. Zero is written to it. No items are written. |
+/// | non-null | non-null | `count` is read once, as the capacity. At most that many items are written, and the number written is then stored in `count`. |
+///
+/// The count is read when the page is made and written when it is dropped,
+/// through the pointer both times, and the items are written through the
+/// array pointer. No reference is made to either. A count that comes with no
+/// array may therefore be storage that was never set, and a count may lie
+/// in its own array: whichever write to the bytes they share comes last is
+/// what those bytes hold.
+#[must_use]
+pub(crate) struct Page<T: Copy> {
+    // Safety invariant: null, or valid for writes of a `c_uint` and aligned
+    // for one, until this is dropped.
+    count: *mut c_uint,
+    // Safety invariant: valid for writes of `capacity` items, and of one more
+    // when there is a `terminator`, and aligned for them, until this is
+    // dropped. `written` is no more than `capacity`.
+    array: *mut T,
+    /// The number of items there is room for: none, unless both pointers
+    /// were given.
+    capacity: usize,
+    /// The number of items written so far.
+    written: usize,
+    /// What is written after the items when the page is dropped, without
+    /// being counted as one.
+    terminator: Option<T>,
+}
+
+impl<T: Copy> Page<T> {
+    /// Makes the page for a count and an array, as a getter was passed them.
+    ///
+    /// # Safety
+    ///
+    /// `count` must be null, or valid for writes of a `c_uint` and aligned
+    /// for one, until the page is dropped.
+    ///
+    /// If neither pointer is null, `count` must also be valid for reads and
+    /// point to an initialized `c_uint` when this is called, and `array`
+    /// must be valid for writes of that many items and aligned for them,
+    /// until the page is dropped.
+    ///
+    /// Nothing else is asked of either: not of an `array` that comes with a
+    /// null `count`, not that a `count` that comes with a null `array` be
+    /// initialized, and not that the two be apart.
+    pub(crate) unsafe fn new(count: *mut c_uint, array: *mut T) -> Self {
+        let capacity = if count.is_null() || array.is_null() {
+            0
+        } else {
+            // SAFETY: `read` needs `count` valid for reads, aligned, and
+            // pointing to an initialized `c_uint`. Neither pointer is null
+            // on this branch, for which the caller gives all three.
+            let capacity = unsafe { count.read() };
+            capacity as usize
+        };
+        // This upholds the invariants. `count` is as the caller has it,
+        // null or valid for writes and aligned until the page is dropped.
+        // `capacity` is zero, or what the count said with neither pointer
+        // null, which the caller has `array` valid for writes of and aligned
+        // for until then. Nothing is written yet, and there is no terminator.
+        Self {
+            count,
+            array,
+            capacity,
+            written: 0,
+            terminator: None,
+        }
+    }
+
+    /// Makes the page for the size and the buffer of a string getter.
+    ///
+    /// The last item the buffer has room for is kept for `terminator`, which
+    /// is written after the items of the page and is not counted as one. A
+    /// buffer with no room at all is not terminated.
+    ///
+    /// # Safety
+    ///
+    /// As [`Page::new`].
+    pub(crate) unsafe fn terminated(count: *mut c_uint, array: *mut T, terminator: T) -> Self {
+        // SAFETY: the caller gives this function what `new` asks for.
+        let mut page = unsafe { Self::new(count, array) };
+        if page.capacity != 0 {
+            // This upholds the invariant on `array`, which was valid for
+            // writes of the old capacity: that is the new one, and one more
+            // for the terminator there now is.
+            page.capacity -= 1;
+            page.terminator = Some(terminator);
+        }
+        page
+    }
+
+    /// The number of items the page still has room for.
+    pub(crate) fn room(&self) -> usize {
+        self.capacity - self.written
+    }
+
+    /// Writes `item` as the next of the page, if there is room for it, and
+    /// returns whether there was.
+    pub(crate) fn push(&mut self, item: T) -> bool {
+        if self.written == self.capacity {
+            return false;
+        }
+        // SAFETY: `add` needs item `written` to lie in the allocation `array`
+        // points into, and `write` needs it valid for writes and aligned.
+        // `written` is below `capacity`, as just checked, and by the
+        // invariant on `array` it is valid for writes of `capacity` items
+        // and aligned for them. The item only returns a value: it is written
+        // through the pointer, and not read.
+        unsafe { self.array.add(self.written).write(item) };
+        // This upholds the invariant on `array`: `written` was below
+        // `capacity`, so one more is no more than it.
+        self.written += 1;
+        true
+    }
+
+    /// Writes `items` to the page until either runs out. No item is taken
+    /// from `items` that is not written, so one that is costly to produce is
+    /// produced only if there is room for it.
+    pub(crate) fn fill(mut self, items: impl IntoIterator<Item = T>) {
+        for item in items.into_iter().take(self.room()) {
+            self.push(item);
+        }
+    }
+
+    /// Has `fill` write the page, for a getter that passes its count and
+    /// array on to a callback, and returns what `fill` returns.
+    ///
+    /// `fill` is handed a count and an array to pass on in place of the
+    /// caller's. Both are null if either of the caller's was, so that the
+    /// callback is asked only for its total and never sees a count that may
+    /// not have been set. Otherwise the array is the caller's, from the
+    /// first item not yet written, and the count is one of this function's
+    /// own that holds the room the page has. What `fill` leaves in that
+    /// count is taken for the number of items it wrote, up to the room
+    /// there was.
+    ///
+    /// # Safety-usable invariant
+    ///
+    /// The count and the array that `fill` is handed are both null, or else,
+    /// for as long as `fill` runs, the count is valid for reads and writes
+    /// of a `c_uint`, aligned for one, and initialized on entry with a
+    /// number of items that the array is valid for writes of and aligned
+    /// for.
+    pub(crate) fn fill_from<R>(mut self, fill: impl FnOnce(*mut c_uint, *mut T) -> R) -> R {
+        if self.count.is_null() || self.array.is_null() {
+            return fill(core::ptr::null_mut(), core::ptr::null_mut());
+        }
+        let room = self.room();
+        // `capacity` came out of a `c_uint`, so the room fits in one.
+        let mut reported = room as c_uint;
+        // This is what the invariant above promises of the two. `reported`
+        // is a local holding `room`, lent out for the call alone. The array
+        // is valid for writes of `capacity` items and aligned for them, by
+        // the invariant on `array`, until this page is dropped on return.
+        // Of those, `written` lie before the pointer handed over and `room`
+        // from it on, so the offset stays inside what `array` points into.
+        let result = fill(&raw mut reported, self.array.wrapping_add(self.written));
+        // This upholds the invariant on `array`: no more is added to
+        // `written` than brings it to `capacity`.
+        self.written += (reported as usize).min(room);
+        result
+    }
+}
+
+impl<T: Copy> Drop for Page<T> {
+    fn drop(&mut self) {
+        if let Some(terminator) = self.terminator {
+            // SAFETY: `add` needs item `written` to lie in the allocation
+            // `array` points into, and `write` needs it valid for writes and
+            // aligned. `written` is no more than `capacity`, and with a
+            // terminator the invariant on `array` has it valid for writes of
+            // one item more than `capacity`, and aligned for them.
+            unsafe { self.array.add(self.written).write(terminator) };
+        }
+        // SAFETY: `write_out` needs `count` null, or valid for writes of a
+        // `c_uint` and aligned for one, which the invariant on `count` has
+        // it. It does not read what `count` points to, which without an
+        // array may never have been set.
+        unsafe { write_out(self.count, self.written as c_uint) };
+    }
+}
+
 /// Copies `s` into `buf`, truncating to `size` bytes and always writing a
 /// terminating NUL.
 ///

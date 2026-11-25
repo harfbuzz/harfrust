@@ -182,7 +182,7 @@ fn language_features_keep_global_indices_and_exclude_required_features() {
 }
 
 #[test]
-fn feature_pagination_preserves_duplicates_and_null_query_counts() {
+fn feature_pagination_preserves_duplicates_and_clears_null_query_counts() {
     unsafe {
         let face = TableFace::new(vec![(HR_OT_TAG_GSUB, layout(&[b"latn"]))]);
         let mut output = [99; 6];
@@ -233,6 +233,7 @@ fn feature_pagination_preserves_duplicates_and_null_query_counts() {
             5
         );
         assert_eq!(count, 0);
+        // A count that comes with no array says that nothing was written.
         count = 99;
         assert_eq!(
             hr_ot_layout_table_get_feature_tags(
@@ -244,7 +245,9 @@ fn feature_pagination_preserves_duplicates_and_null_query_counts() {
             ),
             5
         );
-        assert_eq!(count, 99);
+        assert_eq!(count, 0);
+        // An array that comes with no count has no capacity.
+        output = [99; 6];
         assert_eq!(
             hr_ot_layout_table_get_feature_tags(
                 face.0,
@@ -255,6 +258,7 @@ fn feature_pagination_preserves_duplicates_and_null_query_counts() {
             ),
             5
         );
+        assert_eq!(output, [99; 6]);
     }
 }
 

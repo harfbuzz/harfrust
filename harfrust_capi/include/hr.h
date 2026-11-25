@@ -429,6 +429,11 @@ typedef struct hr_blob_t *(*hr_reference_table_func_t)(struct hr_face_t *face,
  *
  * `table_count` gives the output capacity on entry and the number written
  * on return. A null output array asks only for the total.
+ *
+ * [`hr_face_get_table_tags`] calls this with a count and an array, or with
+ * `NULL` for both: a count its own caller passed without an array is kept
+ * from the callback. The count is one of the library's own, and the
+ * callback is not believed to have written more than the capacity it gave.
  */
 typedef unsigned int (*hr_get_table_tags_func_t)(const struct hr_face_t *face,
                                                  unsigned int start_offset,
@@ -2584,12 +2589,12 @@ extern "C" {
  * Returns the total number of feature types in the face's AAT feat table.
  *
  * When both output pointers are non-null, `feature_count` gives capacity on
- * entry and the number written on return. A null array leaves the count
- * unchanged. Results preserve the order in the table.
+ * entry and the number written on return. A null array sets the count to
+ * zero without reading it; the README has the rule for a count and its
+ * array. Results preserve the order in the table.
  * # Safety
  * `face` must be null or live; `feature_count` must be null or writable;
- * `features` must hold the input capacity when non-null, and must not
- * overlap `feature_count`.
+ * `features` must hold the input capacity when non-null.
  */
 unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
                                              unsigned int start_offset,
@@ -2602,11 +2607,13 @@ unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
  * For exclusive features, `default_index` is relative to the entire selector
  * array and each disable value is the default selector's value. Otherwise
  * the index is `HR_AAT_LAYOUT_NO_SELECTOR_INDEX` and each disable value is
- * its enable value plus one. A null selector array leaves the count unchanged.
+ * its enable value plus one. `selector_count` gives the capacity of
+ * `selectors` on entry and the number written on return. A null selector
+ * array sets the count to zero without reading it; the README has the rule
+ * for a count and its array.
  * # Safety
  * `face` must be null or live; `selector_count` and `default_index` must be
  * null or writable; `selectors` must hold the input capacity when non-null.
- * `selector_count` must not overlap either of the others.
  */
 unsigned int hr_aat_layout_feature_type_get_selector_infos(struct hr_face_t *face,
                                                            hr_aat_layout_feature_type_t feature_type,
@@ -3685,14 +3692,17 @@ void hr_face_set_get_table_tags_func(struct hr_face_t *face,
 /**
  * Lists the table tags of a face, beginning at `start_offset`.
  *
- * Returns the total number of tags. A null output array asks only for the
- * total, without changing `table_count`. Callback-created faces require a
- * callback installed with [`hr_face_set_get_table_tags_func`].
+ * Returns the total number of tags. `table_count` gives the capacity of
+ * `table_tags` on entry and the number written on return. A null output
+ * array asks only for the total, and sets a count passed with it to zero
+ * without reading it; the README has the rule for a count and its array.
+ * Callback-created faces require a callback installed with
+ * [`hr_face_set_get_table_tags_func`].
  *
  * # Safety
- * `face` must be `NULL` or live. Non-null outputs must be writable for their
- * advertised capacity, which `table_count` must hold on entry, and must not
- * overlap.
+ * `face` must be `NULL` or live. `table_count` must be `NULL` or writable,
+ * and a non-null `table_tags` must be writable for the capacity that
+ * `table_count` holds on entry.
  */
 unsigned int hr_face_get_table_tags(const struct hr_face_t *face,
                                     unsigned int start_offset,
@@ -4815,13 +4825,13 @@ hr_ot_color_palette_flags_t hr_ot_color_palette_get_flags(struct hr_face_t *face
  *
  * Colors are unpremultiplied sRGB values in `hr_color_t` packing. When both
  * output pointers are non-null, `color_count` gives capacity on entry and
- * the number written on return. A null array leaves the count unchanged for
- * a valid palette. An invalid palette index returns zero and clears the count.
+ * the number written on return. A null array sets the count to zero without
+ * reading it; the README has the rule for a count and its array. An invalid
+ * palette index returns zero and clears the count.
  *
  * # Safety
  * `face` must be null or live; `color_count` must be null or writable;
- * `colors` must hold the input capacity when non-null, and must not overlap
- * `color_count`.
+ * `colors` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_color_palette_get_colors(struct hr_face_t *face,
                                             unsigned int palette_index,
@@ -4852,12 +4862,12 @@ hr_bool_t hr_ot_layout_table_select_script(struct hr_face_t *face,
  *
  * Copies tags starting at `start_offset`, including duplicates. When both
  * array and count are non-null, the count gives capacity on entry and the
- * number written on return. A null array leaves the count unchanged.
+ * number written on return. A null array sets the count to zero without
+ * reading it; the README has the rule for a count and its array.
  *
  * # Safety
  * `face` must be null or live; `feature_count` must be null or writable;
- * `feature_tags` must hold the input capacity when non-null, and must not
- * overlap `feature_count`.
+ * `feature_tags` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_layout_table_get_feature_tags(struct hr_face_t *face,
                                                  hr_tag_t table_tag,
@@ -5031,9 +5041,9 @@ hr_position_t hr_ot_math_get_glyph_kerning(struct hr_font_t *font,
  * Returns paginated raw MATH kern entries and their total count.
  *
  * When both output pointers are non-null, `entries_count` gives capacity on
- * entry and the number written on return. A null array leaves the count
- * unchanged and unread, unless the glyph has no such kern table, which
- * clears it.
+ * entry and the number written on return. A null array sets the count to
+ * zero without reading it; the README has the rule for a count and its
+ * array.
  * # Safety
  * `font` must be null or live; `entries_count` must be null or writable;
  * `kern_entries` must hold its input capacity when non-null.
@@ -5049,8 +5059,9 @@ unsigned int hr_ot_math_get_glyph_kernings(struct hr_font_t *font,
  * Returns paginated MATH size variants and their total count.
  *
  * When both output pointers are non-null, `variants_count` gives capacity on
- * entry and the number written on return. A null array leaves the count
- * unchanged and unread.
+ * entry and the number written on return. A null array sets the count to
+ * zero without reading it; the README has the rule for a count and its
+ * array.
  * # Safety
  * `font` must be null or live; `variants_count` must be null or writable;
  * `variants` must hold its input capacity when non-null.
@@ -5074,8 +5085,9 @@ hr_position_t hr_ot_math_get_min_connector_overlap(struct hr_font_t *font,
  * Returns paginated MATH assembly parts and their total count.
  *
  * When both output pointers are non-null, `parts_count` gives capacity on
- * entry and the number written on return. A null array leaves the count
- * unchanged and unread.
+ * entry and the number written on return. A null array sets the count to
+ * zero without reading it; the README has the rule for a count and its
+ * array.
  * # Safety
  * `font` must be null or live; `parts_count` and `italics_correction` must be
  * null or writable; `parts` must hold the input capacity when non-null.
@@ -5095,12 +5107,14 @@ unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
  * over a matching parent language. With nonzero input capacity, copies a
  * complete-codepoint prefix, reserves one unit for a terminating zero, and
  * sets `text_size` to the units written, excluding that zero. With zero
- * capacity or a null count, only returns the required length.
+ * capacity or a null count, only returns the required length. A null text
+ * array copies no units and sets `text_size` to zero without reading it;
+ * the README has the rule for a count and its array.
  *
  * # Safety
  * `face` must be null or live; `language` must be null or interned;
  * `text_size` must be null or writable; `text` must hold the input capacity
- * when non-null. A null text array does not copy any units.
+ * when non-null.
  */
 unsigned int hr_ot_name_get_utf16(struct hr_face_t *face,
                                   hr_ot_name_id_t name_id,
@@ -5116,10 +5130,15 @@ hr_language_t hr_ot_tag_to_language(hr_tag_t tag);
 /**
  * Converts a script and language to their preferred OpenType tags.
  *
+ * Each array comes with a count of its own, which gives its capacity on
+ * entry and the number of tags written on return. A count whose array is
+ * NULL is set to zero without being read; the README has the rule for a
+ * count and its array.
+ *
  * # Safety
  * `language` must be NULL or an interned language returned by this API.
- * Each non-NULL output array must have the capacity in its associated count.
- * That count must be NULL, or writable and outside both arrays.
+ * Each count must be NULL or writable, and each non-NULL output array must
+ * have the capacity in its associated count.
  */
 void hr_ot_tags_from_script_and_language(hr_script_t script,
                                          hr_language_t language,
@@ -5139,12 +5158,12 @@ unsigned int hr_ot_var_get_axis_count(struct hr_face_t *face);
  * Returns the total axis count and copies axis metadata from `start_offset`.
  *
  * When both output pointers are non-null, `axes_count` gives the capacity on
- * entry and the number written on return. A null array leaves the count
- * unchanged. Axis indices remain relative to the full `fvar` axis array.
+ * entry and the number written on return. A null array sets the count to
+ * zero without reading it; the README has the rule for a count and its
+ * array. Axis indices remain relative to the full `fvar` axis array.
  * # Safety
  * `face` must be null or live; `axes_count` must be null or writable;
- * `axes_array` must hold the input capacity when non-null, and must not
- * overlap `axes_count`.
+ * `axes_array` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_var_get_axis_infos(struct hr_face_t *face,
                                       unsigned int start_offset,

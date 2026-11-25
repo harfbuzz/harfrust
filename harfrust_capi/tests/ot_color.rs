@@ -94,17 +94,19 @@ fn color_pages_and_null_array_queries_follow_harfbuzz_counts() {
             3
         );
         assert_eq!(count, 0);
+        // A count that comes with no array says that nothing was written.
         count = 99;
         assert_eq!(
             hr_ot_color_palette_get_colors(face.0, 0, 0, &raw mut count, ptr::null_mut()),
             3
         );
-        assert_eq!(count, 99);
+        assert_eq!(count, 0);
         assert_eq!(
             hr_ot_color_palette_get_colors(face.0, 0, 0, ptr::null_mut(), colors.as_mut_ptr()),
             3
         );
         assert_eq!(colors[0], 0xF0E0_D0C0);
+        count = 99;
         assert_eq!(
             hr_ot_color_palette_get_colors(face.0, 2, 0, &raw mut count, ptr::null_mut()),
             0

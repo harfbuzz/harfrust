@@ -205,6 +205,7 @@ fn ot_tag_conversion_round_trips_and_pages() {
             (1, u32::from_be_bytes(*b"ZHT "))
         );
 
+        // A count that comes with no array says that nothing was written.
         script_count = 1;
         language_count = 1;
         hr_ot_tags_from_script_and_language(
@@ -215,7 +216,50 @@ fn ot_tag_conversion_round_trips_and_pages() {
             &raw mut language_count,
             ptr::null_mut(),
         );
-        assert_eq!((script_count, language_count), (1, 1));
+        assert_eq!((script_count, language_count), (0, 0));
+
+        // Each pair is on its own: one may have an array and the other not.
+        script_count = 3;
+        language_count = 3;
+        scripts = [0; 3];
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_DEVANAGARI,
+            chinese,
+            &raw mut script_count,
+            scripts.as_mut_ptr(),
+            &raw mut language_count,
+            ptr::null_mut(),
+        );
+        assert_eq!((script_count, language_count), (3, 0));
+        assert_eq!(scripts[2], u32::from_be_bytes(*b"deva"));
+
+        // Both counts are read before either array is written. Here the
+        // language count shares its storage with the first script tag. It
+        // is read as zero, so no language tag is written, whatever script
+        // tag then lands on it; and being written last, it is what is left
+        // there.
+        let mut languages = [99; 1];
+        scripts = [0; 3];
+        script_count = 3;
+        let tags = scripts.as_mut_ptr();
+        hr_ot_tags_from_script_and_language(
+            HR_SCRIPT_DEVANAGARI,
+            chinese,
+            &raw mut script_count,
+            tags,
+            tags,
+            languages.as_mut_ptr(),
+        );
+        assert_eq!(languages, [99]);
+        assert_eq!(script_count, 3);
+        assert_eq!(
+            scripts,
+            [
+                0,
+                u32::from_be_bytes(*b"dev2"),
+                u32::from_be_bytes(*b"deva")
+            ]
+        );
     }
 }
 
@@ -268,7 +312,7 @@ fn math_queries_scale_device_values_and_page() {
                 ),
                 2
             );
-            assert_eq!(count, 7);
+            assert_eq!(count, 0);
             let mut entries = [hr_ot_math_kern_entry_t::default(); 2];
             count = 1;
             assert_eq!(
@@ -332,7 +376,7 @@ fn math_queries_scale_device_values_and_page() {
                 ),
                 1
             );
-            assert_eq!(count, 7);
+            assert_eq!(count, 0);
             count = 1;
             assert_eq!(
                 hr_ot_math_get_glyph_variants(
@@ -387,7 +431,7 @@ fn math_queries_scale_device_values_and_page() {
                 ),
                 1
             );
-            assert_eq!(count, 7);
+            assert_eq!(count, 0);
             assert_eq!(correction, 70);
 
             hr_font_set_scale(font, 4096, 2048);
@@ -494,9 +538,8 @@ fn math_queries_without_table_return_empty_values() {
             );
             assert_eq!(hr_ot_math_get_glyph_italics_correction(font, 1), 0);
             assert_eq!(hr_ot_math_is_glyph_extended_shape(face, 1), 0);
-            // Asked only how many there are, each getter answers none. What
-            // becomes of the count is HarfBuzz's: variants and assembly leave
-            // it alone without an array, and kernings clears it.
+            // Asked only how many there are, each getter answers none, and
+            // clears a count that came with no array: nothing was written.
             let mut count = 37;
             assert_eq!(
                 hr_ot_math_get_glyph_variants(
@@ -509,7 +552,8 @@ fn math_queries_without_table_return_empty_values() {
                 ),
                 0
             );
-            assert_eq!(count, 37);
+            assert_eq!(count, 0);
+            count = 37;
             assert_eq!(
                 hr_ot_math_get_glyph_assembly(
                     font,
@@ -522,7 +566,8 @@ fn math_queries_without_table_return_empty_values() {
                 ),
                 0
             );
-            assert_eq!(count, 37);
+            assert_eq!(count, 0);
+            count = 37;
             assert_eq!(
                 hr_ot_math_get_glyph_kernings(
                     font,
@@ -573,7 +618,7 @@ fn math_queries_without_table_return_empty_values() {
 #[test]
 fn math_count_only_queries_do_not_read_the_count() {
     // Without an array the count is not a capacity, so a caller asking only
-    // for the total may pass one it has not set.
+    // for the total may pass one it has not set. It comes back as zero.
     unsafe {
         let path =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fonts/MathQuery.ttf");
@@ -590,6 +635,8 @@ fn math_count_only_queries_do_not_read_the_count() {
                 ),
                 2
             );
+            assert_eq!(count.assume_init(), 0);
+            let mut count = core::mem::MaybeUninit::<c_uint>::uninit();
             assert_eq!(
                 hr_ot_math_get_glyph_variants(
                     font,
@@ -601,6 +648,8 @@ fn math_count_only_queries_do_not_read_the_count() {
                 ),
                 1
             );
+            assert_eq!(count.assume_init(), 0);
+            let mut count = core::mem::MaybeUninit::<c_uint>::uninit();
             assert_eq!(
                 hr_ot_math_get_glyph_assembly(
                     font,
@@ -613,6 +662,7 @@ fn math_count_only_queries_do_not_read_the_count() {
                 ),
                 1
             );
+            assert_eq!(count.assume_init(), 0);
 
             // The italics correction only returns a value, so it too may
             // be storage that was never set.
@@ -631,8 +681,9 @@ fn math_count_only_queries_do_not_read_the_count() {
             );
             assert_eq!(correction.assume_init(), 70);
 
-            // A glyph with no kern table has its count cleared even without
-            // an array, as in HarfBuzz. That is a write and still not a read.
+            // A glyph with nothing to report has its count cleared just the
+            // same, by all three. That is a write and still not a read.
+            let mut count = core::mem::MaybeUninit::<c_uint>::uninit();
             assert_eq!(
                 hr_ot_math_get_glyph_kernings(
                     font,
@@ -645,35 +696,33 @@ fn math_count_only_queries_do_not_read_the_count() {
                 0
             );
             assert_eq!(count.assume_init(), 0);
-
-            // The other two leave the count alone for a glyph with nothing
-            // to report, as they do for one with something.
-            let mut count = 37;
+            let mut count = core::mem::MaybeUninit::<c_uint>::uninit();
             assert_eq!(
                 hr_ot_math_get_glyph_variants(
                     font,
                     0,
                     HR_DIRECTION_LTR,
                     0,
-                    &raw mut count,
+                    count.as_mut_ptr(),
                     ptr::null_mut()
                 ),
                 0
             );
-            assert_eq!(count, 37);
+            assert_eq!(count.assume_init(), 0);
+            let mut count = core::mem::MaybeUninit::<c_uint>::uninit();
             assert_eq!(
                 hr_ot_math_get_glyph_assembly(
                     font,
                     0,
                     HR_DIRECTION_TTB,
                     0,
-                    &raw mut count,
+                    count.as_mut_ptr(),
                     ptr::null_mut(),
                     ptr::null_mut()
                 ),
                 0
             );
-            assert_eq!(count, 37);
+            assert_eq!(count.assume_init(), 0);
         });
     }
 }
@@ -1523,7 +1572,7 @@ fn outputs_need_not_be_set_before_the_call() {
             );
 
             // A count that is a capacity when it comes with an array, and is
-            // only cleared when the face has no such palette.
+            // only cleared when it comes with none.
             let mut count = MaybeUninit::<c_uint>::uninit();
             let total =
                 hr_ot_color_palette_get_colors(face, 0, 0, count.as_mut_ptr(), ptr::null_mut());
@@ -1575,6 +1624,290 @@ fn outputs_need_not_be_set_before_the_call() {
         assert_eq!(count, 2);
         assert_eq!([values[0].assume_init(), values[1].assume_init()], [3, 7]);
         hr_set_destroy(set);
+    }
+}
+
+/// What a callback does that pages through `items` and trusts the count it
+/// is handed: it reads one wherever it is given one, and, given no array,
+/// reports the total through it.
+unsafe fn trusting_page<T: Copy>(
+    items: &[T],
+    start: c_uint,
+    count: *mut c_uint,
+    array: *mut T,
+) -> c_uint {
+    if !count.is_null() {
+        let capacity = unsafe { count.read() } as usize;
+        let mut written = 0;
+        if array.is_null() {
+            written = items.len();
+        } else {
+            for item in items.iter().skip(start as usize).take(capacity) {
+                unsafe { array.add(written).write(*item) };
+                written += 1;
+            }
+        }
+        unsafe { count.write(written as c_uint) };
+    }
+    items.len() as c_uint
+}
+
+/// Calls a getter with a count and an array, and gives the total it returns,
+/// if it returns one.
+type PagedGetter<'a> = &'a dyn Fn(*mut c_uint, *mut c_void) -> Option<c_uint>;
+
+/// Hands `visit` every count and array pair the API has, each on a font, or
+/// with arguments, that it has something to return for.
+unsafe fn paged_getters(visit: &mut dyn FnMut(&str, PagedGetter)) {
+    unsafe extern "C" fn no_table(
+        _face: *mut hr_face_t,
+        _tag: hr_tag_t,
+        _data: *mut c_void,
+    ) -> *mut hr_blob_t {
+        ptr::null_mut()
+    }
+    unsafe extern "C" fn three_tags(
+        _face: *const hr_face_t,
+        start: c_uint,
+        count: *mut c_uint,
+        tags: *mut hr_tag_t,
+        _data: *mut c_void,
+    ) -> c_uint {
+        unsafe { trusting_page(&[1, 2, 3], start, count, tags) }
+    }
+
+    let fonts = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fonts");
+    unsafe {
+        with_font(|face, _| {
+            visit("hr_face_get_table_tags", &|count, array| {
+                Some(hr_face_get_table_tags(face, 0, count, array.cast()))
+            });
+            visit("hr_ot_name_get_utf16", &|count, array| {
+                Some(hr_ot_name_get_utf16(
+                    face,
+                    HR_OT_NAME_ID_FONT_FAMILY,
+                    ptr::null(),
+                    count,
+                    array.cast(),
+                ))
+            });
+        });
+
+        let listed = hr_face_create_for_tables(Some(no_table), ptr::null_mut(), None);
+        hr_face_set_get_table_tags_func(listed, Some(three_tags), ptr::null_mut(), None);
+        visit(
+            "hr_face_get_table_tags, from a callback",
+            &|count, array| Some(hr_face_get_table_tags(listed, 0, count, array.cast())),
+        );
+        hr_face_destroy(listed);
+
+        with_named_font("PT_Sans-Caption-Web-Regular.ttf", |face, _| {
+            visit("hr_ot_layout_table_get_feature_tags", &|count, array| {
+                Some(hr_ot_layout_table_get_feature_tags(
+                    face,
+                    HR_OT_TAG_GSUB,
+                    0,
+                    count,
+                    array.cast(),
+                ))
+            });
+        });
+
+        with_font_file(&fonts.join("MathQuery.ttf"), |_, font| {
+            visit("hr_ot_math_get_glyph_kernings", &|count, array| {
+                Some(hr_ot_math_get_glyph_kernings(
+                    font,
+                    1,
+                    HR_OT_MATH_KERN_TOP_RIGHT,
+                    0,
+                    count,
+                    array.cast(),
+                ))
+            });
+            visit("hr_ot_math_get_glyph_variants", &|count, array| {
+                Some(hr_ot_math_get_glyph_variants(
+                    font,
+                    1,
+                    HR_DIRECTION_LTR,
+                    0,
+                    count,
+                    array.cast(),
+                ))
+            });
+            visit("hr_ot_math_get_glyph_assembly", &|count, array| {
+                Some(hr_ot_math_get_glyph_assembly(
+                    font,
+                    1,
+                    HR_DIRECTION_TTB,
+                    0,
+                    count,
+                    array.cast(),
+                    ptr::null_mut(),
+                ))
+            });
+        });
+
+        with_font_file(&fonts.join("Rendering.ttf"), |face, _| {
+            visit("hr_ot_color_palette_get_colors", &|count, array| {
+                Some(hr_ot_color_palette_get_colors(
+                    face,
+                    0,
+                    0,
+                    count,
+                    array.cast(),
+                ))
+            });
+        });
+
+        with_named_font(VARIABLE_FONT, |face, _| {
+            visit("hr_ot_var_get_axis_infos", &|count, array| {
+                Some(hr_ot_var_get_axis_infos(face, 0, count, array.cast()))
+            });
+        });
+
+        // A font with one `feat` feature, type 17, of two selectors.
+        let feat = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../harfrust/tests/fonts/in-house/6dbce44ea8013a8465034cd874b2f186d7b71792.ttf");
+        with_font_file(&feat, |face, _| {
+            visit("hr_aat_layout_get_feature_types", &|count, array| {
+                Some(hr_aat_layout_get_feature_types(
+                    face,
+                    0,
+                    count,
+                    array.cast(),
+                ))
+            });
+            visit(
+                "hr_aat_layout_feature_type_get_selector_infos",
+                &|count, array| {
+                    Some(hr_aat_layout_feature_type_get_selector_infos(
+                        face,
+                        17,
+                        0,
+                        count,
+                        array.cast(),
+                        ptr::null_mut(),
+                    ))
+                },
+            );
+        });
+
+        // Each pair on its own, the other left out. This one returns nothing.
+        let chinese = hr_language_from_string(c"zh-Hant".as_ptr(), -1);
+        visit(
+            "hr_ot_tags_from_script_and_language, scripts",
+            &|count, array| {
+                hr_ot_tags_from_script_and_language(
+                    HR_SCRIPT_DEVANAGARI,
+                    chinese,
+                    count,
+                    array.cast(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+                None
+            },
+        );
+        visit(
+            "hr_ot_tags_from_script_and_language, languages",
+            &|count, array| {
+                hr_ot_tags_from_script_and_language(
+                    HR_SCRIPT_DEVANAGARI,
+                    chinese,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    count,
+                    array.cast(),
+                );
+                None
+            },
+        );
+
+        #[cfg(feature = "paint")]
+        {
+            unsafe extern "C" fn three_stops(
+                _line: *mut hr_color_line_t,
+                _data: *mut c_void,
+                start: c_uint,
+                count: *mut c_uint,
+                stops: *mut hr_color_stop_t,
+                _user_data: *mut c_void,
+            ) -> c_uint {
+                let stop = hr_color_stop_t {
+                    offset: 0.5,
+                    is_foreground: 1,
+                    color: 0x1234_5678,
+                };
+                unsafe { trusting_page(&[stop; 3], start, count, stops) }
+            }
+            // The stops of a font's own color lines are asked for from
+            // inside a paint callback, in the rendering tests.
+            let mut line = core::mem::zeroed::<hr_color_line_t>();
+            line.get_color_stops = Some(three_stops);
+            let line = &raw mut line;
+            visit("hr_color_line_get_color_stops", &|count, array| {
+                Some(hr_color_line_get_color_stops(line, 0, count, array.cast()))
+            });
+        }
+    }
+}
+
+/// A count that comes with no array is not a capacity. It is not read, so it
+/// need not have been set, and it comes back as zero: nothing was written.
+/// What is returned is what a call that passes neither returns.
+#[test]
+fn a_count_without_an_array_comes_back_zero() {
+    unsafe {
+        paged_getters(&mut |name, call| {
+            let total = call(ptr::null_mut(), ptr::null_mut());
+            assert_ne!(total, Some(0), "{name} has nothing to return");
+
+            let mut count: c_uint = 37;
+            assert_eq!(call(&raw mut count, ptr::null_mut()), total, "{name}");
+            assert_eq!(count, 0, "{name}");
+
+            // Miri would refuse a read of this count, and to read it back
+            // had the call not written it.
+            let mut unset = core::mem::MaybeUninit::<c_uint>::uninit();
+            assert_eq!(call(unset.as_mut_ptr(), ptr::null_mut()), total, "{name}");
+            assert_eq!(unset.assume_init(), 0, "{name}");
+
+            // An array that comes with no count has no capacity, and is not
+            // written.
+            let mut array = [0x5a5a_5a5au32; 64];
+            assert_eq!(
+                call(ptr::null_mut(), array.as_mut_ptr().cast()),
+                total,
+                "{name}"
+            );
+            assert_eq!(array, [0x5a5a_5a5a; 64], "{name}");
+        });
+    }
+}
+
+/// The count is read once, before anything is written, and written last,
+/// through the pointer both times. So the library is not caught out by a
+/// count that lies in the array it describes, which Miri checks here.
+#[test]
+fn a_count_may_lie_inside_its_own_array() {
+    unsafe {
+        paged_getters(&mut |name, call| {
+            // What the getter makes of room for four, the two kept apart.
+            let mut apart = [0u32; 64];
+            let mut written: c_uint = 4;
+            let total = call(&raw mut written, apart.as_mut_ptr().cast());
+            assert_ne!(written, 0, "{name} has nothing to return");
+
+            // The same with the count in the array's first word, where the
+            // first item written lands on it.
+            let mut words = [0u32; 64];
+            let array = words.as_mut_ptr();
+            let count = array;
+            count.write(4);
+            assert_eq!(call(count, array.cast()), total, "{name}");
+            assert_eq!(count.read(), written, "{name}");
+            assert_eq!(words[1..], apart[1..], "{name}");
+        });
     }
 }
 

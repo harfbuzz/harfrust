@@ -1,6 +1,6 @@
 //! OpenType localized-name retrieval.
 use crate::blob::hr_blob_destroy;
-use crate::common::{hr_language_t, language_ref, write_out};
+use crate::common::{hr_language_t, language_ref, Page};
 use crate::face::{hr_face_reference_table, hr_face_t};
 use crate::object;
 use core::ffi::c_uint;
@@ -126,12 +126,14 @@ fn select_name<'a>(
 /// over a matching parent language. With nonzero input capacity, copies a
 /// complete-codepoint prefix, reserves one unit for a terminating zero, and
 /// sets `text_size` to the units written, excluding that zero. With zero
-/// capacity or a null count, only returns the required length.
+/// capacity or a null count, only returns the required length. A null text
+/// array copies no units and sets `text_size` to zero without reading it;
+/// the README has the rule for a count and its array.
 ///
 /// # Safety
 /// `face` must be null or live; `language` must be null or interned;
 /// `text_size` must be null or writable; `text` must hold the input capacity
-/// when non-null. A null text array does not copy any units.
+/// when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_name_get_utf16(
     face: *mut hr_face_t,
@@ -170,34 +172,23 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
             unsafe { hr_blob_destroy(blob) };
             selected
         });
-    let capacity = if text.is_null() {
-        0
-    } else {
-        // SAFETY: `as_ref` needs `text_size` null, or aligned, readable,
-        // holding a value, and written by nothing while the reference is
-        // used. This function's contract has it null or writable. `text` is
-        // non-null in this branch, so the count carries the capacity in,
-        // which the README has the caller set before the call. The
-        // reference is gone once the value is copied, before anything is
-        // written.
-        unsafe { text_size.as_ref() }.copied().unwrap_or(0)
-    };
-    let (mut total, mut written, mut full) = (0, 0, false);
+    // SAFETY: `Page::terminated` needs the count null or writable, and, with
+    // neither pointer null, set to a number of units the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `text_size` null or writable and a non-null
+    // `text` hold the capacity it gives on entry, which the README has the
+    // caller set before the call.
+    let mut page = unsafe { Page::terminated(text_size, text, 0) };
+    let (mut total, mut full) = (0, false);
     let mut output = |ch: char| {
         let mut units = [0; 2];
         let units = ch.encode_utf16(&mut units);
         total += units.len() as c_uint;
-        if !full && written + units.len() < capacity as usize {
+        // A character is written whole or not at all, and none is once one
+        // has not fit.
+        if !full && units.len() <= page.room() {
             for unit in units {
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the unit aligned and writable. This branch
-                // is taken only when `written` and the units to come stay
-                // below `capacity`, which is nonzero only when `text` is
-                // non-null and, by this function's contract, holds that
-                // many units. Each only returns a value: it is written and
-                // not read.
-                unsafe { text.add(written).write(*unit) };
-                written += 1;
+                page.push(*unit);
             }
         } else {
             full = true;
@@ -223,14 +214,7 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
             }
         }
     }
-    if capacity != 0 {
-        // SAFETY: as for the units above. `capacity` is nonzero, so `text`
-        // is non-null and holds that many units, and `written` is below it:
-        // it starts at zero and a character is written only when that
-        // leaves it below `capacity`.
-        unsafe { text.add(written).write(0) };
-    }
-    // SAFETY: `text_size` is `NULL` or writable by this function's contract.
-    unsafe { write_out(text_size, written as c_uint) };
+    // Dropping the page writes the terminating zero, where there is room for
+    // one, and the number of units before it.
     total
 }

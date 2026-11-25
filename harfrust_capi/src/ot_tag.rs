@@ -2,11 +2,11 @@
 
 use core::ffi::c_uint;
 
-use harfrust::{Language, Script, Tag};
+use harfrust::{Language, Script};
 
 use crate::common::{
     hr_language_t, hr_script_t, hr_tag_t, language_from_owned, language_ref, script_to_rust,
-    tag_from_rust, tag_to_rust,
+    tag_from_rust, tag_to_rust, Page,
 };
 use crate::common::{
     HR_SCRIPT_BENGALI, HR_SCRIPT_DEVANAGARI, HR_SCRIPT_GUJARATI, HR_SCRIPT_GURMUKHI,
@@ -22,10 +22,15 @@ pub extern "C" fn hr_ot_tag_to_language(tag: hr_tag_t) -> hr_language_t {
 
 /// Converts a script and language to their preferred OpenType tags.
 ///
+/// Each array comes with a count of its own, which gives its capacity on
+/// entry and the number of tags written on return. A count whose array is
+/// NULL is set to zero without being read; the README has the rule for a
+/// count and its array.
+///
 /// # Safety
 /// `language` must be NULL or an interned language returned by this API.
-/// Each non-NULL output array must have the capacity in its associated count.
-/// That count must be NULL, or writable and outside both arrays.
+/// Each count must be NULL or writable, and each non-NULL output array must
+/// have the capacity in its associated count.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_tags_from_script_and_language(
     script: hr_script_t,
@@ -38,58 +43,21 @@ pub unsafe extern "C" fn hr_ot_tags_from_script_and_language(
     // SAFETY: `language` is `NULL` or interned by this function's contract.
     let language = unsafe { language_ref(language) };
     let (scripts, languages) = Script::tags_for_language(script_to_rust(script), language);
-    // SAFETY: `write_tags` asks nothing of a pair whose array is `NULL`. A
-    // non-null `script_tags` has the capacity in `script_count` by this
-    // function's contract, which also has that count `NULL`, or writable
-    // and outside the array.
-    unsafe { write_tags(scripts.as_slice(), script_count, script_tags) };
-    // SAFETY: as above, for `language_tags` and `language_count`. The call
-    // above put no more in that count than the caller did: it wrote only
-    // the script array, which the contract keeps the count outside of, and
-    // `script_count`, which it does not raise, should the two be one.
-    unsafe { write_tags(languages.as_slice(), language_count, language_tags) };
-}
-
-/// Matches HarfBuzz's in/out count behavior: a missing or zero-capacity
-/// output leaves the count untouched.
-///
-/// # Safety
-///
-/// If `output` is null, neither pointer is used. Otherwise `count` must be
-/// null, or point to a `c_uint` that is initialized, writable and outside the
-/// output array, and `output` must be writable for that many tags.
-///
-/// Nothing is written but the count, which is not raised, and no more tags
-/// of `output` than the count said on entry.
-unsafe fn write_tags(tags: &[Tag], count: *mut c_uint, output: *mut hr_tag_t) {
-    // The array is looked at first. A count that comes without one is left
-    // alone and need not have been set, so no reference is made to it.
-    if output.is_null() {
-        return;
-    }
-    // SAFETY: `as_mut` needs `count` null, or aligned, writable, holding a
-    // value, and accessed by nothing else while the reference is used.
-    // `output` is not null, as checked above, so this function's contract
-    // has `count` null or pointing to a `c_uint` that is initialized and
-    // writable. The only other writes before the reference's last use go to
-    // the output array, which the contract has the count outside of.
-    let Some(count) = (unsafe { count.as_mut() }) else {
-        return;
-    };
-    if *count == 0 {
-        return;
-    }
-    let written = (*count as usize).min(tags.len());
-    for (index, tag) in tags[..written].iter().copied().enumerate() {
-        // SAFETY: `add` must stay inside the caller's array, and the
-        // assignment needs the slot aligned and writable. `index` is below
-        // `written`, which is no more than the count, and this function's
-        // contract has `output` writable for that many tags. The slot only
-        // returns a value: it is assigned through the pointer, with no
-        // reference made and nothing read.
-        unsafe { *output.add(index) = tag_from_rust(tag) };
-    }
-    *count = written as c_uint;
+    // Both pages are made before either is filled, so that each count is
+    // read as the caller set it, even one that lies where the other pair is
+    // written.
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of tags the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `script_count` `NULL` or writable, and a
+    // non-null `script_tags` have the capacity that is in it.
+    let script_page = unsafe { Page::new(script_count, script_tags) };
+    // SAFETY: as above, with `language_count` and `language_tags`. Nothing
+    // has been written since this function was called, so the count still
+    // holds what the caller put in it.
+    let language_page = unsafe { Page::new(language_count, language_tags) };
+    script_page.fill(scripts.as_slice().iter().copied().map(tag_from_rust));
+    language_page.fill(languages.as_slice().iter().copied().map(tag_from_rust));
 }
 
 /// The script an OpenType script tag stands for, as `hb_ot_tag_to_script`

@@ -2,6 +2,7 @@
 // The C drawing/painting ABI uses f32 coordinates, including integer font scales.
 #![allow(clippy::cast_precision_loss)]
 use crate::color::hr_color_t;
+use crate::common::Page;
 use crate::draw::hr_draw_funcs_t;
 use crate::font_funcs::{set_callback, Callback};
 use crate::object::{self, Empty, Object, ObjectHeader};
@@ -1501,9 +1502,15 @@ pub struct hr_color_line_t {
 /// Returns the total number of stops and copies a paginated slice if requested.
 ///
 /// When both output pointers are non-null, `count` gives capacity on entry
-/// and the number written on return. A null array leaves the count unchanged
-/// and unread, whichever callback the line carries. A null color line, or one
-/// with no callback, has no stops.
+/// and the number written on return. A null array sets the count to zero
+/// without reading it, whichever callback the line carries; the README has
+/// the rule for a count and its array. A null color line, or one with no
+/// callback, has no stops.
+///
+/// The line's `get_color_stops` is called with a count and an array, or with
+/// `NULL` for both: a count passed here without an array is kept from it.
+/// The count is one of the library's own, and the callback is not believed
+/// to have written more stops than the capacity it gave.
 ///
 /// # Safety
 ///
@@ -1520,47 +1527,43 @@ pub unsafe extern "C" fn hr_color_line_get_color_stops(
     count: *mut c_uint,
     stops: *mut hr_color_stop_t,
 ) -> c_uint {
-    // Without an array the count is not a capacity. It is kept from the
-    // callback, which may be the caller's own, so that nothing reads or
-    // writes it.
-    let count = if stops.is_null() {
-        core::ptr::null_mut()
-    } else {
-        count
-    };
-    let nothing = || {
-        if !count.is_null() {
-            // SAFETY: `count` is non-null, and writable by this function's
-            // contract.
-            unsafe { count.write(0) };
-        }
-        0
-    };
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of stops the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `count` `NULL` or writable, and with a
+    // non-null `stops` holding the number of stops that is writable for.
+    let page = unsafe { Page::new(count, stops) };
+    // A line that is not there, or that has no callback, has no stops. The
+    // page is then dropped with nothing written, which is what the count
+    // says.
     // SAFETY: `as_ref` needs `line` to be null, or aligned and pointing to a
     // live `hr_color_line_t` that nothing writes while `l` is read. By this
     // function's contract `line` is `NULL` or points to a color line that
     // nothing modifies during the call.
     let Some(l) = (unsafe { line.as_ref() }) else {
-        return nothing();
+        return 0;
     };
     let Some(call) = l.get_color_stops else {
-        return nothing();
+        return 0;
     };
-    // SAFETY: `call` is the line's `get_color_stops`, which this function's
-    // contract has safe to call with the line, its `data`, its user data,
-    // and a count and array as that contract describes them. `stops` is the
-    // caller's, and `count` is the caller's or, without an array, `NULL`,
-    // which the contract allows a count to be.
-    unsafe {
-        call(
-            line,
-            l.data,
-            start,
-            count,
-            stops,
-            l.get_color_stops_user_data,
-        )
-    }
+    page.fill_from(|count, stops| {
+        // SAFETY: `call` is the line's `get_color_stops`, which this
+        // function's contract has safe to call with the line, its `data`,
+        // its user data, and a count and an array that are as it requires
+        // its own to be. By the invariant `fill_from` documents, the two
+        // are both null, or the count is writable and holds a number of
+        // stops the array is writable for.
+        unsafe {
+            call(
+                line,
+                l.data,
+                start,
+                count,
+                stops,
+                l.get_color_stops_user_data,
+            )
+        }
+    })
 }
 /// Returns the extend mode, or PAD when absent.
 ///

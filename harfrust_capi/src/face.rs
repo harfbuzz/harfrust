@@ -13,7 +13,7 @@ use read_fonts::{
 };
 
 use crate::blob::hr_blob_t;
-use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust, write_out};
+use crate::common::{hr_bool_t, hr_tag_t, tag_from_rust, tag_to_rust, Page};
 use crate::object::{self, hr_destroy_func_t, hr_user_data_key_t, Empty, Object, ObjectHeader};
 use crate::plan::PlanCache;
 use crate::set::hr_set_t;
@@ -34,6 +34,11 @@ pub type hr_reference_table_func_t = Option<
 ///
 /// `table_count` gives the output capacity on entry and the number written
 /// on return. A null output array asks only for the total.
+///
+/// [`hr_face_get_table_tags`] calls this with a count and an array, or with
+/// `NULL` for both: a count its own caller passed without an array is kept
+/// from the callback. The count is one of the library's own, and the
+/// callback is not believed to have written more than the capacity it gave.
 pub type hr_get_table_tags_func_t = Option<
     unsafe extern "C" fn(
         face: *const hr_face_t,
@@ -686,14 +691,17 @@ pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
 
 /// Lists the table tags of a face, beginning at `start_offset`.
 ///
-/// Returns the total number of tags. A null output array asks only for the
-/// total, without changing `table_count`. Callback-created faces require a
-/// callback installed with [`hr_face_set_get_table_tags_func`].
+/// Returns the total number of tags. `table_count` gives the capacity of
+/// `table_tags` on entry and the number written on return. A null output
+/// array asks only for the total, and sets a count passed with it to zero
+/// without reading it; the README has the rule for a count and its array.
+/// Callback-created faces require a callback installed with
+/// [`hr_face_set_get_table_tags_func`].
 ///
 /// # Safety
-/// `face` must be `NULL` or live. Non-null outputs must be writable for their
-/// advertised capacity, which `table_count` must hold on entry, and must not
-/// overlap.
+/// `face` must be `NULL` or live. `table_count` must be `NULL` or writable,
+/// and a non-null `table_tags` must be writable for the capacity that
+/// `table_count` holds on entry.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_table_tags(
     face: *const hr_face_t,
@@ -701,55 +709,41 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
     table_count: *mut c_uint,
     table_tags: *mut hr_tag_t,
 ) -> c_uint {
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of tags the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `table_count` `NULL` or writable, and a
+    // non-null `table_tags` writable for the capacity it holds on entry.
+    let page = unsafe { Page::new(table_count, table_tags) };
     // SAFETY: `face` is `NULL` or live by this function's contract, and the
     // reference is not used past this call.
     let state = unsafe { object::or_empty(face) };
     if let Some(callback) = &state.table_tags {
         if let Some(func) = callback.func {
-            // SAFETY: by the invariant on `TableTagsFunc::func`, it may be
-            // called on this thread with `user_data`, a live face, and a
-            // count and an array as this function takes them. `face` is not
-            // `NULL`, since the empty face has no callback, so it is live by
-            // this function's contract, and the count and the array are the
-            // ones this function was given, as its contract has them.
-            return unsafe {
-                func(
-                    face,
-                    start_offset,
-                    table_count,
-                    table_tags,
-                    callback.user_data,
-                )
-            };
+            return page.fill_from(|count, tags| {
+                // SAFETY: by the invariant on `TableTagsFunc::func`, it may
+                // be called on this thread with `user_data`, a live face,
+                // and a count and an array as this function takes them.
+                // `face` is not `NULL`, since the empty face has no
+                // callback, so it is live by this function's contract. By
+                // the invariant `fill_from` documents, the count and the
+                // array are both null, or the count is writable and holds a
+                // number of tags the array is writable for, which is how
+                // this function's contract has its own.
+                unsafe { func(face, start_offset, count, tags, callback.user_data) }
+            });
         }
     } else if let Some((_, directory)) = state.source.blob_directory() {
         let tags = &directory.tags;
-        if !table_tags.is_null() {
-            // SAFETY: `as_mut` needs `table_count` to be null, or aligned
-            // and pointing to an initialized count that nothing else reads
-            // or writes while `count` is used, which is within this block.
-            // This function's contract has it `NULL` or writable and
-            // holding the capacity on entry, and clear of `table_tags`, the
-            // only other thing written here.
-            if let Some(count) = unsafe { table_count.as_mut() } {
-                let start = (start_offset as usize).min(tags.len());
-                let len = (*count as usize).min(tags.len() - start);
-                for (i, &tag) in tags[start..start + len].iter().enumerate() {
-                    // SAFETY: `add` needs entry `i` to be inside the array
-                    // `table_tags` points to, and `write` needs it writable
-                    // and aligned. `table_tags` is not null, as checked
-                    // above, and this function's contract has it writable
-                    // for the capacity `table_count` gave, which `len` does
-                    // not exceed and `i` is below.
-                    unsafe { table_tags.add(i).write(tag_from_rust(tag)) };
-                }
-                *count = len as c_uint;
-            }
-        }
+        page.fill(
+            tags.iter()
+                .skip(start_offset as usize)
+                .map(|&tag| tag_from_rust(tag)),
+        );
         return tags.len() as c_uint;
     }
-    // SAFETY: `table_count` is `NULL` or writable by this function's contract.
-    unsafe { write_out(table_count, 0) };
+    // There are no tags to list. The page is dropped with nothing written,
+    // which is what the count then says.
     0
 }
 

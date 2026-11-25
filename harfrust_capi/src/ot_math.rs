@@ -7,7 +7,7 @@ use read_fonts::types::GlyphId;
 use read_fonts::TableProvider;
 
 use crate::common::{
-    hr_bool_t, hr_codepoint_t, hr_direction_t, hr_position_t, hr_tag_t, HR_DIRECTION_BTT,
+    hr_bool_t, hr_codepoint_t, hr_direction_t, hr_position_t, hr_tag_t, Page, HR_DIRECTION_BTT,
     HR_DIRECTION_TTB,
 };
 use crate::face::hr_face_t;
@@ -305,34 +305,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
     })
 }
 
-/// The room in a caller's output array: the count it passed alongside, or
-/// none when it passed no array.
-///
-/// Without an array the count is not a capacity. The caller is asking how
-/// many entries there are and need not have set it, so it is not read, as in
-/// HarfBuzz.
-///
-/// # Safety
-///
-/// `count` must be null or point to a `c_uint`. If `array` is non-null, that
-/// `c_uint` must be initialized.
-unsafe fn capacity<T>(count: *const c_uint, array: *const T) -> usize {
-    if array.is_null() {
-        return 0;
-    }
-    // SAFETY: `as_ref` needs `count` null, or aligned and pointing to an
-    // initialized `c_uint` nothing writes during this call. The caller
-    // gives the first, and with `array` non-null, as checked above, the
-    // second.
-    unsafe { count.as_ref() }.copied().unwrap_or(0) as usize
-}
-
 /// Returns paginated raw MATH kern entries and their total count.
 ///
 /// When both output pointers are non-null, `entries_count` gives capacity on
-/// entry and the number written on return. A null array leaves the count
-/// unchanged and unread, unless the glyph has no such kern table, which
-/// clears it.
+/// entry and the number written on return. A null array sets the count to
+/// zero without reading it; the README has the rule for a count and its
+/// array.
 /// # Safety
 /// `font` must be null or live; `entries_count` must be null or writable;
 /// `kern_entries` must hold its input capacity when non-null.
@@ -345,11 +323,13 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
     entries_count: *mut c_uint,
     kern_entries: *mut hr_ot_math_kern_entry_t,
 ) -> c_uint {
-    // SAFETY: `entries_count` is null or writable by this function's
-    // contract, so it is null or points to a `c_uint`. With `kern_entries`
-    // non-null it carries the capacity in, which the README has the caller
-    // set before the call.
-    let capacity = unsafe { capacity(entries_count, kern_entries) };
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of entries the array is
+    // writable for, until the page is dropped, which is before this
+    // returns. This function's contract has `entries_count` null or
+    // writable and a non-null `kern_entries` hold the capacity it gives on
+    // entry, which the README has the caller set before the call.
+    let page = unsafe { Page::new(entries_count, kern_entries) };
     // SAFETY: `font` is null or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let table = corner(kern).and_then(|corner| {
@@ -358,59 +338,39 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
             .and_then(|info| info.math_kern_info()?.ok())
             .and_then(|info| info.kern(GlyphId::new(glyph), corner))
     });
-    let found = table.is_some();
-    let mut written = 0;
-    let mut total = 0;
-    if let Some(table) = table {
-        total = table.kern_values().len() as c_uint;
-        if !kern_entries.is_null() {
-            // Read only the entries written: each height at the y size and
-            // each kern at the x size, skipping the records before the page
-            // rather than reading them.
-            let data = table.offset_data();
-            let heights = table.correction_height();
-            let (x_ppem, y_ppem) = (ppem(state, true), ppem(state, false));
-            for (i, kern) in table
-                .kern_values()
-                .iter()
-                .enumerate()
-                .skip(start_offset as usize)
-                .take(capacity)
-            {
-                let value = hr_ot_math_kern_entry_t {
-                    max_correction_height: heights.get(i).map_or(i32::MAX, |height| {
-                        position(state, height.value_for_ppem(data, y_ppem), false)
-                    }),
-                    kern_value: position(state, kern.value_for_ppem(data, x_ppem), true),
-                };
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the slot aligned and writable. `kern_entries`
-                // is non-null in this branch, so by this function's contract
-                // it holds `capacity` entries, and `take` ends the loop
-                // before `written` reaches that. The slot only returns a
-                // value: it is written and not read.
-                unsafe { kern_entries.add(written).write(value) };
-                written += 1;
-            }
-        }
-    }
-    // HarfBuzz clears the count for a glyph with no such kern table whether
-    // or not there is an array, which it does for neither of the other two
-    // getters.
-    if (!kern_entries.is_null() || !found) && !entries_count.is_null() {
-        // SAFETY: `entries_count` is non-null and, by this function's
-        // contract, writable. It is written through the pointer and not a
-        // reference, because without an array it may never have been set.
-        unsafe { entries_count.write(written as c_uint) };
-    }
-    total
+    let Some(table) = table else {
+        // The glyph has no such kern table. The page is dropped with
+        // nothing written, which is what the count then says.
+        return 0;
+    };
+    // Read only the entries written: each height at the y size and each
+    // kern at the x size, skipping the records before the page rather than
+    // reading them.
+    let data = table.offset_data();
+    let heights = table.correction_height();
+    let (x_ppem, y_ppem) = (ppem(state, true), ppem(state, false));
+    page.fill(
+        table
+            .kern_values()
+            .iter()
+            .enumerate()
+            .skip(start_offset as usize)
+            .map(|(i, kern)| hr_ot_math_kern_entry_t {
+                max_correction_height: heights.get(i).map_or(i32::MAX, |height| {
+                    position(state, height.value_for_ppem(data, y_ppem), false)
+                }),
+                kern_value: position(state, kern.value_for_ppem(data, x_ppem), true),
+            }),
+    );
+    table.kern_values().len() as c_uint
 }
 
 /// Returns paginated MATH size variants and their total count.
 ///
 /// When both output pointers are non-null, `variants_count` gives capacity on
-/// entry and the number written on return. A null array leaves the count
-/// unchanged and unread.
+/// entry and the number written on return. A null array sets the count to
+/// zero without reading it; the README has the rule for a count and its
+/// array.
 /// # Safety
 /// `font` must be null or live; `variants_count` must be null or writable;
 /// `variants` must hold its input capacity when non-null.
@@ -423,49 +383,35 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
     variants_count: *mut c_uint,
     variants: *mut hr_ot_math_glyph_variant_t,
 ) -> c_uint {
-    // SAFETY: `variants_count` is null or writable by this function's
-    // contract, so it is null or points to a `c_uint`. With `variants`
-    // non-null it carries the capacity in, which the README has the caller
-    // set before the call.
-    let capacity = unsafe { capacity(variants_count, variants) };
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of variants the array is
+    // writable for, until the page is dropped, which is before this
+    // returns. This function's contract has `variants_count` null or
+    // writable and a non-null `variants` hold the capacity it gives on
+    // entry, which the README has the caller set before the call.
+    let page = unsafe { Page::new(variants_count, variants) };
     // SAFETY: `font` is null or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let construction = font_math(state)
         .and_then(|math| math.math_variants().ok())
         .and_then(|table| table.glyph_construction(GlyphId::new(glyph), axis(direction)));
-    let mut written = 0;
-    let mut total = 0;
-    if let Some(construction) = construction {
-        let records = construction.math_glyph_variant_records();
-        total = records.len() as c_uint;
-        if !variants.is_null() {
-            for record in records.iter().skip(start_offset as usize).take(capacity) {
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the slot aligned and writable. `variants` is
-                // non-null in this branch, so by this function's contract it
-                // holds `capacity` variants, and `take` ends the loop before
-                // `written` reaches that. The slot only returns a value: it
-                // is written and not read.
-                unsafe {
-                    variants.add(written).write(hr_ot_math_glyph_variant_t {
-                        glyph: record.variant_glyph().to_u32(),
-                        advance: scale(
-                            state,
-                            record.advance_measurement().to_u16() as i32,
-                            horizontal(direction),
-                        ),
-                    });
-                };
-                written += 1;
-            }
+    let Some(construction) = construction else {
+        // The glyph has no variants this way. The page is dropped with
+        // nothing written, which is what the count then says.
+        return 0;
+    };
+    let records = construction.math_glyph_variant_records();
+    page.fill(records.iter().skip(start_offset as usize).map(|record| {
+        hr_ot_math_glyph_variant_t {
+            glyph: record.variant_glyph().to_u32(),
+            advance: scale(
+                state,
+                record.advance_measurement().to_u16() as i32,
+                horizontal(direction),
+            ),
         }
-    }
-    if !variants.is_null() && !variants_count.is_null() {
-        // SAFETY: `variants_count` is non-null and, by this function's
-        // contract, writable.
-        unsafe { variants_count.write(written as c_uint) };
-    }
-    total
+    }));
+    records.len() as c_uint
 }
 
 /// Returns the minimum overlap needed between MATH assembly parts.
@@ -492,8 +438,9 @@ pub unsafe extern "C" fn hr_ot_math_get_min_connector_overlap(
 /// Returns paginated MATH assembly parts and their total count.
 ///
 /// When both output pointers are non-null, `parts_count` gives capacity on
-/// entry and the number written on return. A null array leaves the count
-/// unchanged and unread.
+/// entry and the number written on return. A null array sets the count to
+/// zero without reading it; the README has the rule for a count and its
+/// array.
 /// # Safety
 /// `font` must be null or live; `parts_count` and `italics_correction` must be
 /// null or writable; `parts` must hold the input capacity when non-null.
@@ -507,18 +454,21 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
     parts: *mut hr_ot_math_glyph_part_t,
     italics_correction: *mut hr_position_t,
 ) -> c_uint {
-    // SAFETY: `parts_count` is null or writable by this function's
-    // contract, so it is null or points to a `c_uint`. With `parts`
-    // non-null it carries the capacity in, which the README has the caller
-    // set before the call.
-    let capacity = unsafe { capacity(parts_count, parts) };
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of parts the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `parts_count` null or writable and a non-null
+    // `parts` hold the capacity it gives on entry, which the README has the
+    // caller set before the call.
+    let page = unsafe { Page::new(parts_count, parts) };
     // SAFETY: `font` is null or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let assembly = font_math(state)
         .and_then(|math| math.math_variants().ok())
         .and_then(|table| table.glyph_construction(GlyphId::new(glyph), axis(direction)))
         .and_then(|construction| construction.glyph_assembly()?.ok());
-    let mut written = 0;
+    // A glyph with no assembly leaves the page to be dropped with nothing
+    // written, which is what the count then says.
     let mut total = 0;
     let mut correction = 0;
     if let Some(assembly) = assembly {
@@ -530,39 +480,23 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
         );
         let records = assembly.part_records();
         total = records.len() as c_uint;
-        if !parts.is_null() {
-            for record in records.iter().skip(start_offset as usize).take(capacity) {
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the slot aligned and writable. `parts` is
-                // non-null in this branch, so by this function's contract it
-                // holds `capacity` parts, and `take` ends the loop before
-                // `written` reaches that. The slot only returns a value: it
-                // is written and not read.
-                unsafe {
-                    parts.add(written).write(hr_ot_math_glyph_part_t {
-                        glyph: record.glyph_id().to_u32(),
-                        start_connector_length: scale(
-                            state,
-                            record.start_connector_length().to_u16() as i32,
-                            x_axis,
-                        ),
-                        end_connector_length: scale(
-                            state,
-                            record.end_connector_length().to_u16() as i32,
-                            x_axis,
-                        ),
-                        full_advance: scale(state, record.full_advance().to_u16() as i32, x_axis),
-                        flags: c_uint::from(record.part_flags().bits()),
-                    });
-                };
-                written += 1;
+        page.fill(records.iter().skip(start_offset as usize).map(|record| {
+            hr_ot_math_glyph_part_t {
+                glyph: record.glyph_id().to_u32(),
+                start_connector_length: scale(
+                    state,
+                    record.start_connector_length().to_u16() as i32,
+                    x_axis,
+                ),
+                end_connector_length: scale(
+                    state,
+                    record.end_connector_length().to_u16() as i32,
+                    x_axis,
+                ),
+                full_advance: scale(state, record.full_advance().to_u16() as i32, x_axis),
+                flags: c_uint::from(record.part_flags().bits()),
             }
-        }
-    }
-    if !parts.is_null() && !parts_count.is_null() {
-        // SAFETY: `parts_count` is non-null and, by this function's
-        // contract, writable.
-        unsafe { parts_count.write(written as c_uint) };
+        }));
     }
     if !italics_correction.is_null() {
         // SAFETY: `italics_correction` is non-null and, by this function's
