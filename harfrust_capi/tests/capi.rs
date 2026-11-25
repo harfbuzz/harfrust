@@ -6032,27 +6032,24 @@ fn glyphs_go_by_name_and_come_back_from_one() {
 }
 
 #[test]
-fn a_variation_selector_the_font_lacks_falls_back_to_the_plain_glyph() {
+fn glyph_lookup_respects_the_variation_selector() {
     unsafe {
-        with_font(|_, font| {
-            let mut plain = 0;
-            assert_ne!(
-                hr_font_get_nominal_glyph(font, 'a' as u32, ptr::addr_of_mut!(plain)),
-                0
-            );
-            let mut combined = 0;
-            assert_ne!(
-                hr_font_get_glyph(font, 'a' as u32, 0xFE00, ptr::addr_of_mut!(combined)),
-                0
-            );
-            assert_eq!(combined, plain);
-            // And with no selector at all it is the plain mapping.
-            let mut none = 0;
-            assert_ne!(
-                hr_font_get_glyph(font, 'a' as u32, 0, ptr::addr_of_mut!(none)),
-                0
-            );
-            assert_eq!(none, plain);
+        with_named_font("NotoSansCJK.subset1.otf", |_, font| {
+            // Mappings for U+FF0C FULLWIDTH COMMA in this font.
+            for (selector, found, expected_glyph) in [
+                (0, 1, 6),      // Nominal glyph
+                (0xFE00, 1, 6), // Default variation
+                (0xFE01, 1, 7), // Non-default variation
+                (0xFE02, 0, 0), // Unsupported sequence
+            ] {
+                let mut glyph = u32::MAX;
+                assert_eq!(
+                    hr_font_get_glyph(font, 0xFF0C, selector, &raw mut glyph),
+                    found,
+                    "selector {selector:#x}"
+                );
+                assert_eq!(glyph, expected_glyph, "selector {selector:#x}");
+            }
         });
     }
 }

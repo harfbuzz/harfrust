@@ -4099,9 +4099,9 @@ hr_bool_t hr_font_get_variation_glyph(struct hr_font_t *font,
  * Maps a Unicode scalar value to a glyph, with or without a variation
  * selector, returning false if the font has none.
  *
- * A variation selector of zero asks for the plain mapping. A selector the
- * font has no glyph for falls back to the plain mapping, which is what
- * HarfBuzz does.
+ * A zero selector calls [`hr_font_get_nominal_glyph`]. A nonzero selector
+ * calls [`hr_font_get_variation_glyph`], which returns false and writes
+ * glyph zero for an unsupported sequence.
  *
  * # Safety
  *
