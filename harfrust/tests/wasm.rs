@@ -768,7 +768,7 @@ fn wasm_shaper_is_not_called_for_an_empty_buffer() {
     let wasm = wat::parse_str(LOOP_GUEST).unwrap();
     let data = add_table(ROBOTO, *b"Wasm", &wasm);
     let buffer = shape_text(data, "", &[]);
-    assert!(glyph_ids(&buffer).is_empty());
+    assert_eq!(glyph_ids(&buffer), Vec::<u32>::new());
 }
 
 // ---------------------------------------------------------------------------
