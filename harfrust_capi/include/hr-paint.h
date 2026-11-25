@@ -51,6 +51,8 @@ typedef void (*hr_paint_pop_transform_func_t)(struct hr_paint_funcs_t *funcs,
  * cycles and limit how deeply it nests. Without that, a font can make it
  * recurse until the stack overflows. HarfBuzz leaves this to the callback in
  * the same way.
+ *
+ * The `font` it is handed is live, never `NULL`.
  */
 typedef hr_bool_t (*hr_paint_color_glyph_func_t)(struct hr_paint_funcs_t *funcs,
                                                  void *paint_data,
@@ -60,6 +62,7 @@ typedef hr_bool_t (*hr_paint_color_glyph_func_t)(struct hr_paint_funcs_t *funcs,
 
 /**
  * Callback for push clip glyph; data must be safe to use on any thread.
+ * The `font` it is handed is live, never `NULL`.
  */
 typedef void (*hr_paint_push_clip_glyph_func_t)(struct hr_paint_funcs_t *funcs,
                                                 void *paint_data,
@@ -111,6 +114,7 @@ typedef void (*hr_paint_color_func_t)(struct hr_paint_funcs_t *funcs,
 
 /**
  * Callback for fill glyph; data must be safe to use on any thread.
+ * The `font` it is handed is live, never `NULL`.
  */
 typedef void (*hr_paint_fill_glyph_func_t)(struct hr_paint_funcs_t *funcs,
                                            void *paint_data,
@@ -122,6 +126,7 @@ typedef void (*hr_paint_fill_glyph_func_t)(struct hr_paint_funcs_t *funcs,
 
 /**
  * Callback for image; data must be safe to use on any thread.
+ * The `image` it is handed is a live blob, never `NULL`.
  */
 typedef hr_bool_t (*hr_paint_image_func_t)(struct hr_paint_funcs_t *funcs,
                                            void *paint_data,
@@ -249,6 +254,7 @@ typedef hr_bool_t (*hr_paint_custom_palette_color_func_t)(struct hr_paint_funcs_
 
 /**
  * Legacy color-glyph callback, assumed to succeed.
+ * The `funcs` it is handed are live, never `NULL`.
  */
 typedef void (*hr_font_paint_glyph_func_t)(hr_font_t *font,
                                            void *font_data,
@@ -261,6 +267,7 @@ typedef void (*hr_font_paint_glyph_func_t)(hr_font_t *font,
 
 /**
  * Custom color-glyph callback. Returns true if painting succeeded.
+ * The `funcs` it is handed are live, never `NULL`.
  */
 typedef hr_bool_t (*hr_font_paint_glyph_or_fail_func_t)(hr_font_t *font,
                                                         void *font_data,
@@ -507,7 +514,7 @@ void hr_paint_funcs_set_color_glyph_func(struct hr_paint_funcs_t *funcs,
  *
  * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `font`
- * must be `NULL` or live.
+ * must be live.
  */
 hr_bool_t hr_paint_color_glyph(struct hr_paint_funcs_t *funcs,
                                void *paint_data,
@@ -534,7 +541,7 @@ void hr_paint_funcs_set_push_clip_glyph_func(struct hr_paint_funcs_t *funcs,
  *
  * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `font`
- * must be `NULL` or live.
+ * must be live.
  */
 void hr_paint_push_clip_glyph(struct hr_paint_funcs_t *funcs,
                               void *paint_data,
@@ -689,7 +696,7 @@ void hr_paint_funcs_set_fill_glyph_func(struct hr_paint_funcs_t *funcs,
  *
  * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `font`
- * must be `NULL` or live.
+ * must be live.
  */
 void hr_paint_fill_glyph(struct hr_paint_funcs_t *funcs,
                          void *paint_data,
@@ -721,7 +728,7 @@ void hr_paint_funcs_set_image_func(struct hr_paint_funcs_t *funcs,
  *
  * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `image`
- * must be `NULL` or a live blob, and `extents` must be `NULL` or point to
+ * must be a live blob, and `extents` must be `NULL` or point to
  * glyph extents that can be read and written.
  */
 hr_bool_t hr_paint_image(struct hr_paint_funcs_t *funcs,
@@ -1031,11 +1038,11 @@ void hr_font_funcs_set_paint_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `font` must be live and `funcs` must be `NULL` or live, both until this
- * returns. Until then, nothing may modify `funcs`, `font` or a font it
- * descends from, or the font callbacks any of those fonts carries; that
- * binds the callbacks this runs too. `data` must be paint data the
- * callbacks of `funcs` may be called with.
+ * `font` and `funcs` must each be live until this returns. Until
+ * then, nothing may modify `funcs`, `font` or a font it descends from, or
+ * the font callbacks any of those fonts carries; that binds the callbacks
+ * this runs too. `data` must be paint data the callbacks of `funcs` may be
+ * called with.
  */
 hr_bool_t hr_font_paint_glyph_or_fail(hr_font_t *font,
                                       hr_codepoint_t glyph,

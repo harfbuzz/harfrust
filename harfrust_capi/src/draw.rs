@@ -663,6 +663,7 @@ pub unsafe extern "C" fn hr_draw_close_path(
 }
 
 /// Legacy callback, assumed to succeed.
+/// The draw funcs it is handed are live, never `NULL`.
 pub type hr_font_draw_glyph_func_t = Option<
     unsafe extern "C" fn(
         font: *mut hr_font_t,
@@ -674,6 +675,7 @@ pub type hr_font_draw_glyph_func_t = Option<
     ),
 >;
 /// Custom glyph-outline callback. Returns true if the glyph was drawn.
+/// The draw funcs it is handed are live, never `NULL`.
 pub type hr_font_draw_glyph_or_fail_func_t = Option<
     unsafe extern "C" fn(
         font: *mut hr_font_t,
@@ -692,8 +694,8 @@ pub type hr_font_draw_glyph_or_fail_func_t = Option<
 /// may be using it while this runs.
 ///
 /// `func`, if given, must be safe to call on any thread with a live font
-/// that carries `ffuncs`, that font's data, draw funcs that are `NULL` or
-/// live, draw data meant for their callbacks, and `user_data`. It may use
+/// that carries `ffuncs`, that font's data, live draw funcs, draw data
+/// meant for their callbacks, and `user_data`. It may use
 /// the draw funcs and the draw data only to draw with, on the thread it was
 /// called on, one call at a time, and before it returns, and must not
 /// modify the draw funcs or the font. `destroy`, if given, must be safe to
@@ -756,6 +758,11 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
     funcs: *mut hr_draw_funcs_t,
     draw_data: *mut c_void,
 ) -> hr_bool_t {
+    // A font's draw callback is promised live draw funcs: the empty ones
+    // stand in for `NULL`. Everything below is handed `funcs` as it is from
+    // here on. The empty funcs never change and have no callbacks, so no
+    // draw data is ever passed to one of theirs.
+    let funcs = object::or_empty_ptr(funcs);
     // SAFETY: `as_ref` needs `font` to be null, or a live font that nothing
     // writes while `state` is used, which is until this returns. `font` is
     // `NULL`, or live by this function's contract and left alone by callbacks,
@@ -777,11 +784,12 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
                 // `hr_font_funcs_set_draw_glyph_func`, which alone fills
                 // this slot. Its contract has `call` safe to call on any
                 // thread with a live font that carries these callbacks,
-                // that font's data, draw funcs that are `NULL` or live,
-                // draw data meant for their callbacks, and that user data.
-                // `font` is live, as `state` shows, and carries `ffuncs`
-                // along with the data `callback_data` returns. `funcs` is
-                // `NULL`, or live by this function's contract, which has
+                // that font's data, live draw funcs, draw data meant for
+                // their callbacks, and that user data. `font` is live, as
+                // `state` shows, and carries `ffuncs` along with the data
+                // `callback_data` returns. `funcs` is what `or_empty_ptr`
+                // made of it: the empty funcs in place of `NULL`, or the
+                // caller's, live by this function's contract, which has
                 // `draw_data` meant for its callbacks.
                 unsafe {
                     call(
@@ -855,10 +863,11 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
     .with_path_style(skrifa::outline::pen::PathStyle::HarfBuzz);
     // SAFETY: until it is dropped, which is when this returns, the pen needs
     // `funcs` to be `NULL` or live and unmodified, and `draw_data` to be what
-    // its callbacks are called with. `funcs` is `NULL`, or live by this
-    // function's contract and left alone by callbacks for the call, changing
-    // it from elsewhere needs exclusive access, and `draw_data` is what the
-    // caller gave to go with it.
+    // its callbacks are called with. `funcs` is the empty funcs in place of
+    // `NULL`, or the caller's, live by this function's contract and left
+    // alone by callbacks for the call. Changing it from elsewhere needs
+    // exclusive access, and `draw_data` is what the caller gave to go with
+    // it.
     let mut pen = unsafe { crate::rendering::Pen::new(funcs, draw_data, x, y) };
     i32::from(outline.draw(settings, &mut pen).is_ok())
 }
@@ -874,8 +883,12 @@ pub unsafe extern "C" fn hr_font_draw_glyph(
     funcs: *mut hr_draw_funcs_t,
     draw_data: *mut c_void,
 ) {
+    // As in `hr_font_draw_glyph_or_fail`, which is handed everything here:
+    // the empty draw funcs stand in for `NULL`.
+    let funcs = object::or_empty_ptr(funcs);
     // SAFETY: `hr_font_draw_glyph_or_fail` is handed this function's own
-    // arguments under what is its own contract.
+    // arguments under what is its own contract, with the empty funcs in
+    // place of a `NULL` `funcs`.
     unsafe { hr_font_draw_glyph_or_fail(font, glyph, funcs, draw_data) };
 }
 

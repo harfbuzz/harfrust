@@ -451,6 +451,139 @@ fn sub_font_draw_streams_segments() {
     }
 }
 
+/// The draw funcs a font's draw-glyph callback was last handed, and how many
+/// times it ran.
+struct HandedDrawFuncs {
+    funcs: *mut hr_draw_funcs_t,
+    calls: u32,
+}
+
+unsafe extern "C" fn record_draw_funcs(
+    _: *mut hr_font_t,
+    _: *mut c_void,
+    _: hr_codepoint_t,
+    funcs: *mut hr_draw_funcs_t,
+    _: *mut c_void,
+    handed: *mut c_void,
+) -> hr_bool_t {
+    let handed = handed.cast::<HandedDrawFuncs>();
+    unsafe {
+        (*handed).funcs = funcs;
+        (*handed).calls += 1;
+    }
+    1
+}
+
+unsafe extern "C" fn record_draw_funcs_legacy(
+    font: *mut hr_font_t,
+    font_data: *mut c_void,
+    glyph: hr_codepoint_t,
+    funcs: *mut hr_draw_funcs_t,
+    data: *mut c_void,
+    handed: *mut c_void,
+) {
+    unsafe {
+        record_draw_funcs(font, font_data, glyph, funcs, data, handed);
+    }
+}
+
+/// Draws through `hr_font_draw_glyph_or_fail` or `hr_font_draw_glyph` and
+/// checks which draw funcs the font's own draw callback is handed.
+///
+/// `NULL` in place of the draw funcs is not a conforming call, and the
+/// library treats it as the empty funcs. A callback of either kind on the
+/// font that is drawn is handed the caller's funcs, so it must be handed the
+/// real ones as they are and the empty ones for `NULL`.
+unsafe fn a_font_draw_callback_is_handed_the_empty_funcs_for_null(or_fail: bool) {
+    let draw = |font, funcs| unsafe {
+        if or_fail {
+            hr_font_draw_glyph_or_fail(font, 1, funcs, ptr::null_mut());
+        } else {
+            hr_font_draw_glyph(font, 1, funcs, ptr::null_mut());
+        }
+    };
+    unsafe {
+        let real = hr_draw_funcs_create();
+        let empty = hr_draw_funcs_get_empty();
+        let mut seen = Vec::new();
+        for legacy in [false, true] {
+            let mut handed = HandedDrawFuncs {
+                funcs: ptr::dangling_mut(),
+                calls: 0,
+            };
+            // The callback is given this pointer when it is set, and writes
+            // through it for as long as a font carries it, so the test
+            // reads through the same one. Using the variable itself could
+            // take the pointer's access away.
+            let handed = &raw mut handed;
+            let font = font();
+            let callbacks = hr_font_funcs_create();
+            if legacy {
+                hr_font_funcs_set_draw_glyph_func(
+                    callbacks,
+                    Some(record_draw_funcs_legacy),
+                    handed.cast(),
+                    None,
+                );
+            } else {
+                hr_font_funcs_set_draw_glyph_or_fail_func(
+                    callbacks,
+                    Some(record_draw_funcs),
+                    handed.cast(),
+                    None,
+                );
+            }
+            hr_font_set_funcs(font, callbacks, ptr::null_mut(), None);
+            hr_font_funcs_destroy(callbacks);
+            draw(font, real);
+            let for_the_funcs = (*handed).funcs;
+            draw(font, ptr::null_mut());
+            seen.push((legacy, for_the_funcs, (*handed).funcs, (*handed).calls));
+
+            // A sub-font passes the call up to its parent, whose callback
+            // is handed funcs of the library's own that forward to the
+            // caller's. It sees neither the caller's funcs nor `NULL`,
+            // whichever the sub-font was drawn with.
+            let child = hr_font_create_sub_font(font);
+            for funcs in [real, ptr::null_mut()] {
+                draw(child, funcs);
+                let forwarding = (*handed).funcs;
+                assert!(
+                    !forwarding.is_null() && forwarding != real && forwarding != empty,
+                    "legacy: {legacy}"
+                );
+            }
+            assert_eq!((*handed).calls, 4);
+            hr_font_destroy(child);
+            hr_font_destroy(font);
+        }
+        assert_eq!(seen, [(false, real, empty, 2), (true, real, empty, 2)]);
+        hr_draw_funcs_destroy(real);
+    }
+}
+
+#[test]
+fn draw_glyph_or_fail_hands_a_font_callback_the_empty_funcs_for_null() {
+    unsafe {
+        a_font_draw_callback_is_handed_the_empty_funcs_for_null(true);
+        // A font with no draw callback of its own draws with the library's
+        // pen, which has no callback of the font's to hand the funcs to. It
+        // draws into nothing for `NULL`, as it does for the empty funcs.
+        let font = font();
+        let into = |funcs| hr_font_draw_glyph_or_fail(font, 1, funcs, ptr::null_mut());
+        assert_eq!(into(ptr::null_mut()), into(hr_draw_funcs_get_empty()));
+        assert_eq!(into(ptr::null_mut()), 1);
+        hr_font_destroy(font);
+    }
+}
+
+#[test]
+fn draw_glyph_hands_a_font_callback_the_empty_funcs_for_null() {
+    unsafe {
+        a_font_draw_callback_is_handed_the_empty_funcs_for_null(false);
+    }
+}
+
 #[cfg(feature = "paint")]
 mod painting {
     use super::*;
@@ -1309,6 +1442,354 @@ mod painting {
                     hr_blob_destroy(image);
                 }
             }
+        }
+    }
+
+    /// What a callback was last handed for the object it is promised, and
+    /// how many times one ran.
+    struct Handed {
+        font: *mut hr_font_t,
+        image: *mut hr_blob_t,
+        funcs: *mut hr_paint_funcs_t,
+        calls: u32,
+    }
+    impl Handed {
+        /// Nothing handed yet: pointers that are neither `NULL` nor an object,
+        /// so that a callback that never ran is not mistaken for one that was
+        /// handed either.
+        fn nothing() -> Self {
+            Self {
+                font: ptr::dangling_mut(),
+                image: ptr::dangling_mut(),
+                funcs: ptr::dangling_mut(),
+                calls: 0,
+            }
+        }
+    }
+    unsafe extern "C" fn record_color_glyph_font(
+        _: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        _: hr_codepoint_t,
+        font: *mut hr_font_t,
+        _: *mut c_void,
+    ) -> hr_bool_t {
+        let handed = data.cast::<Handed>();
+        unsafe {
+            (*handed).font = font;
+            (*handed).calls += 1;
+        }
+        1
+    }
+    unsafe extern "C" fn record_clip_glyph_font(
+        _: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        _: hr_codepoint_t,
+        font: *mut hr_font_t,
+        _: *mut c_void,
+    ) {
+        let handed = data.cast::<Handed>();
+        unsafe {
+            (*handed).font = font;
+            (*handed).calls += 1;
+        }
+    }
+    unsafe extern "C" fn record_fill_glyph_font(
+        _: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        _: hr_codepoint_t,
+        font: *mut hr_font_t,
+        _: hr_bool_t,
+        _: hr_color_t,
+        _: *mut c_void,
+    ) {
+        let handed = data.cast::<Handed>();
+        unsafe {
+            (*handed).font = font;
+            (*handed).calls += 1;
+        }
+    }
+    unsafe extern "C" fn record_image(
+        _: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        image: *mut hr_blob_t,
+        _: u32,
+        _: u32,
+        _: hr_tag_t,
+        _: f32,
+        _: *mut hr_glyph_extents_t,
+        _: *mut c_void,
+    ) -> hr_bool_t {
+        let handed = data.cast::<Handed>();
+        unsafe {
+            (*handed).image = image;
+            (*handed).calls += 1;
+        }
+        1
+    }
+    unsafe extern "C" fn record_paint_funcs(
+        _: *mut hr_font_t,
+        _: *mut c_void,
+        _: hr_codepoint_t,
+        funcs: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        _: u32,
+        _: hr_color_t,
+        _: *mut c_void,
+    ) -> hr_bool_t {
+        let handed = data.cast::<Handed>();
+        unsafe {
+            (*handed).funcs = funcs;
+            (*handed).calls += 1;
+        }
+        1
+    }
+    unsafe extern "C" fn record_paint_funcs_legacy(
+        font: *mut hr_font_t,
+        font_data: *mut c_void,
+        glyph: hr_codepoint_t,
+        funcs: *mut hr_paint_funcs_t,
+        data: *mut c_void,
+        palette: u32,
+        foreground: hr_color_t,
+        user: *mut c_void,
+    ) {
+        unsafe {
+            record_paint_funcs(
+                font, font_data, glyph, funcs, data, palette, foreground, user,
+            );
+        }
+    }
+
+    // `NULL` in place of an object is not a conforming call, and the library
+    // treats it as the empty object. Where it hands such an object on to a
+    // callback, the callback is handed the empty object too, never `NULL`:
+    // each test below passes a real object, which must arrive as it is, and
+    // then `NULL`.
+
+    #[test]
+    fn a_color_glyph_callback_is_handed_the_empty_font_for_null() {
+        unsafe {
+            let funcs = hr_paint_funcs_create();
+            hr_paint_funcs_set_color_glyph_func(
+                funcs,
+                Some(record_color_glyph_font),
+                ptr::null_mut(),
+                None,
+            );
+            let font = font();
+            let mut handed = Handed::nothing();
+            // The callback writes what it was handed through this pointer,
+            // so it is read through the same one for as long as that goes
+            // on. Using the variable itself could take the pointer's access
+            // away.
+            let handed = &raw mut handed;
+            assert_ne!(hr_paint_color_glyph(funcs, handed.cast(), 1, font), 0);
+            assert_eq!((*handed).font, font);
+            assert_ne!(
+                hr_paint_color_glyph(funcs, handed.cast(), 1, ptr::null_mut()),
+                0
+            );
+            assert_eq!((*handed).font, hr_font_get_empty());
+            assert_eq!((*handed).calls, 2);
+            hr_font_destroy(font);
+            hr_paint_funcs_destroy(funcs);
+        }
+    }
+
+    #[test]
+    fn a_clip_glyph_callback_is_handed_the_empty_font_for_null() {
+        unsafe {
+            let funcs = hr_paint_funcs_create();
+            hr_paint_funcs_set_push_clip_glyph_func(
+                funcs,
+                Some(record_clip_glyph_font),
+                ptr::null_mut(),
+                None,
+            );
+            let font = font();
+            let mut handed = Handed::nothing();
+            // Read through the pointer the callback writes through.
+            let handed = &raw mut handed;
+            hr_paint_push_clip_glyph(funcs, handed.cast(), 1, font);
+            assert_eq!((*handed).font, font);
+            hr_paint_push_clip_glyph(funcs, handed.cast(), 1, ptr::null_mut());
+            assert_eq!((*handed).font, hr_font_get_empty());
+            assert_eq!((*handed).calls, 2);
+            hr_font_destroy(font);
+            hr_paint_funcs_destroy(funcs);
+        }
+    }
+
+    #[test]
+    fn a_fill_glyph_callback_is_handed_the_empty_font_for_null() {
+        unsafe {
+            let font = font();
+            let empty = hr_font_get_empty();
+            // The font goes to the fill-glyph callback, and with none set to
+            // the clip-glyph callback the default fill starts with.
+            let mut seen = Vec::new();
+            for own_callback in [true, false] {
+                let funcs = hr_paint_funcs_create();
+                if own_callback {
+                    hr_paint_funcs_set_fill_glyph_func(
+                        funcs,
+                        Some(record_fill_glyph_font),
+                        ptr::null_mut(),
+                        None,
+                    );
+                } else {
+                    hr_paint_funcs_set_push_clip_glyph_func(
+                        funcs,
+                        Some(record_clip_glyph_font),
+                        ptr::null_mut(),
+                        None,
+                    );
+                }
+                let mut handed = Handed::nothing();
+                // Read through the pointer the callback writes through.
+                let handed = &raw mut handed;
+                hr_paint_fill_glyph(funcs, handed.cast(), 1, font, 1, 0);
+                let for_the_font = (*handed).font;
+                hr_paint_fill_glyph(funcs, handed.cast(), 1, ptr::null_mut(), 1, 0);
+                seen.push((own_callback, for_the_font, (*handed).font, (*handed).calls));
+                hr_paint_funcs_destroy(funcs);
+            }
+            assert_eq!(seen, [(true, font, empty, 2), (false, font, empty, 2)]);
+            hr_font_destroy(font);
+        }
+    }
+
+    #[test]
+    fn an_image_callback_is_handed_the_empty_blob_for_null() {
+        unsafe {
+            let funcs = hr_paint_funcs_create();
+            hr_paint_funcs_set_image_func(funcs, Some(record_image), ptr::null_mut(), None);
+            let bytes = b"image";
+            let image = hr_blob_create(
+                bytes.as_ptr().cast(),
+                bytes.len() as u32,
+                HR_MEMORY_MODE_READONLY,
+                ptr::null_mut(),
+                None,
+            );
+            let mut handed = Handed::nothing();
+            // Read through the pointer the callback writes through.
+            let handed = &raw mut handed;
+            assert_ne!(
+                hr_paint_image(funcs, handed.cast(), image, 1, 1, 0, 0.0, ptr::null_mut()),
+                0
+            );
+            assert_eq!((*handed).image, image);
+            assert_ne!(
+                hr_paint_image(
+                    funcs,
+                    handed.cast(),
+                    ptr::null_mut(),
+                    1,
+                    1,
+                    0,
+                    0.0,
+                    ptr::null_mut()
+                ),
+                0
+            );
+            assert_eq!((*handed).image, hr_blob_get_empty());
+            assert_eq!((*handed).calls, 2);
+            hr_blob_destroy(image);
+            hr_paint_funcs_destroy(funcs);
+        }
+    }
+
+    /// Paints through `hr_font_paint_glyph_or_fail` or `hr_font_paint_glyph`
+    /// and checks which paint funcs the font's own paint callback is handed.
+    ///
+    /// There are three ways to such a callback: the legacy form, the form
+    /// that reports success, and either of them on a parent font, which a
+    /// sub-font with no callbacks of its own passes the call up to.
+    unsafe fn a_font_paint_callback_is_handed_the_empty_funcs_for_null(or_fail: bool) {
+        let paint = |font, funcs, data| unsafe {
+            if or_fail {
+                hr_font_paint_glyph_or_fail(font, 1, funcs, data, 0, 0);
+            } else {
+                hr_font_paint_glyph(font, 1, funcs, data, 0, 0);
+            }
+        };
+        unsafe {
+            let real = hr_paint_funcs_create();
+            let empty = hr_paint_funcs_get_empty();
+            let mut seen = Vec::new();
+            for legacy in [false, true] {
+                let font = font();
+                let callbacks = hr_font_funcs_create();
+                if legacy {
+                    hr_font_funcs_set_paint_glyph_func(
+                        callbacks,
+                        Some(record_paint_funcs_legacy),
+                        ptr::null_mut(),
+                        None,
+                    );
+                } else {
+                    hr_font_funcs_set_paint_glyph_or_fail_func(
+                        callbacks,
+                        Some(record_paint_funcs),
+                        ptr::null_mut(),
+                        None,
+                    );
+                }
+                hr_font_set_funcs(font, callbacks, ptr::null_mut(), None);
+                hr_font_funcs_destroy(callbacks);
+                let child = hr_font_create_sub_font(font);
+                for (target, through) in [(font, "the font"), (child, "a sub-font")] {
+                    let mut handed = Handed::nothing();
+                    // Read through the pointer the callback writes through.
+                    let handed = &raw mut handed;
+                    paint(target, real, handed.cast());
+                    let for_the_funcs = (*handed).funcs;
+                    paint(target, ptr::null_mut(), handed.cast());
+                    seen.push((
+                        legacy,
+                        through,
+                        for_the_funcs,
+                        (*handed).funcs,
+                        (*handed).calls,
+                    ));
+                }
+                hr_font_destroy(child);
+                hr_font_destroy(font);
+            }
+            assert_eq!(
+                seen,
+                [
+                    (false, "the font", real, empty, 2),
+                    (false, "a sub-font", real, empty, 2),
+                    (true, "the font", real, empty, 2),
+                    (true, "a sub-font", real, empty, 2),
+                ]
+            );
+            hr_paint_funcs_destroy(real);
+        }
+    }
+
+    #[test]
+    fn paint_glyph_or_fail_hands_a_font_callback_the_empty_funcs_for_null() {
+        unsafe {
+            a_font_paint_callback_is_handed_the_empty_funcs_for_null(true);
+            // A font with no paint callback of its own paints with the
+            // library's painter, which has no callback to hand the funcs to.
+            // It paints into nothing for `NULL`, as it does for the empty
+            // funcs.
+            let font = font();
+            let into = |funcs| hr_font_paint_glyph_or_fail(font, 2, funcs, ptr::null_mut(), 0, 0);
+            assert_eq!(into(ptr::null_mut()), into(hr_paint_funcs_get_empty()));
+            assert_eq!(into(ptr::null_mut()), 1);
+            hr_font_destroy(font);
+        }
+    }
+
+    #[test]
+    fn paint_glyph_hands_a_font_callback_the_empty_funcs_for_null() {
+        unsafe {
+            a_font_paint_callback_is_handed_the_empty_funcs_for_null(false);
         }
     }
 }

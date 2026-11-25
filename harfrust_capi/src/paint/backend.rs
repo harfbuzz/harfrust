@@ -106,8 +106,8 @@ impl HrColorPainter<'_> {
     fn clip_glyph(&mut self, glyph: GlyphId) {
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
         // is `NULL`, or live and unmodified, `paint_data` is its paint data
-        // and `font` is `NULL` or live, as `hr_paint_push_clip_glyph`
-        // requires.
+        // and `font` is `NULL`, or live, as `hr_paint_push_clip_glyph`
+        // requires. It hands its callback the empty font for a `NULL` one.
         unsafe {
             hr_paint_push_clip_glyph(self.paint_funcs, self.paint_data, glyph.to_u32(), self.font);
         }
@@ -265,8 +265,9 @@ impl ColorPainter for HrColorPainter<'_> {
                 let color = self.lookup_color(color_index, alpha);
                 // SAFETY: by the invariant on the painter's pointers,
                 // `paint_funcs` is `NULL`, or live and unmodified,
-                // `paint_data` is its paint data and `font` is `NULL` or
-                // live, as `hr_paint_fill_glyph` requires.
+                // `paint_data` is its paint data and `font` is `NULL`, or
+                // live, as `hr_paint_fill_glyph` requires. It hands its
+                // callback the empty font for a `NULL` one.
                 unsafe {
                     hr_paint_fill_glyph(
                         self.paint_funcs,
@@ -477,7 +478,8 @@ impl ColorPainter for HrColorPainter<'_> {
         self.font_transform(true);
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
         // is `NULL`, or live and unmodified, `paint_data` is its paint data
-        // and `font` is `NULL` or live, as `hr_paint_color_glyph` requires.
+        // and `font` is `NULL`, or live, as `hr_paint_color_glyph` requires.
+        // It hands its callback the empty font for a `NULL` one.
         let painted = unsafe {
             hr_paint_color_glyph(self.paint_funcs, self.paint_data, glyph.to_u32(), self.font)
         };
@@ -563,11 +565,10 @@ pub(super) unsafe fn paint(
                 records.as_ref()?.get(start..end)
             })
             .unwrap_or(&[]);
-        // This upholds the invariant on the painter's pointers: `font` is
-        // `NULL`, or live by this function's contract, which has `funcs`
-        // `NULL` or live, both unmodified, and `data` paint data for the
-        // callbacks of `funcs`, until it returns, and the painter is dropped
-        // before then.
+        // This upholds the invariant on the painter's pointers: `font` and
+        // `funcs` are each `NULL`, or live by this function's contract, which
+        // has both unmodified, and `data` paint data for the callbacks of
+        // `funcs`, until it returns, and the painter is dropped before then.
         let mut painter = HrColorPainter {
             font,
             paint_funcs: funcs,

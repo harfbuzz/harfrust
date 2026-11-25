@@ -46,6 +46,8 @@ pub type hr_paint_pop_transform_func_t = Option<
 /// cycles and limit how deeply it nests. Without that, a font can make it
 /// recurse until the stack overflows. HarfBuzz leaves this to the callback in
 /// the same way.
+///
+/// The `font` it is handed is live, never `NULL`.
 pub type hr_paint_color_glyph_func_t = Option<
     unsafe extern "C" fn(
         funcs: *mut hr_paint_funcs_t,
@@ -56,6 +58,7 @@ pub type hr_paint_color_glyph_func_t = Option<
     ) -> hr_bool_t,
 >;
 /// Callback for push clip glyph; data must be safe to use on any thread.
+/// The `font` it is handed is live, never `NULL`.
 pub type hr_paint_push_clip_glyph_func_t = Option<
     unsafe extern "C" fn(
         funcs: *mut hr_paint_funcs_t,
@@ -113,6 +116,7 @@ pub type hr_paint_color_func_t = Option<
     ),
 >;
 /// Callback for fill glyph; data must be safe to use on any thread.
+/// The `font` it is handed is live, never `NULL`.
 pub type hr_paint_fill_glyph_func_t = Option<
     unsafe extern "C" fn(
         funcs: *mut hr_paint_funcs_t,
@@ -125,6 +129,7 @@ pub type hr_paint_fill_glyph_func_t = Option<
     ),
 >;
 /// Callback for image; data must be safe to use on any thread.
+/// The `image` it is handed is a live blob, never `NULL`.
 pub type hr_paint_image_func_t = Option<
     unsafe extern "C" fn(
         funcs: *mut hr_paint_funcs_t,
@@ -566,7 +571,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_glyph_func(
 ///
 /// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `font`
-/// must be `NULL` or live.
+/// must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_color_glyph(
     funcs: *mut hr_paint_funcs_t,
@@ -574,6 +579,9 @@ pub unsafe extern "C" fn hr_paint_color_glyph(
     glyph: hr_codepoint_t,
     font: *mut hr_font_t,
 ) -> hr_bool_t {
+    // The callback is promised a live font: the empty one stands in for
+    // `NULL`.
+    let font = object::or_empty_ptr(font);
     // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
@@ -581,7 +589,9 @@ pub unsafe extern "C" fn hr_paint_color_glyph(
         if let Some(func) = callback.func {
             // SAFETY: by the invariant on `color_glyph`, `func` may be called
             // with its own `user_data` and arguments that meet this function's
-            // contract, and those are what it is given.
+            // contract, and those are what it is given. `font` is what
+            // `or_empty_ptr` made of it: the empty font in place of `NULL`,
+            // or the caller's, live by that contract.
             return unsafe { func(funcs, paint_data, glyph, font, callback.user_data) };
         }
     }
@@ -617,7 +627,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_glyph_func(
 ///
 /// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `font`
-/// must be `NULL` or live.
+/// must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_clip_glyph(
     funcs: *mut hr_paint_funcs_t,
@@ -625,6 +635,9 @@ pub unsafe extern "C" fn hr_paint_push_clip_glyph(
     glyph: hr_codepoint_t,
     font: *mut hr_font_t,
 ) {
+    // The callback is promised a live font: the empty one stands in for
+    // `NULL`.
+    let font = object::or_empty_ptr(font);
     // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
@@ -632,7 +645,9 @@ pub unsafe extern "C" fn hr_paint_push_clip_glyph(
         if let Some(func) = callback.func {
             // SAFETY: by the invariant on `push_clip_glyph`, `func` may be
             // called with its own `user_data` and arguments that meet this
-            // function's contract, and those are what it is given.
+            // function's contract, and those are what it is given. `font` is
+            // what `or_empty_ptr` made of it: the empty font in place of
+            // `NULL`, or the caller's, live by that contract.
             unsafe { func(funcs, paint_data, glyph, font, callback.user_data) }
         }
     }
@@ -936,7 +951,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_fill_glyph_func(
 ///
 /// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `font`
-/// must be `NULL` or live.
+/// must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_fill_glyph(
     funcs: *mut hr_paint_funcs_t,
@@ -946,6 +961,10 @@ pub unsafe extern "C" fn hr_paint_fill_glyph(
     is_foreground: hr_bool_t,
     color: hr_color_t,
 ) {
+    // A callback is promised a live font: the empty one stands in for
+    // `NULL`, for the fill-glyph callback and for the clip-glyph callback
+    // that the default below goes to.
+    let font = object::or_empty_ptr(font);
     // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
@@ -953,7 +972,9 @@ pub unsafe extern "C" fn hr_paint_fill_glyph(
         if let Some(func) = callback.func {
             // SAFETY: by the invariant on `fill_glyph`, `func` may be called
             // with its own `user_data` and arguments that meet this function's
-            // contract, and those are what it is given.
+            // contract, and those are what it is given. `font` is what
+            // `or_empty_ptr` made of it: the empty font in place of `NULL`,
+            // or the caller's, live by that contract.
             return unsafe {
                 func(
                     funcs,
@@ -970,7 +991,8 @@ pub unsafe extern "C" fn hr_paint_fill_glyph(
     // SAFETY: `funcs` is `NULL`, or live and unmodified until this returns
     // by this function's contract, and `paint_data` is its paint data,
     // which is what each of the three calls requires. The first requires a
-    // `NULL` or live `font` besides, which the same contract gives.
+    // live `font` besides: it is the empty font in place of `NULL`, or the
+    // caller's, live by the same contract.
     unsafe {
         hr_paint_push_clip_glyph(funcs, paint_data, glyph, font);
         hr_paint_color(funcs, paint_data, is_foreground, color);
@@ -1010,7 +1032,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_image_func(
 ///
 /// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `image`
-/// must be `NULL` or a live blob, and `extents` must be `NULL` or point to
+/// must be a live blob, and `extents` must be `NULL` or point to
 /// glyph extents that can be read and written.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_image(
@@ -1025,6 +1047,9 @@ pub unsafe extern "C" fn hr_paint_image(
 ) -> hr_bool_t {
     // Named as in the header, and unused.
     let _ = slant;
+    // The callback is promised a live blob: the empty one stands in for
+    // `NULL`.
+    let image = object::or_empty_ptr(image);
     // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
@@ -1032,7 +1057,9 @@ pub unsafe extern "C" fn hr_paint_image(
         if let Some(func) = callback.func {
             // SAFETY: by the invariant on `image`, `func` may be called with
             // its own `user_data` and arguments that meet this function's
-            // contract, and those are what it is given.
+            // contract, and those are what it is given. `image` is what
+            // `or_empty_ptr` made of it: the empty blob in place of `NULL`,
+            // or the caller's, live by that contract.
             return unsafe {
                 func(
                     funcs,
@@ -1671,6 +1698,7 @@ pub const HR_PAINT_COMPOSITE_MODE_HSL_LUMINOSITY: hr_paint_composite_mode_t = 27
 mod backend;
 
 /// Legacy color-glyph callback, assumed to succeed.
+/// The `funcs` it is handed are live, never `NULL`.
 pub type hr_font_paint_glyph_func_t = Option<
     unsafe extern "C" fn(
         font: *mut hr_font_t,
@@ -1684,6 +1712,7 @@ pub type hr_font_paint_glyph_func_t = Option<
     ),
 >;
 /// Custom color-glyph callback. Returns true if painting succeeded.
+/// The `funcs` it is handed are live, never `NULL`.
 pub type hr_font_paint_glyph_or_fail_func_t = Option<
     unsafe extern "C" fn(
         font: *mut hr_font_t,
@@ -1761,11 +1790,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_paint_glyph_or_fail_func(
 ///
 /// # Safety
 ///
-/// `font` must be live and `funcs` must be `NULL` or live, both until this
-/// returns. Until then, nothing may modify `funcs`, `font` or a font it
-/// descends from, or the font callbacks any of those fonts carries; that
-/// binds the callbacks this runs too. `data` must be paint data the
-/// callbacks of `funcs` may be called with.
+/// `font` and `funcs` must each be live until this returns. Until
+/// then, nothing may modify `funcs`, `font` or a font it descends from, or
+/// the font callbacks any of those fonts carries; that binds the callbacks
+/// this runs too. `data` must be paint data the callbacks of `funcs` may be
+/// called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
     font: *mut hr_font_t,
@@ -1775,6 +1804,12 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
     palette: c_uint,
     foreground: hr_color_t,
 ) -> hr_bool_t {
+    // A font's paint callback is promised live paint funcs: the empty ones
+    // stand in for `NULL`, for this font's callback of either kind and for
+    // that of a font above it. Everything below is handed `funcs` as it is
+    // from here on. The empty funcs never change and have no callbacks, so
+    // no paint data is ever passed to one of theirs.
+    let funcs = object::or_empty_ptr(funcs);
     // SAFETY: `as_ref` needs `font` to be null, or aligned and pointing to a
     // live `hr_font_t` that nothing writes while `state` is used, which is
     // until this returns. `font` is `NULL`, or live by this function's
@@ -1796,8 +1831,10 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
                 // with that data, a font that carries `ffuncs` and the font
                 // data it was given with them, and otherwise arguments that
                 // meet this function's contract. `font` carries `ffuncs`,
-                // `callback_data` is that font data, and the rest are this
-                // call's own arguments.
+                // `callback_data` is that font data, and `funcs` is what
+                // `or_empty_ptr` made of it: the empty funcs in place of
+                // `NULL`, or the caller's, live by that contract. The rest
+                // are this call's own arguments.
                 unsafe {
                     call(
                         font,
@@ -1844,9 +1881,10 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
         // and this function's contract keeps the fonts `font` descends from
         // unmodified until it returns.
         let parent = unsafe { &*state.parent };
-        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
-        // returns by this function's contract, and `data` is its paint data,
-        // as `hr_paint_push_transform` requires.
+        // SAFETY: `funcs` is the empty funcs in place of `NULL`, or the
+        // caller's, live and unmodified until this returns by this
+        // function's contract, and `data` is its paint data, as
+        // `hr_paint_push_transform` requires.
         unsafe {
             hr_paint_push_transform(
                 funcs,
@@ -1870,19 +1908,18 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
         // SAFETY: this function's contract holds with the parent in place of
         // `font`. The parent is live, as above, and it, the fonts it
         // descends from and the font callbacks they carry are among what
-        // the contract already keeps unmodified. The other arguments are
-        // this call's own.
+        // the contract already keeps unmodified. `funcs` is live, as for the
+        // push above, and the other arguments are this call's own.
         let result = unsafe {
             hr_font_paint_glyph_or_fail(state.parent, glyph, funcs, data, palette, foreground)
         };
-        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
-        // returns by this function's contract, and `data` is its paint data,
-        // as `hr_paint_pop_transform` requires.
+        // SAFETY: as for the push above, with `hr_paint_pop_transform` as
+        // the function called.
         unsafe { hr_paint_pop_transform(funcs, data) };
         return result;
     }
     // SAFETY: `paint` has this function's contract, and is given this call's
-    // arguments.
+    // arguments, with the empty funcs in place of a `NULL` `funcs`.
     unsafe { backend::paint(font, glyph, funcs, data, palette, foreground) }
 }
 /// Compatibility entry point ignoring the success result.
@@ -1899,7 +1936,11 @@ pub unsafe extern "C" fn hr_font_paint_glyph(
     palette: c_uint,
     foreground: hr_color_t,
 ) {
+    // As in `hr_font_paint_glyph_or_fail`, which is handed everything here:
+    // the empty paint funcs stand in for `NULL`.
+    let funcs = object::or_empty_ptr(funcs);
     // SAFETY: this function's contract is `hr_font_paint_glyph_or_fail`'s,
-    // and it passes on the arguments it was given.
+    // and it passes on the arguments it was given, with the empty funcs in
+    // place of a `NULL` `funcs`.
     unsafe { hr_font_paint_glyph_or_fail(font, glyph, funcs, data, palette, foreground) };
 }

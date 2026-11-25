@@ -82,6 +82,7 @@ typedef void (*hr_draw_close_path_func_t)(struct hr_draw_funcs_t *funcs,
 
 /**
  * Legacy callback, assumed to succeed.
+ * The draw funcs it is handed are live, never `NULL`.
  */
 typedef void (*hr_font_draw_glyph_func_t)(hr_font_t *font,
                                           void *font_data,
@@ -92,6 +93,7 @@ typedef void (*hr_font_draw_glyph_func_t)(hr_font_t *font,
 
 /**
  * Custom glyph-outline callback. Returns true if the glyph was drawn.
+ * The draw funcs it is handed are live, never `NULL`.
  */
 typedef hr_bool_t (*hr_font_draw_glyph_or_fail_func_t)(hr_font_t *font,
                                                        void *font_data,
@@ -326,8 +328,8 @@ void hr_draw_close_path(struct hr_draw_funcs_t *funcs, void *data, struct hr_dra
  * may be using it while this runs.
  *
  * `func`, if given, must be safe to call on any thread with a live font
- * that carries `ffuncs`, that font's data, draw funcs that are `NULL` or
- * live, draw data meant for their callbacks, and `user_data`. It may use
+ * that carries `ffuncs`, that font's data, live draw funcs, draw data
+ * meant for their callbacks, and `user_data`. It may use
  * the draw funcs and the draw data only to draw with, on the thread it was
  * called on, one call at a time, and before it returns, and must not
  * modify the draw funcs or the font. `destroy`, if given, must be safe to
