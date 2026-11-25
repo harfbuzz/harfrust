@@ -90,6 +90,48 @@ impl Object for hr_draw_funcs_t {
     fn header(&self) -> &ObjectHeader {
         &self.header
     }
+    unsafe fn finalize(ptr: *mut Self) {
+        // The callbacks go here rather than when the object is dropped. A
+        // callback's destroy function is the caller's code, and may ask the
+        // funcs object it is being released from a question. Here the object
+        // is whole and nothing borrows it. Inside its drop, part of it has
+        // gone already and the rest is borrowed by the drop.
+        //
+        // Each callback is taken out of its field before it is released, so
+        // that no destroy function finds its own callback still in place.
+        // They go in the order the fields are declared, which is the order
+        // dropping the object released them in. Every callback field has to
+        // be named here: one left out is released by the drop instead.
+        //
+        // SAFETY: each line names a field through `ptr`, swaps `None` into
+        // it with `replace`, and drops what came out.
+        // - Naming a field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes each field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the object: no reference into it is in use when a field is
+        //   written.
+        // - Dropping what came out runs a destroy function, between one
+        //   `replace` and the next. It may read the object, which is sound:
+        //   `replace` has returned, and the field it emptied holds `None`.
+        //   It cannot leave the object unfit for the next line. An object
+        //   releasing its last reference takes no changes, which is what
+        //   `object::accepts_changes` reports and `set_callback` goes by,
+        //   and a reference taken to it then does not free it when it is
+        //   given back. Whatever the function borrowed ended when it
+        //   returned.
+        // Afterwards every callback field holds `None`, and stays that way
+        // for the same reason, so dropping the object runs no caller code.
+        unsafe {
+            drop((&raw mut (*ptr).move_to).replace(None));
+            drop((&raw mut (*ptr).line_to).replace(None));
+            drop((&raw mut (*ptr).quadratic_to).replace(None));
+            drop((&raw mut (*ptr).cubic_to).replace(None));
+            drop((&raw mut (*ptr).close_path).replace(None));
+        }
+    }
     fn empty() -> *mut Self {
         static EMPTY: OnceLock<Empty<hr_draw_funcs_t>> = OnceLock::new();
         EMPTY

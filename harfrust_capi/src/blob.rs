@@ -261,6 +261,42 @@ impl Object for hr_blob_t {
         &self.header
     }
 
+    unsafe fn finalize(ptr: *mut Self) {
+        // The data goes here rather than when the blob is dropped. Letting
+        // go of it can run the caller's code: the destroy function given
+        // with the data, or, for a blob that keeps another alive, whatever
+        // that one releases if this was its last reference. That code may
+        // ask this blob a question. Here the blob is whole and nothing
+        // borrows it. Inside its drop, part of it has gone already and the
+        // rest is borrowed by the drop.
+        //
+        // The data is taken out of the blob before it is released, and
+        // nothing is put in its place: a blob whose data is being released
+        // has none to hand out, and answers as an empty one does.
+        //
+        // A face's font holds the data of the face's blob as well, and data
+        // is only gone once its last holder lets go. A face lets go of its
+        // font before its blob, so that holder is the blob, here.
+        //
+        // SAFETY: this names the `blob` field through `ptr` and swaps an
+        // empty blob into it with `replace`.
+        // - Naming the field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes the field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the blob. None of the caller's code runs before `replace` has
+        //   returned, so no reference into the blob is in use while the
+        //   field is written.
+        // Afterwards the field holds static data of no length, as the empty
+        // blob does, and `data` owns what the blob held. Nothing puts data
+        // into a blob once it is made, so dropping the blob then runs no
+        // caller code.
+        let data = unsafe { (&raw mut (*ptr).blob).replace(Blob::Static(&[])) };
+        drop(data);
+    }
+
     fn empty() -> *mut Self {
         EMPTY_BLOB
             .get_or_init(|| {

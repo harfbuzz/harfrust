@@ -256,6 +256,61 @@ impl Object for hr_paint_funcs_t {
     fn header(&self) -> &ObjectHeader {
         &self.header
     }
+    unsafe fn finalize(ptr: *mut Self) {
+        // The callbacks go here rather than when the object is dropped. A
+        // callback's destroy function is the caller's code, and may ask the
+        // funcs object it is being released from a question. Here the object
+        // is whole and nothing borrows it. Inside its drop, part of it has
+        // gone already and the rest is borrowed by the drop.
+        //
+        // Each callback is taken out of its field before it is released, so
+        // that no destroy function finds its own callback still in place.
+        // They go in the order the fields are declared, which is the order
+        // dropping the object released them in. Every callback field has to
+        // be named here: one left out is released by the drop instead.
+        //
+        // SAFETY: each line names a field through `ptr`, swaps `None` into
+        // it with `replace`, and drops what came out.
+        // - Naming a field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes each field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the object: no reference into it is in use when a field is
+        //   written.
+        // - Dropping what came out runs a destroy function, between one
+        //   `replace` and the next. It may read the object, which is sound:
+        //   `replace` has returned, and the field it emptied holds `None`.
+        //   It cannot leave the object unfit for the next line. An object
+        //   releasing its last reference takes no changes, which is what
+        //   `object::accepts_changes` reports and `set_callback` goes by,
+        //   and a reference taken to it then does not free it when it is
+        //   given back. Whatever the function borrowed ended when it
+        //   returned.
+        // Afterwards every callback field holds `None`, and stays that way
+        // for the same reason, so dropping the object runs no caller code.
+        unsafe {
+            drop((&raw mut (*ptr).push_transform).replace(None));
+            drop((&raw mut (*ptr).pop_transform).replace(None));
+            drop((&raw mut (*ptr).color_glyph).replace(None));
+            drop((&raw mut (*ptr).push_clip_glyph).replace(None));
+            drop((&raw mut (*ptr).push_clip_rectangle).replace(None));
+            drop((&raw mut (*ptr).push_clip_path_start).replace(None));
+            drop((&raw mut (*ptr).push_clip_path_end).replace(None));
+            drop((&raw mut (*ptr).pop_clip).replace(None));
+            drop((&raw mut (*ptr).color).replace(None));
+            drop((&raw mut (*ptr).fill_glyph).replace(None));
+            drop((&raw mut (*ptr).image).replace(None));
+            drop((&raw mut (*ptr).linear_gradient).replace(None));
+            drop((&raw mut (*ptr).radial_gradient).replace(None));
+            drop((&raw mut (*ptr).sweep_gradient).replace(None));
+            drop((&raw mut (*ptr).push_group).replace(None));
+            drop((&raw mut (*ptr).push_group_for).replace(None));
+            drop((&raw mut (*ptr).pop_group).replace(None));
+            drop((&raw mut (*ptr).custom_palette_color).replace(None));
+        }
+    }
     fn empty() -> *mut Self {
         static EMPTY: OnceLock<Empty<hr_paint_funcs_t>> = OnceLock::new();
         EMPTY
@@ -683,11 +738,30 @@ pub unsafe extern "C" fn hr_paint_push_clip_path_start(
     // SAFETY: `funcs` is `NULL` or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
+    // A caller that does not want the draw data may pass `NULL`, but a
+    // callback is owed a slot it can write, and writes it without looking.
+    // Give it one of ours, as HarfBuzz does.
+    let mut scratch = core::ptr::null_mut();
+    let draw_data = if draw_data.is_null() {
+        &raw mut scratch
+    } else {
+        draw_data
+    };
     if let Some(callback) = &state.push_clip_path_start {
         if let Some(func) = callback.func {
+            // SAFETY: by the invariant on `push_clip_path_start`, `func` may
+            // be called with its own `user_data` and arguments that meet this
+            // function's contract, with a `draw_data` it can write. `funcs`
+            // and `paint_data` are the caller's, and `draw_data` is the
+            // caller's writable one or the local above, which outlives the
+            // call.
             return unsafe { func(funcs, paint_data, draw_data, callback.user_data) };
         }
     }
+    // SAFETY: `draw_data` is the caller's, writable by this function's
+    // contract, or the local above. It only carries a value out, so it is
+    // written through the pointer.
+    unsafe { draw_data.write(core::ptr::null_mut()) };
     core::ptr::null_mut()
 }
 /// Registers push clip path end. Takes ownership of data, including when clearing or rejected.
@@ -927,6 +1001,9 @@ pub unsafe extern "C" fn hr_paint_funcs_set_image_func(
 }
 /// Dispatches image; omitted callbacks use the HarfBuzz default.
 ///
+/// `slant` is deprecated and ignored: the callback is handed zero, as in
+/// HarfBuzz.
+///
 /// # Safety
 ///
 /// `funcs` must be `NULL`, or live and unmodified until this returns, and
@@ -944,6 +1021,8 @@ pub unsafe extern "C" fn hr_paint_image(
     slant: f32,
     extents: *mut hr_glyph_extents_t,
 ) -> hr_bool_t {
+    // Named as in the header, and unused.
+    let _ = slant;
     // SAFETY: `funcs` is `NULL` or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
@@ -960,7 +1039,7 @@ pub unsafe extern "C" fn hr_paint_image(
                     width,
                     height,
                     format,
-                    slant,
+                    0.0,
                     extents,
                     callback.user_data,
                 )

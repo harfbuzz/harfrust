@@ -118,7 +118,8 @@ pub struct hr_font_t {
     /// Owned reference to the face this font draws from.
     // Safety invariant: a live face, which this font holds a reference to.
     face: *mut hr_face_t,
-    /// `None` only for the immortal empty font.
+    /// `None` only for the immortal empty font, and for a font being freed
+    /// once it has let go of its face.
     prepared: Option<PreparedFont>,
     pub(crate) x_scale: c_int,
     pub(crate) y_scale: c_int,
@@ -129,7 +130,8 @@ pub struct hr_font_t {
     /// to `int`, so `hr_font_get_var_coords_normalized` can hand back a
     /// pointer directly.
     coords: Vec<c_int>,
-    /// Owned reference to the callbacks, or null for the built-in ones.
+    /// Owned reference to the callbacks, or null for none of its own: its
+    /// parent's then apply, or the built-in ones if it has no parent.
     // Safety invariant: `NULL`, or a live funcs object, which this font holds
     // a reference to.
     pub(crate) funcs: *mut hr_font_funcs_t,
@@ -388,11 +390,130 @@ impl Object for hr_font_t {
     }
 
     unsafe fn finalize(ptr: *mut Self) {
-        // Detach before running caller code, without keeping an exclusive
-        // reference to the font across a callback that may query it. Funcs,
-        // parent, face and the prepared view remain alive until Box::drop.
-        let data = unsafe { (&raw mut (*ptr).font_data).replace(None) };
-        drop(data);
+        // What the font holds for the caller goes here rather than when the
+        // font is dropped. Letting go of it runs the caller's code: the
+        // destroy function of the font data, and those of whatever the
+        // parent, the face and the callbacks were given, where this font's
+        // reference to one of them is the last. That code may ask the font
+        // a question. Here nothing borrows the font. Inside its drop, the
+        // drop does.
+        //
+        // They go in HarfBuzz's order: the font data, the parent, the face,
+        // the callbacks.
+
+        // The font data's destroy function runs with the font still as it
+        // was, as in HarfBuzz: a getter it calls is answered by the font's
+        // callbacks, and those are handed the data being released. So only
+        // the destroy function is taken out for now. That also keeps the
+        // data from being released a second time when it is dropped, and
+        // upholds the invariant on `FontData::destroy`, which has no
+        // function left to call.
+        //
+        // SAFETY: making the reference needs `ptr` to be aligned and to
+        // point to a `Self`, and nothing else to use the field for as long
+        // as the reference is used.
+        // - This function's contract has `ptr` live, with nothing else using
+        //   the font.
+        // - The reference is used within this statement only. That runs none
+        //   of the caller's code, and is over before the destroy function is
+        //   called.
+        let release = unsafe { &mut (*ptr).font_data }
+            .as_mut()
+            // Never `None`: the font is its data's only owner.
+            .and_then(Arc::get_mut)
+            .and_then(|font_data| Some((font_data.destroy.take()?, font_data.data)));
+        if let Some((destroy, data)) = release {
+            // SAFETY: by the invariant on `FontData::destroy`, one call with
+            // `data` is sound on whichever thread makes it. This is that
+            // call: the function was taken out of the font data just above,
+            // which leaves nothing else to make it.
+            unsafe { destroy(data) };
+        }
+
+        // With the data gone, the callbacks it was given with are not to be
+        // called for this font again. The font lets go of both together,
+        // with none of the caller's code run in between, which is what the
+        // invariant on `font_data` asks. Its reference to the callbacks is
+        // kept until the end, to be released last.
+        //
+        // SAFETY: each of the five statements like this one names a field
+        // through `ptr` and swaps an empty value into it with `replace`.
+        // - Naming a field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes each field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the font: no reference into it is in use when a field is
+        //   written. The one made above ended with its statement.
+        // - Destroy functions run between these statements. They may read
+        //   the font, which is sound: no `replace` is under way then, and
+        //   each field holds a value its invariant allows, so one that every
+        //   reader of a font allows for. They cannot leave the font unfit
+        //   for the next statement. A font releasing its last reference
+        //   takes no changes, which is what `object::as_mutable` goes by,
+        //   and a reference taken to it then does not free it when it is
+        //   given back. Whatever they borrowed ended when they returned.
+        // Afterwards the font holds no callbacks, no font data, no parent,
+        // no view of its tables and the empty face, and stays that way for
+        // the same reason, so dropping it runs no caller code.
+        let funcs = unsafe { (&raw mut (*ptr).funcs).replace(core::ptr::null_mut()) };
+        // SAFETY: as for `funcs`, just above.
+        let font_data = unsafe { (&raw mut (*ptr).font_data).replace(None) };
+        // Its destroy function has run, so this runs nothing.
+        drop(font_data);
+
+        // The parent. Whatever this releases finds a font that has none.
+        //
+        // SAFETY: as for `funcs`. The destroy function run since has
+        // returned.
+        let parent = unsafe { (&raw mut (*ptr).parent).replace(core::ptr::null_mut()) };
+        // SAFETY: `destroy` needs a font that is `NULL` or live, and a
+        // reference to it that is the caller's to give up. `parent` is what
+        // the field held: by its invariant `NULL`, or a live font that this
+        // font held a reference to. That reference is this function's now
+        // that the field holds `NULL`, and nothing has released it since.
+        unsafe { object::destroy(parent) };
+
+        // The face, and before it the view of its tables that the font
+        // prepared. The view shares those tables with the face. Kept past
+        // the font's reference to the face, it could be the last thing
+        // holding them, and letting go of them is the caller's code again:
+        // the destroy functions of the tables, and of the callback or the
+        // blob they came from. While the face is live it holds them too, so
+        // dropping the view here runs nothing.
+        {
+            // SAFETY: as for `funcs`. Every destroy function run since has
+            // returned.
+            let _prepared = unsafe { (&raw mut (*ptr).prepared).replace(None) };
+            // Dropped where it stands, as this block ends, and not handed
+            // to `drop`. A view passed to a function vouches, for as long
+            // as that function runs, for the `Font` it borrows staying put,
+            // and that function would be the one to release it.
+        }
+        // Whatever the face releases finds a font over the empty face.
+        //
+        // SAFETY: as for `funcs`. Dropping the view ran none of the caller's
+        // code.
+        let face = unsafe { (&raw mut (*ptr).face).replace(hr_face_t::empty()) };
+        // SAFETY: `destroy` needs a face that is `NULL` or live, and a
+        // reference to it that is the caller's to give up. `face` is what
+        // the field held: by its invariant a live face that this font held
+        // a reference to. That reference is this function's now that the
+        // field holds the empty face, which is live for good and asks for
+        // none. Nothing has released it since.
+        unsafe { object::destroy(face) };
+
+        // The callbacks, last. The font let go of them above, and whatever
+        // this releases finds a font with none.
+        //
+        // SAFETY: `destroy` needs a funcs object that is `NULL` or live, and
+        // a reference to it that is the caller's to give up. `funcs` is what
+        // the field held until it was emptied above: by its invariant
+        // `NULL`, or a live funcs object that this font held a reference to.
+        // That reference has been this function's since, and nothing has
+        // released it: the object is still live.
+        unsafe { object::destroy(funcs) };
     }
 
     fn empty() -> *mut Self {

@@ -187,6 +187,38 @@ impl Object for hr_shape_plan_t {
         &self.header
     }
 
+    unsafe fn finalize(ptr: *mut Self) {
+        // The face goes here rather than when the plan is dropped. The
+        // plan's reference to it may be the last, and releasing that runs
+        // the destroy functions of everything the face was given. Those are
+        // the caller's code, and may ask this plan a question. Here nothing
+        // borrows the plan. Inside its drop, the drop does.
+        //
+        // The plan is left holding the empty face, as the empty plan does,
+        // which `Drop` then releases to no effect.
+        //
+        // SAFETY: this names the `face` field through `ptr` and swaps the
+        // empty face into it with `replace`.
+        // - Naming the field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes the field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the plan. None of the caller's code runs before `replace` has
+        //   returned, so no reference into the plan is in use while the
+        //   field is written.
+        // Afterwards `face` is the plan's reference to its face, and the
+        // field no longer lays claim to it.
+        let face = unsafe { (&raw mut (*ptr).face).replace(hr_face_t::empty()) };
+        // SAFETY: `destroy` needs a null or live face, and the reference
+        // being released to be the caller's own. `face` came out of the
+        // field that holds the plan's owned reference to its face, which
+        // kept the face live until now, and the field has given that
+        // reference up to this function. Nothing has released it since.
+        unsafe { object::destroy(face) };
+    }
+
     fn empty() -> *mut Self {
         EMPTY_SHAPE_PLAN
             .get_or_init(|| {
@@ -240,7 +272,8 @@ fn instance_for(face: &hr_face_t, coords: &[NormalizedCoord], cached: bool) -> O
 
 /// # Safety
 ///
-/// See [`hr_shape_plan_create2`].
+/// As [`hr_shape_plan_create`] for the pointers this takes. The coordinates
+/// arrive as a slice, already read.
 unsafe fn create_plan(
     face: *mut hr_face_t,
     props: *const hr_segment_properties_t,

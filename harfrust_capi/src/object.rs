@@ -186,8 +186,9 @@ impl Default for ObjectHeader {
 /// Implemented by every reference counted object in this API.
 ///
 /// The functions in this module rely on what `header` and `empty` are
-/// documented to return. Nothing makes an implementation keep to that but
-/// its author, and every implementation is in this crate.
+/// documented to return, and on what `finalize` is documented to leave
+/// behind. Nothing makes an implementation keep to that but its author, and
+/// every implementation is in this crate.
 pub trait Object: Sized + 'static {
     /// Returns this object's header.
     ///
@@ -206,7 +207,10 @@ pub trait Object: Sized + 'static {
     /// pointer [live](self#live-pointers) for the rest of the process.
     fn empty() -> *mut Self;
 
-    /// Releases callback-owned state before exclusive Box ownership is taken.
+    /// Releases everything the object holds whose release runs the caller's
+    /// code, before the object is dropped.
+    ///
+    /// The default is for an object that holds nothing of the kind.
     ///
     /// # Safety
     ///
@@ -216,10 +220,17 @@ pub trait Object: Sized + 'static {
     /// this is called: no reference to it may be in use, and no other thread
     /// may access it.
     ///
-    /// An implementation may write the object through `ptr`. It must detach
-    /// state before invoking the callbacks that release it, and hold no
-    /// reference to the object across them: they may still query the object
-    /// through its original pointer.
+    /// An implementation may write the object through `ptr`. The destroy
+    /// callbacks it runs are the caller's code, and may still query the
+    /// object through its original pointer. Whenever one runs, the
+    /// implementation must hold no reference to the object, and each field
+    /// must hold a value that every reader of the object allows for.
+    ///
+    /// # Safety-usable invariant
+    ///
+    /// Once this has returned, dropping the object runs none of the caller's
+    /// code: whatever would have run some has been released here, and an
+    /// object that takes no changes is given nothing more to release.
     unsafe fn finalize(_ptr: *mut Self) {}
 }
 
@@ -342,8 +353,9 @@ pub unsafe fn destroy<T: Object>(ptr: *mut T) {
     header.ref_count.store(DYING, Ordering::Relaxed);
     // Last reference. As in HarfBuzz, the destroy callback of every attached
     // user data item runs first, while the object still holds everything it
-    // owns: a callback on a font may look at the font's face. Only then is
-    // ownership taken back and the object dropped.
+    // owns: a callback on a font may look at the font's face. `finalize`
+    // then lets go of whatever else the caller gave the object, and only
+    // after that is ownership taken back and the object dropped.
     header.release_user_data();
     // SAFETY: `finalize` needs `ptr` live, the object's last reference
     // released, and nothing else using the object.
@@ -357,6 +369,18 @@ pub unsafe fn destroy<T: Object>(ptr: *mut T) {
     //   "Owning a reference" in the module docs). Those run so far have
     //   returned, and `obj` and `header` are not used again.
     unsafe { T::finalize(ptr) };
+    // SAFETY: `Box::from_raw` needs a pointer that `Box::into_raw` gave for a
+    // `Box<T>` and that has not been made into a `Box` since, and the object
+    // to be the `Box`'s alone from here on.
+    // - `ptr` is live, so it is what `create` or `Empty::new` got from
+    //   `Box::into_raw` for a `Box<T>`.
+    // - Only this line frees an object, and an object gets here once: the
+    //   count read one a single time and is parked at `DYING`.
+    // - As for `finalize` above, nothing else is using the object, and the
+    //   callbacks `finalize` ran have returned too. Dropping the `T` runs
+    //   none of the caller's code, which could still reach the object
+    //   through `ptr`: that is what `finalize` is documented to leave
+    //   behind.
     drop(unsafe { Box::from_raw(ptr) });
 }
 

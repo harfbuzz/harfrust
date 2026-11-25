@@ -127,7 +127,8 @@ impl Drop for TableFunc {
 
 /// How a face gets at its table data.
 enum FaceSource {
-    /// No data at all; only the immortal empty face uses this.
+    /// No data at all; only the immortal empty face uses this, and a face
+    /// being freed once it has let go of its data.
     Empty,
     /// A blob, over which this face owns a reference.
     Blob {
@@ -228,7 +229,8 @@ impl Drop for FaceSource {
 /// A font face: the tables of one font, before any size or variation settings.
 pub struct hr_face_t {
     header: ObjectHeader,
-    /// `None` only for the immortal empty face.
+    /// `None` only for the immortal empty face, and for a face being freed
+    /// once it has let go of its tables.
     pub(crate) font: Option<Font>,
     index: c_uint,
     source: FaceSource,
@@ -292,6 +294,65 @@ static EMPTY_FACE: OnceLock<Empty<hr_face_t>> = OnceLock::new();
 impl Object for hr_face_t {
     fn header(&self) -> &ObjectHeader {
         &self.header
+    }
+
+    unsafe fn finalize(ptr: *mut Self) {
+        // What the face holds for the caller goes here rather than when the
+        // face is dropped. Letting go of it runs destroy functions: of the
+        // tables a table callback returned, of that callback, of the blob,
+        // of the tags callback. Those are the caller's code, and may ask the
+        // face they are being released from a question. Here the face is
+        // whole and nothing borrows it. Inside its drop, part of it has gone
+        // already and the rest is borrowed by the drop.
+        //
+        // Each piece is taken out of the face before it is released, so a
+        // destroy function finds the face without it, and never finds
+        // something that is on its way out. The pieces go in the order the
+        // fields are declared, which is the order dropping the face released
+        // them in:
+        //
+        // - The font, and with it the tables it kept. It goes first because
+        //   it reads bytes that the table callback or the blob keeps alive.
+        //   What this releases finds a face with no tables, whose table
+        //   callback still answers.
+        // - The table callback, or the blob. What this releases finds a
+        //   face with nowhere to get a table from.
+        // - The tags callback, which then finds a face that lists no tables.
+        //
+        // The rest of the face holds nothing of the caller's: its plans and
+        // rendering data are this library's own, and its user data has been
+        // released already.
+        //
+        // SAFETY: each statement names a field through `ptr` and swaps an
+        // empty value into it with `replace`.
+        // - Naming a field needs `ptr` to point into an allocation that
+        //   holds a `Self`. `replace` needs the field to be aligned, to hold
+        //   an initialized value, and to be valid for reads and writes, with
+        //   nothing else using it meanwhile.
+        // - This function's contract has `ptr` live, which makes each field
+        //   in bounds, aligned and initialized, and has nothing else using
+        //   the face: no reference into it is in use when a field is
+        //   written.
+        // - Dropping what came out runs destroy functions, between one
+        //   `replace` and the next. They may read the face, which is sound:
+        //   `replace` has returned, and the field it emptied holds a value
+        //   every reader of the face allows for, being what the empty face
+        //   holds. They cannot leave the face unfit for the next statement.
+        //   A face releasing its last reference takes no changes, which is
+        //   what `object::as_mutable` goes by, and a reference taken to it
+        //   then does not free it when it is given back. Whatever they
+        //   borrowed ended when they returned.
+        // Afterwards the three fields are empty, and stay that way for the
+        // same reason, so dropping the face runs no caller code.
+        let font = unsafe { (&raw mut (*ptr).font).replace(None) };
+        drop(font);
+        // SAFETY: as for `font`. Every destroy function run since has
+        // returned, and none can have changed what that rests on.
+        let source = unsafe { (&raw mut (*ptr).source).replace(FaceSource::Empty) };
+        drop(source);
+        // SAFETY: as for `font`, and likewise now that `source` has gone.
+        let table_tags = unsafe { (&raw mut (*ptr).table_tags).replace(None) };
+        drop(table_tags);
     }
 
     fn empty() -> *mut Self {

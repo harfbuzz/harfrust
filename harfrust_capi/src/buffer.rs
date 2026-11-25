@@ -602,7 +602,8 @@ fn set_post_context_utf16(buffer: &mut Buffer, units: &[u16]) {
 /// # Safety
 ///
 /// `buffer` must be `NULL` or a live buffer. `text` must point to
-/// `text_length` readable code units, or be zero-terminated.
+/// `text_length` readable code units, or be zero-terminated when
+/// `text_length` is negative.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_utf16(
     buffer: *mut hr_buffer_t,
@@ -656,7 +657,8 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
 /// # Safety
 ///
 /// `buffer` must be `NULL` or a live buffer. `text` must point to
-/// `text_length` readable bytes, or be zero-terminated.
+/// `text_length` readable bytes, or be zero-terminated when `text_length` is
+/// negative.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_latin1(
     buffer: *mut hr_buffer_t,
@@ -1183,7 +1185,7 @@ pub unsafe extern "C" fn hr_buffer_get_script(buffer: *mut hr_buffer_t) -> hr_sc
 /// # Safety
 ///
 /// `buffer` must be `NULL` or a live buffer, and `language` must be `NULL` or
-/// a value returned by `hr_language_from_string`.
+/// an interned language returned by this API.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_set_language(buffer: *mut hr_buffer_t, language: hr_language_t) {
     // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
@@ -1758,6 +1760,11 @@ pub extern "C" fn hr_buffer_serialize_list_formats() -> *const *const c_char {
 ///
 /// `buffer` and `font` must be `NULL` or live, `buf` must point to `buf_size`
 /// writable bytes, and `buf_consumed` must be `NULL` or writable.
+///
+/// Glyph names and glyph extents are asked of `font`, which may call its
+/// callbacks. Those must not change `buffer`, as for the buffer being shaped:
+/// its glyphs are being read for as long as this runs. HarfBuzz reads them
+/// the same way.
 #[no_mangle]
 #[allow(clippy::too_many_arguments)]
 pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
@@ -1781,6 +1788,11 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     if format != HR_BUFFER_SERIALIZE_FORMAT_TEXT {
         return 0;
     }
+    // SAFETY: `buffer` is `NULL` or live by this function's contract. The
+    // reference, and the glyph arrays borrowed through it, are used until
+    // this returns, across the font callbacks the loop below reaches. The
+    // contract bars those from changing the buffer, and the README bars
+    // other threads from doing so while this call reads it.
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
     // Kept as passed as well: callbacks are handed the font they were
     // installed on.

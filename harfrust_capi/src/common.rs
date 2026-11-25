@@ -814,7 +814,7 @@ fn canonical_language(tag: &str) -> String {
 /// language is unset.
 /// # Safety
 ///
-/// `language` must be `NULL` or a value returned by `hr_language_from_string`.
+/// `language` must be `NULL` or an interned language returned by this API.
 #[no_mangle]
 pub unsafe extern "C" fn hr_language_to_string(language: hr_language_t) -> *const c_char {
     // SAFETY: `as_ref` needs `language` to be null, or aligned and pointing to
@@ -859,8 +859,7 @@ pub(crate) fn default_language() -> Language {
 /// `specific`.
 /// # Safety
 ///
-/// Both arguments must be `NULL` or values returned by
-/// `hr_language_from_string`.
+/// Both arguments must be `NULL` or interned languages returned by this API.
 #[no_mangle]
 pub unsafe extern "C" fn hr_language_matches(
     language: hr_language_t,
