@@ -883,20 +883,56 @@ fn base_device_adjustments_round_negative_halves_up() {
     }
 }
 
+unsafe extern "C" fn no_origin(
+    _: *mut hr_font_t,
+    _: *mut c_void,
+    _: hr_codepoint_t,
+    _: *mut hr_position_t,
+    _: *mut hr_position_t,
+    _: *mut c_void,
+) -> hr_bool_t {
+    0
+}
+
 #[test]
-fn fallback_vertical_origin_rounds_negative_halves_up() {
-    unsafe extern "C" fn no_origin(
-        _: *mut hr_font_t,
-        _: *mut c_void,
-        _: hr_codepoint_t,
-        _: *mut hr_position_t,
-        _: *mut hr_position_t,
-        _: *mut c_void,
-    ) -> hr_bool_t {
-        0
-    }
+fn directional_origins_use_the_other_origin_when_available() {
+    let missing: hr_font_get_glyph_h_origin_func_t = Some(no_origin);
+    let provided: hr_font_get_glyph_h_origin_func_t = Some(fixed_origin); // (12, 34)
     unsafe {
-        with_font(|_face, font| {
+        with_font(|_, font| {
+            hr_font_set_scale(font, 1024, -512);
+            // The nil advance is 1024 and the fallback ascender is trunc(-512 * 0.8).
+            for (h, v, expected_h, expected_v) in [
+                (provided, missing, (12, 34), (524, -375)),
+                (missing, provided, (-500, 443), (12, 34)),
+                (missing, missing, (0, 0), (0, 0)),
+                (None, None, (0, 0), (512, -409)),
+            ] {
+                let funcs = hr_font_funcs_create();
+                hr_font_funcs_set_glyph_h_origin_func(funcs, h, ptr::null_mut(), None);
+                hr_font_funcs_set_glyph_v_origin_func(funcs, v, ptr::null_mut(), None);
+                hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
+                hr_font_funcs_destroy(funcs);
+                for (direction, expected) in [
+                    (HR_DIRECTION_LTR, expected_h),
+                    (HR_DIRECTION_TTB, expected_v),
+                ] {
+                    let (mut x, mut y) = (99, 99);
+                    hr_font_get_glyph_origin_for_direction(
+                        font, 1, direction, &raw mut x, &raw mut y,
+                    );
+                    assert_eq!((x, y), expected);
+                }
+            }
+        });
+    }
+}
+
+#[test]
+fn fallback_vertical_origin_uses_the_parent_font_extents() {
+    unsafe {
+        with_font(|_, parent| {
+            let font = hr_font_create_sub_font(parent);
             let funcs = hr_font_funcs_create();
             hr_font_funcs_set_glyph_v_origin_func(funcs, Some(no_origin), ptr::null_mut(), None);
             hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
@@ -910,8 +946,9 @@ fn fallback_vertical_origin_rounds_negative_halves_up() {
                 ptr::null_mut(),
                 &raw mut y,
             );
-            // The font's 1103-unit ascender scales to -551.5.
+            // The parent's 1103-unit ascender rescales to -551 in the subfont.
             assert_eq!(y, -551);
+            hr_font_destroy(font);
         });
     }
 }

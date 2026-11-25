@@ -4274,8 +4274,9 @@ void hr_font_get_glyph_advances_for_direction(struct hr_font_t *font,
 /**
  * Where a glyph hangs from in the given direction.
  *
- * A font that cannot say where a glyph hangs from vertically has one guessed
- * for it from the horizontal origin, as HarfBuzz does.
+ * If the requested origin is unavailable, derives it from the other origin
+ * using the horizontal advance and ascender. Writes (0, 0) if both origins
+ * are unavailable.
  *
  * # Safety
  *
