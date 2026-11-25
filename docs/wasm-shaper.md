@@ -149,11 +149,21 @@ font and checks:
 - the shaper list: OpenType by default even for a font with a module, falling
   through to the next shaper when a font has no module, and
   `ShapeError::ShaperUnavailable` when no listed shaper can shape the font,
-- face, table, glyph name, extents, variation and outline queries.
+- face, table, glyph name, extents, variation and outline queries,
+- features passed to the module, right-to-left input, `buffer_contents_realloc`,
+  `font_set_coords` on a font the module created, and the refusals that leave a
+  font to OpenType: no `shape` export, no memory, and an empty buffer,
 - the limits: a module that loops, one that takes memory until refused, one
   that has the host copy a table a hundred thousand times, one that creates
   fonts until refused, one that asks the buffer for more items than the call
   allows, and one that asks again after `shape_with`.
+
+`harfrust/tests/fonts/wasm` holds three of HarfBuzz's test fonts, whose modules
+are compiled from C against `hb-wasm-api.h`: one imports a function nothing
+provides and never calls it, one answers with values chosen by the first
+character and is used here for a `shape` that returns false, and one copies and
+frees the font's coordinates two hundred thousand times. Those exercise the same
+host API through a real toolchain's output rather than hand-written `.wat`.
 
 The same host was also exercised with a real `wasm-bindgen` guest built from
 HarfBuzz's `harfbuzz-wasm` crate.

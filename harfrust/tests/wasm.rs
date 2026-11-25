@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 
 use harfrust::{
-    shape, Buffer, Direction, Feature, Font, ShapeError, ShapeOptions, Shaper, ShaperFont,
+    shape, Buffer, Direction, Feature, Font, ShapeError, ShapeOptions, Shaper, ShaperFont, Tag,
 };
 use read_fonts::FontRef;
 
@@ -679,4 +679,239 @@ fn wasm_shaper_keeps_the_length_bound_after_shape_with() {
     let wasm = wat::parse_str(SHAPE_WITH_THEN_GROW_GUEST).unwrap();
     let data = add_table(ROBOTO, *b"Wasm", &wasm);
     assert!(try_shape_text(data, "abc").is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// Fonts from HarfBuzz's test suite (harfbuzz/test/api/fonts)
+//
+// Their modules are built from HarfBuzz's C sources against
+// `hb-wasm-api.h`; the licences are in fonts/wasm.
+// ---------------------------------------------------------------------------
+
+/// The module imports a function nothing provides, as modules made with
+/// wasm-bindgen do, and never calls it.
+const WASM_IMPORT: &[u8] = include_bytes!("fonts/wasm/wasm-import.ttf");
+/// Answers with a few values, one per glyph, chosen by the first character.
+const WASM_API: &[u8] = include_bytes!("fonts/wasm/wasm-api.ttf");
+/// The same module in a variable font, for the font's coordinates.
+const WASM_COORDS: &[u8] = include_bytes!("fonts/wasm/wasm-coords.ttf");
+
+#[test]
+fn wasm_shaper_runs_a_module_with_unused_imports() {
+    // The module leaves the buffer as it found it, so the codepoints come
+    // back as glyph ids. That it ran at all is the point: it imports a
+    // function the host does not define, and OpenType would have mapped the
+    // text to real glyphs.
+    let buffer = shape_text(WASM_IMPORT.to_vec(), "abc", &[]);
+    assert_eq!(glyph_ids(&buffer), vec![97, 98, 99]);
+}
+
+#[test]
+fn wasm_shaper_treats_a_zero_result_as_failure() {
+    // Case 'l' of the module returns false from `shape`, without trapping.
+    assert!(matches!(
+        shape_text_with(WASM_API.to_vec(), "l", &[], &[Shaper::Wasm]),
+        Err(ShapeError::WasmShapingFailed)
+    ));
+}
+
+#[test]
+fn wasm_shaper_copies_and_frees_font_coords() {
+    // Case 'm' copies the font's coordinates into an array it asks the host
+    // for, frees it, and does that 200000 times, counting what fails. It
+    // answers with the failures and the number of coordinates.
+    let font = Font::new(WASM_COORDS.to_vec(), 0).unwrap();
+    let font = font
+        .instance_builder()
+        .variations([(Tag::new(b"wght"), 0.5), (Tag::new(b"wdth"), 0.75)])
+        .build();
+    let shaper = ShaperFont::new(&font);
+    let mut buffer = Buffer::new();
+    buffer.push_str("m");
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.guess_segment_properties();
+    shape(
+        &shaper,
+        &mut buffer,
+        ShapeOptions::new().shapers(&[Shaper::Wasm]),
+    )
+    .unwrap();
+    assert_eq!(glyph_ids(&buffer), vec![0, 2]);
+}
+
+#[test]
+fn wasm_shaper_is_not_called_for_an_empty_buffer() {
+    // The module would never return if it ran.
+    let wasm = wat::parse_str(LOOP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let buffer = shape_text(data, "", &[]);
+    assert!(glyph_ids(&buffer).is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Host API calls the hand-written modules above do not reach
+// ---------------------------------------------------------------------------
+
+/// Answers with the feature count and the first feature's fields, one value
+/// per glyph.
+const FEATURES_GUEST: &str = r#"
+(module
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (i32.store (i32.const 0) (i32.const 5))
+    (i32.store (i32.const 4) (i32.const 1024))
+    (i32.store (i32.const 8) (i32.const 2048))
+    (i32.store (i32.const 1024) (local.get $count))
+    (i32.store (i32.const 1044) (i32.load (local.get $features)))
+    (i32.store (i32.const 1064) (i32.load (i32.add (local.get $features) (i32.const 4))))
+    (i32.store (i32.const 1084) (i32.load (i32.add (local.get $features) (i32.const 8))))
+    (i32.store (i32.const 1104) (i32.load (i32.add (local.get $features) (i32.const 12))))
+    (call $set (local.get $buf) (i32.const 0))))
+"#;
+
+#[test]
+fn wasm_shaper_passes_features_to_the_module() {
+    let wasm = wat::parse_str(FEATURES_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let features = [Feature::new(Tag::new(b"dlig"), 1, 2..4)];
+    let buffer = shape_text(data, "a", &features);
+    assert_eq!(
+        glyph_ids(&buffer),
+        vec![1, u32::from_be_bytes(*b"dlig"), 1, 2, 3]
+    );
+}
+
+/// Answers with the direction and script the host gave it.
+const RTL_GUEST: &str = r#"
+(module
+  (import "env" "buffer_get_direction" (func $direction (param i32) (result i32)))
+  (import "env" "buffer_get_script" (func $script (param i32) (result i32)))
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (i32.store (i32.const 0) (i32.const 2))
+    (i32.store (i32.const 4) (i32.const 1024))
+    (i32.store (i32.const 8) (i32.const 2048))
+    (i32.store (i32.const 1024) (call $direction (local.get $buf)))
+    (i32.store (i32.const 1044) (call $script (local.get $buf)))
+    (call $set (local.get $buf) (i32.const 0))))
+"#;
+
+#[test]
+fn wasm_shaper_shapes_right_to_left() {
+    let wasm = wat::parse_str(RTL_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let font = Font::new(data, 0).unwrap();
+    let shaper = ShaperFont::new(&font);
+    let mut buffer = Buffer::new();
+    buffer.push_str("\u{0627}\u{0628}\u{062C}");
+    buffer.set_direction(Direction::RightToLeft);
+    buffer.guess_segment_properties();
+    shape(
+        &shaper,
+        &mut buffer,
+        ShapeOptions::new().shapers(&[Shaper::Wasm]),
+    )
+    .unwrap();
+    // HarfBuzz's direction numbers: 4 for left-to-right, 5 for right-to-left.
+    assert_eq!(glyph_ids(&buffer), vec![5, u32::from_be_bytes(*b"Arab")]);
+}
+
+/// Copies the buffer with no room of its own, grows the arrays the host
+/// allocated, and answers with the length and the glyphs that came along.
+const REALLOC_GUEST: &str = r#"
+(module
+  (import "env" "buffer_copy_contents" (func $copy (param i32 i32) (result i32)))
+  (import "env" "buffer_contents_realloc" (func $realloc (param i32 i32) (result i32)))
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (local $info i32)
+    (local $length i32)
+    (local $first i32)
+    (local $second i32)
+    (local $third i32)
+    (i32.store (i32.const 0) (i32.const 0))
+    (i32.store (i32.const 4) (i32.const 0))
+    (i32.store (i32.const 8) (i32.const 0))
+    (if (i32.eqz (call $copy (local.get $buf) (i32.const 0)))
+      (then (return (i32.const 0))))
+    (if (i32.eqz (call $realloc (i32.const 0) (i32.const 8)))
+      (then (return (i32.const 0))))
+    (local.set $length (i32.load (i32.const 0)))
+    (local.set $info (i32.load (i32.const 4)))
+    (local.set $first (i32.load (local.get $info)))
+    (local.set $second (i32.load (i32.add (local.get $info) (i32.const 20))))
+    (local.set $third (i32.load (i32.add (local.get $info) (i32.const 40))))
+    (i32.store (i32.const 1024) (i32.const 4))
+    (i32.store (i32.const 1028) (i32.const 2048))
+    (i32.store (i32.const 1032) (i32.const 3072))
+    (i32.store (i32.const 2048) (local.get $length))
+    (i32.store (i32.const 2068) (local.get $first))
+    (i32.store (i32.const 2088) (local.get $second))
+    (i32.store (i32.const 2108) (local.get $third))
+    (call $set (local.get $buf) (i32.const 1024))))
+"#;
+
+#[test]
+fn wasm_shaper_reallocates_buffer_contents() {
+    let wasm = wat::parse_str(REALLOC_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let buffer = shape_text(data, "abc", &[]);
+    // The length is the size asked for, and the items were copied along.
+    assert_eq!(glyph_ids(&buffer), vec![8, 97, 98, 99]);
+}
+
+/// Sets coordinates on the root font, which it may not, and on a font of its
+/// own, which it may.
+const SET_COORDS_GUEST: &str = r#"
+(module
+  (import "env" "font_create" (func $font_create (param i32) (result i32)))
+  (import "env" "font_set_coords" (func $set_coords (param i32 i32) (result i32)))
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (local $created i32)
+    (i32.store (i32.const 16) (i32.const 1))
+    (i32.store (i32.const 20) (i32.const 32))
+    (i32.store (i32.const 32) (i32.const 8192))
+    (i32.store (i32.const 1024) (i32.const 2))
+    (i32.store (i32.const 1028) (i32.const 2048))
+    (i32.store (i32.const 1032) (i32.const 3072))
+    (i32.store (i32.const 2048) (call $set_coords (local.get $font) (i32.const 16)))
+    (local.set $created (call $font_create (i32.const 1)))
+    (i32.store (i32.const 2068) (call $set_coords (local.get $created) (i32.const 16)))
+    (call $set (local.get $buf) (i32.const 1024))))
+"#;
+
+#[test]
+fn wasm_shaper_sets_coords_on_created_fonts_only() {
+    let wasm = wat::parse_str(SET_COORDS_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let buffer = shape_text(data, "a", &[]);
+    // The root font is borrowed, so setting its coordinates fails; the font
+    // created from its face is the module's own.
+    assert_eq!(glyph_ids(&buffer), vec![0, 1]);
+}
+
+#[test]
+fn wasm_shaper_falls_back_from_a_module_it_cannot_use() {
+    // A module with no `shape` export, and one with no memory: neither can
+    // exchange buffer contents, so the font is left to OpenType.
+    let plain = glyph_ids(&shape_text(ROBOTO.to_vec(), "abc", &[]));
+    for guest in [
+        r#"(module (memory (export "memory") 1))"#,
+        r#"(module
+             (func (export "shape") (param i32 i32 i32 i32 i32) (result i32)
+               (i32.const 1)))"#,
+    ] {
+        let wasm = wat::parse_str(guest).unwrap();
+        let data = add_table(ROBOTO, *b"Wasm", &wasm);
+        assert_eq!(glyph_ids(&shape_text(data, "abc", &[])), plain);
+    }
 }
