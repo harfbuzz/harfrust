@@ -560,6 +560,11 @@ fn align_up(value: u32, align: u32) -> Option<u32> {
         .map(|value| value & !(align - 1))
 }
 
+/// Safely add an offset to a pointer, returning None on overflow.
+fn ptr_add(ptr: u32, offset: u32) -> Option<u32> {
+    ptr.checked_add(offset)
+}
+
 /// The size of the font's data.
 fn font_data_len(font: &ModelFont) -> u64 {
     match font.source() {
@@ -953,7 +958,9 @@ fn api_buffer_contents_free<'a, 'b, 'c>(
     }
     let contents_ptr = contents_ptr as u32;
     for offset in [0, 4, 8] {
-        let _ = write_u32(&mut caller, memory, contents_ptr + offset, 0);
+        if let Some(addr) = ptr_add(contents_ptr, offset) {
+            let _ = write_u32(&mut caller, memory, addr, 0);
+        }
     }
 }
 
@@ -1411,18 +1418,24 @@ fn api_font_glyph_to_string<'a, 'b, 'c>(
     let bytes = name.as_str().as_bytes();
     let max = usize::try_from(size as u32 - 1).unwrap_or(0);
     let count = bytes.len().min(max);
-    if write_bytes(&mut caller, memory, string_ptr as u32, &bytes[..count]).is_none() {
+    let string_ptr = string_ptr as u32;
+    if write_bytes(&mut caller, memory, string_ptr, &bytes[..count]).is_none() {
         return;
     }
-    let _ = write_bytes(&mut caller, memory, string_ptr as u32 + count as u32, &[0]);
+    if let Some(addr) = ptr_add(string_ptr, count as u32) {
+        let _ = write_bytes(&mut caller, memory, addr, &[0]);
+    }
 }
 
 fn api_coords_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, coords_ptr: i32) {
     let Some(memory) = caller.data().memory else {
         return;
     };
+    let coords_ptr = coords_ptr as u32;
     for offset in [0, 4] {
-        let _ = write_u32(&mut caller, memory, coords_ptr as u32 + offset, 0);
+        if let Some(addr) = ptr_add(coords_ptr, offset) {
+            let _ = write_u32(&mut caller, memory, addr, 0);
+        }
     }
 }
 
@@ -1695,8 +1708,11 @@ fn api_glyph_outline_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, 
     if !charge(&mut caller, 0) {
         return;
     }
+    let outline_ptr = outline_ptr as u32;
     for offset in [0, 4, 8, 12] {
-        let _ = write_u32(&mut caller, memory, outline_ptr as u32 + offset, 0);
+        if let Some(addr) = ptr_add(outline_ptr, offset) {
+            let _ = write_u32(&mut caller, memory, addr, 0);
+        }
     }
 }
 
@@ -1707,8 +1723,11 @@ fn api_blob_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, blob_ptr:
     if !charge(&mut caller, 0) {
         return;
     }
+    let blob_ptr = blob_ptr as u32;
     for offset in [0, 4] {
-        let _ = write_u32(&mut caller, memory, blob_ptr as u32 + offset, 0);
+        if let Some(addr) = ptr_add(blob_ptr, offset) {
+            let _ = write_u32(&mut caller, memory, addr, 0);
+        }
     }
 }
 
@@ -1763,7 +1782,9 @@ fn api_feature_copy_contents<'a, 'b, 'c>(
     let count = count as u32;
     if count == 0 {
         let _ = write_u32(&mut caller, memory, output_ptr, 0);
-        let _ = write_u32(&mut caller, memory, output_ptr + 4, 0);
+        if let Some(addr) = ptr_add(output_ptr, 4) {
+            let _ = write_u32(&mut caller, memory, addr, 0);
+        }
         return 1;
     }
     let Some(bytes) = bytes_for(count, FEATURE_SIZE) else {
@@ -1782,7 +1803,9 @@ fn api_feature_copy_contents<'a, 'b, 'c>(
         return 0;
     }
     let _ = write_u32(&mut caller, memory, output_ptr, count);
-    let _ = write_u32(&mut caller, memory, output_ptr + 4, new_ptr);
+    if let Some(addr) = ptr_add(output_ptr, 4) {
+        let _ = write_u32(&mut caller, memory, addr, new_ptr);
+    }
     1
 }
 
@@ -1793,8 +1816,11 @@ fn api_features_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, featu
     if !charge(&mut caller, 0) {
         return;
     }
+    let features_ptr = features_ptr as u32;
     for offset in [0, 4] {
-        let _ = write_u32(&mut caller, memory, features_ptr as u32 + offset, 0);
+        if let Some(addr) = ptr_add(features_ptr, offset) {
+            let _ = write_u32(&mut caller, memory, addr, 0);
+        }
     }
 }
 
