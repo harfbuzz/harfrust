@@ -538,14 +538,14 @@ pub unsafe extern "C" fn hr_blob_create_sub_blob(
 ///
 /// # Safety
 ///
-/// `blob` must be `NULL` or a live blob.
+/// `blob` must be a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_copy_writable_or_fail(blob: *mut hr_blob_t) -> *mut hr_blob_t {
     // SAFETY: `as_ref` needs `blob` to be null, or a live blob that nothing
-    // writes while the reference is used, which is within this call. This
-    // function's contract has `blob` `NULL` or live, and whoever writes a
-    // live object answers for no reference to it being in use (see
-    // "Exclusive access" in `object`).
+    // writes while the reference is used, which is within this call. `blob` is
+    // `NULL`, or live by this function's contract, and whoever writes a live
+    // object answers for no reference to it being in use (see "Exclusive
+    // access" in `object`).
     let Some(blob) = (unsafe { blob.as_ref() }) else {
         return core::ptr::null_mut();
     };
@@ -626,10 +626,10 @@ pub unsafe extern "C" fn hr_blob_get_user_data(
 ///
 /// # Safety
 ///
-/// `blob` must be `NULL` or a live blob.
+/// `blob` must be a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_make_immutable(blob: *mut hr_blob_t) {
-    // SAFETY: `blob` is `NULL` or live by this function's contract.
+    // SAFETY: `blob` is `NULL`, or live by this function's contract.
     unsafe { object::make_immutable(blob) };
 }
 
@@ -637,10 +637,10 @@ pub unsafe extern "C" fn hr_blob_make_immutable(blob: *mut hr_blob_t) {
 ///
 /// # Safety
 ///
-/// `blob` must be `NULL` or a live blob.
+/// `blob` must be a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_is_immutable(blob: *mut hr_blob_t) -> hr_bool_t {
-    // SAFETY: `blob` is `NULL` or live by this function's contract.
+    // SAFETY: `blob` is `NULL`, or live by this function's contract.
     unsafe { object::is_immutable(blob.cast_const()) }.into()
 }
 
@@ -648,10 +648,10 @@ pub unsafe extern "C" fn hr_blob_is_immutable(blob: *mut hr_blob_t) -> hr_bool_t
 ///
 /// # Safety
 ///
-/// `blob` must be `NULL` or a live blob.
+/// `blob` must be a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_get_length(blob: *mut hr_blob_t) -> c_uint {
-    // SAFETY: `blob` is `NULL` or live by this function's contract, and the
+    // SAFETY: `blob` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     unsafe { object::or_empty(blob.cast_const()) }.bytes().len() as c_uint
 }
@@ -664,14 +664,14 @@ pub unsafe extern "C" fn hr_blob_get_length(blob: *mut hr_blob_t) -> c_uint {
 ///
 /// # Safety
 ///
-/// `blob` must be `NULL` or a live blob, and `length` must be `NULL` or
+/// `blob` must be a live blob, and `length` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_get_data(
     blob: *mut hr_blob_t,
     length: *mut c_uint,
 ) -> *const c_char {
-    // SAFETY: `blob` is `NULL` or live by this function's contract, and the
+    // SAFETY: `blob` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     let blob = unsafe { object::or_empty(blob.cast_const()) };
     let bytes = blob.bytes();

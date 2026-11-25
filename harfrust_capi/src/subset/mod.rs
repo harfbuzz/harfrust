@@ -132,11 +132,11 @@ impl Drop for hr_subset_input_t {
 #[no_mangle]
 pub extern "C" fn hr_subset_input_create_or_fail() -> *mut hr_subset_input_t {
     let sets = std::array::from_fn(|_| crate::hr_set_create());
-    // SAFETY: every call in this block takes a set that must be `NULL` or
-    // live, and modifies it, which takes exclusive access to it. Each entry
-    // of `sets` is a new set that `hr_set_create` returned just above. This
-    // function still holds the reference each came with, and nothing else
-    // has been given their pointers.
+    // SAFETY: every call in this block takes a set that must be live, and
+    // modifies it, which takes exclusive access to it. Each entry of `sets`
+    // is a new set that `hr_set_create` returned just above. This function
+    // still holds the reference each came with, and nothing else has been
+    // given their pointers.
     unsafe {
         for tag in DEFAULT_NO_SUBSET_TABLES {
             crate::hr_set_add(sets[2], u32::from_be_bytes(tag.to_be_bytes()));
@@ -268,13 +268,13 @@ pub unsafe extern "C" fn hr_subset_input_destroy(input: *mut hr_subset_input_t) 
     }
 }
 
-/// Returns the borrowed set of glyph IDs to retain, or `NULL` for no input.
+/// Returns the borrowed set of glyph IDs to retain.
 ///
 /// # Safety
-/// `input` must be `NULL` or live; the returned set is borrowed from it.
+/// `input` must be live; the returned set is borrowed from it.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_input_glyph_set(input: *mut hr_subset_input_t) -> *mut hr_set_t {
-    // SAFETY: `input` is `NULL` or live by this function's contract. Nothing
+    // SAFETY: `input` is `NULL`, or live by this function's contract. Nothing
     // writes it meanwhile: the setters need exclusive access to an input,
     // and the call that frees it writes it only when nothing else uses it.
     unsafe { input.as_ref() }.map_or(ptr::null_mut(), |input| input.sets[0])
@@ -283,12 +283,12 @@ pub unsafe extern "C" fn hr_subset_input_glyph_set(input: *mut hr_subset_input_t
 /// Returns the borrowed set of Unicode codepoints to retain.
 ///
 /// # Safety
-/// `input` must be `NULL` or live; the returned set is borrowed from it.
+/// `input` must be live; the returned set is borrowed from it.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_input_unicode_set(
     input: *mut hr_subset_input_t,
 ) -> *mut hr_set_t {
-    // SAFETY: `input` is `NULL` or live by this function's contract. Nothing
+    // SAFETY: `input` is `NULL`, or live by this function's contract. Nothing
     // writes it meanwhile: the setters need exclusive access to an input,
     // and the call that frees it writes it only when nothing else uses it.
     unsafe { input.as_ref() }.map_or(ptr::null_mut(), |input| input.sets[1])
@@ -297,13 +297,13 @@ pub unsafe extern "C" fn hr_subset_input_unicode_set(
 /// Returns a borrowed configurable input set, or `NULL` for an invalid selector.
 ///
 /// # Safety
-/// `input` must be `NULL` or live; the returned set is borrowed from it.
+/// `input` must be live; the returned set is borrowed from it.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_input_set(
     input: *mut hr_subset_input_t,
     set_type: hr_subset_sets_t,
 ) -> *mut hr_set_t {
-    // SAFETY: `input` is `NULL` or live by this function's contract. Nothing
+    // SAFETY: `input` is `NULL`, or live by this function's contract. Nothing
     // writes it meanwhile: the setters need exclusive access to an input,
     // and the call that frees it writes it only when nothing else uses it.
     unsafe { input.as_ref() }
@@ -316,22 +316,22 @@ pub unsafe extern "C" fn hr_subset_input_set(
 /// are enabled; no tables are explicitly dropped.
 ///
 /// # Safety
-/// `input` must be `NULL` or live and, along with its sets, exclusively
+/// `input` must be live and, along with its sets, exclusively
 /// accessible: no other call may be using them, which rules out calling this
 /// from a destructor of the input's own metadata.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_input_keep_everything(input: *mut hr_subset_input_t) {
     // SAFETY: `as_mut` needs `input` to be `NULL`, or live with no other
-    // reference to it in use while this one is. This function's contract
-    // has it `NULL`, or live with no other call using it, and the reference
-    // ends when this returns.
+    // reference to it in use while this one is. It is `NULL`, or by this
+    // function's contract live with no other call using it, and the
+    // reference ends when this returns.
     let Some(input) = (unsafe { input.as_mut() }) else {
         return;
     };
-    // SAFETY: every call in this block takes a set that must be `NULL` or
-    // live, and modifies it, which takes exclusive access to it. By the
-    // invariant on `sets` each is live, and this function's contract has no
-    // other call using the input's sets.
+    // SAFETY: every call in this block takes a set that must be live, and
+    // modifies it, which takes exclusive access to it. By the invariant on
+    // `sets` each is live, and this function's contract has no other call
+    // using the input's sets.
     unsafe {
         for i in [0, 1, 4, 5, 6, 7] {
             crate::hr_set_clear(input.sets[i]);
@@ -349,30 +349,30 @@ pub unsafe extern "C" fn hr_subset_input_keep_everything(input: *mut hr_subset_i
 /// Sets the subset flags. Unsupported flag bits cause subsetting to fail.
 ///
 /// # Safety
-/// `input` must be `NULL` or live and exclusively accessible: no other call
+/// `input` must be live and exclusively accessible: no other call
 /// may be using it, which rules out calling this from a destructor of the
 /// input's own metadata.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_input_set_flags(input: *mut hr_subset_input_t, flags: c_uint) {
     // SAFETY: `as_mut` needs `input` to be `NULL`, or live with no other
-    // reference to it in use while this one is. This function's contract
-    // has it `NULL`, or live with no other call using it, and the reference
-    // ends when this returns.
+    // reference to it in use while this one is. It is `NULL`, or by this
+    // function's contract live with no other call using it, and the
+    // reference ends when this returns.
     if let Some(input) = unsafe { input.as_mut() } {
         input.flags = flags;
     }
 }
 
-/// Returns the configured flags, or zero for `NULL`.
+/// Returns the configured flags.
 ///
 /// # Safety
-/// `input` must be `NULL` or live and not concurrently mutated.
+/// `input` must be live and not concurrently mutated.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_input_get_flags(
     input: *const hr_subset_input_t,
 ) -> hr_subset_flags_t {
-    // SAFETY: `input` is `NULL` or live, and not concurrently mutated, both
-    // by this function's contract.
+    // SAFETY: `input` is `NULL`, or live and not concurrently mutated by
+    // this function's contract.
     unsafe { input.as_ref() }.map_or(0, |input| input.flags)
 }
 
@@ -682,7 +682,7 @@ pub unsafe extern "C" fn hr_subset_preprocess(face: *mut hr_face_t) -> *mut hr_f
     };
     // SAFETY: `face_from_bytes` asks nothing of its caller.
     let result = unsafe { face_from_bytes(&bytes) };
-    // SAFETY: `hr_face_make_immutable` needs `NULL` or a live face. `result`
+    // SAFETY: `hr_face_make_immutable` takes `NULL` or a live face. `result`
     // is what `face_from_bytes` returns: `NULL`, or a new face whose
     // reference this function holds until it hands it to its caller.
     unsafe { crate::hr_face_make_immutable(result) };
@@ -729,21 +729,21 @@ impl Drop for hr_subset_plan_t {
 /// Creates a self-contained plan and its glyph mappings, or `NULL` on failure.
 ///
 /// # Safety
-/// `face` and `input` must be `NULL` or live. Input sets must not be mutated
+/// `face` and `input` must be live. Input sets must not be mutated
 /// during this call; face callbacks must satisfy the core API contract.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_plan_create_or_fail(
     face: *mut hr_face_t,
     input: *const hr_subset_input_t,
 ) -> *mut hr_subset_plan_t {
-    // SAFETY: `input` is `NULL` or live by this function's contract. Nothing
+    // SAFETY: `input` is `NULL`, or live by this function's contract. Nothing
     // writes it meanwhile: the setters need exclusive access to an input,
     // and the call that frees it writes it only when nothing else uses it.
     let Some(input) = (unsafe { input.as_ref() }) else {
         return ptr::null_mut();
     };
-    // SAFETY: `make_plan` needs `face` to be `NULL` or live, which this
-    // function requires.
+    // SAFETY: `make_plan` needs `face` to be `NULL` or live. It is `NULL`, or
+    // live by this function's contract.
     let Ok(Some((bytes, plan))) =
         catch_unwind(AssertUnwindSafe(|| unsafe { make_plan(face, input) }))
     else {
@@ -751,10 +751,10 @@ pub unsafe extern "C" fn hr_subset_plan_create_or_fail(
     };
     let maps = std::array::from_fn(|_| Map::new());
     for (old, new) in plan.old_to_new_glyph_mapping() {
-        // SAFETY: both calls take a map that must be `NULL` or live, and
-        // modify it, which takes exclusive access to it. `maps[0]` and
-        // `maps[1]` are live by the invariant on `Map`, and nothing else
-        // has been given the pointers to maps made just above.
+        // SAFETY: both calls take a map that must be live, and modify it,
+        // which takes exclusive access to it. `maps[0]` and `maps[1]` are
+        // live by the invariant on `Map`, and nothing else has been given
+        // the pointers to maps made just above.
         unsafe {
             crate::hr_map_set(maps[0].0, old.to_u32(), new.to_u32());
             crate::hr_map_set(maps[1].0, new.to_u32(), old.to_u32());
@@ -904,12 +904,12 @@ pub unsafe extern "C" fn hr_subset_plan_execute_or_fail(
 /// Take a core map reference if it must outlive the plan.
 ///
 /// # Safety
-/// `plan` must be `NULL` or live. The returned map is read-only.
+/// `plan` must be live. The returned map is read-only.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_plan_old_to_new_glyph_mapping(
     plan: *const hr_subset_plan_t,
 ) -> *mut hr_map_t {
-    // SAFETY: `plan` is `NULL` or live by this function's contract, and a
+    // SAFETY: `plan` is `NULL`, or live by this function's contract, and a
     // plan is written only by the call that frees it, when nothing else
     // uses it.
     unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.maps[0].0)
@@ -918,12 +918,12 @@ pub unsafe extern "C" fn hr_subset_plan_old_to_new_glyph_mapping(
 /// Returns the borrowed subset-to-original map, including closure glyphs.
 ///
 /// # Safety
-/// `plan` must be `NULL` or live. The returned map is read-only.
+/// `plan` must be live. The returned map is read-only.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_plan_new_to_old_glyph_mapping(
     plan: *const hr_subset_plan_t,
 ) -> *mut hr_map_t {
-    // SAFETY: `plan` is `NULL` or live by this function's contract, and a
+    // SAFETY: `plan` is `NULL`, or live by this function's contract, and a
     // plan is written only by the call that frees it, when nothing else
     // uses it.
     unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.maps[1].0)
@@ -932,12 +932,12 @@ pub unsafe extern "C" fn hr_subset_plan_new_to_old_glyph_mapping(
 /// Returns the borrowed Unicode-to-original-glyph map.
 ///
 /// # Safety
-/// `plan` must be `NULL` or live. The returned map is read-only.
+/// `plan` must be live. The returned map is read-only.
 #[no_mangle]
 pub unsafe extern "C" fn hr_subset_plan_unicode_to_old_glyph_mapping(
     plan: *const hr_subset_plan_t,
 ) -> *mut hr_map_t {
-    // SAFETY: `plan` is `NULL` or live by this function's contract, and a
+    // SAFETY: `plan` is `NULL`, or live by this function's contract, and a
     // plan is written only by the call that frees it, when nothing else
     // uses it.
     unsafe { plan.as_ref() }.map_or(ptr::null_mut(), |plan| plan.maps[2].0)

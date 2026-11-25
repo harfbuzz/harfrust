@@ -441,10 +441,10 @@ pub unsafe extern "C" fn hr_font_funcs_get_user_data(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live.
+/// `ffuncs` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_make_immutable(ffuncs: *mut hr_font_funcs_t) {
-    // SAFETY: `ffuncs` is `NULL` or live by this function's contract.
+    // SAFETY: `ffuncs` is `NULL`, or live by this function's contract.
     unsafe { object::make_immutable(ffuncs) };
 }
 
@@ -452,10 +452,10 @@ pub unsafe extern "C" fn hr_font_funcs_make_immutable(ffuncs: *mut hr_font_funcs
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live.
+/// `ffuncs` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_is_immutable(ffuncs: *mut hr_font_funcs_t) -> hr_bool_t {
-    // SAFETY: `ffuncs` is `NULL` or live by this function's contract.
+    // SAFETY: `ffuncs` is `NULL`, or live by this function's contract.
     unsafe { object::is_immutable(ffuncs.cast_const()) }.into()
 }
 
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn hr_font_funcs_is_immutable(ffuncs: *mut hr_font_funcs_t
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+/// `ffuncs` must be live, and the callback must be safe to call with
 /// `user_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
@@ -481,15 +481,15 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: `set_callback` needs `ffuncs` to be `NULL` or live until it
-    // returns, which this function's contract gives, and a funcs object that
-    // takes changes to be in no other use meanwhile, which the README asks
-    // of callers under "Threading". The same section has `destroy` safe to
-    // call with `user_data` on whichever thread comes to release the data,
-    // and this function takes ownership of the data, so whenever that is.
-    // The closure returns the callback it takes out of the slot. The one it
-    // puts in pairs `func` with `user_data`, which this function's contract
-    // has safe to call together from any thread, as the invariant on the
-    // slot asks.
+    // returns, and a funcs object that takes changes to be in no other use
+    // meanwhile. `ffuncs` is `NULL`, or live by this function's contract,
+    // and the README asks the rest of callers under "Threading". The same
+    // section has `destroy` safe to call with `user_data` on whichever
+    // thread comes to release the data, and this function takes ownership
+    // of the data, so whenever that is. The closure returns the callback it
+    // takes out of the slot. The one it puts in pairs `func` with
+    // `user_data`, which this function's contract has safe to call together
+    // from any thread, as the invariant on the slot asks.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.nominal_glyph, new)
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
 /// A missing batch callback uses the scalar callback before asking the parent.
 ///
 /// # Safety
-/// `ffuncs` must be `NULL` or live, and the callback and data must be safe
+/// `ffuncs` must be live, and the callback and data must be safe
 /// to invoke from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyphs_func(
@@ -537,7 +537,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyphs_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+/// `ffuncs` must be live, and the callback must be safe to call with
 /// `user_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
@@ -569,7 +569,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+/// `ffuncs` must be live, and the callback must be safe to call with
 /// `user_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
@@ -594,7 +594,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+/// `ffuncs` must be live; the callback and its data must be thread safe.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advances_func(
     ffuncs: *mut hr_font_funcs_t,
@@ -618,7 +618,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advances_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+/// `ffuncs` must be live; the callback and its data must be thread safe.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_origin_func(
     ffuncs: *mut hr_font_funcs_t,
@@ -642,7 +642,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_origin_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+/// `ffuncs` must be live; the callback and its data must be thread safe.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_kerning_func(
     ffuncs: *mut hr_font_funcs_t,
@@ -666,7 +666,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_kerning_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+/// `ffuncs` must be live; the callback and its data must be thread safe.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_kerning_func(
     ffuncs: *mut hr_font_funcs_t,
@@ -697,7 +697,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_kerning_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+/// `ffuncs` must be live, and the callback must be safe to call with
 /// `user_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
@@ -729,7 +729,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+/// `ffuncs` must be live, and the callback must be safe to call with
 /// `user_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
@@ -761,7 +761,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+/// `ffuncs` must be live, and the callback must be safe to call with
 /// `user_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(

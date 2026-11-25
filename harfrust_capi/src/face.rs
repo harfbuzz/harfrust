@@ -602,10 +602,10 @@ pub unsafe extern "C" fn hr_face_get_user_data(
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_make_immutable(face: *mut hr_face_t) {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     unsafe { object::make_immutable(face) };
 }
 
@@ -613,10 +613,10 @@ pub unsafe extern "C" fn hr_face_make_immutable(face: *mut hr_face_t) {
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_is_immutable(face: *mut hr_face_t) -> hr_bool_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     unsafe { object::is_immutable(face.cast_const()) }.into()
 }
 
@@ -624,10 +624,10 @@ pub unsafe extern "C" fn hr_face_is_immutable(face: *mut hr_face_t) -> hr_bool_t
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_index(face: *mut hr_face_t) -> c_uint {
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     unsafe { object::or_empty(face.cast_const()) }.index
 }
@@ -638,13 +638,13 @@ pub unsafe extern "C" fn hr_face_get_index(face: *mut hr_face_t) -> c_uint {
 /// face ignores the assignment.
 ///
 /// # Safety
-/// `face` must be `NULL` or live, and must not be accessed concurrently.
+/// `face` must be live, and must not be accessed concurrently.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_set_index(face: *mut hr_face_t, index: c_uint) {
     // SAFETY: `as_mutable` needs `face` to be `NULL` or live and, if it
     // takes changes, nothing else using it while the reference is used,
-    // which is within this call. This function's contract has `face` `NULL`
-    // or live, and not accessed by anything else meanwhile.
+    // which is within this call. `face` is `NULL`, or live by this function's
+    // contract, and not accessed by anything else meanwhile.
     if let Some(face) = unsafe { object::as_mutable(face) } {
         face.index = index;
     }
@@ -656,7 +656,7 @@ pub unsafe extern "C" fn hr_face_set_index(face: *mut hr_face_t, index: c_uint) 
 /// and release the supplied data immediately.
 ///
 /// # Safety
-/// `face` must be `NULL` or live and must not be accessed concurrently.
+/// `face` must be live and must not be accessed concurrently.
 /// The callback and its data must be safe to invoke from any thread, with
 /// what [`hr_face_get_table_tags`] is given. `destroy`, if given, must be
 /// safe to call once with `user_data`, from any thread.
@@ -679,7 +679,7 @@ pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
     };
     // SAFETY: `as_mutable` needs `face` to be `NULL` or live and, if it
     // takes changes, nothing else using it while the reference is used.
-    // This function's contract has `face` `NULL` or live, and not accessed
+    // `face` is `NULL`, or live by this function's contract, and not accessed
     // by anything else meanwhile. The reference is last used to put the
     // callback in place, before the one it displaces is dropped and the
     // caller's destructor runs.
@@ -699,7 +699,7 @@ pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
 /// [`hr_face_set_get_table_tags_func`].
 ///
 /// # Safety
-/// `face` must be `NULL` or live. `table_count` must be `NULL` or writable,
+/// `face` must be live. `table_count` must be `NULL` or writable,
 /// and a non-null `table_tags` must be writable for the capacity that
 /// `table_count` holds on entry.
 #[no_mangle]
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
     // function's contract has `table_count` `NULL` or writable, and a
     // non-null `table_tags` writable for the capacity it holds on entry.
     let page = unsafe { Page::new(table_count, table_tags) };
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     let state = unsafe { object::or_empty(face) };
     if let Some(callback) = &state.table_tags {
@@ -751,10 +751,10 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_upem(face: *mut hr_face_t) -> c_uint {
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     unsafe { object::or_empty(face.cast_const()) }.upem()
 }
@@ -763,10 +763,10 @@ pub unsafe extern "C" fn hr_face_get_upem(face: *mut hr_face_t) -> c_uint {
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_glyph_count(face: *mut hr_face_t) -> c_uint {
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     unsafe { object::or_empty(face.cast_const()) }.glyph_count()
 }
@@ -778,10 +778,10 @@ pub unsafe extern "C" fn hr_face_get_glyph_count(face: *mut hr_face_t) -> c_uint
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_reference_blob(face: *mut hr_face_t) -> *mut hr_blob_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     let face = unsafe { object::or_empty(face.cast_const()) };
     match &face.source {
@@ -808,13 +808,13 @@ pub unsafe extern "C" fn hr_face_reference_blob(face: *mut hr_face_t) -> *mut hr
 ///
 /// # Safety
 ///
-/// `face` must be `NULL` or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_reference_table(
     face: *mut hr_face_t,
     tag: hr_tag_t,
 ) -> *mut hr_blob_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     let face_ref = unsafe { object::or_empty(face.cast_const()) };
     // The none tag names the whole font rather than a table in it, and is
@@ -850,11 +850,11 @@ pub unsafe extern "C" fn hr_face_reference_table(
 /// fallback or Mac Roman conversion applied by nominal glyph lookup. Variation
 /// sequences are not included. A missing cmap adds nothing.
 /// # Safety
-/// `face` must be null or live; `out` must be null or live and must not be
+/// `face` must be live; `out` must be live and must not be
 /// accessed concurrently while it is being modified.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mut hr_set_t) {
-    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // SAFETY: `face` is `NULL`, or live by this function's contract, and the
     // reference is not used past this call.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let Some(font) = face.font() else { return };
@@ -868,7 +868,7 @@ pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mu
     };
     // SAFETY: `as_mutable` needs `out` to be `NULL` or live and, if it takes
     // changes, nothing else using it while the reference is used, which is
-    // within this call. This function's contract has `out` `NULL` or live,
+    // within this call. `out` is `NULL`, or live by this function's contract,
     // and not accessed by anything else while it is modified. The face
     // borrowed above is another object.
     let Some(out) = (unsafe { object::as_mutable(out) }) else {

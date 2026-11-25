@@ -361,20 +361,20 @@ pub unsafe extern "C" fn hr_paint_funcs_destroy(funcs: *mut hr_paint_funcs_t) {
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live.
+/// `funcs` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_funcs_make_immutable(funcs: *mut hr_paint_funcs_t) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract.
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract.
     unsafe { object::make_immutable(funcs) }
 }
 /// Reports whether callback changes are forbidden.
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live.
+/// `funcs` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_funcs_is_immutable(funcs: *const hr_paint_funcs_t) -> hr_bool_t {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract.
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract.
     i32::from(unsafe { object::is_immutable(funcs) })
 }
 /// Attaches address-keyed metadata, taking ownership only on success.
@@ -414,7 +414,7 @@ pub unsafe extern "C" fn hr_paint_funcs_get_user_data(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live until this returns. Unless it is
+/// `funcs` must be live until this returns. Unless it is
 /// immutable, no other thread may use it during the call, and nothing on
 /// this thread may be in the middle of using it but a callback setter that
 /// is running a `destroy`. For as long as `func` stays set, it must be safe
@@ -431,12 +431,13 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_transform_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: `set_callback` asks of `funcs`, `user_data` and `destroy` what
-    // this function's contract does. Where it asks that no reference to the
-    // object be live, the contract has nothing in the middle of using it
-    // but a setter running a `destroy`, and `set_callback` documents that it
-    // holds no borrow then. The closure returns the callback it displaces.
-    // Storing `func` with `user_data` keeps the invariant on
-    // `push_transform`, by the same contract.
+    // this function's contract does, and takes a `NULL` `funcs` besides.
+    // Where it asks that no reference to the object be live, the contract
+    // has nothing in the middle of using it but a setter running a
+    // `destroy`, and `set_callback` documents that it holds no borrow then.
+    // The closure returns the callback it displaces. Storing `func` with
+    // `user_data` keeps the invariant on `push_transform`, by the same
+    // contract.
     unsafe {
         set_callback(funcs, func, user_data, destroy, |state, new| {
             core::mem::replace(&mut state.push_transform, new)
@@ -447,7 +448,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_transform_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_transform(
@@ -460,7 +461,7 @@ pub unsafe extern "C" fn hr_paint_push_transform(
     dx: f32,
     dy: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.push_transform {
@@ -498,7 +499,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_transform_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `pop_transform`, by the same contract.
@@ -512,14 +513,14 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_transform_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_pop_transform(
     funcs: *mut hr_paint_funcs_t,
     paint_data: *mut c_void,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.pop_transform {
@@ -549,7 +550,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_glyph_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `color_glyph`, by the same contract.
@@ -563,7 +564,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_glyph_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `font`
 /// must be `NULL` or live.
 #[no_mangle]
@@ -573,7 +574,7 @@ pub unsafe extern "C" fn hr_paint_color_glyph(
     glyph: hr_codepoint_t,
     font: *mut hr_font_t,
 ) -> hr_bool_t {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.color_glyph {
@@ -600,7 +601,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_glyph_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `push_clip_glyph`, by the same contract.
@@ -614,7 +615,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_glyph_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `font`
 /// must be `NULL` or live.
 #[no_mangle]
@@ -624,7 +625,7 @@ pub unsafe extern "C" fn hr_paint_push_clip_glyph(
     glyph: hr_codepoint_t,
     font: *mut hr_font_t,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.push_clip_glyph {
@@ -650,7 +651,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_rectangle_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `push_clip_rectangle`, by the same contract.
@@ -664,7 +665,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_rectangle_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_clip_rectangle(
@@ -675,7 +676,7 @@ pub unsafe extern "C" fn hr_paint_push_clip_rectangle(
     xmax: f32,
     ymax: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.push_clip_rectangle {
@@ -713,7 +714,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_path_start_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `push_clip_path_start`, by the same contract.
@@ -727,7 +728,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_path_start_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 /// `draw_data` must be `NULL` or writable.
 #[no_mangle]
@@ -736,7 +737,7 @@ pub unsafe extern "C" fn hr_paint_push_clip_path_start(
     paint_data: *mut c_void,
     draw_data: *mut *mut c_void,
 ) -> *mut hr_draw_funcs_t {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     // A caller that does not want the draw data may pass `NULL`, but a
@@ -779,7 +780,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_path_end_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `push_clip_path_end`, by the same contract.
@@ -793,14 +794,14 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_clip_path_end_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_clip_path_end(
     funcs: *mut hr_paint_funcs_t,
     paint_data: *mut c_void,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.push_clip_path_end {
@@ -826,7 +827,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_clip_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `pop_clip`, by the same contract.
@@ -840,11 +841,11 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_clip_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_pop_clip(funcs: *mut hr_paint_funcs_t, paint_data: *mut c_void) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.pop_clip {
@@ -870,7 +871,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `color`, by the same contract.
@@ -884,7 +885,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_color_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_color(
@@ -893,7 +894,7 @@ pub unsafe extern "C" fn hr_paint_color(
     is_foreground: hr_bool_t,
     color: hr_color_t,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.color {
@@ -919,7 +920,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_fill_glyph_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `fill_glyph`, by the same contract.
@@ -933,7 +934,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_fill_glyph_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `font`
 /// must be `NULL` or live.
 #[no_mangle]
@@ -945,7 +946,7 @@ pub unsafe extern "C" fn hr_paint_fill_glyph(
     is_foreground: hr_bool_t,
     color: hr_color_t,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.fill_glyph {
@@ -966,8 +967,8 @@ pub unsafe extern "C" fn hr_paint_fill_glyph(
             };
         }
     }
-    // SAFETY: by this function's contract `funcs` is `NULL` or live and
-    // unmodified until this returns, and `paint_data` is its paint data,
+    // SAFETY: `funcs` is `NULL`, or live and unmodified until this returns
+    // by this function's contract, and `paint_data` is its paint data,
     // which is what each of the three calls requires. The first requires a
     // `NULL` or live `font` besides, which the same contract gives.
     unsafe {
@@ -990,7 +991,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_image_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `image`, by the same contract.
@@ -1007,7 +1008,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_image_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `image`
 /// must be `NULL` or a live blob, and `extents` must be `NULL` or point to
 /// glyph extents that can be read and written.
@@ -1024,7 +1025,7 @@ pub unsafe extern "C" fn hr_paint_image(
 ) -> hr_bool_t {
     // Named as in the header, and unused.
     let _ = slant;
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.image {
@@ -1063,7 +1064,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_linear_gradient_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `linear_gradient`, by the same contract.
@@ -1077,7 +1078,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_linear_gradient_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 /// `color_line` must point to a color line that stays as
 /// [`hr_color_line_get_color_stops`] requires until this returns.
@@ -1093,7 +1094,7 @@ pub unsafe extern "C" fn hr_paint_linear_gradient(
     x2: f32,
     y2: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.linear_gradient {
@@ -1132,7 +1133,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_radial_gradient_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `radial_gradient`, by the same contract.
@@ -1146,7 +1147,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_radial_gradient_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 /// `color_line` must point to a color line that stays as
 /// [`hr_color_line_get_color_stops`] requires until this returns.
@@ -1162,7 +1163,7 @@ pub unsafe extern "C" fn hr_paint_radial_gradient(
     y1: f32,
     r1: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.radial_gradient {
@@ -1201,7 +1202,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_sweep_gradient_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `sweep_gradient`, by the same contract.
@@ -1215,7 +1216,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_sweep_gradient_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 /// `color_line` must point to a color line that stays as
 /// [`hr_color_line_get_color_stops`] requires until this returns.
@@ -1229,7 +1230,7 @@ pub unsafe extern "C" fn hr_paint_sweep_gradient(
     start_angle: f32,
     end_angle: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.sweep_gradient {
@@ -1266,7 +1267,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_group_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `push_group`, by the same contract.
@@ -1280,14 +1281,14 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_group_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_group(
     funcs: *mut hr_paint_funcs_t,
     paint_data: *mut c_void,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.push_group {
@@ -1313,7 +1314,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_group_for_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `push_group_for`, by the same contract.
@@ -1327,7 +1328,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_push_group_for_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_group_for(
@@ -1335,7 +1336,7 @@ pub unsafe extern "C" fn hr_paint_push_group_for(
     paint_data: *mut c_void,
     mode: hr_paint_composite_mode_t,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.push_group_for {
@@ -1346,8 +1347,8 @@ pub unsafe extern "C" fn hr_paint_push_group_for(
             return unsafe { func(funcs, paint_data, mode, callback.user_data) };
         }
     }
-    // SAFETY: by this function's contract `funcs` is `NULL` or live and
-    // unmodified until this returns, and `paint_data` is its paint data, as
+    // SAFETY: `funcs` is `NULL`, or live and unmodified until this returns
+    // by this function's contract, and `paint_data` is its paint data, as
     // `hr_paint_push_group` requires.
     unsafe { hr_paint_push_group(funcs, paint_data) }
 }
@@ -1365,7 +1366,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_group_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `pop_group`, by the same contract.
@@ -1379,7 +1380,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_pop_group_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_pop_group(
@@ -1387,7 +1388,7 @@ pub unsafe extern "C" fn hr_paint_pop_group(
     paint_data: *mut c_void,
     mode: hr_paint_composite_mode_t,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.pop_group {
@@ -1413,7 +1414,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_custom_palette_color_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_paint_funcs_set_push_transform_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `funcs`,
+    // this function shares: it covers what `set_callback` asks of `funcs`,
     // `user_data` and `destroy`, and the closure returns the callback it
     // displaces. Storing `func` with `user_data` keeps the invariant on
     // `custom_palette_color`, by the same contract.
@@ -1427,7 +1428,7 @@ pub unsafe extern "C" fn hr_paint_funcs_set_custom_palette_color_func(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `paint_data` must be paint data its callbacks may be called with. `color`
 /// must be writable.
 #[no_mangle]
@@ -1437,7 +1438,7 @@ pub unsafe extern "C" fn hr_paint_custom_palette_color(
     color_index: c_uint,
     color: *mut hr_color_t,
 ) -> hr_bool_t {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, which
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, which
     // also keeps it unmodified while `state` borrows it.
     let state = unsafe { object::or_empty(funcs) };
     if let Some(callback) = &state.custom_palette_color {
@@ -1589,20 +1590,20 @@ pub unsafe extern "C" fn hr_color_line_get_extend(line: *mut hr_color_line_t) ->
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `data` must be paint data its callbacks may be called with. `font` must be
-/// `NULL` or live.
+/// live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_font_transform(
     funcs: *mut hr_paint_funcs_t,
     data: *mut c_void,
     font: *mut hr_font_t,
 ) {
-    // SAFETY: `scale` needs `font` to be `NULL` or live, as this function's
-    // contract has it.
+    // SAFETY: `scale` needs `font` to be `NULL` or live. It is `NULL`, or
+    // live by this function's contract.
     let (x, y) = unsafe { crate::rendering::scale(font) };
-    // SAFETY: by this function's contract `funcs` is `NULL` or live and
-    // unmodified until this returns, and `data` is its paint data, as
+    // SAFETY: `funcs` is `NULL`, or live and unmodified until this returns
+    // by this function's contract, and `data` is its paint data, as
     // `hr_paint_push_transform` requires.
     unsafe { hr_paint_push_transform(funcs, data, x, 0.0, 0.0, y, 0.0, 0.0) }
 }
@@ -1610,20 +1611,20 @@ pub unsafe extern "C" fn hr_paint_push_font_transform(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL`, or live and unmodified until this returns, and
+/// `funcs` must be live and unmodified until this returns, and
 /// `data` must be paint data its callbacks may be called with. `font` must be
-/// `NULL` or live.
+/// live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_paint_push_inverse_font_transform(
     funcs: *mut hr_paint_funcs_t,
     data: *mut c_void,
     font: *mut hr_font_t,
 ) {
-    // SAFETY: `scale` needs `font` to be `NULL` or live, as this function's
-    // contract has it.
+    // SAFETY: `scale` needs `font` to be `NULL` or live. It is `NULL`, or
+    // live by this function's contract.
     let (x, y) = unsafe { crate::rendering::scale(font) };
-    // SAFETY: by this function's contract `funcs` is `NULL` or live and
-    // unmodified until this returns, and `data` is its paint data, as
+    // SAFETY: `funcs` is `NULL`, or live and unmodified until this returns
+    // by this function's contract, and `data` is its paint data, as
     // `hr_paint_push_transform` requires.
     unsafe {
         hr_paint_push_transform(
@@ -1699,7 +1700,7 @@ pub type hr_font_paint_glyph_or_fail_func_t = Option<
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live until this returns. Unless it is
+/// `ffuncs` must be live until this returns. Unless it is
 /// immutable, no other thread may use it during the call, and nothing on
 /// this thread may be in the middle of using it, or a font that carries it,
 /// but a callback setter that is running a `destroy`. For as long as `func`
@@ -1718,12 +1719,12 @@ pub unsafe extern "C" fn hr_font_funcs_set_paint_glyph_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: `set_callback` asks of `ffuncs`, `user_data` and `destroy`
-    // what this function's contract does. Where it asks that no reference
-    // to the object be live, the contract has nothing in the middle of using
-    // it but a setter running a `destroy`, and `set_callback` documents that
-    // it holds no borrow then. The closure returns both callbacks it takes
-    // out: the one it displaces, and the one of the other kind, which this
-    // one supersedes.
+    // what this function's contract does, and takes a `NULL` `ffuncs`
+    // besides. Where it asks that no reference to the object be live, the
+    // contract has nothing in the middle of using it but a setter running a
+    // `destroy`, and `set_callback` documents that it holds no borrow then.
+    // The closure returns both callbacks it takes out: the one it displaces,
+    // and the one of the other kind, which this one supersedes.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |state, new| {
             let old = core::mem::replace(&mut state.paint_glyph_legacy, new);
@@ -1744,7 +1745,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_paint_glyph_or_fail_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: as in `hr_font_funcs_set_paint_glyph_func`, whose contract
-    // this function shares: it is what `set_callback` asks of `ffuncs`,
+    // this function shares: it covers what `set_callback` asks of `ffuncs`,
     // `user_data` and `destroy`. The closure returns both callbacks it takes
     // out: the one it displaces, and the one of the other kind, which this
     // one supersedes.
@@ -1760,11 +1761,11 @@ pub unsafe extern "C" fn hr_font_funcs_set_paint_glyph_or_fail_func(
 ///
 /// # Safety
 ///
-/// `font` and `funcs` must each be `NULL` or live until this returns. Until
-/// then, nothing may modify `funcs`, `font` or a font it descends from, or
-/// the font callbacks any of those fonts carries; that binds the callbacks
-/// this runs too. `data` must be paint data the callbacks of `funcs` may be
-/// called with.
+/// `font` must be live and `funcs` must be `NULL` or live, both until this
+/// returns. Until then, nothing may modify `funcs`, `font` or a font it
+/// descends from, or the font callbacks any of those fonts carries; that
+/// binds the callbacks this runs too. `data` must be paint data the
+/// callbacks of `funcs` may be called with.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
     font: *mut hr_font_t,
@@ -1776,8 +1777,8 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
 ) -> hr_bool_t {
     // SAFETY: `as_ref` needs `font` to be null, or aligned and pointing to a
     // live `hr_font_t` that nothing writes while `state` is used, which is
-    // until this returns. This function's contract has `font` `NULL` or
-    // live, and unmodified until then.
+    // until this returns. `font` is `NULL`, or live by this function's
+    // contract, and unmodified until then.
     let Some(state) = (unsafe { font.as_ref() }) else {
         return 0;
     };
@@ -1843,9 +1844,9 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
         // and this function's contract keeps the fonts `font` descends from
         // unmodified until it returns.
         let parent = unsafe { &*state.parent };
-        // SAFETY: by this function's contract `funcs` is `NULL` or live and
-        // unmodified until this returns, and `data` is its paint data, as
-        // `hr_paint_push_transform` requires.
+        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
+        // returns by this function's contract, and `data` is its paint data,
+        // as `hr_paint_push_transform` requires.
         unsafe {
             hr_paint_push_transform(
                 funcs,
@@ -1874,9 +1875,9 @@ pub unsafe extern "C" fn hr_font_paint_glyph_or_fail(
         let result = unsafe {
             hr_font_paint_glyph_or_fail(state.parent, glyph, funcs, data, palette, foreground)
         };
-        // SAFETY: by this function's contract `funcs` is `NULL` or live and
-        // unmodified until this returns, and `data` is its paint data, as
-        // `hr_paint_pop_transform` requires.
+        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
+        // returns by this function's contract, and `data` is its paint data,
+        // as `hr_paint_pop_transform` requires.
         unsafe { hr_paint_pop_transform(funcs, data) };
         return result;
     }

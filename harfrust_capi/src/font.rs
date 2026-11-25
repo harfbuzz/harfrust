@@ -679,7 +679,7 @@ pub unsafe extern "C" fn hr_font_destroy(font: *mut hr_font_t) {
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `key` must outlive it.
+/// `font` must be a live font, and `key` must outlive it.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_user_data(
     font: *mut hr_font_t,
@@ -688,8 +688,8 @@ pub unsafe extern "C" fn hr_font_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font, and `key` outlives it, both by
-    // this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract, which
+    // also has `key` outlive it.
     unsafe { object::set_user_data(font, key, data, destroy, replace != 0) }.into()
 }
 
@@ -715,11 +715,11 @@ pub unsafe extern "C" fn hr_font_get_user_data(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_make_immutable(font: *mut hr_font_t) {
     let mut font = font;
-    // SAFETY: `font` is `NULL` or a live font by this function's contract to
+    // SAFETY: `font` is `NULL`, or live by this function's contract to
     // begin with, and from then on the `parent` of a live font, which the
     // invariant on that field has `NULL` or live.
     while let Some(state) = unsafe { font.as_ref() } {
@@ -733,10 +733,10 @@ pub unsafe extern "C" fn hr_font_make_immutable(font: *mut hr_font_t) {
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_is_immutable(font: *mut hr_font_t) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     unsafe { object::is_immutable(font.cast_const()) }.into()
 }
 
@@ -744,10 +744,10 @@ pub unsafe extern "C" fn hr_font_is_immutable(font: *mut hr_font_t) -> hr_bool_t
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_face(font: *mut hr_font_t) -> *mut hr_face_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     unsafe { object::or_empty(font.cast_const()) }.face()
 }
 
@@ -755,10 +755,10 @@ pub unsafe extern "C" fn hr_font_get_face(font: *mut hr_font_t) -> *mut hr_face_
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_parent(font: *mut hr_font_t) -> *mut hr_font_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let parent = unsafe { object::or_empty(font.cast_const()) }.parent;
     // A font made from a face has no parent of its own, and answers with the
     // font that is empty rather than with nothing: a caller walking up the
@@ -777,10 +777,10 @@ pub unsafe extern "C" fn hr_font_get_parent(font: *mut hr_font_t) -> *mut hr_fon
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_scale(font: *mut hr_font_t, x_scale: c_int, y_scale: c_int) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased.
@@ -801,7 +801,7 @@ pub unsafe extern "C" fn hr_font_set_scale(font: *mut hr_font_t, x_scale: c_int,
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font; `x_scale` and `y_scale` must be
+/// `font` must be a live font; `x_scale` and `y_scale` must be
 /// `NULL` or writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_scale(
@@ -809,7 +809,7 @@ pub unsafe extern "C" fn hr_font_get_scale(
     x_scale: *mut c_int,
     y_scale: *mut c_int,
 ) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `x_scale` is `NULL` or writable by this function's contract.
     unsafe { write_out(x_scale, font.x_scale) };
@@ -821,10 +821,10 @@ pub unsafe extern "C" fn hr_font_get_scale(
 /// unset. `BASE` device adjustments use the ppem for their coordinate axis.
 ///
 /// # Safety
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_ppem(font: *mut hr_font_t, x_ppem: c_uint, y_ppem: c_uint) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased.
@@ -837,14 +837,14 @@ pub unsafe extern "C" fn hr_font_set_ppem(font: *mut hr_font_t, x_ppem: c_uint, 
 /// Returns a font's horizontal and vertical pixels per em.
 ///
 /// # Safety
-/// `font` must be `NULL` or a live font; output pointers must be `NULL` or writable.
+/// `font` must be a live font; output pointers must be `NULL` or writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_ppem(
     font: *mut hr_font_t,
     x_ppem: *mut c_uint,
     y_ppem: *mut c_uint,
 ) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `x_ppem` is `NULL` or writable by this function's contract.
     unsafe { write_out(x_ppem, font.x_ppem) };
@@ -858,10 +858,10 @@ pub unsafe extern "C" fn hr_font_get_ppem(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_ptem(font: *mut hr_font_t, ptem: f32) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased.
@@ -874,10 +874,10 @@ pub unsafe extern "C" fn hr_font_set_ptem(font: *mut hr_font_t, ptem: f32) {
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_ptem(font: *mut hr_font_t) -> f32 {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     unsafe { object::or_empty(font.cast_const()) }.ptem
 }
 
@@ -888,7 +888,7 @@ pub unsafe extern "C" fn hr_font_get_ptem(font: *mut hr_font_t) -> f32 {
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `variations` must point to
+/// `font` must be a live font, and `variations` must point to
 /// `variations_length` readable entries.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_variations(
@@ -896,7 +896,7 @@ pub unsafe extern "C" fn hr_font_set_variations(
     variations: *const hr_variation_t,
     variations_length: c_uint,
 ) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased.
@@ -933,7 +933,7 @@ pub unsafe extern "C" fn hr_font_set_variations(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `coords` must point to
+/// `font` must be a live font, and `coords` must point to
 /// `coords_length` readable entries.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
@@ -941,7 +941,7 @@ pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
     coords: *const c_int,
     coords_length: c_uint,
 ) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased.
@@ -979,14 +979,14 @@ pub unsafe extern "C" fn hr_font_set_var_coords_normalized(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `length` must be `NULL` or
+/// `font` must be a live font, and `length` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_var_coords_normalized(
     font: *mut hr_font_t,
     length: *mut c_uint,
 ) -> *const c_int {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     if !length.is_null() {
         // SAFETY: `length` is non-null and, by this function's contract,
@@ -1008,10 +1008,10 @@ pub unsafe extern "C" fn hr_font_get_var_coords_normalized(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_var_named_instance(font: *mut hr_font_t, instance: c_uint) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased.
@@ -1045,7 +1045,7 @@ pub unsafe extern "C" fn hr_font_set_var_named_instance(font: *mut hr_font_t, in
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, `ffuncs` must be `NULL` or live, and
+/// `font` must be a live font, `ffuncs` must be `NULL` or live, and
 /// the callbacks must be safe to call with `font_data` from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_set_funcs(
@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn hr_font_set_funcs(
     font_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased. Its last use puts the new data in place, before any of the
@@ -1117,10 +1117,10 @@ pub unsafe extern "C" fn hr_font_set_funcs(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_font_set_funcs(font: *mut hr_font_t) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract. A
+    // SAFETY: `font` is `NULL`, or live by this function's contract. A
     // font that takes changes is in no other use while it is changed, which
     // the README asks of callers under "Threading", so the reference is not
     // aliased. Its last use takes the old data out, before any of the
@@ -1154,7 +1154,7 @@ pub unsafe extern "C" fn hr_ot_font_set_funcs(font: *mut hr_font_t) {
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+/// `font` must be a live font, and `glyph` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_nominal_glyph(
@@ -1162,7 +1162,7 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
     unicode: hr_codepoint_t,
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // The glyph is reported as not found before anything is asked, so a
     // caller that ignores the return value reads 0 rather than whatever it
@@ -1194,7 +1194,7 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyph(
 /// strides may be used to read or write the same location repeatedly.
 ///
 /// # Safety
-/// `font` must be `NULL` or live. The arrays must be valid for `count`
+/// `font` must be live. The arrays must be valid for `count`
 /// entries at their respective byte strides, `first_unicode` to read and
 /// `first_glyph` to write.
 #[no_mangle]
@@ -1209,7 +1209,7 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyphs(
     if count == 0 || first_unicode.is_null() || first_glyph.is_null() {
         return 0;
     }
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1240,7 +1240,7 @@ pub unsafe extern "C" fn hr_font_get_nominal_glyphs(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+/// `font` must be a live font, and `glyph` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_variation_glyph(
@@ -1249,7 +1249,7 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
     variation_selector: hr_codepoint_t,
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // As in `hr_font_get_nominal_glyph`, not found until it is.
     // SAFETY: `glyph` is `NULL` or writable by this function's contract.
@@ -1281,7 +1281,7 @@ pub unsafe extern "C" fn hr_font_get_variation_glyph(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+/// `font` must be a live font, and `glyph` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph(
@@ -1292,8 +1292,8 @@ pub unsafe extern "C" fn hr_font_get_glyph(
 ) -> hr_bool_t {
     if variation_selector != 0 {
         // SAFETY: `hr_font_get_variation_glyph` asks of `font` and `glyph`
-        // what this function's contract does: `NULL` or a live font, and
-        // `NULL` or writable.
+        // what this function's contract does: a live font, and `NULL` or
+        // writable. It takes a `NULL` font all the same, as this one does.
         let found =
             unsafe { hr_font_get_variation_glyph(font, unicode, variation_selector, glyph) };
         if found != 0 {
@@ -1312,13 +1312,13 @@ pub unsafe extern "C" fn hr_font_get_glyph(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_h_advance(
     font: *mut hr_font_t,
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1330,13 +1330,13 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_advance(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_v_advance(
     font: *mut hr_font_t,
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1351,7 +1351,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_advance(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font. `first_glyph` must be `NULL` or
+/// `font` must be a live font. `first_glyph` must be `NULL` or
 /// point at `count` glyphs `glyph_stride` bytes apart, and `first_advance`
 /// must be `NULL` or point at `count` writable advances `advance_stride`
 /// bytes apart.
@@ -1425,7 +1425,7 @@ unsafe fn advances(
     if first_glyph.is_null() || first_advance.is_null() {
         return;
     }
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1493,7 +1493,7 @@ unsafe fn advances(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// `font` must be a live font, and `x` and `y` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
@@ -1502,7 +1502,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
     x: *mut hr_position_t,
     y: *mut hr_position_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1519,14 +1519,14 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_origin(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_h_kerning(
     font: *mut hr_font_t,
     first_glyph: hr_codepoint_t,
     second_glyph: hr_codepoint_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1538,14 +1538,14 @@ pub unsafe extern "C" fn hr_font_get_glyph_h_kerning(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_v_kerning(
     font: *mut hr_font_t,
     first_glyph: hr_codepoint_t,
     second_glyph: hr_codepoint_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `state` is `font` through `or_empty`: the font it points to,
     // live by this function's contract, or the empty font if it is `NULL`.
@@ -1562,7 +1562,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_kerning(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// `font` must be a live font, and `x` and `y` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_v_origin(
@@ -1571,7 +1571,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_origin(
     x: *mut hr_position_t,
     y: *mut hr_position_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // Nowhere until somewhere, so a caller ignoring the return value reads
     // zeroes rather than whatever it passed in.
@@ -1600,7 +1600,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_v_origin(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+/// `font` must be a live font, and `extents` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_extents(
@@ -1608,7 +1608,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_extents(
     glyph: hr_codepoint_t,
     extents: *mut hr_glyph_extents_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // Nothing until something, as above.
     // SAFETY: `extents` is `NULL` or writable by this function's contract.
@@ -1629,7 +1629,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_extents(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// `font` must be a live font, and `x` and `y` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_advance_for_direction(
@@ -1639,7 +1639,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_advance_for_direction(
     x: *mut hr_position_t,
     y: *mut hr_position_t,
 ) {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let (dx, dy) = if crate::common::hr_direction_is_horizontal(direction) != 0 {
         // SAFETY: `state` is `font` through `or_empty`: the font it points
@@ -1734,7 +1734,7 @@ unsafe fn origin_for_direction(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// `font` must be a live font, and `x` and `y` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_origin_for_direction(
@@ -1745,7 +1745,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_origin_for_direction(
     y: *mut hr_position_t,
 ) {
     // SAFETY: `origin_for_direction` asks only that `font` be `NULL` or a
-    // live font, as this function's contract has it.
+    // live font. It is `NULL`, or live by this function's contract.
     let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
     // SAFETY: `x` is `NULL` or writable by this function's contract.
     unsafe { write_out(x, origin_x) };
@@ -1757,7 +1757,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_origin_for_direction(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+/// `font` must be a live font, and `x` and `y` must be `NULL` or
 /// readable and writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_add_glyph_origin_for_direction(
@@ -1768,7 +1768,7 @@ pub unsafe extern "C" fn hr_font_add_glyph_origin_for_direction(
     y: *mut hr_position_t,
 ) {
     // SAFETY: `origin_for_direction` asks only that `font` be `NULL` or a
-    // live font, as this function's contract has it.
+    // live font. It is `NULL`, or live by this function's contract.
     let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
     // SAFETY: `x` is `NULL` or readable and writable by this function's
     // contract. It carries a value in, so the caller has set it, and none of
@@ -1797,7 +1797,7 @@ pub unsafe extern "C" fn hr_font_subtract_glyph_origin_for_direction(
     y: *mut hr_position_t,
 ) {
     // SAFETY: `origin_for_direction` asks only that `font` be `NULL` or a
-    // live font, as this function's contract has it.
+    // live font. It is `NULL`, or live by this function's contract.
     let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
     // SAFETY: `x` is `NULL` or readable and writable by this function's
     // contract. It carries a value in, so the caller has set it, and none of
@@ -1817,7 +1817,7 @@ pub unsafe extern "C" fn hr_font_subtract_glyph_origin_for_direction(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+/// `font` must be a live font, and `extents` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_extents_for_origin(
@@ -1843,7 +1843,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_extents_for_origin(
     // SAFETY: `extents` is `NULL` or writable by this function's contract.
     unsafe { write_out(extents, found) };
     // SAFETY: `origin_for_direction` asks only that `font` be `NULL` or a
-    // live font, as this function's contract has it.
+    // live font. It is `NULL`, or live by this function's contract.
     let (origin_x, origin_y) = unsafe { origin_for_direction(font, glyph, direction) };
     found.x_bearing = found.x_bearing.saturating_sub(origin_x);
     found.y_bearing = found.y_bearing.saturating_sub(origin_y);
@@ -1879,7 +1879,7 @@ unsafe fn write_cstr(bytes: &[u8], out: *mut c_char, size: c_uint) {
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, and `name` must be `NULL` or point
+/// `font` must be a live font, and `name` must be `NULL` or point
 /// at `size` writable bytes.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_name(
@@ -1888,7 +1888,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_name(
     name: *mut c_char,
     size: c_uint,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     if size != 0 {
         // SAFETY: `name` is `NULL` or writable for `size` bytes, which is at
@@ -1916,7 +1916,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_name(
 ///
 /// # Safety
 ///
-/// `font` must be `NULL` or a live font, `name` must be `NULL` or readable
+/// `font` must be a live font, `name` must be `NULL` or readable
 /// for its length, and `glyph` must be `NULL` or writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_get_glyph_from_name(
@@ -1925,7 +1925,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     len: c_int,
     glyph: *mut hr_codepoint_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // SAFETY: `glyph` is `NULL` or writable by this function's contract.
     unsafe { write_out(glyph, 0) };
@@ -2028,9 +2028,9 @@ pub unsafe extern "C" fn hr_font_glyph_from_string(
     else {
         return false.into();
     };
-    // SAFETY: `font` is `NULL` or a live font and `glyph` is `NULL` or
-    // writable by this function's contract, which is what
-    // `hr_font_get_nominal_glyph` asks of them.
+    // SAFETY: `font` is `NULL`, or live by this function's contract, which
+    // has `glyph` `NULL` or writable. `hr_font_get_nominal_glyph` asks the
+    // same of both, and takes a `NULL` font all the same, as this one does.
     unsafe { hr_font_get_nominal_glyph(font, unicode, glyph) }
 }
 

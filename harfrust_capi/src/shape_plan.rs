@@ -562,13 +562,12 @@ pub unsafe extern "C" fn hr_shape_plan_get_user_data(
 ///
 /// # Safety
 ///
-/// `shape_plan` must be `NULL` or a live plan.
+/// `shape_plan` must be a live plan.
 #[no_mangle]
 pub unsafe extern "C" fn hr_shape_plan_get_shaper(
     shape_plan: *mut hr_shape_plan_t,
 ) -> *const c_char {
-    // SAFETY: `shape_plan` is `NULL` or a live plan by this function's
-    // contract.
+    // SAFETY: `shape_plan` is `NULL`, or live by this function's contract.
     let plan = unsafe { object::or_empty(shape_plan.cast_const()) };
     if plan.plan.is_none() {
         return core::ptr::null();
@@ -580,7 +579,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_shaper(
 ///
 /// # Safety
 ///
-/// `shape_plan` must be `NULL` or a live plan, and `props` must be `NULL` or
+/// `shape_plan` must be a live plan, and `props` must be `NULL` or
 /// writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
@@ -590,8 +589,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
     if props.is_null() {
         return;
     }
-    // SAFETY: `shape_plan` is `NULL` or a live plan by this function's
-    // contract.
+    // SAFETY: `shape_plan` is `NULL`, or live by this function's contract.
     let plan = unsafe { object::or_empty(shape_plan.cast_const()) };
     let Some(inner) = plan.plan.as_ref() else {
         let unset = hr_segment_properties_t {
@@ -620,8 +618,8 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 
 /// Shapes a buffer using a plan that was built beforehand.
 ///
-/// Returns false without shaping if the plan is the empty one, if `font` or
-/// `buffer` is `NULL`, or if the buffer's last reference is being released.
+/// Returns false without shaping if the plan is the empty one, or if the
+/// buffer's last reference is being released.
 /// An empty buffer returns true, having nothing to do.
 /// If the shaper panics, this returns false and clears the buffer, as
 /// `hr_shape_full` does, and like it only where panics unwind.
@@ -640,7 +638,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 ///
 /// # Safety
 ///
-/// `shape_plan`, `font` and `buffer` must be `NULL` or live, and `features`
+/// `shape_plan`, `font` and `buffer` must be live, and `features`
 /// must point to `num_features` readable entries.
 #[no_mangle]
 pub unsafe extern "C" fn hr_shape_plan_execute(
@@ -655,21 +653,21 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     // it looks at anything else, the empty plan included.
     //
     // SAFETY: `as_ref` needs `buffer` to be null, or aligned and pointing to a
-    // live `hr_buffer_t` that nothing writes while the reference is used. This
-    // function's contract has it `NULL` or live, and a buffer that is being
-    // changed belongs to the one thread changing it (README, "Threading"). The
-    // reference is used for this one read and not kept.
+    // live `hr_buffer_t` that nothing writes while the reference is used. It
+    // is `NULL`, or live by this function's contract, and a buffer that is
+    // being changed belongs to the one thread changing it (README,
+    // "Threading"). The reference is used for this one read and not kept.
     if unsafe { buffer.as_ref() }.is_some_and(|buffer| buffer.buffer.is_empty()) {
         return true.into();
     }
     // SAFETY: each `as_ref` needs its pointer to be null, or aligned and
     // pointing to a live object that nothing writes while the reference is
-    // used. This function's contract has `shape_plan` and `font` each `NULL`
-    // or live. A plan's fields are set when it is made and not written again,
-    // and `plan_ref` is not used past the share of the plan taken below,
-    // before any callback could release it. A font being shaped with must not
-    // be modified or freed, by its callbacks or from another thread (README,
-    // "Threading").
+    // used. `shape_plan` and `font` are each `NULL`, or live by this
+    // function's contract. A plan's fields are set when it is made and not
+    // written again, and `plan_ref` is not used past the share of the plan
+    // taken below, before any callback could release it. A font being shaped
+    // with must not be modified or freed, by its callbacks or from another
+    // thread (README, "Threading").
     let (Some(plan_ref), Some(font_ref)) =
         (unsafe { shape_plan.as_ref() }, unsafe { font.as_ref() })
     else {
@@ -693,13 +691,13 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     // Take a share of the plan, so that a callback destroying it during
     // shaping cannot pull it out from under the call.
     let plan = Arc::clone(plan);
-    // SAFETY: `as_mutable` needs `buffer` to be null or live, which the
-    // caller gives, and the reference it returns not to be aliased. It
-    // refuses a buffer whose last reference is being released while its
-    // user data destructors run, and the immortal empty buffer, which the
-    // test at the top has already answered for. Any other buffer is this
-    // caller's alone for the call, and the shared reference taken for that
-    // test is gone.
+    // SAFETY: `as_mutable` needs `buffer` to be null or live, and the
+    // reference it returns not to be aliased. `buffer` is null, or live by
+    // this function's contract. `as_mutable` refuses a buffer whose last
+    // reference is being released while its user data destructors run, and
+    // the immortal empty buffer, which the test at the top has already
+    // answered for. Any other buffer is this caller's alone for the call,
+    // and the shared reference taken for that test is gone.
     let Some(buffer_ref) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
@@ -724,10 +722,11 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     // requires.
     let features = unsafe { collect_features(features, num_features) };
     // SAFETY: `shape_with_plan` needs `font` to be `NULL` or a live font that
-    // stays live and unmodified until it returns. This function's contract
-    // has it `NULL` or live, and nothing above releases or writes to it. A
-    // font being shaped with must not be modified or freed, by its callbacks
-    // or from another thread, so it stays as it is until shaping is done.
+    // stays live and unmodified until it returns. It is `NULL`, or live by
+    // this function's contract, and nothing above releases or writes to it.
+    // A font being shaped with must not be modified or freed, by its
+    // callbacks or from another thread, so it stays as it is until shaping
+    // is done.
     unsafe { crate::shape::shape_with_plan(font, buffer_ref, &features, &plan) }
 }
 

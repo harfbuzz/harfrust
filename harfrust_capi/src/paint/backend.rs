@@ -62,7 +62,7 @@ impl HrColorPainter<'_> {
 
         let mut custom = 0;
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_custom_palette_color` requires, and `custom` is
         // a local for it to write the color to.
         if unsafe {
@@ -105,7 +105,7 @@ impl HrColorPainter<'_> {
     }
     fn clip_glyph(&mut self, glyph: GlyphId) {
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified, `paint_data` is its paint data
+        // is `NULL`, or live and unmodified, `paint_data` is its paint data
         // and `font` is `NULL` or live, as `hr_paint_push_clip_glyph`
         // requires.
         unsafe {
@@ -116,7 +116,7 @@ impl HrColorPainter<'_> {
     fn end_clip(&mut self) {
         self.scopes.pop();
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_pop_clip` requires.
         unsafe {
             hr_paint_pop_clip(self.paint_funcs, self.paint_data);
@@ -223,7 +223,7 @@ impl ColorPainter for HrColorPainter<'_> {
     fn push_transform(&mut self, transform: Transform) {
         self.scopes.push(Scope::Transform);
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_push_transform` requires.
         unsafe {
             hr_paint_push_transform(
@@ -241,7 +241,7 @@ impl ColorPainter for HrColorPainter<'_> {
     fn pop_transform(&mut self) {
         self.scopes.pop();
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_pop_transform` requires.
         unsafe {
             hr_paint_pop_transform(self.paint_funcs, self.paint_data);
@@ -264,7 +264,7 @@ impl ColorPainter for HrColorPainter<'_> {
                 let is_foreground = color_index == 0xFFFF;
                 let color = self.lookup_color(color_index, alpha);
                 // SAFETY: by the invariant on the painter's pointers,
-                // `paint_funcs` is `NULL` or live and unmodified,
+                // `paint_funcs` is `NULL`, or live and unmodified,
                 // `paint_data` is its paint data and `font` is `NULL` or
                 // live, as `hr_paint_fill_glyph` requires.
                 unsafe {
@@ -305,7 +305,7 @@ impl ColorPainter for HrColorPainter<'_> {
         self.glyph_clips.push(false);
         self.scopes.push(Scope::Clip);
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_push_clip_rectangle` requires.
         unsafe {
             hr_paint_push_clip_rectangle(
@@ -338,7 +338,7 @@ impl ColorPainter for HrColorPainter<'_> {
             } => {
                 let is_foreground = color_index == 0xFFFF;
                 // SAFETY: by the invariant on the painter's pointers,
-                // `paint_funcs` is `NULL` or live and unmodified and
+                // `paint_funcs` is `NULL`, or live and unmodified and
                 // `paint_data` is its paint data, as `hr_paint_color`
                 // requires.
                 unsafe {
@@ -366,7 +366,7 @@ impl ColorPainter for HrColorPainter<'_> {
                 let (x0, y0, x1, y1, x2, y2) = skrifa_unreduce_anchors(p0.x, p0.y, p1.x, p1.y);
 
                 // SAFETY: by the invariant on the painter's pointers,
-                // `paint_funcs` is `NULL` or live and unmodified and
+                // `paint_funcs` is `NULL`, or live and unmodified and
                 // `paint_data` is its paint data, as
                 // `hr_paint_linear_gradient` requires. It also requires a
                 // color line that stays as `hr_color_line_get_color_stops`
@@ -476,7 +476,7 @@ impl ColorPainter for HrColorPainter<'_> {
         // callback that declines leaves the glyph to this traversal.
         self.font_transform(true);
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified, `paint_data` is its paint data
+        // is `NULL`, or live and unmodified, `paint_data` is its paint data
         // and `font` is `NULL` or live, as `hr_paint_color_glyph` requires.
         let painted = unsafe {
             hr_paint_color_glyph(self.paint_funcs, self.paint_data, glyph.to_u32(), self.font)
@@ -492,7 +492,7 @@ impl ColorPainter for HrColorPainter<'_> {
         let mode = mode as hr_paint_composite_mode_t;
         self.scopes.push(Scope::Group(mode));
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_push_group_for` requires.
         unsafe {
             hr_paint_push_group_for(self.paint_funcs, self.paint_data, mode);
@@ -503,7 +503,7 @@ impl ColorPainter for HrColorPainter<'_> {
         let mode = mode as hr_paint_composite_mode_t; // They are the same
 
         // SAFETY: by the invariant on the painter's pointers, `paint_funcs`
-        // is `NULL` or live and unmodified and `paint_data` is its paint
+        // is `NULL`, or live and unmodified and `paint_data` is its paint
         // data, as `hr_paint_pop_group` requires.
         unsafe {
             hr_paint_pop_group(self.paint_funcs, self.paint_data, mode);
@@ -523,14 +523,15 @@ pub(super) unsafe fn paint(
     foreground: hr_color_t,
 ) -> hr_bool_t {
     use read_fonts::TableProvider;
-    // SAFETY: `hr_font_get_face` needs `font` to be `NULL` or live, which
-    // this function's contract gives. `as_ref` needs what it returns to be
-    // null, or aligned and pointing to a live `hr_face_t` that nothing
-    // writes while `render_face` is used, which is until this returns. A
-    // font owns its reference to its face, and `font` is live and unmodified
-    // until then, so the face is live as long; a `NULL` font answers with
-    // the empty font's face, which is immortal. A face that has a font is
-    // immutable, as `hr_font_create` documents, so no setter writes to it.
+    // SAFETY: `hr_font_get_face` takes `NULL` or a live font, and `font` is
+    // `NULL`, or live by this function's contract. `as_ref` needs what it
+    // returns to be null, or aligned and pointing to a live `hr_face_t` that
+    // nothing writes while `render_face` is used, which is until this
+    // returns. A font owns its reference to its face, and a `font` that is
+    // not `NULL` is live and unmodified until then, so the face is live as
+    // long; a `NULL` font answers with the empty font's face, which is
+    // immortal. A face that has a font is immutable, as `hr_font_create`
+    // documents, so no setter writes to it.
     let Some(render_face) = (unsafe { crate::hr_font_get_face(font).as_ref() }) else {
         return 0;
     };
@@ -541,8 +542,8 @@ pub(super) unsafe fn paint(
     };
     let glyph = GlyphId::new(glyph);
     // SAFETY: `coords` needs `font` to be `NULL` or live, and its variation
-    // settings left alone while it copies them. This function's contract has
-    // `font` so, and unmodified until it returns.
+    // settings left alone while it copies them. `font` is `NULL`, or live by
+    // this function's contract, and unmodified until it returns.
     let coords = unsafe { crate::rendering::coords(font) };
     if let Some(color) = skrifa::color::ColorGlyphCollection::new(&face).get(glyph) {
         let cpal = face.cpal().ok();
@@ -562,10 +563,11 @@ pub(super) unsafe fn paint(
                 records.as_ref()?.get(start..end)
             })
             .unwrap_or(&[]);
-        // This upholds the invariant on the painter's pointers: this
-        // function's contract has `font` and `funcs` `NULL` or live and
-        // unmodified, and `data` paint data for the callbacks of `funcs`,
-        // until it returns, and the painter is dropped before then.
+        // This upholds the invariant on the painter's pointers: `font` is
+        // `NULL`, or live by this function's contract, which has `funcs`
+        // `NULL` or live, both unmodified, and `data` paint data for the
+        // callbacks of `funcs`, until it returns, and the painter is dropped
+        // before then.
         let mut painter = HrColorPainter {
             font,
             paint_funcs: funcs,
@@ -575,22 +577,23 @@ pub(super) unsafe fn paint(
             glyph_clips: Vec::new(),
             scopes: Vec::new(),
         };
-        // SAFETY: by this function's contract, until it returns `funcs` is
-        // `NULL` or live and unmodified, `data` is its paint data and `font`
-        // is `NULL` or live, as `hr_paint_push_font_transform` requires.
+        // SAFETY: until this returns, `funcs` is `NULL`, or live and
+        // unmodified by this function's contract with `data` its paint data,
+        // and `font` is `NULL`, or live by the same contract, as
+        // `hr_paint_push_font_transform` requires.
         unsafe { hr_paint_push_font_transform(funcs, data, font) };
         let result = color.paint(coords.as_slice(), &mut painter);
         drop(painter);
-        // SAFETY: by this function's contract, until it returns `funcs` is
-        // `NULL` or live and unmodified and `data` is its paint data, as
-        // `hr_paint_pop_transform` requires.
+        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
+        // returns by this function's contract, and `data` is its paint data,
+        // as `hr_paint_pop_transform` requires.
         unsafe { hr_paint_pop_transform(funcs, data) };
         return i32::from(result.is_ok());
     }
     if let Some(svg) = face.svg().ok().and_then(|svg| svg.glyph_data(glyph)) {
-        // SAFETY: by this function's contract, until it returns `funcs` is
-        // `NULL` or live and unmodified and `data` is its paint data, as
-        // `image` requires, and it accepts `NULL` for the extents.
+        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
+        // returns by this function's contract, and `data` is its paint data,
+        // as `image` requires, and it accepts `NULL` for the extents.
         if unsafe {
             image(
                 render_face,
@@ -611,7 +614,7 @@ pub(super) unsafe fn paint(
     use skrifa::instance::Size;
     let mut x_ppem = 0;
     let mut y_ppem = 0;
-    // SAFETY: `font` is `NULL` or live by this function's contract, and the
+    // SAFETY: `font` is `NULL`, or live by this function's contract, and the
     // two outputs are locals for `hr_font_get_ppem` to write.
     unsafe { crate::hr_font_get_ppem(font, &raw mut x_ppem, &raw mut y_ppem) };
     let ppem = x_ppem.max(y_ppem);
@@ -640,13 +643,13 @@ pub(super) unsafe fn paint(
         {
             continue;
         }
-        // SAFETY: `hr_font_get_face` needs `font` to be `NULL` or live, which
-        // this function's contract gives. `hr_face_get_upem` needs a `NULL`
-        // or live face, and the face a font owns is live while the font is,
-        // as the empty font's is for a `NULL` one.
+        // SAFETY: `hr_font_get_face` takes `NULL` or a live font, and `font`
+        // is `NULL`, or live by this function's contract. `hr_face_get_upem`
+        // needs a live face, and the face a font owns is live while the font
+        // is, as the empty font's is for a `NULL` one.
         let upem = unsafe { crate::hr_face_get_upem(crate::hr_font_get_face(font)) } as f32;
-        // SAFETY: `scale` needs `font` to be `NULL` or live, as this
-        // function's contract has it.
+        // SAFETY: `scale` needs `font` to be `NULL` or live. It is `NULL`, or
+        // live by this function's contract.
         let (sx, sy) = unsafe { crate::rendering::scale(font) };
         let mx = upem / bitmap.ppem_x;
         let my = upem / bitmap.ppem_y;
@@ -672,9 +675,9 @@ pub(super) unsafe fn paint(
         };
         extents.width = extents.width.saturating_sub(extents.x_bearing);
         extents.height = extents.height.saturating_sub(extents.y_bearing);
-        // SAFETY: by this function's contract, until it returns `funcs` is
-        // `NULL` or live and unmodified and `data` is its paint data, as
-        // `image` requires, and `extents` is a local that can be read and
+        // SAFETY: `funcs` is `NULL`, or live and unmodified until this
+        // returns by this function's contract, and `data` is its paint data,
+        // as `image` requires, and `extents` is a local that can be read and
         // written while it runs.
         if unsafe {
             image(

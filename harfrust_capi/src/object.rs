@@ -13,9 +13,9 @@
 //!
 //! # Live pointers
 //!
-//! The functions here, and the exported ones built on them, ask that an
-//! object pointer be "`NULL` or live". A pointer to a `T` is *live* when
-//! both of these hold:
+//! The functions here ask that an object pointer be "`NULL` or live", and
+//! the exported ones built on them ask that it be live. A pointer to a `T`
+//! is *live* when both of these hold:
 //!
 //! - It is the pointer this API made for an object, or a copy of it. Each
 //!   one is what `Box::into_raw` gave for a `Box<T>`, in [`create`] or in
@@ -32,6 +32,26 @@
 //! of a live one, for as long as that reference could itself be used,
 //! wherever the object is only read, which includes everything done through
 //! its header. It will not do for [`as_mutable`] or [`destroy`].
+//!
+//! # `NULL` for an object
+//!
+//! An exported function asks that each object it is passed be live, as
+//! HarfBuzz does, but for the few arguments its documentation says may be
+//! `NULL`. It is sound when handed `NULL` for one all the same. [`or_empty`]
+//! and [`as_mutable`] take `NULL`, which makes it the type's empty object to
+//! the functions that use them, and a function that reads an object without
+//! them checks for `NULL` first and does nothing with it. The subset input
+//! and plan, which have no empty object, are always read that way.
+//!
+//! So a caller is promised nothing about `NULL`, and nothing is assumed of
+//! one that passes it. That is why the comments in an exported function
+//! split on it, as in "`font` is `NULL`, or live by this function's
+//! contract": a `NULL` pointer needs no contract, and one that is not `NULL`
+//! is live because the contract says so. A helper documented as asking what
+//! an exported function asks is written the same way, since it is handed
+//! that function's arguments as they came. And where a comment says that an
+//! exported function *takes* `NULL`, it speaks of what the function is sound
+//! for, not of what its documentation asks.
 //!
 //! # Owning a reference
 //!
@@ -511,9 +531,6 @@ pub unsafe fn is_immutable<T: Object>(ptr: *const T) -> bool {
 
 /// Returns a shared reference to an object, falling back to its immortal empty
 /// singleton when `ptr` is `NULL`.
-///
-/// This mirrors HarfBuzz, where passing `NULL` to a getter behaves like
-/// passing the empty object rather than crashing.
 ///
 /// # Safety
 ///

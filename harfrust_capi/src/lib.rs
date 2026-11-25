@@ -20,8 +20,11 @@ Drawing and painting callbacks are outside this API.
 Objects are reference counted. Constructors return a new reference the caller
 owns; `hr_*_reference` takes another, and `hr_*_destroy` gives one back. The
 `hr_*_create` functions never return `NULL`: on failure they return an
-immortal empty object, and the `_or_fail` variants return `NULL` instead. Every
-getter also accepts `NULL`, behaving as though it were passed the empty object.
+immortal empty object, and the `_or_fail` variants return `NULL` instead.
+
+An object passed to a function must be live. `NULL` in place of one is not a
+conforming call, here as in HarfBuzz, though it is treated as the empty object
+rather than dereferenced. The README says which arguments may be `NULL`.
 
 A reference taken to an object from one of its own destroy callbacks, while
 its last reference is being released, does not keep it alive. It must be given

@@ -138,7 +138,7 @@ void hr_draw_funcs_destroy(struct hr_draw_funcs_t *funcs);
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live.
+ * `funcs` must be live.
  */
 void hr_draw_funcs_make_immutable(struct hr_draw_funcs_t *funcs);
 
@@ -147,7 +147,7 @@ void hr_draw_funcs_make_immutable(struct hr_draw_funcs_t *funcs);
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live.
+ * `funcs` must be live.
  */
 hr_bool_t hr_draw_funcs_is_immutable(const struct hr_draw_funcs_t *funcs);
 
@@ -181,7 +181,7 @@ void *hr_draw_funcs_get_user_data(const struct hr_draw_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live. Mutation requires exclusive access:
+ * `funcs` must be live. Mutation requires exclusive access:
  * unless `funcs` is immutable, nothing else may be using it while this
  * runs.
  *
@@ -251,7 +251,7 @@ void hr_draw_funcs_set_close_path_func(struct hr_draw_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live, and must not be modified while this
+ * `funcs` must be live, and must not be modified while this
  * runs. `data` must be draw data meant for its callbacks. `st` must be
  * `NULL`, or point to a state that has been set and that this may read and
  * write: nothing else may access it while this runs, apart from the
@@ -322,7 +322,7 @@ void hr_draw_close_path(struct hr_draw_funcs_t *funcs, void *data, struct hr_dra
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live. Unless it is immutable, nothing else
+ * `ffuncs` must be live. Unless it is immutable, nothing else
  * may be using it while this runs.
  *
  * `func`, if given, must be safe to call on any thread with a live font
@@ -359,7 +359,7 @@ void hr_font_funcs_set_draw_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `font` and `funcs` must be `NULL` or live, and callbacks must not modify
+ * `font` and `funcs` must be live, and callbacks must not modify
  * either, nor a font that `font` is a sub-font of. `draw_data` must be draw
  * data meant for the callbacks of `funcs`.
  */
