@@ -41,14 +41,16 @@
 //! and [`as_mutable`] take `NULL`, which makes it the type's empty object to
 //! the functions that use them, and a function that reads an object without
 //! them checks for `NULL` first and does nothing with it. The subset input
-//! and plan, which have no empty object, are always read that way.
+//! and plan, which have no empty object, are always read that way. Where a
+//! function hands an object on to a callback that is promised a live one, it
+//! hands on the type's empty object in place of `NULL`.
 //!
 //! So a caller is promised nothing about `NULL`, and nothing is assumed of
 //! one that passes it. That is why the comments in an exported function
 //! split on it, as in "`font` is `NULL`, or live by this function's
 //! contract": a `NULL` pointer needs no contract, and one that is not `NULL`
 //! is live because the contract says so. A helper documented as asking what
-//! an exported function asks is written the same way, since it is handed
+//! an exported function asks is written the same way, since it may be handed
 //! that function's arguments as they came. And where a comment says that an
 //! exported function *takes* `NULL`, it speaks of what the function is sound
 //! for, not of what its documentation asks.
@@ -550,6 +552,27 @@ pub unsafe fn or_empty<'a, T: Object>(ptr: *const T) -> &'a T {
         // a `T`. Nothing has an immortal object to itself to write it:
         // `as_mutable` refuses one.
         None => unsafe { &*T::empty().cast_const() },
+    }
+}
+
+/// Returns `ptr`, or the pointer of the type's immortal empty singleton when
+/// `ptr` is `NULL`.
+///
+/// A callback is promised a live object for each object it is handed. What
+/// an exported function hands on to one without looking at it goes through
+/// this first, so that the promise is kept whatever the function was passed.
+///
+/// # Safety-usable invariant
+///
+/// The pointer returned is not `NULL`. It is `ptr`, or for a `NULL` `ptr`
+/// the one [`Object::empty`] returns, which is [live](self#live-pointers)
+/// for the rest of the process.
+#[cfg(feature = "draw")]
+pub fn or_empty_ptr<T: Object>(ptr: *mut T) -> *mut T {
+    if ptr.is_null() {
+        T::empty()
+    } else {
+        ptr
     }
 }
 
