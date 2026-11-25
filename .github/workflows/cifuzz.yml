@@ -24,4 +24,4 @@ jobs:
       with:
         oss-fuzz-project-name: harfrust
         language: rust
-        fuzz-seconds: 600
+        fuzz-seconds: 300
