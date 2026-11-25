@@ -79,6 +79,11 @@ and imports the standard HarfBuzz host functions from the `env` module:
 Unknown function imports (for example wasm-bindgen helpers) are bound to
 zero-returning stubs so that modules which never call them still instantiate.
 
+The copy functions — `buffer_copy_contents`, `face_copy_table`,
+`font_copy_coords` and `font_copy_glyph_outline` — write back how much they
+copied. A module can pass the size of its arrays and read back what was used,
+as HarfBuzz does.
+
 ## Limits
 
 A font's module is not trusted. Each `shape` call makes a new instance of it,

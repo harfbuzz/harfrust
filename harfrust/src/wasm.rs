@@ -721,11 +721,12 @@ fn api_buffer_copy_contents<'a, 'b, 'c>(
         let Some(new_pos) = host_alloc(&mut caller, info_bytes, 4) else {
             return 0;
         };
-        let _ = write_u32(&mut caller, memory, contents_ptr, length);
         let _ = write_u32(&mut caller, memory, contents_ptr + 4, new_info);
         let _ = write_u32(&mut caller, memory, contents_ptr + 8, new_pos);
         (new_info, new_pos)
     };
+    // The length the module gave was only a bound; report what went in.
+    let _ = write_u32(&mut caller, memory, contents_ptr, length);
 
     for index in 0..usize::try_from(length).unwrap_or(0) {
         let (info_fields, position_fields) = {
@@ -1163,6 +1164,8 @@ fn api_face_copy_table<'a, 'b, 'c>(
         if length > 0 && write_bytes(&mut caller, memory, data_ptr, &table).is_none() {
             return 0;
         }
+        // The length the module gave was only a bound; report what went in.
+        let _ = write_u32(&mut caller, memory, blob_ptr, length);
         return 1;
     }
     let Some(new_ptr) = host_alloc(&mut caller, length, 4) else {
@@ -1475,6 +1478,8 @@ fn api_font_copy_coords<'a, 'b, 'c>(
                 return 0;
             }
         }
+        // The length the module gave was only a bound; report what went in.
+        let _ = write_u32(&mut caller, memory, coords_ptr, length);
         return 1;
     }
     let Some(new_ptr) = host_alloc(&mut caller, length * 4, 4) else {
@@ -1671,12 +1676,13 @@ fn api_font_copy_glyph_outline<'a, 'b, 'c>(
             let Some(new_contours) = host_alloc(&mut caller, contour_length * 4, 4) else {
                 return 0;
             };
-            let _ = write_u32(&mut caller, memory, outline_ptr, length);
             let _ = write_u32(&mut caller, memory, outline_ptr + 4, new_points);
-            let _ = write_u32(&mut caller, memory, outline_ptr + 8, contour_length);
             let _ = write_u32(&mut caller, memory, outline_ptr + 12, new_contours);
             (new_points, new_contours)
         };
+    // The counts the module gave were only bounds; report what went in.
+    let _ = write_u32(&mut caller, memory, outline_ptr, length);
+    let _ = write_u32(&mut caller, memory, outline_ptr + 8, contour_length);
 
     for (index, (x, y, kind)) in points.iter().enumerate() {
         let base = points_ptr + index as u32 * OUTLINE_POINT_SIZE;

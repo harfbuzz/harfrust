@@ -716,6 +716,29 @@ fn wasm_shaper_treats_a_zero_result_as_failure() {
 }
 
 #[test]
+fn wasm_shaper_reports_how_much_was_copied() {
+    // Case 'a' hands the host arrays larger than what goes into them and
+    // answers with the lengths the host reported: the buffer's, the maxp
+    // table's, the coordinates (this font has none), the outline's points and
+    // contours, and how many of 20000 outline copies failed.
+    let maxp = FontRef::new(WASM_API)
+        .unwrap()
+        .table_data(Tag::new(b"maxp"))
+        .unwrap()
+        .as_bytes()
+        .len();
+    let buffer = shape_text(WASM_API.to_vec(), "a", &[]);
+    let values = glyph_ids(&buffer);
+    assert_eq!(values[0], 1);
+    assert_eq!(values[1], u32::try_from(maxp).unwrap());
+    assert_eq!(values[2], 0);
+    // Neither count is the 256 and 16 the module offered.
+    assert!(values[3] > 0 && values[3] < 256);
+    assert_eq!(values[4], 2);
+    assert_eq!(values[5], 0);
+}
+
+#[test]
 fn wasm_shaper_copies_and_frees_font_coords() {
     // Case 'm' copies the font's coordinates into an array it asks the host
     // for, frees it, and does that 200000 times, counting what fails. It
