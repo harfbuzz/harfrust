@@ -132,7 +132,10 @@ pub(crate) fn shape<'a, 'b, 'c>(
     match slot {
         WasmModuleSlot::Unavailable => None,
         WasmModuleSlot::Compiled { engine, module } => {
-            match run(engine, module, font, buffer, options) {
+            buffer.enter();
+            let result = run(engine, module, font, buffer, options);
+            buffer.leave();
+            match result {
                 Ok(Some(())) => Some(Ok(())),
                 Ok(None) => None,
                 Err(error) => Some(Err(error)),
@@ -1879,6 +1882,9 @@ fn api_shape_with<'a, 'b, 'c>(
         let shaper_font = ShaperFont::new(&entry.font);
         crate::shape::shape(&shaper_font, buffer, options)
     };
+    // Shaping under `shape_with` leaves with the default limits, so put the
+    // guest call's bounds back before the module runs again.
+    buffer.enter();
     i32::from(result.is_ok())
 }
 

@@ -627,3 +627,56 @@ fn a_plan_shapes_with_the_shaper_it_was_built_for() {
         glyph_ids(&shape_text(ROBOTO.to_vec(), "abc", &[]))
     );
 }
+
+/// Gives the buffer a length of 70000 items, which a single character does
+/// not allow, and reports whatever `buffer_set_contents` said. A buffer with
+/// the default limit would accept it.
+const OVERSIZED_GUEST: &str = r#"
+(module
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 24)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (i32.store (i32.const 0) (i32.const 70000))
+    (i32.store (i32.const 4) (i32.const 1024))
+    (i32.store (i32.const 8) (i32.const 1024))
+    (call $set (local.get $buf) (i32.const 0))))
+"#;
+
+#[test]
+fn wasm_shaper_bounds_the_buffer_length() {
+    let wasm = wat::parse_str(OVERSIZED_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(matches!(
+        try_shape_text(data, "a"),
+        Err(ShapeError::WasmShapingFailed)
+    ));
+}
+
+/// Delegates to OpenType, then tries to grow the buffer past what the call
+/// allows. Reports success only if the host refused the new length.
+const SHAPE_WITH_THEN_GROW_GUEST: &str = r#"
+(module
+  (import "env" "shape_with" (func $shape_with (param i32 i32 i32 i32 i32) (result i32)))
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 24)
+  (data (i32.const 16) "ot")
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $features i32) (param $count i32) (result i32)
+    (if (i32.eqz (call $shape_with (local.get $font) (local.get $buf)
+                                   (i32.const 0) (i32.const 0) (i32.const 16)))
+      (then (return (i32.const 0))))
+    (i32.store (i32.const 0) (i32.const 70000))
+    (i32.store (i32.const 4) (i32.const 1024))
+    (i32.store (i32.const 8) (i32.const 1024))
+    (if (result i32) (i32.eqz (call $set (local.get $buf) (i32.const 0)))
+      (then (i32.const 1))
+      (else (i32.const 0)))))
+"#;
+
+#[test]
+fn wasm_shaper_keeps_the_length_bound_after_shape_with() {
+    let wasm = wat::parse_str(SHAPE_WITH_THEN_GROW_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    assert!(try_shape_text(data, "abc").is_ok());
+}

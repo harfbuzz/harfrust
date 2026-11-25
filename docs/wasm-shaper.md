@@ -95,6 +95,11 @@ and that instance gets:
   size of the buffer's contents. The data of the faces and fonts that the
   module creates, which the host holds, counts against the same allowance,
   and a module can create 256 of them.
+- **Buffer length.** The per-text limits that HarfBuzz installs around every
+  shaper: 512 items for each item the module was given, and never fewer than
+  65536. `buffer_set_contents` refuses a longer buffer. `shape_with` puts the
+  limits back afterwards, because the OpenType shaper it delegates to resets
+  them on its way out.
 
 A module that runs out of fuel traps, and `shape` returns
 `ShapeError::WasmShapingFailed`. A request for more memory than the allowance
@@ -146,8 +151,9 @@ font and checks:
   `ShapeError::ShaperUnavailable` when no listed shaper can shape the font,
 - face, table, glyph name, extents, variation and outline queries.
 - the limits: a module that loops, one that takes memory until refused, one
-  that has the host copy a table a hundred thousand times, and one that
-  creates fonts until refused.
+  that has the host copy a table a hundred thousand times, one that creates
+  fonts until refused, one that asks the buffer for more items than the call
+  allows, and one that asks again after `shape_with`.
 
 The same host was also exercised with a real `wasm-bindgen` guest built from
 HarfBuzz's `harfbuzz-wasm` crate.
