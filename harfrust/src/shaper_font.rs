@@ -2,6 +2,7 @@
 
 use alloc::boxed::Box;
 use core::{mem::size_of, ops::Deref, ptr, slice};
+use read_fonts::tables::cmap::{MapVariant, UvsSubtable};
 use read_fonts::types::GlyphId;
 use read_fonts::TableProvider;
 
@@ -35,6 +36,7 @@ pub struct ShaperFont<'a, 'f> {
     cmap_cache: Option<&'a CharmapCache>,
     glyph_names: Option<&'a GlyphNameCache>,
     symbol_font_page: Once<u16>,
+    legacy_uvs: Once<Box<[Option<UvsSubtable<'a>>; 2]>>,
     pub(crate) scale: Scale,
     funcs: Option<&'f dyn FontFuncs>,
 }
@@ -76,6 +78,7 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
             cmap_cache,
             glyph_names,
             symbol_font_page: Once::new(),
+            legacy_uvs: Once::new(),
             scale,
             funcs: None,
         }
@@ -197,7 +200,32 @@ impl<'a, 'f> ShaperFont<'a, 'f> {
 
     /// Maps a variation sequence using the font's own charmap.
     pub fn default_variation_glyph(&self, codepoint: u32, selector: u32) -> Option<GlyphId> {
-        self.charmap.map_unicode_variant(codepoint, selector)
+        if !self.charmap.has_unicode_variants() {
+            return None;
+        }
+        if !matches!(self.symbol_font_page(), 0xB200 | 0xB300) {
+            return self.charmap.map_unicode_variant(codepoint, selector);
+        }
+        // A default UVS uses the same legacy Arabic remapping as a nominal
+        // lookup. Keep the raw DMAP and cmap subtables in precedence order so
+        // we can distinguish a default entry from an absent sequence.
+        let subtables = self.legacy_uvs.get_or_init(|| {
+            let tables = self.font.tables();
+            let dmap = tables.dmap().ok().map(|table| table.as_cmap());
+            Box::new([dmap, tables.cmap().ok()].map(|table| {
+                table
+                    .and_then(|cmap| cmap.uvs_subtable())
+                    .map(|(_, subtable)| subtable)
+            }))
+        });
+        match subtables
+            .iter()
+            .flatten()
+            .find_map(|t| t.map_variant(codepoint, selector))?
+        {
+            MapVariant::UseDefault => self.default_nominal_glyph(codepoint),
+            MapVariant::Variant(glyph) => (glyph != GlyphId::NOTDEF).then_some(glyph),
+        }
     }
 
     /// Returns the effective horizontal advance.
@@ -878,6 +906,37 @@ mod tests {
             ShaperFont::new(&traditional).default_nominal_glyph(0x0627),
             Some(GlyphId::new(65))
         );
+    }
+
+    #[test]
+    fn legacy_arabic_default_uvs_uses_the_nominal_mapping() {
+        let source =
+            FontRef::new(include_bytes!("../tests/fonts/in-house/SimpArabicTest.ttf")).unwrap();
+        let tables = TableFunction::new(Arc::new(move |tag| {
+            if tag == Tag::new(b"DMAP") {
+                return Some(Blob::from(vec![
+                    0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 12, // One Unicode UVS subtable.
+                    0, 14, 0, 0, 0, 38, 0, 0, 0, 1, // Format 14, one selector.
+                    0, 0xFE, 0, 0, 0, 0, 21, 0, 0, 0, 29, // FE00, both mapping offsets.
+                    0, 0, 0, 1, 0, 6, 0x27, 0, // Default: U+0627.
+                    0, 0, 0, 1, 0, 6, 0x28, 0, 5, // Non-default: U+0628 -> glyph 5.
+                ]));
+            }
+            source
+                .data_for_tag(tag)
+                .map(|data| Blob::from(data.as_bytes().to_vec()))
+        }));
+        let font = Font::new(tables, 0).unwrap();
+        let shaper = ShaperFont::new(&font);
+        assert_eq!(
+            shaper.default_variation_glyph(0x0627, 0xFE00),
+            Some(GlyphId::new(45))
+        );
+        assert_eq!(
+            shaper.default_variation_glyph(0x0628, 0xFE00),
+            Some(GlyphId::new(5))
+        );
+        assert_eq!(shaper.default_variation_glyph(0x0627, 0xFE01), None);
     }
 
     #[test]
