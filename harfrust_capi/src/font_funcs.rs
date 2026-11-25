@@ -230,6 +230,9 @@ pub(crate) unsafe fn set_callback<T: Object, F, D>(
 #[derive(Default)]
 pub struct hr_font_funcs_t {
     header: ObjectHeader,
+    // Safety invariant: each callback in the slots from here to `extents` is
+    // safe to call with the `user_data` held beside it, from any thread, for
+    // as long as it is held.
     nominal_glyph: Option<Callback<hr_font_get_nominal_glyph_func_t>>,
     nominal_glyphs: Option<Callback<hr_font_get_nominal_glyphs_func_t>>,
     variation_glyph: Option<Callback<hr_font_get_variation_glyph_func_t>>,
@@ -256,6 +259,10 @@ pub struct hr_font_funcs_t {
 // Callers are required to make both safe from any thread that uses the funcs
 // object, which the README documents under "Threading".
 unsafe impl Send for hr_font_funcs_t {}
+// SAFETY: as for `Send`. Sharing a funcs object lets several threads call its
+// callbacks with their `user_data` at once, and the same rule has that safe
+// from every thread that uses the object. The `user_data` pointers are all
+// that keeps the type from being `Sync` by itself.
 unsafe impl Sync for hr_font_funcs_t {}
 
 static EMPTY_FONT_FUNCS: OnceLock<Empty<hr_font_funcs_t>> = OnceLock::new();
@@ -293,6 +300,9 @@ pub extern "C" fn hr_font_funcs_create() -> *mut hr_font_funcs_t {
 /// asks its parent, and one holding a funcs object answers from that. Without
 /// a third thing to hold, `hr_ot_font_set_funcs` on a sub-font could not be
 /// told from a sub-font that had never been given callbacks.
+///
+/// The object is immortal, like the empty one: it is live for the life of
+/// the process, and it takes no callbacks.
 pub(crate) fn builtin_funcs() -> *mut hr_font_funcs_t {
     static BUILTIN_FONT_FUNCS: OnceLock<Empty<hr_font_funcs_t>> = OnceLock::new();
     BUILTIN_FONT_FUNCS
@@ -320,6 +330,7 @@ pub extern "C" fn hr_font_funcs_get_empty() -> *mut hr_font_funcs_t {
 pub unsafe extern "C" fn hr_font_funcs_reference(
     ffuncs: *mut hr_font_funcs_t,
 ) -> *mut hr_font_funcs_t {
+    // SAFETY: `ffuncs` is `NULL` or live by this function's contract.
     unsafe { object::reference(ffuncs) }
 }
 
@@ -331,6 +342,8 @@ pub unsafe extern "C" fn hr_font_funcs_reference(
 /// `ffuncs` must be `NULL` or live, and the caller must own the reference.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_destroy(ffuncs: *mut hr_font_funcs_t) {
+    // SAFETY: `ffuncs` is `NULL` or live, and the reference released is the
+    // caller's to release, both by this function's contract.
     unsafe { object::destroy(ffuncs) };
 }
 
@@ -347,6 +360,8 @@ pub unsafe extern "C" fn hr_font_funcs_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
+    // SAFETY: `ffuncs` is `NULL` or live, and `key` outlives it, both by this
+    // function's contract.
     unsafe { object::set_user_data(ffuncs, key, data, destroy, replace != 0) }.into()
 }
 
@@ -360,6 +375,7 @@ pub unsafe extern "C" fn hr_font_funcs_get_user_data(
     ffuncs: *mut hr_font_funcs_t,
     key: *const hr_user_data_key_t,
 ) -> *mut c_void {
+    // SAFETY: `ffuncs` is `NULL` or live by this function's contract.
     unsafe { object::get_user_data(ffuncs, key) }
 }
 
@@ -370,6 +386,7 @@ pub unsafe extern "C" fn hr_font_funcs_get_user_data(
 /// `ffuncs` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_make_immutable(ffuncs: *mut hr_font_funcs_t) {
+    // SAFETY: `ffuncs` is `NULL` or live by this function's contract.
     unsafe { object::make_immutable(ffuncs) };
 }
 
@@ -380,6 +397,7 @@ pub unsafe extern "C" fn hr_font_funcs_make_immutable(ffuncs: *mut hr_font_funcs
 /// `ffuncs` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_font_funcs_is_immutable(ffuncs: *mut hr_font_funcs_t) -> hr_bool_t {
+    // SAFETY: `ffuncs` is `NULL` or live by this function's contract.
     unsafe { object::is_immutable(ffuncs.cast_const()) }.into()
 }
 
@@ -404,6 +422,16 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: `set_callback` needs `ffuncs` to be `NULL` or live until it
+    // returns, which this function's contract gives, and a funcs object that
+    // takes changes to be in no other use meanwhile, which the README asks
+    // of callers under "Threading". The same section has `destroy` safe to
+    // call with `user_data` on whichever thread comes to release the data,
+    // and this function takes ownership of the data, so whenever that is.
+    // The closure returns the callback it takes out of the slot. The one it
+    // puts in pairs `func` with `user_data`, which this function's contract
+    // has safe to call together from any thread, as the invariant on the
+    // slot asks.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.nominal_glyph, new)
@@ -427,6 +455,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_nominal_glyphs_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `nominal_glyphs` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.nominal_glyphs, new)
@@ -456,6 +488,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_variation_glyph_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `variation_glyph` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.variation_glyph, new)
@@ -484,6 +520,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advance_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `h_advance` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.h_advance, new)
@@ -504,6 +544,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_advances_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `h_advances` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.h_advances, new)
@@ -524,6 +568,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_origin_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `h_origin` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.h_origin, new)
@@ -544,6 +592,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_h_kerning_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `h_kerning` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.h_kerning, new)
@@ -564,6 +616,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_kerning_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `v_kerning` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.v_kerning, new)
@@ -592,6 +648,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_advance_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `v_advance` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.v_advance, new)
@@ -620,6 +680,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_v_origin_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `v_origin` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.v_origin, new)
@@ -648,6 +712,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_glyph_extents_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // SAFETY: as in `hr_font_funcs_set_nominal_glyph_func`. This function's
+    // contract says the same of `ffuncs`, `func` and `user_data`, the README
+    // says the same of `destroy` and of a funcs object that takes changes,
+    // and the closure does the same with the `extents` slot.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |ffuncs, new| {
             core::mem::replace(&mut ffuncs.extents, new)
@@ -686,6 +754,9 @@ enum Resolved<'c, F> {
     Builtin,
     /// Callbacks were installed somewhere, and none of them answer for this.
     Missing,
+    // Safety invariant: `callback` is held by the funcs object of a font in
+    // the chain, `font` is the live pointer this API returned for that font,
+    // and `data` is that font's font data.
     Found {
         font: *mut hr_font_t,
         data: *mut c_void,
@@ -698,6 +769,9 @@ enum Resolved<'c, F> {
 enum NominalFuncs<'a> {
     Builtin,
     Missing,
+    // Safety invariant: the funcs object is the one the borrowed font
+    // carries, and the pointer is the live one this API returned for that
+    // font.
     Found(*mut hr_font_t, &'a hr_font_t, &'a hr_font_funcs_t),
 }
 
@@ -740,6 +814,9 @@ macro_rules! resolve {
                     };
                 }
             }
+            // SAFETY: as for `funcs` above. The parent is `NULL` or a live
+            // font that `state` holds a reference to, by the invariant on
+            // `hr_font_t::parent`, and so it outlives this adapter too.
             match unsafe { state.parent.as_ref() } {
                 Some(parent) => {
                     font = state.parent;
@@ -798,11 +875,20 @@ impl<'a> FontFuncsAdapter<'a> {
             if state.funcs == builtin_funcs() {
                 return NominalFuncs::Builtin;
             }
+            // SAFETY: by the invariant on `hr_font_t::funcs`, this is `NULL`
+            // or a live funcs object that `state` holds a reference to. It
+            // stays live for as long as `state` is borrowed, which is longer
+            // than this adapter, and nothing changes a funcs object or a
+            // font that is in use, which the README asks of callers under
+            // "Threading".
             if let Some(funcs) = unsafe { state.funcs.as_ref() } {
                 if answers(funcs) {
                     return NominalFuncs::Found(font, state, funcs);
                 }
             }
+            // SAFETY: as for `funcs` above, by the invariant on
+            // `hr_font_t::parent`: `NULL` or a live font that `state` holds
+            // a reference to.
             match unsafe { state.parent.as_ref() } {
                 Some(parent) => {
                     font = state.parent;
@@ -832,6 +918,12 @@ impl<'a> FontFuncsAdapter<'a> {
         };
         let mut glyph: hr_codepoint_t = 0;
         let found = if let Some(cb) = &funcs.nominal_glyph {
+            // SAFETY: by the invariant on `NominalFuncs::Found`, `cb` is a
+            // callback of the funcs object `state` carries, and `font` is
+            // that font's own pointer. The invariant on the funcs slots has
+            // the callback safe to call with `cb.user_data`, and the one on
+            // `hr_font_t::font_data` with the font data `callback_data`
+            // returns. `glyph` is a local for it to write.
             unsafe {
                 cb.func?(
                     font,
@@ -843,6 +935,9 @@ impl<'a> FontFuncsAdapter<'a> {
             }
         } else {
             let cb = funcs.nominal_glyphs.as_ref()?;
+            // SAFETY: as for the scalar callback above. This one is asked
+            // for a single entry, read from `c` and written to `glyph`, both
+            // locals, so the strides are never applied.
             (unsafe {
                 cb.func?(
                     font,
@@ -862,7 +957,9 @@ impl<'a> FontFuncsAdapter<'a> {
     /// Maps a raw batch through the nearest scalar or batch callback.
     ///
     /// # Safety
-    /// The strided arrays must be valid for `count` entries.
+    /// The strided arrays must be valid for `count` entries: `unicodes` must
+    /// point at `count` codepoints `unicode_stride` bytes apart, and `glyphs`
+    /// at `count` writable glyphs `glyph_stride` bytes apart.
     pub(crate) unsafe fn call_nominal_glyphs(
         &self,
         count: c_uint,
@@ -874,6 +971,10 @@ impl<'a> FontFuncsAdapter<'a> {
         let resolved = self.nominal_funcs();
         if let NominalFuncs::Found(font, state, funcs) = &resolved {
             if let Some(cb) = &funcs.nominal_glyphs {
+                // SAFETY: as in `call_nominal_glyph`. The arrays are for the
+                // callback to walk, and this function's contract has them as
+                // its type describes: `count` codepoints to read and as many
+                // glyphs to write, at these strides.
                 return unsafe {
                     cb.func.unwrap()(
                         *font,
@@ -890,6 +991,12 @@ impl<'a> FontFuncsAdapter<'a> {
             }
         }
         for i in 0..count as usize {
+            // SAFETY: `byte_add` needs the offset to stay inside the
+            // allocation `unicodes` points into, and `read_unaligned` needs a
+            // readable, initialized codepoint there. This function's contract
+            // gives `count` codepoints `unicode_stride` bytes apart, and
+            // `i < count`, so entry `i` starts `i * unicode_stride` bytes
+            // into that run.
             let unicode = unsafe {
                 unicodes
                     .byte_add(i * unicode_stride as usize)
@@ -902,6 +1009,8 @@ impl<'a> FontFuncsAdapter<'a> {
                 NominalFuncs::Found(font, state, funcs) => {
                     let cb = funcs.nominal_glyph.as_ref().unwrap();
                     let mut glyph = 0;
+                    // SAFETY: as in `call_nominal_glyph`; `glyph` is a local
+                    // for the callback to write.
                     let found = unsafe {
                         cb.func.unwrap()(
                             *font,
@@ -917,6 +1026,11 @@ impl<'a> FontFuncsAdapter<'a> {
             let Some(glyph) = glyph else {
                 return i as c_uint;
             };
+            // SAFETY: `output` is glyph `i` of the run, `i * glyph_stride`
+            // bytes from the first, which this function's contract has
+            // writable for every `i < count`, at whatever alignment the
+            // stride gives it. A glyph is a plain integer, so overwriting
+            // one drops nothing.
             unsafe { output.write_unaligned(glyph) };
         }
         count
@@ -937,7 +1051,11 @@ impl<'a> FontFuncsAdapter<'a> {
         };
         let func = cb.func?;
         let mut glyph: hr_codepoint_t = 0;
-        // SAFETY: as above.
+        // SAFETY: by the invariant on `Resolved::Found`, `cb` is a callback
+        // of a font's funcs object, `font` is that font's own pointer and
+        // `data` its font data. The invariants on the funcs slots and on
+        // `hr_font_t::font_data` have the callback safe to call with
+        // `cb.user_data` and with `data`. `glyph` is a local for it to write.
         let found = unsafe { func(font, data, c, vs, ptr::from_mut(&mut glyph), cb.user_data) };
         (found != 0).then_some(Answer::Value(glyph))
     }
@@ -958,6 +1076,9 @@ impl<'a> FontFuncsAdapter<'a> {
         // does not ask itself.
         let Some(cb) = &funcs.h_advance else {
             let mut advance = 0;
+            // SAFETY: `call_h_advances` needs a run of glyphs to read and one
+            // of advances to write and read back. Each here is one entry
+            // long: `glyph` and `advance`, both locals of this function.
             unsafe {
                 self.call_h_advances(
                     1,
@@ -972,7 +1093,8 @@ impl<'a> FontFuncsAdapter<'a> {
         let Some(func) = cb.func else {
             return Answer::Value(0);
         };
-        // SAFETY: the callback was registered by the caller for this purpose.
+        // SAFETY: as in `call_nominal_glyph`, with nothing for the callback
+        // to write.
         let advance = unsafe { func(font, state.callback_data(), glyph, cb.user_data) };
         Answer::Value(rescale(advance, state.x_scale, self.state.x_scale))
     }
@@ -983,8 +1105,9 @@ impl<'a> FontFuncsAdapter<'a> {
     ///
     /// # Safety
     ///
-    /// The glyph and advance pointers must describe writable runs of `count`
-    /// entries at the given byte strides.
+    /// The glyph and advance pointers must describe runs of `count` entries
+    /// at the given byte strides: glyphs to read, and advances to write and
+    /// read back.
     pub(crate) unsafe fn call_h_advances(
         &self,
         count: c_uint,
@@ -1002,6 +1125,10 @@ impl<'a> FontFuncsAdapter<'a> {
         let Some(func) = cb.func else {
             return false;
         };
+        // SAFETY: as in `call_nominal_glyph`. The runs are for the callback
+        // to walk, and this function's contract has them as its type
+        // describes: `count` glyphs to read and as many advances to write,
+        // at these strides.
         unsafe {
             func(
                 font,
@@ -1051,6 +1178,8 @@ impl<'a> FontFuncsAdapter<'a> {
         };
         let func = cb.func?;
         let (mut x, mut y) = (0, 0);
+        // SAFETY: as in `call_variation_glyph`; `x` and `y` are locals for
+        // the callback to write.
         let found = unsafe { func(font, data, glyph, &raw mut x, &raw mut y, cb.user_data) };
         (found != 0).then_some((
             rescale(x, scale.0, self.state.x_scale),
@@ -1076,6 +1205,8 @@ impl<'a> FontFuncsAdapter<'a> {
         let Some(func) = cb.func else {
             return 0;
         };
+        // SAFETY: as in `call_variation_glyph`, with nothing for the callback
+        // to write.
         let value = unsafe { func(font, data, first, second, cb.user_data) };
         if vertical {
             rescale(value, scale.1, self.state.y_scale)
@@ -1099,7 +1230,8 @@ impl<'a> FontFuncsAdapter<'a> {
         let Some(func) = cb.func else {
             return Answer::Value(0);
         };
-        // SAFETY: as above.
+        // SAFETY: as in `call_variation_glyph`, with nothing for the callback
+        // to write.
         let advance = unsafe { func(font, data, glyph, cb.user_data) };
         Answer::Value(rescale(advance, scale.1, self.state.y_scale))
     }
@@ -1125,7 +1257,8 @@ impl<'a> FontFuncsAdapter<'a> {
             return Answer::Value(None);
         };
         let (mut x, mut y) = (0, 0);
-        // SAFETY: as above.
+        // SAFETY: as in `call_variation_glyph`; `x` and `y` are locals for
+        // the callback to write.
         let found = unsafe {
             func(
                 font,
@@ -1159,7 +1292,8 @@ impl<'a> FontFuncsAdapter<'a> {
         };
         let func = cb.func?;
         let mut extents = hr_glyph_extents_t::default();
-        // SAFETY: as above.
+        // SAFETY: as in `call_variation_glyph`; `extents` is a local for the
+        // callback to write.
         let found = unsafe { func(font, data, glyph, ptr::from_mut(&mut extents), cb.user_data) };
         if found == 0 {
             return None;

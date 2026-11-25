@@ -72,6 +72,11 @@ pub unsafe extern "C" fn hr_segment_properties_equal(
     a: *const hr_segment_properties_t,
     b: *const hr_segment_properties_t,
 ) -> hr_bool_t {
+    // SAFETY: each `as_ref` needs its pointer to be null, or aligned and
+    // pointing to initialized properties that nothing writes while the
+    // reference is used, which is for the comparison below. This function's
+    // contract has `a` and `b` each `NULL` or readable. They may be the same
+    // properties, which two shared references may be too.
     let (Some(a), Some(b)) = (unsafe { a.as_ref() }, unsafe { b.as_ref() }) else {
         return core::ptr::eq(a, b).into();
     };
@@ -92,6 +97,10 @@ pub unsafe extern "C" fn hr_segment_properties_equal(
 /// `p` must be `NULL` or readable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_segment_properties_hash(p: *const hr_segment_properties_t) -> c_uint {
+    // SAFETY: `as_ref` needs `p` to be null, or aligned and pointing to
+    // initialized properties that nothing writes while the reference is used,
+    // which is for the reads below. This function's contract has it `NULL` or
+    // readable.
     let Some(p) = (unsafe { p.as_ref() }) else {
         return 0;
     };
@@ -119,9 +128,16 @@ pub unsafe extern "C" fn hr_segment_properties_overlay(
     // Read before the destination is borrowed: nothing stops a caller from
     // passing the same properties as both, which HarfBuzz allows and which
     // holding a shared and an exclusive reference to at once would not be.
-    // SAFETY: checked non-null above, and the caller guarantees readable.
+    // SAFETY: `read` needs `src` valid for reads, aligned and pointing to
+    // initialized properties. It is not null, as checked above, so this
+    // function's contract has it readable. The type is `Copy`, so the copy
+    // owns nothing the original also owns.
     let src = unsafe { core::ptr::read(src) };
-    // SAFETY: as above, and the caller guarantees `p` is writable.
+    // SAFETY: making the reference needs `p` non-null, aligned and pointing to
+    // initialized properties that nothing else accesses while it is used. `p`
+    // is not null, as checked above, so this function's contract has it
+    // readable and writable. The caller's `src` may be the same pointer, and
+    // it was read through for the last time above.
     let p = unsafe { &mut *p };
     // Each property is filled in only while the two still agree on everything
     // before it: text the source describes differently is not text these
@@ -147,6 +163,8 @@ pub unsafe extern "C" fn hr_segment_properties_overlay(
 pub struct hr_shape_plan_t {
     header: ObjectHeader,
     /// Owned reference to the face the plan was built over.
+    // Safety invariant: a live face returned by this API, on which this plan
+    // owns one reference.
     face: *mut hr_face_t,
     /// `None` only for the immortal empty plan.
     pub(crate) plan: Option<Arc<ShapePlan>>,
@@ -154,7 +172,10 @@ pub struct hr_shape_plan_t {
 
 impl Drop for hr_shape_plan_t {
     fn drop(&mut self) {
-        // SAFETY: the plan owns this reference.
+        // SAFETY: `destroy` needs a face that is `NULL` or live, and a
+        // reference to it that is the caller's to give up. The invariant on
+        // `face` has it live with one reference that is this plan's, and a
+        // plan being dropped gives it up once, here.
         unsafe { object::destroy(self.face) };
     }
 }
@@ -171,6 +192,9 @@ impl Object for hr_shape_plan_t {
             .get_or_init(|| {
                 Empty::new(hr_shape_plan_t {
                     header: ObjectHeader::immortal(),
+                    // Upholds the invariant on `face`: the empty face is
+                    // immortal, so it is always live, and taking or giving
+                    // up a reference to it does nothing.
                     face: hr_face_t::empty(),
                     plan: None,
                 })
@@ -188,7 +212,11 @@ unsafe fn collect_coords(coords: *const i32, num_coords: c_uint) -> Vec<Normaliz
     if coords.is_null() || num_coords == 0 {
         return Vec::new();
     }
-    // SAFETY: the caller guarantees the array is readable.
+    // SAFETY: `from_raw_parts` needs `coords` non-null and aligned, with
+    // `num_coords` initialized entries readable there while the slice is
+    // used, which is for the copy made here. `coords` is not null, as
+    // checked above, so this function's contract has it point to
+    // `num_coords` readable entries.
     unsafe { core::slice::from_raw_parts(coords, num_coords as usize) }
         .iter()
         .map(|coord| NormalizedCoord::from_bits(*coord as i16))
@@ -222,9 +250,19 @@ unsafe fn create_plan(
     shaper_list: *const *const c_char,
     cached: bool,
 ) -> *mut hr_shape_plan_t {
+    // SAFETY: `shaper_list_allows_ot` needs `shaper_list` to be `NULL` or a
+    // `NULL`-terminated array of NUL-terminated strings. This function's
+    // contract is `hr_shape_plan_create`'s for it, which requires that.
     if !unsafe { shaper_list_allows_ot(shaper_list) } {
         return hr_shape_plan_t::empty();
     }
+    // SAFETY: each `as_ref` needs its pointer to be null, or aligned and
+    // pointing to a live value that nothing writes while the reference is
+    // used, which is no longer than this call. This function's contract is
+    // `hr_shape_plan_create`'s for both. It has `face` `NULL` or a live face,
+    // and the README ("Threading") keeps a face that is being written from
+    // being shared, and a callback from modifying the face it is handed. It
+    // has `props` `NULL` or readable.
     let (Some(face_ref), Some(props)) = (unsafe { face.as_ref() }, unsafe { props.as_ref() })
     else {
         return hr_shape_plan_t::empty();
@@ -243,6 +281,9 @@ unsafe fn create_plan(
     let Some(instance) = instance_for(face_ref, coords, cached) else {
         return hr_shape_plan_t::empty();
     };
+    // SAFETY: `collect_features` needs `user_features` to be `NULL` or point
+    // to `num_user_features` readable entries. This function's contract is
+    // `hr_shape_plan_create`'s for them, which requires that.
     let features = unsafe { collect_features(user_features, num_user_features) };
 
     let plan = if cached {
@@ -262,6 +303,10 @@ unsafe fn create_plan(
 
     object::create(hr_shape_plan_t {
         header: ObjectHeader::new(),
+        // SAFETY: `reference` needs `face` to be `NULL` or live. It is not
+        // null, `face_ref` having been made from it, and it is live by this
+        // function's contract. The reference taken is the new plan's own, as
+        // the invariant on its `face` field requires.
         face: unsafe { object::reference(face) },
         plan: Some(plan),
     })
@@ -287,6 +332,9 @@ pub unsafe extern "C" fn hr_shape_plan_create(
     num_user_features: c_uint,
     shaper_list: *const *const c_char,
 ) -> *mut hr_shape_plan_t {
+    // SAFETY: `create_plan` asks of `face`, `props`, `user_features`,
+    // `num_user_features` and `shaper_list` what this function's contract asks
+    // of them.
     unsafe {
         create_plan(
             face,
@@ -322,6 +370,10 @@ pub unsafe extern "C" fn hr_shape_plan_create2(
     num_coords: c_uint,
     shaper_list: *const *const c_char,
 ) -> *mut hr_shape_plan_t {
+    // SAFETY: `collect_coords` needs `coords` to be `NULL` or point to
+    // `num_coords` readable entries, which this function's contract requires.
+    // `create_plan` asks of the other arguments what `hr_shape_plan_create`
+    // asks of them, which this function's contract requires too.
     unsafe {
         create_plan(
             face,
@@ -352,6 +404,9 @@ pub unsafe extern "C" fn hr_shape_plan_create_cached(
     num_user_features: c_uint,
     shaper_list: *const *const c_char,
 ) -> *mut hr_shape_plan_t {
+    // SAFETY: `create_plan` asks of `face`, `props`, `user_features`,
+    // `num_user_features` and `shaper_list` what `hr_shape_plan_create` asks
+    // of them, and this function's contract is that one's.
     unsafe {
         create_plan(
             face,
@@ -382,6 +437,10 @@ pub unsafe extern "C" fn hr_shape_plan_create_cached2(
     num_coords: c_uint,
     shaper_list: *const *const c_char,
 ) -> *mut hr_shape_plan_t {
+    // SAFETY: this function's contract is `hr_shape_plan_create2`'s. That has
+    // `coords` `NULL` or pointing to `num_coords` readable entries, which is
+    // what `collect_coords` needs, and asks of the other arguments what
+    // `hr_shape_plan_create` asks of them, which is what `create_plan` needs.
     unsafe {
         create_plan(
             face,
@@ -410,6 +469,8 @@ pub extern "C" fn hr_shape_plan_get_empty() -> *mut hr_shape_plan_t {
 pub unsafe extern "C" fn hr_shape_plan_reference(
     shape_plan: *mut hr_shape_plan_t,
 ) -> *mut hr_shape_plan_t {
+    // SAFETY: `shape_plan` is `NULL` or a live plan by this function's
+    // contract, which is what `reference` needs.
     unsafe { object::reference(shape_plan) }
 }
 
@@ -421,6 +482,9 @@ pub unsafe extern "C" fn hr_shape_plan_reference(
 /// reference being released.
 #[no_mangle]
 pub unsafe extern "C" fn hr_shape_plan_destroy(shape_plan: *mut hr_shape_plan_t) {
+    // SAFETY: `destroy` needs `shape_plan` to be `NULL` or live, and the
+    // reference given up to be the caller's own. This function's contract
+    // requires both.
     unsafe { object::destroy(shape_plan) };
 }
 
@@ -437,6 +501,10 @@ pub unsafe extern "C" fn hr_shape_plan_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
+    // SAFETY: `set_user_data` needs `shape_plan` to be `NULL` or live and
+    // `key` to outlive it, which this function's contract requires. `destroy`
+    // is kept to be called with `data` later, and the README ("Threading") has
+    // the caller make that safe from any thread that uses the plan.
     unsafe { object::set_user_data(shape_plan, key, data, destroy, replace != 0) }.into()
 }
 
@@ -450,6 +518,9 @@ pub unsafe extern "C" fn hr_shape_plan_get_user_data(
     shape_plan: *mut hr_shape_plan_t,
     key: *const hr_user_data_key_t,
 ) -> *mut c_void {
+    // SAFETY: `shape_plan` is `NULL` or a live plan by this function's
+    // contract, which is what `get_user_data` needs. `key` is compared by
+    // address and never read.
     unsafe { object::get_user_data(shape_plan, key) }
 }
 
@@ -463,6 +534,8 @@ pub unsafe extern "C" fn hr_shape_plan_get_user_data(
 pub unsafe extern "C" fn hr_shape_plan_get_shaper(
     shape_plan: *mut hr_shape_plan_t,
 ) -> *const c_char {
+    // SAFETY: `shape_plan` is `NULL` or a live plan by this function's
+    // contract.
     let plan = unsafe { object::or_empty(shape_plan.cast_const()) };
     if plan.plan.is_none() {
         return core::ptr::null();
@@ -484,6 +557,8 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
     if props.is_null() {
         return;
     }
+    // SAFETY: `shape_plan` is `NULL` or a live plan by this function's
+    // contract.
     let plan = unsafe { object::or_empty(shape_plan.cast_const()) };
     let Some(inner) = plan.plan.as_ref() else {
         let unset = hr_segment_properties_t {
@@ -545,9 +620,23 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     // Nothing to shape is nothing to fail at, whatever plan was handed over
     // and whatever it was built for: HarfBuzz answers an empty buffer before
     // it looks at anything else, the empty plan included.
+    //
+    // SAFETY: `as_ref` needs `buffer` to be null, or aligned and pointing to a
+    // live `hr_buffer_t` that nothing writes while the reference is used. This
+    // function's contract has it `NULL` or live, and a buffer that is being
+    // changed belongs to the one thread changing it (README, "Threading"). The
+    // reference is used for this one read and not kept.
     if unsafe { buffer.as_ref() }.is_some_and(|buffer| buffer.buffer.is_empty()) {
         return true.into();
     }
+    // SAFETY: each `as_ref` needs its pointer to be null, or aligned and
+    // pointing to a live object that nothing writes while the reference is
+    // used. This function's contract has `shape_plan` and `font` each `NULL`
+    // or live. A plan's fields are set when it is made and not written again,
+    // and `plan_ref` is not used past the share of the plan taken below,
+    // before any callback could release it. A font being shaped with must not
+    // be modified or freed, by its callbacks or from another thread (README,
+    // "Threading").
     let (Some(plan_ref), Some(font_ref)) =
         (unsafe { shape_plan.as_ref() }, unsafe { font.as_ref() })
     else {
@@ -597,6 +686,9 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         buffer_ref.buffer.language(),
     );
 
+    // SAFETY: `collect_features` needs `features` to be `NULL` or point to
+    // `num_features` readable entries, which this function's contract
+    // requires.
     let features = unsafe { collect_features(features, num_features) };
     // SAFETY: `shape_with_plan` needs `font` to be `NULL` or a live font that
     // stays live and unmodified until it returns. This function's contract

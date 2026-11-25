@@ -2588,7 +2588,8 @@ extern "C" {
  * unchanged. Results preserve the order in the table.
  * # Safety
  * `face` must be null or live; `feature_count` must be null or writable;
- * `features` must hold the input capacity when non-null.
+ * `features` must hold the input capacity when non-null, and must not
+ * overlap `feature_count`.
  */
 unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
                                              unsigned int start_offset,
@@ -2605,6 +2606,7 @@ unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
  * # Safety
  * `face` must be null or live; `selector_count` and `default_index` must be
  * null or writable; `selectors` must hold the input capacity when non-null.
+ * `selector_count` must not overlap either of the others.
  */
 unsigned int hr_aat_layout_feature_type_get_selector_infos(struct hr_face_t *face,
                                                            hr_aat_layout_feature_type_t feature_type,
@@ -2624,8 +2626,11 @@ unsigned int hr_aat_layout_feature_type_get_selector_infos(struct hr_face_t *fac
  *
  * # Safety
  *
- * `data` must point to `length` readable bytes. `destroy`, if given, must be
- * safe to call from any thread.
+ * `data` must point to `length` readable bytes. Unless they are copied,
+ * they must stay readable and unchanged until `destroy` is invoked, or with
+ * no `destroy`, for as long as the blob or anything made from it exists.
+ * `destroy`, if given, must be safe to call once with `user_data`, from any
+ * thread.
  */
 struct hr_blob_t *hr_blob_create(const char *data,
                                  unsigned int length,
@@ -2721,6 +2726,8 @@ void hr_blob_destroy(struct hr_blob_t *blob);
  * # Safety
  *
  * `blob` must be `NULL` or a live blob, and `key` must outlive it.
+ * `destroy`, if given, must be safe to call once with `data`, on whichever
+ * thread releases it.
  */
 hr_bool_t hr_blob_set_user_data(struct hr_blob_t *blob,
                                 const struct hr_user_data_key_t *key,
@@ -2903,7 +2910,8 @@ void hr_buffer_add(struct hr_buffer_t *buffer, hr_codepoint_t codepoint, unsigne
  *
  * # Safety
  *
- * `text` must point to `text_length` readable code units, or be zero-terminated.
+ * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `text_length` readable code units, or be zero-terminated.
  */
 void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
                          const uint16_t *text,
@@ -2918,7 +2926,8 @@ void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `text` must point to `text_length` readable bytes, or be zero-terminated.
+ * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `text_length` readable bytes, or be zero-terminated.
  */
 void hr_buffer_add_latin1(struct hr_buffer_t *buffer,
                           const uint8_t *text,
@@ -2936,8 +2945,9 @@ void hr_buffer_add_latin1(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `text` must point to `text_length` readable bytes, or be NUL-terminated
- * when `text_length` is negative.
+ * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `text_length` readable bytes, or be NUL-terminated when `text_length` is
+ * negative.
  */
 void hr_buffer_add_utf8(struct hr_buffer_t *buffer,
                         const char *text,
@@ -2953,8 +2963,9 @@ void hr_buffer_add_utf8(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `text` must point to `text_length` readable codepoints, or be terminated
- * by a zero when `text_length` is negative.
+ * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `text_length` readable codepoints, or be terminated by a zero when
+ * `text_length` is negative.
  */
 void hr_buffer_add_utf32(struct hr_buffer_t *buffer,
                          const uint32_t *text,
@@ -3555,7 +3566,8 @@ struct hr_face_t *hr_face_create_or_fail(struct hr_blob_t *blob, unsigned int in
  *
  * `reference_table_func` must be safe to call with `user_data` from any
  * thread, and must return either `NULL` or a blob reference it gives up
- * ownership of.
+ * ownership of. `destroy`, if given, must be safe to call once with
+ * `user_data`, from any thread.
  */
 struct hr_face_t *hr_face_create_for_tables(hr_reference_table_func_t reference_table_func,
                                             void *user_data,
@@ -3591,6 +3603,8 @@ void hr_face_destroy(struct hr_face_t *face);
  * # Safety
  *
  * `face` must be `NULL` or a live face, and `key` must outlive it.
+ * `destroy`, if given, must be safe to call once with `data`, on whichever
+ * thread releases it.
  */
 hr_bool_t hr_face_set_user_data(struct hr_face_t *face,
                                 const struct hr_user_data_key_t *key,
@@ -3653,7 +3667,9 @@ void hr_face_set_index(struct hr_face_t *face, unsigned int index);
  *
  * # Safety
  * `face` must be `NULL` or live and must not be accessed concurrently.
- * The callback and its data must be safe to invoke from any thread.
+ * The callback and its data must be safe to invoke from any thread, with
+ * what [`hr_face_get_table_tags`] is given. `destroy`, if given, must be
+ * safe to call once with `user_data`, from any thread.
  */
 void hr_face_set_get_table_tags_func(struct hr_face_t *face,
                                      hr_get_table_tags_func_t func,
@@ -3669,7 +3685,8 @@ void hr_face_set_get_table_tags_func(struct hr_face_t *face,
  *
  * # Safety
  * `face` must be `NULL` or live. Non-null outputs must be writable for their
- * advertised capacity.
+ * advertised capacity, which `table_count` must hold on entry, and must not
+ * overlap.
  */
 unsigned int hr_face_get_table_tags(const struct hr_face_t *face,
                                     unsigned int start_offset,
@@ -4034,7 +4051,8 @@ hr_bool_t hr_font_get_nominal_glyph(struct hr_font_t *font,
  *
  * # Safety
  * `font` must be `NULL` or live. The arrays must be valid for `count`
- * entries at their respective byte strides.
+ * entries at their respective byte strides, `first_unicode` to read and
+ * `first_glyph` to write.
  */
 unsigned int hr_font_get_nominal_glyphs(struct hr_font_t *font,
                                         unsigned int count,
@@ -4796,7 +4814,8 @@ hr_ot_color_palette_flags_t hr_ot_color_palette_get_flags(struct hr_face_t *face
  *
  * # Safety
  * `face` must be null or live; `color_count` must be null or writable;
- * `colors` must hold the input capacity when non-null.
+ * `colors` must hold the input capacity when non-null, and must not overlap
+ * `color_count`.
  */
 unsigned int hr_ot_color_palette_get_colors(struct hr_face_t *face,
                                             unsigned int palette_index,
@@ -4831,7 +4850,8 @@ hr_bool_t hr_ot_layout_table_select_script(struct hr_face_t *face,
  *
  * # Safety
  * `face` must be null or live; `feature_count` must be null or writable;
- * `feature_tags` must hold the input capacity when non-null.
+ * `feature_tags` must hold the input capacity when non-null, and must not
+ * overlap `feature_count`.
  */
 unsigned int hr_ot_layout_table_get_feature_tags(struct hr_face_t *face,
                                                  hr_tag_t table_tag,
@@ -5092,6 +5112,7 @@ hr_language_t hr_ot_tag_to_language(hr_tag_t tag);
  * # Safety
  * `language` must be NULL or an interned language returned by this API.
  * Each non-NULL output array must have the capacity in its associated count.
+ * That count must be NULL, or writable and outside both arrays.
  */
 void hr_ot_tags_from_script_and_language(hr_script_t script,
                                          hr_language_t language,
@@ -5115,7 +5136,8 @@ unsigned int hr_ot_var_get_axis_count(struct hr_face_t *face);
  * unchanged. Axis indices remain relative to the full `fvar` axis array.
  * # Safety
  * `face` must be null or live; `axes_count` must be null or writable;
- * `axes_array` must hold the input capacity when non-null.
+ * `axes_array` must hold the input capacity when non-null, and must not
+ * overlap `axes_count`.
  */
 unsigned int hr_ot_var_get_axis_infos(struct hr_face_t *face,
                                       unsigned int start_offset,

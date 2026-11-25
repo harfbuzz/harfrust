@@ -260,6 +260,14 @@ pub extern "C" fn hr_buffer_create() -> *mut hr_buffer_t {
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_create_similar(src: *mut hr_buffer_t) -> *mut hr_buffer_t {
     let created = hr_buffer_create();
+    // SAFETY: both make a reference, which needs the pointer to be null, or
+    // aligned and pointing to a live `hr_buffer_t` that nothing else writes,
+    // or for `as_mut` touches at all, while the reference is used. `src` is
+    // `NULL` or a live buffer by this function's contract, and a buffer that
+    // is being changed belongs to the one thread changing it (README,
+    // "Threading"). `created` is the buffer `hr_buffer_create` just made: a
+    // new one, which nothing else has been handed yet. Both references end
+    // with this call.
     let (Some(src), Some(dst)) = (unsafe { src.as_ref() }, unsafe { created.as_mut() }) else {
         return created;
     };
@@ -287,6 +295,8 @@ pub extern "C" fn hr_buffer_get_empty() -> *mut hr_buffer_t {
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_reference(buffer: *mut hr_buffer_t) -> *mut hr_buffer_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract,
+    // which is what `reference` needs.
     unsafe { object::reference(buffer) }
 }
 
@@ -298,6 +308,8 @@ pub unsafe extern "C" fn hr_buffer_reference(buffer: *mut hr_buffer_t) -> *mut h
 /// reference being released.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_destroy(buffer: *mut hr_buffer_t) {
+    // SAFETY: `destroy` needs `buffer` to be `NULL` or live, and the reference
+    // given up to be the caller's own. This function's contract requires both.
     unsafe { object::destroy(buffer) };
 }
 
@@ -314,6 +326,10 @@ pub unsafe extern "C" fn hr_buffer_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
+    // SAFETY: `set_user_data` needs `buffer` to be `NULL` or live and `key` to
+    // outlive it, which this function's contract requires. `destroy` is kept
+    // to be called with `data` later, and the README ("Threading") has the
+    // caller make that safe from any thread that uses the buffer.
     unsafe { object::set_user_data(buffer, key, data, destroy, replace != 0) }.into()
 }
 
@@ -327,6 +343,9 @@ pub unsafe extern "C" fn hr_buffer_get_user_data(
     buffer: *mut hr_buffer_t,
     key: *const hr_user_data_key_t,
 ) -> *mut c_void {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract,
+    // which is what `get_user_data` needs. `key` is compared by address and
+    // never read.
     unsafe { object::get_user_data(buffer, key) }
 }
 
@@ -337,6 +356,9 @@ pub unsafe extern "C" fn hr_buffer_get_user_data(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_reset(buffer: *mut hr_buffer_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.reset();
     }
@@ -349,6 +371,9 @@ pub unsafe extern "C" fn hr_buffer_reset(buffer: *mut hr_buffer_t) {
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_clear_contents(buffer: *mut hr_buffer_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.clear();
     }
@@ -364,6 +389,9 @@ pub unsafe extern "C" fn hr_buffer_pre_allocate(
     buffer: *mut hr_buffer_t,
     size: c_uint,
 ) -> hr_bool_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
@@ -377,6 +405,7 @@ pub unsafe extern "C" fn hr_buffer_pre_allocate(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_allocation_successful(buffer: *mut hr_buffer_t) -> hr_bool_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .allocation_successful()
@@ -394,6 +423,9 @@ pub unsafe extern "C" fn hr_buffer_add(
     codepoint: hr_codepoint_t,
     cluster: c_uint,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.push(codepoint, cluster);
         // Whatever followed the text before now follows something else, and
@@ -569,7 +601,8 @@ fn set_post_context_utf16(buffer: &mut Buffer, units: &[u16]) {
 ///
 /// # Safety
 ///
-/// `text` must point to `text_length` readable code units, or be zero-terminated.
+/// `buffer` must be `NULL` or a live buffer. `text` must point to
+/// `text_length` readable code units, or be zero-terminated.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_utf16(
     buffer: *mut hr_buffer_t,
@@ -578,6 +611,9 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
     item_offset: c_uint,
     item_length: c_int,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
@@ -586,6 +622,11 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
     }
     let len = if text_length < 0 {
         let mut len = 0;
+        // SAFETY: `add` needs unit `len` to lie in the array `text` points
+        // into, and the read needs a code unit there. `text` is not null, as
+        // checked above, and with `text_length` negative this function's
+        // contract has it zero-terminated. Every unit before `len` was read as
+        // non-zero, so the terminator is at `len` or beyond it.
         while unsafe { *text.add(len) } != 0 {
             len += 1;
         }
@@ -593,6 +634,12 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
     } else {
         text_length as usize
     };
+    // SAFETY: `from_raw_parts` needs `text` non-null and aligned, with `len`
+    // initialized code units readable there while the slice is used, which is
+    // no longer than this call. `text` is not null, as checked above. When
+    // `text_length` is not negative it is `len`, and this function's contract
+    // has `text` point to that many readable code units. Otherwise `len`
+    // counts the units the loop above read before the terminator.
     let units = unsafe { core::slice::from_raw_parts(text, len) };
     let (start, end) = item_range(len, item_offset, item_length);
     if buffer.buffer.is_empty() && start > 0 {
@@ -608,7 +655,8 @@ pub unsafe extern "C" fn hr_buffer_add_utf16(
 ///
 /// # Safety
 ///
-/// `text` must point to `text_length` readable bytes, or be zero-terminated.
+/// `buffer` must be `NULL` or a live buffer. `text` must point to
+/// `text_length` readable bytes, or be zero-terminated.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_latin1(
     buffer: *mut hr_buffer_t,
@@ -617,6 +665,9 @@ pub unsafe extern "C" fn hr_buffer_add_latin1(
     item_offset: c_uint,
     item_length: c_int,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
@@ -624,8 +675,19 @@ pub unsafe extern "C" fn hr_buffer_add_latin1(
         return;
     }
     let bytes = if text_length < 0 {
+        // SAFETY: `from_ptr` needs `text` non-null and pointing to a
+        // zero-terminated string that stays readable and unchanged while the
+        // result is used, which is no longer than this call. `text` is not
+        // null, as checked above, and with `text_length` negative this
+        // function's contract has it zero-terminated.
         unsafe { core::ffi::CStr::from_ptr(text.cast()) }.to_bytes()
     } else {
+        // SAFETY: `from_raw_parts` needs `text` non-null, with `text_length`
+        // initialized bytes readable there while the slice is used, which is
+        // no longer than this call. `text` is not null, as checked above,
+        // `text_length` is not negative on this branch, and this function's
+        // contract has `text` point to that many readable bytes. A byte needs
+        // no alignment.
         unsafe { core::slice::from_raw_parts(text, text_length as usize) }
     };
     let (start, end) = item_range(bytes.len(), item_offset, item_length);
@@ -659,8 +721,9 @@ pub unsafe extern "C" fn hr_buffer_add_latin1(
 ///
 /// # Safety
 ///
-/// `text` must point to `text_length` readable bytes, or be NUL-terminated
-/// when `text_length` is negative.
+/// `buffer` must be `NULL` or a live buffer. `text` must point to
+/// `text_length` readable bytes, or be NUL-terminated when `text_length` is
+/// negative.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_utf8(
     buffer: *mut hr_buffer_t,
@@ -669,6 +732,9 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
     item_offset: c_uint,
     item_length: c_int,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
@@ -676,8 +742,19 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
         return;
     }
     let bytes = if text_length < 0 {
+        // SAFETY: `from_ptr` needs `text` non-null and pointing to a
+        // NUL-terminated string that stays readable and unchanged while the
+        // result is used, which is no longer than this call. `text` is not
+        // null, as checked above, and with `text_length` negative this
+        // function's contract has it NUL-terminated.
         unsafe { core::ffi::CStr::from_ptr(text) }.to_bytes()
     } else {
+        // SAFETY: `from_raw_parts` needs `text` non-null, with `text_length`
+        // initialized bytes readable there while the slice is used, which is
+        // no longer than this call. `text` is not null, as checked above,
+        // `text_length` is not negative on this branch, and this function's
+        // contract has `text` point to that many readable bytes. A byte needs
+        // no alignment.
         unsafe { core::slice::from_raw_parts(text.cast::<u8>(), text_length as usize) }
     };
     let (start, end) = item_range(bytes.len(), item_offset, item_length);
@@ -720,8 +797,9 @@ pub unsafe extern "C" fn hr_buffer_add_utf8(
 ///
 /// # Safety
 ///
-/// `text` must point to `text_length` readable codepoints, or be terminated
-/// by a zero when `text_length` is negative.
+/// `buffer` must be `NULL` or a live buffer. `text` must point to
+/// `text_length` readable codepoints, or be terminated by a zero when
+/// `text_length` is negative.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_add_utf32(
     buffer: *mut hr_buffer_t,
@@ -730,13 +808,24 @@ pub unsafe extern "C" fn hr_buffer_add_utf32(
     item_offset: c_uint,
     item_length: c_int,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
     if text.is_null() {
         return;
     }
+    // SAFETY: `utf32_len` needs `text` to hold `text_length` readable entries,
+    // or be zero terminated. `text` is not null, as checked above, and this
+    // function's contract has it point to `text_length` readable codepoints,
+    // or to a zero-terminated run of them when `text_length` is negative.
     let len = unsafe { utf32_len(text, text_length) };
+    // SAFETY: `add_utf32_items` needs `text` to point to `len` readable
+    // entries. `len` is `text_length` when that is not negative, and this
+    // function's contract has `text` point to that many; otherwise it is the
+    // count `utf32_len` made of the entries before the terminator.
     unsafe { add_utf32_items(buffer, text, len, item_offset, item_length, true) };
 }
 
@@ -751,7 +840,11 @@ unsafe fn utf32_len(text: *const hr_codepoint_t, text_length: c_int) -> usize {
         return text_length as usize;
     }
     let mut len = 0usize;
-    // SAFETY: the caller guarantees a zero terminator.
+    // SAFETY: `add` needs entry `len` to lie in the array `text` points into,
+    // and the read needs an entry there. This is reached only with
+    // `text_length` negative, so this function's contract has `text` zero
+    // terminated. Every entry before `len` was read as non-zero, so the
+    // terminator is at `len` or beyond it.
     while unsafe { *text.add(len) } != 0 {
         len += 1;
     }
@@ -772,6 +865,10 @@ unsafe fn add_utf32_items(
     item_length: c_int,
     validate: bool,
 ) {
+    // SAFETY: `from_raw_parts` needs `text` non-null and aligned, with `len`
+    // initialized entries readable there while the slice is used, which is no
+    // longer than this call. This function's contract has `text` point to
+    // `len` readable entries.
     let items = unsafe { core::slice::from_raw_parts(text, len) };
     let (start, end) = item_range(len, item_offset, item_length);
 
@@ -827,13 +924,26 @@ pub unsafe extern "C" fn hr_buffer_add_codepoints(
     item_offset: c_uint,
     item_length: c_int,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract,
+    // which is `hr_buffer_add_utf32`'s. The reference is not aliased:
+    // `as_mutable` refuses the empty buffer and one being freed, and the
+    // README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
     if text.is_null() {
         return;
     }
+    // SAFETY: `utf32_len` needs `text` to hold `text_length` readable entries,
+    // or be zero terminated. `text` is not null, as checked above, and this
+    // function's contract, which is `hr_buffer_add_utf32`'s, has it point to
+    // `text_length` readable codepoints, or to a zero-terminated run of them
+    // when `text_length` is negative.
     let len = unsafe { utf32_len(text, text_length) };
+    // SAFETY: `add_utf32_items` needs `text` to point to `len` readable
+    // entries. `len` is `text_length` when that is not negative, and this
+    // function's contract has `text` point to that many; otherwise it is the
+    // count `utf32_len` made of the entries before the terminator.
     unsafe { add_utf32_items(buffer, text, len, item_offset, item_length, false) };
 }
 
@@ -852,9 +962,18 @@ pub unsafe extern "C" fn hr_buffer_append(
     if core::ptr::eq(buffer.cast_const(), source) {
         return;
     }
+    // SAFETY: `as_ref` needs `source` to be null, or aligned and pointing to a
+    // live `hr_buffer_t` that nothing writes while the reference is used. This
+    // function's contract has it `NULL` or live. It is not `buffer`, as
+    // checked above, so nothing here writes to it, and a buffer that is being
+    // changed belongs to the one thread changing it (README, "Threading").
     let Some(source) = (unsafe { source.as_ref() }) else {
         return;
     };
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, the README has any other belong to one thread, and
+    // `source` is a different buffer, as checked above.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
@@ -963,6 +1082,8 @@ pub unsafe extern "C" fn hr_buffer_get_content_type(
     buffer: *mut hr_buffer_t,
 ) -> hr_buffer_content_type_t {
     content_type_from_rust(
+        // SAFETY: `buffer` is `NULL` or a live buffer by this function's
+        // contract.
         unsafe { object::or_empty(buffer.cast_const()) }
             .buffer
             .content_type(),
@@ -979,6 +1100,9 @@ pub unsafe extern "C" fn hr_buffer_set_content_type(
     buffer: *mut hr_buffer_t,
     content_type: hr_buffer_content_type_t,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer
             .buffer
@@ -996,6 +1120,9 @@ pub unsafe extern "C" fn hr_buffer_set_direction(
     buffer: *mut hr_buffer_t,
     direction: hr_direction_t,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.set_direction(direction_to_rust(direction));
     }
@@ -1009,6 +1136,8 @@ pub unsafe extern "C" fn hr_buffer_set_direction(
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_direction(buffer: *mut hr_buffer_t) -> hr_direction_t {
     direction_from_rust(
+        // SAFETY: `buffer` is `NULL` or a live buffer by this function's
+        // contract.
         unsafe { object::or_empty(buffer.cast_const()) }
             .buffer
             .direction(),
@@ -1022,6 +1151,9 @@ pub unsafe extern "C" fn hr_buffer_get_direction(buffer: *mut hr_buffer_t) -> hr
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_set_script(buffer: *mut hr_buffer_t, script: hr_script_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
@@ -1039,6 +1171,7 @@ pub unsafe extern "C" fn hr_buffer_set_script(buffer: *mut hr_buffer_t, script: 
 pub unsafe extern "C" fn hr_buffer_get_script(buffer: *mut hr_buffer_t) -> hr_script_t {
     // A buffer that was never given a script reports none, rather than the
     // `Zzzz` that stands for a script known to be unknown.
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .script()
@@ -1053,12 +1186,18 @@ pub unsafe extern "C" fn hr_buffer_get_script(buffer: *mut hr_buffer_t) -> hr_sc
 /// a value returned by `hr_language_from_string`.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_set_language(buffer: *mut hr_buffer_t, language: hr_language_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
     // As with the script, `NULL` clears rather than does nothing.
     buffer
         .buffer
+        // SAFETY: `language_to_rust` needs `language` to be `NULL` or an
+        // interned language. This function's contract has it `NULL` or a value
+        // `hr_language_from_string` returned, which is one or the other.
         .set_language(unsafe { language_to_rust(language) });
 }
 
@@ -1070,6 +1209,8 @@ pub unsafe extern "C" fn hr_buffer_set_language(buffer: *mut hr_buffer_t, langua
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_language(buffer: *mut hr_buffer_t) -> hr_language_t {
     language_from_rust(
+        // SAFETY: `buffer` is `NULL` or a live buffer by this function's
+        // contract.
         unsafe { object::or_empty(buffer.cast_const()) }
             .buffer
             .language(),
@@ -1083,6 +1224,9 @@ pub unsafe extern "C" fn hr_buffer_get_language(buffer: *mut hr_buffer_t) -> hr_
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_set_flags(buffer: *mut hr_buffer_t, flags: hr_buffer_flags_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer
             .buffer
@@ -1097,6 +1241,7 @@ pub unsafe extern "C" fn hr_buffer_set_flags(buffer: *mut hr_buffer_t, flags: hr
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_flags(buffer: *mut hr_buffer_t) -> hr_buffer_flags_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .flags()
@@ -1113,6 +1258,9 @@ pub unsafe extern "C" fn hr_buffer_set_cluster_level(
     buffer: *mut hr_buffer_t,
     cluster_level: hr_buffer_cluster_level_t,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer
             .buffer
@@ -1130,6 +1278,8 @@ pub unsafe extern "C" fn hr_buffer_get_cluster_level(
     buffer: *mut hr_buffer_t,
 ) -> hr_buffer_cluster_level_t {
     cluster_level_from_rust(
+        // SAFETY: `buffer` is `NULL` or a live buffer by this function's
+        // contract.
         unsafe { object::or_empty(buffer.cast_const()) }
             .buffer
             .cluster_level(),
@@ -1143,6 +1293,7 @@ pub unsafe extern "C" fn hr_buffer_get_cluster_level(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_length(buffer: *mut hr_buffer_t) -> c_uint {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .len() as c_uint
@@ -1158,6 +1309,9 @@ pub unsafe extern "C" fn hr_buffer_set_length(
     buffer: *mut hr_buffer_t,
     length: c_uint,
 ) -> hr_bool_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
@@ -1196,6 +1350,11 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_infos(
 ) -> *mut hr_glyph_info_t {
     // The pointer handed out is writable, which the immortal empty buffer,
     // shared by every thread, must never be. It has no items to give anyway.
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread. A
+    // pointer handed out earlier is to the items or the positions, which are
+    // held outside the `hr_buffer_t` this reference is to.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         if !length.is_null() {
             // SAFETY: `write` needs `length` valid for writes and properly
@@ -1250,6 +1409,11 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
 ) -> *mut hr_glyph_position_t {
     // Allocating positions on demand writes to the buffer, which the immortal
     // empty one, shared by every thread, must never see. It has none to give.
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread. A
+    // pointer handed out earlier is to the items or the positions, which are
+    // held outside the `hr_buffer_t` this reference is to.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         if !length.is_null() {
             // SAFETY: `write` needs `length` valid for writes and properly
@@ -1281,6 +1445,7 @@ pub unsafe extern "C" fn hr_buffer_get_glyph_positions(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_has_positions(buffer: *mut hr_buffer_t) -> hr_bool_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     let buffer = &unsafe { object::or_empty(buffer.cast_const()) }.buffer;
     // Asked of the buffer and not of the positions: looking at those would
     // borrow them, and a caller holding a pointer to them is told that this
@@ -1297,6 +1462,10 @@ pub unsafe extern "C" fn hr_buffer_has_positions(buffer: *mut hr_buffer_t) -> hr
 pub unsafe extern "C" fn hr_glyph_info_get_glyph_flags(
     info: *const hr_glyph_info_t,
 ) -> hr_glyph_flags_t {
+    // SAFETY: `as_ref` needs `info` to be null, or aligned and pointing to an
+    // initialized item that nothing writes while the reference is used, which
+    // is for this one read. This function's contract has it `NULL` or pointing
+    // to a readable item.
     unsafe { info.as_ref() }.map_or(0, |info| info.mask & HR_GLYPH_FLAG_DEFINED)
 }
 
@@ -1310,6 +1479,9 @@ pub unsafe extern "C" fn hr_buffer_set_invisible_glyph(
     buffer: *mut hr_buffer_t,
     invisible: hr_codepoint_t,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         let glyph = (invisible != 0).then(|| harfrust::GlyphId::from(invisible));
         buffer.buffer.set_invisible_glyph(glyph);
@@ -1323,6 +1495,7 @@ pub unsafe extern "C" fn hr_buffer_set_invisible_glyph(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_get_invisible_glyph(buffer: *mut hr_buffer_t) -> hr_codepoint_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .invisible_glyph()
@@ -1339,6 +1512,9 @@ pub unsafe extern "C" fn hr_buffer_set_not_found_variation_selector_glyph(
     buffer: *mut hr_buffer_t,
     glyph: hr_codepoint_t,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer
             .buffer
@@ -1359,6 +1535,7 @@ pub unsafe extern "C" fn hr_buffer_set_not_found_variation_selector_glyph(
 pub unsafe extern "C" fn hr_buffer_get_not_found_variation_selector_glyph(
     buffer: *mut hr_buffer_t,
 ) -> hr_codepoint_t {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     unsafe { object::or_empty(buffer.cast_const()) }
         .buffer
         .not_found_variation_selector_glyph()
@@ -1381,6 +1558,7 @@ pub unsafe extern "C" fn hr_buffer_get_segment_properties(
     if props.is_null() {
         return;
     }
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
     let buffer = unsafe { object::or_empty(buffer.cast_const()) };
     let value = crate::shape_plan::hr_segment_properties_t {
         direction: direction_from_rust(buffer.buffer.direction()),
@@ -1408,6 +1586,13 @@ pub unsafe extern "C" fn hr_buffer_set_segment_properties(
     buffer: *mut hr_buffer_t,
     props: *const crate::shape_plan::hr_segment_properties_t,
 ) {
+    // SAFETY: for `as_mutable`, `buffer` is `NULL` or a live buffer by this
+    // function's contract, and the reference is not aliased: `as_mutable`
+    // refuses the empty buffer and one being freed, and the README has any
+    // other belong to one thread. For `as_ref`, which needs `props` to be
+    // null, or aligned and pointing to initialized properties that nothing
+    // writes while they are read here, the same contract has `props` `NULL` or
+    // readable.
     let (Some(buffer), Some(props)) = (unsafe { object::as_mutable(buffer) }, unsafe {
         props.as_ref()
     }) else {
@@ -1433,6 +1618,9 @@ pub unsafe extern "C" fn hr_buffer_set_segment_properties(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_guess_segment_properties(buffer: *mut hr_buffer_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         guess_segment_properties(&mut buffer.buffer);
     }
@@ -1457,6 +1645,9 @@ pub(crate) fn guess_segment_properties(buffer: &mut Buffer) {
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_reverse(buffer: *mut hr_buffer_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.reverse();
     }
@@ -1473,6 +1664,9 @@ pub unsafe extern "C" fn hr_buffer_reverse_range(
     start: c_uint,
     end: c_uint,
 ) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     let Some(buffer) = (unsafe { object::as_mutable(buffer) }) else {
         return;
     };
@@ -1489,6 +1683,9 @@ pub unsafe extern "C" fn hr_buffer_reverse_range(
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_reverse_clusters(buffer: *mut hr_buffer_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.reverse_clusters();
     }
@@ -1501,6 +1698,9 @@ pub unsafe extern "C" fn hr_buffer_reverse_clusters(buffer: *mut hr_buffer_t) {
 /// `buffer` must be `NULL` or a live buffer.
 #[no_mangle]
 pub unsafe extern "C" fn hr_buffer_reset_clusters(buffer: *mut hr_buffer_t) {
+    // SAFETY: `buffer` is `NULL` or a live buffer by this function's contract.
+    // The reference is not aliased: `as_mutable` refuses the empty buffer and
+    // one being freed, and the README has any other belong to one thread.
     if let Some(buffer) = unsafe { object::as_mutable(buffer) } {
         buffer.buffer.reset_clusters();
     }
@@ -1520,6 +1720,8 @@ pub unsafe extern "C" fn hr_buffer_serialize_format_from_string(
     // cases. A name this library does not know still comes back as itself,
     // as it does in HarfBuzz, rather than collapsing to the invalid format:
     // it is the caller's value to hold and hand back.
+    // SAFETY: `hr_tag_from_string` is handed this function's own arguments,
+    // and this function's contract is that one's.
     unsafe { crate::common::hr_tag_from_string(str_, len) & !0x2020_2020 }
 }
 
@@ -1583,6 +1785,7 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     // Kept as passed as well: callbacks are handed the font they were
     // installed on.
     let font_ptr = font;
+    // SAFETY: `font` is `NULL` or a live font by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
 
     let infos = buffer.buffer.glyph_infos();
@@ -1590,6 +1793,8 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
     let end = (end as usize).clamp(start, infos.len());
     // Nothing to write, but the destination is still terminated.
     if start == end {
+        // SAFETY: `buf` points to `buf_size` writable bytes by this function's
+        // contract, which is what `write_c_string` needs.
         unsafe { write_c_string("", buf, buf_size) };
         return 0;
     }
@@ -1693,6 +1898,8 @@ pub unsafe extern "C" fn hr_buffer_serialize_glyphs(
         }
     }
 
+    // SAFETY: `buf` points to `buf_size` writable bytes by this function's
+    // contract, which is what `write_c_string` needs.
     unsafe { write_c_string(&out, buf, buf_size) };
     write_consumed(out.len() as c_uint);
     written as c_uint

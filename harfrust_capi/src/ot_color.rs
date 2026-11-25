@@ -25,6 +25,7 @@ fn cpal(face: &hr_face_t) -> Option<Cpal<'_>> {
 /// `face` must be null or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_has_palettes(face: *mut hr_face_t) -> hr_bool_t {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     cpal(face)
         .is_some_and(|table| table.num_palettes() != 0)
@@ -36,6 +37,7 @@ pub unsafe extern "C" fn hr_ot_color_has_palettes(face: *mut hr_face_t) -> hr_bo
 /// `face` must be null or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_palette_get_count(face: *mut hr_face_t) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     cpal(face).map_or(0, |table| table.num_palettes() as c_uint)
 }
@@ -48,6 +50,7 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_flags(
     face: *mut hr_face_t,
     palette_index: c_uint,
 ) -> hr_ot_color_palette_flags_t {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     cpal(face)
         .and_then(|table| table.palette_types_array()?.ok())
@@ -64,7 +67,8 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_flags(
 ///
 /// # Safety
 /// `face` must be null or live; `color_count` must be null or writable;
-/// `colors` must hold the input capacity when non-null.
+/// `colors` must hold the input capacity when non-null, and must not overlap
+/// `color_count`.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
     face: *mut hr_face_t,
@@ -73,6 +77,7 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
     color_count: *mut c_uint,
     colors: *mut hr_color_t,
 ) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let palette = cpal(face).and_then(|table| {
         let start = table
@@ -92,6 +97,13 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
         return 0;
     };
     if !colors.is_null() {
+        // SAFETY: `as_mut` needs `color_count` null, or aligned, writable,
+        // holding a value, and accessed by nothing else while the reference
+        // is used. This function's contract has it null or writable. With
+        // `colors` non-null, as here, it carries the capacity in, which
+        // the README has the caller set before the call. The only other
+        // writes before the reference's last use go to the array, which the
+        // contract keeps from overlapping the count.
         if let Some(count) = unsafe { color_count.as_mut() } {
             let mut written = 0;
             for record in records
@@ -105,6 +117,12 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
                     record.red(),
                     record.alpha(),
                 ]);
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. A non-null
+                // `colors` holds as many colors as the count said on entry,
+                // by this function's contract, and `take` ends the loop
+                // before `written` reaches that. The slot only returns a
+                // value: it is written and not read.
                 unsafe { colors.add(written).write(color) };
                 written += 1;
             }

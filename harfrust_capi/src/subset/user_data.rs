@@ -6,6 +6,8 @@ use std::sync::{Mutex, PoisonError};
 struct Item {
     key: *const hr_user_data_key_t,
     data: *mut c_void,
+    // Safety invariant: `destroy`, if any, is safe to call once with `data`,
+    // on any thread.
     destroy: hr_destroy_func_t,
 }
 // SAFETY: pointers are opaque; the caller promises thread-safe destruction.
@@ -13,6 +15,10 @@ unsafe impl Send for Item {}
 impl Drop for Item {
     fn drop(&mut self) {
         if let Some(destroy) = self.destroy {
+            // SAFETY: `destroy` is the caller's function, with whatever it
+            // requires of its argument. By the invariant on `destroy`, one
+            // call with `data` is sound on whichever thread drops the item,
+            // and an item is dropped once.
             unsafe { destroy(self.data) };
         }
     }
@@ -48,6 +54,11 @@ impl UserData {
         drop(items);
     }
 
+    // Every `Item` is built here, from `data` and `destroy` as given.
+    // Nothing here checks them against the invariant on `Item::destroy`: it
+    // is the caller's to supply. Both callers are exported setters whose
+    // contracts require the data and destructor to be safe to release from
+    // any thread.
     pub fn set(
         &self,
         key: *const hr_user_data_key_t,

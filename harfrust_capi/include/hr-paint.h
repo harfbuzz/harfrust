@@ -364,26 +364,48 @@ struct hr_paint_funcs_t *hr_paint_funcs_get_empty(void);
 
 /**
  * Takes a reference. Accepts NULL.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 struct hr_paint_funcs_t *hr_paint_funcs_reference(struct hr_paint_funcs_t *funcs);
 
 /**
  * Releases an owned reference and its callback data. Accepts NULL.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live, and the caller must own the reference.
  */
 void hr_paint_funcs_destroy(struct hr_paint_funcs_t *funcs);
 
 /**
  * Rejects subsequent callback changes.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 void hr_paint_funcs_make_immutable(struct hr_paint_funcs_t *funcs);
 
 /**
  * Reports whether callback changes are forbidden.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 hr_bool_t hr_paint_funcs_is_immutable(const struct hr_paint_funcs_t *funcs);
 
 /**
  * Attaches address-keyed metadata, taking ownership only on success.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live, and `key` must outlive it. `destroy`, if
+ * given, must be safe to call once with `data` from any thread that uses
+ * `funcs`.
  */
 hr_bool_t hr_paint_funcs_set_user_data(struct hr_paint_funcs_t *funcs,
                                        const hr_user_data_key_t *key,
@@ -393,13 +415,28 @@ hr_bool_t hr_paint_funcs_set_user_data(struct hr_paint_funcs_t *funcs,
 
 /**
  * Returns borrowed metadata.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 void *hr_paint_funcs_get_user_data(const struct hr_paint_funcs_t *funcs,
                                    const hr_user_data_key_t *key);
 
 /**
  * Registers push transform. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live until this returns. Unless it is
+ * immutable, no other thread may use it during the call, and nothing on
+ * this thread may be in the middle of using it but a callback setter that
+ * is running a `destroy`. For as long as `func` stays set, it must be safe
+ * to call from any thread that uses `funcs`, with `user_data` and arguments
+ * that meet the contract of [`hr_paint_push_transform`]. `destroy`, if
+ * given, must be safe to call once with `user_data`, on whichever thread
+ * releases the data and whenever that is: during this call, or when the
+ * callback is replaced or `funcs` is freed.
  */
 void hr_paint_funcs_set_push_transform_func(struct hr_paint_funcs_t *funcs,
                                             hr_paint_push_transform_func_t func,
@@ -408,6 +445,11 @@ void hr_paint_funcs_set_push_transform_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches push transform; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_transform(struct hr_paint_funcs_t *funcs,
                              void *paint_data,
@@ -420,7 +462,11 @@ void hr_paint_push_transform(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers pop transform. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_pop_transform`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_pop_transform_func(struct hr_paint_funcs_t *funcs,
                                            hr_paint_pop_transform_func_t func,
@@ -429,16 +475,25 @@ void hr_paint_funcs_set_pop_transform_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches pop transform; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_pop_transform(struct hr_paint_funcs_t *funcs, void *paint_data);
 
 /**
  * Registers color glyph. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
  *
  * A callback that paints by calling `hr_font_paint_glyph` is responsible for
  * guarding against cycles and for limiting how deeply it nests; see
  * `hr_paint_color_glyph_func_t`.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_color_glyph`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_color_glyph_func(struct hr_paint_funcs_t *funcs,
                                          hr_paint_color_glyph_func_t func,
@@ -447,6 +502,12 @@ void hr_paint_funcs_set_color_glyph_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches color glyph; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with. `font`
+ * must be `NULL` or live.
  */
 hr_bool_t hr_paint_color_glyph(struct hr_paint_funcs_t *funcs,
                                void *paint_data,
@@ -455,7 +516,11 @@ hr_bool_t hr_paint_color_glyph(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers push clip glyph. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_push_clip_glyph`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_push_clip_glyph_func(struct hr_paint_funcs_t *funcs,
                                              hr_paint_push_clip_glyph_func_t func,
@@ -464,6 +529,12 @@ void hr_paint_funcs_set_push_clip_glyph_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches push clip glyph; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with. `font`
+ * must be `NULL` or live.
  */
 void hr_paint_push_clip_glyph(struct hr_paint_funcs_t *funcs,
                               void *paint_data,
@@ -472,7 +543,11 @@ void hr_paint_push_clip_glyph(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers push clip rectangle. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_push_clip_rectangle`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_push_clip_rectangle_func(struct hr_paint_funcs_t *funcs,
                                                  hr_paint_push_clip_rectangle_func_t func,
@@ -481,6 +556,11 @@ void hr_paint_funcs_set_push_clip_rectangle_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches push clip rectangle; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_clip_rectangle(struct hr_paint_funcs_t *funcs,
                                   void *paint_data,
@@ -491,7 +571,13 @@ void hr_paint_push_clip_rectangle(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers push clip path start. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_push_clip_path_start`] in place of [`hr_paint_push_transform`],
+ * except that `func` need only be safe to call with a `draw_data` that is
+ * writable.
  */
 void hr_paint_funcs_set_push_clip_path_start_func(struct hr_paint_funcs_t *funcs,
                                                   hr_paint_push_clip_path_start_func_t func,
@@ -500,6 +586,12 @@ void hr_paint_funcs_set_push_clip_path_start_func(struct hr_paint_funcs_t *funcs
 
 /**
  * Dispatches push clip path start; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
+ * `draw_data` must be `NULL` or writable.
  */
 hr_draw_funcs_t *hr_paint_push_clip_path_start(struct hr_paint_funcs_t *funcs,
                                                void *paint_data,
@@ -507,7 +599,11 @@ hr_draw_funcs_t *hr_paint_push_clip_path_start(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers push clip path end. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_push_clip_path_end`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_push_clip_path_end_func(struct hr_paint_funcs_t *funcs,
                                                 hr_paint_push_clip_path_end_func_t func,
@@ -516,12 +612,21 @@ void hr_paint_funcs_set_push_clip_path_end_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches push clip path end; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_clip_path_end(struct hr_paint_funcs_t *funcs, void *paint_data);
 
 /**
  * Registers pop clip. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_pop_clip`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_pop_clip_func(struct hr_paint_funcs_t *funcs,
                                       hr_paint_pop_clip_func_t func,
@@ -530,12 +635,21 @@ void hr_paint_funcs_set_pop_clip_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches pop clip; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_pop_clip(struct hr_paint_funcs_t *funcs, void *paint_data);
 
 /**
  * Registers color. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_color`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_color_func(struct hr_paint_funcs_t *funcs,
                                    hr_paint_color_func_t func,
@@ -544,6 +658,11 @@ void hr_paint_funcs_set_color_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches color; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_color(struct hr_paint_funcs_t *funcs,
                     void *paint_data,
@@ -552,7 +671,11 @@ void hr_paint_color(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers fill glyph. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_fill_glyph`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_fill_glyph_func(struct hr_paint_funcs_t *funcs,
                                         hr_paint_fill_glyph_func_t func,
@@ -561,6 +684,12 @@ void hr_paint_funcs_set_fill_glyph_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches fill glyph; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with. `font`
+ * must be `NULL` or live.
  */
 void hr_paint_fill_glyph(struct hr_paint_funcs_t *funcs,
                          void *paint_data,
@@ -571,7 +700,11 @@ void hr_paint_fill_glyph(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers image. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_image`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_image_func(struct hr_paint_funcs_t *funcs,
                                    hr_paint_image_func_t func,
@@ -580,6 +713,13 @@ void hr_paint_funcs_set_image_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches image; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with. `image`
+ * must be `NULL` or a live blob, and `extents` must be `NULL` or point to
+ * glyph extents that can be read and written.
  */
 hr_bool_t hr_paint_image(struct hr_paint_funcs_t *funcs,
                          void *paint_data,
@@ -592,7 +732,11 @@ hr_bool_t hr_paint_image(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers linear gradient. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_linear_gradient`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_linear_gradient_func(struct hr_paint_funcs_t *funcs,
                                              hr_paint_linear_gradient_func_t func,
@@ -601,6 +745,13 @@ void hr_paint_funcs_set_linear_gradient_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches linear gradient; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
+ * `color_line` must point to a color line that stays as
+ * [`hr_color_line_get_color_stops`] requires until this returns.
  */
 void hr_paint_linear_gradient(struct hr_paint_funcs_t *funcs,
                               void *paint_data,
@@ -614,7 +765,11 @@ void hr_paint_linear_gradient(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers radial gradient. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_radial_gradient`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_radial_gradient_func(struct hr_paint_funcs_t *funcs,
                                              hr_paint_radial_gradient_func_t func,
@@ -623,6 +778,13 @@ void hr_paint_funcs_set_radial_gradient_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches radial gradient; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
+ * `color_line` must point to a color line that stays as
+ * [`hr_color_line_get_color_stops`] requires until this returns.
  */
 void hr_paint_radial_gradient(struct hr_paint_funcs_t *funcs,
                               void *paint_data,
@@ -636,7 +798,11 @@ void hr_paint_radial_gradient(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers sweep gradient. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_sweep_gradient`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_sweep_gradient_func(struct hr_paint_funcs_t *funcs,
                                             hr_paint_sweep_gradient_func_t func,
@@ -645,6 +811,13 @@ void hr_paint_funcs_set_sweep_gradient_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches sweep gradient; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
+ * `color_line` must point to a color line that stays as
+ * [`hr_color_line_get_color_stops`] requires until this returns.
  */
 void hr_paint_sweep_gradient(struct hr_paint_funcs_t *funcs,
                              void *paint_data,
@@ -656,7 +829,11 @@ void hr_paint_sweep_gradient(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers push group. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_push_group`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_push_group_func(struct hr_paint_funcs_t *funcs,
                                         hr_paint_push_group_func_t func,
@@ -665,12 +842,21 @@ void hr_paint_funcs_set_push_group_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches push group; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_group(struct hr_paint_funcs_t *funcs, void *paint_data);
 
 /**
  * Registers push group for. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_push_group_for`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_push_group_for_func(struct hr_paint_funcs_t *funcs,
                                             hr_paint_push_group_for_func_t func,
@@ -679,6 +865,11 @@ void hr_paint_funcs_set_push_group_for_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches push group for; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_group_for(struct hr_paint_funcs_t *funcs,
                              void *paint_data,
@@ -686,7 +877,11 @@ void hr_paint_push_group_for(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers pop group. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_pop_group`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_pop_group_func(struct hr_paint_funcs_t *funcs,
                                        hr_paint_pop_group_func_t func,
@@ -695,6 +890,11 @@ void hr_paint_funcs_set_pop_group_func(struct hr_paint_funcs_t *funcs,
 
 /**
  * Dispatches pop group; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_pop_group(struct hr_paint_funcs_t *funcs,
                         void *paint_data,
@@ -702,7 +902,11 @@ void hr_paint_pop_group(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers custom palette color. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_paint_funcs_set_push_transform_func`], with
+ * [`hr_paint_custom_palette_color`] in place of [`hr_paint_push_transform`].
  */
 void hr_paint_funcs_set_custom_palette_color_func(struct hr_paint_funcs_t *funcs,
                                                   hr_paint_custom_palette_color_func_t func,
@@ -711,6 +915,12 @@ void hr_paint_funcs_set_custom_palette_color_func(struct hr_paint_funcs_t *funcs
 
 /**
  * Dispatches custom palette color; omitted callbacks use the HarfBuzz default.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `paint_data` must be paint data its callbacks may be called with. `color`
+ * must be writable.
  */
 hr_bool_t hr_paint_custom_palette_color(struct hr_paint_funcs_t *funcs,
                                         void *paint_data,
@@ -724,6 +934,15 @@ hr_bool_t hr_paint_custom_palette_color(struct hr_paint_funcs_t *funcs,
  * and the number written on return. A null array leaves the count unchanged
  * and unread, whichever callback the line carries. A null color line, or one
  * with no callback, has no stops.
+ *
+ * # Safety
+ *
+ * `line` must be `NULL` or point to a color line that nothing modifies
+ * during the call. Each callback the line carries must be safe to call with
+ * the line, its `data` and that callback's user data, and `get_color_stops`
+ * with a count and an array that are as this function requires its own to
+ * be. `count` must be `NULL` or writable. When `stops` is non-null, `count`
+ * must be `NULL` or hold the number of stops `stops` is writable for.
  */
 unsigned int hr_color_line_get_color_stops(struct hr_color_line_t *line,
                                            unsigned int start,
@@ -732,16 +951,32 @@ unsigned int hr_color_line_get_color_stops(struct hr_color_line_t *line,
 
 /**
  * Returns the extend mode, or PAD when absent.
+ *
+ * # Safety
+ *
+ * `line` must be as [`hr_color_line_get_color_stops`] requires.
  */
 hr_paint_extend_t hr_color_line_get_extend(struct hr_color_line_t *line);
 
 /**
  * Applies the font's scale relative to design units.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `data` must be paint data its callbacks may be called with. `font` must be
+ * `NULL` or live.
  */
 void hr_paint_push_font_transform(struct hr_paint_funcs_t *funcs, void *data, hr_font_t *font);
 
 /**
  * Applies the inverse font scale; zero axes stay zero.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `data` must be paint data its callbacks may be called with. `font` must be
+ * `NULL` or live.
  */
 void hr_paint_push_inverse_font_transform(struct hr_paint_funcs_t *funcs,
                                           void *data,
@@ -749,6 +984,20 @@ void hr_paint_push_inverse_font_transform(struct hr_paint_funcs_t *funcs,
 
 /**
  * Registers custom painting, owning its data even on rejection or clearing.
+ *
+ * # Safety
+ *
+ * `ffuncs` must be `NULL` or live until this returns. Unless it is
+ * immutable, no other thread may use it during the call, and nothing on
+ * this thread may be in the middle of using it, or a font that carries it,
+ * but a callback setter that is running a `destroy`. For as long as `func`
+ * stays set, it must be safe to call from any thread that uses `ffuncs`,
+ * with `user_data`, a font that carries `ffuncs`, the font data that font
+ * was given with them, and otherwise arguments that meet the contract of
+ * [`hr_font_paint_glyph_or_fail`]. `destroy`, if given, must be safe to
+ * call once with `user_data`, on whichever thread releases the data and
+ * whenever that is: during this call, or when the callback is displaced or
+ * `ffuncs` is freed.
  */
 void hr_font_funcs_set_paint_glyph_func(hr_font_funcs_t *ffuncs,
                                         hr_font_paint_glyph_func_t func,
@@ -757,6 +1006,10 @@ void hr_font_funcs_set_paint_glyph_func(hr_font_funcs_t *ffuncs,
 
 /**
  * Registers custom painting returning success.
+ *
+ * # Safety
+ *
+ * As [`hr_font_funcs_set_paint_glyph_func`].
  */
 void hr_font_funcs_set_paint_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
                                                 hr_font_paint_glyph_or_fail_func_t func,
@@ -766,7 +1019,14 @@ void hr_font_funcs_set_paint_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
 /**
  * Paints COLRv0/v1, SVG, CBDT or sbix through client callbacks.
  * Returns false on malformed data, unsupported images, or paint failure.
- * Pointers must be NULL or live; callbacks must not mutate the font or funcs.
+ *
+ * # Safety
+ *
+ * `font` and `funcs` must each be `NULL` or live until this returns. Until
+ * then, nothing may modify `funcs`, `font` or a font it descends from, or
+ * the font callbacks any of those fonts carries; that binds the callbacks
+ * this runs too. `data` must be paint data the callbacks of `funcs` may be
+ * called with.
  */
 hr_bool_t hr_font_paint_glyph_or_fail(hr_font_t *font,
                                       hr_codepoint_t glyph,
@@ -777,6 +1037,10 @@ hr_bool_t hr_font_paint_glyph_or_fail(hr_font_t *font,
 
 /**
  * Compatibility entry point ignoring the success result.
+ *
+ * # Safety
+ *
+ * As [`hr_font_paint_glyph_or_fail`].
  */
 void hr_font_paint_glyph(hr_font_t *font,
                          hr_codepoint_t glyph,

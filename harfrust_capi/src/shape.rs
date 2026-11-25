@@ -46,7 +46,11 @@ pub(crate) unsafe fn collect_features(
     if features.is_null() || num_features == 0 {
         return SmallVec::new();
     }
-    // SAFETY: the caller guarantees the array is readable.
+    // SAFETY: `from_raw_parts` needs `features` non-null and aligned, with
+    // `num_features` initialized entries readable there while the slice is
+    // used, which is for the copy made here. `features` is not null, as
+    // checked above, so this function's contract has it point to
+    // `num_features` readable entries.
     unsafe { core::slice::from_raw_parts(features, num_features as usize) }
         .iter()
         .map(|feature| Feature::from(*feature))
@@ -126,6 +130,9 @@ pub unsafe extern "C" fn hr_shape(
     features: *const hr_feature_t,
     num_features: c_uint,
 ) {
+    // SAFETY: `hr_shape_full` asks of `font`, `buffer`, `features` and
+    // `num_features` what this function's contract asks of them, and takes
+    // `NULL` for a shaper list.
     unsafe { hr_shape_full(font, buffer, features, num_features, ptr::null()) };
 }
 
@@ -199,11 +206,23 @@ pub unsafe extern "C" fn hr_shape_full(
     let Some(buffer_ref) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
+    // SAFETY: `shaper_list` is `NULL` or a `NULL`-terminated array of
+    // NUL-terminated strings by this function's contract, which is what
+    // `shaper_list_allows_ot` needs.
     if !unsafe { shaper_list_allows_ot(shaper_list) } {
         return false.into();
     }
+    // SAFETY: `collect_features` needs `features` to be `NULL` or point to
+    // `num_features` readable entries, which this function's contract
+    // requires.
     let features = unsafe { collect_features(features, num_features) };
 
+    // SAFETY: `as_ref` needs `font` to be null, or aligned and pointing to a
+    // live `hr_font_t` that nothing writes while the reference is used, which
+    // is until this returns. This function's contract has it `NULL` or live. A
+    // font being shaped with must not be modified or freed, by its callbacks
+    // or from another thread (README, "Threading"), so it stays as it is until
+    // shaping is done.
     let Some(font_ref) = (unsafe { font.as_ref() }) else {
         return false.into();
     };
@@ -232,6 +251,13 @@ pub unsafe extern "C" fn hr_shape_full(
         }
 
         // Reuse a plan from the face's cache, as HarfBuzz's `hb_shape` does.
+        //
+        // SAFETY: `as_ref` needs `face` to be null, or aligned and pointing to
+        // a live `hr_face_t` that nothing writes while the reference is used,
+        // which is until shaping is done. `face` is the pointer `font_ref`
+        // keeps for its face. The font owns a reference to it, so it is live
+        // for as long as the font is, and a face is frozen once a font is made
+        // over it, as `hr_font_create` documents, so no setter writes to it.
         let plan = unsafe { face.as_ref() }.map(|face| {
             face.plans.get(
                 instance,
@@ -288,15 +314,28 @@ pub(crate) unsafe fn shaper_list_allows_ot(shaper_list: *const *const c_char) ->
     // whose provenance would not cover the rest of the array.
     let mut entry = shaper_list;
     loop {
+        // SAFETY: the read needs `entry` to point to an entry of the array. It
+        // starts at the first: `shaper_list` is not null, as checked above, so
+        // this function's contract has it a `NULL`-terminated array, which has
+        // at least its terminator. It moves on only past an entry that was not
+        // `NULL`, so it has not passed the terminator.
         let name = unsafe { *entry };
         if name.is_null() {
             break;
         }
+        // SAFETY: `from_ptr` needs `name` non-null and pointing to a
+        // NUL-terminated string that stays readable and unchanged while the
+        // result is used, which is for this comparison. `name` is an entry of
+        // the array and is not null, as just checked, so this function's
+        // contract has it such a string.
         if let Ok(name) = unsafe { core::ffi::CStr::from_ptr(name) }.to_str() {
             if name == "ot" {
                 return true;
             }
         }
+        // SAFETY: `add` needs the next entry to be inside the array or just
+        // past its end. The entry `entry` points to was not `NULL`, so it is
+        // not the terminator, which is still to come.
         entry = unsafe { entry.add(1) };
     }
     // A list that named shapers, none of them ours, rules us out -- and so
@@ -411,7 +450,9 @@ pub extern "C" fn hr_version_string() -> *const c_char {
 #[no_mangle]
 pub extern "C" fn hr_version_atleast(major: c_uint, minor: c_uint, micro: c_uint) -> hr_bool_t {
     let mut have = [0; 3];
-    // SAFETY: all three pointers are valid.
+    // SAFETY: `hr_version` needs each pointer to be `NULL` or writable. Each
+    // is to its own element of `have`, a local that nothing else touches
+    // until the call has returned.
     unsafe {
         hr_version(
             ptr::from_mut(&mut have[0]),

@@ -116,26 +116,49 @@ struct hr_draw_funcs_t *hr_draw_funcs_get_empty(void);
 
 /**
  * Takes a reference. Accepts NULL.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 struct hr_draw_funcs_t *hr_draw_funcs_reference(struct hr_draw_funcs_t *funcs);
 
 /**
  * Releases an owned reference and its callback data. Accepts NULL.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live, and the caller must own the reference
+ * being released.
  */
 void hr_draw_funcs_destroy(struct hr_draw_funcs_t *funcs);
 
 /**
  * Rejects subsequent callback changes.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 void hr_draw_funcs_make_immutable(struct hr_draw_funcs_t *funcs);
 
 /**
  * Reports whether callback changes are forbidden.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 hr_bool_t hr_draw_funcs_is_immutable(const struct hr_draw_funcs_t *funcs);
 
 /**
  * Attaches address-keyed metadata, taking ownership only on success.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live, and `key` must outlive it. `destroy`, if
+ * given, must be safe to call once with `data`, on whichever thread
+ * releases it.
  */
 hr_bool_t hr_draw_funcs_set_user_data(struct hr_draw_funcs_t *funcs,
                                       const hr_user_data_key_t *key,
@@ -145,13 +168,30 @@ hr_bool_t hr_draw_funcs_set_user_data(struct hr_draw_funcs_t *funcs,
 
 /**
  * Returns borrowed metadata.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live.
  */
 void *hr_draw_funcs_get_user_data(const struct hr_draw_funcs_t *funcs,
                                   const hr_user_data_key_t *key);
 
 /**
  * Registers move to. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live. Mutation requires exclusive access:
+ * unless `funcs` is immutable, nothing else may be using it while this
+ * runs.
+ *
+ * `func`, if given, must be safe to call on any thread with `funcs`, draw
+ * data meant for the callbacks of `funcs`, a state it may read and write,
+ * and `user_data`. `destroy`, if given, must be safe to call once with
+ * `user_data`, on whichever thread releases the data and at whichever
+ * point that is: during this call when `func` is `NULL` or `funcs` refuses
+ * the change, and otherwise when the callback is replaced or `funcs` is
+ * freed.
  */
 void hr_draw_funcs_set_move_to_func(struct hr_draw_funcs_t *funcs,
                                     hr_draw_move_to_func_t func,
@@ -160,7 +200,10 @@ void hr_draw_funcs_set_move_to_func(struct hr_draw_funcs_t *funcs,
 
 /**
  * Registers line to. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_funcs_set_move_to_func`].
  */
 void hr_draw_funcs_set_line_to_func(struct hr_draw_funcs_t *funcs,
                                     hr_draw_line_to_func_t func,
@@ -169,7 +212,10 @@ void hr_draw_funcs_set_line_to_func(struct hr_draw_funcs_t *funcs,
 
 /**
  * Registers quadratic to. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_funcs_set_move_to_func`].
  */
 void hr_draw_funcs_set_quadratic_to_func(struct hr_draw_funcs_t *funcs,
                                          hr_draw_quadratic_to_func_t func,
@@ -178,7 +224,10 @@ void hr_draw_funcs_set_quadratic_to_func(struct hr_draw_funcs_t *funcs,
 
 /**
  * Registers cubic to. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_funcs_set_move_to_func`].
  */
 void hr_draw_funcs_set_cubic_to_func(struct hr_draw_funcs_t *funcs,
                                      hr_draw_cubic_to_func_t func,
@@ -187,7 +236,10 @@ void hr_draw_funcs_set_cubic_to_func(struct hr_draw_funcs_t *funcs,
 
 /**
  * Registers close path. Takes ownership of data, including when clearing or rejected.
- * Mutation requires exclusive access; funcs must be NULL or live.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_funcs_set_move_to_func`].
  */
 void hr_draw_funcs_set_close_path_func(struct hr_draw_funcs_t *funcs,
                                        hr_draw_close_path_func_t func,
@@ -196,6 +248,14 @@ void hr_draw_funcs_set_close_path_func(struct hr_draw_funcs_t *funcs,
 
 /**
  * Begins a contour, closing any open contour. Move callbacks are emitted lazily.
+ *
+ * # Safety
+ *
+ * `funcs` must be `NULL` or live, and must not be modified while this
+ * runs. `data` must be draw data meant for its callbacks. `st` must be
+ * `NULL`, or point to a state that has been set and that this may read and
+ * write: nothing else may access it while this runs, apart from the
+ * callbacks this hands it to.
  */
 void hr_draw_move_to(struct hr_draw_funcs_t *funcs,
                      void *data,
@@ -205,6 +265,10 @@ void hr_draw_move_to(struct hr_draw_funcs_t *funcs,
 
 /**
  * Adds a line, opening a contour when needed.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_move_to`].
  */
 void hr_draw_line_to(struct hr_draw_funcs_t *funcs,
                      void *data,
@@ -214,6 +278,10 @@ void hr_draw_line_to(struct hr_draw_funcs_t *funcs,
 
 /**
  * Adds a cubic Bezier segment.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_move_to`].
  */
 void hr_draw_cubic_to(struct hr_draw_funcs_t *funcs,
                       void *data,
@@ -227,6 +295,10 @@ void hr_draw_cubic_to(struct hr_draw_funcs_t *funcs,
 
 /**
  * Adds a quadratic segment, converting to cubic when no quadratic callback exists.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_move_to`].
  */
 void hr_draw_quadratic_to(struct hr_draw_funcs_t *funcs,
                           void *data,
@@ -238,11 +310,31 @@ void hr_draw_quadratic_to(struct hr_draw_funcs_t *funcs,
 
 /**
  * Closes a contour, emitting its final line before close when needed.
+ *
+ * # Safety
+ *
+ * As [`hr_draw_move_to`].
  */
 void hr_draw_close_path(struct hr_draw_funcs_t *funcs, void *data, struct hr_draw_state_t *st);
 
 /**
  * Sets a custom outline callback. Takes ownership of its data even when rejected.
+ *
+ * # Safety
+ *
+ * `ffuncs` must be `NULL` or live. Unless it is immutable, nothing else
+ * may be using it while this runs.
+ *
+ * `func`, if given, must be safe to call on any thread with a live font
+ * that carries `ffuncs`, that font's data, draw funcs that are `NULL` or
+ * live, draw data meant for their callbacks, and `user_data`. It may use
+ * the draw funcs and the draw data only to draw with, on the thread it was
+ * called on, one call at a time, and before it returns, and must not
+ * modify the draw funcs or the font. `destroy`, if given, must be safe to
+ * call once with `user_data`, on whichever thread releases the data and at
+ * whichever point that is: during this call when `func` is `NULL` or
+ * `ffuncs` refuses the change, and otherwise when the callback is replaced
+ * or cleared, or `ffuncs` is freed.
  */
 void hr_font_funcs_set_draw_glyph_func(hr_font_funcs_t *ffuncs,
                                        hr_font_draw_glyph_func_t func,
@@ -251,6 +343,10 @@ void hr_font_funcs_set_draw_glyph_func(hr_font_funcs_t *ffuncs,
 
 /**
  * Sets a custom outline callback returning success.
+ *
+ * # Safety
+ *
+ * As [`hr_font_funcs_set_draw_glyph_func`].
  */
 void hr_font_funcs_set_draw_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
                                                hr_font_draw_glyph_or_fail_func_t func,
@@ -260,7 +356,12 @@ void hr_font_funcs_set_draw_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
 /**
  * Draws an unhinted glyph using Skrifa, or the installed font callback.
  * Supported outlines are glyf, CFF, CFF2, and VARC. Returns false on invalid input.
- * All pointers must be NULL or live; callbacks must not mutate the font or funcs.
+ *
+ * # Safety
+ *
+ * `font` and `funcs` must be `NULL` or live, and callbacks must not modify
+ * either, nor a font that `font` is a sub-font of. `draw_data` must be draw
+ * data meant for the callbacks of `funcs`.
  */
 hr_bool_t hr_font_draw_glyph_or_fail(hr_font_t *font,
                                      hr_codepoint_t glyph,
@@ -269,6 +370,10 @@ hr_bool_t hr_font_draw_glyph_or_fail(hr_font_t *font,
 
 /**
  * Compatibility entry point ignoring the success result.
+ *
+ * # Safety
+ *
+ * As [`hr_font_draw_glyph_or_fail`].
  */
 void hr_font_draw_glyph(hr_font_t *font,
                         hr_codepoint_t glyph,

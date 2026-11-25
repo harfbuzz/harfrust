@@ -438,6 +438,8 @@ pub extern "C" fn hr_set_get_empty() -> *mut hr_set_t {
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_reference(set: *mut hr_set_t) -> *mut hr_set_t {
+    // SAFETY: `reference` needs `set` to be `NULL` or live, which this
+    // function requires.
     unsafe { object::reference(set) }
 }
 
@@ -445,6 +447,8 @@ pub unsafe extern "C" fn hr_set_reference(set: *mut hr_set_t) -> *mut hr_set_t {
 /// `set` must be `NULL` or live, and the caller must own its reference.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_destroy(set: *mut hr_set_t) {
+    // SAFETY: `destroy` needs `set` to be `NULL` or live, and the reference
+    // it gives up to be its caller's own. This function requires both.
     unsafe { object::destroy(set) };
 }
 
@@ -458,6 +462,8 @@ pub unsafe extern "C" fn hr_set_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
+    // SAFETY: `set_user_data` needs `set` to be `NULL` or live, and `key` to
+    // outlive it. This function requires both.
     unsafe { object::set_user_data(set, key, data, destroy, replace != 0) }.into()
 }
 
@@ -468,6 +474,8 @@ pub unsafe extern "C" fn hr_set_get_user_data(
     set: *const hr_set_t,
     key: *const hr_user_data_key_t,
 ) -> *mut c_void {
+    // SAFETY: `get_user_data` needs `set` to be `NULL` or live, which this
+    // function requires.
     unsafe { object::get_user_data(set.cast_mut(), key) }
 }
 
@@ -475,6 +483,9 @@ pub unsafe extern "C" fn hr_set_get_user_data(
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_clear(set: *mut hr_set_t) {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
+    // `as_mutable` returns a reference only for a set that takes changes,
+    // and modifying one takes exclusive access to it (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
         set.values.clear();
     }
@@ -484,6 +495,9 @@ pub unsafe extern "C" fn hr_set_clear(set: *mut hr_set_t) {
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_add(set: *mut hr_set_t, value: hr_codepoint_t) {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
+    // `as_mutable` returns a reference only for a set that takes changes,
+    // and modifying one takes exclusive access to it (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
         set.add(value);
     }
@@ -493,6 +507,7 @@ pub unsafe extern "C" fn hr_set_add(set: *mut hr_set_t, value: hr_codepoint_t) {
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_has(set: *const hr_set_t, value: hr_codepoint_t) -> hr_bool_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let set = unsafe { object::or_empty(set) };
     set.values.contains(value).into()
 }
@@ -501,7 +516,10 @@ pub unsafe extern "C" fn hr_set_has(set: *const hr_set_t, value: hr_codepoint_t)
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_is_empty(set: *const hr_set_t) -> hr_bool_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let set = unsafe { object::or_empty(set) };
+    // SAFETY: `hr_set_get_population` needs `NULL` or a live set. `set` is
+    // now a reference to one: the caller's, or the empty set.
     (unsafe { hr_set_get_population(set) } == 0).into()
 }
 
@@ -511,6 +529,10 @@ pub unsafe extern "C" fn hr_set_is_empty(set: *const hr_set_t) -> hr_bool_t {
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_allocation_successful(set: *const hr_set_t) -> hr_bool_t {
+    // SAFETY: `or_empty` needs `set` to be `NULL` or live, which this
+    // function requires. `is_immutable` needs the same of what it is given,
+    // which is the reference `or_empty` returns: to that set, or to the
+    // empty one.
     (!unsafe { object::is_immutable(object::or_empty(set)) }).into()
 }
 
@@ -522,6 +544,7 @@ pub unsafe extern "C" fn hr_set_allocation_successful(set: *const hr_set_t) -> h
 pub unsafe extern "C" fn hr_set_copy(set: *const hr_set_t) -> *mut hr_set_t {
     object::create(hr_set_t {
         header: ObjectHeader::new(),
+        // SAFETY: `set` is `NULL` or live by this function's contract.
         values: unsafe { object::or_empty(set) }.values.clone(),
     })
 }
@@ -530,6 +553,9 @@ pub unsafe extern "C" fn hr_set_copy(set: *const hr_set_t) -> *mut hr_set_t {
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_invert(set: *mut hr_set_t) {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
+    // `as_mutable` returns a reference only for a set that takes changes,
+    // and modifying one takes exclusive access to it (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
         set.values.invert();
     }
@@ -539,6 +565,7 @@ pub unsafe extern "C" fn hr_set_invert(set: *mut hr_set_t) {
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_is_inverted(set: *const hr_set_t) -> hr_bool_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     unsafe { object::or_empty(set) }.values.is_inverted().into()
 }
 
@@ -553,6 +580,9 @@ pub unsafe extern "C" fn hr_set_add_range(
     first: hr_codepoint_t,
     last: hr_codepoint_t,
 ) {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
+    // `as_mutable` returns a reference only for a set that takes changes,
+    // and modifying one takes exclusive access to it (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
         if first <= last
             && first != HR_SET_VALUE_INVALID
@@ -578,7 +608,13 @@ pub unsafe extern "C" fn hr_set_add_sorted_array(
     if num_codepoints == 0 || sorted_codepoints.is_null() {
         return;
     }
+    // SAFETY: `set` is `NULL` or live by this function's contract.
+    // `as_mutable` returns a reference only for a set that takes changes,
+    // and modifying one takes exclusive access to it (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
+        // SAFETY: `sorted_codepoints` was checked above not to be `NULL`, and
+        // points to `num_codepoints` readable elements by this function's
+        // contract. The slice is read here and not kept.
         let values =
             unsafe { core::slice::from_raw_parts(sorted_codepoints, num_codepoints as usize) };
         set.values.extend(
@@ -595,6 +631,10 @@ pub unsafe extern "C" fn hr_set_add_sorted_array(
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_del(set: *mut hr_set_t, value: hr_codepoint_t) {
     if value != HR_SET_VALUE_INVALID {
+        // SAFETY: `set` is `NULL` or live by this function's contract.
+        // `as_mutable` returns a reference only for a set that takes
+        // changes, and modifying one takes exclusive access to it (README,
+        // "Threading").
         if let Some(set) = unsafe { object::as_mutable(set) } {
             set.values.remove(value);
         }
@@ -612,6 +652,9 @@ pub unsafe extern "C" fn hr_set_del_range(
     first: hr_codepoint_t,
     last: hr_codepoint_t,
 ) {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
+    // `as_mutable` returns a reference only for a set that takes changes,
+    // and modifying one takes exclusive access to it (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
         if first <= last
             && first != HR_SET_VALUE_INVALID
@@ -630,7 +673,9 @@ pub unsafe extern "C" fn hr_set_is_equal(
     set: *const hr_set_t,
     other: *const hr_set_t,
 ) -> hr_bool_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let set = unsafe { object::or_empty(set) };
+    // SAFETY: `other` is `NULL` or live by this function's contract.
     let other = unsafe { object::or_empty(other) };
     set.ranges().eq(other.ranges()).into()
 }
@@ -642,7 +687,9 @@ pub unsafe extern "C" fn hr_set_intersects(
     set: *const hr_set_t,
     other: *const hr_set_t,
 ) -> hr_bool_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let set = unsafe { object::or_empty(set) };
+    // SAFETY: `other` is `NULL` or live by this function's contract.
     let other = unsafe { object::or_empty(other) };
     let mut a = set.ranges();
     let mut b = other.ranges();
@@ -666,6 +713,7 @@ pub unsafe extern "C" fn hr_set_intersects(
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_hash(set: *const hr_set_t) -> core::ffi::c_uint {
     let mut hash = DefaultHasher::new();
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     for range in unsafe { object::or_empty(set) }.ranges() {
         range.hash(&mut hash);
     }
@@ -679,7 +727,9 @@ pub unsafe extern "C" fn hr_set_is_subset(
     set: *const hr_set_t,
     larger_set: *const hr_set_t,
 ) -> hr_bool_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let set = unsafe { object::or_empty(set) };
+    // SAFETY: `larger_set` is `NULL` or live by this function's contract.
     let larger = unsafe { object::or_empty(larger_set) };
     let mut larger_ranges = larger.ranges();
     let mut covering = larger_ranges.next();
@@ -699,6 +749,9 @@ pub unsafe extern "C" fn hr_set_is_subset(
 
 // Check pointer identity before making references: the C API permits self
 // assignment and self operations, but Rust cannot alias &mut and &.
+//
+/// # Safety
+/// Both sets must be `NULL` or live.
 unsafe fn combine(
     set: *mut hr_set_t,
     other: *const hr_set_t,
@@ -712,11 +765,20 @@ unsafe fn combine(
     };
     if core::ptr::eq(set, other) {
         if subtract_self {
+            // SAFETY: `hr_set_clear` needs `set` to be `NULL` or live, which
+            // this function requires.
             unsafe { hr_set_clear(set) };
         }
         return;
     }
+    // SAFETY: `other` is not `NULL` here. It is the empty set, or the
+    // caller's own pointer, which this function requires to be live.
     let other = unsafe { object::or_empty(other) };
+    // SAFETY: `set` is `NULL` or live by this function's contract, and the
+    // reference `as_mutable` may return is not aliased. `other` is a
+    // different set, its pointer having compared unequal above, and
+    // modifying a set that takes changes takes exclusive access to it
+    // (README, "Threading").
     if let Some(set) = unsafe { object::as_mutable(set) } {
         op(&mut set.values, &other.values);
     }
@@ -728,6 +790,8 @@ unsafe fn combine(
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_set(set: *mut hr_set_t, other: *const hr_set_t) {
+    // SAFETY: `combine` needs `set` and `other` to be `NULL` or live, which
+    // this function requires.
     unsafe { combine(set, other, SetValues::clone_from, false) };
 }
 
@@ -735,6 +799,8 @@ pub unsafe extern "C" fn hr_set_set(set: *mut hr_set_t, other: *const hr_set_t) 
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_union(set: *mut hr_set_t, other: *const hr_set_t) {
+    // SAFETY: `combine` needs `set` and `other` to be `NULL` or live, which
+    // this function requires.
     unsafe { combine(set, other, SetValues::union, false) };
 }
 
@@ -742,6 +808,8 @@ pub unsafe extern "C" fn hr_set_union(set: *mut hr_set_t, other: *const hr_set_t
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_intersect(set: *mut hr_set_t, other: *const hr_set_t) {
+    // SAFETY: `combine` needs `set` and `other` to be `NULL` or live, which
+    // this function requires.
     unsafe { combine(set, other, SetValues::intersect, false) };
 }
 
@@ -749,6 +817,8 @@ pub unsafe extern "C" fn hr_set_intersect(set: *mut hr_set_t, other: *const hr_s
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_subtract(set: *mut hr_set_t, other: *const hr_set_t) {
+    // SAFETY: `combine` needs `set` and `other` to be `NULL` or live, which
+    // this function requires.
     unsafe { combine(set, other, SetValues::subtract, true) };
 }
 
@@ -756,6 +826,8 @@ pub unsafe extern "C" fn hr_set_subtract(set: *mut hr_set_t, other: *const hr_se
 /// Both sets must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_symmetric_difference(set: *mut hr_set_t, other: *const hr_set_t) {
+    // SAFETY: `combine` needs `set` and `other` to be `NULL` or live, which
+    // this function requires.
     unsafe {
         combine(
             set,
@@ -775,6 +847,7 @@ pub unsafe extern "C" fn hr_set_symmetric_difference(set: *mut hr_set_t, other: 
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_get_population(set: *const hr_set_t) -> core::ffi::c_uint {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let values = &unsafe { object::or_empty(set) }.values;
     (values.len() - u64::from(values.is_inverted())) as core::ffi::c_uint
 }
@@ -785,6 +858,7 @@ pub unsafe extern "C" fn hr_set_get_population(set: *const hr_set_t) -> core::ff
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_get_min(set: *const hr_set_t) -> hr_codepoint_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     unsafe { object::or_empty(set) }.next(0)
 }
 
@@ -794,6 +868,7 @@ pub unsafe extern "C" fn hr_set_get_min(set: *const hr_set_t) -> hr_codepoint_t 
 /// `set` must be `NULL` or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_set_get_max(set: *const hr_set_t) -> hr_codepoint_t {
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     unsafe { object::or_empty(set) }.previous(HR_SET_VALUE_INVALID)
 }
 
@@ -807,10 +882,15 @@ pub unsafe extern "C" fn hr_set_next(
     set: *const hr_set_t,
     codepoint: *mut hr_codepoint_t,
 ) -> hr_bool_t {
+    // SAFETY: `as_mut` needs `codepoint` to be `NULL`, or aligned, set, and
+    // this call's to read and write while the reference is used. This
+    // function's contract has it writable, and the README ("Object
+    // lifetime") has an iteration cursor set before the call.
     let Some(codepoint) = (unsafe { codepoint.as_mut() }) else {
         return 0;
     };
     let start = codepoint.wrapping_add(1);
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     *codepoint = unsafe { object::or_empty(set) }.next(start);
     (*codepoint != HR_SET_VALUE_INVALID).into()
 }
@@ -825,9 +905,14 @@ pub unsafe extern "C" fn hr_set_previous(
     set: *const hr_set_t,
     codepoint: *mut hr_codepoint_t,
 ) -> hr_bool_t {
+    // SAFETY: `as_mut` needs `codepoint` to be `NULL`, or aligned, set, and
+    // this call's to read and write while the reference is used. This
+    // function's contract has it writable, and the README ("Object
+    // lifetime") has an iteration cursor set before the call.
     let Some(codepoint) = (unsafe { codepoint.as_mut() }) else {
         return 0;
     };
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     *codepoint = unsafe { object::or_empty(set) }.previous(*codepoint);
     (*codepoint != HR_SET_VALUE_INVALID).into()
 }
@@ -846,11 +931,19 @@ pub unsafe extern "C" fn hr_set_next_range(
     if first.is_null() || last.is_null() {
         return 0;
     }
+    // SAFETY: `last` was checked above not to be `NULL`, and is writable by
+    // this function's contract. It is the iteration cursor, which the
+    // README ("Object lifetime") has set before the call, so it holds a
+    // value to read.
     let start = unsafe { *last }.wrapping_add(1);
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let range = unsafe { object::or_empty(set) }.next_range(start);
     let (a, b) = range.map_or((HR_SET_VALUE_INVALID, HR_SET_VALUE_INVALID), |r| {
         (*r.start(), *r.end())
     });
+    // SAFETY: `first` and `last` were checked above not to be `NULL`, and
+    // are writable by this function's contract. Neither write reads what
+    // was there, so `first` need not have been set.
     unsafe {
         *first = a;
         *last = b;
@@ -872,11 +965,19 @@ pub unsafe extern "C" fn hr_set_previous_range(
     if first.is_null() || last.is_null() {
         return 0;
     }
+    // SAFETY: `first` was checked above not to be `NULL`, and is writable by
+    // this function's contract. It is the iteration cursor, which the
+    // README ("Object lifetime") has set before the call, so it holds a
+    // value to read.
     let end = unsafe { *first };
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let range = unsafe { object::or_empty(set) }.previous_range(end);
     let (a, b) = range.map_or((HR_SET_VALUE_INVALID, HR_SET_VALUE_INVALID), |r| {
         (*r.start(), *r.end())
     });
+    // SAFETY: `first` and `last` were checked above not to be `NULL`, and
+    // are writable by this function's contract. Neither write reads what
+    // was there, so `last` need not have been set.
     unsafe {
         *first = a;
         *last = b;
@@ -900,6 +1001,7 @@ pub unsafe extern "C" fn hr_set_next_many(
     if size == 0 || out.is_null() {
         return 0;
     }
+    // SAFETY: `set` is `NULL` or live by this function's contract.
     let set = unsafe { object::or_empty(set) };
     let mut count = 0;
     let mut value = codepoint;
