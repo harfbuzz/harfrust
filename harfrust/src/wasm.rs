@@ -28,7 +28,7 @@ use read_fonts::{FontRef, TableProvider};
 use wasmi::{Caller, Engine, Extern, ExternType, Linker, Memory, Module, Store, Val};
 
 use crate::{
-    Buffer, Direction, Feature, GlyphInfo, GlyphPosition, ShapeError, ShapeOptions, Shaper,
+    Buffer, Direction, Feature, GlyphInfo, GlyphPosition, Script, ShapeError, ShapeOptions, Shaper,
     ShaperFont, Tag,
 };
 
@@ -1886,15 +1886,6 @@ fn api_shape_with<'a, 'b, 'c>(
 // Script direction
 // ---------------------------------------------------------------------------
 
-const RTL_SCRIPTS: &[&[u8; 4]] = &[
-    b"Arab", b"Hebr", b"Syrc", b"Thaa", b"Cprt", b"Khar", b"Phnx", b"Nkoo", b"Lydi", b"Avst",
-    b"Armi", b"Phli", b"Prti", b"Sarb", b"Orkh", b"Samr", b"Mand", b"Merc", b"Mero", b"Mani",
-    b"Mend", b"Nbat", b"Narb", b"Palm", b"Phlp", b"Hatr", b"Adlm", b"Rohg", b"Sogo", b"Sogd",
-    b"Elym", b"Chrs", b"Yezi", b"Ougr", b"Gara", b"Sidt",
-];
-
-const NEUTRAL_SCRIPTS: &[&[u8; 4]] = &[b"Hung", b"Ital", b"Runr", b"Tfng"];
-
 fn api_script_get_horizontal_direction<'a, 'b, 'c>(
     mut caller: Caller<'_, Host<'a, 'b, 'c>>,
     script: i32,
@@ -1902,13 +1893,14 @@ fn api_script_get_horizontal_direction<'a, 'b, 'c>(
     if !charge(&mut caller, 0) {
         return DIRECTION_INVALID as i32;
     }
-    let tag = (script as u32).to_be_bytes();
-    if RTL_SCRIPTS.iter().any(|candidate| **candidate == tag) {
-        DIRECTION_RTL as i32
-    } else if NEUTRAL_SCRIPTS.iter().any(|candidate| **candidate == tag) {
-        DIRECTION_INVALID as i32
-    } else {
-        DIRECTION_LTR as i32
+    let tag = Tag::from_u32(script as u32);
+    let Some(script) = Script::from_iso15924_tag(tag) else {
+        return DIRECTION_INVALID as i32;
+    };
+    match Direction::from_script(script) {
+        Some(Direction::RightToLeft) => DIRECTION_RTL as i32,
+        Some(Direction::LeftToRight) => DIRECTION_LTR as i32,
+        _ => DIRECTION_INVALID as i32,
     }
 }
 
