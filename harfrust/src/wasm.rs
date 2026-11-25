@@ -276,6 +276,7 @@ const KNOWN_IMPORTS: &[KnownImport] = &[
     ("env", "font_get_glyph_extents"),
     ("env", "font_glyph_to_string"),
     ("env", "font_copy_glyph_outline"),
+    ("env", "coords_free"),
     ("env", "font_copy_coords"),
     ("env", "font_set_coords"),
     ("env", "glyph_outline_free"),
@@ -341,6 +342,7 @@ fn define_links<'a, 'b, 'c>(
         "font_copy_glyph_outline",
         api_font_copy_glyph_outline,
     )?;
+    linker.func_wrap("env", "coords_free", api_coords_free)?;
     linker.func_wrap("env", "font_copy_coords", api_font_copy_coords)?;
     linker.func_wrap("env", "font_set_coords", api_font_set_coords)?;
     linker.func_wrap("env", "glyph_outline_free", api_glyph_outline_free)?;
@@ -1188,6 +1190,15 @@ fn api_font_glyph_to_string<'a, 'b, 'c>(
         return;
     }
     let _ = write_bytes(&mut caller, memory, string_ptr as u32 + count as u32, &[0]);
+}
+
+fn api_coords_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, coords_ptr: i32) {
+    let Some(memory) = caller.data().memory else {
+        return;
+    };
+    for offset in [0, 4] {
+        let _ = write_u32(&mut caller, memory, coords_ptr as u32 + offset, 0);
+    }
 }
 
 fn api_font_copy_coords<'a, 'b, 'c>(

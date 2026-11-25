@@ -211,6 +211,7 @@ const QUERY_GUEST: &str = r#"
   (import "env" "font_glyph_to_string" (func $name (param i32 i32 i32 i32)))
   (import "env" "font_get_glyph_extents" (func $extents (param i32 i32 i32) (result i32)))
   (import "env" "font_copy_coords" (func $coords (param i32 i32) (result i32)))
+  (import "env" "coords_free" (func $coords_free (param i32)))
   (import "env" "font_copy_glyph_outline" (func $outline (param i32 i32 i32) (result i32)))
   (import "env" "font_get_glyph_h_advance" (func $advance (param i32 i32) (result i32)))
   (memory (export "memory") 1)
@@ -243,6 +244,12 @@ const QUERY_GUEST: &str = r#"
     (i32.store (i32.const 2024) (i32.const 0))
     (if (i32.eqz (call $coords (local.get $font) (i32.const 2020)))
       (then (return (i32.const 0))))
+    ;; coords_free empties the structure.
+    (i32.store (i32.const 2020) (i32.const 3))
+    (i32.store (i32.const 2024) (i32.const 2200))
+    (call $coords_free (i32.const 2020))
+    (if (i32.load (i32.const 2020)) (then (return (i32.const 0))))
+    (if (i32.load (i32.const 2024)) (then (return (i32.const 0))))
     ;; glyph_outline_t at 2040.
     (i32.store (i32.const 2040) (i32.const 0))
     (i32.store (i32.const 2044) (i32.const 0))

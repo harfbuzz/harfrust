@@ -58,7 +58,7 @@ and imports the standard HarfBuzz host functions from the `env` module:
   `font_get_glyph`, `font_get_glyph_h_advance`, `font_get_glyph_v_advance`,
   `font_get_glyph_extents`, `font_glyph_to_string`, `font_copy_coords`,
   `font_set_coords`, `font_copy_glyph_outline`
-- outline/blob: `glyph_outline_free`, `blob_free`
+- outline/blob/coords: `glyph_outline_free`, `blob_free`, `coords_free`
 - shaping: `shape_with` (the `ot` shaper), `feature_copy_contents`,
   `features_free`
 - debug: `debugprint` through `debugprint4`
