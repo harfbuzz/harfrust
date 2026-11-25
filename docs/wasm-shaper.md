@@ -7,11 +7,20 @@ HarfBuzz has an optional shaper that runs a font's own shaping engine from a
 harfrust = { version = "0.16", features = ["wasm"] }
 ```
 
-When the feature is enabled, [`shape`](../harfrust/src/shape.rs) uses the
-embedded module instead of the OpenType shaper for fonts whose `Wasm` table can
-be read. Passing an explicit `ShapePlan` selects the OpenType shaper, which is
-how the test suite keeps deterministic OpenType results for fonts that also
-carry a `Wasm` table.
+When the feature is enabled, a font's embedded module is used when it is
+asked for. The shaper is chosen by [`ShapeOptions::shapers`], an ordered list
+that defaults to `[Shaper::Ot]`; pass `[Shaper::Wasm, Shaper::Ot]` to run the
+module of a font that has one and leave the rest to OpenType, as HarfBuzz
+does. This keeps the OpenType shaper the default for callers who never asked
+for the feature, and makes running a module an explicit choice rather than a
+side effect of caching plans.
+
+```rust
+let options = ShapeOptions::new().shapers(&[Shaper::Wasm, Shaper::Ot]);
+```
+
+A supplied `ShapePlan` records the shaper it was built for, and that shaper is
+used instead of the list.
 
 ## Embedding a WebAssembly host
 
@@ -128,6 +137,9 @@ font and checks:
 
 - codepoint-to-glyph mapping and default advances,
 - `shape_with("ot")` followed by buffer post-processing,
+- the shaper list: OpenType by default even for a font with a module, falling
+  through to the next shaper when a font has no module, and
+  `ShapeError::ShaperUnavailable` when no listed shaper can shape the font,
 - face, table, glyph name, extents, variation and outline queries.
 - the limits: a module that loops, one that takes memory until refused, one
   that has the host copy a table a hundred thousand times, and one that

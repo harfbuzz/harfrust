@@ -27,10 +27,9 @@ use read_fonts::types::{F2Dot14, GlyphId, Tag as RawTag};
 use read_fonts::{FontRef, TableProvider};
 use wasmi::{Caller, Engine, Extern, ExternType, Linker, Memory, Module, Store, Val};
 
-use crate::plan::ShapePlan;
-use crate::shape::shape_with_font;
 use crate::{
-    Buffer, Direction, Feature, GlyphInfo, GlyphPosition, ShapeError, ShapeOptions, ShaperFont, Tag,
+    Buffer, Direction, Feature, GlyphInfo, GlyphPosition, ShapeError, ShapeOptions, Shaper,
+    ShaperFont, Tag,
 };
 
 const WASM_TAG: Tag = Tag::new(b"Wasm");
@@ -1841,9 +1840,13 @@ fn api_shape_with<'a, 'b, 'c>(
     let Some(shaper) = read_cstr(&caller, memory, shaper_ptr as u32) else {
         return 0;
     };
-    if shaper != b"ot" {
-        return 0;
-    }
+    // The guest's shaper name becomes a one-element list, as in HarfBuzz.
+    // "wasm" would re-enter this host, so it is not a shaper the guest may
+    // delegate to.
+    let shaper = match shaper.as_slice() {
+        b"ot" => Shaper::Ot,
+        _ => return 0,
+    };
     let Some(features) = read_features(&caller, memory, features_ptr as u32, feature_count as u32)
     else {
         return 0;
@@ -1857,19 +1860,15 @@ fn api_shape_with<'a, 'b, 'c>(
     let state = caller.data_mut();
     let root = state.font;
     let buffer = &mut *state.buffer;
-    let point_size = state.point_size;
+    let options = ShapeOptions::new()
+        .features(&features)
+        .point_size(state.point_size)
+        .shapers(core::slice::from_ref(&shaper));
     if buffer.direction == Direction::Invalid {
         return 0;
     }
     let result = if font_token as u32 == ROOT_FONT_TOKEN {
-        let plan = ShapePlan::from_layout(
-            root.layout(),
-            buffer.direction,
-            buffer.script,
-            buffer.language.as_ref(),
-            &features,
-        );
-        shape_with_font(&plan, root, buffer, &features, point_size)
+        crate::shape::shape(root, buffer, options)
     } else {
         let Some(entry) = guest_slot(font_token as u32)
             .and_then(|slot| state.fonts.get(slot))
@@ -1878,14 +1877,7 @@ fn api_shape_with<'a, 'b, 'c>(
             return 0;
         };
         let shaper_font = ShaperFont::new(&entry.font);
-        let plan = ShapePlan::from_layout(
-            shaper_font.layout(),
-            buffer.direction,
-            buffer.script,
-            buffer.language.as_ref(),
-            &features,
-        );
-        shape_with_font(&plan, &shaper_font, buffer, &features, point_size)
+        crate::shape::shape(&shaper_font, buffer, options)
     };
     i32::from(result.is_ok())
 }

@@ -78,7 +78,7 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 
 pub use error::ShapeError;
-pub use options::ShapeOptions;
+pub use options::{ShapeOptions, Shaper};
 #[doc(hidden)]
 pub use parse_setting::ParseSetting;
 pub use plan::{ShapePlan, ShapePlanKey};

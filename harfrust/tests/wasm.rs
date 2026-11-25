@@ -3,7 +3,9 @@
 
 use std::fmt::Write as _;
 
-use harfrust::{shape, Buffer, Direction, Feature, Font, ShapeError, ShapeOptions, ShaperFont};
+use harfrust::{
+    shape, Buffer, Direction, Feature, Font, ShapeError, ShapeOptions, Shaper, ShaperFont,
+};
 use read_fonts::FontRef;
 
 const ROBOTO: &[u8] = include_bytes!("../benches/fonts/Roboto-Regular.ttf");
@@ -71,15 +73,30 @@ fn checksum(data: &[u8]) -> u32 {
     sum
 }
 
-fn shape_text(font_data: Vec<u8>, text: &str, features: &[Feature]) -> Buffer {
+/// Shapes with the given shapers. A font's module is asked for explicitly,
+/// since the default list is OpenType only.
+fn shape_text_with(
+    font_data: Vec<u8>,
+    text: &str,
+    features: &[Feature],
+    shapers: &[Shaper],
+) -> Result<Buffer, ShapeError> {
     let font = Font::new(font_data, 0).unwrap();
     let shaper = ShaperFont::new(&font);
     let mut buffer = Buffer::new();
     buffer.push_str(text);
     buffer.set_direction(Direction::LeftToRight);
     buffer.guess_segment_properties();
-    shape(&shaper, &mut buffer, ShapeOptions::new().features(features)).unwrap();
-    buffer
+    shape(
+        &shaper,
+        &mut buffer,
+        ShapeOptions::new().features(features).shapers(shapers),
+    )?;
+    Ok(buffer)
+}
+
+fn shape_text(font_data: Vec<u8>, text: &str, features: &[Feature]) -> Buffer {
+    shape_text_with(font_data, text, features, &[Shaper::Wasm, Shaper::Ot]).unwrap()
 }
 
 /// Maps every input character to its nominal glyph and default advance.
@@ -404,14 +421,7 @@ fn wasm_shaper_destroys_faces_and_fonts() {
     }
 }
 fn try_shape_text(font_data: Vec<u8>, text: &str) -> Result<Buffer, ShapeError> {
-    let font = Font::new(font_data, 0).unwrap();
-    let shaper = ShaperFont::new(&font);
-    let mut buffer = Buffer::new();
-    buffer.push_str(text);
-    buffer.set_direction(Direction::LeftToRight);
-    buffer.guess_segment_properties();
-    shape(&shaper, &mut buffer, ShapeOptions::new())?;
-    Ok(buffer)
+    shape_text_with(font_data, text, &[], &[Shaper::Wasm, Shaper::Ot])
 }
 
 /// Never returns.
@@ -527,4 +537,93 @@ fn wasm_shaper_limits_created_objects() {
     let wasm = wat::parse_str(CREATE_GUEST).unwrap();
     let data = add_table(ROBOTO, *b"Wasm", &wasm);
     assert!(try_shape_text(data, "abc").is_ok());
+}
+
+fn glyph_ids(buffer: &Buffer) -> Vec<u32> {
+    buffer
+        .glyph_infos()
+        .iter()
+        .map(|info| info.glyph_id)
+        .collect()
+}
+
+#[test]
+fn wasm_shaper_is_opt_in() {
+    // The default shaper list does not name the module, so a font whose
+    // module never returns still shapes, with OpenType.
+    let wasm = wat::parse_str(LOOP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let font = Font::new(data, 0).unwrap();
+    let shaper = ShaperFont::new(&font);
+    let mut buffer = Buffer::new();
+    buffer.push_str("abc");
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.guess_segment_properties();
+    shape(&shaper, &mut buffer, ShapeOptions::new()).unwrap();
+
+    assert_eq!(
+        glyph_ids(&buffer),
+        glyph_ids(&shape_text(ROBOTO.to_vec(), "abc", &[]))
+    );
+}
+
+#[test]
+fn wasm_shaper_falls_through_to_the_next_shaper() {
+    // Roboto has no `Wasm` table, so the WebAssembly shaper passes it over
+    // and the OpenType shaper after it in the list shapes the font.
+    let with_wasm =
+        shape_text_with(ROBOTO.to_vec(), "abc", &[], &[Shaper::Wasm, Shaper::Ot]).unwrap();
+    let ot_only = shape_text_with(ROBOTO.to_vec(), "abc", &[], &[Shaper::Ot]).unwrap();
+    assert_eq!(glyph_ids(&with_wasm), glyph_ids(&ot_only));
+}
+
+#[test]
+fn wasm_shaper_alone_needs_a_module() {
+    assert!(matches!(
+        shape_text_with(ROBOTO.to_vec(), "abc", &[], &[Shaper::Wasm]),
+        Err(ShapeError::ShaperUnavailable)
+    ));
+}
+
+#[test]
+fn empty_shaper_list_is_an_error() {
+    assert!(matches!(
+        shape_text_with(ROBOTO.to_vec(), "abc", &[], &[]),
+        Err(ShapeError::ShaperUnavailable)
+    ));
+}
+
+#[test]
+fn a_plan_shapes_with_the_shaper_it_was_built_for() {
+    let wasm = wat::parse_str(LOOP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let font = Font::new(data, 0).unwrap();
+    let shaper = ShaperFont::new(&font);
+    let plan = harfrust::ShapePlan::new(
+        &font,
+        Direction::LeftToRight,
+        Some(harfrust::Script::LATIN),
+        None,
+        &[],
+    );
+    assert_eq!(plan.shaper(), Shaper::Ot);
+
+    // The plan's shaper wins over the requested list, which never runs: the
+    // module would not return if it did.
+    let mut buffer = Buffer::new();
+    buffer.push_str("abc");
+    buffer.set_direction(Direction::LeftToRight);
+    buffer.guess_segment_properties();
+    shape(
+        &shaper,
+        &mut buffer,
+        ShapeOptions::new()
+            .plan(Some(&plan))
+            .shapers(&[Shaper::Wasm]),
+    )
+    .unwrap();
+    assert_eq!(
+        glyph_ids(&buffer),
+        glyph_ids(&shape_text(ROBOTO.to_vec(), "abc", &[]))
+    );
 }

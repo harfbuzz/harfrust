@@ -7,18 +7,22 @@ use crate::ot::shaper::OtShaper;
 
 use crate::ot::map::*;
 use crate::LayoutData;
-use crate::{font::Font, Direction, Feature, Language, Mask, Script, ShapePlanner, ShaperFont};
+use crate::{
+    font::Font, Direction, Feature, Language, Mask, Script, ShapePlanner, Shaper, ShaperFont,
+};
 use read_fonts::types::F2Dot14;
 
 /// A reusable plan for shaping with one set of segment properties.
 ///
-/// A plan records the selected shaping features and lookups. Reuse it with a
-/// compatible font, direction, script, language, and feature set.
+/// A plan records the shaper it was built for and the selected shaping
+/// features and lookups. Reuse it with a compatible font, direction, script,
+/// language, and feature set.
 pub struct ShapePlan {
     pub(crate) direction: Direction,
     pub(crate) script: Option<Script>,
     pub(crate) language: Option<Language>,
-    pub(crate) shaper: &'static OtShaper,
+    pub(crate) ot_shaper: &'static OtShaper,
+    pub(crate) shaper: Shaper,
     pub(crate) ot_map: OtMap,
     pub(crate) aat_map: AatMap,
     pub(crate) data: Option<Box<dyn Any + Send + Sync>>,
@@ -105,6 +109,11 @@ impl ShapePlan {
     /// The language of the text.
     pub fn language(&self) -> Option<&Language> {
         self.language.as_ref()
+    }
+
+    /// The shaper this plan was built for.
+    pub fn shaper(&self) -> Shaper {
+        self.shaper
     }
 }
 

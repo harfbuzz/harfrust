@@ -47,6 +47,14 @@ pub enum ShapeError {
     /// `wasm` feature is enabled.
     #[cfg(feature = "wasm")]
     WasmShapingFailed,
+
+    /// None of the requested shapers could shape the font.
+    ///
+    /// This is returned when no shaper in the list in
+    /// [`ShapeOptions::shapers`](crate::ShapeOptions::shapers) can shape the
+    /// font, including when the list is empty. The OpenType shaper can shape
+    /// any font, so a list that contains it never reaches this.
+    ShaperUnavailable,
 }
 
 impl core::fmt::Display for ShapeError {
@@ -64,6 +72,7 @@ impl core::fmt::Display for ShapeError {
             ),
             #[cfg(feature = "wasm")]
             Self::WasmShapingFailed => fmt.write_str("the font's WebAssembly shaper failed"),
+            Self::ShaperUnavailable => fmt.write_str("no requested shaper could shape the font"),
         }
     }
 }
