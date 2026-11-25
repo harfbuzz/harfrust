@@ -2,6 +2,7 @@ use wasmi::{Caller, Memory, Store};
 
 use super::{ptr_add, read_u32};
 use crate::wasm::Host;
+use alloc::vec::Vec;
 
 /// Pages the host takes at a time when it needs room for the module. A block
 /// larger than this gets the pages it needs.
