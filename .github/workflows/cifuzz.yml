@@ -1,0 +1,27 @@
+name: CIFuzz
+
+on: [pull_request]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cifuzz-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Build fuzz targets
+      uses: google/oss-fuzz/infra/cifuzz/actions/build_fuzzers@7062077e4fd1a8e3569fb86f92a0f540e5b7fe61 # master
+      with:
+        oss-fuzz-project-name: harfrust
+        language: rust
+
+    - name: Run fuzz targets
+      uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@7062077e4fd1a8e3569fb86f92a0f540e5b7fe61 # master
+      with:
+        oss-fuzz-project-name: harfrust
+        language: rust
+        fuzz-seconds: 600
