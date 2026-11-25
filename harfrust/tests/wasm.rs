@@ -1134,3 +1134,50 @@ fn wasm_shaper_creates_a_font_from_the_root_face() {
     assert_eq!(glyph_ids(&buffer), vec![0, 2048, 0]);
 }
 
+/// Copies a glyph's outline and frees it, a thousand times over, and answers
+/// with the number of pages the module's memory has afterwards.
+const OUTLINE_ROUND_TRIP_GUEST: &str = r#"
+(module
+  (import "env" "font_get_glyph" (func $glyph (param i32 i32 i32) (result i32)))
+  (import "env" "font_copy_glyph_outline" (func $outline (param i32 i32 i32) (result i32)))
+  (import "env" "glyph_outline_free" (func $free (param i32)))
+  (import "env" "buffer_set_contents" (func $set (param i32 i32) (result i32)))
+  (memory (export "memory") 1)
+  (func (export "shape") (param $plan i32) (param $font i32) (param $buf i32)
+                              (param $f i32) (param $n i32) (result i32)
+    (local $i i32)
+    (local $glyph i32)
+    (local.set $glyph (call $glyph (local.get $font) (i32.const 97) (i32.const 0)))
+    (if (i32.eqz (local.get $glyph)) (then (return (i32.const 0))))
+    (block $done
+      (loop $loop
+        (br_if $done (i32.ge_u (local.get $i) (i32.const 1000)))
+        ;; outline_t at 0. The host allocates, since it has no room.
+        (i32.store (i32.const 0) (i32.const 0))
+        (i32.store (i32.const 4) (i32.const 0))
+        (i32.store (i32.const 8) (i32.const 0))
+        (i32.store (i32.const 12) (i32.const 0))
+        (if (i32.eqz (call $outline (local.get $font) (local.get $glyph) (i32.const 0)))
+          (then (return (i32.const 0))))
+        (call $free (i32.const 0))
+        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+        (br $loop)))
+    (i32.store (i32.const 1024) (i32.const 1))
+    (i32.store (i32.const 1028) (i32.const 2048))
+    (i32.store (i32.const 1032) (i32.const 3072))
+    (i32.store (i32.const 2048) (memory.size))
+    (call $set (local.get $buf) (i32.const 1024))))
+"#;
+
+#[test]
+fn wasm_shaper_reuses_freed_blocks() {
+    // A thousand outlines of about 600 bytes each: without reuse the host
+    // would take a page per copy and run out of its allowance long before
+    // the loop ended. With it, the memory grows once.
+    let wasm = wat::parse_str(OUTLINE_ROUND_TRIP_GUEST).unwrap();
+    let data = add_table(ROBOTO, *b"Wasm", &wasm);
+    let buffer = shape_text(data, "a", &[]);
+    let pages = glyph_ids(&buffer)[0];
+    assert!(pages > 1, "the host did not allocate");
+    assert!(pages <= 8, "the host took {pages} pages for one outline");
+}

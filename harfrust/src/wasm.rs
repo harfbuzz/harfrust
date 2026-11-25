@@ -186,12 +186,8 @@ struct Host<'a, 'b, 'c> {
     faces: Vec<Option<WasmFace>>,
     fonts: Vec<Option<WasmFontEntry>>,
     memory: Option<Memory>,
-    /// Next address for the host-side bump allocator. Allocations live in
-    /// pages the host adds to the end of the memory for itself, so they
-    /// cannot collide with the guest's own heap.
-    bump_next: u32,
-    /// End of the pages the allocator has taken.
-    bump_end: u32,
+    /// Blocks the host has taken from the guest's memory for its own use.
+    heap: Heap,
     /// The memory the module may use, in bytes.
     max_memory: u64,
     /// How much of it is in faces that the module created. Fonts share their
@@ -214,8 +210,7 @@ impl<'a, 'b, 'c> Host<'a, 'b, 'c> {
             faces: Vec::new(),
             fonts: Vec::new(),
             memory: None,
-            bump_next: 0,
-            bump_end: 0,
+            heap: Heap::default(),
             max_memory,
             object_bytes: 0,
             limits: wasmi::StoreLimitsBuilder::new()
@@ -637,52 +632,193 @@ fn bytes_cost(bytes: u64) -> u64 {
     bytes / 8
 }
 
+/// Pages the host takes at a time when it needs room for the module. A block
+/// larger than this gets the pages it needs.
+const ALLOC_PAGES_MIN: u32 = 4;
+
+/// A block of the guest's memory that the host handed out.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Block {
+    offset: u32,
+    len: u32,
+    free: bool,
+}
+
+/// The host's allocator for the pages it takes in the guest's memory.
+///
+/// The blocks are recorded here, in offsets: the memory can move when it
+/// grows, and an offset survives that where a pointer would not. The memory
+/// cannot shrink, so what matters is the room the host has live rather than
+/// what it has ever asked for.
+#[derive(Default)]
+struct Heap {
+    /// The blocks handed out or freed, in address order.
+    blocks: Vec<Block>,
+    /// The next address to hand out, and the end of the pages taken.
+    next: u32,
+    end: u32,
+}
+
+impl Heap {
+    /// Takes a block of `size` bytes within the pages taken so far.
+    fn alloc_within(&mut self, size: u32) -> Option<u32> {
+        if let Some(index) = self
+            .blocks
+            .iter()
+            .position(|block| block.free && block.len >= size)
+        {
+            return Some(self.take_free(index, size));
+        }
+        let stop = self.next.checked_add(size)?;
+        if stop > self.end {
+            return None;
+        }
+        let offset = self.next;
+        self.next = stop;
+        self.place(offset, size);
+        Some(offset)
+    }
+
+    /// Takes `pages` pages from `start`, placing a block of `size` bytes at
+    /// the beginning and leaving the rest for later requests.
+    fn grow(&mut self, start: u32, pages: u32, size: u32) -> Option<u32> {
+        let end = start.checked_add(pages.checked_mul(65536)?)?;
+        let stop = start.checked_add(size)?;
+        if stop > end {
+            return None;
+        }
+        self.next = stop;
+        self.end = end;
+        self.place(start, size);
+        Some(start)
+    }
+
+    /// Returns the block at `offset` to the heap.
+    ///
+    /// An offset the host never handed out is ignored, as is one that is
+    /// already free: a guest may put its own pointer in one of these
+    /// structures, or return the same block twice.
+    fn free(&mut self, offset: u32) {
+        let Ok(index) = self
+            .blocks
+            .binary_search_by_key(&offset, |block| block.offset)
+        else {
+            return;
+        };
+        if self.blocks[index].free {
+            return;
+        }
+        self.blocks[index].free = true;
+        self.join(index);
+        if index > 0 {
+            self.join(index - 1);
+        }
+    }
+
+    /// Takes the start of the free block at `index`, leaving whatever is left
+    /// of it free.
+    fn take_free(&mut self, index: usize, size: u32) -> u32 {
+        let block = self.blocks[index];
+        self.blocks[index] = Block {
+            offset: block.offset,
+            len: size,
+            free: false,
+        };
+        if let Some(rest) = block.len.checked_sub(size).filter(|rest| *rest > 0) {
+            self.blocks.insert(
+                index + 1,
+                Block {
+                    offset: block.offset + size,
+                    len: rest,
+                    free: true,
+                },
+            );
+        }
+        block.offset
+    }
+
+    /// Joins the block at `index` with the one after it when both are free and
+    /// touch.
+    fn join(&mut self, index: usize) {
+        let Some(next) = self.blocks.get(index + 1) else {
+            return;
+        };
+        let block = self.blocks[index];
+        if !block.free || !next.free || block.offset.saturating_add(block.len) != next.offset {
+            return;
+        }
+        self.blocks[index].len = block.len.saturating_add(next.len);
+        self.blocks.remove(index + 1);
+    }
+
+    /// Records a block of `len` bytes at `offset`.
+    fn place(&mut self, offset: u32, len: u32) {
+        let at = self.blocks.partition_point(|block| block.offset < offset);
+        self.blocks.insert(
+            at,
+            Block {
+                offset,
+                len,
+                free: false,
+            },
+        );
+    }
+}
+
 /// Allocates from the guest memory for the host.
 ///
-/// The host adds pages to the end of the memory and hands them out in order.
-/// Nothing is freed; the memory goes with the instance at the end of the
-/// call.
-fn bump_alloc<'a, 'b: 'a, 'c: 'a>(
+/// The host takes pages at the end of the memory for its own use, so what it
+/// hands out cannot collide with the guest's own heap. A block the guest has
+/// returned is handed out again before any more pages are taken.
+fn alloc_in<'a, 'b: 'a, 'c: 'a>(
     mut ctx: impl wasmi::AsContextMut<Data = Host<'a, 'b, 'c>>,
     memory: Memory,
     size: u32,
     align: u32,
 ) -> Option<u32> {
-    let size = size.max(1);
-
-    // What is left of the pages taken before.
-    let (next, end) = {
-        let ctx = ctx.as_context();
-        let host = ctx.data();
-        (host.bump_next, host.bump_end)
-    };
-    if let Some(start) = align_up(next, align) {
-        if let Some(stop) = start.checked_add(size) {
-            if stop <= end {
-                ctx.as_context_mut().data_mut().bump_next = stop;
-                return Some(start);
-            }
-        }
+    let size = align_up(size.max(1), align)?;
+    if let Some(offset) = ctx.as_context_mut().data_mut().heap.alloc_within(size) {
+        return Some(offset);
     }
 
-    // New pages. The memory's size is a whole number of them, which is
-    // aligned enough for anything.
+    // The memory's size is a whole number of pages, which is aligned enough
+    // for any block.
     let start = u32::try_from(memory.data_size(&ctx)).ok()?;
-    let pages = size.div_ceil(65536);
-    let stop = start.checked_add(size)?;
-    let end = start.checked_add(pages.checked_mul(65536)?)?;
-    memory.grow(&mut ctx, u64::from(pages)).ok()?;
-    let mut ctx = ctx.as_context_mut();
-    let host = ctx.data_mut();
-    host.bump_next = stop;
-    host.bump_end = end;
-    Some(start)
+    let needed = size.div_ceil(65536);
+    let wanted = needed.max(ALLOC_PAGES_MIN);
+    // A module with little room left may only grow by what the block needs.
+    let pages = match memory.grow(&mut ctx, u64::from(wanted)) {
+        Ok(_) => wanted,
+        Err(_) if wanted > needed => {
+            memory.grow(&mut ctx, u64::from(needed)).ok()?;
+            needed
+        }
+        Err(_) => return None,
+    };
+    ctx.as_context_mut()
+        .data_mut()
+        .heap
+        .grow(start, pages, size)
+}
+
+/// Returns to the heap the block a guest structure's pointer field names.
+///
+/// Only a pointer the host handed out is in the heap; one the guest put there
+/// itself is left alone.
+fn free_field(caller: &mut Caller<'_, Host<'_, '_, '_>>, memory: Memory, base: u32, offset: u32) {
+    let Some(addr) = ptr_add(base, offset) else {
+        return;
+    };
+    let Some(ptr) = read_u32(&*caller, memory, addr) else {
+        return;
+    };
+    caller.data_mut().heap.free(ptr);
 }
 
 /// Allocates from the guest memory used by a host function.
 fn host_alloc(caller: &mut Caller<'_, Host<'_, '_, '_>>, size: u32, align: u32) -> Option<u32> {
     let memory = caller.data().memory?;
-    bump_alloc(caller, memory, size, align)
+    alloc_in(caller, memory, size, align)
 }
 
 /// Allocates from the guest memory outside a host function.
@@ -692,7 +828,7 @@ fn store_alloc(
     size: u32,
     align: u32,
 ) -> Option<u32> {
-    bump_alloc(store, memory, size, align)
+    alloc_in(store, memory, size, align)
 }
 
 fn bytes_for(count: u32, item_size: u32) -> Option<u32> {
@@ -749,14 +885,25 @@ fn api_buffer_copy_contents<'a, 'b, 'c>(
         let Some(info_bytes) = bytes_for(length, GLYPH_INFO_SIZE) else {
             return 0;
         };
+        let Some(old_info) = read_u32(&caller, memory, contents_ptr + 4) else {
+            return 0;
+        };
+        let Some(old_pos) = read_u32(&caller, memory, contents_ptr + 8) else {
+            return 0;
+        };
         let Some(new_info) = host_alloc(&mut caller, info_bytes, 4) else {
             return 0;
         };
         let Some(new_pos) = host_alloc(&mut caller, info_bytes, 4) else {
+            caller.data_mut().heap.free(new_info);
             return 0;
         };
         let _ = write_u32(&mut caller, memory, contents_ptr + 4, new_info);
         let _ = write_u32(&mut caller, memory, contents_ptr + 8, new_pos);
+        // The arrays that were there are the host's to take back, if the host
+        // made them.
+        caller.data_mut().heap.free(old_info);
+        caller.data_mut().heap.free(old_pos);
         (new_info, new_pos)
     };
     // The length the module gave was only a bound; report what went in.
@@ -958,6 +1105,7 @@ fn api_buffer_contents_realloc<'a, 'b, 'c>(
         return 0;
     };
     let Some(new_pos) = host_alloc(&mut caller, bytes, 4) else {
+        caller.data_mut().heap.free(new_info);
         return 0;
     };
     if length > 0 {
@@ -980,6 +1128,10 @@ fn api_buffer_contents_realloc<'a, 'b, 'c>(
     let _ = write_u32(&mut caller, memory, contents_ptr, size);
     let _ = write_u32(&mut caller, memory, contents_ptr + 4, new_info);
     let _ = write_u32(&mut caller, memory, contents_ptr + 8, new_pos);
+    // The arrays that were there are the host's to take back, if the host
+    // made them.
+    caller.data_mut().heap.free(old_info);
+    caller.data_mut().heap.free(old_pos);
     1
 }
 
@@ -994,6 +1146,9 @@ fn api_buffer_contents_free<'a, 'b, 'c>(
         return;
     }
     let contents_ptr = contents_ptr as u32;
+    for offset in [4, 8] {
+        free_field(&mut caller, memory, contents_ptr, offset);
+    }
     for offset in [0, 4, 8] {
         if let Some(addr) = ptr_add(contents_ptr, offset) {
             let _ = write_u32(&mut caller, memory, addr, 0);
@@ -1195,10 +1350,13 @@ fn api_face_copy_table<'a, 'b, 'c>(
         return 0;
     };
     if write_bytes(&mut caller, memory, new_ptr, &table).is_none() {
+        caller.data_mut().heap.free(new_ptr);
         return 0;
     }
     let _ = write_u32(&mut caller, memory, blob_ptr, length);
     let _ = write_u32(&mut caller, memory, blob_ptr + 4, new_ptr);
+    // The blob's old data is the host's to take back, if the host made it.
+    caller.data_mut().heap.free(data_ptr);
     1
 }
 
@@ -1458,6 +1616,7 @@ fn api_coords_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, coords_
         return;
     };
     let coords_ptr = coords_ptr as u32;
+    free_field(&mut caller, memory, coords_ptr, 4);
     for offset in [0, 4] {
         if let Some(addr) = ptr_add(coords_ptr, offset) {
             let _ = write_u32(&mut caller, memory, addr, 0);
@@ -1509,11 +1668,14 @@ fn api_font_copy_coords<'a, 'b, 'c>(
     };
     for (index, coord) in coords.iter().enumerate() {
         if write_i32(&mut caller, memory, new_ptr + index as u32 * 4, *coord).is_none() {
+            caller.data_mut().heap.free(new_ptr);
             return 0;
         }
     }
     let _ = write_u32(&mut caller, memory, coords_ptr, length);
     let _ = write_u32(&mut caller, memory, coords_ptr + 4, new_ptr);
+    // The old coordinates are the host's to take back, if the host made them.
+    caller.data_mut().heap.free(data_ptr);
     1
 }
 
@@ -1696,10 +1858,15 @@ fn api_font_copy_glyph_outline<'a, 'b, 'c>(
                 return 0;
             };
             let Some(new_contours) = host_alloc(&mut caller, contour_length * 4, 4) else {
+                caller.data_mut().heap.free(new_points);
                 return 0;
             };
             let _ = write_u32(&mut caller, memory, outline_ptr + 4, new_points);
             let _ = write_u32(&mut caller, memory, outline_ptr + 12, new_contours);
+            // The old arrays are the host's to take back, if the host made
+            // them.
+            caller.data_mut().heap.free(points_ptr);
+            caller.data_mut().heap.free(contours_ptr);
             (new_points, new_contours)
         };
     // The counts the module gave were only bounds; report what went in.
@@ -1738,6 +1905,9 @@ fn api_glyph_outline_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, 
         return;
     }
     let outline_ptr = outline_ptr as u32;
+    for offset in [4, 12] {
+        free_field(&mut caller, memory, outline_ptr, offset);
+    }
     for offset in [0, 4, 8, 12] {
         if let Some(addr) = ptr_add(outline_ptr, offset) {
             let _ = write_u32(&mut caller, memory, addr, 0);
@@ -1753,6 +1923,7 @@ fn api_blob_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, blob_ptr:
         return;
     }
     let blob_ptr = blob_ptr as u32;
+    free_field(&mut caller, memory, blob_ptr, 4);
     for offset in [0, 4] {
         if let Some(addr) = ptr_add(blob_ptr, offset) {
             let _ = write_u32(&mut caller, memory, addr, 0);
@@ -1846,6 +2017,7 @@ fn api_features_free<'a, 'b, 'c>(mut caller: Caller<'_, Host<'a, 'b, 'c>>, featu
         return;
     }
     let features_ptr = features_ptr as u32;
+    free_field(&mut caller, memory, features_ptr, 4);
     for offset in [0, 4] {
         if let Some(addr) = ptr_add(features_ptr, offset) {
             let _ = write_u32(&mut caller, memory, addr, 0);
@@ -2025,4 +2197,91 @@ fn api_debugprint4<'a, 'b, 'c>(
         return;
     }
     debug_message(&caller, memory, ptr as u32, &[arg1, arg2, arg3, arg4]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Block, Heap, ALLOC_PAGES_MIN};
+
+    /// A heap with four pages taken, as the first allocation leaves it.
+    fn heap() -> Heap {
+        let mut heap = Heap::default();
+        assert_eq!(heap.grow(65536, ALLOC_PAGES_MIN, 32), Some(65536));
+        heap
+    }
+
+    #[test]
+    fn blocks_are_taken_from_the_pages_grown() {
+        let mut heap = heap();
+        assert_eq!(heap.alloc_within(64), Some(65568));
+        assert_eq!(heap.alloc_within(64), Some(65632));
+        // Four pages, less the 32 bytes the growth placed first.
+        assert_eq!(heap.alloc_within(4 * 65536), None);
+        assert_eq!(heap.alloc_within(4 * 65536 - 32 - 128), Some(65696));
+    }
+
+    #[test]
+    fn a_freed_block_is_used_again() {
+        let mut heap = heap();
+        let first = heap.alloc_within(64).unwrap();
+        let second = heap.alloc_within(64).unwrap();
+        heap.free(second);
+        // Freeing the same block twice is ignored, as are offsets the host
+        // never handed out.
+        heap.free(second);
+        heap.free(0);
+        heap.free(first - 8);
+        assert_eq!(heap.alloc_within(64), Some(second));
+        // The block is in use again, so the next request goes after it.
+        assert_eq!(heap.alloc_within(64), Some(second + 64));
+    }
+
+    #[test]
+    fn neighbours_join_when_freed() {
+        let mut heap = heap();
+        let first = heap.alloc_within(64).unwrap();
+        let second = heap.alloc_within(64).unwrap();
+        let third = heap.alloc_within(64).unwrap();
+        heap.free(second);
+        heap.free(first);
+        heap.free(third);
+        // One block of 192 bytes now, which no single block held before.
+        assert_eq!(heap.alloc_within(192), Some(first));
+        assert_eq!(
+            heap.blocks[1],
+            Block {
+                offset: first,
+                len: 192,
+                free: false,
+            }
+        );
+    }
+
+    #[test]
+    fn a_free_block_is_split_and_the_rest_kept() {
+        let mut heap = heap();
+        let first = heap.alloc_within(128).unwrap();
+        heap.free(first);
+        assert_eq!(heap.alloc_within(64), Some(first));
+        assert_eq!(heap.alloc_within(64), Some(first + 64));
+        assert_eq!(
+            heap.blocks[1],
+            Block {
+                offset: first,
+                len: 64,
+                free: false,
+            }
+        );
+    }
+
+    #[test]
+    fn a_block_is_not_taken_from_the_middle_of_another() {
+        let mut heap = heap();
+        let first = heap.alloc_within(64).unwrap();
+        let second = heap.alloc_within(64).unwrap();
+        // The second block is not free, so a request larger than the first
+        // block's remains goes after both rather than into either.
+        heap.free(first);
+        assert_eq!(heap.alloc_within(128), Some(second + 64));
+    }
 }

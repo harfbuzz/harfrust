@@ -47,8 +47,15 @@ the build `no_std`-friendly.
 The module is compiled once per font and cached in the shared shaping cache
 (`LayoutCache`). A fresh `Store`, linker and module instance are built for
 every shaping call, so guest state cannot leak between runs. Guest linear
-memory is accessed through `Memory::read`/`write`, and the host-side bump
-allocator places its allocations above the memory the guest has already grown.
+memory is accessed through `Memory::read`/`write`. The host allocates the
+blocks it hands the module — the arrays a copy function fills in, and the
+features passed to `shape` — from pages it adds above the memory the guest has
+already grown. The bookkeeping is kept beside the memory as a list of blocks by
+offset, since the memory can move when it grows; a block the module returns
+with `blob_free`, `coords_free`, `glyph_outline_free`, `features_free` or
+`buffer_contents_free` is handed out again before more pages are taken. Pages
+are taken four at a time, or as many as a larger block needs, and a module with
+little room left gets only the pages it asks for.
 
 That arrangement is a first step, not the one HarfBuzz uses, and it costs what
 it reads. A module that only calls `shape_with("ot")` takes about 7 µs for a
@@ -192,7 +199,9 @@ font and checks:
   traps, and a start function that changes the buffer only being run when the
   module is one that can run at all,
 - the host API's smaller promises: a missing table copied as an empty blob, a
-  glyph with no name written as `gidN`, and a font made from the root face,
+  glyph with no name written as `gidN`, a font made from the root face, and a
+  thousand outline copies and frees leaving the module's memory where it
+  started,
 - the limits: a module that loops, one that takes memory until refused, one
   that has the host copy a table a hundred thousand times, one that creates
   fonts until refused, one that asks the buffer for more items than the call
