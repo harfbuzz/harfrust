@@ -1,8 +1,8 @@
 use super::layout::DELETED_GLYPH;
 use crate::aat::common::{
-    collect_second_glyphs, extended_class_count, get_class, set_digest, set_heap_bytes,
-    AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs,
-    START_OF_TEXT,
+    advance_state_machine, collect_second_glyphs, extended_class_count, get_class, set_digest,
+    set_heap_bytes, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
+    TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::aat::kern::apply_pair_kerning;
 use crate::set_digest::SetDigest;
@@ -480,7 +480,6 @@ where
                     break 'drive;
                 }
                 c.buffer.next_glyph();
-                c.buffer.max_ops -= 1;
 
                 let new_class = if c.buffer.idx < c.buffer.len {
                     get_class(
@@ -568,20 +567,13 @@ where
 
         state = next_state;
 
-        if c.buffer.idx >= c.buffer.len {
+        if c.buffer.idx >= c.buffer.len || !c.buffer.successful {
             break;
         }
 
-        if entry.has_advance() {
-            c.buffer.next_glyph();
-        } else if c.buffer.max_ops <= 0 {
-            // The machine keeps not advancing, and the buffer's work budget
-            // is spent. Fail the buffer, as the OpenType lookups do when the
-            // budget runs out.
-            c.buffer.successful = false;
+        if !advance_state_machine(c.buffer, entry.has_advance()) {
             break;
         }
-        c.buffer.max_ops -= 1;
     }
     Some(())
 }

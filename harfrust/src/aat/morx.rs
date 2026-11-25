@@ -2,8 +2,8 @@ use super::layout::*;
 use super::map::{budget_spend, AatMap, AatMapBuilder, RangeFlags};
 use super::AatData;
 use crate::aat::common::{
-    extended_class_count, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
-    SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
+    advance_state_machine, extended_class_count, set_digest, set_heap_bytes, AatApplyContext,
+    ClassCache, SafeToBreakAccel, SafeToBreakSubtable, TypedCollectGlyphs, START_OF_TEXT,
 };
 use crate::ot::layout::MAX_CONTEXT_LENGTH;
 use crate::set_digest::SetDigest;
@@ -716,18 +716,8 @@ where
             break;
         }
 
-        if Ctx::can_advance(&entry) {
-            ac.buffer.next_glyph();
-        } else {
-            if ac.buffer.max_ops <= 0 {
-                // The machine keeps not advancing, and the buffer's work
-                // budget is spent. Fail the buffer, as the OpenType lookups
-                // do when the budget runs out: the caller can then tell that
-                // the text was not shaped in full, and no other subtable runs.
-                ac.buffer.successful = false;
-                break;
-            }
-            ac.buffer.max_ops -= 1;
+        if !advance_state_machine(ac.buffer, Ctx::can_advance(&entry)) {
+            break;
         }
     }
 
