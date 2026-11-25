@@ -125,6 +125,20 @@ fn table_enumeration_paginates_and_owns_callbacks() {
             hr_face_get_table_tags(callback_face, 0, ptr::null_mut(), ptr::null_mut()),
             total
         );
+        // The callback pages as the face it reads from does, and a count
+        // that comes with no array says that nothing was written.
+        count = 2;
+        assert_eq!(
+            hr_face_get_table_tags(callback_face, 1, &raw mut count, last.as_mut_ptr()),
+            total
+        );
+        assert_eq!((count, last), (2, [all[1], all[2]]));
+        count = 99;
+        assert_eq!(
+            hr_face_get_table_tags(callback_face, 0, &raw mut count, ptr::null_mut()),
+            total
+        );
+        assert_eq!(count, 0);
         hr_face_set_get_table_tags_func(callback_face, Some(tags), data(), Some(drop_tables));
         assert_eq!(drops.load(Ordering::Relaxed), 1);
         hr_face_make_immutable(callback_face);

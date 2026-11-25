@@ -174,6 +174,23 @@ A parameter that only returns a value may point to uninitialised memory: it is
 only ever written. One that also carries a value in, such as the count giving
 the capacity of an array, or an iteration cursor, must be set before the call.
 
+A function that copies items into an array of the caller's takes a count with
+it: the array's capacity on the way in, the number of items written on the way
+out. Most such functions return the total there is to copy, whatever they were
+passed. Call one with an array and its capacity, or with `NULL` for both to
+ask only for the total. Every such count and array are treated alike:
+
+| Count      | Array      | What happens                                      |
+|------------|------------|---------------------------------------------------|
+| `NULL`     | any        | Nothing is read or written through the count. No items are written. |
+| not `NULL` | `NULL`     | The count is not read, so it need not have been set. It is set to zero. No items are written. |
+| not `NULL` | not `NULL` | The count is read once, as the capacity. At most that many items are written, and the count is then set to the number written. |
+
+A count with no array is not one of the two ways to make the call. It is
+tolerated, and the zero it comes back with says that nothing was written.
+Where the items are the units of a string, a terminating zero is written
+after them: the capacity includes it, and the count that comes back does not.
+
 ## What is covered
 
 Blobs, faces, fonts, font callbacks, buffers, shape plans and `hr_shape`,

@@ -934,9 +934,15 @@ hr_bool_t hr_paint_custom_palette_color(struct hr_paint_funcs_t *funcs,
  * Returns the total number of stops and copies a paginated slice if requested.
  *
  * When both output pointers are non-null, `count` gives capacity on entry
- * and the number written on return. A null array leaves the count unchanged
- * and unread, whichever callback the line carries. A null color line, or one
- * with no callback, has no stops.
+ * and the number written on return. A null array sets the count to zero
+ * without reading it, whichever callback the line carries; the README has
+ * the rule for a count and its array. A null color line, or one with no
+ * callback, has no stops.
+ *
+ * The line's `get_color_stops` is called with a count and an array, or with
+ * `NULL` for both: a count passed here without an array is kept from it.
+ * The count is one of the library's own, and the callback is not believed
+ * to have written more stops than the capacity it gave.
  *
  * # Safety
  *

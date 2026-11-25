@@ -1,7 +1,7 @@
 //! OpenType CPAL palette queries.
 
 use crate::color::hr_color_t;
-use crate::common::{hr_bool_t, write_out};
+use crate::common::{hr_bool_t, Page};
 use crate::face::hr_face_t;
 use crate::object;
 use core::ffi::c_uint;
@@ -62,13 +62,13 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_flags(
 ///
 /// Colors are unpremultiplied sRGB values in `hr_color_t` packing. When both
 /// output pointers are non-null, `color_count` gives capacity on entry and
-/// the number written on return. A null array leaves the count unchanged for
-/// a valid palette. An invalid palette index returns zero and clears the count.
+/// the number written on return. A null array sets the count to zero without
+/// reading it; the README has the rule for a count and its array. An invalid
+/// palette index returns zero and clears the count.
 ///
 /// # Safety
 /// `face` must be null or live; `color_count` must be null or writable;
-/// `colors` must hold the input capacity when non-null, and must not overlap
-/// `color_count`.
+/// `colors` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
     face: *mut hr_face_t,
@@ -77,6 +77,13 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
     color_count: *mut c_uint,
     colors: *mut hr_color_t,
 ) -> c_uint {
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of colors the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `color_count` null or writable and a non-null
+    // `colors` hold the capacity it gives on entry, which the README has
+    // the caller set before the call.
+    let page = unsafe { Page::new(color_count, colors) };
     // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let palette = cpal(face).and_then(|table| {
@@ -91,43 +98,12 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
         Some((entries as c_uint, &records[start..end]))
     });
     let Some((total, records)) = palette else {
-        // SAFETY: `color_count` is `NULL` or writable by this function's
-        // contract.
-        unsafe { write_out(color_count, 0) };
+        // There is no such palette. The page is dropped with nothing
+        // written, which is what the count then says.
         return 0;
     };
-    if !colors.is_null() {
-        // SAFETY: `as_mut` needs `color_count` null, or aligned, writable,
-        // holding a value, and accessed by nothing else while the reference
-        // is used. This function's contract has it null or writable. With
-        // `colors` non-null, as here, it carries the capacity in, which
-        // the README has the caller set before the call. The only other
-        // writes before the reference's last use go to the array, which the
-        // contract keeps from overlapping the count.
-        if let Some(count) = unsafe { color_count.as_mut() } {
-            let mut written = 0;
-            for record in records
-                .iter()
-                .skip(start_offset as usize)
-                .take(*count as usize)
-            {
-                let color = u32::from_be_bytes([
-                    record.blue(),
-                    record.green(),
-                    record.red(),
-                    record.alpha(),
-                ]);
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the slot aligned and writable. A non-null
-                // `colors` holds as many colors as the count said on entry,
-                // by this function's contract, and `take` ends the loop
-                // before `written` reaches that. The slot only returns a
-                // value: it is written and not read.
-                unsafe { colors.add(written).write(color) };
-                written += 1;
-            }
-            *count = written as c_uint;
-        }
-    }
+    page.fill(records.iter().skip(start_offset as usize).map(|record| {
+        u32::from_be_bytes([record.blue(), record.green(), record.red(), record.alpha()])
+    }));
     total
 }

@@ -3,7 +3,7 @@
 // The C drawing/painting ABI uses f32 coordinates, including integer font scales.
 #![allow(clippy::cast_precision_loss)]
 use super::*;
-use crate::common::ot_round;
+use crate::common::{ot_round, Page};
 use read_fonts::types::GlyphId;
 use skrifa::color::{Brush, ColorPainter, ColorStop, CompositeMode, Extend, Transform};
 use skrifa::metrics::BoundingBox;
@@ -159,33 +159,22 @@ unsafe extern "C" fn skrifa_get_color_stops(
     // color line is handed to, which is the only time it may be called.
     let color_line_data = unsafe { &*(color_line_data as *const ColorLineData) };
     let color_stops = &color_line_data.color_stops;
-    // The count is a capacity only when there is an array for it to
-    // describe. Without one the caller is asking how many stops there are
-    // and need not have set it, so it is neither read nor written, as in
-    // HarfBuzz.
-    if !count_out.is_null() && !color_stops_out.is_null() {
-        // SAFETY: `count_out` is non-null, and with an array to go with it
-        // the caller has set it to that array's capacity.
-        let capacity = unsafe { *count_out } as usize;
-        let mut written = 0;
-        for stop in color_stops.iter().skip(start as usize).take(capacity) {
-            // SAFETY: `written < capacity`, so this slot is inside the
-            // array the caller says is writable for `capacity` stops. A
-            // stop is plain data, so writing over one drops nothing.
-            unsafe {
-                color_stops_out.add(written).write(hr_color_stop_t {
-                    offset: stop.offset,
-                    color: color_line_data
-                        .painter
-                        .lookup_color(stop.palette_index, stop.alpha),
-                    is_foreground: i32::from(stop.palette_index == 0xFFFF),
-                });
-            };
-            written += 1;
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of stops the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `count_out` null or writable, and with a
+    // non-null `color_stops_out` holding the number of stops that is
+    // writable for.
+    let page = unsafe { Page::new(count_out, color_stops_out) };
+    page.fill(color_stops.iter().skip(start as usize).map(|stop| {
+        hr_color_stop_t {
+            offset: stop.offset,
+            color: color_line_data
+                .painter
+                .lookup_color(stop.palette_index, stop.alpha),
+            is_foreground: i32::from(stop.palette_index == 0xFFFF),
         }
-        // SAFETY: `count_out` is non-null and writable.
-        unsafe { *count_out = written as u32 };
-    }
+    }));
     color_stops.len() as u32
 }
 /// # Safety

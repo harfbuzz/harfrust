@@ -1,5 +1,5 @@
 //! OpenType variation-axis metadata.
-use crate::common::{hr_tag_t, tag_from_rust};
+use crate::common::{hr_tag_t, tag_from_rust, Page};
 use crate::face::hr_face_t;
 use crate::object;
 use crate::ot_name::hr_ot_name_id_t;
@@ -48,12 +48,12 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_count(face: *mut hr_face_t) -> c_uin
 /// Returns the total axis count and copies axis metadata from `start_offset`.
 ///
 /// When both output pointers are non-null, `axes_count` gives the capacity on
-/// entry and the number written on return. A null array leaves the count
-/// unchanged. Axis indices remain relative to the full `fvar` axis array.
+/// entry and the number written on return. A null array sets the count to
+/// zero without reading it; the README has the rule for a count and its
+/// array. Axis indices remain relative to the full `fvar` axis array.
 /// # Safety
 /// `face` must be null or live; `axes_count` must be null or writable;
-/// `axes_array` must hold the input capacity when non-null, and must not
-/// overlap `axes_count`.
+/// `axes_array` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
     face: *mut hr_face_t,
@@ -61,28 +61,25 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
     axes_count: *mut c_uint,
     axes_array: *mut hr_ot_var_axis_info_t,
 ) -> c_uint {
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of axes the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `axes_count` null or writable and a non-null
+    // `axes_array` hold the capacity it gives on entry, which the README
+    // has the caller set before the call.
+    let page = unsafe { Page::new(axes_count, axes_array) };
     // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let arrays = axes(face);
     let records = arrays.as_ref().map_or(&[][..], |arrays| arrays.axes());
-    if !axes_array.is_null() {
-        // SAFETY: `as_mut` needs `axes_count` null, or aligned, writable,
-        // holding a value, and accessed by nothing else while the reference
-        // is used. This function's contract has it null or writable. With
-        // `axes_array` non-null, as here, it carries the capacity in, which
-        // the README has the caller set before the call. The only other
-        // writes before the reference's last use go to the array, which the
-        // contract keeps from overlapping the count.
-        if let Some(count) = unsafe { axes_count.as_mut() } {
-            let mut written = 0;
-            for (index, axis) in records
-                .iter()
-                .enumerate()
-                .skip(start_offset as usize)
-                .take(*count as usize)
-            {
+    page.fill(
+        records
+            .iter()
+            .enumerate()
+            .skip(start_offset as usize)
+            .map(|(index, axis)| {
                 let default_value = axis.default_value().to_f32();
-                let info = hr_ot_var_axis_info_t {
+                hr_ot_var_axis_info_t {
                     axis_index: index as c_uint,
                     tag: tag_from_rust(axis.axis_tag()),
                     name_id: axis.axis_name_id().to_u16() as c_uint,
@@ -91,18 +88,8 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
                     default_value,
                     max_value: axis.max_value().to_f32().max(default_value),
                     reserved: 0,
-                };
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the slot aligned and writable. A non-null
-                // `axes_array` holds as many axes as the count said on
-                // entry, by this function's contract, and `take` ends the
-                // loop before `written` reaches that. The slot only returns
-                // a value: it is written and not read.
-                unsafe { axes_array.add(written).write(info) };
-                written += 1;
-            }
-            *count = written as c_uint;
-        }
-    }
+                }
+            }),
+    );
     records.len() as c_uint
 }

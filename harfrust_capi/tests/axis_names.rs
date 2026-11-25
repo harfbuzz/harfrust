@@ -130,12 +130,14 @@ fn axis_metadata_keeps_axis_indices_flags_and_float_bounds() {
             2
         );
         assert_eq!((count, output[0].axis_index), (1, 1));
+        // A count that comes with no array says that nothing was written.
         count = 99;
         assert_eq!(
             hr_ot_var_get_axis_infos(face.0, 0, &raw mut count, ptr::null_mut()),
             2
         );
-        assert_eq!(count, 99);
+        assert_eq!(count, 0);
+        count = 2;
         assert_eq!(
             hr_ot_var_get_axis_infos(face.0, u32::MAX, &raw mut count, output.as_mut_ptr()),
             2

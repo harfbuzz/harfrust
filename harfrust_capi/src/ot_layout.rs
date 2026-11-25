@@ -23,7 +23,8 @@ use read_fonts::{ReadError, TableProvider};
 use crate::common::hr_glyph_extents_t;
 use crate::common::{
     hr_bool_t, hr_direction_t, hr_language_t, hr_position_t, hr_script_t, hr_tag_t, ot_round,
-    script_to_rust, tag_from_rust, tag_to_rust, write_out, HR_DIRECTION_LTR, HR_DIRECTION_RTL,
+    script_to_rust, tag_from_rust, tag_to_rust, write_out, Page, HR_DIRECTION_LTR,
+    HR_DIRECTION_RTL,
 };
 use crate::common::{
     HR_SCRIPT_BENGALI, HR_SCRIPT_DEVANAGARI, HR_SCRIPT_DOGRA, HR_SCRIPT_GUJARATI,
@@ -136,12 +137,12 @@ pub unsafe extern "C" fn hr_ot_layout_table_select_script(
 ///
 /// Copies tags starting at `start_offset`, including duplicates. When both
 /// array and count are non-null, the count gives capacity on entry and the
-/// number written on return. A null array leaves the count unchanged.
+/// number written on return. A null array sets the count to zero without
+/// reading it; the README has the rule for a count and its array.
 ///
 /// # Safety
 /// `face` must be null or live; `feature_count` must be null or writable;
-/// `feature_tags` must hold the input capacity when non-null, and must not
-/// overlap `feature_count`.
+/// `feature_tags` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
     face: *mut hr_face_t,
@@ -150,41 +151,23 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
     feature_count: *mut c_uint,
     feature_tags: *mut hr_tag_t,
 ) -> c_uint {
+    // SAFETY: `Page::new` needs the count null or writable, and, with
+    // neither pointer null, set to a number of tags the array is writable
+    // for, until the page is dropped, which is before this returns. This
+    // function's contract has `feature_count` null or writable and a
+    // non-null `feature_tags` hold the capacity it gives on entry, which
+    // the README has the caller set before the call.
+    let page = unsafe { Page::new(feature_count, feature_tags) };
     // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let list = feature_list(face, table_tag);
     let records = list.as_ref().map_or(&[][..], |list| list.feature_records());
-    if !feature_tags.is_null() {
-        // SAFETY: `as_mut` needs `feature_count` null, or aligned, writable,
-        // holding a value, and accessed by nothing else while the reference
-        // is used. This function's contract has it null or writable. With
-        // `feature_tags` non-null, as here, it carries the capacity in,
-        // which the README has the caller set before the call. The only
-        // other writes before the reference's last use go to the array,
-        // which the contract keeps from overlapping the count.
-        if let Some(count) = unsafe { feature_count.as_mut() } {
-            let mut written = 0;
-            for record in records
-                .iter()
-                .skip(start_offset as usize)
-                .take(*count as usize)
-            {
-                // SAFETY: `add` must stay inside the caller's array, and
-                // `write` needs the slot aligned and writable. A non-null
-                // `feature_tags` holds as many tags as the count said on
-                // entry, by this function's contract, and `take` ends the
-                // loop before `written` reaches that. The slot only returns
-                // a value: it is written and not read.
-                unsafe {
-                    feature_tags
-                        .add(written)
-                        .write(tag_from_rust(record.feature_tag()));
-                };
-                written += 1;
-            }
-            *count = written as c_uint;
-        }
-    }
+    page.fill(
+        records
+            .iter()
+            .skip(start_offset as usize)
+            .map(|record| tag_from_rust(record.feature_tag())),
+    );
     records.len() as c_uint
 }
 

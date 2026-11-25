@@ -27,7 +27,7 @@ fn feat() -> Vec<u8> {
 }
 
 #[test]
-fn feature_types_page_in_table_order_and_preserve_null_query_counts() {
+fn feature_types_page_in_table_order_and_clear_null_query_counts() {
     unsafe {
         let face = TableFace::new(vec![(u32::from_be_bytes(*b"feat"), feat())]);
         let mut count = 5;
@@ -43,12 +43,14 @@ fn feature_types_page_in_table_order_and_preserve_null_query_counts() {
             4
         );
         assert_eq!((count, types[0]), (1, 6));
+        // A count that comes with no array says that nothing was written.
         count = 99;
         assert_eq!(
             hr_aat_layout_get_feature_types(face.0, 0, &raw mut count, ptr::null_mut()),
             4
         );
-        assert_eq!(count, 99);
+        assert_eq!(count, 0);
+        count = 5;
         assert_eq!(
             hr_aat_layout_get_feature_types(face.0, u32::MAX, &raw mut count, types.as_mut_ptr()),
             4
@@ -121,7 +123,10 @@ fn exclusive_features_disable_to_the_global_default_selector() {
             2
         );
         assert_eq!((count, default, selectors[0].enable), (1, 1, 1));
+        // A count that comes with no array says that nothing was written.
+        // The default index is reported all the same.
         count = 99;
+        default = 99;
         assert_eq!(
             hr_aat_layout_feature_type_get_selector_infos(
                 face.0,
@@ -133,11 +138,61 @@ fn exclusive_features_disable_to_the_global_default_selector() {
             ),
             2
         );
-        assert_eq!((count, default), (99, 1));
+        assert_eq!((count, default), (0, 1));
         assert_eq!(size_of::<hr_aat_layout_feature_selector_info_t>(), 16);
         assert_eq!(
             offset_of!(hr_aat_layout_feature_selector_info_t, reserved),
             12
+        );
+    }
+}
+
+#[test]
+fn a_selector_count_is_read_before_the_default_index_is_written() {
+    // One variable passed as both the count and the default index is the
+    // capacity on the way in, and the count on the way out, which is written
+    // last. Feature 6 has two selectors and a default index of one.
+    unsafe {
+        let face = TableFace::new(vec![(u32::from_be_bytes(*b"feat"), feat())]);
+        let untouched = hr_aat_layout_feature_selector_info_t {
+            name_id: 99,
+            ..Default::default()
+        };
+        let mut selectors = [untouched; 3];
+        let mut shared = 0;
+        let both = &raw mut shared;
+        assert_eq!(
+            hr_aat_layout_feature_type_get_selector_infos(
+                face.0,
+                6,
+                0,
+                both,
+                selectors.as_mut_ptr(),
+                both
+            ),
+            2
+        );
+        // The count said there was no room, and the default index that was
+        // then written to the same place is not mistaken for some.
+        assert_eq!((shared, selectors), (0, [untouched; 3]));
+
+        shared = 3;
+        let both = &raw mut shared;
+        assert_eq!(
+            hr_aat_layout_feature_type_get_selector_infos(
+                face.0,
+                6,
+                0,
+                both,
+                selectors.as_mut_ptr(),
+                both
+            ),
+            2
+        );
+        assert_eq!(shared, 2);
+        assert_eq!(
+            (selectors[0].name_id, selectors[1].name_id, selectors[2]),
+            (259, 260, untouched)
         );
     }
 }
