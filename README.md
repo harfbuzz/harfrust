@@ -80,6 +80,17 @@ intermediate buffer contents to stderr. Its library rendering API includes trace
 in the returned string. Per-glyph messages follow HarfBuzz's detailed trace mode
 (`HB_BUFFER_MESSAGE_MORE=1`), which release builds of HarfBuzz normally disable.
 
+## Command-line tools
+
+The workspace ships two counterparts to HarfBuzz's utilities:
+
+- [`hr-shape`](./hr-shape) shapes text and prints the glyphs, like `hb-shape`.
+  It enables tracing and exposes `--trace` to print messages and intermediate
+  buffer contents to stderr.
+- [`hr-view`](./hr-view) renders text with a font to a PNG image, like
+  `hb-view`. Both tools take `--shapers`, so a font's own WebAssembly shaper
+  can be used when built with the `wasm` feature.
+
 ## Notes about the port
 
 HarfRust is not a full port of HarfBuzz. HarfBuzz (C++ edition) can roughly be split into 6 parts:
@@ -125,6 +136,7 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
 * Run cargo-semver-checks:
   * `cargo semver-checks check-release -p harfrust`
   * `cargo semver-checks check-release -p hr-shape`
+  * `cargo semver-checks check-release -p hr-view`
 * Commit to a branch and file a PR
 * Get PR reviewed and land
 * Pull/Rebase local main checkout, then
@@ -136,6 +148,7 @@ There are no `unsafe` in this library and in most of its dependencies (excluding
     version files in crates.io might turn into text files showing the symlink's target.
   * `cargo publish -p harfrust`
   * `cargo publish -p hr-shape`
+  * `cargo publish -p hr-view`
   * `cargo publish -p harfrust_capi`
 * Go to GitHub releases page, copy commit message and release tagged version.
 
