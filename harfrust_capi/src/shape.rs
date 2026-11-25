@@ -121,7 +121,7 @@ pub(crate) unsafe fn shape_with_plan(
 ///
 /// # Safety
 ///
-/// `font` and `buffer` must be `NULL` or live, and `features` must point to
+/// `font` and `buffer` must be live, and `features` must point to
 /// `num_features` readable entries.
 #[no_mangle]
 pub unsafe extern "C" fn hr_shape(
@@ -169,7 +169,7 @@ pub unsafe extern "C" fn hr_shape(
 ///
 /// # Safety
 ///
-/// `font` and `buffer` must be `NULL` or live, `features` must point to
+/// `font` and `buffer` must be live, `features` must point to
 /// `num_features` readable entries, and `shaper_list` must be `NULL` or a
 /// `NULL`-terminated array of NUL-terminated strings.
 #[no_mangle]
@@ -189,20 +189,21 @@ pub unsafe extern "C" fn hr_shape_full(
     //
     // SAFETY: `as_ref` needs `buffer` to be null, or aligned and pointing to
     // a live `hr_buffer_t` that nothing writes while the reference is used.
-    // The caller passes null or a live buffer, and a buffer that is being
-    // changed belongs to the one thread changing it. The reference is used
-    // for this one read and not kept.
+    // `buffer` is null, or live by this function's contract, and a buffer
+    // that is being changed belongs to the one thread changing it. The
+    // reference is used for this one read and not kept.
     match unsafe { buffer.as_ref() } {
         None => return false.into(),
         Some(buffer) if buffer.buffer.is_empty() => return true.into(),
         Some(_) => {}
     }
-    // SAFETY: `as_mutable` needs `buffer` to be null or live, which the
-    // caller gives, and the reference it returns not to be aliased. It
-    // refuses the two buffers something else can still be looking at: the
-    // immortal empty one, and one whose last reference is being released
-    // while its user data destructors run. Any other buffer is this
-    // caller's alone for the call, and the shared reference above is gone.
+    // SAFETY: `as_mutable` needs `buffer` to be null or live, and the
+    // reference it returns not to be aliased. `buffer` is not null, as just
+    // seen, so it is live by this function's contract. `as_mutable` refuses
+    // the two buffers something else can still be looking at: the immortal
+    // empty one, and one whose last reference is being released while its
+    // user data destructors run. Any other buffer is this caller's alone
+    // for the call, and the shared reference above is gone.
     let Some(buffer_ref) = (unsafe { object::as_mutable(buffer) }) else {
         return false.into();
     };
@@ -219,10 +220,10 @@ pub unsafe extern "C" fn hr_shape_full(
 
     // SAFETY: `as_ref` needs `font` to be null, or aligned and pointing to a
     // live `hr_font_t` that nothing writes while the reference is used, which
-    // is until this returns. This function's contract has it `NULL` or live. A
-    // font being shaped with must not be modified or freed, by its callbacks
-    // or from another thread (README, "Threading"), so it stays as it is until
-    // shaping is done.
+    // is until this returns. It is `NULL`, or live by this function's
+    // contract. A font being shaped with must not be modified or freed, by
+    // its callbacks or from another thread (README, "Threading"), so it stays
+    // as it is until shaping is done.
     let Some(font_ref) = (unsafe { font.as_ref() }) else {
         return false.into();
     };

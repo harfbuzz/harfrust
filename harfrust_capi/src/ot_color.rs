@@ -22,10 +22,10 @@ fn cpal(face: &hr_face_t) -> Option<Cpal<'_>> {
 
 /// Returns whether the face has a CPAL table with any palettes.
 /// # Safety
-/// `face` must be null or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_has_palettes(face: *mut hr_face_t) -> hr_bool_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     cpal(face)
         .is_some_and(|table| table.num_palettes() != 0)
@@ -34,23 +34,23 @@ pub unsafe extern "C" fn hr_ot_color_has_palettes(face: *mut hr_face_t) -> hr_bo
 
 /// Returns the number of palettes in CPAL, or zero if absent.
 /// # Safety
-/// `face` must be null or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_palette_get_count(face: *mut hr_face_t) -> c_uint {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     cpal(face).map_or(0, |table| table.num_palettes() as c_uint)
 }
 
 /// Returns a palette's background flags, or the default flags if unavailable.
 /// # Safety
-/// `face` must be null or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_palette_get_flags(
     face: *mut hr_face_t,
     palette_index: c_uint,
 ) -> hr_ot_color_palette_flags_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     cpal(face)
         .and_then(|table| table.palette_types_array()?.ok())
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_flags(
 /// palette index returns zero and clears the count.
 ///
 /// # Safety
-/// `face` must be null or live; `color_count` must be null or writable;
+/// `face` must be live; `color_count` must be null or writable;
 /// `colors` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn hr_ot_color_palette_get_colors(
     // `colors` hold the capacity it gives on entry, which the README has
     // the caller set before the call.
     let page = unsafe { Page::new(color_count, colors) };
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let palette = cpal(face).and_then(|table| {
         let start = table

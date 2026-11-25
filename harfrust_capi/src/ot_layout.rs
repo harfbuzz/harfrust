@@ -83,7 +83,7 @@ fn feature_list(face: &hr_face_t, table_tag: hr_tag_t) -> Option<FeatureList<'_>
 /// writes `HR_OT_LAYOUT_NO_SCRIPT_INDEX` and a zero tag to the outputs.
 ///
 /// # Safety
-/// `face` must be null or live; `script_tags` must hold `script_count` tags
+/// `face` must be live; `script_tags` must hold `script_count` tags
 /// when non-null. Both output pointers must be null or writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_table_select_script(
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn hr_ot_layout_table_select_script(
     script_index: *mut c_uint,
     chosen_script: *mut hr_tag_t,
 ) -> hr_bool_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let list = script_list(face, table_tag);
     let records = list.as_ref().map_or(&[][..], |list| list.script_records());
@@ -141,7 +141,7 @@ pub unsafe extern "C" fn hr_ot_layout_table_select_script(
 /// reading it; the README has the rule for a count and its array.
 ///
 /// # Safety
-/// `face` must be null or live; `feature_count` must be null or writable;
+/// `face` must be live; `feature_count` must be null or writable;
 /// `feature_tags` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
@@ -158,7 +158,7 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
     // non-null `feature_tags` hold the capacity it gives on entry, which
     // the README has the caller set before the call.
     let page = unsafe { Page::new(feature_count, feature_tags) };
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let list = feature_list(face, table_tag);
     let records = list.as_ref().map_or(&[][..], |list| list.feature_records());
@@ -178,7 +178,7 @@ pub unsafe extern "C" fn hr_ot_layout_table_get_feature_tags(
 /// table-wide index, or `HR_OT_LAYOUT_NO_FEATURE_INDEX` on failure.
 ///
 /// # Safety
-/// `face` must be null or live; `feature_index` must be null or writable.
+/// `face` must be live; `feature_index` must be null or writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_language_find_feature(
     face: *mut hr_face_t,
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn hr_ot_layout_language_find_feature(
     feature_tag: hr_tag_t,
     feature_index: *mut c_uint,
 ) -> hr_bool_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let found = (|| {
         let scripts = script_list(face, table_tag)?;
@@ -226,10 +226,10 @@ pub unsafe extern "C" fn hr_ot_layout_language_find_feature(
 /// Returns whether the face has a readable GSUB table.
 ///
 /// # Safety
-/// `face` must be `NULL` or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_has_substitution(face: *mut hr_face_t) -> hr_bool_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     face.font()
         .is_some_and(|font| font.tables().gsub().is_ok())
@@ -239,10 +239,10 @@ pub unsafe extern "C" fn hr_ot_layout_has_substitution(face: *mut hr_face_t) -> 
 /// Returns whether the face has a readable GPOS table.
 ///
 /// # Safety
-/// `face` must be `NULL` or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_has_positioning(face: *mut hr_face_t) -> hr_bool_t {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     face.font()
         .is_some_and(|font| font.tables().gpos().is_ok())
@@ -252,13 +252,13 @@ pub unsafe extern "C" fn hr_ot_layout_has_positioning(face: *mut hr_face_t) -> h
 /// Returns the number of lookups in GSUB or GPOS.
 ///
 /// # Safety
-/// `face` must be `NULL` or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_table_get_lookup_count(
     face: *mut hr_face_t,
     table_tag: hr_tag_t,
 ) -> c_uint {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let Some(font) = face.font() else { return 0 };
     match table_tag {
@@ -960,7 +960,7 @@ fn collect_positioning(
 /// include every set value, represented by an inverted empty set.
 ///
 /// # Safety
-/// `face` must be `NULL` or live, and each non-`NULL` set must be live. Output
+/// `face` must be live, and each non-`NULL` set must be live. Output
 /// sets may be the same.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
@@ -972,7 +972,7 @@ pub unsafe extern "C" fn hr_ot_layout_lookup_collect_glyphs(
     glyphs_after: *mut hr_set_t,
     glyphs_output: *mut hr_set_t,
 ) {
-    // SAFETY: `face` is live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let Some(font) = face.font() else { return };
     // Each insertion borrows its destination separately, so output pointers may alias.
@@ -1108,7 +1108,7 @@ fn baseline(
 /// Returns false without changing `coord` when the font has no such baseline.
 ///
 /// # Safety
-/// `font` must be `NULL` or a live font, and `coord` must be `NULL` or writable.
+/// `font` must be a live font, and `coord` must be `NULL` or writable.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_get_baseline(
     font: *mut hr_font_t,
@@ -1118,7 +1118,7 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline(
     _language_tag: hr_tag_t,
     coord: *mut hr_position_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     let Some(value) = baseline(font, baseline_tag, direction, script_tag) else {
         return 0;
@@ -1165,7 +1165,7 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline2(
     _language: hr_language_t,
     coord: *mut hr_position_t,
 ) -> hr_bool_t {
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let selected = selected_base_script(state, direction, script);
     if let Some(value) = baseline(state, baseline_tag, direction, tag_from_rust(selected)) {
@@ -1398,7 +1398,7 @@ unsafe fn baseline_with_fallback(
 /// Reads a baseline or synthesizes one when absent from `BASE`.
 ///
 /// # Safety
-/// `font` must be `NULL` or a live font; `coord` must point to writable storage.
+/// `font` must be a live font; `coord` must point to writable storage.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback(
     font: *mut hr_font_t,
@@ -1411,7 +1411,7 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback(
     if coord.is_null() {
         return;
     }
-    // SAFETY: `font` is `NULL` or a live font by this function's contract,
+    // SAFETY: `font` is `NULL`, or live by this function's contract,
     // which is all `baseline_with_fallback` asks.
     let value = unsafe { baseline_with_fallback(font, baseline_tag, direction, script_tag) };
     // SAFETY: `coord` is writable by this function's contract.
@@ -1434,12 +1434,12 @@ pub unsafe extern "C" fn hr_ot_layout_get_baseline_with_fallback2(
     if coord.is_null() {
         return;
     }
-    // SAFETY: `font` is `NULL` or a live font by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     // From here on the script is an OpenType tag, the one `BASE` is asked
     // for, as it is for `hr_ot_layout_get_baseline_with_fallback`.
     let selected = tag_from_rust(selected_base_script(state, direction, script));
-    // SAFETY: `font` is `NULL` or a live font by this function's contract,
+    // SAFETY: `font` is `NULL`, or live by this function's contract,
     // which is all `baseline_with_fallback` asks.
     let value = unsafe { baseline_with_fallback(font, baseline_tag, direction, selected) };
     // SAFETY: `coord` is writable by this function's contract.

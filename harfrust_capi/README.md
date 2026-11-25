@@ -162,10 +162,22 @@ font's `font_data`, which the font's callbacks are still handed until its
 destroy callback returns, as in HarfBuzz.
 
 `hr_*_create` never returns `NULL`: on failure it returns an immortal empty
-object, and the `_or_fail` variants return `NULL` instead. Getters accept
-`NULL` too, behaving as though passed the empty object. As in HarfBuzz this
+object, and the `_or_fail` variants return `NULL` instead. As in HarfBuzz this
 means a chain of calls can be written without checking every result, and the
 error surfaces as an empty shaping result rather than a crash.
+
+An object passed to a function must be live: one this API returned, and that
+has not been freed. `NULL` in place of an object is not a conforming call, in
+HarfRust as in HarfBuzz. HarfRust treats it as the empty object instead of
+dereferencing it, so such a call does nothing or gives the empty answer.
+Where `NULL` is a conforming argument, the function's documentation says so.
+As in HarfBuzz, that goes for `hr_*_reference`, `hr_*_destroy`,
+`hr_*_get_user_data` and `hr_*_set_user_data` (but not
+`hr_font_set_user_data`); for what a constructor is built from, such as the
+blob of `hr_face_create`, the face of `hr_font_create` and the parent of
+`hr_font_create_sub_font`; and for a few optional arguments, such as the
+callbacks of `hr_font_set_funcs`, the font of `hr_buffer_serialize_glyphs`
+and the output sets of `hr_ot_layout_lookup_collect_glyphs`.
 
 Objects can carry `user_data` keyed by the address of an `hr_user_data_key_t`,
 and can be frozen with `hr_*_make_immutable`, after which setters are ignored.

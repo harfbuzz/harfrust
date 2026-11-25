@@ -131,7 +131,7 @@ fn select_name<'a>(
 /// the README has the rule for a count and its array.
 ///
 /// # Safety
-/// `face` must be null or live; `language` must be null or interned;
+/// `face` must be live; `language` must be null or interned;
 /// `text_size` must be null or writable; `text` must hold the input capacity
 /// when non-null.
 #[no_mangle]
@@ -143,7 +143,7 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
     text: *mut u16,
 ) -> c_uint {
     let raw_face = face;
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     // SAFETY: `language` is `NULL` or interned by this function's contract.
     let language = unsafe { language_ref(language) };
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
         .and_then(|table| {
             // ltag is outside HarfRust's shaping table cache; fetch it through
             // the face's generic table source so callback faces work too.
-            // SAFETY: `raw_face` is `face` as the caller passed it, `NULL` or
+            // SAFETY: `raw_face` is `face` as the caller passed it: `NULL`, or
             // live by this function's contract. A face made from table
             // callbacks runs its callback here, while `face` and `table`
             // are borrowed; the README forbids a callback to modify or free

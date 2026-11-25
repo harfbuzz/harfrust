@@ -183,20 +183,20 @@ pub unsafe extern "C" fn hr_draw_funcs_destroy(funcs: *mut hr_draw_funcs_t) {
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live.
+/// `funcs` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_draw_funcs_make_immutable(funcs: *mut hr_draw_funcs_t) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract.
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract.
     unsafe { object::make_immutable(funcs) }
 }
 /// Reports whether callback changes are forbidden.
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live.
+/// `funcs` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_draw_funcs_is_immutable(funcs: *const hr_draw_funcs_t) -> hr_bool_t {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract.
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract.
     i32::from(unsafe { object::is_immutable(funcs) })
 }
 /// Attaches address-keyed metadata, taking ownership only on success.
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn hr_draw_funcs_get_user_data(
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live. Mutation requires exclusive access:
+/// `funcs` must be live. Mutation requires exclusive access:
 /// unless `funcs` is immutable, nothing else may be using it while this
 /// runs.
 ///
@@ -255,10 +255,10 @@ pub unsafe extern "C" fn hr_draw_funcs_set_move_to_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: `set_callback` asks of `funcs` and of `destroy` what this
-    // function's contract does, and of `store` that it hand back the
-    // callback it takes out, which is all this one does. The callback it
-    // puts in upholds the invariant on the slot: the same contract has
-    // `func` safe to call as the invariant says.
+    // function's contract does, and takes a `NULL` `funcs` besides. It asks
+    // of `store` that it hand back the callback it takes out, which is all
+    // this one does. The callback it puts in upholds the invariant on the
+    // slot: the same contract has `func` safe to call as the invariant says.
     unsafe {
         set_callback(funcs, func, user_data, destroy, |state, new| {
             core::mem::replace(&mut state.move_to, new)
@@ -369,7 +369,7 @@ unsafe fn emit_move(
     x: f32,
     y: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, and `f`
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, and `f`
     // is not used past this call.
     let f = unsafe { object::or_empty(funcs) };
     if let Some(cb) = &f.move_to {
@@ -398,7 +398,7 @@ unsafe fn emit_line(
     x: f32,
     y: f32,
 ) {
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, and `f`
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, and `f`
     // is not used past this call.
     let f = unsafe { object::or_empty(funcs) };
     if let Some(cb) = &f.line_to {
@@ -442,7 +442,7 @@ unsafe fn start(funcs: *mut hr_draw_funcs_t, data: *mut c_void, st: *mut hr_draw
 ///
 /// # Safety
 ///
-/// `funcs` must be `NULL` or live, and must not be modified while this
+/// `funcs` must be live, and must not be modified while this
 /// runs. `data` must be draw data meant for its callbacks. `st` must be
 /// `NULL`, or point to a state that has been set and that this may read and
 /// write: nothing else may access it while this runs, apart from the
@@ -522,7 +522,7 @@ pub unsafe extern "C" fn hr_draw_cubic_to(
     // SAFETY: `start` is handed this function's own arguments under what is
     // its own contract.
     unsafe { start(funcs, data, st) };
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, and `f`
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, and `f`
     // is not used past this call.
     let f = unsafe { object::or_empty(funcs) };
     if let Some(cb) = &f.cubic_to {
@@ -576,7 +576,7 @@ pub unsafe extern "C" fn hr_draw_quadratic_to(
     // SAFETY: `start` is handed this function's own arguments under what is
     // its own contract.
     unsafe { start(funcs, data, st) };
-    // SAFETY: `funcs` is `NULL` or live by this function's contract, and `f`
+    // SAFETY: `funcs` is `NULL`, or live by this function's contract, and `f`
     // is not used past this call.
     let f = unsafe { object::or_empty(funcs) };
     if let Some(cb) = &f.quadratic_to {
@@ -642,7 +642,7 @@ pub unsafe extern "C" fn hr_draw_close_path(
             // are read as above.
             unsafe { hr_draw_line_to(funcs, data, st, (*st).path_start_x, (*st).path_start_y) }
         }
-        // SAFETY: `funcs` is `NULL` or live by this function's contract,
+        // SAFETY: `funcs` is `NULL`, or live by this function's contract,
         // and `f` is not used past this call.
         let f = unsafe { object::or_empty(funcs) };
         if let Some(cb) = &f.close_path {
@@ -688,7 +688,7 @@ pub type hr_font_draw_glyph_or_fail_func_t = Option<
 ///
 /// # Safety
 ///
-/// `ffuncs` must be `NULL` or live. Unless it is immutable, nothing else
+/// `ffuncs` must be live. Unless it is immutable, nothing else
 /// may be using it while this runs.
 ///
 /// `func`, if given, must be safe to call on any thread with a live font
@@ -709,9 +709,10 @@ pub unsafe extern "C" fn hr_font_funcs_set_draw_glyph_func(
     destroy: hr_destroy_func_t,
 ) {
     // SAFETY: `set_callback` asks of `ffuncs` and of `destroy` what this
-    // function's contract does, and of `store` that it hand back every
-    // callback it takes out. This one takes out two and hands back both:
-    // the one it replaces, and the one of the other kind, which it clears.
+    // function's contract does, and takes a `NULL` `ffuncs` besides. It asks
+    // of `store` that it hand back every callback it takes out. This one
+    // takes out two and hands back both: the one it replaces, and the one of
+    // the other kind, which it clears.
     unsafe {
         set_callback(ffuncs, func, user_data, destroy, |state, new| {
             let old = core::mem::replace(&mut state.draw_glyph_legacy, new);
@@ -745,7 +746,7 @@ pub unsafe extern "C" fn hr_font_funcs_set_draw_glyph_or_fail_func(
 ///
 /// # Safety
 ///
-/// `font` and `funcs` must be `NULL` or live, and callbacks must not modify
+/// `font` and `funcs` must be live, and callbacks must not modify
 /// either, nor a font that `font` is a sub-font of. `draw_data` must be draw
 /// data meant for the callbacks of `funcs`.
 #[no_mangle]
@@ -756,10 +757,10 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
     draw_data: *mut c_void,
 ) -> hr_bool_t {
     // SAFETY: `as_ref` needs `font` to be null, or a live font that nothing
-    // writes while `state` is used, which is until this returns. This
-    // function's contract has `font` `NULL` or live and left alone by
-    // callbacks, and whoever else writes a live object answers for no
-    // reference to it being in use (see "Exclusive access" in `object`).
+    // writes while `state` is used, which is until this returns. `font` is
+    // `NULL`, or live by this function's contract and left alone by callbacks,
+    // and whoever else writes a live object answers for no reference to it
+    // being in use (see "Exclusive access" in `object`).
     let Some(state) = (unsafe { font.as_ref() }) else {
         return 0;
     };
@@ -779,8 +780,9 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
                 // that font's data, draw funcs that are `NULL` or live,
                 // draw data meant for their callbacks, and that user data.
                 // `font` is live, as `state` shows, and carries `ffuncs`
-                // along with the data `callback_data` returns. `funcs` and
-                // `draw_data` are as this function's contract has them.
+                // along with the data `callback_data` returns. `funcs` is
+                // `NULL`, or live by this function's contract, which has
+                // `draw_data` meant for its callbacks.
                 unsafe {
                     call(
                         font,
@@ -822,9 +824,9 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
         // parent, so that is live for as long as `font` is left alone.
         return unsafe { parent_draw(font, state.parent, glyph, funcs, draw_data) };
     }
-    // SAFETY: `hr_font_get_face` takes `NULL` or a live font, which this
-    // function's contract has `font` be, and returns the face that font
-    // owns a reference to. That face is live for as long as `font` is left
+    // SAFETY: `hr_font_get_face` takes `NULL` or a live font, and `font` is
+    // live by this function's contract. It returns the face that font owns
+    // a reference to. That face is live for as long as `font` is left
     // alone, so `as_ref` has what it needs of it until this returns, which
     // is as long as `render_face` is used: as above, whoever writes a live
     // object answers for no reference to it being in use.
@@ -853,9 +855,9 @@ pub unsafe extern "C" fn hr_font_draw_glyph_or_fail(
     .with_path_style(skrifa::outline::pen::PathStyle::HarfBuzz);
     // SAFETY: until it is dropped, which is when this returns, the pen needs
     // `funcs` to be `NULL` or live and unmodified, and `draw_data` to be what
-    // its callbacks are called with. This function's contract has `funcs`
-    // `NULL` or live and left alone by callbacks for the call, changing it
-    // from elsewhere needs exclusive access, and `draw_data` is what the
+    // its callbacks are called with. `funcs` is `NULL`, or live by this
+    // function's contract and left alone by callbacks for the call, changing
+    // it from elsewhere needs exclusive access, and `draw_data` is what the
     // caller gave to go with it.
     let mut pen = unsafe { crate::rendering::Pen::new(funcs, draw_data, x, y) };
     i32::from(outline.draw(settings, &mut pen).is_ok())
@@ -1003,14 +1005,15 @@ unsafe fn parent_draw(
             None,
         );
     }
-    // SAFETY: `font` is `NULL` or live by this function's contract.
+    // SAFETY: `font` is `NULL`, or live by this function's contract.
     let (sx, sy) = unsafe { crate::rendering::scale(font) };
     // SAFETY: `parent` is `NULL` or live by this function's contract.
     let (px, py) = unsafe { crate::rendering::scale(parent) };
     // SAFETY: until it is dropped, which is when this returns, the pen needs
     // `funcs` to be `NULL` or live and unmodified, and `data` to be what its
-    // callbacks are called with. This function's contract has both so for
-    // the call.
+    // callbacks are called with. `funcs` is `NULL`, or live and unmodified
+    // by this function's contract, which has `data` be that too, for the
+    // call.
     let mut pen = unsafe {
         Pen::new(
             funcs,
@@ -1022,7 +1025,7 @@ unsafe fn parent_draw(
     // Stream each segment through the pen as the parent emits it: an outline
     // can be far longer than the font that produced it, so it is never held.
     //
-    // SAFETY: `hr_font_draw_glyph_or_fail` needs a font and draw funcs that
+    // SAFETY: `hr_font_draw_glyph_or_fail` takes a font and draw funcs that
     // are `NULL` or live and that callbacks leave alone, along with the
     // fonts above that font, and draw data meant for the funcs' callbacks.
     // - `parent` is `NULL` or live by this function's contract, which also

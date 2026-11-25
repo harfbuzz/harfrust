@@ -385,7 +385,7 @@ void hr_paint_funcs_destroy(struct hr_paint_funcs_t *funcs);
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live.
+ * `funcs` must be live.
  */
 void hr_paint_funcs_make_immutable(struct hr_paint_funcs_t *funcs);
 
@@ -394,7 +394,7 @@ void hr_paint_funcs_make_immutable(struct hr_paint_funcs_t *funcs);
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live.
+ * `funcs` must be live.
  */
 hr_bool_t hr_paint_funcs_is_immutable(const struct hr_paint_funcs_t *funcs);
 
@@ -428,7 +428,7 @@ void *hr_paint_funcs_get_user_data(const struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL` or live until this returns. Unless it is
+ * `funcs` must be live until this returns. Unless it is
  * immutable, no other thread may use it during the call, and nothing on
  * this thread may be in the middle of using it but a callback setter that
  * is running a `destroy`. For as long as `func` stays set, it must be safe
@@ -448,7 +448,7 @@ void hr_paint_funcs_set_push_transform_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_transform(struct hr_paint_funcs_t *funcs,
@@ -478,7 +478,7 @@ void hr_paint_funcs_set_pop_transform_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_pop_transform(struct hr_paint_funcs_t *funcs, void *paint_data);
@@ -505,7 +505,7 @@ void hr_paint_funcs_set_color_glyph_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `font`
  * must be `NULL` or live.
  */
@@ -532,7 +532,7 @@ void hr_paint_funcs_set_push_clip_glyph_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `font`
  * must be `NULL` or live.
  */
@@ -559,7 +559,7 @@ void hr_paint_funcs_set_push_clip_rectangle_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_clip_rectangle(struct hr_paint_funcs_t *funcs,
@@ -589,7 +589,7 @@ void hr_paint_funcs_set_push_clip_path_start_func(struct hr_paint_funcs_t *funcs
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  * `draw_data` must be `NULL` or writable.
  */
@@ -615,7 +615,7 @@ void hr_paint_funcs_set_push_clip_path_end_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_clip_path_end(struct hr_paint_funcs_t *funcs, void *paint_data);
@@ -638,7 +638,7 @@ void hr_paint_funcs_set_pop_clip_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_pop_clip(struct hr_paint_funcs_t *funcs, void *paint_data);
@@ -661,7 +661,7 @@ void hr_paint_funcs_set_color_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_color(struct hr_paint_funcs_t *funcs,
@@ -687,7 +687,7 @@ void hr_paint_funcs_set_fill_glyph_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `font`
  * must be `NULL` or live.
  */
@@ -719,7 +719,7 @@ void hr_paint_funcs_set_image_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `image`
  * must be `NULL` or a live blob, and `extents` must be `NULL` or point to
  * glyph extents that can be read and written.
@@ -751,7 +751,7 @@ void hr_paint_funcs_set_linear_gradient_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  * `color_line` must point to a color line that stays as
  * [`hr_color_line_get_color_stops`] requires until this returns.
@@ -784,7 +784,7 @@ void hr_paint_funcs_set_radial_gradient_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  * `color_line` must point to a color line that stays as
  * [`hr_color_line_get_color_stops`] requires until this returns.
@@ -817,7 +817,7 @@ void hr_paint_funcs_set_sweep_gradient_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  * `color_line` must point to a color line that stays as
  * [`hr_color_line_get_color_stops`] requires until this returns.
@@ -848,7 +848,7 @@ void hr_paint_funcs_set_push_group_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_group(struct hr_paint_funcs_t *funcs, void *paint_data);
@@ -871,7 +871,7 @@ void hr_paint_funcs_set_push_group_for_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_push_group_for(struct hr_paint_funcs_t *funcs,
@@ -896,7 +896,7 @@ void hr_paint_funcs_set_pop_group_func(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with.
  */
 void hr_paint_pop_group(struct hr_paint_funcs_t *funcs,
@@ -921,7 +921,7 @@ void hr_paint_funcs_set_custom_palette_color_func(struct hr_paint_funcs_t *funcs
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `paint_data` must be paint data its callbacks may be called with. `color`
  * must be writable.
  */
@@ -972,9 +972,9 @@ hr_paint_extend_t hr_color_line_get_extend(struct hr_color_line_t *line);
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `data` must be paint data its callbacks may be called with. `font` must be
- * `NULL` or live.
+ * live.
  */
 void hr_paint_push_font_transform(struct hr_paint_funcs_t *funcs, void *data, hr_font_t *font);
 
@@ -983,9 +983,9 @@ void hr_paint_push_font_transform(struct hr_paint_funcs_t *funcs, void *data, hr
  *
  * # Safety
  *
- * `funcs` must be `NULL`, or live and unmodified until this returns, and
+ * `funcs` must be live and unmodified until this returns, and
  * `data` must be paint data its callbacks may be called with. `font` must be
- * `NULL` or live.
+ * live.
  */
 void hr_paint_push_inverse_font_transform(struct hr_paint_funcs_t *funcs,
                                           void *data,
@@ -996,7 +996,7 @@ void hr_paint_push_inverse_font_transform(struct hr_paint_funcs_t *funcs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live until this returns. Unless it is
+ * `ffuncs` must be live until this returns. Unless it is
  * immutable, no other thread may use it during the call, and nothing on
  * this thread may be in the middle of using it, or a font that carries it,
  * but a callback setter that is running a `destroy`. For as long as `func`
@@ -1031,11 +1031,11 @@ void hr_font_funcs_set_paint_glyph_or_fail_func(hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `font` and `funcs` must each be `NULL` or live until this returns. Until
- * then, nothing may modify `funcs`, `font` or a font it descends from, or
- * the font callbacks any of those fonts carries; that binds the callbacks
- * this runs too. `data` must be paint data the callbacks of `funcs` may be
- * called with.
+ * `font` must be live and `funcs` must be `NULL` or live, both until this
+ * returns. Until then, nothing may modify `funcs`, `font` or a font it
+ * descends from, or the font callbacks any of those fonts carries; that
+ * binds the callbacks this runs too. `data` must be paint data the
+ * callbacks of `funcs` may be called with.
  */
 hr_bool_t hr_font_paint_glyph_or_fail(hr_font_t *font,
                                       hr_codepoint_t glyph,

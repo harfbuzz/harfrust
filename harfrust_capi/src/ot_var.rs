@@ -37,10 +37,10 @@ fn axes(face: &hr_face_t) -> Option<AxisInstanceArrays<'_>> {
 
 /// Returns the number of variation axes, or zero without readable `fvar` data.
 /// # Safety
-/// `face` must be null or live.
+/// `face` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_var_get_axis_count(face: *mut hr_face_t) -> c_uint {
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     axes(face).map_or(0, |arrays| arrays.axes().len() as c_uint)
 }
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_count(face: *mut hr_face_t) -> c_uin
 /// zero without reading it; the README has the rule for a count and its
 /// array. Axis indices remain relative to the full `fvar` axis array.
 /// # Safety
-/// `face` must be null or live; `axes_count` must be null or writable;
+/// `face` must be live; `axes_count` must be null or writable;
 /// `axes_array` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
     // `axes_array` hold the capacity it gives on entry, which the README
     // has the caller set before the call.
     let page = unsafe { Page::new(axes_count, axes_array) };
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let arrays = axes(face);
     let records = arrays.as_ref().map_or(&[][..], |arrays| arrays.axes());

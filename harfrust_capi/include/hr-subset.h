@@ -163,10 +163,10 @@ struct hr_subset_input_t *hr_subset_input_reference(struct hr_subset_input_t *in
 void hr_subset_input_destroy(struct hr_subset_input_t *input);
 
 /**
- * Returns the borrowed set of glyph IDs to retain, or `NULL` for no input.
+ * Returns the borrowed set of glyph IDs to retain.
  *
  * # Safety
- * `input` must be `NULL` or live; the returned set is borrowed from it.
+ * `input` must be live; the returned set is borrowed from it.
  */
 hr_set_t *hr_subset_input_glyph_set(struct hr_subset_input_t *input);
 
@@ -174,7 +174,7 @@ hr_set_t *hr_subset_input_glyph_set(struct hr_subset_input_t *input);
  * Returns the borrowed set of Unicode codepoints to retain.
  *
  * # Safety
- * `input` must be `NULL` or live; the returned set is borrowed from it.
+ * `input` must be live; the returned set is borrowed from it.
  */
 hr_set_t *hr_subset_input_unicode_set(struct hr_subset_input_t *input);
 
@@ -182,7 +182,7 @@ hr_set_t *hr_subset_input_unicode_set(struct hr_subset_input_t *input);
  * Returns a borrowed configurable input set, or `NULL` for an invalid selector.
  *
  * # Safety
- * `input` must be `NULL` or live; the returned set is borrowed from it.
+ * `input` must be live; the returned set is borrowed from it.
  */
 hr_set_t *hr_subset_input_set(struct hr_subset_input_t *input, hr_subset_sets_t set_type);
 
@@ -192,7 +192,7 @@ hr_set_t *hr_subset_input_set(struct hr_subset_input_t *input, hr_subset_sets_t 
  * are enabled; no tables are explicitly dropped.
  *
  * # Safety
- * `input` must be `NULL` or live and, along with its sets, exclusively
+ * `input` must be live and, along with its sets, exclusively
  * accessible: no other call may be using them, which rules out calling this
  * from a destructor of the input's own metadata.
  */
@@ -202,17 +202,17 @@ void hr_subset_input_keep_everything(struct hr_subset_input_t *input);
  * Sets the subset flags. Unsupported flag bits cause subsetting to fail.
  *
  * # Safety
- * `input` must be `NULL` or live and exclusively accessible: no other call
+ * `input` must be live and exclusively accessible: no other call
  * may be using it, which rules out calling this from a destructor of the
  * input's own metadata.
  */
 void hr_subset_input_set_flags(struct hr_subset_input_t *input, unsigned int flags);
 
 /**
- * Returns the configured flags, or zero for `NULL`.
+ * Returns the configured flags.
  *
  * # Safety
- * `input` must be `NULL` or live and not concurrently mutated.
+ * `input` must be live and not concurrently mutated.
  */
 hr_subset_flags_t hr_subset_input_get_flags(const struct hr_subset_input_t *input);
 
@@ -250,7 +250,7 @@ hr_face_t *hr_subset_preprocess(hr_face_t *face);
  * Creates a self-contained plan and its glyph mappings, or `NULL` on failure.
  *
  * # Safety
- * `face` and `input` must be `NULL` or live. Input sets must not be mutated
+ * `face` and `input` must be live. Input sets must not be mutated
  * during this call; face callbacks must satisfy the core API contract.
  */
 struct hr_subset_plan_t *hr_subset_plan_create_or_fail(hr_face_t *face,
@@ -289,7 +289,7 @@ hr_face_t *hr_subset_plan_execute_or_fail(struct hr_subset_plan_t *plan);
  * Take a core map reference if it must outlive the plan.
  *
  * # Safety
- * `plan` must be `NULL` or live. The returned map is read-only.
+ * `plan` must be live. The returned map is read-only.
  */
 hr_map_t *hr_subset_plan_old_to_new_glyph_mapping(const struct hr_subset_plan_t *plan);
 
@@ -297,7 +297,7 @@ hr_map_t *hr_subset_plan_old_to_new_glyph_mapping(const struct hr_subset_plan_t 
  * Returns the borrowed subset-to-original map, including closure glyphs.
  *
  * # Safety
- * `plan` must be `NULL` or live. The returned map is read-only.
+ * `plan` must be live. The returned map is read-only.
  */
 hr_map_t *hr_subset_plan_new_to_old_glyph_mapping(const struct hr_subset_plan_t *plan);
 
@@ -305,7 +305,7 @@ hr_map_t *hr_subset_plan_new_to_old_glyph_mapping(const struct hr_subset_plan_t 
  * Returns the borrowed Unicode-to-original-glyph map.
  *
  * # Safety
- * `plan` must be `NULL` or live. The returned map is read-only.
+ * `plan` must be live. The returned map is read-only.
  */
 hr_map_t *hr_subset_plan_unicode_to_old_glyph_mapping(const struct hr_subset_plan_t *plan);
 

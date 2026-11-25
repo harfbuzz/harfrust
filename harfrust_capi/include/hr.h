@@ -2593,7 +2593,7 @@ extern "C" {
  * zero without reading it; the README has the rule for a count and its
  * array. Results preserve the order in the table.
  * # Safety
- * `face` must be null or live; `feature_count` must be null or writable;
+ * `face` must be live; `feature_count` must be null or writable;
  * `features` must hold the input capacity when non-null.
  */
 unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
@@ -2612,7 +2612,7 @@ unsigned int hr_aat_layout_get_feature_types(struct hr_face_t *face,
  * array sets the count to zero without reading it; the README has the rule
  * for a count and its array.
  * # Safety
- * `face` must be null or live; `selector_count` and `default_index` must be
+ * `face` must be live; `selector_count` and `default_index` must be
  * null or writable; `selectors` must hold the input capacity when non-null.
  */
 unsigned int hr_aat_layout_feature_type_get_selector_infos(struct hr_face_t *face,
@@ -2699,7 +2699,7 @@ struct hr_blob_t *hr_blob_create_sub_blob(struct hr_blob_t *parent,
  *
  * # Safety
  *
- * `blob` must be `NULL` or a live blob.
+ * `blob` must be a live blob.
  */
 struct hr_blob_t *hr_blob_copy_writable_or_fail(struct hr_blob_t *blob);
 
@@ -2756,7 +2756,7 @@ void *hr_blob_get_user_data(struct hr_blob_t *blob, const struct hr_user_data_ke
  *
  * # Safety
  *
- * `blob` must be `NULL` or a live blob.
+ * `blob` must be a live blob.
  */
 void hr_blob_make_immutable(struct hr_blob_t *blob);
 
@@ -2765,7 +2765,7 @@ void hr_blob_make_immutable(struct hr_blob_t *blob);
  *
  * # Safety
  *
- * `blob` must be `NULL` or a live blob.
+ * `blob` must be a live blob.
  */
 hr_bool_t hr_blob_is_immutable(struct hr_blob_t *blob);
 
@@ -2774,7 +2774,7 @@ hr_bool_t hr_blob_is_immutable(struct hr_blob_t *blob);
  *
  * # Safety
  *
- * `blob` must be `NULL` or a live blob.
+ * `blob` must be a live blob.
  */
 unsigned int hr_blob_get_length(struct hr_blob_t *blob);
 
@@ -2787,7 +2787,7 @@ unsigned int hr_blob_get_length(struct hr_blob_t *blob);
  *
  * # Safety
  *
- * `blob` must be `NULL` or a live blob, and `length` must be `NULL` or
+ * `blob` must be a live blob, and `length` must be `NULL` or
  * writable.
  */
 const char *hr_blob_get_data(struct hr_blob_t *blob, unsigned int *length);
@@ -2815,7 +2815,7 @@ struct hr_buffer_t *hr_buffer_create(void);
  *
  * # Safety
  *
- * `src` must be `NULL` or a live buffer.
+ * `src` must be a live buffer.
  */
 struct hr_buffer_t *hr_buffer_create_similar(struct hr_buffer_t *src);
 
@@ -2870,7 +2870,7 @@ void *hr_buffer_get_user_data(struct hr_buffer_t *buffer, const struct hr_user_d
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_reset(struct hr_buffer_t *buffer);
 
@@ -2879,7 +2879,7 @@ void hr_buffer_reset(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_clear_contents(struct hr_buffer_t *buffer);
 
@@ -2888,7 +2888,7 @@ void hr_buffer_clear_contents(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_bool_t hr_buffer_pre_allocate(struct hr_buffer_t *buffer, unsigned int size);
 
@@ -2897,7 +2897,7 @@ hr_bool_t hr_buffer_pre_allocate(struct hr_buffer_t *buffer, unsigned int size);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_bool_t hr_buffer_allocation_successful(struct hr_buffer_t *buffer);
 
@@ -2906,7 +2906,7 @@ hr_bool_t hr_buffer_allocation_successful(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_add(struct hr_buffer_t *buffer, hr_codepoint_t codepoint, unsigned int cluster);
 
@@ -2917,7 +2917,7 @@ void hr_buffer_add(struct hr_buffer_t *buffer, hr_codepoint_t codepoint, unsigne
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `buffer` must be a live buffer. `text` must point to
  * `text_length` readable code units, or be zero-terminated when
  * `text_length` is negative.
  */
@@ -2934,7 +2934,7 @@ void hr_buffer_add_utf16(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `buffer` must be a live buffer. `text` must point to
  * `text_length` readable bytes, or be zero-terminated when `text_length` is
  * negative.
  */
@@ -2954,7 +2954,7 @@ void hr_buffer_add_latin1(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `buffer` must be a live buffer. `text` must point to
  * `text_length` readable bytes, or be NUL-terminated when `text_length` is
  * negative.
  */
@@ -2972,7 +2972,7 @@ void hr_buffer_add_utf8(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer. `text` must point to
+ * `buffer` must be a live buffer. `text` must point to
  * `text_length` readable codepoints, or be terminated by a zero when
  * `text_length` is negative.
  */
@@ -3005,7 +3005,7 @@ void hr_buffer_add_codepoints(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * Both buffers must be `NULL` or live, and must not be the same buffer.
+ * Both buffers must be live, and must not be the same buffer.
  */
 void hr_buffer_append(struct hr_buffer_t *buffer,
                       const struct hr_buffer_t *source,
@@ -3017,7 +3017,7 @@ void hr_buffer_append(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_buffer_content_type_t hr_buffer_get_content_type(struct hr_buffer_t *buffer);
 
@@ -3026,7 +3026,7 @@ hr_buffer_content_type_t hr_buffer_get_content_type(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_content_type(struct hr_buffer_t *buffer, hr_buffer_content_type_t content_type);
 
@@ -3035,7 +3035,7 @@ void hr_buffer_set_content_type(struct hr_buffer_t *buffer, hr_buffer_content_ty
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_direction(struct hr_buffer_t *buffer, hr_direction_t direction);
 
@@ -3044,7 +3044,7 @@ void hr_buffer_set_direction(struct hr_buffer_t *buffer, hr_direction_t directio
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_direction_t hr_buffer_get_direction(struct hr_buffer_t *buffer);
 
@@ -3053,7 +3053,7 @@ hr_direction_t hr_buffer_get_direction(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_script(struct hr_buffer_t *buffer, hr_script_t script);
 
@@ -3062,7 +3062,7 @@ void hr_buffer_set_script(struct hr_buffer_t *buffer, hr_script_t script);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_script_t hr_buffer_get_script(struct hr_buffer_t *buffer);
 
@@ -3071,7 +3071,7 @@ hr_script_t hr_buffer_get_script(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer, and `language` must be `NULL` or
+ * `buffer` must be a live buffer, and `language` must be `NULL` or
  * an interned language returned by this API.
  */
 void hr_buffer_set_language(struct hr_buffer_t *buffer, hr_language_t language);
@@ -3081,7 +3081,7 @@ void hr_buffer_set_language(struct hr_buffer_t *buffer, hr_language_t language);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_language_t hr_buffer_get_language(struct hr_buffer_t *buffer);
 
@@ -3090,7 +3090,7 @@ hr_language_t hr_buffer_get_language(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_flags(struct hr_buffer_t *buffer, hr_buffer_flags_t flags);
 
@@ -3099,7 +3099,7 @@ void hr_buffer_set_flags(struct hr_buffer_t *buffer, hr_buffer_flags_t flags);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_buffer_flags_t hr_buffer_get_flags(struct hr_buffer_t *buffer);
 
@@ -3108,7 +3108,7 @@ hr_buffer_flags_t hr_buffer_get_flags(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_cluster_level(struct hr_buffer_t *buffer,
                                  hr_buffer_cluster_level_t cluster_level);
@@ -3118,7 +3118,7 @@ void hr_buffer_set_cluster_level(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_buffer_cluster_level_t hr_buffer_get_cluster_level(struct hr_buffer_t *buffer);
 
@@ -3127,7 +3127,7 @@ hr_buffer_cluster_level_t hr_buffer_get_cluster_level(struct hr_buffer_t *buffer
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 unsigned int hr_buffer_get_length(struct hr_buffer_t *buffer);
 
@@ -3136,7 +3136,7 @@ unsigned int hr_buffer_get_length(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_bool_t hr_buffer_set_length(struct hr_buffer_t *buffer, unsigned int length);
 
@@ -3153,7 +3153,7 @@ hr_bool_t hr_buffer_set_length(struct hr_buffer_t *buffer, unsigned int length);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer. `length` must be `NULL` or point
+ * `buffer` must be a live buffer. `length` must be `NULL` or point
  * to an `unsigned int` that can be written; it need not hold a value yet.
  */
 struct hr_glyph_info_t *hr_buffer_get_glyph_infos(struct hr_buffer_t *buffer, unsigned int *length);
@@ -3169,7 +3169,7 @@ struct hr_glyph_info_t *hr_buffer_get_glyph_infos(struct hr_buffer_t *buffer, un
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer. `length` must be `NULL` or point
+ * `buffer` must be a live buffer. `length` must be `NULL` or point
  * to an `unsigned int` that can be written; it need not hold a value yet.
  */
 struct hr_glyph_position_t *hr_buffer_get_glyph_positions(struct hr_buffer_t *buffer,
@@ -3180,7 +3180,7 @@ struct hr_glyph_position_t *hr_buffer_get_glyph_positions(struct hr_buffer_t *bu
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_bool_t hr_buffer_has_positions(struct hr_buffer_t *buffer);
 
@@ -3198,7 +3198,7 @@ hr_glyph_flags_t hr_glyph_info_get_glyph_flags(const struct hr_glyph_info_t *inf
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_invisible_glyph(struct hr_buffer_t *buffer, hr_codepoint_t invisible);
 
@@ -3207,7 +3207,7 @@ void hr_buffer_set_invisible_glyph(struct hr_buffer_t *buffer, hr_codepoint_t in
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_codepoint_t hr_buffer_get_invisible_glyph(struct hr_buffer_t *buffer);
 
@@ -3216,7 +3216,7 @@ hr_codepoint_t hr_buffer_get_invisible_glyph(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_set_not_found_variation_selector_glyph(struct hr_buffer_t *buffer,
                                                       hr_codepoint_t glyph);
@@ -3226,7 +3226,7 @@ void hr_buffer_set_not_found_variation_selector_glyph(struct hr_buffer_t *buffer
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 hr_codepoint_t hr_buffer_get_not_found_variation_selector_glyph(struct hr_buffer_t *buffer);
 
@@ -3235,7 +3235,7 @@ hr_codepoint_t hr_buffer_get_not_found_variation_selector_glyph(struct hr_buffer
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer, and `props` must be `NULL` or
+ * `buffer` must be a live buffer, and `props` must be `NULL` or
  * writable.
  */
 void hr_buffer_get_segment_properties(struct hr_buffer_t *buffer,
@@ -3246,7 +3246,7 @@ void hr_buffer_get_segment_properties(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer, and `props` must be `NULL` or
+ * `buffer` must be a live buffer, and `props` must be `NULL` or
  * readable. The language in `props` must be `NULL` or an interned language
  * returned by this API.
  */
@@ -3259,7 +3259,7 @@ void hr_buffer_set_segment_properties(struct hr_buffer_t *buffer,
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_guess_segment_properties(struct hr_buffer_t *buffer);
 
@@ -3268,7 +3268,7 @@ void hr_buffer_guess_segment_properties(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_reverse(struct hr_buffer_t *buffer);
 
@@ -3277,7 +3277,7 @@ void hr_buffer_reverse(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_reverse_range(struct hr_buffer_t *buffer, unsigned int start, unsigned int end);
 
@@ -3286,7 +3286,7 @@ void hr_buffer_reverse_range(struct hr_buffer_t *buffer, unsigned int start, uns
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_reverse_clusters(struct hr_buffer_t *buffer);
 
@@ -3295,7 +3295,7 @@ void hr_buffer_reverse_clusters(struct hr_buffer_t *buffer);
  *
  * # Safety
  *
- * `buffer` must be `NULL` or a live buffer.
+ * `buffer` must be a live buffer.
  */
 void hr_buffer_reset_clusters(struct hr_buffer_t *buffer);
 
@@ -3329,8 +3329,8 @@ const char *const *hr_buffer_serialize_list_formats(void);
  *
  * # Safety
  *
- * `buffer` and `font` must be `NULL` or live, `buf` must point to `buf_size`
- * writable bytes, and `buf_consumed` must be `NULL` or writable.
+ * `buffer` must be live, `font` must be `NULL` or live, `buf` must point to
+ * `buf_size` writable bytes, and `buf_consumed` must be `NULL` or writable.
  *
  * Glyph names and glyph extents are asked of `font`, which may call its
  * callbacks. Those must not change `buffer`, as for the buffer being shaped:
@@ -3639,7 +3639,7 @@ void *hr_face_get_user_data(struct hr_face_t *face, const struct hr_user_data_ke
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 void hr_face_make_immutable(struct hr_face_t *face);
 
@@ -3648,7 +3648,7 @@ void hr_face_make_immutable(struct hr_face_t *face);
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 hr_bool_t hr_face_is_immutable(struct hr_face_t *face);
 
@@ -3657,7 +3657,7 @@ hr_bool_t hr_face_is_immutable(struct hr_face_t *face);
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 unsigned int hr_face_get_index(struct hr_face_t *face);
 
@@ -3668,7 +3668,7 @@ unsigned int hr_face_get_index(struct hr_face_t *face);
  * face ignores the assignment.
  *
  * # Safety
- * `face` must be `NULL` or live, and must not be accessed concurrently.
+ * `face` must be live, and must not be accessed concurrently.
  */
 void hr_face_set_index(struct hr_face_t *face, unsigned int index);
 
@@ -3679,7 +3679,7 @@ void hr_face_set_index(struct hr_face_t *face, unsigned int index);
  * and release the supplied data immediately.
  *
  * # Safety
- * `face` must be `NULL` or live and must not be accessed concurrently.
+ * `face` must be live and must not be accessed concurrently.
  * The callback and its data must be safe to invoke from any thread, with
  * what [`hr_face_get_table_tags`] is given. `destroy`, if given, must be
  * safe to call once with `user_data`, from any thread.
@@ -3700,7 +3700,7 @@ void hr_face_set_get_table_tags_func(struct hr_face_t *face,
  * [`hr_face_set_get_table_tags_func`].
  *
  * # Safety
- * `face` must be `NULL` or live. `table_count` must be `NULL` or writable,
+ * `face` must be live. `table_count` must be `NULL` or writable,
  * and a non-null `table_tags` must be writable for the capacity that
  * `table_count` holds on entry.
  */
@@ -3714,7 +3714,7 @@ unsigned int hr_face_get_table_tags(const struct hr_face_t *face,
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 unsigned int hr_face_get_upem(struct hr_face_t *face);
 
@@ -3723,7 +3723,7 @@ unsigned int hr_face_get_upem(struct hr_face_t *face);
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 unsigned int hr_face_get_glyph_count(struct hr_face_t *face);
 
@@ -3735,7 +3735,7 @@ unsigned int hr_face_get_glyph_count(struct hr_face_t *face);
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 struct hr_blob_t *hr_face_reference_blob(struct hr_face_t *face);
 
@@ -3749,7 +3749,7 @@ struct hr_blob_t *hr_face_reference_blob(struct hr_face_t *face);
  *
  * # Safety
  *
- * `face` must be `NULL` or a live face.
+ * `face` must be a live face.
  */
 struct hr_blob_t *hr_face_reference_table(struct hr_face_t *face, hr_tag_t tag);
 
@@ -3760,7 +3760,7 @@ struct hr_blob_t *hr_face_reference_table(struct hr_face_t *face, hr_tag_t tag);
  * fallback or Mac Roman conversion applied by nominal glyph lookup. Variation
  * sequences are not included. A missing cmap adds nothing.
  * # Safety
- * `face` must be null or live; `out` must be null or live and must not be
+ * `face` must be live; `out` must be live and must not be
  * accessed concurrently while it is being modified.
  */
 void hr_face_collect_unicodes(struct hr_face_t *face, struct hr_set_t *out);
@@ -3824,7 +3824,7 @@ void hr_font_destroy(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `key` must outlive it.
+ * `font` must be a live font, and `key` must outlive it.
  */
 hr_bool_t hr_font_set_user_data(struct hr_font_t *font,
                                 const struct hr_user_data_key_t *key,
@@ -3850,7 +3850,7 @@ void *hr_font_get_user_data(struct hr_font_t *font, const struct hr_user_data_ke
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 void hr_font_make_immutable(struct hr_font_t *font);
 
@@ -3859,7 +3859,7 @@ void hr_font_make_immutable(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 hr_bool_t hr_font_is_immutable(struct hr_font_t *font);
 
@@ -3868,7 +3868,7 @@ hr_bool_t hr_font_is_immutable(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 struct hr_face_t *hr_font_get_face(struct hr_font_t *font);
 
@@ -3877,7 +3877,7 @@ struct hr_face_t *hr_font_get_face(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 struct hr_font_t *hr_font_get_parent(struct hr_font_t *font);
 
@@ -3890,7 +3890,7 @@ struct hr_font_t *hr_font_get_parent(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 void hr_font_set_scale(struct hr_font_t *font, int x_scale, int y_scale);
 
@@ -3899,7 +3899,7 @@ void hr_font_set_scale(struct hr_font_t *font, int x_scale, int y_scale);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font; `x_scale` and `y_scale` must be
+ * `font` must be a live font; `x_scale` and `y_scale` must be
  * `NULL` or writable.
  */
 void hr_font_get_scale(struct hr_font_t *font, int *x_scale, int *y_scale);
@@ -3909,7 +3909,7 @@ void hr_font_get_scale(struct hr_font_t *font, int *x_scale, int *y_scale);
  * unset. `BASE` device adjustments use the ppem for their coordinate axis.
  *
  * # Safety
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 void hr_font_set_ppem(struct hr_font_t *font, unsigned int x_ppem, unsigned int y_ppem);
 
@@ -3917,7 +3917,7 @@ void hr_font_set_ppem(struct hr_font_t *font, unsigned int x_ppem, unsigned int 
  * Returns a font's horizontal and vertical pixels per em.
  *
  * # Safety
- * `font` must be `NULL` or a live font; output pointers must be `NULL` or writable.
+ * `font` must be a live font; output pointers must be `NULL` or writable.
  */
 void hr_font_get_ppem(struct hr_font_t *font, unsigned int *x_ppem, unsigned int *y_ppem);
 
@@ -3928,7 +3928,7 @@ void hr_font_get_ppem(struct hr_font_t *font, unsigned int *x_ppem, unsigned int
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 void hr_font_set_ptem(struct hr_font_t *font, float ptem);
 
@@ -3937,7 +3937,7 @@ void hr_font_set_ptem(struct hr_font_t *font, float ptem);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 float hr_font_get_ptem(struct hr_font_t *font);
 
@@ -3949,7 +3949,7 @@ float hr_font_get_ptem(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `variations` must point to
+ * `font` must be a live font, and `variations` must point to
  * `variations_length` readable entries.
  */
 void hr_font_set_variations(struct hr_font_t *font,
@@ -3964,7 +3964,7 @@ void hr_font_set_variations(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `coords` must point to
+ * `font` must be a live font, and `coords` must point to
  * `coords_length` readable entries.
  */
 void hr_font_set_var_coords_normalized(struct hr_font_t *font,
@@ -3980,7 +3980,7 @@ void hr_font_set_var_coords_normalized(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `length` must be `NULL` or
+ * `font` must be a live font, and `length` must be `NULL` or
  * writable.
  */
 const int *hr_font_get_var_coords_normalized(struct hr_font_t *font, unsigned int *length);
@@ -3992,7 +3992,7 @@ const int *hr_font_get_var_coords_normalized(struct hr_font_t *font, unsigned in
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 void hr_font_set_var_named_instance(struct hr_font_t *font, unsigned int instance);
 
@@ -4017,7 +4017,7 @@ void hr_font_set_var_named_instance(struct hr_font_t *font, unsigned int instanc
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, `ffuncs` must be `NULL` or live, and
+ * `font` must be a live font, `ffuncs` must be `NULL` or live, and
  * the callbacks must be safe to call with `font_data` from any thread.
  */
 void hr_font_set_funcs(struct hr_font_t *font,
@@ -4038,7 +4038,7 @@ void hr_font_set_funcs(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 void hr_ot_font_set_funcs(struct hr_font_t *font);
 
@@ -4052,7 +4052,7 @@ void hr_ot_font_set_funcs(struct hr_font_t *font);
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+ * `font` must be a live font, and `glyph` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_nominal_glyph(struct hr_font_t *font,
@@ -4066,7 +4066,7 @@ hr_bool_t hr_font_get_nominal_glyph(struct hr_font_t *font,
  * strides may be used to read or write the same location repeatedly.
  *
  * # Safety
- * `font` must be `NULL` or live. The arrays must be valid for `count`
+ * `font` must be live. The arrays must be valid for `count`
  * entries at their respective byte strides, `first_unicode` to read and
  * `first_glyph` to write.
  */
@@ -4087,7 +4087,7 @@ unsigned int hr_font_get_nominal_glyphs(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+ * `font` must be a live font, and `glyph` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_variation_glyph(struct hr_font_t *font,
@@ -4105,7 +4105,7 @@ hr_bool_t hr_font_get_variation_glyph(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `glyph` must be `NULL` or
+ * `font` must be a live font, and `glyph` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_glyph(struct hr_font_t *font,
@@ -4122,7 +4122,7 @@ hr_bool_t hr_font_get_glyph(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_font_get_glyph_h_advance(struct hr_font_t *font, hr_codepoint_t glyph);
 
@@ -4131,7 +4131,7 @@ hr_position_t hr_font_get_glyph_h_advance(struct hr_font_t *font, hr_codepoint_t
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_font_get_glyph_v_advance(struct hr_font_t *font, hr_codepoint_t glyph);
 
@@ -4143,7 +4143,7 @@ hr_position_t hr_font_get_glyph_v_advance(struct hr_font_t *font, hr_codepoint_t
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font. `first_glyph` must be `NULL` or
+ * `font` must be a live font. `first_glyph` must be `NULL` or
  * point at `count` glyphs `glyph_stride` bytes apart, and `first_advance`
  * must be `NULL` or point at `count` writable advances `advance_stride`
  * bytes apart.
@@ -4177,7 +4177,7 @@ void hr_font_get_glyph_v_advances(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * `font` must be a live font, and `x` and `y` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_glyph_h_origin(struct hr_font_t *font,
@@ -4190,7 +4190,7 @@ hr_bool_t hr_font_get_glyph_h_origin(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_font_get_glyph_h_kerning(struct hr_font_t *font,
                                           hr_codepoint_t first_glyph,
@@ -4201,7 +4201,7 @@ hr_position_t hr_font_get_glyph_h_kerning(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_font_get_glyph_v_kerning(struct hr_font_t *font,
                                           hr_codepoint_t first_glyph,
@@ -4217,7 +4217,7 @@ hr_position_t hr_font_get_glyph_v_kerning(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * `font` must be a live font, and `x` and `y` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_glyph_v_origin(struct hr_font_t *font,
@@ -4234,7 +4234,7 @@ hr_bool_t hr_font_get_glyph_v_origin(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+ * `font` must be a live font, and `extents` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_glyph_extents(struct hr_font_t *font,
@@ -4247,7 +4247,7 @@ hr_bool_t hr_font_get_glyph_extents(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * `font` must be a live font, and `x` and `y` must be `NULL` or
  * writable.
  */
 void hr_font_get_glyph_advance_for_direction(struct hr_font_t *font,
@@ -4279,7 +4279,7 @@ void hr_font_get_glyph_advances_for_direction(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * `font` must be a live font, and `x` and `y` must be `NULL` or
  * writable.
  */
 void hr_font_get_glyph_origin_for_direction(struct hr_font_t *font,
@@ -4293,7 +4293,7 @@ void hr_font_get_glyph_origin_for_direction(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `x` and `y` must be `NULL` or
+ * `font` must be a live font, and `x` and `y` must be `NULL` or
  * readable and writable.
  */
 void hr_font_add_glyph_origin_for_direction(struct hr_font_t *font,
@@ -4321,7 +4321,7 @@ void hr_font_subtract_glyph_origin_for_direction(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `extents` must be `NULL` or
+ * `font` must be a live font, and `extents` must be `NULL` or
  * writable.
  */
 hr_bool_t hr_font_get_glyph_extents_for_origin(struct hr_font_t *font,
@@ -4336,7 +4336,7 @@ hr_bool_t hr_font_get_glyph_extents_for_origin(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, and `name` must be `NULL` or point
+ * `font` must be a live font, and `name` must be `NULL` or point
  * at `size` writable bytes.
  */
 hr_bool_t hr_font_get_glyph_name(struct hr_font_t *font,
@@ -4351,7 +4351,7 @@ hr_bool_t hr_font_get_glyph_name(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` must be `NULL` or a live font, `name` must be `NULL` or readable
+ * `font` must be a live font, `name` must be `NULL` or readable
  * for its length, and `glyph` must be `NULL` or writable.
  */
 hr_bool_t hr_font_get_glyph_from_name(struct hr_font_t *font,
@@ -4442,7 +4442,7 @@ void *hr_font_funcs_get_user_data(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live.
+ * `ffuncs` must be live.
  */
 void hr_font_funcs_make_immutable(struct hr_font_funcs_t *ffuncs);
 
@@ -4451,7 +4451,7 @@ void hr_font_funcs_make_immutable(struct hr_font_funcs_t *ffuncs);
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live.
+ * `ffuncs` must be live.
  */
 hr_bool_t hr_font_funcs_is_immutable(struct hr_font_funcs_t *ffuncs);
 
@@ -4468,7 +4468,7 @@ hr_bool_t hr_font_funcs_is_immutable(struct hr_font_funcs_t *ffuncs);
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+ * `ffuncs` must be live, and the callback must be safe to call with
  * `user_data` from any thread.
  */
 void hr_font_funcs_set_nominal_glyph_func(struct hr_font_funcs_t *ffuncs,
@@ -4484,7 +4484,7 @@ void hr_font_funcs_set_nominal_glyph_func(struct hr_font_funcs_t *ffuncs,
  * A missing batch callback uses the scalar callback before asking the parent.
  *
  * # Safety
- * `ffuncs` must be `NULL` or live, and the callback and data must be safe
+ * `ffuncs` must be live, and the callback and data must be safe
  * to invoke from any thread.
  */
 void hr_font_funcs_set_nominal_glyphs_func(struct hr_font_funcs_t *ffuncs,
@@ -4506,7 +4506,7 @@ void hr_font_funcs_set_nominal_glyphs_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+ * `ffuncs` must be live, and the callback must be safe to call with
  * `user_data` from any thread.
  */
 void hr_font_funcs_set_variation_glyph_func(struct hr_font_funcs_t *ffuncs,
@@ -4527,7 +4527,7 @@ void hr_font_funcs_set_variation_glyph_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+ * `ffuncs` must be live, and the callback must be safe to call with
  * `user_data` from any thread.
  */
 void hr_font_funcs_set_glyph_h_advance_func(struct hr_font_funcs_t *ffuncs,
@@ -4541,7 +4541,7 @@ void hr_font_funcs_set_glyph_h_advance_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ * `ffuncs` must be live; the callback and its data must be thread safe.
  */
 void hr_font_funcs_set_glyph_h_advances_func(struct hr_font_funcs_t *ffuncs,
                                              hr_font_get_glyph_h_advances_func_t func,
@@ -4554,7 +4554,7 @@ void hr_font_funcs_set_glyph_h_advances_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ * `ffuncs` must be live; the callback and its data must be thread safe.
  */
 void hr_font_funcs_set_glyph_h_origin_func(struct hr_font_funcs_t *ffuncs,
                                            hr_font_get_glyph_h_origin_func_t func,
@@ -4567,7 +4567,7 @@ void hr_font_funcs_set_glyph_h_origin_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ * `ffuncs` must be live; the callback and its data must be thread safe.
  */
 void hr_font_funcs_set_glyph_h_kerning_func(struct hr_font_funcs_t *ffuncs,
                                             hr_font_get_glyph_h_kerning_func_t func,
@@ -4580,7 +4580,7 @@ void hr_font_funcs_set_glyph_h_kerning_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live; the callback and its data must be thread safe.
+ * `ffuncs` must be live; the callback and its data must be thread safe.
  */
 void hr_font_funcs_set_glyph_v_kerning_func(struct hr_font_funcs_t *ffuncs,
                                             hr_font_get_glyph_v_kerning_func_t func,
@@ -4600,7 +4600,7 @@ void hr_font_funcs_set_glyph_v_kerning_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+ * `ffuncs` must be live, and the callback must be safe to call with
  * `user_data` from any thread.
  */
 void hr_font_funcs_set_glyph_v_advance_func(struct hr_font_funcs_t *ffuncs,
@@ -4621,7 +4621,7 @@ void hr_font_funcs_set_glyph_v_advance_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+ * `ffuncs` must be live, and the callback must be safe to call with
  * `user_data` from any thread.
  */
 void hr_font_funcs_set_glyph_v_origin_func(struct hr_font_funcs_t *ffuncs,
@@ -4642,7 +4642,7 @@ void hr_font_funcs_set_glyph_v_origin_func(struct hr_font_funcs_t *ffuncs,
  *
  * # Safety
  *
- * `ffuncs` must be `NULL` or live, and the callback must be safe to call with
+ * `ffuncs` must be live, and the callback must be safe to call with
  * `user_data` from any thread.
  */
 void hr_font_funcs_set_glyph_extents_func(struct hr_font_funcs_t *ffuncs,
@@ -4686,7 +4686,7 @@ void *hr_map_get_user_data(const struct hr_map_t *map, const struct hr_user_data
  * Returns false for the inert empty singleton. Rust allocation failures abort.
  *
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 hr_bool_t hr_map_allocation_successful(const struct hr_map_t *map);
 
@@ -4694,31 +4694,31 @@ hr_bool_t hr_map_allocation_successful(const struct hr_map_t *map);
  * Copies the contents, without copying user data.
  *
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 struct hr_map_t *hr_map_copy(const struct hr_map_t *map);
 
 /**
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 void hr_map_clear(struct hr_map_t *map);
 
 /**
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 hr_bool_t hr_map_is_empty(const struct hr_map_t *map);
 
 /**
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 unsigned int hr_map_get_population(const struct hr_map_t *map);
 
 /**
  * # Safety
- * Both maps must be `NULL` or live.
+ * Both maps must be live.
  */
 hr_bool_t hr_map_is_equal(const struct hr_map_t *map, const struct hr_map_t *other);
 
@@ -4727,7 +4727,7 @@ hr_bool_t hr_map_is_equal(const struct hr_map_t *map, const struct hr_map_t *oth
  * value is implementation dependent.
  *
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 unsigned int hr_map_hash(const struct hr_map_t *map);
 
@@ -4736,7 +4736,7 @@ unsigned int hr_map_hash(const struct hr_map_t *map);
  * values are accepted, including `HR_MAP_VALUE_INVALID`.
  *
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 void hr_map_set(struct hr_map_t *map, hr_codepoint_t key, hr_codepoint_t value);
 
@@ -4745,19 +4745,19 @@ void hr_map_set(struct hr_map_t *map, hr_codepoint_t key, hr_codepoint_t value);
  * `hr_map_has` to distinguish an absent key from a stored invalid value.
  *
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 hr_codepoint_t hr_map_get(const struct hr_map_t *map, hr_codepoint_t key);
 
 /**
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 void hr_map_del(struct hr_map_t *map, hr_codepoint_t key);
 
 /**
  * # Safety
- * `map` must be `NULL` or live.
+ * `map` must be live.
  */
 hr_bool_t hr_map_has(const struct hr_map_t *map, hr_codepoint_t key);
 
@@ -4765,7 +4765,7 @@ hr_bool_t hr_map_has(const struct hr_map_t *map, hr_codepoint_t key);
  * Adds the source's entries, replacing values for keys already present.
  *
  * # Safety
- * Both maps must be `NULL` or live.
+ * Both maps must be live.
  */
 void hr_map_update(struct hr_map_t *map, const struct hr_map_t *other);
 
@@ -4774,7 +4774,7 @@ void hr_map_update(struct hr_map_t *map, const struct hr_map_t *other);
  * exhaustion resets it to -1 and leaves key and value unchanged.
  *
  * # Safety
- * `map` must be `NULL` or live and must not be modified during iteration.
+ * `map` must be live and must not be modified during iteration.
  * `idx`, `key` and `value` must point to writable, nonoverlapping storage.
  */
 hr_bool_t hr_map_next(const struct hr_map_t *map,
@@ -4786,7 +4786,7 @@ hr_bool_t hr_map_next(const struct hr_map_t *map,
  * Adds the map's keys to the supplied set, preserving existing members.
  *
  * # Safety
- * `map` and `keys` must be `NULL` or live.
+ * `map` and `keys` must be live.
  */
 void hr_map_keys(const struct hr_map_t *map, struct hr_set_t *keys);
 
@@ -4794,28 +4794,28 @@ void hr_map_keys(const struct hr_map_t *map, struct hr_set_t *keys);
  * Adds the map's values to the supplied set, preserving existing members.
  *
  * # Safety
- * `map` and `values` must be `NULL` or live.
+ * `map` and `values` must be live.
  */
 void hr_map_values(const struct hr_map_t *map, struct hr_set_t *values);
 
 /**
  * Returns whether the face has a CPAL table with any palettes.
  * # Safety
- * `face` must be null or live.
+ * `face` must be live.
  */
 hr_bool_t hr_ot_color_has_palettes(struct hr_face_t *face);
 
 /**
  * Returns the number of palettes in CPAL, or zero if absent.
  * # Safety
- * `face` must be null or live.
+ * `face` must be live.
  */
 unsigned int hr_ot_color_palette_get_count(struct hr_face_t *face);
 
 /**
  * Returns a palette's background flags, or the default flags if unavailable.
  * # Safety
- * `face` must be null or live.
+ * `face` must be live.
  */
 hr_ot_color_palette_flags_t hr_ot_color_palette_get_flags(struct hr_face_t *face,
                                                           unsigned int palette_index);
@@ -4830,7 +4830,7 @@ hr_ot_color_palette_flags_t hr_ot_color_palette_get_flags(struct hr_face_t *face
  * palette index returns zero and clears the count.
  *
  * # Safety
- * `face` must be null or live; `color_count` must be null or writable;
+ * `face` must be live; `color_count` must be null or writable;
  * `colors` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_color_palette_get_colors(struct hr_face_t *face,
@@ -4847,7 +4847,7 @@ unsigned int hr_ot_color_palette_get_colors(struct hr_face_t *face,
  * writes `HR_OT_LAYOUT_NO_SCRIPT_INDEX` and a zero tag to the outputs.
  *
  * # Safety
- * `face` must be null or live; `script_tags` must hold `script_count` tags
+ * `face` must be live; `script_tags` must hold `script_count` tags
  * when non-null. Both output pointers must be null or writable.
  */
 hr_bool_t hr_ot_layout_table_select_script(struct hr_face_t *face,
@@ -4866,7 +4866,7 @@ hr_bool_t hr_ot_layout_table_select_script(struct hr_face_t *face,
  * reading it; the README has the rule for a count and its array.
  *
  * # Safety
- * `face` must be null or live; `feature_count` must be null or writable;
+ * `face` must be live; `feature_count` must be null or writable;
  * `feature_tags` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_layout_table_get_feature_tags(struct hr_face_t *face,
@@ -4883,7 +4883,7 @@ unsigned int hr_ot_layout_table_get_feature_tags(struct hr_face_t *face,
  * table-wide index, or `HR_OT_LAYOUT_NO_FEATURE_INDEX` on failure.
  *
  * # Safety
- * `face` must be null or live; `feature_index` must be null or writable.
+ * `face` must be live; `feature_index` must be null or writable.
  */
 hr_bool_t hr_ot_layout_language_find_feature(struct hr_face_t *face,
                                              hr_tag_t table_tag,
@@ -4896,7 +4896,7 @@ hr_bool_t hr_ot_layout_language_find_feature(struct hr_face_t *face,
  * Returns whether the face has a readable GSUB table.
  *
  * # Safety
- * `face` must be `NULL` or live.
+ * `face` must be live.
  */
 hr_bool_t hr_ot_layout_has_substitution(struct hr_face_t *face);
 
@@ -4904,7 +4904,7 @@ hr_bool_t hr_ot_layout_has_substitution(struct hr_face_t *face);
  * Returns whether the face has a readable GPOS table.
  *
  * # Safety
- * `face` must be `NULL` or live.
+ * `face` must be live.
  */
 hr_bool_t hr_ot_layout_has_positioning(struct hr_face_t *face);
 
@@ -4912,7 +4912,7 @@ hr_bool_t hr_ot_layout_has_positioning(struct hr_face_t *face);
  * Returns the number of lookups in GSUB or GPOS.
  *
  * # Safety
- * `face` must be `NULL` or live.
+ * `face` must be live.
  */
 unsigned int hr_ot_layout_table_get_lookup_count(struct hr_face_t *face, hr_tag_t table_tag);
 
@@ -4922,7 +4922,7 @@ unsigned int hr_ot_layout_table_get_lookup_count(struct hr_face_t *face, hr_tag_
  * include every set value, represented by an inverted empty set.
  *
  * # Safety
- * `face` must be `NULL` or live, and each non-`NULL` set must be live. Output
+ * `face` must be live, and each non-`NULL` set must be live. Output
  * sets may be the same.
  */
 void hr_ot_layout_lookup_collect_glyphs(struct hr_face_t *face,
@@ -4943,7 +4943,7 @@ hr_ot_layout_baseline_tag_t hr_ot_layout_get_horizontal_baseline_tag_for_script(
  * Returns false without changing `coord` when the font has no such baseline.
  *
  * # Safety
- * `font` must be `NULL` or a live font, and `coord` must be `NULL` or writable.
+ * `font` must be a live font, and `coord` must be `NULL` or writable.
  */
 hr_bool_t hr_ot_layout_get_baseline(struct hr_font_t *font,
                                     hr_ot_layout_baseline_tag_t baseline_tag,
@@ -4969,7 +4969,7 @@ hr_bool_t hr_ot_layout_get_baseline2(struct hr_font_t *font,
  * Reads a baseline or synthesizes one when absent from `BASE`.
  *
  * # Safety
- * `font` must be `NULL` or a live font; `coord` must point to writable storage.
+ * `font` must be a live font; `coord` must point to writable storage.
  */
 void hr_ot_layout_get_baseline_with_fallback(struct hr_font_t *font,
                                              hr_ot_layout_baseline_tag_t baseline_tag,
@@ -4994,28 +4994,28 @@ void hr_ot_layout_get_baseline_with_fallback2(struct hr_font_t *font,
 /**
  * Whether a face has a MATH table with a nonzero version.
  * # Safety
- * `face` must be null or a live face.
+ * `face` must be a live face.
  */
 hr_bool_t hr_ot_math_has_data(struct hr_face_t *face);
 
 /**
  * Returns a MATH constant, scaled on its specified axis.
  * # Safety
- * `font` must be null or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_ot_math_get_constant(struct hr_font_t *font, hr_ot_math_constant_t constant);
 
 /**
  * Returns the glyph's MATH italics correction, or zero.
  * # Safety
- * `font` must be null or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_ot_math_get_glyph_italics_correction(struct hr_font_t *font, hr_codepoint_t glyph);
 
 /**
  * Returns the top accent attachment, falling back to half the glyph advance.
  * # Safety
- * `font` must be null or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_ot_math_get_glyph_top_accent_attachment(struct hr_font_t *font,
                                                          hr_codepoint_t glyph);
@@ -5023,14 +5023,14 @@ hr_position_t hr_ot_math_get_glyph_top_accent_attachment(struct hr_font_t *font,
 /**
  * Whether the glyph is covered by MATH's extended-shape set.
  * # Safety
- * `face` must be null or a live face.
+ * `face` must be a live face.
  */
 hr_bool_t hr_ot_math_is_glyph_extended_shape(struct hr_face_t *face, hr_codepoint_t glyph);
 
 /**
  * Returns a MATH kern selected in the font's scaled coordinate space.
  * # Safety
- * `font` must be null or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_ot_math_get_glyph_kerning(struct hr_font_t *font,
                                            hr_codepoint_t glyph,
@@ -5045,7 +5045,7 @@ hr_position_t hr_ot_math_get_glyph_kerning(struct hr_font_t *font,
  * zero without reading it; the README has the rule for a count and its
  * array.
  * # Safety
- * `font` must be null or live; `entries_count` must be null or writable;
+ * `font` must be live; `entries_count` must be null or writable;
  * `kern_entries` must hold its input capacity when non-null.
  */
 unsigned int hr_ot_math_get_glyph_kernings(struct hr_font_t *font,
@@ -5063,7 +5063,7 @@ unsigned int hr_ot_math_get_glyph_kernings(struct hr_font_t *font,
  * zero without reading it; the README has the rule for a count and its
  * array.
  * # Safety
- * `font` must be null or live; `variants_count` must be null or writable;
+ * `font` must be live; `variants_count` must be null or writable;
  * `variants` must hold its input capacity when non-null.
  */
 unsigned int hr_ot_math_get_glyph_variants(struct hr_font_t *font,
@@ -5076,7 +5076,7 @@ unsigned int hr_ot_math_get_glyph_variants(struct hr_font_t *font,
 /**
  * Returns the minimum overlap needed between MATH assembly parts.
  * # Safety
- * `font` must be null or a live font.
+ * `font` must be a live font.
  */
 hr_position_t hr_ot_math_get_min_connector_overlap(struct hr_font_t *font,
                                                    hr_direction_t direction);
@@ -5089,7 +5089,7 @@ hr_position_t hr_ot_math_get_min_connector_overlap(struct hr_font_t *font,
  * zero without reading it; the README has the rule for a count and its
  * array.
  * # Safety
- * `font` must be null or live; `parts_count` and `italics_correction` must be
+ * `font` must be live; `parts_count` and `italics_correction` must be
  * null or writable; `parts` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
@@ -5112,7 +5112,7 @@ unsigned int hr_ot_math_get_glyph_assembly(struct hr_font_t *font,
  * the README has the rule for a count and its array.
  *
  * # Safety
- * `face` must be null or live; `language` must be null or interned;
+ * `face` must be live; `language` must be null or interned;
  * `text_size` must be null or writable; `text` must hold the input capacity
  * when non-null.
  */
@@ -5150,7 +5150,7 @@ void hr_ot_tags_from_script_and_language(hr_script_t script,
 /**
  * Returns the number of variation axes, or zero without readable `fvar` data.
  * # Safety
- * `face` must be null or live.
+ * `face` must be live.
  */
 unsigned int hr_ot_var_get_axis_count(struct hr_face_t *face);
 
@@ -5162,7 +5162,7 @@ unsigned int hr_ot_var_get_axis_count(struct hr_face_t *face);
  * zero without reading it; the README has the rule for a count and its
  * array. Axis indices remain relative to the full `fvar` axis array.
  * # Safety
- * `face` must be null or live; `axes_count` must be null or writable;
+ * `face` must be live; `axes_count` must be null or writable;
  * `axes_array` must hold the input capacity when non-null.
  */
 unsigned int hr_ot_var_get_axis_infos(struct hr_face_t *face,
@@ -5204,25 +5204,25 @@ void *hr_set_get_user_data(const struct hr_set_t *set, const struct hr_user_data
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 void hr_set_clear(struct hr_set_t *set);
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 void hr_set_add(struct hr_set_t *set, hr_codepoint_t value);
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 hr_bool_t hr_set_has(const struct hr_set_t *set, hr_codepoint_t value);
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 hr_bool_t hr_set_is_empty(const struct hr_set_t *set);
 
@@ -5230,7 +5230,7 @@ hr_bool_t hr_set_is_empty(const struct hr_set_t *set);
  * Returns false for the inert empty singleton. Rust allocation failures abort.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 hr_bool_t hr_set_allocation_successful(const struct hr_set_t *set);
 
@@ -5238,19 +5238,19 @@ hr_bool_t hr_set_allocation_successful(const struct hr_set_t *set);
  * Copies the contents, without copying user data.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 struct hr_set_t *hr_set_copy(const struct hr_set_t *set);
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 void hr_set_invert(struct hr_set_t *set);
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 hr_bool_t hr_set_is_inverted(const struct hr_set_t *set);
 
@@ -5259,7 +5259,7 @@ hr_bool_t hr_set_is_inverted(const struct hr_set_t *set);
  * is ignored for ordinary sets and extends to the end for inverted sets.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 void hr_set_add_range(struct hr_set_t *set, hr_codepoint_t first, hr_codepoint_t last);
 
@@ -5267,7 +5267,7 @@ void hr_set_add_range(struct hr_set_t *set, hr_codepoint_t first, hr_codepoint_t
  * Adds codepoints supplied in increasing order.
  *
  * # Safety
- * `set` must be `NULL` or live. `sorted_codepoints` must point to
+ * `set` must be live. `sorted_codepoints` must point to
  * `num_codepoints` readable elements, or be `NULL` when the count is zero.
  */
 void hr_set_add_sorted_array(struct hr_set_t *set,
@@ -5276,7 +5276,7 @@ void hr_set_add_sorted_array(struct hr_set_t *set,
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 void hr_set_del(struct hr_set_t *set, hr_codepoint_t value);
 
@@ -5285,19 +5285,19 @@ void hr_set_del(struct hr_set_t *set, hr_codepoint_t value);
  * ordinary sets and is ignored for inverted sets.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 void hr_set_del_range(struct hr_set_t *set, hr_codepoint_t first, hr_codepoint_t last);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 hr_bool_t hr_set_is_equal(const struct hr_set_t *set, const struct hr_set_t *other);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 hr_bool_t hr_set_intersects(const struct hr_set_t *set, const struct hr_set_t *other);
 
@@ -5305,13 +5305,13 @@ hr_bool_t hr_set_intersects(const struct hr_set_t *set, const struct hr_set_t *o
  * Equal sets have equal hashes. The hash value is implementation dependent.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 unsigned int hr_set_hash(const struct hr_set_t *set);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 hr_bool_t hr_set_is_subset(const struct hr_set_t *set, const struct hr_set_t *larger_set);
 
@@ -5319,37 +5319,37 @@ hr_bool_t hr_set_is_subset(const struct hr_set_t *set, const struct hr_set_t *la
  * Replaces the contents, retaining the destination's user data.
  *
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 void hr_set_set(struct hr_set_t *set, const struct hr_set_t *other);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 void hr_set_union(struct hr_set_t *set, const struct hr_set_t *other);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 void hr_set_intersect(struct hr_set_t *set, const struct hr_set_t *other);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 void hr_set_subtract(struct hr_set_t *set, const struct hr_set_t *other);
 
 /**
  * # Safety
- * Both sets must be `NULL` or live.
+ * Both sets must be live.
  */
 void hr_set_symmetric_difference(struct hr_set_t *set, const struct hr_set_t *other);
 
 /**
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 unsigned int hr_set_get_population(const struct hr_set_t *set);
 
@@ -5357,7 +5357,7 @@ unsigned int hr_set_get_population(const struct hr_set_t *set);
  * Returns the smallest value, or `HR_SET_VALUE_INVALID` if empty.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 hr_codepoint_t hr_set_get_min(const struct hr_set_t *set);
 
@@ -5365,7 +5365,7 @@ hr_codepoint_t hr_set_get_min(const struct hr_set_t *set);
  * Returns the largest value, or `HR_SET_VALUE_INVALID` if empty.
  *
  * # Safety
- * `set` must be `NULL` or live.
+ * `set` must be live.
  */
 hr_codepoint_t hr_set_get_max(const struct hr_set_t *set);
 
@@ -5374,7 +5374,7 @@ hr_codepoint_t hr_set_get_max(const struct hr_set_t *set);
  * that value again.
  *
  * # Safety
- * `set` must be `NULL` or live. `codepoint` must be writable.
+ * `set` must be live. `codepoint` must be writable.
  */
 hr_bool_t hr_set_next(const struct hr_set_t *set, hr_codepoint_t *codepoint);
 
@@ -5383,7 +5383,7 @@ hr_bool_t hr_set_next(const struct hr_set_t *set, hr_codepoint_t *codepoint);
  * writes that value again.
  *
  * # Safety
- * `set` must be `NULL` or live. `codepoint` must be writable.
+ * `set` must be live. `codepoint` must be writable.
  */
 hr_bool_t hr_set_previous(const struct hr_set_t *set, hr_codepoint_t *codepoint);
 
@@ -5392,7 +5392,7 @@ hr_bool_t hr_set_previous(const struct hr_set_t *set, hr_codepoint_t *codepoint)
  * `HR_SET_VALUE_INVALID`; exhaustion writes it to both outputs.
  *
  * # Safety
- * `set` must be `NULL` or live. `first` and `last` must be writable.
+ * `set` must be live. `first` and `last` must be writable.
  */
 hr_bool_t hr_set_next_range(const struct hr_set_t *set,
                             hr_codepoint_t *first,
@@ -5403,7 +5403,7 @@ hr_bool_t hr_set_next_range(const struct hr_set_t *set,
  * `HR_SET_VALUE_INVALID`; exhaustion writes it to both outputs.
  *
  * # Safety
- * `set` must be `NULL` or live. `first` and `last` must be writable.
+ * `set` must be live. `first` and `last` must be writable.
  */
 hr_bool_t hr_set_previous_range(const struct hr_set_t *set,
                                 hr_codepoint_t *first,
@@ -5414,7 +5414,7 @@ hr_bool_t hr_set_previous_range(const struct hr_set_t *set,
  * `HR_SET_VALUE_INVALID`. Returns the number written.
  *
  * # Safety
- * `set` must be `NULL` or live. `out` must point to `size` writable elements,
+ * `set` must be live. `out` must point to `size` writable elements,
  * or be `NULL` when `size` is zero.
  */
 unsigned int hr_set_next_many(const struct hr_set_t *set,
@@ -5439,7 +5439,7 @@ unsigned int hr_set_next_many(const struct hr_set_t *set,
  *
  * # Safety
  *
- * `font` and `buffer` must be `NULL` or live, and `features` must point to
+ * `font` and `buffer` must be live, and `features` must point to
  * `num_features` readable entries.
  */
 void hr_shape(struct hr_font_t *font,
@@ -5481,7 +5481,7 @@ void hr_shape(struct hr_font_t *font,
  *
  * # Safety
  *
- * `font` and `buffer` must be `NULL` or live, `features` must point to
+ * `font` and `buffer` must be live, `features` must point to
  * `num_features` readable entries, and `shaper_list` must be `NULL` or a
  * `NULL`-terminated array of NUL-terminated strings.
  */
@@ -5693,7 +5693,7 @@ void *hr_shape_plan_get_user_data(struct hr_shape_plan_t *shape_plan,
  *
  * # Safety
  *
- * `shape_plan` must be `NULL` or a live plan.
+ * `shape_plan` must be a live plan.
  */
 const char *hr_shape_plan_get_shaper(struct hr_shape_plan_t *shape_plan);
 
@@ -5702,7 +5702,7 @@ const char *hr_shape_plan_get_shaper(struct hr_shape_plan_t *shape_plan);
  *
  * # Safety
  *
- * `shape_plan` must be `NULL` or a live plan, and `props` must be `NULL` or
+ * `shape_plan` must be a live plan, and `props` must be `NULL` or
  * writable.
  */
 void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
@@ -5711,8 +5711,8 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
 /**
  * Shapes a buffer using a plan that was built beforehand.
  *
- * Returns false without shaping if the plan is the empty one, if `font` or
- * `buffer` is `NULL`, or if the buffer's last reference is being released.
+ * Returns false without shaping if the plan is the empty one, or if the
+ * buffer's last reference is being released.
  * An empty buffer returns true, having nothing to do.
  * If the shaper panics, this returns false and clears the buffer, as
  * `hr_shape_full` does, and like it only where panics unwind.
@@ -5731,7 +5731,7 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
  *
  * # Safety
  *
- * `shape_plan`, `font` and `buffer` must be `NULL` or live, and `features`
+ * `shape_plan`, `font` and `buffer` must be live, and `features`
  * must point to `num_features` readable entries.
  */
 hr_bool_t hr_shape_plan_execute(struct hr_shape_plan_t *shape_plan,

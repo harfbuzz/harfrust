@@ -114,10 +114,10 @@ pub unsafe extern "C" fn hr_map_get_user_data(
 /// Returns false for the inert empty singleton. Rust allocation failures abort.
 ///
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_allocation_successful(map: *const hr_map_t) -> hr_bool_t {
-    // SAFETY: `or_empty` takes `map`, which is `NULL` or live by this
+    // SAFETY: `or_empty` takes `map`, which is `NULL`, or live by this
     // function's contract, and answers with a reference to that map or to
     // the empty one. `is_immutable` takes a `NULL` or live map, and is
     // handed that reference as a pointer.
@@ -127,10 +127,10 @@ pub unsafe extern "C" fn hr_map_allocation_successful(map: *const hr_map_t) -> h
 /// Copies the contents, without copying user data.
 ///
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_copy(map: *const hr_map_t) -> *mut hr_map_t {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     let map = unsafe { object::or_empty(map) };
     object::create(hr_map_t {
         header: ObjectHeader::new(),
@@ -140,10 +140,10 @@ pub unsafe extern "C" fn hr_map_copy(map: *const hr_map_t) -> *mut hr_map_t {
 }
 
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_clear(map: *mut hr_map_t) {
-    // SAFETY: `map` is `NULL` or live by this function's contract, and what
+    // SAFETY: `map` is `NULL`, or live by this function's contract, and what
     // `as_mutable` returns must not be aliased. It returns `None` for a map
     // that takes no changes, the shared empty map among them. Any other is
     // being modified by this caller, who has exclusive access to it: the
@@ -156,31 +156,31 @@ pub unsafe extern "C" fn hr_map_clear(map: *mut hr_map_t) {
 }
 
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_is_empty(map: *const hr_map_t) -> hr_bool_t {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     unsafe { object::or_empty(map) }.entries.is_empty().into()
 }
 
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_get_population(map: *const hr_map_t) -> c_uint {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     unsafe { object::or_empty(map) }.entries.len() as c_uint
 }
 
 /// # Safety
-/// Both maps must be `NULL` or live.
+/// Both maps must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_is_equal(
     map: *const hr_map_t,
     other: *const hr_map_t,
 ) -> hr_bool_t {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     let map = unsafe { object::or_empty(map) };
-    // SAFETY: `other` is `NULL` or live by this function's contract. Both
+    // SAFETY: `other` is `NULL`, or live by this function's contract. Both
     // references are shared, so the two may be one map.
     let other = unsafe { object::or_empty(other) };
     (map.entries.len() == other.entries.len()
@@ -197,10 +197,10 @@ pub unsafe extern "C" fn hr_map_is_equal(
 /// value is implementation dependent.
 ///
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_hash(map: *const hr_map_t) -> c_uint {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     unsafe { object::or_empty(map) }
         .entries
         .iter()
@@ -215,14 +215,14 @@ pub unsafe extern "C" fn hr_map_hash(map: *const hr_map_t) -> c_uint {
 /// values are accepted, including `HR_MAP_VALUE_INVALID`.
 ///
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_set(
     map: *mut hr_map_t,
     key: hr_codepoint_t,
     value: hr_codepoint_t,
 ) {
-    // SAFETY: as in `hr_map_clear`: `map` is `NULL` or live by this
+    // SAFETY: as in `hr_map_clear`: `map` is `NULL`, or live by this
     // function's contract, and a map that takes changes is the caller's
     // alone while it is modified, as the README requires under "Threading".
     if let Some(map) = unsafe { object::as_mutable(map) } {
@@ -234,10 +234,10 @@ pub unsafe extern "C" fn hr_map_set(
 /// `hr_map_has` to distinguish an absent key from a stored invalid value.
 ///
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_get(map: *const hr_map_t, key: hr_codepoint_t) -> hr_codepoint_t {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     let map = unsafe { object::or_empty(map) };
     map.indices
         .get(&key)
@@ -245,10 +245,10 @@ pub unsafe extern "C" fn hr_map_get(map: *const hr_map_t, key: hr_codepoint_t) -
 }
 
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_del(map: *mut hr_map_t, key: hr_codepoint_t) {
-    // SAFETY: as in `hr_map_clear`: `map` is `NULL` or live by this
+    // SAFETY: as in `hr_map_clear`: `map` is `NULL`, or live by this
     // function's contract, and a map that takes changes is the caller's
     // alone while it is modified, as the README requires under "Threading".
     if let Some(map) = unsafe { object::as_mutable(map) } {
@@ -262,10 +262,10 @@ pub unsafe extern "C" fn hr_map_del(map: *mut hr_map_t, key: hr_codepoint_t) {
 }
 
 /// # Safety
-/// `map` must be `NULL` or live.
+/// `map` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_has(map: *const hr_map_t, key: hr_codepoint_t) -> hr_bool_t {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     unsafe { object::or_empty(map) }
         .indices
         .contains_key(&key)
@@ -275,7 +275,7 @@ pub unsafe extern "C" fn hr_map_has(map: *const hr_map_t, key: hr_codepoint_t) -
 /// Adds the source's entries, replacing values for keys already present.
 ///
 /// # Safety
-/// Both maps must be `NULL` or live.
+/// Both maps must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_update(map: *mut hr_map_t, other: *const hr_map_t) {
     let other = if other.is_null() {
@@ -289,7 +289,7 @@ pub unsafe extern "C" fn hr_map_update(map: *mut hr_map_t, other: *const hr_map_
     // SAFETY: `other` is the caller's pointer, live by this function's
     // contract, or the empty map standing in for `NULL`.
     let other = unsafe { object::or_empty(other) };
-    // SAFETY: `map` is `NULL` or live by this function's contract, and a map
+    // SAFETY: `map` is `NULL`, or live by this function's contract, and a map
     // that takes changes is the caller's alone while it is modified, as the
     // README requires under "Threading". `other` is a different map, as
     // checked above, so the reference to it does not alias this one.
@@ -304,7 +304,7 @@ pub unsafe extern "C" fn hr_map_update(map: *mut hr_map_t, other: *const hr_map_
 /// exhaustion resets it to -1 and leaves key and value unchanged.
 ///
 /// # Safety
-/// `map` must be `NULL` or live and must not be modified during iteration.
+/// `map` must be live and must not be modified during iteration.
 /// `idx`, `key` and `value` must point to writable, nonoverlapping storage.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_next(
@@ -322,7 +322,7 @@ pub unsafe extern "C" fn hr_map_next(
     // carries a value in, which the README has the caller set before the
     // call.
     let next = unsafe { *idx }.wrapping_add(1) as usize;
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     let map = unsafe { object::or_empty(map) };
     if let Some(&(k, v)) = map.entries.get(next) {
         // SAFETY: each write needs its pointer aligned and writable. None of
@@ -349,12 +349,12 @@ pub unsafe extern "C" fn hr_map_next(
 /// Adds the map's keys to the supplied set, preserving existing members.
 ///
 /// # Safety
-/// `map` and `keys` must be `NULL` or live.
+/// `map` and `keys` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_keys(map: *const hr_map_t, keys: *mut hr_set_t) {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     let map = unsafe { object::or_empty(map) };
-    // SAFETY: `keys` is `NULL` or live by this function's contract, and a set
+    // SAFETY: `keys` is `NULL`, or live by this function's contract, and a set
     // that takes changes is the caller's alone while it is modified, as the
     // README requires under "Threading". The reference to `map` does not
     // alias it: a map and a set are separate objects.
@@ -368,12 +368,12 @@ pub unsafe extern "C" fn hr_map_keys(map: *const hr_map_t, keys: *mut hr_set_t) 
 /// Adds the map's values to the supplied set, preserving existing members.
 ///
 /// # Safety
-/// `map` and `values` must be `NULL` or live.
+/// `map` and `values` must be live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_map_values(map: *const hr_map_t, values: *mut hr_set_t) {
-    // SAFETY: `map` is `NULL` or live by this function's contract.
+    // SAFETY: `map` is `NULL`, or live by this function's contract.
     let map = unsafe { object::or_empty(map) };
-    // SAFETY: `values` is `NULL` or live by this function's contract, and a
+    // SAFETY: `values` is `NULL`, or live by this function's contract, and a
     // set that takes changes is the caller's alone while it is modified, as
     // the README requires under "Threading". The reference to `map` does not
     // alias it: a map and a set are separate objects.

@@ -546,7 +546,7 @@ fn settings_bounded(table: &Feat) -> bool {
 /// zero without reading it; the README has the rule for a count and its
 /// array. Results preserve the order in the table.
 /// # Safety
-/// `face` must be null or live; `feature_count` must be null or writable;
+/// `face` must be live; `feature_count` must be null or writable;
 /// `features` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
@@ -562,7 +562,7 @@ pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
     // writable and a non-null `features` hold the capacity it gives on
     // entry, which the README has the caller set before the call.
     let page = unsafe { Page::new(feature_count, features) };
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let table = feat(face);
     let records = table.as_ref().map_or(&[][..], |table| table.names());
@@ -585,7 +585,7 @@ pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
 /// array sets the count to zero without reading it; the README has the rule
 /// for a count and its array.
 /// # Safety
-/// `face` must be null or live; `selector_count` and `default_index` must be
+/// `face` must be live; `selector_count` and `default_index` must be
 /// null or writable; `selectors` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
@@ -605,7 +605,7 @@ pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
     // writable and a non-null `selectors` hold the capacity it gives on
     // entry, which the README has the caller set before the call.
     let page = unsafe { Page::new(selector_count, selectors) };
-    // SAFETY: `face` is `NULL` or live by this function's contract.
+    // SAFETY: `face` is `NULL`, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let feature = feat(face).and_then(|table| {
         let feature = table.find(u16::try_from(feature_type).ok()?)?;

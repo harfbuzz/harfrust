@@ -168,10 +168,10 @@ fn axis(direction: hr_direction_t) -> StretchAxis {
 
 /// Whether a face has a MATH table with a nonzero version.
 /// # Safety
-/// `face` must be null or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_has_data(face: *mut hr_face_t) -> hr_bool_t {
-    // SAFETY: `face` is null or a live face by this function's contract.
+    // SAFETY: `face` is null, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     face_math(face).is_some_and(|math| math.version().major != 0 || math.version().minor != 0)
         as hr_bool_t
@@ -179,13 +179,13 @@ pub unsafe extern "C" fn hr_ot_math_has_data(face: *mut hr_face_t) -> hr_bool_t 
 
 /// Returns a MATH constant, scaled on its specified axis.
 /// # Safety
-/// `font` must be null or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_constant(
     font: *mut hr_font_t,
     constant: hr_ot_math_constant_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is null or a live font by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     let Some(math) = font_math(font) else {
         return 0;
@@ -213,13 +213,13 @@ pub unsafe extern "C" fn hr_ot_math_get_constant(
 
 /// Returns the glyph's MATH italics correction, or zero.
 /// # Safety
-/// `font` must be null or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_glyph_italics_correction(
     font: *mut hr_font_t,
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is null or a live font by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     font_math(font)
         .and_then(|math| math.math_glyph_info().ok())
@@ -230,13 +230,13 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_italics_correction(
 
 /// Returns the top accent attachment, falling back to half the glyph advance.
 /// # Safety
-/// `font` must be null or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_glyph_top_accent_attachment(
     font: *mut hr_font_t,
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is null or a live font by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let value = font_math(state)
         .and_then(|math| math.math_glyph_info().ok())
@@ -253,13 +253,13 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_top_accent_attachment(
 
 /// Whether the glyph is covered by MATH's extended-shape set.
 /// # Safety
-/// `face` must be null or a live face.
+/// `face` must be a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_is_glyph_extended_shape(
     face: *mut hr_face_t,
     glyph: hr_codepoint_t,
 ) -> hr_bool_t {
-    // SAFETY: `face` is null or a live face by this function's contract.
+    // SAFETY: `face` is null, or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     face_math(face)
         .and_then(|math| math.math_glyph_info().ok())
@@ -268,7 +268,7 @@ pub unsafe extern "C" fn hr_ot_math_is_glyph_extended_shape(
 
 /// Returns a MATH kern selected in the font's scaled coordinate space.
 /// # Safety
-/// `font` must be null or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
     font: *mut hr_font_t,
@@ -276,7 +276,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
     kern: hr_ot_math_kern_t,
     correction_height: hr_position_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is null or a live font by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let Some(corner) = corner(kern) else { return 0 };
     let Some(table) = font_math(state)
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
 /// zero without reading it; the README has the rule for a count and its
 /// array.
 /// # Safety
-/// `font` must be null or live; `entries_count` must be null or writable;
+/// `font` must be live; `entries_count` must be null or writable;
 /// `kern_entries` must hold its input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
@@ -330,7 +330,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
     // writable and a non-null `kern_entries` hold the capacity it gives on
     // entry, which the README has the caller set before the call.
     let page = unsafe { Page::new(entries_count, kern_entries) };
-    // SAFETY: `font` is null or live by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let table = corner(kern).and_then(|corner| {
         font_math(state)
@@ -372,7 +372,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
 /// zero without reading it; the README has the rule for a count and its
 /// array.
 /// # Safety
-/// `font` must be null or live; `variants_count` must be null or writable;
+/// `font` must be live; `variants_count` must be null or writable;
 /// `variants` must hold its input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
     // writable and a non-null `variants` hold the capacity it gives on
     // entry, which the README has the caller set before the call.
     let page = unsafe { Page::new(variants_count, variants) };
-    // SAFETY: `font` is null or live by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let construction = font_math(state)
         .and_then(|math| math.math_variants().ok())
@@ -416,13 +416,13 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
 
 /// Returns the minimum overlap needed between MATH assembly parts.
 /// # Safety
-/// `font` must be null or a live font.
+/// `font` must be a live font.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_min_connector_overlap(
     font: *mut hr_font_t,
     direction: hr_direction_t,
 ) -> hr_position_t {
-    // SAFETY: `font` is null or a live font by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     font_math(font)
         .and_then(|math| math.math_variants().ok())
@@ -442,7 +442,7 @@ pub unsafe extern "C" fn hr_ot_math_get_min_connector_overlap(
 /// zero without reading it; the README has the rule for a count and its
 /// array.
 /// # Safety
-/// `font` must be null or live; `parts_count` and `italics_correction` must be
+/// `font` must be live; `parts_count` and `italics_correction` must be
 /// null or writable; `parts` must hold the input capacity when non-null.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
@@ -461,7 +461,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
     // `parts` hold the capacity it gives on entry, which the README has the
     // caller set before the call.
     let page = unsafe { Page::new(parts_count, parts) };
-    // SAFETY: `font` is null or live by this function's contract.
+    // SAFETY: `font` is null, or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let assembly = font_math(state)
         .and_then(|math| math.math_variants().ok())
