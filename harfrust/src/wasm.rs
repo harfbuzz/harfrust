@@ -25,9 +25,7 @@ use read_fonts::model::glyph::outline::{DrawMemory, DrawOptions, PathSink};
 use read_fonts::model::{Font as ModelFont, Kind, Source};
 use read_fonts::types::{F2Dot14, GlyphId, Tag as RawTag};
 use read_fonts::{FontRef, TableProvider};
-use wasmi::{
-    core::ValType, Caller, Engine, Extern, ExternType, Linker, Memory, Module, Store, Val,
-};
+use wasmi::{core::ValType, Caller, Engine, Extern, ExternType, Linker, Memory, Module, Store};
 
 use crate::{
     Buffer, Direction, Feature, GlyphInfo, GlyphPosition, Script, ShapeError, ShapeOptions, Shaper,
@@ -488,17 +486,11 @@ fn define_links<'a, 'b, 'c>(
         let ExternType::Func(func_type) = import.ty().clone() else {
             continue;
         };
-        let results = func_type.results().to_vec();
         linker.func_new(
             module_name,
             name,
             func_type,
-            move |_caller, _params, outputs| {
-                for (index, ty) in results.iter().enumerate() {
-                    outputs[index] = Val::default(*ty);
-                }
-                Ok(())
-            },
+            move |_caller, _params, _outputs| Err(wasmi::Error::new("unimplemented import")),
         )?;
     }
 
