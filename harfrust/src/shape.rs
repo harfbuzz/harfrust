@@ -22,6 +22,9 @@ pub fn shape(
     if buffer.content_type == Some(ContentType::Glyphs) {
         return Err(ShapeError::AlreadyShaped);
     }
+    if buffer.is_empty() {
+        return Ok(());
+    }
     if let Some(plan) = options.plan {
         return shape_with_plan(plan, font, buffer, &options);
     }
