@@ -1133,3 +1133,4 @@ fn wasm_shaper_creates_a_font_from_the_root_face() {
     let buffer = shape_text(WASM_API.to_vec(), "c", &[]);
     assert_eq!(glyph_ids(&buffer), vec![0, 2048, 0]);
 }
+

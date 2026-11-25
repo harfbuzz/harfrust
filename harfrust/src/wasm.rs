@@ -87,11 +87,8 @@ pub(crate) enum WasmModuleSlot {
     Unavailable,
 }
 
-/// Returns true if the font carries a `Wasm` table that can be read.
-pub(crate) fn has_wasm_table(font: &ModelFont) -> bool {
-    wasm_table_data(font).is_some()
-}
-
+/// Returns the bytes of the font's `Wasm` table, if it has one that can be
+/// read.
 fn wasm_table_data<'a>(font: &'a ModelFont) -> Option<&'a [u8]> {
     let (Source::Blob(blob), Kind::Sfnt(_, index)) = (font.source(), font.kind()) else {
         return None;
@@ -147,9 +144,6 @@ pub(crate) fn shape<'a, 'b, 'c>(
     options: &ShapeOptions<'_>,
 ) -> Option<Result<(), ShapeError>> {
     let model: &ModelFont = font;
-    if !has_wasm_table(model) {
-        return None;
-    }
     let cache = crate::shaper_font::layout_cache(model)?;
     let slot = cache.wasm.get_or_init(|| compile_slot(model));
     match slot {
