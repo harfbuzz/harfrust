@@ -6032,6 +6032,31 @@ fn glyphs_go_by_name_and_come_back_from_one() {
 }
 
 #[test]
+fn unnamed_glyphs_have_a_string_representation() {
+    unsafe {
+        with_named_font("OpenSans.subset1.ttf", |_, font| {
+            let mut name = [1 as c_char; 8];
+            let size = name.len() as c_uint;
+            let mut glyph = u32::MAX;
+            assert_eq!(hr_font_get_glyph_name(font, 1, name.as_mut_ptr(), size), 0);
+            assert_eq!(name[0], 0);
+            assert_eq!(
+                hr_font_get_glyph_from_name(font, c"gid1".as_ptr(), -1, &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 0);
+            hr_font_glyph_to_string(font, 1, name.as_mut_ptr(), size);
+            assert_eq!(std::ffi::CStr::from_ptr(name.as_ptr()), c"gid1");
+            assert_ne!(
+                hr_font_glyph_from_string(font, name.as_ptr(), -1, &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 1);
+        });
+    }
+}
+
+#[test]
 fn glyph_lookup_respects_the_variation_selector() {
     unsafe {
         with_named_font("NotoSansCJK.subset1.otf", |_, font| {
@@ -6457,12 +6482,12 @@ fn a_name_is_looked_up_without_asking_every_claimed_glyph_for_its_own() {
             0
         );
         assert_eq!(glyph, 0);
-        // And a glyph the face names nothing still answers to its `gidNNN`.
-        assert_ne!(
+        // The name index only contains names supplied by the font.
+        assert_eq!(
             hr_font_get_glyph_from_name(font, c"gid5".as_ptr(), -1, &raw mut glyph),
             0
         );
-        assert_eq!(glyph, 5);
+        assert_eq!(glyph, 0);
         assert_eq!(
             hr_font_get_glyph_from_name(font, c"gid05".as_ptr(), -1, &raw mut glyph),
             0

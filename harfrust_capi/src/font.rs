@@ -301,7 +301,9 @@ impl hr_font_t {
         // SAFETY: the view is used for this one lookup, while `self` is
         // borrowed, and what comes back borrows nothing from it.
         let shaper = unsafe { self.shaper() }?;
-        shaper.glyph_name(glyph.into())
+        shaper
+            .glyph_name(glyph.into())
+            .filter(|name| !name.is_synthesized())
     }
 
     /// A glyph's extents, from whichever callback answers, or from the font's
@@ -1937,16 +1939,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     let found = state
         .instance()
         .and_then(|instance| instance.glyph_by_name(wanted))
-        .map(|found| found.to_u32())
-        // A glyph the face names nothing still answers to the `gidNNN` that
-        // `hr_font_get_glyph_name` gives it.
-        .or_else(|| {
-            let candidate = wanted.strip_prefix("gid")?.parse().ok()?;
-            state
-                .glyph_name(candidate)
-                .is_some_and(|name| name.as_str() == wanted)
-                .then_some(candidate)
-        });
+        .map(|found| found.to_u32());
     let Some(found) = found else {
         return false.into();
     };
