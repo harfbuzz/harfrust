@@ -19,6 +19,10 @@ side effect of caching plans.
 let options = ShapeOptions::new().shapers(&[Shaper::Wasm, Shaper::Ot]);
 ```
 
+The `hr-shape` tool exposes the same choice: `--shapers=wasm,ot` tries the
+module first and leaves the rest to OpenType, `--shapers=wasm` alone insists on
+it, and `--list-shapers` prints the shapers the build supports.
+
 A supplied `ShapePlan` records the shaper it was built for, and that shaper is
 used instead of the list.
 
