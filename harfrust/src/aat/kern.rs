@@ -10,8 +10,8 @@ use read_fonts::{
 };
 
 use crate::aat::common::{
-    set_digest, set_heap_bytes, AatApplyContext, ClassCache, SafeToBreakAccel, SafeToBreakSubtable,
-    START_OF_TEXT,
+    advance_state_machine, set_digest, set_heap_bytes, AatApplyContext, ClassCache,
+    SafeToBreakAccel, SafeToBreakSubtable, START_OF_TEXT,
 };
 use crate::aat::kerx::SimpleKerning;
 use crate::buffer::*;
@@ -472,7 +472,6 @@ fn apply_state_machine_kerning(
                 if c.buffer.idx >= c.buffer.len {
                     break 'drive;
                 }
-                c.buffer.max_ops -= 1;
                 c.buffer.next_glyph();
 
                 let new_class = if c.buffer.idx < c.buffer.len {
@@ -562,14 +561,7 @@ fn apply_state_machine_kerning(
             break;
         }
 
-        c.buffer.max_ops -= 1;
-        if entry.has_advance() {
-            c.buffer.next_glyph();
-        } else if c.buffer.max_ops <= 0 {
-            // The machine keeps not advancing, and the buffer's work budget
-            // is spent. Fail the buffer, as the OpenType lookups do when the
-            // budget runs out.
-            c.buffer.successful = false;
+        if !advance_state_machine(c.buffer, entry.has_advance()) {
             break;
         }
     }

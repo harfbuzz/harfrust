@@ -20,6 +20,17 @@ pub(crate) const START_OF_TEXT: i32 = 0;
 
 pub(crate) type ClassCache = MappingCache;
 
+/// A transition that stays on the current glyph spends one operation.
+#[inline]
+pub(super) fn advance_state_machine(buffer: &mut Buffer, advance: bool) -> bool {
+    if advance {
+        buffer.next_glyph();
+        buffer.successful
+    } else {
+        buffer.charge_ops(1)
+    }
+}
+
 pub(crate) fn get_class<T: bytemuck::AnyBitPattern + FixedSize>(
     machine: &ExtendedStateTable<'_, T>,
     glyph_id: GlyphId,
@@ -914,6 +925,19 @@ mod tests {
             2, 1, // entry 2: action, stay in state 2
         ];
         words.iter().flat_map(|word| word.to_be_bytes()).collect()
+    }
+
+    #[test]
+    fn state_machine_can_spend_its_last_operation_without_advancing() {
+        let mut buffer = Buffer::new();
+        buffer.push_str("ab");
+        buffer.max_ops = 1;
+        assert!(advance_state_machine(&mut buffer, false));
+        assert_eq!((buffer.idx, buffer.max_ops), (0, 0));
+        assert!(advance_state_machine(&mut buffer, true));
+        assert_eq!((buffer.idx, buffer.max_ops), (1, 0));
+        assert!(!advance_state_machine(&mut buffer, false));
+        assert!(!buffer.successful);
     }
 
     #[test]

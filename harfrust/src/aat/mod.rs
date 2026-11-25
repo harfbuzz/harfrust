@@ -423,6 +423,53 @@ mod tests {
     }
 
     #[test]
+    fn advancing_kerning_transitions_preserve_the_budget() {
+        let kern = include_bytes!("../../tests/fonts/in-house/kern-format1.ttf").as_slice();
+        let kerx = include_bytes!("../../tests/fonts/rb_custom/kerx-stream-20.ttf").as_slice();
+        // Allow for marking unsafe breaks and, in kerx, reading the action
+        // values. All transitions in these two runs advance.
+        for (bytes, budget) in [(kern, 2), (kerx, 8)] {
+            let font = Font::new(bytes.to_vec(), 0).unwrap();
+            let shaper = ShaperFont::new(&font);
+            let plan = plan_for_text(&font, "ab");
+            let mut buffer = Buffer::new();
+            // Glyph 0 takes the start-state fast path. Glyphs 1 and 2
+            // exercise the ordinary transitions and their kerning actions.
+            buffer.push_codepoints(&[0, 0, 1, 2]);
+            buffer.set_direction(crate::Direction::LeftToRight);
+            buffer.clear_positions();
+            for glyph in buffer.glyph_infos_mut() {
+                glyph.mask = plan.kern_mask;
+            }
+            buffer.max_ops = budget;
+            if plan.apply_kerx {
+                layout::position(
+                    &plan,
+                    shaper.layout(),
+                    shaper.scale(),
+                    &mut buffer,
+                    #[cfg(feature = "tracing")]
+                    &shaper,
+                );
+            } else {
+                assert!(plan.apply_kern);
+                kern::apply(
+                    &plan,
+                    shaper.layout(),
+                    shaper.scale(),
+                    &mut buffer,
+                    #[cfg(feature = "tracing")]
+                    &shaper,
+                )
+                .unwrap();
+            }
+            assert!(buffer.successful);
+            assert_eq!(buffer.max_ops, 0);
+            assert!(buffer.glyph_positions().iter().any(|p| p.x_advance != 0));
+        }
+    }
+
+    #[test]
     fn gpos_kerning_leaves_legacy_kern_cache_uninitialized() {
         let font = Font::new(
             include_bytes!("../../tests/fonts/rb_custom/PT_Sans-Caption-Web-Regular.ttf").to_vec(),
