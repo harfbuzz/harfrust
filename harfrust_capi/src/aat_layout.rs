@@ -546,7 +546,8 @@ fn settings_bounded(table: &Feat) -> bool {
 /// unchanged. Results preserve the order in the table.
 /// # Safety
 /// `face` must be null or live; `feature_count` must be null or writable;
-/// `features` must hold the input capacity when non-null.
+/// `features` must hold the input capacity when non-null, and must not
+/// overlap `feature_count`.
 #[no_mangle]
 pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
     face: *mut hr_face_t,
@@ -554,10 +555,18 @@ pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
     feature_count: *mut c_uint,
     features: *mut hr_aat_layout_feature_type_t,
 ) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let table = feat(face);
     let records = table.as_ref().map_or(&[][..], |table| table.names());
     if !features.is_null() {
+        // SAFETY: `as_mut` needs `feature_count` null, or aligned, writable,
+        // holding a value, and accessed by nothing else while the reference
+        // is used. This function's contract has it null or writable. With
+        // `features` non-null, as here, it carries the capacity in, which
+        // the README has the caller set before the call. The only other
+        // writes before the reference's last use go to the array, which the
+        // contract keeps from overlapping the count.
         if let Some(count) = unsafe { feature_count.as_mut() } {
             let mut written = 0;
             for record in records
@@ -565,6 +574,12 @@ pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
                 .skip(start_offset as usize)
                 .take(*count as usize)
             {
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. A non-null
+                // `features` holds as many feature types as the count said
+                // on entry, by this function's contract, and `take` ends the
+                // loop before `written` reaches that. The slot only returns
+                // a value: it is written and not read.
                 unsafe { features.add(written).write(record.feature() as c_uint) };
                 written += 1;
             }
@@ -583,6 +598,7 @@ pub unsafe extern "C" fn hr_aat_layout_get_feature_types(
 /// # Safety
 /// `face` must be null or live; `selector_count` and `default_index` must be
 /// null or writable; `selectors` must hold the input capacity when non-null.
+/// `selector_count` must not overlap either of the others.
 #[no_mangle]
 pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
     face: *mut hr_face_t,
@@ -592,6 +608,7 @@ pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
     selectors: *mut hr_aat_layout_feature_selector_info_t,
     default_index: *mut c_uint,
 ) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let feature = feat(face).and_then(|table| {
         let feature = table.find(u16::try_from(feature_type).ok()?)?;
@@ -619,6 +636,15 @@ pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
         .as_ref()
         .map_or(&[][..], |(_, settings)| settings.settings());
     if !selectors.is_null() {
+        // SAFETY: `as_mut` needs `selector_count` null, or aligned, writable,
+        // holding a value, and accessed by nothing else while the reference
+        // is used. This function's contract has it null or writable. With
+        // `selectors` non-null, as here, it carries the capacity in, which
+        // the README has the caller set before the call; writing
+        // `default_index` above left it alone, as the contract keeps the two
+        // apart. The only other writes before the reference's last use go to
+        // the array, which the contract also keeps from overlapping the
+        // count.
         if let Some(count) = unsafe { selector_count.as_mut() } {
             let mut written = 0;
             for setting in records
@@ -633,6 +659,12 @@ pub unsafe extern "C" fn hr_aat_layout_feature_type_get_selector_infos(
                     disable: disable.unwrap_or(enable + 1),
                     reserved: 0,
                 };
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. A non-null
+                // `selectors` holds as many selectors as the count said on
+                // entry, by this function's contract, and `take` ends the
+                // loop before `written` reaches that. The slot only returns
+                // a value: it is written and not read.
                 unsafe { selectors.add(written).write(info) };
                 written += 1;
             }

@@ -45,14 +45,22 @@ pub type hr_get_table_tags_func_t = Option<
 >;
 
 struct TableTagsFunc {
+    // Safety invariant: `func`, if any, is safe to call from any thread with
+    // `user_data`, a live face, and a count and an array as
+    // `hr_face_get_table_tags` takes them.
     func: hr_get_table_tags_func_t,
     user_data: *mut c_void,
+    // Safety invariant: `destroy`, if any, is safe to call once with
+    // `user_data`, on any thread.
     destroy: hr_destroy_func_t,
 }
 
 impl Drop for TableTagsFunc {
     fn drop(&mut self) {
         if let Some(destroy) = self.destroy {
+            // SAFETY: by the invariant on `destroy`, one call with
+            // `user_data` is sound on whichever thread drops this, and it
+            // is dropped once.
             unsafe { destroy(self.user_data) };
         }
     }
@@ -60,8 +68,13 @@ impl Drop for TableTagsFunc {
 
 /// A table callback together with the data it was registered with.
 struct TableFunc {
+    // Safety invariant: `func`, if any, is safe to call from any thread with
+    // `user_data`, and returns `NULL` or a live blob along with a reference
+    // to it that it gives up.
     func: hr_reference_table_func_t,
     user_data: *mut c_void,
+    // Safety invariant: `destroy`, if any, is safe to call once with
+    // `user_data`, on any thread.
     destroy: hr_destroy_func_t,
     /// Filled in once the face exists, so the callback can be handed the face
     /// it is being asked about. Tables are only ever fetched lazily, well
@@ -73,6 +86,9 @@ struct TableFunc {
 // data must be safe to use from any thread. `read-fonts` requires this because
 // it may load a table from whichever thread first touches it.
 unsafe impl Send for TableFunc {}
+// SAFETY: as for `Send`. Shared, this is called from several threads at
+// once, which is the use that requirement is there for, and the face pointer
+// it hands the callback is an atomic.
 unsafe impl Sync for TableFunc {}
 
 impl TableFunc {
@@ -101,7 +117,9 @@ impl TableFunc {
 impl Drop for TableFunc {
     fn drop(&mut self) {
         if let Some(destroy) = self.destroy {
-            // SAFETY: `destroy` was supplied alongside `user_data`.
+            // SAFETY: by the invariant on `destroy`, one call with
+            // `user_data` is sound on whichever thread drops this, and it
+            // is dropped once.
             unsafe { destroy(self.user_data) };
         }
     }
@@ -113,6 +131,8 @@ enum FaceSource {
     Empty,
     /// A blob, over which this face owns a reference.
     Blob {
+        // Safety invariant: a live blob, one reference to which this owns
+        // until it is dropped.
         blob: *mut hr_blob_t,
         /// The selected font is independent of the writable index metadata.
         index: c_uint,
@@ -135,6 +155,12 @@ impl FaceSource {
         else {
             return None;
         };
+        // SAFETY: `as_ref` needs `blob` to be null, or a live blob that
+        // nothing writes while the reference is used. By the invariant on
+        // `blob` it is live for as long as this source exists, which the
+        // borrow of `self` that the reference is handed back under ends
+        // before. Whoever writes a live object answers for no reference to
+        // it being in use (see "Exclusive access" in `object`).
         let blob = unsafe { blob.as_ref() }?;
         let directory = directory
             .get_or_init(|| BlobDirectory::new(blob.bytes(), *index))
@@ -192,7 +218,8 @@ impl BlobDirectory {
 impl Drop for FaceSource {
     fn drop(&mut self) {
         if let FaceSource::Blob { blob, .. } = *self {
-            // SAFETY: the face owns this reference.
+            // SAFETY: by the invariant on `blob` it is live and this owns a
+            // reference to it, which it gives up here, once.
             unsafe { object::destroy(blob) };
         }
     }
@@ -238,8 +265,13 @@ impl hr_face_t {
     pub(crate) fn blob_len(&self) -> Option<usize> {
         match &self.source {
             FaceSource::Empty => Some(0),
-            // SAFETY: the face owns a reference to its blob.
             FaceSource::Blob { blob, .. } => {
+                // SAFETY: `as_ref` needs `blob` to be null, or a live blob
+                // that nothing writes while the reference is used, which is
+                // for this one read. By the invariant on `blob` it is live
+                // for as long as the source exists, and whoever writes a
+                // live object answers for no reference to it being in use
+                // (see "Exclusive access" in `object`).
                 Some(unsafe { blob.as_ref() }.map_or(0, |blob| blob.bytes().len()))
             }
             FaceSource::Function(_) => None,
@@ -288,6 +320,11 @@ impl Object for hr_face_t {
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_count(blob: *mut hr_blob_t) -> c_uint {
+    // SAFETY: `as_ref` needs `blob` to be null, or a live blob that nothing
+    // writes while the reference is used, which is within this call. This
+    // function's contract has `blob` `NULL` or live, and whoever writes a
+    // live object answers for no reference to it being in use (see
+    // "Exclusive access" in `object`).
     let Some(blob) = (unsafe { blob.as_ref() }) else {
         return 0;
     };
@@ -307,6 +344,8 @@ pub unsafe extern "C" fn hr_face_count(blob: *mut hr_blob_t) -> c_uint {
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_create(blob: *mut hr_blob_t, index: c_uint) -> *mut hr_face_t {
+    // SAFETY: `hr_face_create_or_fail` takes `NULL` or a live blob, which
+    // this function's contract has `blob` be.
     let face = unsafe { hr_face_create_or_fail(blob, index) };
     if face.is_null() {
         return hr_face_t::empty();
@@ -324,6 +363,11 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
     blob: *mut hr_blob_t,
     index: c_uint,
 ) -> *mut hr_face_t {
+    // SAFETY: `as_ref` needs `blob` to be null, or a live blob that nothing
+    // writes while `blob_ref` is used, which is within this call. This
+    // function's contract has `blob` `NULL` or live, and whoever writes a
+    // live object answers for no reference to it being in use (see
+    // "Exclusive access" in `object`).
     let Some(blob_ref) = (unsafe { blob.as_ref() }) else {
         return core::ptr::null_mut();
     };
@@ -331,6 +375,13 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
         return core::ptr::null_mut();
     };
     // Keep the blob alive for as long as the face.
+    //
+    // SAFETY: `reference` needs `blob` to be `NULL` or live, which this
+    // function's contract has it. The reference taken goes to the face's
+    // source below, as the invariant on `FaceSource::Blob` asks. One taken
+    // while `blob` is releasing its last keeps nothing alive, and then it is
+    // for whoever asked for the face to give it back before `blob` is freed
+    // (see "Owning a reference" in `object`).
     let owned = unsafe { object::reference(blob) };
     object::create(hr_face_t {
         header: ObjectHeader::new(),
@@ -361,7 +412,8 @@ pub unsafe extern "C" fn hr_face_create_or_fail(
 ///
 /// `reference_table_func` must be safe to call with `user_data` from any
 /// thread, and must return either `NULL` or a blob reference it gives up
-/// ownership of.
+/// ownership of. `destroy`, if given, must be safe to call once with
+/// `user_data`, from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_create_for_tables(
     reference_table_func: hr_reference_table_func_t,
@@ -372,11 +424,18 @@ pub unsafe extern "C" fn hr_face_create_for_tables(
     // handed over to be released either way.
     if reference_table_func.is_none() {
         if let Some(destroy) = destroy {
-            // SAFETY: `destroy` was supplied alongside `user_data`.
+            // SAFETY: this function's contract has `destroy` safe to call
+            // once with `user_data`, on this thread as on any. This is that
+            // call: nothing is built that would make another.
             unsafe { destroy(user_data) };
         }
         return hr_face_t::empty();
     }
+    // This upholds the invariants on `TableFunc`: this function's contract
+    // has `reference_table_func` safe to call with `user_data` from any
+    // thread and returning `NULL` or a blob reference it gives up, and
+    // `destroy` safe to call once with `user_data` on any thread, which
+    // nothing but dropping this does.
     let state = Arc::new(TableFunc {
         func: reference_table_func,
         user_data,
@@ -420,6 +479,8 @@ pub extern "C" fn hr_face_get_empty() -> *mut hr_face_t {
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_reference(face: *mut hr_face_t) -> *mut hr_face_t {
+    // SAFETY: `face` is `NULL` or live by this function's contract. The
+    // reference taken is the caller's.
     unsafe { object::reference(face) }
 }
 
@@ -431,6 +492,8 @@ pub unsafe extern "C" fn hr_face_reference(face: *mut hr_face_t) -> *mut hr_face
 /// reference being released.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_destroy(face: *mut hr_face_t) {
+    // SAFETY: by this function's contract `face` is `NULL` or live, and the
+    // caller owns the reference it gives up here.
     unsafe { object::destroy(face) };
 }
 
@@ -439,6 +502,8 @@ pub unsafe extern "C" fn hr_face_destroy(face: *mut hr_face_t) {
 /// # Safety
 ///
 /// `face` must be `NULL` or a live face, and `key` must outlive it.
+/// `destroy`, if given, must be safe to call once with `data`, on whichever
+/// thread releases it.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_set_user_data(
     face: *mut hr_face_t,
@@ -447,6 +512,9 @@ pub unsafe extern "C" fn hr_face_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
+    // SAFETY: by this function's contract `face` is `NULL` or live, `key`
+    // outlives it, and `destroy` may be called once with `data` wherever
+    // the face comes to release it.
     unsafe { object::set_user_data(face, key, data, destroy, replace != 0) }.into()
 }
 
@@ -460,6 +528,7 @@ pub unsafe extern "C" fn hr_face_get_user_data(
     face: *mut hr_face_t,
     key: *const hr_user_data_key_t,
 ) -> *mut c_void {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     unsafe { object::get_user_data(face, key) }
 }
 
@@ -470,6 +539,7 @@ pub unsafe extern "C" fn hr_face_get_user_data(
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_make_immutable(face: *mut hr_face_t) {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     unsafe { object::make_immutable(face) };
 }
 
@@ -480,6 +550,7 @@ pub unsafe extern "C" fn hr_face_make_immutable(face: *mut hr_face_t) {
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_is_immutable(face: *mut hr_face_t) -> hr_bool_t {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     unsafe { object::is_immutable(face.cast_const()) }.into()
 }
 
@@ -490,6 +561,8 @@ pub unsafe extern "C" fn hr_face_is_immutable(face: *mut hr_face_t) -> hr_bool_t
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_index(face: *mut hr_face_t) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     unsafe { object::or_empty(face.cast_const()) }.index
 }
 
@@ -502,6 +575,10 @@ pub unsafe extern "C" fn hr_face_get_index(face: *mut hr_face_t) -> c_uint {
 /// `face` must be `NULL` or live, and must not be accessed concurrently.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_set_index(face: *mut hr_face_t, index: c_uint) {
+    // SAFETY: `as_mutable` needs `face` to be `NULL` or live and, if it
+    // takes changes, nothing else using it while the reference is used,
+    // which is within this call. This function's contract has `face` `NULL`
+    // or live, and not accessed by anything else meanwhile.
     if let Some(face) = unsafe { object::as_mutable(face) } {
         face.index = index;
     }
@@ -514,7 +591,9 @@ pub unsafe extern "C" fn hr_face_set_index(face: *mut hr_face_t, index: c_uint) 
 ///
 /// # Safety
 /// `face` must be `NULL` or live and must not be accessed concurrently.
-/// The callback and its data must be safe to invoke from any thread.
+/// The callback and its data must be safe to invoke from any thread, with
+/// what [`hr_face_get_table_tags`] is given. `destroy`, if given, must be
+/// safe to call once with `user_data`, from any thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
     face: *mut hr_face_t,
@@ -522,11 +601,22 @@ pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) {
+    // This upholds the invariants on `TableTagsFunc`: this function's
+    // contract has `func` safe to invoke from any thread with `user_data`
+    // and what `hr_face_get_table_tags` is given, and `destroy` safe to call
+    // once with `user_data` on any thread, which nothing but dropping this
+    // does.
     let callback = TableTagsFunc {
         func,
         user_data,
         destroy,
     };
+    // SAFETY: `as_mutable` needs `face` to be `NULL` or live and, if it
+    // takes changes, nothing else using it while the reference is used.
+    // This function's contract has `face` `NULL` or live, and not accessed
+    // by anything else meanwhile. The reference is last used to put the
+    // callback in place, before the one it displaces is dropped and the
+    // caller's destructor runs.
     if let Some(face) = unsafe { object::as_mutable(face) } {
         let old = face.table_tags.replace(callback);
         drop(old);
@@ -541,7 +631,8 @@ pub unsafe extern "C" fn hr_face_set_get_table_tags_func(
 ///
 /// # Safety
 /// `face` must be `NULL` or live. Non-null outputs must be writable for their
-/// advertised capacity.
+/// advertised capacity, which `table_count` must hold on entry, and must not
+/// overlap.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_table_tags(
     face: *const hr_face_t,
@@ -549,9 +640,17 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
     table_count: *mut c_uint,
     table_tags: *mut hr_tag_t,
 ) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     let state = unsafe { object::or_empty(face) };
     if let Some(callback) = &state.table_tags {
         if let Some(func) = callback.func {
+            // SAFETY: by the invariant on `TableTagsFunc::func`, it may be
+            // called on this thread with `user_data`, a live face, and a
+            // count and an array as this function takes them. `face` is not
+            // `NULL`, since the empty face has no callback, so it is live by
+            // this function's contract, and the count and the array are the
+            // ones this function was given, as its contract has them.
             return unsafe {
                 func(
                     face,
@@ -565,10 +664,22 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
     } else if let Some((_, directory)) = state.source.blob_directory() {
         let tags = &directory.tags;
         if !table_tags.is_null() {
+            // SAFETY: `as_mut` needs `table_count` to be null, or aligned
+            // and pointing to an initialized count that nothing else reads
+            // or writes while `count` is used, which is within this block.
+            // This function's contract has it `NULL` or writable and
+            // holding the capacity on entry, and clear of `table_tags`, the
+            // only other thing written here.
             if let Some(count) = unsafe { table_count.as_mut() } {
                 let start = (start_offset as usize).min(tags.len());
                 let len = (*count as usize).min(tags.len() - start);
                 for (i, &tag) in tags[start..start + len].iter().enumerate() {
+                    // SAFETY: `add` needs entry `i` to be inside the array
+                    // `table_tags` points to, and `write` needs it writable
+                    // and aligned. `table_tags` is not null, as checked
+                    // above, and this function's contract has it writable
+                    // for the capacity `table_count` gave, which `len` does
+                    // not exceed and `i` is below.
                     unsafe { table_tags.add(i).write(tag_from_rust(tag)) };
                 }
                 *count = len as c_uint;
@@ -588,6 +699,8 @@ pub unsafe extern "C" fn hr_face_get_table_tags(
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_upem(face: *mut hr_face_t) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     unsafe { object::or_empty(face.cast_const()) }.upem()
 }
 
@@ -598,6 +711,8 @@ pub unsafe extern "C" fn hr_face_get_upem(face: *mut hr_face_t) -> c_uint {
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_get_glyph_count(face: *mut hr_face_t) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     unsafe { object::or_empty(face.cast_const()) }.glyph_count()
 }
 
@@ -611,8 +726,13 @@ pub unsafe extern "C" fn hr_face_get_glyph_count(face: *mut hr_face_t) -> c_uint
 /// `face` must be `NULL` or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_reference_blob(face: *mut hr_face_t) -> *mut hr_blob_t {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     let face = unsafe { object::or_empty(face.cast_const()) };
     match &face.source {
+        // SAFETY: `reference` needs `blob` to be `NULL` or live, and by the
+        // invariant on `FaceSource::Blob` it is live for as long as the
+        // source exists. The reference taken is the caller's.
         FaceSource::Blob { blob, .. } => unsafe { object::reference(*blob) },
         FaceSource::Empty => hr_blob_t::empty(),
         // The whole font is what the none tag asks a table callback for,
@@ -639,6 +759,8 @@ pub unsafe extern "C" fn hr_face_reference_table(
     face: *mut hr_face_t,
     tag: hr_tag_t,
 ) -> *mut hr_blob_t {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     let face_ref = unsafe { object::or_empty(face.cast_const()) };
     // The none tag names the whole font rather than a table in it, and is
     // `hr_face_reference_blob`'s business; there is no table to look up here.
@@ -659,7 +781,9 @@ pub unsafe extern "C" fn hr_face_reference_table(
                 return hr_blob_t::empty();
             };
             // `sub` answers a range outside the blob with the empty blob.
-            // SAFETY: the face owns a reference to `blob`, so it is live.
+            // SAFETY: `sub` takes `NULL` or a live blob, and by the
+            // invariant on `FaceSource::Blob` this one is live for as long
+            // as the source exists.
             unsafe { hr_blob_t::sub(*blob, start, end) }
         }
     }
@@ -675,6 +799,8 @@ pub unsafe extern "C" fn hr_face_reference_table(
 /// accessed concurrently while it is being modified.
 #[no_mangle]
 pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mut hr_set_t) {
+    // SAFETY: `face` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let Some(font) = face.font() else { return };
     let Some((_, _, subtable)) = font
@@ -685,6 +811,11 @@ pub unsafe extern "C" fn hr_face_collect_unicodes(face: *mut hr_face_t, out: *mu
     else {
         return;
     };
+    // SAFETY: `as_mutable` needs `out` to be `NULL` or live and, if it takes
+    // changes, nothing else using it while the reference is used, which is
+    // within this call. This function's contract has `out` `NULL` or live,
+    // and not accessed by anything else while it is modified. The face
+    // borrowed above is another object.
     let Some(out) = (unsafe { object::as_mutable(out) }) else {
         return;
     };

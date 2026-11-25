@@ -171,6 +171,7 @@ fn axis(direction: hr_direction_t) -> StretchAxis {
 /// `face` must be null or a live face.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_math_has_data(face: *mut hr_face_t) -> hr_bool_t {
+    // SAFETY: `face` is null or a live face by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     face_math(face).is_some_and(|math| math.version().major != 0 || math.version().minor != 0)
         as hr_bool_t
@@ -184,6 +185,7 @@ pub unsafe extern "C" fn hr_ot_math_get_constant(
     font: *mut hr_font_t,
     constant: hr_ot_math_constant_t,
 ) -> hr_position_t {
+    // SAFETY: `font` is null or a live font by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     let Some(math) = font_math(font) else {
         return 0;
@@ -217,6 +219,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_italics_correction(
     font: *mut hr_font_t,
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
+    // SAFETY: `font` is null or a live font by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     font_math(font)
         .and_then(|math| math.math_glyph_info().ok())
@@ -233,6 +236,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_top_accent_attachment(
     font: *mut hr_font_t,
     glyph: hr_codepoint_t,
 ) -> hr_position_t {
+    // SAFETY: `font` is null or a live font by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let value = font_math(state)
         .and_then(|math| math.math_glyph_info().ok())
@@ -255,6 +259,7 @@ pub unsafe extern "C" fn hr_ot_math_is_glyph_extended_shape(
     face: *mut hr_face_t,
     glyph: hr_codepoint_t,
 ) -> hr_bool_t {
+    // SAFETY: `face` is null or a live face by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     face_math(face)
         .and_then(|math| math.math_glyph_info().ok())
@@ -271,6 +276,7 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kerning(
     kern: hr_ot_math_kern_t,
     correction_height: hr_position_t,
 ) -> hr_position_t {
+    // SAFETY: `font` is null or a live font by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let Some(corner) = corner(kern) else { return 0 };
     let Some(table) = font_math(state)
@@ -339,7 +345,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
     entries_count: *mut c_uint,
     kern_entries: *mut hr_ot_math_kern_entry_t,
 ) -> c_uint {
+    // SAFETY: `entries_count` is null or writable by this function's
+    // contract, so it is null or points to a `c_uint`. With `kern_entries`
+    // non-null it carries the capacity in, which the README has the caller
+    // set before the call.
     let capacity = unsafe { capacity(entries_count, kern_entries) };
+    // SAFETY: `font` is null or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let table = corner(kern).and_then(|corner| {
         font_math(state)
@@ -372,6 +383,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_kernings(
                     }),
                     kern_value: position(state, kern.value_for_ppem(data, x_ppem), true),
                 };
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. `kern_entries`
+                // is non-null in this branch, so by this function's contract
+                // it holds `capacity` entries, and `take` ends the loop
+                // before `written` reaches that. The slot only returns a
+                // value: it is written and not read.
                 unsafe { kern_entries.add(written).write(value) };
                 written += 1;
             }
@@ -406,7 +423,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
     variants_count: *mut c_uint,
     variants: *mut hr_ot_math_glyph_variant_t,
 ) -> c_uint {
+    // SAFETY: `variants_count` is null or writable by this function's
+    // contract, so it is null or points to a `c_uint`. With `variants`
+    // non-null it carries the capacity in, which the README has the caller
+    // set before the call.
     let capacity = unsafe { capacity(variants_count, variants) };
+    // SAFETY: `font` is null or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let construction = font_math(state)
         .and_then(|math| math.math_variants().ok())
@@ -418,6 +440,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_variants(
         total = records.len() as c_uint;
         if !variants.is_null() {
             for record in records.iter().skip(start_offset as usize).take(capacity) {
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. `variants` is
+                // non-null in this branch, so by this function's contract it
+                // holds `capacity` variants, and `take` ends the loop before
+                // `written` reaches that. The slot only returns a value: it
+                // is written and not read.
                 unsafe {
                     variants.add(written).write(hr_ot_math_glyph_variant_t {
                         glyph: record.variant_glyph().to_u32(),
@@ -448,6 +476,7 @@ pub unsafe extern "C" fn hr_ot_math_get_min_connector_overlap(
     font: *mut hr_font_t,
     direction: hr_direction_t,
 ) -> hr_position_t {
+    // SAFETY: `font` is null or a live font by this function's contract.
     let font = unsafe { object::or_empty(font.cast_const()) };
     font_math(font)
         .and_then(|math| math.math_variants().ok())
@@ -478,7 +507,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
     parts: *mut hr_ot_math_glyph_part_t,
     italics_correction: *mut hr_position_t,
 ) -> c_uint {
+    // SAFETY: `parts_count` is null or writable by this function's
+    // contract, so it is null or points to a `c_uint`. With `parts`
+    // non-null it carries the capacity in, which the README has the caller
+    // set before the call.
     let capacity = unsafe { capacity(parts_count, parts) };
+    // SAFETY: `font` is null or live by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
     let assembly = font_math(state)
         .and_then(|math| math.math_variants().ok())
@@ -498,6 +532,12 @@ pub unsafe extern "C" fn hr_ot_math_get_glyph_assembly(
         total = records.len() as c_uint;
         if !parts.is_null() {
             for record in records.iter().skip(start_offset as usize).take(capacity) {
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. `parts` is
+                // non-null in this branch, so by this function's contract it
+                // holds `capacity` parts, and `take` ends the loop before
+                // `written` reaches that. The slot only returns a value: it
+                // is written and not read.
                 unsafe {
                     parts.add(written).write(hr_ot_math_glyph_part_t {
                         glyph: record.glyph_id().to_u32(),

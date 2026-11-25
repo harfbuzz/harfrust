@@ -25,6 +25,7 @@ pub extern "C" fn hr_ot_tag_to_language(tag: hr_tag_t) -> hr_language_t {
 /// # Safety
 /// `language` must be NULL or an interned language returned by this API.
 /// Each non-NULL output array must have the capacity in its associated count.
+/// That count must be NULL, or writable and outside both arrays.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_tags_from_script_and_language(
     script: hr_script_t,
@@ -34,22 +35,44 @@ pub unsafe extern "C" fn hr_ot_tags_from_script_and_language(
     language_count: *mut c_uint,
     language_tags: *mut hr_tag_t,
 ) {
+    // SAFETY: `language` is `NULL` or interned by this function's contract.
     let language = unsafe { language_ref(language) };
     let (scripts, languages) = Script::tags_for_language(script_to_rust(script), language);
-    unsafe {
-        write_tags(scripts.as_slice(), script_count, script_tags);
-        write_tags(languages.as_slice(), language_count, language_tags);
-    }
+    // SAFETY: `write_tags` asks nothing of a pair whose array is `NULL`. A
+    // non-null `script_tags` has the capacity in `script_count` by this
+    // function's contract, which also has that count `NULL`, or writable
+    // and outside the array.
+    unsafe { write_tags(scripts.as_slice(), script_count, script_tags) };
+    // SAFETY: as above, for `language_tags` and `language_count`. The call
+    // above put no more in that count than the caller did: it wrote only
+    // the script array, which the contract keeps the count outside of, and
+    // `script_count`, which it does not raise, should the two be one.
+    unsafe { write_tags(languages.as_slice(), language_count, language_tags) };
 }
 
 /// Matches HarfBuzz's in/out count behavior: a missing or zero-capacity
 /// output leaves the count untouched.
+///
+/// # Safety
+///
+/// If `output` is null, neither pointer is used. Otherwise `count` must be
+/// null, or point to a `c_uint` that is initialized, writable and outside the
+/// output array, and `output` must be writable for that many tags.
+///
+/// Nothing is written but the count, which is not raised, and no more tags
+/// of `output` than the count said on entry.
 unsafe fn write_tags(tags: &[Tag], count: *mut c_uint, output: *mut hr_tag_t) {
     // The array is looked at first. A count that comes without one is left
     // alone and need not have been set, so no reference is made to it.
     if output.is_null() {
         return;
     }
+    // SAFETY: `as_mut` needs `count` null, or aligned, writable, holding a
+    // value, and accessed by nothing else while the reference is used.
+    // `output` is not null, as checked above, so this function's contract
+    // has `count` null or pointing to a `c_uint` that is initialized and
+    // writable. The only other writes before the reference's last use go to
+    // the output array, which the contract has the count outside of.
     let Some(count) = (unsafe { count.as_mut() }) else {
         return;
     };
@@ -58,6 +81,12 @@ unsafe fn write_tags(tags: &[Tag], count: *mut c_uint, output: *mut hr_tag_t) {
     }
     let written = (*count as usize).min(tags.len());
     for (index, tag) in tags[..written].iter().copied().enumerate() {
+        // SAFETY: `add` must stay inside the caller's array, and the
+        // assignment needs the slot aligned and writable. `index` is below
+        // `written`, which is no more than the count, and this function's
+        // contract has `output` writable for that many tags. The slot only
+        // returns a value: it is assigned through the pointer, with no
+        // reference made and nothing read.
         unsafe { *output.add(index) = tag_from_rust(tag) };
     }
     *count = written as c_uint;

@@ -141,7 +141,9 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
     text: *mut u16,
 ) -> c_uint {
     let raw_face = face;
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
+    // SAFETY: `language` is `NULL` or interned by this function's contract.
     let language = unsafe { language_ref(language) };
     let requested = language.map_or("en", |language| language.as_str());
     let selected = face
@@ -150,15 +152,34 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
         .and_then(|table| {
             // ltag is outside HarfRust's shaping table cache; fetch it through
             // the face's generic table source so callback faces work too.
+            // SAFETY: `raw_face` is `face` as the caller passed it, `NULL` or
+            // live by this function's contract. A face made from table
+            // callbacks runs its callback here, while `face` and `table`
+            // are borrowed; the README forbids a callback to modify or free
+            // the object it is handed.
             let blob = unsafe { hr_face_reference_table(raw_face, u32::from_be_bytes(*b"ltag")) };
+            // SAFETY: `blob` is the blob `hr_face_reference_table` just
+            // returned, with a reference that is this code's until it is
+            // released below, so it is live while `data` is used.
             let data = unsafe { object::or_empty(blob.cast_const()) };
             let selected = select_name(&table, data.bytes(), name_id, requested);
+            // SAFETY: `blob` is live, and the reference released is the one
+            // `hr_face_reference_table` handed this code to own. `data` is
+            // not used again, and `selected` borrows from `table`, not from
+            // the blob.
             unsafe { hr_blob_destroy(blob) };
             selected
         });
     let capacity = if text.is_null() {
         0
     } else {
+        // SAFETY: `as_ref` needs `text_size` null, or aligned, readable,
+        // holding a value, and written by nothing while the reference is
+        // used. This function's contract has it null or writable. `text` is
+        // non-null in this branch, so the count carries the capacity in,
+        // which the README has the caller set before the call. The
+        // reference is gone once the value is copied, before anything is
+        // written.
         unsafe { text_size.as_ref() }.copied().unwrap_or(0)
     };
     let (mut total, mut written, mut full) = (0, 0, false);
@@ -168,6 +189,13 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
         total += units.len() as c_uint;
         if !full && written + units.len() < capacity as usize {
             for unit in units {
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the unit aligned and writable. This branch
+                // is taken only when `written` and the units to come stay
+                // below `capacity`, which is nonzero only when `text` is
+                // non-null and, by this function's contract, holds that
+                // many units. Each only returns a value: it is written and
+                // not read.
                 unsafe { text.add(written).write(*unit) };
                 written += 1;
             }
@@ -196,6 +224,10 @@ pub unsafe extern "C" fn hr_ot_name_get_utf16(
         }
     }
     if capacity != 0 {
+        // SAFETY: as for the units above. `capacity` is nonzero, so `text`
+        // is non-null and holds that many units, and `written` is below it:
+        // it starts at zero and a character is written only when that
+        // leaves it below `capacity`.
         unsafe { text.add(written).write(0) };
     }
     // SAFETY: `text_size` is `NULL` or writable by this function's contract.

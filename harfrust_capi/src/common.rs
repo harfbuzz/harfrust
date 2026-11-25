@@ -64,14 +64,26 @@ pub(crate) fn tag_from_rust(tag: Tag) -> hr_tag_t {
 /// # Safety
 ///
 /// `ptr` must be `NULL`, or point to `len` readable bytes, or to a
-/// NUL-terminated string when `len` is negative.
+/// NUL-terminated string when `len` is negative. The bytes must stay readable
+/// and unchanged for as long as the returned string is used.
 pub(crate) unsafe fn str_from_raw<'a>(ptr: *const c_char, len: c_int) -> Option<&'a str> {
     if ptr.is_null() {
         return None;
     }
     let bytes = if len < 0 {
+        // SAFETY: `from_ptr` needs `ptr` non-null and pointing to a
+        // NUL-terminated string that stays readable and unchanged while the
+        // result is used. `ptr` is not null, as checked above, and with `len`
+        // negative this function's contract has it point to such a string for
+        // as long as what is returned is used.
         unsafe { core::ffi::CStr::from_ptr(ptr) }.to_bytes()
     } else {
+        // SAFETY: `from_raw_parts` needs `ptr` non-null, with `len`
+        // initialized bytes readable and unchanged there while the slice is
+        // used. `ptr` is not null, as checked above, `len` is not negative on
+        // this branch, and this function's contract has `ptr` point to that
+        // many readable bytes for as long as what is returned is used. A byte
+        // needs no alignment.
         unsafe { core::slice::from_raw_parts(ptr.cast::<u8>(), len as usize) }
     };
     // Stop at an embedded NUL, as HarfBuzz does.
@@ -100,6 +112,14 @@ pub unsafe extern "C" fn hr_tag_from_string(str_: *const c_char, len: c_int) -> 
     for (index, slot) in tag[..len].iter_mut().enumerate() {
         // Tags are four raw bytes. Do not scan or validate the rest of a
         // C string, which neither this tag nor a script parsed from it uses.
+        // SAFETY: `add` needs byte `index` to lie in what `str_` points to,
+        // and `read` needs a byte there. `str_` is not null, as checked above,
+        // and `index` is below `len`. When the caller gave a length, `len` is
+        // no more than it, and this function's contract has that many bytes
+        // readable. When the caller gave a negative one, the contract has a
+        // NUL-terminated string instead; this loop ends at the first NUL it
+        // reads, so every byte before `index` was not one and the terminator
+        // is at `index` or beyond it.
         let byte = unsafe { str_.cast::<u8>().add(index).read() };
         if byte == 0 {
             if index == 0 {
@@ -123,6 +143,12 @@ pub unsafe extern "C" fn hr_tag_to_string(tag: hr_tag_t, buf: *mut c_char) {
         return;
     }
     let bytes = tag.to_be_bytes();
+    // SAFETY: `copy_nonoverlapping` needs four bytes readable at the source
+    // and writable at `buf`, and the two not to overlap. The source is
+    // `bytes`, a local array of four, which nothing of the caller's can
+    // overlap. `buf` is not null, as checked above, and points to at least
+    // four writable bytes by this function's contract. Bytes need no
+    // alignment.
     unsafe { core::ptr::copy_nonoverlapping(bytes.as_ptr().cast::<c_char>(), buf, 4) };
 }
 
@@ -174,6 +200,9 @@ pub unsafe extern "C" fn hr_direction_from_string(
     str_: *const c_char,
     len: c_int,
 ) -> hr_direction_t {
+    // SAFETY: `str_from_raw` is handed this function's own `str_` and `len`,
+    // under the contract this function takes from it. The string is used only
+    // until this returns.
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return HR_DIRECTION_INVALID;
     };
@@ -631,6 +660,8 @@ pub unsafe extern "C" fn hr_script_from_string(str_: *const c_char, len: c_int) 
     // The name as a tag, and then the script that tag names: the two steps
     // HarfBuzz takes, so that a name which is no tag is no script either
     // rather than the `Zzzz` standing for a script known to be unknown.
+    // SAFETY: `hr_tag_from_string` is handed this function's own `str_` and
+    // `len`, and the two functions take the same contract from `str_from_raw`.
     hr_script_from_iso15924_tag(unsafe { hr_tag_from_string(str_, len) })
 }
 
@@ -712,12 +743,23 @@ fn intern_language(lang: &Language) -> hr_language_t {
 ///
 /// `language` must be `NULL` or an interned language returned by this API.
 pub(crate) unsafe fn language_to_rust(language: hr_language_t) -> Option<Language> {
+    // SAFETY: `as_ref` needs `language` to be null, or aligned and pointing to
+    // a live `hr_language_impl_t` that nothing writes while the reference is
+    // used. This function's contract has it `NULL` or an interned language.
+    // Those are the `&'static` entries of `LANGUAGES` handed out as pointers:
+    // live for the life of the process, and never written.
     unsafe { language.as_ref() }.map(|entry| entry.lang.clone())
 }
 
 /// # Safety
 /// `language` must be `NULL` or an interned language returned by this API.
 pub(crate) unsafe fn language_ref(language: hr_language_t) -> Option<&'static Language> {
+    // SAFETY: `as_ref` needs `language` to be null, or aligned and pointing to
+    // a live `hr_language_impl_t` that nothing writes while the reference is
+    // used, which the `'static` lifetime says may be for good. This function's
+    // contract has it `NULL` or an interned language. Those are the `&'static`
+    // entries of `LANGUAGES` handed out as pointers: live for the life of the
+    // process, and never written.
     unsafe { language.as_ref() }.map(|entry| &entry.lang)
 }
 
@@ -739,6 +781,9 @@ pub(crate) fn language_from_rust(language: Option<&Language>) -> hr_language_t {
 /// See [`str_from_raw`].
 #[no_mangle]
 pub unsafe extern "C" fn hr_language_from_string(str_: *const c_char, len: c_int) -> hr_language_t {
+    // SAFETY: `str_from_raw` is handed this function's own `str_` and `len`,
+    // under the contract this function takes from it. The string is used only
+    // until this returns.
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return core::ptr::null();
     };
@@ -772,6 +817,12 @@ fn canonical_language(tag: &str) -> String {
 /// `language` must be `NULL` or a value returned by `hr_language_from_string`.
 #[no_mangle]
 pub unsafe extern "C" fn hr_language_to_string(language: hr_language_t) -> *const c_char {
+    // SAFETY: `as_ref` needs `language` to be null, or aligned and pointing to
+    // a live `hr_language_impl_t` that nothing writes while the reference is
+    // used. This function's contract has it `NULL` or a value
+    // `hr_language_from_string` returned, which is `NULL` or an interned
+    // language. Those are the `&'static` entries of `LANGUAGES` handed out as
+    // pointers: live for the life of the process, and never written.
     unsafe { language.as_ref() }.map_or(core::ptr::null(), |entry| {
         entry.name.as_ptr().cast::<c_char>()
     })
@@ -818,6 +869,13 @@ pub unsafe extern "C" fn hr_language_matches(
     if language == specific {
         return true.into();
     }
+    // SAFETY: each `as_ref` needs its pointer to be null, or aligned and
+    // pointing to a live `hr_language_impl_t` that nothing writes while the
+    // reference is used. This function's contract has `language` and
+    // `specific` each `NULL` or a value `hr_language_from_string` returned,
+    // which is `NULL` or an interned language. Those are the `&'static`
+    // entries of `LANGUAGES` handed out as pointers: live for the life of the
+    // process, and never written.
     let (Some(language), Some(specific)) =
         (unsafe { language.as_ref() }, unsafe { specific.as_ref() })
     else {
@@ -888,6 +946,9 @@ pub unsafe extern "C" fn hr_feature_from_string(
     // than keeping whatever the caller happened to leave in it.
     // SAFETY: `feature` is `NULL` or writable by this function's contract.
     unsafe { write_out(feature, hr_feature_t::default()) };
+    // SAFETY: `str_from_raw` is handed this function's own `str_` and `len`,
+    // under the contract this function takes from it. The string is used only
+    // until this returns.
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };
@@ -911,6 +972,10 @@ pub unsafe extern "C" fn hr_feature_to_string(
     buf: *mut c_char,
     size: c_uint,
 ) {
+    // SAFETY: `as_ref` needs `feature` to be null, or aligned and pointing to
+    // an initialized feature that nothing writes while the reference is used,
+    // which is until the string is built and before `buf` is written. This
+    // function's contract has it `NULL` or readable.
     let Some(feature) = (unsafe { feature.as_ref() }) else {
         return;
     };
@@ -938,6 +1003,8 @@ pub unsafe extern "C" fn hr_feature_to_string(
         s.push('=');
         s.push_str(&feature.value.to_string());
     }
+    // SAFETY: `buf` points to `size` writable bytes by this function's
+    // contract, which is what `write_c_string` needs.
     unsafe { write_c_string(&s, buf, size) };
 }
 
@@ -987,6 +1054,9 @@ pub unsafe extern "C" fn hr_variation_from_string(
     // than keeping whatever the caller happened to leave in it.
     // SAFETY: `variation` is `NULL` or writable by this function's contract.
     unsafe { write_out(variation, hr_variation_t::default()) };
+    // SAFETY: `str_from_raw` is handed this function's own `str_` and `len`,
+    // under the contract this function takes from it. The string is used only
+    // until this returns.
     let Some(s) = (unsafe { str_from_raw(str_, len) }) else {
         return false.into();
     };
@@ -1010,6 +1080,10 @@ pub unsafe extern "C" fn hr_variation_to_string(
     buf: *mut c_char,
     size: c_uint,
 ) {
+    // SAFETY: `as_ref` needs `variation` to be null, or aligned and pointing
+    // to an initialized variation that nothing writes while the reference is
+    // used, which is until the string is built and before `buf` is written.
+    // This function's contract has it `NULL` or readable.
     let Some(variation) = (unsafe { variation.as_ref() }) else {
         return;
     };
@@ -1018,6 +1092,8 @@ pub unsafe extern "C" fn hr_variation_to_string(
         tag_to_rust(variation.tag).to_string().trim_end(),
         variation.value
     );
+    // SAFETY: `buf` points to `size` writable bytes by this function's
+    // contract, which is what `write_c_string` needs.
     unsafe { write_c_string(&s, buf, size) };
 }
 
@@ -1073,6 +1149,17 @@ pub(crate) unsafe fn write_c_string(s: &str, buf: *mut c_char, size: c_uint) {
     while len > 0 && !s.is_char_boundary(len) {
         len -= 1;
     }
+    // SAFETY: `buf` is not null, as checked above, so this function's contract
+    // has it point to `size` writable bytes. `size` is at least one, as also
+    // checked, and `len` was capped at `size - 1` above and has only gone down
+    // since.
+    // - `copy_nonoverlapping` needs `len` bytes readable at the source and
+    //   writable at `buf`, and the two not to overlap. `len` is no more than
+    //   `s.len()`, so the source bytes are in `s`. It is less than `size`, so
+    //   they fit in `buf`. And `s` is borrowed shared for all of this call, so
+    //   no byte the caller has made writable through `buf` is part of it.
+    // - `add` and `write` need byte `len` to be in `buf` and writable, which
+    //   `len < size` makes it.
     unsafe {
         core::ptr::copy_nonoverlapping(s.as_ptr().cast::<c_char>(), buf, len);
         buf.add(len).write(0);

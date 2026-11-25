@@ -40,6 +40,7 @@ fn axes(face: &hr_face_t) -> Option<AxisInstanceArrays<'_>> {
 /// `face` must be null or live.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_var_get_axis_count(face: *mut hr_face_t) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     axes(face).map_or(0, |arrays| arrays.axes().len() as c_uint)
 }
@@ -51,7 +52,8 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_count(face: *mut hr_face_t) -> c_uin
 /// unchanged. Axis indices remain relative to the full `fvar` axis array.
 /// # Safety
 /// `face` must be null or live; `axes_count` must be null or writable;
-/// `axes_array` must hold the input capacity when non-null.
+/// `axes_array` must hold the input capacity when non-null, and must not
+/// overlap `axes_count`.
 #[no_mangle]
 pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
     face: *mut hr_face_t,
@@ -59,10 +61,18 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
     axes_count: *mut c_uint,
     axes_array: *mut hr_ot_var_axis_info_t,
 ) -> c_uint {
+    // SAFETY: `face` is `NULL` or live by this function's contract.
     let face = unsafe { object::or_empty(face.cast_const()) };
     let arrays = axes(face);
     let records = arrays.as_ref().map_or(&[][..], |arrays| arrays.axes());
     if !axes_array.is_null() {
+        // SAFETY: `as_mut` needs `axes_count` null, or aligned, writable,
+        // holding a value, and accessed by nothing else while the reference
+        // is used. This function's contract has it null or writable. With
+        // `axes_array` non-null, as here, it carries the capacity in, which
+        // the README has the caller set before the call. The only other
+        // writes before the reference's last use go to the array, which the
+        // contract keeps from overlapping the count.
         if let Some(count) = unsafe { axes_count.as_mut() } {
             let mut written = 0;
             for (index, axis) in records
@@ -82,6 +92,12 @@ pub unsafe extern "C" fn hr_ot_var_get_axis_infos(
                     max_value: axis.max_value().to_f32().max(default_value),
                     reserved: 0,
                 };
+                // SAFETY: `add` must stay inside the caller's array, and
+                // `write` needs the slot aligned and writable. A non-null
+                // `axes_array` holds as many axes as the count said on
+                // entry, by this function's contract, and `take` ends the
+                // loop before `written` reaches that. The slot only returns
+                // a value: it is written and not read.
                 unsafe { axes_array.add(written).write(info) };
                 written += 1;
             }

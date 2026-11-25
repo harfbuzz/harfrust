@@ -192,7 +192,9 @@ hr_set_t *hr_subset_input_set(struct hr_subset_input_t *input, hr_subset_sets_t 
  * are enabled; no tables are explicitly dropped.
  *
  * # Safety
- * `input` must be `NULL` or live and exclusively accessible.
+ * `input` must be `NULL` or live and, along with its sets, exclusively
+ * accessible: no other call may be using them, which rules out calling this
+ * from a destructor of the input's own metadata.
  */
 void hr_subset_input_keep_everything(struct hr_subset_input_t *input);
 
@@ -200,7 +202,9 @@ void hr_subset_input_keep_everything(struct hr_subset_input_t *input);
  * Sets the subset flags. Unsupported flag bits cause subsetting to fail.
  *
  * # Safety
- * `input` must be `NULL` or live and exclusively accessible.
+ * `input` must be `NULL` or live and exclusively accessible: no other call
+ * may be using it, which rules out calling this from a destructor of the
+ * input's own metadata.
  */
 void hr_subset_input_set_flags(struct hr_subset_input_t *input, unsigned int flags);
 

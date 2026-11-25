@@ -26,9 +26,15 @@ pub const HR_MEMORY_MODE_READONLY_MAY_MAKE_WRITABLE: hr_memory_mode_t = 3;
 
 /// Bytes owned by the caller, released through a destroy callback.
 struct ForeignBytes {
+    // Safety invariant: unless `data` is null or `len` is zero, `data`
+    // points to `len` initialized bytes of one allocation, which stay
+    // readable and unchanged until this is dropped, and `len` is no more
+    // than `isize::MAX`.
     data: *const u8,
     len: usize,
     user_data: *mut c_void,
+    // Safety invariant: `destroy`, if any, is safe to call once with
+    // `user_data`, on any thread.
     destroy: hr_destroy_func_t,
 }
 
@@ -36,6 +42,9 @@ struct ForeignBytes {
 // data stays valid and unchanging for the blob's lifetime, and that the
 // destroy callback may run on any thread.
 unsafe impl Send for ForeignBytes {}
+// SAFETY: as for `Send`. Shared, this gives out nothing but the bytes, which
+// that promise keeps unchanging, so reading them from several threads at
+// once races with nothing.
 unsafe impl Sync for ForeignBytes {}
 
 impl AsRef<[u8]> for ForeignBytes {
@@ -43,7 +52,13 @@ impl AsRef<[u8]> for ForeignBytes {
         if self.data.is_null() || self.len == 0 {
             return &[];
         }
-        // SAFETY: upheld by the caller of `hr_blob_create`.
+        // SAFETY: `from_raw_parts` needs a non-null, aligned pointer to
+        // `len` initialized bytes of one allocation, no more than
+        // `isize::MAX` of them, that nothing writes while the slice is used.
+        // `data` is not null and `len` not zero, as just checked, and a byte
+        // has no alignment to meet. The invariant on the two gives the rest
+        // until this is dropped, which the borrow of `self` that the slice
+        // is tied to ends before.
         unsafe { core::slice::from_raw_parts(self.data, self.len) }
     }
 }
@@ -51,7 +66,9 @@ impl AsRef<[u8]> for ForeignBytes {
 impl Drop for ForeignBytes {
     fn drop(&mut self) {
         if let Some(destroy) = self.destroy {
-            // SAFETY: `destroy` was supplied alongside `user_data`.
+            // SAFETY: by the invariant on `destroy`, one call with
+            // `user_data` is sound on whichever thread drops this, and it
+            // is dropped once.
             unsafe { destroy(self.user_data) };
         }
     }
@@ -63,7 +80,11 @@ impl Drop for ForeignBytes {
 /// have tied the bytes to the blob through `hr_blob_set_user_data`, whose
 /// destructors run when the blob is freed, so the bytes must not be read past
 /// the blob's last reference.
-struct BlobRef(*mut hr_blob_t);
+struct BlobRef(
+    // Safety invariant: a live blob, one reference to which this owns until
+    // it is dropped.
+    *mut hr_blob_t,
+);
 
 // SAFETY: this owns one of the blob's references, so the blob stays live for
 // as long as this does, and a live blob may be shared between threads: its
@@ -71,18 +92,26 @@ struct BlobRef(*mut hr_blob_t);
 // required to make their user data safe to use and to release from any
 // thread that uses the blob, which the README documents under "Threading".
 unsafe impl Send for BlobRef {}
+// SAFETY: as for `Send`. Shared, this gives out the blob's bytes and nothing
+// else.
 unsafe impl Sync for BlobRef {}
 
 impl AsRef<[u8]> for BlobRef {
     fn as_ref(&self) -> &[u8] {
-        // SAFETY: the reference this owns keeps the blob alive.
+        // SAFETY: making the reference needs a live blob that nothing writes
+        // while the reference, and the bytes borrowed through it, are used.
+        // By the invariant this holds a live blob for as long as it exists,
+        // which the borrow of `self` that the bytes are tied to ends before.
+        // Whoever writes a live object answers for no reference to it being
+        // in use (see "Exclusive access" in `object`).
         unsafe { &*self.0 }.bytes()
     }
 }
 
 impl Drop for BlobRef {
     fn drop(&mut self) {
-        // SAFETY: this owns the reference it releases.
+        // SAFETY: by the invariant the blob is live and this owns a
+        // reference to it, which it gives up here, once.
         unsafe { object::destroy(self.0) };
     }
 }
@@ -163,6 +192,8 @@ impl hr_blob_t {
     /// `blob` must be a live blob, and the caller must own the reference
     /// being handed over.
     pub(crate) unsafe fn into_data(blob: *mut Self) -> Blob {
+        // This upholds the invariant on `BlobRef`: this function's contract
+        // has `blob` live, and hands over the reference the caller owned.
         Blob::Shared(Arc::new(BlobRef(blob)) as Arc<dyn AsRef<[u8]> + Send + Sync>)
     }
 
@@ -173,6 +204,11 @@ impl hr_blob_t {
     ///
     /// `parent` must be `NULL` or a live blob.
     pub(crate) unsafe fn sub(parent: *mut Self, start: usize, end: usize) -> *mut Self {
+        // SAFETY: `as_ref` needs `parent` to be null, or a live blob that
+        // nothing writes while `parent_ref` is used, which is within this
+        // call. This function's contract has `parent` `NULL` or live, and
+        // whoever writes a live object answers for no reference to it being
+        // in use (see "Exclusive access" in `object`).
         let Some(parent_ref) = (unsafe { parent.as_ref() }) else {
             return Self::empty();
         };
@@ -180,8 +216,13 @@ impl hr_blob_t {
             return Self::empty();
         }
         let sub = SubBytes {
-            // SAFETY: `parent` is live, and the reference taken here is the
-            // sub-blob's own.
+            // SAFETY: `reference` needs `parent` to be `NULL` or live, which
+            // this function's contract has it. The reference taken is the
+            // `BlobRef`'s own, as its invariant asks. One taken while
+            // `parent` is releasing its last keeps nothing alive, and then
+            // it is for whoever asked for the sub-blob to give it back
+            // before `parent` is freed (see "Owning a reference" in
+            // `object`).
             parent: BlobRef(unsafe { object::reference(parent) }),
             start,
             end,
@@ -243,8 +284,11 @@ impl Object for hr_blob_t {
 ///
 /// # Safety
 ///
-/// `data` must point to `length` readable bytes. `destroy`, if given, must be
-/// safe to call from any thread.
+/// `data` must point to `length` readable bytes. Unless they are copied,
+/// they must stay readable and unchanged until `destroy` is invoked, or with
+/// no `destroy`, for as long as the blob or anything made from it exists.
+/// `destroy`, if given, must be safe to call once with `user_data`, from any
+/// thread.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_create(
     data: *const c_char,
@@ -259,11 +303,15 @@ pub unsafe extern "C" fn hr_blob_create(
     // of nothing that can be is what `hr_blob_create_or_fail` is for.
     if length == 0 {
         if let Some(destroy) = destroy {
-            // SAFETY: `destroy` was supplied alongside `user_data`.
+            // SAFETY: this function's contract has `destroy` safe to call
+            // once with `user_data`, on this thread as on any. This is that
+            // call: nothing is built that would make another.
             unsafe { destroy(user_data) };
         }
         return hr_blob_t::empty();
     }
+    // SAFETY: `blob_from_raw`'s contract is this function's own, for the
+    // same arguments.
     let blob = unsafe { blob_from_raw(data, length, mode, user_data, destroy) };
     match blob {
         Some(blob) => hr_blob_t::new(blob),
@@ -284,6 +332,8 @@ pub unsafe extern "C" fn hr_blob_create_or_fail(
     user_data: *mut c_void,
     destroy: hr_destroy_func_t,
 ) -> *mut hr_blob_t {
+    // SAFETY: `blob_from_raw`'s contract is this function's own, for the
+    // same arguments.
     let blob = unsafe { blob_from_raw(data, length, mode, user_data, destroy) };
     // A blob of nothing made over the caller's own memory still says where
     // that memory is, as in HarfBuzz. A copy of nothing is nowhere.
@@ -312,6 +362,9 @@ unsafe fn blob_from_raw(
     // outright, handing the data back as it does so.
     if length >= 1 << 31 {
         if let Some(destroy) = destroy {
+            // SAFETY: this function's contract has `destroy` safe to call
+            // once with `user_data`, on this thread as on any. This is that
+            // call: nothing is built that would make another.
             unsafe { destroy(user_data) };
         }
         return None;
@@ -321,17 +374,37 @@ unsafe fn blob_from_raw(
         let copy = if empty {
             Vec::new()
         } else {
-            // SAFETY: the caller guarantees `length` readable bytes at `data`.
+            // SAFETY: `from_raw_parts` needs a non-null, aligned pointer to
+            // `length` initialized bytes of one allocation, no more than
+            // `isize::MAX` of them, that nothing writes while the slice is
+            // used, which is for the copy made of it here. `data` is not
+            // null, as `empty` says, and a byte has no alignment to meet.
+            // This function's contract has `length` readable bytes there,
+            // and `length` is below 2^31, as checked above.
             unsafe { core::slice::from_raw_parts(data.cast::<u8>(), length as usize) }.to_vec()
         };
         // The copy is this blob's own, so the caller's data is released now.
         if let Some(destroy) = destroy {
+            // SAFETY: this function's contract has `destroy` safe to call
+            // once with `user_data`, on this thread as on any. This is that
+            // call: the blob made below holds the copy and nothing of the
+            // caller's.
             unsafe { destroy(user_data) };
         }
         return Some(Blob::from(copy));
     }
     // A blob of nothing is still a blob, and still holds the caller's data
     // until it is destroyed: HarfBuzz fails only on a length it cannot take.
+    //
+    // This upholds the invariants on `ForeignBytes`. `len` is zero unless
+    // `data` is not null, and is then `length`, which is below 2^31, as
+    // checked above. This function's contract has that many readable bytes
+    // at `data`. They are not copied here, so it has them stay readable and
+    // unchanged until `destroy` is invoked, which is when this is dropped,
+    // or with no `destroy` for as long as the blob or anything made from it
+    // exists, which is as long as anything holds this. The same contract
+    // has `destroy` safe to call once with `user_data` on any thread, and
+    // nothing but that drop calls it.
     let bytes = ForeignBytes {
         data: data.cast::<u8>(),
         len: if empty { 0 } else { length as usize },
@@ -352,6 +425,8 @@ unsafe fn blob_from_raw(
 /// `file_name` must be a NUL-terminated string.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_create_from_file(file_name: *const c_char) -> *mut hr_blob_t {
+    // SAFETY: `hr_blob_create_from_file_or_fail` asks of `file_name` what
+    // this function's contract does.
     let blob = unsafe { hr_blob_create_from_file_or_fail(file_name) };
     if blob.is_null() {
         return hr_blob_t::empty();
@@ -371,6 +446,10 @@ pub unsafe extern "C" fn hr_blob_create_from_file_or_fail(
     if file_name.is_null() {
         return core::ptr::null_mut();
     }
+    // SAFETY: `CStr::from_ptr` needs a non-null pointer to a NUL-terminated
+    // string that stays readable and unchanged while `path` is used, which
+    // is within this call. `file_name` is not null, as just checked, and is
+    // such a string by this function's contract.
     let path = unsafe { core::ffi::CStr::from_ptr(file_name) };
     let Ok(path) = path.to_str() else {
         return core::ptr::null_mut();
@@ -395,15 +474,25 @@ pub unsafe extern "C" fn hr_blob_create_sub_blob(
     offset: c_uint,
     length: c_uint,
 ) -> *mut hr_blob_t {
+    // SAFETY: `as_ref` needs `parent` to be null, or a live blob that
+    // nothing writes while `parent_ref` is used, which is within this call.
+    // This function's contract has `parent` `NULL` or live, and whoever
+    // writes a live object answers for no reference to it being in use (see
+    // "Exclusive access" in `object`).
     let Some(parent_ref) = (unsafe { parent.as_ref() }) else {
         return hr_blob_t::empty();
     };
     // The part cannot outlive what it is a part of being what it was, so the
     // parent is fixed as it stands, as `hr_blob_make_immutable` would.
+    //
+    // SAFETY: `hr_blob_make_immutable` takes `NULL` or a live blob, which
+    // this function's contract has `parent` be.
     unsafe { hr_blob_make_immutable(parent) };
     let total = parent_ref.bytes().len();
     let start = (offset as usize).min(total);
     let end = start.saturating_add(length as usize).min(total);
+    // SAFETY: `sub` takes `NULL` or a live blob, which this function's
+    // contract has `parent` be.
     unsafe { hr_blob_t::sub(parent, start, end) }
 }
 
@@ -416,6 +505,11 @@ pub unsafe extern "C" fn hr_blob_create_sub_blob(
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_copy_writable_or_fail(blob: *mut hr_blob_t) -> *mut hr_blob_t {
+    // SAFETY: `as_ref` needs `blob` to be null, or a live blob that nothing
+    // writes while the reference is used, which is within this call. This
+    // function's contract has `blob` `NULL` or live, and whoever writes a
+    // live object answers for no reference to it being in use (see
+    // "Exclusive access" in `object`).
     let Some(blob) = (unsafe { blob.as_ref() }) else {
         return core::ptr::null_mut();
     };
@@ -439,6 +533,8 @@ pub extern "C" fn hr_blob_get_empty() -> *mut hr_blob_t {
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_reference(blob: *mut hr_blob_t) -> *mut hr_blob_t {
+    // SAFETY: `blob` is `NULL` or live by this function's contract. The
+    // reference taken is the caller's.
     unsafe { object::reference(blob) }
 }
 
@@ -450,6 +546,8 @@ pub unsafe extern "C" fn hr_blob_reference(blob: *mut hr_blob_t) -> *mut hr_blob
 /// reference being released.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_destroy(blob: *mut hr_blob_t) {
+    // SAFETY: by this function's contract `blob` is `NULL` or live, and the
+    // caller owns the reference it gives up here.
     unsafe { object::destroy(blob) };
 }
 
@@ -458,6 +556,8 @@ pub unsafe extern "C" fn hr_blob_destroy(blob: *mut hr_blob_t) {
 /// # Safety
 ///
 /// `blob` must be `NULL` or a live blob, and `key` must outlive it.
+/// `destroy`, if given, must be safe to call once with `data`, on whichever
+/// thread releases it.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_set_user_data(
     blob: *mut hr_blob_t,
@@ -466,6 +566,9 @@ pub unsafe extern "C" fn hr_blob_set_user_data(
     destroy: hr_destroy_func_t,
     replace: hr_bool_t,
 ) -> hr_bool_t {
+    // SAFETY: by this function's contract `blob` is `NULL` or live, `key`
+    // outlives it, and `destroy` may be called once with `data` wherever
+    // the blob comes to release it.
     unsafe { object::set_user_data(blob, key, data, destroy, replace != 0) }.into()
 }
 
@@ -479,6 +582,7 @@ pub unsafe extern "C" fn hr_blob_get_user_data(
     blob: *mut hr_blob_t,
     key: *const hr_user_data_key_t,
 ) -> *mut c_void {
+    // SAFETY: `blob` is `NULL` or live by this function's contract.
     unsafe { object::get_user_data(blob, key) }
 }
 
@@ -489,6 +593,7 @@ pub unsafe extern "C" fn hr_blob_get_user_data(
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_make_immutable(blob: *mut hr_blob_t) {
+    // SAFETY: `blob` is `NULL` or live by this function's contract.
     unsafe { object::make_immutable(blob) };
 }
 
@@ -499,6 +604,7 @@ pub unsafe extern "C" fn hr_blob_make_immutable(blob: *mut hr_blob_t) {
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_is_immutable(blob: *mut hr_blob_t) -> hr_bool_t {
+    // SAFETY: `blob` is `NULL` or live by this function's contract.
     unsafe { object::is_immutable(blob.cast_const()) }.into()
 }
 
@@ -509,6 +615,8 @@ pub unsafe extern "C" fn hr_blob_is_immutable(blob: *mut hr_blob_t) -> hr_bool_t
 /// `blob` must be `NULL` or a live blob.
 #[no_mangle]
 pub unsafe extern "C" fn hr_blob_get_length(blob: *mut hr_blob_t) -> c_uint {
+    // SAFETY: `blob` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     unsafe { object::or_empty(blob.cast_const()) }.bytes().len() as c_uint
 }
 
@@ -527,6 +635,8 @@ pub unsafe extern "C" fn hr_blob_get_data(
     blob: *mut hr_blob_t,
     length: *mut c_uint,
 ) -> *const c_char {
+    // SAFETY: `blob` is `NULL` or live by this function's contract, and the
+    // reference is not used past this call.
     let blob = unsafe { object::or_empty(blob.cast_const()) };
     let bytes = blob.bytes();
     if !length.is_null() {

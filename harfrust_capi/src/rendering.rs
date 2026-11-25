@@ -16,6 +16,9 @@ use read_fonts::{types::F2Dot14, FontRef};
 /// one private owner; the explicit `Drop` clears the borrow before the blob is
 /// released even if the fields are ever reordered.
 pub(crate) struct RenderData {
+    // Safety invariant: when `Some`, this borrows only from the bytes `blob`
+    // owns, which are neither written nor released until this is `None`
+    // again.
     outlines: Option<skrifa::OutlineGlyphCollection<'static>>,
     blob: Blob,
 }
@@ -44,25 +47,60 @@ impl Drop for RenderData {
     }
 }
 
+/// The face's Skrifa data, assembled on first use and kept with the face.
+///
+/// # Safety
+///
+/// `face` must be a live face: its tables are fetched as a caller of this
+/// API would fetch them, through a pointer made from the borrow.
 unsafe fn render_data(face: &hr_face_t) -> Option<&RenderData> {
     face.render_data
         .get_or_init(|| {
+            // SAFETY: `collect_tables` needs `NULL` or a live face, and uses
+            // the pointer for shared access only. `face` borrows a live
+            // face, by this function's contract, so the pointer made from it
+            // points to one, and a pointer made from a shared borrow is good
+            // for that much.
             unsafe { collect_tables(core::ptr::from_ref(face).cast_mut()) }
                 .and_then(RenderData::new)
         })
         .as_ref()
 }
 /// The face's assembled SFNT, built on first use and never changed after.
+///
+/// # Safety
+///
+/// As [`render_data`].
 pub(crate) unsafe fn render_blob(face: &hr_face_t) -> Option<&Blob> {
+    // SAFETY: `render_data` has this function's contract, for the same face.
     unsafe { render_data(face) }.map(|data| &data.blob)
 }
+/// A view of the face's assembled SFNT.
+///
+/// # Safety
+///
+/// As [`render_data`].
 pub(crate) unsafe fn font_ref(face: &hr_face_t) -> Option<FontRef<'_>> {
+    // SAFETY: `render_blob` has this function's contract, for the same face.
     FontRef::new(unsafe { render_blob(face) }?).ok()
 }
 /// The face's outlines, built on first use and kept with the face.
+///
+/// # Safety
+///
+/// As [`render_data`].
 pub(crate) unsafe fn outlines(face: &hr_face_t) -> Option<&skrifa::OutlineGlyphCollection<'_>> {
+    // SAFETY: `render_data` has this function's contract, for the same face.
     unsafe { render_data(face) }?.outlines.as_ref()
 }
+/// Copies the tables Skrifa reads out of a face and assembles them into an
+/// SFNT, or `None` if the face has none of them or they add up to more than
+/// its blob could hold.
+///
+/// # Safety
+///
+/// `face` must be `NULL` or a live face. It is used for shared access only,
+/// so it may be a pointer made from a shared borrow of the face.
 unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
     const TAGS: [&[u8; 4]; 24] = [
         b"head", b"maxp", b"hhea", b"hmtx", b"vhea", b"vmtx", b"VORG", b"glyf", b"loca", b"gvar",
@@ -73,16 +111,29 @@ unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
     // tag. Charge each table to the face's blob so that copying them cannot
     // cost more than one copy of the font; a callback face supplies its own
     // tables and has no such bound.
+    //
+    // SAFETY: `face` is `NULL` or a live face by this function's contract.
     let mut budget = unsafe { object::or_empty(face.cast_const()) }
         .blob_len()
         .unwrap_or(usize::MAX);
     let mut tables = Vec::new();
     for bytes in TAGS {
         let tag = u32::from_be_bytes(*bytes);
+        // SAFETY: `face` is `NULL` or a live face by this function's
+        // contract. Fetching a table takes no more than shared access to the
+        // face, as it has to for the README to let several threads use one
+        // face at once, so this keeps to what the contract says of `face`.
+        // The reference that comes back is this function's to release.
         let blob = unsafe { hr_face_reference_table(face, tag) };
         let mut len = 0;
+        // SAFETY: `blob` is live: `hr_face_reference_table` returned it
+        // with a reference that is not released until below. `len` is a
+        // local for the length to be written to.
         let data = unsafe { hr_blob_get_data(blob, &raw mut len) };
         let Some(left) = budget.checked_sub(len as usize) else {
+            // SAFETY: `blob` is live, and the reference released is the one
+            // `hr_face_reference_table` gave this function, which nothing
+            // has released yet.
             unsafe { hr_blob_destroy(blob) };
             return None;
         };
@@ -90,9 +141,20 @@ unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
         if len != 0 && !data.is_null() {
             tables.push((
                 tag,
+                // SAFETY: `from_raw_parts` needs `data` non-null, which was
+                // just checked, with `len` initialized bytes behind it that
+                // stay allocated and unwritten while the slice is used.
+                // `hr_blob_get_data` returned the blob's data and wrote its
+                // length to `len`. Blobs are read-only, and `hr_blob_create`
+                // has data a blob borrows stay unchanged for as long as the
+                // blob does. This one is kept live by the reference released
+                // below, after `to_vec` has copied the bytes out. A byte
+                // pointer is always aligned.
                 unsafe { core::slice::from_raw_parts(data.cast::<u8>(), len as usize) }.to_vec(),
             ));
         }
+        // SAFETY: as in the early return above. This is the other way out
+        // of the loop body, so the reference is released once.
         unsafe { hr_blob_destroy(blob) };
     }
     if tables.is_empty() {
@@ -137,21 +199,47 @@ unsafe fn collect_tables(face: *mut hr_face_t) -> Option<Vec<u8>> {
     }
     Some(output)
 }
+/// The font's normalized variation coordinates, as Skrifa takes them.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
 pub(crate) unsafe fn coords(font: *mut hr_font_t) -> Vec<F2Dot14> {
     let mut len = 0;
+    // SAFETY: `font` is `NULL` or a live font by this function's contract,
+    // and `len` is a local for the count to be written to.
     let data = unsafe { hr_font_get_var_coords_normalized(font, &raw mut len) };
     if len == 0 || data.is_null() {
         return Vec::new();
     }
+    // SAFETY: `from_raw_parts` needs `data` non-null and aligned, with `len`
+    // initialized coordinates behind it that stay allocated and unwritten
+    // while the slice is used. `hr_font_get_var_coords_normalized` returned
+    // the font's coordinates, not `NULL` as just checked, and wrote their
+    // count to `len`; they stay as they are until the font's variation
+    // settings change or it is freed. The font is live, the README has
+    // nothing change a font that is in use, and the slice is copied out by
+    // the end of this statement.
     unsafe { core::slice::from_raw_parts(data, len as usize) }
         .iter()
         .map(|v| F2Dot14::from_bits(*v as i16))
         .collect()
 }
+/// The font's scale as a multiple of its face's units per em, across and
+/// up.
+///
+/// # Safety
+///
+/// `font` must be `NULL` or a live font.
 pub(crate) unsafe fn scale(font: *mut hr_font_t) -> (f32, f32) {
     let mut x = 0;
     let mut y = 0;
+    // SAFETY: `font` is `NULL` or a live font by this function's contract,
+    // and `x` and `y` are locals for the scale to be written to.
     unsafe { hr_font_get_scale(font, &raw mut x, &raw mut y) };
+    // SAFETY: `hr_font_get_face` takes `font` on the same terms. What it
+    // returns is the font's face, which is live for as long as the font is,
+    // or the empty face for no font, and `hr_face_get_upem` takes either.
     let upem = unsafe { hr_face_get_upem(hr_font_get_face(font)) }.max(1) as f32;
     (x as f32 / upem, y as f32 / upem)
 }
