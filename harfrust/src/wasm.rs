@@ -1331,7 +1331,6 @@ fn api_font_get_glyph<'a, 'b, 'c>(
         let selector = variation_selector as u32;
         if selector != 0 {
             font.variation_glyph(codepoint, selector)
-                .or_else(|| font.nominal_glyph(codepoint))
         } else {
             font.nominal_glyph(codepoint)
         }
