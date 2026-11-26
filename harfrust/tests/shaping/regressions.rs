@@ -11,6 +11,53 @@ fn font_path(name: &str) -> PathBuf {
 }
 
 #[test]
+fn feature_ranges_follow_clusters_and_caller_order() {
+    let font_data =
+        include_bytes!("../fonts/in-house/8f0b8947e8c9bc0c11ac95d91654bd1b769e494a.ttf");
+    let font = Font::new(font_data.as_slice(), 0).unwrap();
+    let instance = font.instance_builder().build();
+    let shaper = ShaperFont::new(&instance);
+    let features = [
+        "salt[4:]=2",
+        "-salt[2:8]",
+        "salt[0:3]",
+        "-salt[8:8]",
+        "-salt[12:2]",
+    ]
+    .map(|s| s.parse().unwrap());
+
+    for clusters in [
+        [0, 2, 4, 6, 8, 10, 12, u32::MAX],
+        [u32::MAX, 12, 10, 8, 6, 4, 2, 0],
+        [0, 2, 8, 6, 4, 10, 12, u32::MAX],
+        [8; 8],
+    ] {
+        let mut buffer = Buffer::new();
+        for cluster in clusters {
+            for _ in 0..12 {
+                buffer.push(u32::from('a'), cluster);
+            }
+        }
+        buffer.guess_segment_properties();
+        shape(
+            &shaper,
+            &mut buffer,
+            ShapeOptions::new().features(&features),
+        )
+        .unwrap();
+        assert_eq!(buffer.len(), 96);
+        for (i, info) in buffer.glyph_infos().iter().enumerate() {
+            let expected = match clusters[i / 12] {
+                0..=2 => 8,            // a.one
+                3..=7 | u32::MAX => 7, // a
+                _ => 9,                // a.two
+            };
+            assert_eq!(info.glyph_id, expected);
+        }
+    }
+}
+
+#[test]
 fn hangul_tone_reordering_preserves_monotone_character_clusters() {
     assert_eq!(
         crate::shape(
