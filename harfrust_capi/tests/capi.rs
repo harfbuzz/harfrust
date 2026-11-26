@@ -883,20 +883,56 @@ fn base_device_adjustments_round_negative_halves_up() {
     }
 }
 
+unsafe extern "C" fn no_origin(
+    _: *mut hr_font_t,
+    _: *mut c_void,
+    _: hr_codepoint_t,
+    _: *mut hr_position_t,
+    _: *mut hr_position_t,
+    _: *mut c_void,
+) -> hr_bool_t {
+    0
+}
+
 #[test]
-fn fallback_vertical_origin_rounds_negative_halves_up() {
-    unsafe extern "C" fn no_origin(
-        _: *mut hr_font_t,
-        _: *mut c_void,
-        _: hr_codepoint_t,
-        _: *mut hr_position_t,
-        _: *mut hr_position_t,
-        _: *mut c_void,
-    ) -> hr_bool_t {
-        0
-    }
+fn directional_origins_use_the_other_origin_when_available() {
+    let missing: hr_font_get_glyph_h_origin_func_t = Some(no_origin);
+    let provided: hr_font_get_glyph_h_origin_func_t = Some(fixed_origin); // (12, 34)
     unsafe {
-        with_font(|_face, font| {
+        with_font(|_, font| {
+            hr_font_set_scale(font, 1024, -512);
+            // The nil advance is 1024 and the fallback ascender is trunc(-512 * 0.8).
+            for (h, v, expected_h, expected_v) in [
+                (provided, missing, (12, 34), (524, -375)),
+                (missing, provided, (-500, 443), (12, 34)),
+                (missing, missing, (0, 0), (0, 0)),
+                (None, None, (0, 0), (512, -409)),
+            ] {
+                let funcs = hr_font_funcs_create();
+                hr_font_funcs_set_glyph_h_origin_func(funcs, h, ptr::null_mut(), None);
+                hr_font_funcs_set_glyph_v_origin_func(funcs, v, ptr::null_mut(), None);
+                hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
+                hr_font_funcs_destroy(funcs);
+                for (direction, expected) in [
+                    (HR_DIRECTION_LTR, expected_h),
+                    (HR_DIRECTION_TTB, expected_v),
+                ] {
+                    let (mut x, mut y) = (99, 99);
+                    hr_font_get_glyph_origin_for_direction(
+                        font, 1, direction, &raw mut x, &raw mut y,
+                    );
+                    assert_eq!((x, y), expected);
+                }
+            }
+        });
+    }
+}
+
+#[test]
+fn fallback_vertical_origin_uses_the_parent_font_extents() {
+    unsafe {
+        with_font(|_, parent| {
+            let font = hr_font_create_sub_font(parent);
             let funcs = hr_font_funcs_create();
             hr_font_funcs_set_glyph_v_origin_func(funcs, Some(no_origin), ptr::null_mut(), None);
             hr_font_set_funcs(font, funcs, ptr::null_mut(), None);
@@ -910,8 +946,9 @@ fn fallback_vertical_origin_rounds_negative_halves_up() {
                 ptr::null_mut(),
                 &raw mut y,
             );
-            // The font's 1103-unit ascender scales to -551.5.
+            // The parent's 1103-unit ascender rescales to -551 in the subfont.
             assert_eq!(y, -551);
+            hr_font_destroy(font);
         });
     }
 }
@@ -6032,6 +6069,31 @@ fn glyphs_go_by_name_and_come_back_from_one() {
 }
 
 #[test]
+fn unnamed_glyphs_have_a_string_representation() {
+    unsafe {
+        with_named_font("OpenSans.subset1.ttf", |_, font| {
+            let mut name = [1 as c_char; 8];
+            let size = name.len() as c_uint;
+            let mut glyph = u32::MAX;
+            assert_eq!(hr_font_get_glyph_name(font, 1, name.as_mut_ptr(), size), 0);
+            assert_eq!(name[0], 0);
+            assert_eq!(
+                hr_font_get_glyph_from_name(font, c"gid1".as_ptr(), -1, &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 0);
+            hr_font_glyph_to_string(font, 1, name.as_mut_ptr(), size);
+            assert_eq!(std::ffi::CStr::from_ptr(name.as_ptr()), c"gid1");
+            assert_ne!(
+                hr_font_glyph_from_string(font, name.as_ptr(), -1, &raw mut glyph),
+                0
+            );
+            assert_eq!(glyph, 1);
+        });
+    }
+}
+
+#[test]
 fn glyph_lookup_respects_the_variation_selector() {
     unsafe {
         with_named_font("NotoSansCJK.subset1.otf", |_, font| {
@@ -6457,12 +6519,12 @@ fn a_name_is_looked_up_without_asking_every_claimed_glyph_for_its_own() {
             0
         );
         assert_eq!(glyph, 0);
-        // And a glyph the face names nothing still answers to its `gidNNN`.
-        assert_ne!(
+        // The name index only contains names supplied by the font.
+        assert_eq!(
             hr_font_get_glyph_from_name(font, c"gid5".as_ptr(), -1, &raw mut glyph),
             0
         );
-        assert_eq!(glyph, 5);
+        assert_eq!(glyph, 0);
         assert_eq!(
             hr_font_get_glyph_from_name(font, c"gid05".as_ptr(), -1, &raw mut glyph),
             0

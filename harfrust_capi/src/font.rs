@@ -242,6 +242,21 @@ impl hr_font_t {
         Some(unsafe { self.shaper() }?.default_glyph_v_origin(harfrust::GlyphId::from(glyph)))
     }
 
+    pub(crate) fn builtin_horizontal_ascender(&self) -> Option<i32> {
+        let metrics = self.instance()?.metrics();
+        let line = if metrics.use_typo_metrics {
+            metrics.typo_line.or(metrics.hhea_line)
+        } else {
+            metrics.hhea_line
+        }?;
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "HarfBuzz scales OpenType metrics in f32"
+        )]
+        let scale = self.y_scale as f32 / self.upem() as f32;
+        Some(ot_round(line.ascender.to_f32().abs() * scale) as i32)
+    }
+
     /// How far a glyph advances, through whichever callback answers.
     ///
     /// # Safety
@@ -301,7 +316,9 @@ impl hr_font_t {
         // SAFETY: the view is used for this one lookup, while `self` is
         // borrowed, and what comes back borrows nothing from it.
         let shaper = unsafe { self.shaper() }?;
-        shaper.glyph_name(glyph.into())
+        shaper
+            .glyph_name(glyph.into())
+            .filter(|name| !name.is_synthesized())
     }
 
     /// A glyph's extents, from whichever callback answers, or from the font's
@@ -1696,37 +1713,20 @@ unsafe fn origin_for_direction(
 ) -> (hr_position_t, hr_position_t) {
     // SAFETY: `font` is `NULL` or a live font by this function's contract.
     let state = unsafe { object::or_empty(font.cast_const()) };
-    if crate::common::hr_direction_is_horizontal(direction) != 0 {
-        // SAFETY: `state` is `font` through `or_empty`: the font it points
-        // to, live by this function's contract, or the empty font if it is
-        // `NULL`. The adapter takes either pair.
-        return unsafe { FontFuncsAdapter::new(font, state) }
-            .call_h_origin(glyph)
-            .unwrap_or((0, 0));
-    }
-    // SAFETY: `glyph_v_origin` takes the same pairs, and this is the pair
-    // described above.
-    if let Some(origin) = unsafe { state.glyph_v_origin(font, glyph) } {
-        return origin;
-    }
-    // Nothing says where it hangs from vertically, so HarfBuzz guesses from
-    // the horizontal origin: the middle of the advance, at the ascender.
-    // SAFETY: as for `glyph_v_origin` above.
-    let x = unsafe { state.glyph_h_advance(font, glyph) } / 2;
-    let y = state
-        .instance()
-        .and_then(|instance| instance.metrics().hhea_line)
-        .map_or(0, |line| {
-            ot_round(line.ascender.to_f64() * f64::from(state.y_scale) / f64::from(state.upem()))
-                as i32
-        });
-    (x, y)
+    // SAFETY: `state` borrows this font or the empty font when it is NULL.
+    let adapter = unsafe { FontFuncsAdapter::new(font, state) };
+    adapter.origin_for_direction(
+        glyph,
+        crate::common::hr_direction_is_horizontal(direction) != 0,
+        || state.builtin_v_origin(glyph),
+    )
 }
 
 /// Where a glyph hangs from in the given direction.
 ///
-/// A font that cannot say where a glyph hangs from vertically has one guessed
-/// for it from the horizontal origin, as HarfBuzz does.
+/// If the requested origin is unavailable, derives it from the other origin
+/// using the horizontal advance and ascender. Writes (0, 0) if both origins
+/// are unavailable.
 ///
 /// # Safety
 ///
@@ -1937,16 +1937,7 @@ pub unsafe extern "C" fn hr_font_get_glyph_from_name(
     let found = state
         .instance()
         .and_then(|instance| instance.glyph_by_name(wanted))
-        .map(|found| found.to_u32())
-        // A glyph the face names nothing still answers to the `gidNNN` that
-        // `hr_font_get_glyph_name` gives it.
-        .or_else(|| {
-            let candidate = wanted.strip_prefix("gid")?.parse().ok()?;
-            state
-                .glyph_name(candidate)
-                .is_some_and(|name| name.as_str() == wanted)
-                .then_some(candidate)
-        });
+        .map(|found| found.to_u32());
     let Some(found) = found else {
         return false.into();
     };

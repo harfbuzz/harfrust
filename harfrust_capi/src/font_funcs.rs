@@ -1225,8 +1225,8 @@ impl<'a> FontFuncsAdapter<'a> {
 
     pub(crate) fn call_h_origin(&self, glyph: u32) -> Option<(i32, i32)> {
         let (font, data, cb, scale) = match resolve!(self, h_origin) {
-            Resolved::Builtin => return Some((0, 0)),
-            Resolved::Missing => return None,
+            // HarfBuzz's nil horizontal origin succeeds at (0, 0).
+            Resolved::Builtin | Resolved::Missing => return Some((0, 0)),
             Resolved::Found {
                 font,
                 data,
@@ -1243,6 +1243,66 @@ impl<'a> FontFuncsAdapter<'a> {
             rescale(x, scale.0, self.state.x_scale),
             rescale(y, scale.1, self.state.y_scale),
         ))
+    }
+
+    fn horizontal_ascender(&self) -> i32 {
+        // Font extents have no installable C callback yet. They are inherited
+        // from the nearest built-in font and rescaled at every parent step.
+        let mut font = self.state;
+        let mut scales = smallvec::SmallVec::<[(i32, i32); 4]>::new();
+        while font.funcs != builtin_funcs() {
+            // SAFETY: Each font owns its reference to its parent.
+            let Some(parent) = (unsafe { font.parent.as_ref() }) else {
+                break;
+            };
+            if parent.y_scale != font.y_scale {
+                scales.push((parent.y_scale, font.y_scale));
+            }
+            font = parent;
+        }
+        if font.funcs.is_null() || font.funcs == builtin_funcs() {
+            if let Some(ascender) = font.builtin_horizontal_ascender() {
+                return scales
+                    .iter()
+                    .rev()
+                    .fold(ascender, |v, &(from, to)| rescale(v, from, to));
+            }
+        }
+        (f64::from(self.state.y_scale) * 0.8) as i32
+    }
+
+    pub(crate) fn origin_for_direction(
+        &self,
+        glyph: u32,
+        horizontal: bool,
+        builtin_v_origin: impl Fn() -> Option<(i32, i32)>,
+    ) -> (i32, i32) {
+        let origin = |horizontal| {
+            if horizontal {
+                self.call_h_origin(glyph)
+            } else {
+                match self.call_v_origin(glyph) {
+                    Answer::Builtin => builtin_v_origin(),
+                    Answer::Value(origin) => origin,
+                }
+            }
+        };
+        if let Some(pos) = origin(horizontal) {
+            return pos;
+        }
+        let Some((x, y)) = origin(!horizontal) else {
+            return (0, 0);
+        };
+        // The vertical origin is half an advance to the right and one
+        // horizontal ascender above the horizontal origin.
+        // SAFETY: The adapter holds a live font and its matching state.
+        let dx = unsafe { self.state.glyph_h_advance(self.font, glyph) } / 2;
+        let dy = self.horizontal_ascender();
+        if horizontal {
+            (x.saturating_sub(dx), y.saturating_sub(dy))
+        } else {
+            (x.saturating_add(dx), y.saturating_add(dy))
+        }
     }
 
     pub(crate) fn call_kerning(&self, first: u32, second: u32, vertical: bool) -> i32 {
@@ -1458,11 +1518,9 @@ impl FontFuncs for FontFuncsAdapter<'_> {
     }
 
     fn glyph_v_origin(&self, font: &ShaperFont, glyph: GlyphId) -> (i32, i32) {
-        match self.call_v_origin(glyph.to_u32()) {
-            Answer::Builtin => font.default_glyph_v_origin(glyph),
-            // Nowhere in particular is the origin shaping uses.
-            Answer::Value(origin) => origin.unwrap_or((0, 0)),
-        }
+        self.origin_for_direction(glyph.to_u32(), false, || {
+            Some(font.default_glyph_v_origin(glyph))
+        })
     }
 
     fn glyph_extents(&self, font: &ShaperFont, glyph: GlyphId) -> Option<GlyphExtents> {
