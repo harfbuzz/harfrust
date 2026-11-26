@@ -9,8 +9,22 @@ use clap::Parser;
 use harfrust::{
     font::Font, font::Variation, shape as shape_impl, Buffer, BufferFlags, ClusterLevel, Direction,
     Feature, Language, ParseSetting, Script, SerializeFlags, ShapeOptions, ShapePlan, ShapePlanKey,
-    ShaperFont,
+    Shaper, ShaperFont,
 };
+
+/// The shapers this build supports, in the order `--list-shapers` prints them.
+const SUPPORTED_SHAPERS: &[(&str, Shaper)] = &[
+    ("ot", Shaper::Ot),
+    #[cfg(feature = "wasm")]
+    ("wasm", Shaper::Wasm),
+];
+
+fn parse_shaper(value: &str) -> Result<Shaper, String> {
+    SUPPORTED_SHAPERS
+        .iter()
+        .find_map(|&(name, shaper)| (name == value).then_some(shaper))
+        .ok_or_else(|| format!("Unknown or unsupported shaper: {value}"))
+}
 
 fn parse_font_size(value: &str) -> Result<(i32, i32), String> {
     let (x, y) = value.split_once(',').unwrap_or((value, value));
@@ -137,6 +151,19 @@ pub struct Args {
     /// Comma-separated list of font features
     #[arg(long, value_delimiter = ',')]
     features: Vec<Feature>,
+
+    /// Set shapers to use (default: ot)
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_parser = parse_shaper,
+        default_value = "ot"
+    )]
+    shapers: Vec<Shaper>,
+
+    /// List available shapers and quit
+    #[arg(long)]
+    list_shapers: bool,
 
     /// Use UTF-8 byte indices, not char indices
     #[arg(long)]
@@ -341,6 +368,15 @@ fn render_with_trace(
 ) -> Result<String, String> {
     normalize_args(&mut args);
 
+    if args.list_shapers {
+        let mut output = String::new();
+        for &(name, _) in SUPPORTED_SHAPERS {
+            output.push_str(name);
+            output.push('\n');
+        }
+        return Ok(output);
+    }
+
     let mut font_set_as_free_arg = false;
     let font_path = if let Some(ref path) = args.font_file {
         path.clone()
@@ -541,14 +577,18 @@ fn render_with_trace(
                 buffer.guess_segment_properties();
 
                 let script = resolved_script(args.script, buffer);
-                let plan = shape_plan_cache.get(&instance, buffer, script, features);
+                // A cached plan is built for OpenType, so it stands in for the
+                // shaper list only when that list names nothing else.
+                let plan = (args.shapers == [Shaper::Ot])
+                    .then(|| shape_plan_cache.get(&instance, buffer, script, features));
                 shape_impl(
                     &shaping_font,
                     buffer,
                     ShapeOptions::new()
-                        .plan(Some(plan))
+                        .plan(plan)
                         .point_size(args.font_ptem)
-                        .features(features),
+                        .features(features)
+                        .shapers(&args.shapers),
                 )
                 .map_err(|e| format!("Error: {e}"))?;
                 if let Some(trace_output) = &trace_output {
@@ -752,6 +792,53 @@ mod tests {
             .unwrap()
             .to_string();
         assert!(error.contains("unknown output format 'xml'"));
+    }
+
+    #[cfg(feature = "wasm")]
+    #[test]
+    fn list_shapers_prints_each_supported_shaper() {
+        assert_eq!(
+            run_from_args(["hr-shape", "--list-shapers"]).unwrap(),
+            "ot\nwasm\n"
+        );
+    }
+
+    #[test]
+    fn unknown_shaper_is_rejected() {
+        let error = Args::try_parse_from(["hr-shape", "font.ttf", "text", "--shapers=ot,wat"])
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("Unknown or unsupported shaper: wat"));
+    }
+
+    #[cfg(feature = "wasm")]
+    #[test]
+    fn shaper_list_is_used_for_shaping() {
+        let font = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/benches/fonts/Roboto-Regular.ttf"
+        );
+        // Roboto has no `Wasm` table, so the module-named shaper cannot shape
+        // it and the list has nothing else to try.
+        let error = run_from_args(["hr-shape", font, "ffi", "--shapers=wasm"]).unwrap_err();
+        assert_eq!(error, "Error: no requested shaper could shape the font");
+        assert!(run_from_args(["hr-shape", font, "ffi", "--shapers=ot"]).is_ok());
+
+        // With OpenType next in the list, the font falls through to it.
+        let fallback = run_from_args(["hr-shape", font, "ffi", "--shapers=wasm,ot"]).unwrap();
+        assert_eq!(fallback, run_from_args(["hr-shape", font, "ffi"]).unwrap());
+    }
+
+    #[test]
+    fn default_shapers_are_opentype() {
+        let font = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../harfrust/benches/fonts/Roboto-Regular.ttf"
+        );
+        let default = run_from_args(["hr-shape", font, "ffi"]).unwrap();
+        let explicit = run_from_args(["hr-shape", font, "ffi", "--shapers=ot"]).unwrap();
+        assert_eq!(default, explicit);
     }
 
     #[test]

@@ -1,14 +1,46 @@
 use crate::{Feature, ShapePlan};
 
+/// A shaping engine that [`shape`](crate::shape) can use.
+///
+/// The OpenType shaper is the default. The WebAssembly shaper runs a font's
+/// own module from its `Wasm` table, as HarfBuzz does, and needs the `wasm`
+/// feature.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[non_exhaustive]
+pub enum Shaper {
+    /// The OpenType shaper.
+    Ot,
+    /// The font's embedded WebAssembly module.
+    ///
+    /// Only fonts with a readable `Wasm` table can be shaped this way. A font
+    /// without one is passed over when the shaper list is consulted.
+    #[cfg(feature = "wasm")]
+    Wasm,
+}
+
+const DEFAULT_SHAPERS: &[Shaper] = &[Shaper::Ot];
+
 /// Optional settings for a shaping operation.
 ///
 /// By default, shaping creates a plan, applies the font's default features,
-/// and has no point size for the `trak` table.
-#[derive(Default)]
+/// has no point size for the `trak` table, and shapes with the OpenType
+/// shaper.
 pub struct ShapeOptions<'a> {
     pub(crate) plan: Option<&'a ShapePlan>,
     pub(crate) point_size: Option<f32>,
     pub(crate) features: &'a [Feature],
+    pub(crate) shapers: &'a [Shaper],
+}
+
+impl Default for ShapeOptions<'_> {
+    fn default() -> Self {
+        Self {
+            plan: None,
+            point_size: None,
+            features: &[],
+            shapers: DEFAULT_SHAPERS,
+        }
+    }
 }
 
 impl<'a> ShapeOptions<'a> {
@@ -21,6 +53,9 @@ impl<'a> ShapeOptions<'a> {
     ///
     /// The shape plan must be compatible with the properties of the buffer
     /// passed to shaping.
+    ///
+    /// A plan records the shaper it was built for, and that shaper is used
+    /// when the plan is supplied; [`shapers`](Self::shapers) is not consulted.
     pub fn plan(mut self, plan: Option<&'a ShapePlan>) -> Self {
         self.plan = plan;
         self
@@ -35,6 +70,19 @@ impl<'a> ShapeOptions<'a> {
     /// Sets user features to apply during shaping.
     pub fn features(mut self, features: &'a [Feature]) -> Self {
         self.features = features;
+        self
+    }
+
+    /// Sets the shapers to try, in the order given.
+    ///
+    /// The first shaper that can shape the font is used. A shaper that cannot
+    /// shape it is passed over, so `&[Shaper::Wasm, Shaper::Ot]` runs a font's
+    /// module when it has one and leaves the rest to OpenType.
+    ///
+    /// Defaults to `&[Shaper::Ot]`. Ignored when a [`plan`](Self::plan) is
+    /// supplied.
+    pub fn shapers(mut self, shapers: &'a [Shaper]) -> Self {
+        self.shapers = shapers;
         self
     }
 }

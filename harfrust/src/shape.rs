@@ -3,10 +3,17 @@
 /// A supplied plan must match the buffer's direction and script. On success,
 /// the buffer contains glyphs.
 ///
+/// Without a plan, the shapers in [`ShapeOptions::shapers`] are tried in
+/// order and the first that can shape the font is used. That list defaults to
+/// the OpenType shaper; add `Shaper::Wasm` ahead of it to run a font's
+/// embedded module when the `wasm` feature is enabled. A supplied plan
+/// records the shaper it was built for, which is used instead.
+///
 /// # Errors
 ///
-/// Returns an error if the buffer cannot be shaped with the supplied plan or
-/// lacks the properties needed to build one.
+/// Returns an error if the buffer cannot be shaped with the supplied plan,
+/// lacks the properties needed to build one, or if none of the requested
+/// shapers can shape the font.
 pub fn shape(
     font: &ShaperFont<'_, '_>,
     buffer: &mut Buffer,
@@ -15,20 +22,66 @@ pub fn shape(
     if buffer.content_type == Some(ContentType::Glyphs) {
         return Err(ShapeError::AlreadyShaped);
     }
+    if buffer.is_empty() {
+        return Ok(());
+    }
     if let Some(plan) = options.plan {
-        shape_with_font(plan, font, buffer, options.features, options.point_size)
-    } else {
-        if buffer.direction == Direction::Invalid {
-            return Err(ShapeError::DirectionUnset);
+        return shape_with_plan(plan, font, buffer, &options);
+    }
+    if buffer.direction == Direction::Invalid {
+        return Err(ShapeError::DirectionUnset);
+    }
+    for &shaper in options.shapers {
+        if let Some(result) = shape_with_shaper(shaper, font, buffer, &options) {
+            return result;
         }
-        let plan = ShapePlan::from_layout(
-            font.layout(),
-            buffer.direction,
-            buffer.script,
-            buffer.language.as_ref(),
-            options.features,
-        );
-        shape_with_font(&plan, font, buffer, options.features, options.point_size)
+    }
+    Err(ShapeError::ShaperUnavailable)
+}
+
+/// Runs a plan with the shaper it was built for.
+fn shape_with_plan(
+    plan: &ShapePlan,
+    font: &ShaperFont<'_, '_>,
+    buffer: &mut Buffer,
+    options: &ShapeOptions<'_>,
+) -> Result<(), ShapeError> {
+    match plan.shaper {
+        Shaper::Ot => shape_with_font(plan, font, buffer, options.features, options.point_size),
+        #[cfg(feature = "wasm")]
+        Shaper::Wasm => match crate::wasm::shape(font, buffer, options) {
+            Some(result) => result,
+            None => Err(ShapeError::ShaperUnavailable),
+        },
+    }
+}
+
+/// Shapes with one shaper, or returns `None` if it cannot shape this font.
+fn shape_with_shaper(
+    shaper: Shaper,
+    font: &ShaperFont<'_, '_>,
+    buffer: &mut Buffer,
+    options: &ShapeOptions<'_>,
+) -> Option<Result<(), ShapeError>> {
+    match shaper {
+        Shaper::Ot => {
+            let plan = ShapePlan::from_layout(
+                font.layout(),
+                buffer.direction,
+                buffer.script,
+                buffer.language.as_ref(),
+                options.features,
+            );
+            Some(shape_with_font(
+                &plan,
+                font,
+                buffer,
+                options.features,
+                options.point_size,
+            ))
+        }
+        #[cfg(feature = "wasm")]
+        Shaper::Wasm => crate::wasm::shape(font, buffer, options),
     }
 }
 
@@ -42,7 +95,7 @@ use crate::ot::*;
 use crate::plan::ShapePlan;
 use crate::unicode::{CharExt, GeneralCategory};
 use crate::{fallback, normalize};
-use crate::{Advances, ShapeError, ShapeOptions, ShaperFont};
+use crate::{Advances, ShapeError, ShapeOptions, Shaper, ShaperFont};
 use crate::{BufferFlags, ContentType, Direction, Feature, Mask, Script};
 
 /// Runs a compiled plan using prepared layout data and effective font queries.
@@ -127,7 +180,7 @@ impl OtShapeContext<'_, '_, '_> {
 
         ensure_native_direction(self.buffer);
 
-        if let Some(func) = self.plan.shaper.preprocess_text {
+        if let Some(func) = self.plan.ot_shaper.preprocess_text {
             if buffer_message!(self.buffer, self.font, "start preprocess-text") {
                 if func(self.plan, self.font, self.buffer).is_none() {
                     self.buffer.index_failed();
@@ -169,7 +222,7 @@ impl OtShapeContext<'_, '_, '_> {
         deal_with_variation_selectors(self.buffer);
         hide_default_ignorables(self.buffer, self.font);
 
-        if let Some(func) = self.plan.shaper.postprocess_glyphs {
+        if let Some(func) = self.plan.ot_shaper.postprocess_glyphs {
             if buffer_message!(self.buffer, self.font, "start postprocess-glyphs") {
                 func(self.plan, self.font, self.buffer);
                 message!(self, "end postprocess-glyphs");
@@ -286,14 +339,17 @@ impl OtShapeContext<'_, '_, '_> {
 
         gpos::position_start(self.buffer);
 
-        if self.plan.zero_marks && self.plan.shaper.zero_width_marks == ZeroWidthMarks::ByGdefEarly
+        if self.plan.zero_marks
+            && self.plan.ot_shaper.zero_width_marks == ZeroWidthMarks::ByGdefEarly
         {
             zero_mark_widths_by_gdef(self.buffer, adjust_offsets_when_zeroing);
         }
 
         self.position_by_plan();
 
-        if self.plan.zero_marks && self.plan.shaper.zero_width_marks == ZeroWidthMarks::ByGdefLate {
+        if self.plan.zero_marks
+            && self.plan.ot_shaper.zero_width_marks == ZeroWidthMarks::ByGdefLate
+        {
             zero_mark_widths_by_gdef(self.buffer, adjust_offsets_when_zeroing);
         }
 
@@ -354,7 +410,7 @@ impl OtShapeContext<'_, '_, '_> {
             self.buffer.index_failed();
         }
 
-        if let Some(func) = self.plan.shaper.setup_masks {
+        if let Some(func) = self.plan.ot_shaper.setup_masks {
             func(self.plan, self.font, self.buffer);
         }
 

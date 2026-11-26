@@ -349,7 +349,7 @@ pub fn normalize<'x>(
 
     buffer.assert_unicode_vars();
 
-    let mut mode = plan.shaper.normalization_preference;
+    let mut mode = plan.ot_shaper.normalization_preference;
     if mode == NormalizationMode::Auto {
         if plan.has_gpos_mark {
             // https://github.com/harfbuzz/harfbuzz/issues/653#issuecomment-423905920
@@ -364,8 +364,8 @@ pub fn normalize<'x>(
         plan,
         buffer,
         font,
-        decompose: plan.shaper.decompose.unwrap_or(decompose_unicode),
-        compose: plan.shaper.compose.unwrap_or(compose_unicode),
+        decompose: plan.ot_shaper.decompose.unwrap_or(decompose_unicode),
+        compose: plan.ot_shaper.compose.unwrap_or(compose_unicode),
     };
 
     let always_short_circuit = mode == NormalizationMode::None;
@@ -482,7 +482,7 @@ pub fn normalize<'x>(
             if end - i <= MAX_COMBINING_MARKS {
                 ctx.buffer.sort(i, end, compare_combining_class);
 
-                if let Some(reorder_marks) = ctx.plan.shaper.reorder_marks {
+                if let Some(reorder_marks) = ctx.plan.ot_shaper.reorder_marks {
                     reorder_marks(ctx.plan, ctx.buffer, i, end);
                 }
             }

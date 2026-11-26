@@ -5,7 +5,7 @@ use crate::ot::layout::*;
 use crate::ot::map::*;
 use crate::ot::shaper::*;
 use crate::shaper_font::LayoutData;
-use crate::{Direction, Feature, Language, Script, Tag};
+use crate::{Direction, Feature, Language, Script, Shaper, Tag};
 
 use super::plan::ShapePlan;
 
@@ -259,7 +259,8 @@ impl<'a> ShapePlanner<'a> {
             direction: self.direction,
             script: self.script,
             language: self.language,
-            shaper: self.shaper,
+            ot_shaper: self.shaper,
+            shaper: Shaper::Ot,
             ot_map,
             aat_map,
             data: None,

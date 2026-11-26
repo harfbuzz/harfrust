@@ -30,6 +30,8 @@ and call [`shape`] to replace the text with positioned glyphs.
 #![allow(clippy::wrong_self_convention)]
 #![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::manual_range_contains)]
+// The optional `wasmi` dependency pulls in a second `syn`/`synstructure`.
+#![allow(clippy::multiple_crate_versions)]
 
 extern crate alloc;
 
@@ -63,6 +65,8 @@ mod tag_reverse;
 #[allow(clippy::collapsible_match)]
 mod tag_table;
 mod text_parser;
+#[cfg(feature = "wasm")]
+mod wasm;
 
 type Mask = u32;
 
@@ -74,7 +78,7 @@ fn clamp_i64_to_i32(value: i64) -> i32 {
 pub(crate) type U32Set = read_fonts::collections::int_set::U32Set;
 
 pub use error::ShapeError;
-pub use options::ShapeOptions;
+pub use options::{ShapeOptions, Shaper};
 #[doc(hidden)]
 pub use parse_setting::ParseSetting;
 pub use plan::{ShapePlan, ShapePlanKey};

@@ -38,6 +38,9 @@ jobs:
     - name: Run tests with icu4x
       run: cargo test --verbose --features icu
 
+    - name: Run tests with wasm
+      run: cargo test --verbose --features wasm
+
     - name: Build core C API without subsetting
       run: cargo build -p harfrust_capi --no-default-features --target-dir target/capi-default
 
@@ -139,7 +142,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [libm, "libm,tracing"]
+        features: [libm, "libm,tracing", "libm,wasm"]
     steps:
       - uses: actions/checkout@v6
 
