@@ -467,6 +467,28 @@ pub const HB_BUFFER_CLUSTER_LEVEL_CHARACTERS: u32 = 2;
 pub const HB_BUFFER_CLUSTER_LEVEL_GRAPHEMES: u32 = 3;
 pub const HB_BUFFER_CLUSTER_LEVEL_DEFAULT: u32 = HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES;
 
+pub(crate) enum ClusterOrder {
+    Ascending,
+    Descending,
+    Unsorted,
+}
+
+impl ClusterOrder {
+    fn detect(infos: &[GlyphInfo]) -> Self {
+        let [first, .., last] = infos else {
+            return Self::Ascending;
+        };
+        if first.cluster > last.cluster {
+            if infos.is_sorted_by(|a, b| a.cluster >= b.cluster) {
+                return Self::Descending;
+            }
+        } else if infos.is_sorted_by_key(|info| info.cluster) {
+            return Self::Ascending;
+        }
+        Self::Unsorted
+    }
+}
+
 /// The type of contents currently held by a [`Buffer`].
 ///
 /// This matches HarfBuzz's `hb_buffer_content_type_t`.
@@ -1764,10 +1786,9 @@ impl Buffer {
         mask: Mask,
         cluster_start: u32,
         cluster_end: u32,
+        cluster_order: &mut Option<ClusterOrder>,
     ) {
-        // Every call walks the whole buffer, once per ranged feature; once
-        // the operation limit is spent, stop walking (and charging) like
-        // move_to() and shift_forward() do.
+        // Charge one buffer pass per feature, including binary-searched ranges.
         if mask == 0 || self.max_ops < 0 {
             return;
         }
@@ -1781,18 +1802,37 @@ impl Buffer {
             return;
         }
 
-        if cluster_start == 0 && cluster_end == u32::MAX {
-            for info in self.info_slice_mut() {
-                info.mask = (info.mask & not_mask) | value;
-            }
-
+        if cluster_start >= cluster_end {
             return;
         }
 
-        for info in self.info_slice_mut() {
-            if cluster_start <= info.cluster && info.cluster < cluster_end {
-                info.mask = (info.mask & not_mask) | value;
-            }
+        let infos = self.info_slice_mut();
+        let range = if cluster_start == 0 && cluster_end == u32::MAX {
+            infos
+        } else {
+            let order = cluster_order.get_or_insert_with(|| ClusterOrder::detect(infos));
+            let (start, end) = match order {
+                ClusterOrder::Ascending => (
+                    infos.partition_point(|i| i.cluster < cluster_start),
+                    infos.partition_point(|i| i.cluster < cluster_end),
+                ),
+                ClusterOrder::Descending => (
+                    infos.partition_point(|i| i.cluster >= cluster_end),
+                    infos.partition_point(|i| i.cluster >= cluster_start),
+                ),
+                ClusterOrder::Unsorted => {
+                    for info in infos {
+                        if cluster_start <= info.cluster && info.cluster < cluster_end {
+                            info.mask = (info.mask & not_mask) | value;
+                        }
+                    }
+                    return;
+                }
+            };
+            &mut infos[start..end]
+        };
+        for info in range {
+            info.mask = (info.mask & not_mask) | value;
         }
     }
 
@@ -3128,12 +3168,13 @@ mod tests {
         // Room for one full pass; the second one overruns the limit.
         buffer.max_ops = 2 * len - 1;
 
-        buffer.set_masks(1, 1, 0, u32::MAX);
+        let mut order = None;
+        buffer.set_masks(1, 1, 0, u32::MAX, &mut order);
         assert!(buffer.successful);
         assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));
 
         // The pass that spends the limit fails the buffer without scanning...
-        buffer.set_masks(2, 2, 0, u32::MAX);
+        buffer.set_masks(2, 2, 1, 2, &mut order);
         assert!(!buffer.successful);
         assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));
         let spent = buffer.max_ops;
@@ -3141,7 +3182,7 @@ mod tests {
         // ...and later passes neither scan nor charge, so `max_ops` cannot
         // keep sinking (and wrapping) under a long list of ranged features.
         for value in [4, 8] {
-            buffer.set_masks(value, value, 0, u32::MAX);
+            buffer.set_masks(value, value, 0, u32::MAX, &mut order);
         }
         assert_eq!(buffer.max_ops, spent);
         assert!(buffer.info_slice_mut().iter().all(|info| info.mask == 1));

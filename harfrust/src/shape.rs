@@ -414,11 +414,22 @@ impl OtShapeContext<'_, '_, '_> {
             func(self.plan, self.font, self.buffer);
         }
 
+        // For large inputs, detect cluster order on the first applicable range.
+        let mut cluster_order = if self.features.len() >= 4 && self.buffer.len >= 64 {
+            None
+        } else {
+            Some(ClusterOrder::Unsorted)
+        };
         for feature in self.features {
             if !feature.is_global() && !self.plan.ot_map.is_global(feature.tag) {
                 let (mask, shift) = self.plan.ot_map.get_mask(feature.tag);
-                self.buffer
-                    .set_masks(feature.value << shift, mask, feature.start, feature.end);
+                self.buffer.set_masks(
+                    feature.value << shift,
+                    mask,
+                    feature.start,
+                    feature.end,
+                    &mut cluster_order,
+                );
             }
         }
     }
