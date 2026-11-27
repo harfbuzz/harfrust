@@ -72,7 +72,7 @@
 /**
  * The micro version of this library.
  */
-#define HR_VERSION_MICRO 1
+#define HR_VERSION_MICRO 2
 
 /**
  * The HarfBuzz release matched by the shaping implementation.
@@ -5797,7 +5797,7 @@ harfrust_glyph_info_flags_inline(const hr_glyph_info_t *info)
 #define HR_DIRECTION_REVERSE(dir) ((hr_direction_t) (((unsigned int) (dir)) ^ 1U))
 
 /** The version of this library, as a string. */
-#define HR_VERSION_STRING "0.16.1"
+#define HR_VERSION_STRING "0.16.2"
 
 /** True if this library is at least the given version. */
 #define HR_VERSION_ATLEAST(major, minor, micro) ((major) < HR_VERSION_MAJOR || ((major) == HR_VERSION_MAJOR && ((minor) < HR_VERSION_MINOR || ((minor) == HR_VERSION_MINOR && (micro) <= HR_VERSION_MICRO))))

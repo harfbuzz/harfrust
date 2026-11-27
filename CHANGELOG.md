@@ -7,14 +7,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-11-26
+
+This release tracks HarfBuzz 15.2.0 and requires Rust 1.85 or later.
+
 ### Added
 
+- Add an experimental WebAssembly shaper for fonts with a `Wasm` table.
+  Enable the `wasm` Cargo feature and select `Shaper::Wasm` through
+  `ShapeOptions::shapers` to use it. OpenType remains the default.
+  `hr-shape` supports `--list-shapers` and `--shapers=wasm,ot`.
 - Add `Buffer::glyph_infos_raw` and `Buffer::glyph_positions_raw`, raw views
   of a buffer's items and positions. Calling them again leaves an earlier
   pointer valid; borrowing the items or reallocating the buffer, which
   `Buffer::reserve` can do, may not.
 - Add `Buffer::has_positions`, which says whether a buffer has glyph
   positions without borrowing them.
+
+### Changed
+
+- Speed up shaping with multiple ranged features on monotone clusters and
+  tracing callbacks that only read the message text.
+- Color-glyph paint callbacks that recurse into another glyph must guard
+  against cycles and limit their own recursion depth, as in HarfBuzz.
 
 ### Fixed
 
@@ -24,6 +39,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   kerning at all; put the dotted circle after a reph written as Ra + Halant in
   a broken Indic cluster; and fail the buffer when an AAT state machine that
   does not advance spends the work budget.
+- Charge only non-advancing AAT state transitions against that budget, so
+  long runs that make progress can finish shaping.
+- Honor variation selectors in C glyph lookups, including legacy Arabic
+  mappings for default variation sequences. Match HarfBuzz when synthesizing
+  missing glyph origins, converting glyph names, and computing fallback
+  baselines for OpenType script tags.
+- Fix the lifetime of C glyph-array pointers across repeated getter calls,
+  and handle reentrant destroy callbacks when replacing callbacks or
+  destroying objects. Paged getters now clear the output count when called
+  without an array.
+- Include the Unicode data license in the published `harfrust` crate.
 
 ## [0.16.1] - 2026-11-19
 
@@ -559,7 +585,8 @@ This release matches HarfBuzz [v11.2.1][harfbuzz-11.2.1], and has an MSRV (minim
 HarfRust is a fork of RustyBuzz.
 See [their changelog](https://github.com/harfbuzz/rustybuzz/blob/main/CHANGELOG.md) for details of prior releases.
 
-[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.16.1...HEAD
+[Unreleased]: https://github.com/harfbuzz/harfrust/compare/0.16.2...HEAD
+[0.16.2]: https://github.com/harfbuzz/harfrust/compare/0.16.1...0.16.2
 [0.16.1]: https://github.com/harfbuzz/harfrust/compare/0.16.0...0.16.1
 [0.16.0]: https://github.com/harfbuzz/harfrust/compare/0.15.0...0.16.0
 [0.15.0]: https://github.com/harfbuzz/harfrust/compare/0.14.0...0.15.0

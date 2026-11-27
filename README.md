@@ -19,6 +19,9 @@ Further context in https://github.com/googlefonts/fontations/issues/956.
 
 Matches HarfBuzz 15.2.0.
 
+The opt-in `wasm` feature adds an experimental [WebAssembly shaper](docs/wasm-shaper.md)
+for fonts with a `Wasm` table. OpenType is the default shaper.
+
 ## Why?
 
 https://github.com/googlefonts/oxidize outlines Google Fonts motivations to try to migrate font
@@ -58,7 +61,7 @@ benchmark suite against HarfBuzz bindings.
 Enable the opt-in `tracing` Cargo feature to receive HarfBuzz shaping messages:
 
 ```toml
-harfrust = { version = "0.16.1", features = ["tracing"] }
+harfrust = { version = "0.16.2", features = ["tracing"] }
 ```
 
 Install a callback before shaping with

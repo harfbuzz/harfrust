@@ -361,9 +361,9 @@ pub const HR_VERSION_MAJOR: c_uint = 0;
 /// The minor version of this library.
 pub const HR_VERSION_MINOR: c_uint = 16;
 /// The micro version of this library.
-pub const HR_VERSION_MICRO: c_uint = 1;
+pub const HR_VERSION_MICRO: c_uint = 2;
 /// The version of this library, as a string.
-pub const HR_VERSION_STRING: &str = "0.16.1";
+pub const HR_VERSION_STRING: &str = "0.16.2";
 
 /// The HarfBuzz release matched by the shaping implementation.
 pub const HR_HARFBUZZ_VERSION_MAJOR: c_uint = 15;
