@@ -8,7 +8,7 @@ use super::layout::LayoutTableKind;
 use super::{Language, Mask, Script, Tag};
 use crate::plan::ShapePlan;
 use crate::tag::TagExt;
-use crate::{LayoutData, ShaperFont};
+use crate::{Direction, LayoutData, ShaperFont};
 use read_fonts::tables::layout::{store_deltas, LookupVariations};
 use read_fonts::types::F2Dot14;
 
@@ -16,8 +16,7 @@ use read_fonts::types::F2Dot14;
 use core::mem::{size_of, size_of_val};
 
 pub struct OtMap {
-    found_script: [bool; 2],
-    chosen_script: [Option<Tag>; 2],
+    pub(crate) languages: ResolvedLanguages,
     global_mask: Mask,
     features: Vec<FeatureMap>,
     lookups: [Vec<LookupMap>; 2],
@@ -108,12 +107,12 @@ impl OtMap {
 
     #[inline]
     pub fn found_script(&self, table_index: LayoutTableKind) -> bool {
-        self.found_script[table_index]
+        self.languages.found_script[table_index]
     }
 
     #[inline]
     pub fn chosen_script(&self, table_index: LayoutTableKind) -> Option<Tag> {
-        self.chosen_script[table_index]
+        self.languages.chosen_script[table_index]
     }
 
     #[inline]
@@ -221,12 +220,19 @@ pub const F_GLOBAL_SEARCH: u32 = 0x0010; /* If feature not found in LangSys, loo
 pub const F_RANDOM: u32 = 0x0020; /* Randomly select a glyph from an AlternateSubstFormat1 subtable. */
 pub const F_PER_SYLLABLE: u32 = 0x0040; /* Contain lookup application to within syllable. */
 
-pub struct OtMapBuilder<'a> {
-    layout: LayoutData<'a>,
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ResolvedLanguages {
     found_script: [bool; 2],
     script_index: [Option<u16>; 2],
     chosen_script: [Option<Tag>; 2],
     lang_index: [Option<u16>; 2],
+    pub(crate) apply_morx: bool,
+    aat_language: Option<u16>,
+}
+
+pub struct OtMapBuilder<'a> {
+    layout: LayoutData<'a>,
+    languages: ResolvedLanguages,
     current_stage: [usize; 2],
     feature_infos: Vec<FeatureInfo>,
     stages: [Vec<StageInfo>; 2],
@@ -341,9 +347,10 @@ const GLOBAL_BIT_MASK: Mask = 1 << GLOBAL_BIT_SHIFT;
 /// one for each value a lookup index can take.
 const MAX_LOOKUP_VARIATION_INDICES: usize = 1 << 16;
 
-impl<'a> OtMapBuilder<'a> {
+impl ResolvedLanguages {
     pub fn new(
-        layout: LayoutData<'a>,
+        layout: LayoutData<'_>,
+        direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
     ) -> Self {
@@ -368,12 +375,34 @@ impl<'a> OtMapBuilder<'a> {
             }
         }
 
+        // https://github.com/harfbuzz/harfbuzz/issues/2124
+        let apply_morx = (layout.aat.morx.is_some() || layout.aat.mort.is_some())
+            && (direction.is_horizontal() || layout.ot.gsub().is_none());
+        let aat_language = if apply_morx {
+            layout
+                .aat
+                .ltag
+                .as_ref()
+                .and_then(|ltag| crate::aat::morx::select_language(ltag, language))
+        } else {
+            None
+        };
         Self {
-            layout,
             found_script,
             script_index,
             chosen_script,
             lang_index,
+            apply_morx,
+            aat_language,
+        }
+    }
+}
+
+impl<'a> OtMapBuilder<'a> {
+    pub fn new(layout: LayoutData<'a>, languages: ResolvedLanguages) -> Self {
+        Self {
+            layout,
+            languages,
             current_stage: [0, 0],
             feature_infos: Vec::new(),
             stages: [Vec::new(), Vec::new()],
@@ -383,15 +412,19 @@ impl<'a> OtMapBuilder<'a> {
 
     #[inline]
     pub fn chosen_script(&self, table_index: LayoutTableKind) -> Option<Tag> {
-        self.chosen_script[table_index]
+        self.languages.chosen_script[table_index]
     }
 
     #[inline]
     pub fn has_feature(&self, tag: Tag) -> bool {
         for (table_index, table) in self.layout.ot.layout_tables() {
-            if let Some(script_index) = self.script_index[table_index] {
+            if let Some(script_index) = self.languages.script_index[table_index] {
                 if table
-                    .find_language_feature(script_index, self.lang_index[table_index], tag)
+                    .find_language_feature(
+                        script_index,
+                        self.languages.lang_index[table_index],
+                        tag,
+                    )
                     .is_some()
                 {
                     return true;
@@ -454,8 +487,8 @@ impl<'a> OtMapBuilder<'a> {
         let mut required_tag = [None; 2];
 
         for (table_index, table) in self.layout.ot.layout_tables() {
-            if let Some(script) = self.script_index[table_index] {
-                let lang = self.lang_index[table_index];
+            if let Some(script) = self.languages.script_index[table_index] {
+                let lang = self.languages.lang_index[table_index];
                 if let Some((idx, tag)) = table.get_required_language_feature(script, lang) {
                     required_index[table_index] = Some(idx);
                     required_tag[table_index] = Some(tag);
@@ -472,8 +505,7 @@ impl<'a> OtMapBuilder<'a> {
             self.collect_lookup_stages(&features, required_index, required_stage);
 
         OtMap {
-            found_script: self.found_script,
-            chosen_script: self.chosen_script,
+            languages: self.languages,
             global_mask,
             features,
             lookups,
@@ -602,10 +634,10 @@ impl<'a> OtMapBuilder<'a> {
 
         let mut indices = alloc::vec![[None; 2]; self.feature_infos.len()];
         for (table_index, table) in self.layout.ot.layout_tables() {
-            let Some(script) = self.script_index[table_index] else {
+            let Some(script) = self.languages.script_index[table_index] else {
                 continue;
             };
-            let lang = self.lang_index[table_index];
+            let lang = self.languages.lang_index[table_index];
             for (idx, tag) in table.language_features(script, lang) {
                 let start = tags.partition_point(|&(t, _)| t < tag);
                 for &(_, i) in tags[start..].iter().take_while(|&&(t, _)| t == tag) {

@@ -3,6 +3,7 @@ use core::any::Any;
 use smallvec::SmallVec;
 
 use crate::aat::map::AatMap;
+use crate::once::Once;
 use crate::ot::shaper::OtShaper;
 
 use crate::ot::map::*;
@@ -106,7 +107,7 @@ impl ShapePlan {
         self.script
     }
 
-    /// The language of the text.
+    /// The language supplied when this plan was built.
     pub fn language(&self) -> Option<&Language> {
         self.language.as_ref()
     }
@@ -119,6 +120,8 @@ impl ShapePlan {
 
 /// The properties used to match a reusable [`ShapePlan`].
 pub struct ShapePlanKey<'a> {
+    font: &'a Font,
+    resolved: Once<ResolvedLanguages>,
     script: Option<Script>,
     direction: Direction,
     language: Option<&'a Language>,
@@ -133,6 +136,8 @@ impl<'a> ShapePlanKey<'a> {
     pub fn new(font: &'a Font, script: Option<Script>, direction: Direction) -> Self {
         let variations = font.feature_variations();
         Self {
+            font,
+            resolved: Once::new(),
             script,
             direction,
             language: None,
@@ -147,6 +152,7 @@ impl<'a> ShapePlanKey<'a> {
     /// Sets the language to use for this shape plan key.
     pub fn language(mut self, language: Option<&'a Language>) -> Self {
         self.language = language;
+        self.resolved = Once::new();
         self
     }
 
@@ -156,11 +162,31 @@ impl<'a> ShapePlanKey<'a> {
         self
     }
 
-    /// Returns true if this key is a match for the given shape plan.
+    /// Matches direction, script, and language against a plan for the same face.
+    /// OpenType plans accept different language tags that select the same
+    /// GSUB and GPOS language systems and AAT language selectors.
+    pub fn matches_segment_properties(&self, plan: &ShapePlan) -> bool {
+        if self.script != plan.script || self.direction != plan.direction {
+            return false;
+        }
+        if self.language == plan.language() {
+            return true;
+        }
+        if plan.shaper != Shaper::Ot {
+            return false;
+        }
+        // A cache may compare this key to several plans. Resolve at most
+        // once, and only when the language tags differ.
+        let resolved = self.resolved.get_or_init(|| {
+            let font = ShaperFont::new(self.font);
+            ResolvedLanguages::new(font.layout(), self.direction, self.script, self.language)
+        });
+        *resolved == plan.ot_map.languages
+    }
+
+    /// Returns true if this key matches the given shape plan for the same face.
     pub fn matches(&self, plan: &ShapePlan) -> bool {
-        self.script == plan.script
-            && self.direction == plan.direction
-            && self.language == plan.language.as_ref()
+        self.matches_segment_properties(plan)
             && self.feature_variations == *plan.ot_map.feature_variations()
             && self.lookup_coords == plan.ot_map.lookup_coords()
             && features_equivalent(self.features, &plan.user_features)
@@ -185,7 +211,43 @@ fn features_equivalent(features_a: &[Feature], features_b: &[Feature]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::ShapePlan;
+    use super::{ShapePlan, ShapePlanKey};
+    use crate::{Direction, Font, Language, Script};
+
+    fn check_languages(data: &'static [u8], first: &str, alias: &str, other: &str) {
+        let font = Font::new(data, 0).unwrap();
+        let script = Some(Script::LATIN);
+        let direction = Direction::LeftToRight;
+        let first = Language::new(first);
+        let alias = Language::new(alias);
+        let other = Language::new(other);
+        let plan = ShapePlan::new(&font, direction, script, first.as_ref(), &[]);
+        let key = ShapePlanKey::new(&font, script, direction).language(alias.as_ref());
+        assert!(key.matches(&plan));
+        // Reusing the builder with another language must resolve it anew.
+        assert!(!key.language(other.as_ref()).matches(&plan));
+        assert_eq!(plan.language(), first.as_ref());
+    }
+
+    #[test]
+    fn keys_match_resolved_scripts_and_languages() {
+        let gsub =
+            include_bytes!("../tests/fonts/in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf");
+        check_languages(gsub, "en", "de", "tr");
+        check_languages(gsub, "en", "en-GB", "en-x-hbsccyrl");
+        // Explicitly finding DFLT differs from falling back to it.
+        check_languages(gsub, "en-x-hbscdflt", "de-x-hbscdflt", "en-x-hbsczzzz");
+
+        let gpos = include_bytes!("../tests/fonts/rb_custom/NotoSansSinhala.subset1.otf");
+        check_languages(gpos, "en", "de", "ro");
+    }
+
+    #[test]
+    fn keys_match_canonical_aat_language_prefixes() {
+        let aat = include_bytes!("../tests/fonts/in-house/morx-language-canonicalization.ttf");
+        check_languages(aat, "sr", "sr-Latn-RS", "zh-Hant");
+        check_languages(aat, "zh-Hant", "zh-Hant-TW", "zh");
+    }
 
     #[test]
     fn test_shape_plan_is_send_and_sync() {

@@ -12,7 +12,7 @@ use crate::U32Set;
 use alloc::{vec, vec::Vec};
 use core::mem::size_of;
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
-use read_fonts::tables::{mort, morx};
+use read_fonts::tables::{ltag::Ltag, mort, morx};
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
 use read_fonts::ReadError;
 
@@ -64,6 +64,25 @@ impl MorphChain for mort::Chain<'_> {
     }
 }
 
+// Index the record directly: Ltag::tag_indices validates all preceding strings.
+fn matching_prefix_len(ltag: &Ltag<'_>, index: u16, language: Option<&Language>) -> Option<usize> {
+    let range = ltag.tag_ranges().get(usize::from(index))?;
+    let start = usize::from(range.offset());
+    let len = usize::from(range.length());
+    let tag = ltag.offset_data().as_bytes().get(start..start + len)?;
+    Language::matching_prefix_len(tag, language)
+}
+
+pub(crate) fn select_language(ltag: &Ltag<'_>, language: Option<&Language>) -> Option<u16> {
+    // Every matching selector is a prefix of the longest match. Its index
+    // therefore identifies all matching selectors, including overlaps.
+    (0..u16::MAX)
+        .take(ltag.tag_ranges().len())
+        .filter_map(|i| Some((matching_prefix_len(ltag, i, language)?, i)))
+        .max_by_key(|&(len, _)| len)
+        .map(|(_, i)| i)
+}
+
 // Chain::compile_flags in harfbuzz
 pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -> Option<()> {
     let has_feature = |kind: u16, setting: u16| {
@@ -79,24 +98,11 @@ pub fn compile_flags(aat: &AatData, builder: &AatMapBuilder, map: &mut AatMap) -
             .is_ok()
     };
     let language_matches = |setting: u16| {
-        let Some(index) = setting.checked_sub(1) else {
-            return false;
-        };
-        let Some(ltag) = aat.ltag.as_ref() else {
-            return false;
-        };
-        // Index the record array directly, as harfbuzz does. `Ltag::tag_indices`
-        // slices and validates every preceding string, and this runs once per
-        // language-tag feature entry of every chain.
-        let Some(range) = ltag.tag_ranges().get(usize::from(index)) else {
-            return false;
-        };
-        let len = usize::from(range.length());
-        let start = usize::from(range.offset());
-        let Some(tag) = ltag.offset_data().as_bytes().get(start..start + len) else {
-            return false;
-        };
-        Language::matches_raw(tag, builder.language.as_ref())
+        setting.checked_sub(1).is_some_and(|index| {
+            aat.ltag.as_ref().is_some_and(|ltag| {
+                matching_prefix_len(ltag, index, builder.language.as_ref()).is_some()
+            })
+        })
     };
 
     fn compile_chain(
@@ -1778,6 +1784,18 @@ impl<'a> MorphSubtableCache<'a> {
 mod tests {
     use super::*;
     use read_fonts::{FontData, FontRead};
+
+    #[test]
+    fn overlapping_language_selectors_use_the_longest_canonical_prefix() {
+        // The first tag is longer on disk, but the second is more specific.
+        let data = b"\0\0\0\x01\0\0\0\0\0\0\0\x02\0\x14\0\x08\0\x1c\0\x05en.UTF-8EN_US";
+        let ltag = Ltag::read(FontData::new(data)).unwrap();
+        let select = |lang| select_language(&ltag, Language::new(lang).as_ref());
+        assert_eq!(select("en-GB"), Some(0));
+        assert_eq!(select("en-US"), Some(1));
+        assert_eq!(select("en-US-posix"), Some(1));
+        assert_eq!(select("de"), None);
+    }
 
     #[test]
     fn non_advancing_machine_fails_the_buffer_when_the_budget_is_spent() {

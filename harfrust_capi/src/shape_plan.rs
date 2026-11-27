@@ -13,12 +13,12 @@ use core::ffi::{c_char, c_uint, c_void};
 use std::sync::{Arc, OnceLock};
 
 use harfrust::font::{Font, NormalizedCoord};
-use harfrust::{Direction, Language, Script, ShapePlan};
+use harfrust::{Direction, Language, Script, ShapePlan, ShapePlanKey};
 
 use crate::buffer::hr_buffer_t;
 use crate::common::{
     direction_from_rust, direction_to_rust, hr_bool_t, hr_direction_t, hr_feature_t, hr_language_t,
-    hr_script_t, language_from_rust, language_to_rust, script_from_rust, script_to_rust, write_out,
+    hr_script_t, language_to_rust, script_from_rust, script_to_rust, write_out,
     HR_DIRECTION_INVALID,
 };
 use crate::face::hr_face_t;
@@ -166,6 +166,9 @@ pub struct hr_shape_plan_t {
     // Safety invariant: a live face returned by this API, on which this plan
     // owns one reference.
     face: *mut hr_face_t,
+    /// The interned language requested for this handle. The shared plan can
+    /// have been compiled for an equivalent language.
+    language: hr_language_t,
     /// `None` only for the immortal empty plan.
     pub(crate) plan: Option<Arc<ShapePlan>>,
 }
@@ -228,6 +231,7 @@ impl Object for hr_shape_plan_t {
                     // immortal, so it is always live, and taking or giving
                     // up a reference to it does nothing.
                     face: hr_face_t::empty(),
+                    language: core::ptr::null(),
                     plan: None,
                 })
             })
@@ -341,6 +345,7 @@ unsafe fn create_plan(
         // function's contract. The reference taken is the new plan's own, as
         // the invariant on its `face` field requires.
         face: unsafe { object::reference(face) },
+        language: props.language,
         plan: Some(plan),
     })
 }
@@ -575,7 +580,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_shaper(
     c"ot".as_ptr()
 }
 
-/// Writes the properties a plan was built for into `props`.
+/// Writes the properties requested for this plan handle into `props`.
 ///
 /// # Safety
 ///
@@ -608,7 +613,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
         script: inner
             .script()
             .map_or(crate::common::HR_SCRIPT_INVALID, script_from_rust),
-        language: language_from_rust(inner.language()),
+        language: plan.language,
         reserved1: core::ptr::null_mut(),
         reserved2: core::ptr::null_mut(),
     };
@@ -628,7 +633,7 @@ pub unsafe extern "C" fn hr_shape_plan_get_segment_properties(
 ///
 /// Using a plan that does not apply aborts the process, as HarfBuzz's
 /// assertions do: the plan must have been built over the same face, and for
-/// the direction, script and language the buffer carries. These are
+/// the same direction, script and resolved language systems as the buffer. These are
 /// programming errors rather than conditions to recover from, and shaping
 /// through a mismatched plan yields a wrong answer rather than a slow one.
 /// Use `hr_shape` if you would rather have a plan chosen for you.
@@ -685,9 +690,9 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
     // font's, as HarfBuzz does not check it either: the font's settings are
     // the ones shaping uses, and a plan built for another variation of the
     // same face still applies to it.
-    if font_ref.instance().is_none() {
+    let Some(instance) = font_ref.instance() else {
         return false.into();
-    }
+    };
     // Take a share of the plan, so that a callback destroying it during
     // shaping cannot pull it out from under the call.
     let plan = Arc::clone(plan);
@@ -706,7 +711,7 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
         return true.into();
     }
     assert!(
-        plan_matches_buffer(&plan, &buffer_ref.buffer),
+        plan_matches_buffer(instance, &plan, &buffer_ref.buffer),
         "shape plan properties do not match the buffer: \
          plan is {:?}/{:?}/{:?}, buffer is {:?}/{:?}/{:?}",
         plan.direction(),
@@ -734,11 +739,12 @@ pub unsafe extern "C" fn hr_shape_plan_execute(
 ///
 /// HarfRust compares a plan's script against the buffer's with an unset script
 /// standing in for `Zzzz`, so this normalizes the same way.
-fn plan_matches_buffer(plan: &ShapePlan, buffer: &harfrust::Buffer) -> bool {
+fn plan_matches_buffer(font: &Font, plan: &ShapePlan, buffer: &harfrust::Buffer) -> bool {
     let unset = Script::UNKNOWN;
-    plan.direction() == buffer.direction()
-        && plan.script().unwrap_or(unset) == buffer.script().unwrap_or(unset)
-        && plan.language() == buffer.language()
+    plan.script().unwrap_or(unset) == buffer.script().unwrap_or(unset)
+        && ShapePlanKey::new(font, plan.script(), buffer.direction())
+            .language(buffer.language())
+            .matches_segment_properties(plan)
 }
 
 #[cfg(test)]

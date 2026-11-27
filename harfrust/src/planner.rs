@@ -29,7 +29,9 @@ impl<'a> ShapePlanner<'a> {
         script: Option<Script>,
         language: Option<&Language>,
     ) -> Self {
-        let ot_map = OtMapBuilder::new(layout, script, language);
+        let languages = ResolvedLanguages::new(layout, direction, script, language);
+        let apply_morx = languages.apply_morx;
+        let ot_map = OtMapBuilder::new(layout, languages);
         let aat_map = AatMapBuilder::new(language);
 
         let mut shaper = match script {
@@ -43,10 +45,6 @@ impl<'a> ShapePlanner<'a> {
 
         let script_zero_marks = shaper.zero_width_marks != ZeroWidthMarks::None;
         let script_fallback_position = shaper.fallback_position;
-
-        // https://github.com/harfbuzz/harfbuzz/issues/2124
-        let apply_morx = (layout.aat.morx.is_some() || layout.aat.mort.is_some())
-            && (direction.is_horizontal() || layout.ot.gsub().is_none());
 
         // https://github.com/harfbuzz/harfbuzz/issues/1528
         if apply_morx && !ptr::eq(ptr::from_ref(shaper), ptr::from_ref(&DEFAULT_SHAPER)) {
