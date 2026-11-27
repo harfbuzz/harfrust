@@ -431,6 +431,7 @@ pub fn render(args: &Args) -> Result<Pixmap, String> {
     for line in text.lines() {
         buffer.clear();
         buffer.push_str(line);
+        buffer.reset_clusters();
         if let Some(direction) = args.direction {
             buffer.set_direction(direction);
         }
