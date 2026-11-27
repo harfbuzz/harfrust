@@ -118,10 +118,31 @@ impl ShapePlan {
     }
 }
 
+/// A face's most recently resolved segment, shared by all its font instances.
+#[derive(Default)]
+pub(crate) struct LanguageCache {
+    #[cfg(feature = "std")]
+    last: std::sync::Mutex<Option<CachedLanguages>>,
+    #[cfg(not(feature = "std"))]
+    last: spin::Mutex<Option<CachedLanguages>>,
+}
+
+// A writer replaces the entry only after constructing the complete selection.
+#[cfg(not(feature = "std"))]
+impl core::panic::RefUnwindSafe for LanguageCache {}
+
+struct CachedLanguages {
+    script: Option<Script>,
+    direction: Direction,
+    language: Option<Language>,
+    resolved: ResolvedLanguages,
+}
+
 /// The properties used to match a reusable [`ShapePlan`].
 pub struct ShapePlanKey<'a> {
     ot: &'a crate::ot::CachedTables<'a>,
     aat: &'a crate::aat::CachedAatTables<'a>,
+    cache: Option<&'a LanguageCache>,
     resolved: Once<ResolvedLanguages>,
     script: Option<Script>,
     direction: Direction,
@@ -134,14 +155,25 @@ pub struct ShapePlanKey<'a> {
 
 impl<'a> ShapePlanKey<'a> {
     /// Creates a key for a font, script, and direction.
+    #[inline]
     pub fn new(font: &'a Font, script: Option<Script>, direction: Direction) -> Self {
         let variations = font.feature_variations();
-        let (ot, aat) = crate::shaper_font::layout_cache(font)
-            .map(|cache| (cache.ot.tables(), cache.aat.tables()))
-            .unwrap_or((&crate::ot::EMPTY_TABLES, &crate::aat::EMPTY_AAT_TABLES));
+        let (ot, aat, cache) = match crate::shaper_font::layout_cache(font) {
+            Some(cache) => (
+                cache.ot.tables(),
+                cache.aat.tables(),
+                Some(&cache.languages),
+            ),
+            None => (
+                &crate::ot::EMPTY_TABLES,
+                &crate::aat::EMPTY_AAT_TABLES,
+                None,
+            ),
+        };
         Self {
             ot,
             aat,
+            cache,
             resolved: Once::new(),
             script,
             direction,
@@ -155,6 +187,7 @@ impl<'a> ShapePlanKey<'a> {
     }
 
     /// Sets the language to use for this shape plan key.
+    #[inline]
     pub fn language(mut self, language: Option<&'a Language>) -> Self {
         self.language = language;
         self.resolved = Once::new();
@@ -162,6 +195,7 @@ impl<'a> ShapePlanKey<'a> {
     }
 
     /// Sets the features to use for this shape plan key.
+    #[inline]
     pub fn features(mut self, features: &'a [Feature]) -> Self {
         self.features = features;
         self
@@ -170,6 +204,7 @@ impl<'a> ShapePlanKey<'a> {
     /// Matches direction, script, and language against a plan for the same face.
     /// OpenType plans accept different language tags that select the same
     /// GSUB and GPOS language systems and AAT language selectors.
+    #[inline]
     pub fn matches_segment_properties(&self, plan: &ShapePlan) -> bool {
         if self.script != plan.script || self.direction != plan.direction {
             return false;
@@ -177,12 +212,30 @@ impl<'a> ShapePlanKey<'a> {
         if self.language == plan.language() {
             return true;
         }
-        if plan.shaper != Shaper::Ot {
-            return false;
-        }
+        plan.shaper == Shaper::Ot && self.resolved_languages() == plan.ot_map.languages
+    }
+
+    fn resolved_languages(&self) -> ResolvedLanguages {
         // A cache may compare this key to several plans. Resolve at most
         // once, and only when the language tags differ.
-        let resolved = self.resolved.get_or_init(|| {
+        if let Some(resolved) = self.resolved.get() {
+            return *resolved;
+        }
+        // Contending callers can resolve independently.
+        #[cfg(feature = "std")]
+        let slot = self.cache.and_then(|cache| cache.last.try_lock().ok());
+        #[cfg(not(feature = "std"))]
+        let slot = self.cache.and_then(|cache| cache.last.try_lock());
+
+        if let Some(Some(last)) = slot.as_deref() {
+            if last.script == self.script
+                && last.direction == self.direction
+                && last.language.as_ref() == self.language
+            {
+                return last.resolved;
+            }
+        }
+        let resolved = *self.resolved.get_or_init(|| {
             ResolvedLanguages::new(
                 self.ot,
                 self.aat,
@@ -191,10 +244,19 @@ impl<'a> ShapePlanKey<'a> {
                 self.language,
             )
         });
-        *resolved == plan.ot_map.languages
+        if let Some(mut slot) = slot {
+            *slot = Some(CachedLanguages {
+                script: self.script,
+                direction: self.direction,
+                language: self.language.cloned(),
+                resolved,
+            });
+        }
+        resolved
     }
 
     /// Returns true if this key matches the given shape plan for the same face.
+    #[inline]
     pub fn matches(&self, plan: &ShapePlan) -> bool {
         self.matches_segment_properties(plan)
             && self.feature_variations == *plan.ot_map.feature_variations()
@@ -250,6 +312,38 @@ mod tests {
 
         let gpos = include_bytes!("../tests/fonts/rb_custom/NotoSansSinhala.subset1.otf");
         check_languages(gpos, "en", "de", "ro");
+    }
+
+    #[test]
+    fn repeated_language_alias_skips_resolution() {
+        let data =
+            include_bytes!("../tests/fonts/in-house/bbc24004e776f348a0f72287d24b0124867ee750.ttf");
+        let font = Font::new(data.as_slice(), 0).unwrap();
+        let en = Language::new("en");
+        let direction = Direction::LeftToRight;
+        let script = Some(Script::LATIN);
+        let plan = ShapePlan::new(&font, direction, script, en.as_ref(), &[]);
+        let key = || ShapePlanKey::new(&font, script, direction);
+        for tag in [
+            Language::new("en-GB"),
+            None,
+            Language::new("en-GB-oxendict"),
+        ] {
+            assert!(key().language(tag.as_ref()).matches(&plan));
+            let again = key().language(tag.as_ref());
+            assert!(again.matches(&plan));
+            assert!(again.resolved.get().is_none());
+        }
+        // The same alias needs a new selection when direction or script changes.
+        let alias = Language::new("en-GB-oxendict");
+        for script in [script, Some(Script::CYRILLIC)] {
+            let direction = Direction::TopToBottom;
+            let plan = ShapePlan::new(&font, direction, script, en.as_ref(), &[]);
+            let key = ShapePlanKey::new(&font, script, direction).language(alias.as_ref());
+            assert!(key.matches(&plan));
+            assert!(key.resolved.get().is_some());
+        }
+        assert!(!key().language(Language::new("tr").as_ref()).matches(&plan));
     }
 
     #[test]
