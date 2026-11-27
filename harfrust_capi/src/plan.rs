@@ -9,8 +9,8 @@
 //! # Why nothing ever needs flushing
 //!
 //! The cache hangs off the face, and everything the planner reads from a font
-//! is fixed for the life of that face: the presence of `GSUB`, `morx` and
-//! `mort`, and the script chosen from `GSUB`. The inputs that vary with a
+//! is fixed for the life of that face, including how its tables resolve
+//! each requested script and language. The inputs that vary with a
 //! font instance are the `GSUB` and `GPOS` feature variation indices and,
 //! when lookups vary with the location, the normalized coordinates, and
 //! `ShapePlanKey` compares those.

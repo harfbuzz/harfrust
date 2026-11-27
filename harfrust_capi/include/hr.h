@@ -5699,7 +5699,7 @@ void *hr_shape_plan_get_user_data(struct hr_shape_plan_t *shape_plan,
 const char *hr_shape_plan_get_shaper(struct hr_shape_plan_t *shape_plan);
 
 /**
- * Writes the properties a plan was built for into `props`.
+ * Writes the properties requested for this plan handle into `props`.
  *
  * # Safety
  *
@@ -5722,7 +5722,7 @@ void hr_shape_plan_get_segment_properties(struct hr_shape_plan_t *shape_plan,
  *
  * Using a plan that does not apply aborts the process, as HarfBuzz's
  * assertions do: the plan must have been built over the same face, and for
- * the direction, script and language the buffer carries. These are
+ * the same direction, script and resolved language systems as the buffer. These are
  * programming errors rather than conditions to recover from, and shaping
  * through a mismatched plan yields a wrong answer rather than a slow one.
  * Use `hr_shape` if you would rather have a plan chosen for you.

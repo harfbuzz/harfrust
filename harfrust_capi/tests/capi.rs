@@ -4826,6 +4826,38 @@ fn cached_plans_are_reused_and_agree() {
 }
 
 #[test]
+fn cached_plan_handles_keep_their_requested_language() {
+    unsafe {
+        with_font(|face, font| {
+            let mut props = latin_props();
+            let mut make = |language| {
+                props.language = language;
+                hr_shape_plan_create_cached(face, &raw const props, ptr::null(), 0, ptr::null())
+            };
+            let en = hr_language_from_string(c"en".as_ptr(), -1);
+            let gb = hr_language_from_string(c"en-GB".as_ptr(), -1);
+            let first = make(en);
+            let alias = make(gb);
+            assert!(std::sync::Arc::ptr_eq(
+                (*first).plan.as_ref().unwrap(),
+                (*alias).plan.as_ref().unwrap(),
+            ));
+
+            for (plan, requested) in [(first, en), (alias, gb)] {
+                let mut got = latin_props();
+                hr_shape_plan_get_segment_properties(plan, &raw mut got);
+                assert_eq!(got.language, requested);
+                let buffer = buffer_with_text(TEXT);
+                hr_buffer_set_language(buffer, gb);
+                assert_ne!(hr_shape_plan_execute(plan, font, buffer, ptr::null(), 0), 0);
+                hr_buffer_destroy(buffer);
+                hr_shape_plan_destroy(plan);
+            }
+        });
+    }
+}
+
+#[test]
 fn cached_coordinate_plans_without_layout_variations_use_current_font_metrics() {
     unsafe {
         with_named_font("../in-house/NotoSans-VF.abc.ttf", |face, font| {

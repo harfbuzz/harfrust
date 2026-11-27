@@ -37,14 +37,11 @@ impl Language {
         core::str::from_utf8(&self.0).unwrap_or_default()
     }
 
-    pub(crate) fn matches_raw(raw: &[u8], specific: Option<&Self>) -> bool {
+    pub(crate) fn matching_prefix_len(raw: &[u8], specific: Option<&Self>) -> Option<usize> {
         if raw.is_empty() || raw[0] == 0 {
-            return specific.is_none();
+            return specific.is_none().then_some(0);
         }
-        let Some(specific) = specific else {
-            return false;
-        };
-        let specific = specific.as_bytes();
+        let specific = specific?.as_bytes();
         let mut len = 0;
         // Match hb_language_from_string(raw, length) without allocating.
         for &byte in raw.iter().take(63) {
@@ -53,11 +50,11 @@ impl Language {
                 break;
             }
             if specific.get(len) != Some(&byte) {
-                return false;
+                return None;
             }
             len += 1;
         }
-        specific.len() == len || specific.get(len) == Some(&b'-')
+        (specific.len() == len || specific.get(len) == Some(&b'-')).then_some(len)
     }
 
     fn from_bytes(bytes: &[u8]) -> Self {
