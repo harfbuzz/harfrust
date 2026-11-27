@@ -666,6 +666,7 @@ const MAX_CACHED_GLYPH_NAMES: usize = 0x10000;
 pub(crate) struct LayoutCache {
     pub ot: OtCache,
     pub aat: AatCache,
+    pub languages: crate::plan::LanguageCache,
     pub cmap: CharmapCache,
     pub glyph_names: GlyphNameCache,
     /// True if the font has both `trak` and `STAT` tables.
@@ -685,6 +686,7 @@ impl LayoutCache {
         Self {
             ot,
             aat,
+            languages: crate::plan::LanguageCache::default(),
             cmap: CharmapCache::new(),
             glyph_names: Once::new(),
             apply_trak,

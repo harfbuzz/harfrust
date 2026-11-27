@@ -13,7 +13,7 @@ exclude = ["benches/", "tests/"]
 
 [dependencies]
 read-fonts.workspace = true
-spin = { version = "0.12.3", default-features = false, features = ["once"], optional = true }
+spin = { version = "0.12.3", default-features = false, features = ["once", "spin_mutex"], optional = true }
 bitflags = "2.9"
 bytemuck = { version = "1.22", features = ["extern_crate_alloc", "min_const_generics"] }
 core_maths = { version = "0.1", optional = true }
