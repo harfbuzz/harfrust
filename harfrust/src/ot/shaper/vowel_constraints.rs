@@ -84,7 +84,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
     match buffer.script {
         Some(Script::DEVANAGARI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -136,7 +136,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::BENGALI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -165,7 +165,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::GURMUKHI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -203,7 +203,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::GUJARATI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -232,7 +232,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::ORIYA) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -258,7 +258,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::TAMIL) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -279,7 +279,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::TELUGU) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -308,7 +308,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::KANNADA) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -334,7 +334,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::MALAYALAM) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -366,7 +366,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::SINHALA) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -404,7 +404,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::BRAHMI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -433,7 +433,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::KHOJKI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -471,7 +471,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::KHUDAWADI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -497,7 +497,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::TIRHUTA) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -529,7 +529,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::MODI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;
@@ -555,7 +555,7 @@ pub fn preprocess_text_vowel_constraints(buffer: &mut Buffer) {
 
         Some(Script::TAKRI) => {
             buffer.idx = 0;
-            while buffer.idx + 1 < buffer.len {
+            while buffer.successful && buffer.idx + 1 < buffer.len {
                 let start = buffer.out_len;
                 #[allow(unused_mut)]
                 let mut matched = false;

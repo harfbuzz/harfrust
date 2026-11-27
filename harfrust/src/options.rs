@@ -29,6 +29,8 @@ pub struct ShapeOptions<'a> {
     pub(crate) point_size: Option<f32>,
     pub(crate) features: &'a [Feature],
     pub(crate) shapers: &'a [Shaper],
+    pub(crate) max_glyphs: Option<usize>,
+    pub(crate) max_operations: Option<u32>,
 }
 
 impl Default for ShapeOptions<'_> {
@@ -38,6 +40,8 @@ impl Default for ShapeOptions<'_> {
             point_size: None,
             features: &[],
             shapers: DEFAULT_SHAPERS,
+            max_glyphs: None,
+            max_operations: None,
         }
     }
 }
@@ -82,6 +86,27 @@ impl<'a> ShapeOptions<'a> {
     /// supplied.
     pub fn shapers(mut self, shapers: &'a [Shaper]) -> Self {
         self.shapers = shapers;
+        self
+    }
+
+    /// Limits the number of input, intermediate, and output glyph slots used
+    /// by this call. A limit can only lower the shaper's built-in allowance.
+    ///
+    /// With either limit set, an incomplete result is reported as
+    /// [`ShapeError::Incomplete`](crate::ShapeError::Incomplete).
+    pub fn max_glyphs(mut self, limit: Option<usize>) -> Self {
+        self.max_glyphs = limit;
+        self
+    }
+
+    /// Limits the shaper's existing work counter for this call. Its units
+    /// depend on the shaping implementation. Plan construction and elapsed
+    /// time are outside this counter.
+    ///
+    /// With either limit set, an incomplete result is reported as
+    /// [`ShapeError::Incomplete`](crate::ShapeError::Incomplete).
+    pub fn max_operations(mut self, limit: Option<u32>) -> Self {
+        self.max_operations = limit;
         self
     }
 }
