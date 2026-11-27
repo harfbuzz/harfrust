@@ -84,6 +84,7 @@ pub struct CachedAatTables<'a> {
     pub trak: Option<Trak<'a>>,
     pub feat: Option<Feat<'a>>,
     pub ltag: Option<Ltag<'a>>,
+    pub language_selectors: Vec<u16>,
     num_glyphs: u32,
 }
 
@@ -97,6 +98,7 @@ impl<'a> CachedAatTables<'a> {
         trak: None,
         feat: None,
         ltag: None,
+        language_selectors: Vec::new(),
         num_glyphs: 0,
     };
 
@@ -129,6 +131,12 @@ impl<'a> CachedAatTables<'a> {
             .kerx()
             .ok()
             .filter(|kerx| is_within_subtable_limit(core::iter::once(kerx.n_tables())));
+        let ltag = tables.ltag().ok();
+        let language_selectors = if ltag.is_some() {
+            morx::language_selectors(morx.as_ref(), mort.as_ref())
+        } else {
+            Vec::new()
+        };
         Self {
             morx,
             mort,
@@ -137,7 +145,8 @@ impl<'a> CachedAatTables<'a> {
             kerx,
             trak: tables.trak().ok(),
             feat: tables.feat().ok(),
-            ltag: tables.ltag().ok(),
+            ltag,
+            language_selectors,
             num_glyphs: tables
                 .selected_maxp()
                 .map(|maxp| maxp.num_glyphs())
