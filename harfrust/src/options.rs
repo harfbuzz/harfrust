@@ -2,15 +2,14 @@ use crate::{Feature, ShapePlan};
 
 /// A shaping engine that [`shape`](crate::shape) can use.
 ///
-/// The OpenType shaper is the default. The WebAssembly shaper runs a font's
-/// own module from its `Wasm` table, as HarfBuzz does, and needs the `wasm`
-/// feature.
+/// The OpenType shaper is the default. The experimental WebAssembly shaper
+/// runs a font's own module from its `Wasm` table and needs the `wasm` feature.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 #[non_exhaustive]
 pub enum Shaper {
     /// The OpenType shaper.
     Ot,
-    /// The font's embedded WebAssembly module.
+    /// The experimental shaper for a font's embedded WebAssembly module.
     ///
     /// Only fonts with a readable `Wasm` table can be shaped this way. A font
     /// without one is passed over when the shaper list is consulted.

@@ -1,10 +1,11 @@
 # The WebAssembly shaper in HarfRust
 
 HarfBuzz has an optional shaper that runs a font's own shaping engine from a
-`Wasm` table. HarfRust ports it behind the `wasm` feature.
+`Wasm` table. HarfRust provides experimental support for it behind the opt-in
+`wasm` feature.
 
 ```toml
-harfrust = { version = "0.16", features = ["wasm"] }
+harfrust = { version = "0.16.2", features = ["wasm"] }
 ```
 
 When the feature is enabled, a font's embedded module is used when it is

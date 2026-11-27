@@ -32,8 +32,8 @@ hr-shape font.ttf "text" --shapers=wasm    # the font's own WebAssembly module
 hr-shape font.ttf "text" --shapers=wasm,ot # module if the font has one
 ```
 
-The WebAssembly shaper needs the `wasm` feature and
-a font with a `Wasm` table. A shaper that cannot shape the font is passed over,
+The experimental WebAssembly shaper needs the `wasm` feature and a font
+with a `Wasm` table. A shaper that cannot shape the font is passed over,
 so `--shapers=wasm` on a font without a module fails while `--shapers=wasm,ot`
 falls back to OpenType. See [docs/wasm-shaper.md](../docs/wasm-shaper.md).
 

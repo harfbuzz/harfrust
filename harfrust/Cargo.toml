@@ -30,7 +30,7 @@ default = ["std"]
 std = ["read-fonts/std"]
 libm = ["dep:core_maths", "dep:spin", "read-fonts/libm"]
 icu = ["dep:icu_properties", "dep:icu_normalizer"]
-# Enable the WebAssembly shaper for fonts containing a `Wasm` table.
+# Enable the experimental WebAssembly shaper for fonts containing a `Wasm` table.
 wasm = ["dep:wasmi"]
 # Compile shaping messages and buffer callbacks; disabled by default.
 tracing = []
