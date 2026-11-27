@@ -29,7 +29,8 @@ impl<'a> ShapePlanner<'a> {
         script: Option<Script>,
         language: Option<&Language>,
     ) -> Self {
-        let languages = ResolvedLanguages::new(layout, direction, script, language);
+        let languages =
+            ResolvedLanguages::new(layout.ot.tables, layout.aat, direction, script, language);
         let apply_morx = languages.apply_morx;
         let ot_map = OtMapBuilder::new(layout, languages);
         let aat_map = AatMapBuilder::new(language);

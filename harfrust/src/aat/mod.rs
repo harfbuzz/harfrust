@@ -40,6 +40,10 @@ pub struct AatCache {
 }
 
 impl AatCache {
+    pub(crate) fn tables(&self) -> &CachedAatTables<'_> {
+        self.tables.as_ref().map_or(&EMPTY_AAT_TABLES, Yoke::get)
+    }
+
     pub fn new(tables: Option<Arc<Tables>>, ot_cache: &OtCache) -> Self {
         let active_gdef_len = if ot_cache.has_gdef {
             ot_cache.gdef_len
@@ -311,7 +315,7 @@ fn is_morx_blocklisted(morx_len: u32, gsub_len: u32, gdef_len: u32) -> bool {
     BLOCKLIST.contains(&key)
 }
 
-static EMPTY_AAT_TABLES: CachedAatTables<'static> = CachedAatTables::EMPTY;
+pub(crate) static EMPTY_AAT_TABLES: CachedAatTables<'static> = CachedAatTables::EMPTY;
 
 pub(crate) static EMPTY_AAT_DATA: AatData<'static> = AatData {
     cache: None,
@@ -322,7 +326,7 @@ impl<'a> AatData<'a> {
     pub fn new(cache: &'a AatCache) -> Self {
         Self {
             cache: Some(cache),
-            tables: cache.tables.as_ref().map_or(&EMPTY_AAT_TABLES, Yoke::get),
+            tables: cache.tables(),
         }
     }
 
