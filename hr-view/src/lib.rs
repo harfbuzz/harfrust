@@ -20,6 +20,8 @@ use tiny_skia::{FillRule, Paint, PathBuilder, Pixmap, Transform};
 const DEFAULT_FONT_SIZE: &str = "256";
 /// The border left around the text when `--margin` is not given.
 const DEFAULT_MARGIN: f32 = 16.0;
+/// Subpixel bits for precision in shaping, as in `hb-view`.
+const SUBPIXEL_BITS: i32 = 6;
 
 /// The shapers this build supports, in the order `--list-shapers` prints them.
 const SUPPORTED_SHAPERS: &[(&str, Shaper)] = &[
@@ -351,7 +353,11 @@ pub fn render(args: &Args) -> Result<Pixmap, String> {
         None => builder.variations(variations).build(),
     };
     let mut shaping_font = ShaperFont::new(&instance);
-    shaping_font.set_scale_separate(args.font_size.0, args.font_size.1);
+    let subpixel_factor = 1 << SUBPIXEL_BITS; // 64
+    shaping_font.set_scale_separate(
+        args.font_size.0 * subpixel_factor,
+        args.font_size.1 * subpixel_factor,
+    );
 
     let mut direction = args.direction;
     let mut buffer = Buffer::new();
@@ -411,8 +417,8 @@ pub fn render(args: &Args) -> Result<Pixmap, String> {
     );
     let metrics = shaping_font.metrics();
     let upem = f32::from(metrics.units_per_em).max(1.0);
-    let x_mult = px(args.font_size.0) / upem;
-    let y_mult = px(args.font_size.1) / upem;
+    let x_mult = (args.font_size.0 as f64 / upem as f64) as f32;
+    let y_mult = (args.font_size.1 as f64 / upem as f64) as f32;
     let line_box = if vertical {
         metrics.vhea_line.or(metrics.hhea_line)
     } else if metrics.use_typo_metrics {
@@ -568,7 +574,7 @@ impl PathSink for OutlinePen<'_> {
 
 #[allow(clippy::cast_precision_loss)]
 fn px(value: i32) -> f32 {
-    value as f32
+    value as f32 / 64.0
 }
 
 #[allow(clippy::cast_precision_loss)]
