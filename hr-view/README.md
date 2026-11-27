@@ -63,4 +63,7 @@ Rendering options:
 The image is sized to the text: the ink extents of the drawn glyphs together
 with the font's line box, plus the margin.
 
+**Note:** `hr-view` renders only glyph outlines. Glyphs with color fonts (COLR,
+CBDT) or other bitmap formats are not rendered and produce a warning.
+
 For more information, see the main [HarfRust repository](https://github.com/harfbuzz/harfrust).
