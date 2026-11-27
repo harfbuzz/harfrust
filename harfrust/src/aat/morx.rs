@@ -11,6 +11,7 @@ use crate::Language;
 use crate::U32Set;
 use alloc::{vec, vec::Vec};
 use core::mem::size_of;
+use read_fonts::collections::IntSet;
 use read_fonts::tables::aat::{self, ExtendedStateTable, NoPayload, StateEntry, StateTable};
 use read_fonts::tables::{ltag::Ltag, mort, morx};
 use read_fonts::types::{BigEndian, FixedSize, GlyphId, GlyphId16};
@@ -20,6 +21,14 @@ trait MorphChain {
     fn default_flags(&self) -> u32;
     fn feature_count(&self) -> usize;
     fn for_each_feature(&self, f: impl FnMut(u16, u16, u32, u32));
+
+    fn collect_language_selectors(&self, selectors: &mut IntSet<u16>) {
+        self.for_each_feature(|kind, setting, _, _| {
+            if kind == FEATURE_TYPE_LANGUAGE_TAG_TYPE as u16 && setting != 0 {
+                selectors.insert(setting - 1);
+            }
+        });
+    }
 }
 
 impl MorphChain for morx::Chain<'_> {
@@ -73,11 +82,30 @@ fn matching_prefix_len(ltag: &Ltag<'_>, index: u16, language: Option<&Language>)
     Language::matching_prefix_len(tag, language)
 }
 
-pub(crate) fn select_language(ltag: &Ltag<'_>, language: Option<&Language>) -> Option<u16> {
+pub(super) fn language_selectors(morx: Option<&morx::Morx>, mort: Option<&mort::Mort>) -> Vec<u16> {
+    let mut selectors = IntSet::new();
+    if let Some(morx) = morx {
+        for chain in morx.chains().iter().flatten() {
+            chain.collect_language_selectors(&mut selectors);
+        }
+    } else if let Some(mort) = mort {
+        for chain in mort.chains().iter().flatten() {
+            chain.collect_language_selectors(&mut selectors);
+        }
+    }
+    selectors.iter().collect()
+}
+
+pub(crate) fn select_language(
+    ltag: &Ltag<'_>,
+    selectors: &[u16],
+    language: Option<&Language>,
+) -> Option<u16> {
     // Every matching selector is a prefix of the longest match. Its index
     // therefore identifies all matching selectors, including overlaps.
-    (0..u16::MAX)
-        .take(ltag.tag_ranges().len())
+    selectors
+        .iter()
+        .copied()
         .filter_map(|i| Some((matching_prefix_len(ltag, i, language)?, i)))
         .max_by_key(|&(len, _)| len)
         .map(|(_, i)| i)
@@ -1790,11 +1818,27 @@ mod tests {
         // The first tag is longer on disk, but the second is more specific.
         let data = b"\0\0\0\x01\0\0\0\0\0\0\0\x02\0\x14\0\x08\0\x1c\0\x05en.UTF-8EN_US";
         let ltag = Ltag::read(FontData::new(data)).unwrap();
-        let select = |lang| select_language(&ltag, Language::new(lang).as_ref());
+        let select = |lang| select_language(&ltag, &[0, 1], Language::new(lang).as_ref());
         assert_eq!(select("en-GB"), Some(0));
         assert_eq!(select("en-US"), Some(1));
         assert_eq!(select("en-US-posix"), Some(1));
         assert_eq!(select("de"), None);
+
+        // Only the first ltag entry is referenced by this morx chain.
+        #[rustfmt::skip]
+        let data = [
+            0, 2, 0, 0,  0, 0, 0, 1, // version 2, one chain
+            0, 0, 0, 0,  0, 0, 0, 28, // default flags and chain length
+            0, 0, 0, 1,  0, 0, 0, 0, // one feature, no subtables
+            0, 39, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0, // language selector 1
+        ];
+        let morx = morx::Morx::read(FontData::new(&data)).unwrap();
+        let selectors = language_selectors(Some(&morx), None);
+        assert_eq!(selectors, [0]);
+        assert_eq!(
+            select_language(&ltag, &selectors, Language::new("en-US").as_ref()),
+            Some(0)
+        );
     }
 
     #[test]

@@ -379,11 +379,9 @@ impl ResolvedLanguages {
         let apply_morx = (layout.aat.morx.is_some() || layout.aat.mort.is_some())
             && (direction.is_horizontal() || layout.ot.gsub().is_none());
         let aat_language = if apply_morx {
-            layout
-                .aat
-                .ltag
-                .as_ref()
-                .and_then(|ltag| crate::aat::morx::select_language(ltag, language))
+            layout.aat.ltag.as_ref().and_then(|ltag| {
+                crate::aat::morx::select_language(ltag, &layout.aat.language_selectors, language)
+            })
         } else {
             None
         };
