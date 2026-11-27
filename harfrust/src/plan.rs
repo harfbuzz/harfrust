@@ -120,7 +120,8 @@ impl ShapePlan {
 
 /// The properties used to match a reusable [`ShapePlan`].
 pub struct ShapePlanKey<'a> {
-    font: &'a Font,
+    ot: &'a crate::ot::CachedTables<'a>,
+    aat: &'a crate::aat::CachedAatTables<'a>,
     resolved: Once<ResolvedLanguages>,
     script: Option<Script>,
     direction: Direction,
@@ -135,8 +136,12 @@ impl<'a> ShapePlanKey<'a> {
     /// Creates a key for a font, script, and direction.
     pub fn new(font: &'a Font, script: Option<Script>, direction: Direction) -> Self {
         let variations = font.feature_variations();
+        let (ot, aat) = crate::shaper_font::layout_cache(font)
+            .map(|cache| (cache.ot.tables(), cache.aat.tables()))
+            .unwrap_or((&crate::ot::EMPTY_TABLES, &crate::aat::EMPTY_AAT_TABLES));
         Self {
-            font,
+            ot,
+            aat,
             resolved: Once::new(),
             script,
             direction,
@@ -178,8 +183,13 @@ impl<'a> ShapePlanKey<'a> {
         // A cache may compare this key to several plans. Resolve at most
         // once, and only when the language tags differ.
         let resolved = self.resolved.get_or_init(|| {
-            let font = ShaperFont::new(self.font);
-            ResolvedLanguages::new(font.layout(), self.direction, self.script, self.language)
+            ResolvedLanguages::new(
+                self.ot,
+                self.aat,
+                self.direction,
+                self.script,
+                self.language,
+            )
         });
         *resolved == plan.ot_map.languages
     }
@@ -247,6 +257,12 @@ mod tests {
         let aat = include_bytes!("../tests/fonts/in-house/morx-language-canonicalization.ttf");
         check_languages(aat, "sr", "sr-Latn-RS", "zh-Hant");
         check_languages(aat, "zh-Hant", "zh-Hant-TW", "zh");
+    }
+
+    #[test]
+    fn shape_plan_key_is_unwind_safe() {
+        fn check<T: core::panic::UnwindSafe + core::panic::RefUnwindSafe>() {}
+        check::<ShapePlanKey<'_>>();
     }
 
     #[test]

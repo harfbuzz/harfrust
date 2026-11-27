@@ -6,6 +6,14 @@ pub(crate) type Once<T> = std::sync::OnceLock<T>;
 #[cfg(not(feature = "std"))]
 pub(crate) struct Once<T>(spin::Once<T>);
 
+// spin::Once poisons the cell if initialization unwinds. A shared caller
+// can never observe a partially initialized value, just as with OnceLock.
+#[cfg(not(feature = "std"))]
+impl<T: core::panic::RefUnwindSafe + core::panic::UnwindSafe> core::panic::RefUnwindSafe
+    for Once<T>
+{
+}
+
 #[cfg(not(feature = "std"))]
 impl<T> Once<T> {
     pub(crate) const fn new() -> Self {

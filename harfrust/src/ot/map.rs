@@ -349,7 +349,8 @@ const MAX_LOOKUP_VARIATION_INDICES: usize = 1 << 16;
 
 impl ResolvedLanguages {
     pub fn new(
-        layout: LayoutData<'_>,
+        ot: &super::CachedTables<'_>,
+        aat: &crate::aat::CachedAatTables<'_>,
         direction: Direction,
         script: Option<Script>,
         language: Option<&Language>,
@@ -363,7 +364,7 @@ impl ResolvedLanguages {
         let mut chosen_script = [None; 2];
         let mut lang_index = [None; 2];
 
-        for (table_index, table) in layout.ot.layout_tables() {
+        for (table_index, table) in ot.layout_tables() {
             if let Some((found, idx, tag)) = table.select_script(script_tags.as_slice()) {
                 chosen_script[table_index] = Some(tag);
                 found_script[table_index] = found;
@@ -376,11 +377,11 @@ impl ResolvedLanguages {
         }
 
         // https://github.com/harfbuzz/harfbuzz/issues/2124
-        let apply_morx = (layout.aat.morx.is_some() || layout.aat.mort.is_some())
-            && (direction.is_horizontal() || layout.ot.gsub().is_none());
+        let apply_morx = (aat.morx.is_some() || aat.mort.is_some())
+            && (direction.is_horizontal() || ot.gsub.is_none());
         let aat_language = if apply_morx {
-            layout.aat.ltag.as_ref().and_then(|ltag| {
-                crate::aat::morx::select_language(ltag, &layout.aat.language_selectors, language)
+            aat.ltag.as_ref().and_then(|ltag| {
+                crate::aat::morx::select_language(ltag, &aat.language_selectors, language)
             })
         } else {
             None

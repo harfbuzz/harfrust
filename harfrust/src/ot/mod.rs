@@ -196,6 +196,10 @@ impl MarkGlyphSetBitmap {
 }
 
 impl OtCache {
+    pub(crate) fn tables(&self) -> &CachedTables<'_> {
+        self.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get)
+    }
+
     pub fn new(tables: Option<Arc<Tables>>) -> Self {
         let bytes = tables.as_deref().map_or(0, |tables| {
             [tables.gsub_data(), tables.gpos_data(), tables.gdef_data()]
@@ -234,6 +238,18 @@ pub(crate) struct CachedTables<'a> {
 }
 
 impl<'a> CachedTables<'a> {
+    fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
+        match table_index {
+            LayoutTableKind::Gsub => self.gsub.clone().map(LayoutTable::Gsub),
+            LayoutTableKind::Gpos => self.gpos.clone().map(LayoutTable::Gpos),
+        }
+    }
+
+    fn layout_tables(&self) -> impl Iterator<Item = (LayoutTableKind, LayoutTable<'a>)> + '_ {
+        LayoutTableKind::iter()
+            .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
+    }
+
     const EMPTY: Self = Self {
         gsub: None,
         gpos: None,
@@ -365,7 +381,7 @@ impl layout::LayoutTable for GposTable<'_> {
 #[derive(Clone)]
 pub struct OtData<'a> {
     cache: &'a OtCache,
-    tables: &'a CachedTables<'a>,
+    pub(crate) tables: &'a CachedTables<'a>,
     /// The variation store, if the font is variable and has an instance.
     var_store: Option<&'a ItemVariationStore<'a>>,
     pub coords: &'a [F2Dot14],
@@ -384,7 +400,7 @@ static EMPTY_OT_CACHE: OtCache = OtCache {
     gsub_len: 0,
     gdef_len: 0,
 };
-static EMPTY_TABLES: CachedTables<'static> = CachedTables::EMPTY;
+pub(crate) static EMPTY_TABLES: CachedTables<'static> = CachedTables::EMPTY;
 
 pub(crate) static EMPTY_OT_DATA: OtData<'static> = OtData {
     cache: &EMPTY_OT_CACHE,
@@ -401,7 +417,7 @@ impl<'a> OtData<'a> {
         coords: &'a [F2Dot14],
         variations: SelectedFeatureVariations,
     ) -> Self {
-        let tables = cache.tables.as_ref().map_or(&EMPTY_TABLES, Yoke::get);
+        let tables = cache.tables();
         Self {
             cache,
             tables,
@@ -434,17 +450,13 @@ impl<'a> OtData<'a> {
     }
 
     pub(crate) fn layout_table(&self, table_index: LayoutTableKind) -> Option<LayoutTable<'a>> {
-        match table_index {
-            LayoutTableKind::Gsub => self.tables.gsub.clone().map(LayoutTable::Gsub),
-            LayoutTableKind::Gpos => self.tables.gpos.clone().map(LayoutTable::Gpos),
-        }
+        self.tables.layout_table(table_index)
     }
 
     pub(crate) fn layout_tables(
         &self,
     ) -> impl Iterator<Item = (LayoutTableKind, LayoutTable<'a>)> + '_ {
-        LayoutTableKind::iter()
-            .filter_map(move |idx| self.layout_table(idx).map(|table| (idx, table)))
+        self.tables.layout_tables()
     }
 
     pub fn has_glyph_classes(&self) -> bool {
