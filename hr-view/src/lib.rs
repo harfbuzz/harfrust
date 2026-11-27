@@ -234,6 +234,71 @@ pub fn shaper_list() -> String {
     list
 }
 
+/// Checks if the terminal supports inline image display.
+///
+/// Supports iTerm2, WezTerm (via iTerm2 protocol), and Kitty graphics protocol.
+fn terminal_image_protocol() -> Option<&'static str> {
+    if !io::stdout().is_terminal() {
+        return None;
+    }
+
+    // Check for iTerm2 (via LC_TERMINAL environment variable)
+    if let Ok(term) = std::env::var("LC_TERMINAL") {
+        if term.eq_ignore_ascii_case("iTerm2") {
+            return Some("iterm2");
+        }
+    }
+
+    // Check for WezTerm (via TERM_PROGRAM environment variable)
+    if let Ok(term) = std::env::var("TERM_PROGRAM") {
+        if term.eq_ignore_ascii_case("WezTerm") {
+            return Some("iterm2");
+        }
+    }
+
+    // Check for Kitty terminal
+    if let Ok(term) = std::env::var("TERM") {
+        if term == "xterm-kitty" {
+            return Some("kitty");
+        }
+    }
+
+    None
+}
+
+/// Writes an inline image to the terminal using the appropriate protocol.
+fn write_terminal_image(png: &[u8], protocol: &str) -> Result<(), String> {
+    let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, png);
+    let output = match protocol {
+        "iterm2" => format!(
+            "\x1b]1337;File=inline=1;size={}:{}\x07\n",
+            encoded.len(),
+            encoded
+        ),
+        "kitty" => {
+            // Kitty protocol: https://sw.kovidgoyal.net/kitty/graphics-protocol.html
+            const CHUNK_SIZE: usize = 4096;
+            let mut result = String::new();
+            for (i, chunk) in encoded.as_bytes().chunks(CHUNK_SIZE).enumerate() {
+                if i == 0 {
+                    result.push_str("\x1b_Ga=T,f=100,m=");
+                } else {
+                    result.push_str("\x1b_Gm=");
+                }
+                result.push_str(&String::from_utf8_lossy(chunk));
+                result.push_str("\x1b\\\n");
+            }
+            result
+        }
+        _ => return Err(format!("Unknown terminal protocol: {protocol}")),
+    };
+
+    io::stdout()
+        .lock()
+        .write_all(output.as_bytes())
+        .map_err(|e| format!("Error: writing to terminal: {e}"))
+}
+
 /// Parses command-line arguments and renders the text to a file.
 ///
 /// # Errors
@@ -261,15 +326,16 @@ pub fn run(args: Args) -> Result<(), String> {
     }
     let png = render_png(&args)?;
     if let Some(path) = args.output_file.clone() {
-        write_output(&png, &path)
-    } else if io::stdout().is_terminal() {
-        let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, png);
-        let base64_len = encoded.len();
-        let string = format!("\x1b]1337;File=inline=1;size={base64_len}:{encoded}\x07\n");
-        io::stdout()
-            .lock()
-            .write_all(string.as_bytes())
-            .map_err(|e| format!("Error: writing stdout: {e}"))
+        if path.to_string_lossy() == "-" {
+            io::stdout()
+                .lock()
+                .write_all(&png)
+                .map_err(|e| format!("Error: writing stdout: {e}"))
+        } else {
+            write_output(&png, &path)
+        }
+    } else if let Some(protocol) = terminal_image_protocol() {
+        write_terminal_image(&png, protocol)
     } else {
         io::stdout()
             .lock()

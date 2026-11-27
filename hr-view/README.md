@@ -25,13 +25,14 @@ cargo install hr-view --features wasm
 hr-view [OPTIONS] <font-file> <text>
 ```
 
-The image is written to `out.png` unless `-o` says otherwise.
+The image is written to stdout (or displayed in a supported terminal) by default. Use `-o` to write to a file, or `-o -` to explicitly write to stdout.
 
 ```bash
 hr-view font.ttf "Hello, world!" -o hello.png --font-size=128
 hr-view font.ttf "abc" --background=1e1e2e --foreground=cdd6f4 -o dark.png
 hr-view font.ttf $'first line\nsecond line' -o lines.png
 hr-view wasm-font.ttf "text" --shapers=wasm -o wasm.png
+hr-view font.ttf "text" > preview.png
 ```
 
 Text is taken from the second argument, `--text`, `--text-file` (`-` for
@@ -52,7 +53,7 @@ different horizontal and vertical scales.
 Rendering options:
 
 ```text
--o, --output-file <FILE>     Output file [default: out.png]
+-o, --output-file <FILE>     Output file (use "-" for stdout) [default: stdout/terminal]
     --margin <PIXELS>        Border around the text [default: 16]
     --background <COLOR>     rrggbb or rrggbbaa, or "none" [default: ffffff]
     --foreground <COLOR>     rrggbb or rrggbbaa [default: 000000]
