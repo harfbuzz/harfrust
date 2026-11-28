@@ -1,0 +1,27 @@
+[package]
+name = "hr-view"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Command-line tool for rendering text with HarfRust to a PNG image."
+repository.workspace = true
+license.workspace = true
+readme = "README.md"
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+wasm = ["harfrust/wasm"]
+
+[dependencies]
+harfrust = { workspace = true, features = ["std"] }
+clap = { version = "4", features = ["derive"] }
+tiny-skia = "0.11"
+base64 = "0.23.1"
+
+[[bin]]
+name = "hr-view"
+path = "src/main.rs"
+
+[lints]
+workspace = true
